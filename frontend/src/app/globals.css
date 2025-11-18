@@ -1,0 +1,121 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --tg-theme-bg-color: #ffffff;
+  --tg-theme-text-color: #000000;
+  --tg-theme-hint-color: #999999;
+  --tg-theme-link-color: #3B82F6;
+  --tg-theme-button-color: #3B82F6;
+  --tg-theme-button-text-color: #ffffff;
+  --tg-theme-secondary-bg-color: #f4f4f5;
+  --tg-theme-bg-gradient-from: #ffffff;
+  --tg-theme-bg-gradient-to: #f9fafb;
+  --tg-theme-card-bg: #ffffff;
+  --tg-theme-border-light: #e5e7eb;
+  --tg-theme-border-color: #d1d5db;
+  --tg-theme-text-primary: #111827;
+  --tg-theme-text-secondary: #6b7280;
+  --tg-theme-text-muted: #9ca3af;
+  --tg-theme-accent-bg: #dbeafe;
+  --tg-theme-accent-color: #1e40af;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --tg-theme-bg-color: #1f2937;
+    --tg-theme-text-color: #ffffff;
+    --tg-theme-hint-color: #9ca3af;
+    --tg-theme-secondary-bg-color: #374151;
+    --tg-theme-bg-gradient-from: #1f2937;
+    --tg-theme-bg-gradient-to: #111827;
+    --tg-theme-card-bg: #1f2937;
+    --tg-theme-border-light: #374151;
+    --tg-theme-border-color: #4b5563;
+    --tg-theme-text-primary: #ffffff;
+    --tg-theme-text-secondary: #d1d5db;
+    --tg-theme-text-muted: #9ca3af;
+  }
+}
+
+body {
+  color: var(--tg-theme-text-color);
+  background: var(--tg-theme-bg-color);
+}
+
+/* Animations */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out;
+}
+
+.animate-slide-up {
+  animation: slide-up 0.3s ease-out;
+}
+
+/* Scrollbar */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Formatted content styles */
+.formatted-content {
+  line-height: 1.7;
+}
+
+.formatted-content h1,
+.formatted-content h2,
+.formatted-content h3 {
+  color: #000000;
+}
+
+.formatted-content ul,
+.formatted-content ol {
+  padding-left: 0;
+}
+
+.formatted-content li {
+  list-style: none;
+}
+
+.formatted-content code {
+  font-family: 'Courier New', monospace;
+}
+
+.formatted-content pre {
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.result-content {
+  line-height: 1.65;
+  color: #000000;
+}
+

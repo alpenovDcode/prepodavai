@@ -1,0 +1,47 @@
+{
+  "name": "prepodavai",
+  "version": "1.0.0",
+  "description": "AI Tutor Copilot - Модульная платформа для преподавателей",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "backend",
+    "worker",
+    "telegram-bot",
+    "shared"
+  ],
+  "scripts": {
+    "install:all": "npm install && npm run install:frontend && npm run install:backend && npm run install:worker && npm run install:bot",
+    "install:frontend": "cd frontend && npm install",
+    "install:backend": "cd backend && npm install",
+    "install:worker": "cd worker && npm install",
+    "install:bot": "cd telegram-bot && npm install",
+    "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\" \"npm run dev:worker\" \"npm run dev:bot\"",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev:backend": "cd backend && npm run start:dev",
+    "dev:worker": "cd worker && npm run start:dev",
+    "dev:bot": "cd telegram-bot && npm run start:dev",
+    "build": "npm run build:frontend && npm run build:backend && npm run build:worker && npm run build:bot",
+    "build:frontend": "cd frontend && npm run build",
+    "build:backend": "cd backend && npm run build",
+    "build:worker": "cd worker && npm run build",
+    "build:bot": "cd telegram-bot && npm run build",
+    "lint": "npm run lint:frontend && npm run lint:backend",
+    "lint:frontend": "cd frontend && npm run lint",
+    "lint:backend": "cd backend && npm run lint",
+    "test": "npm run test:frontend && npm run test:backend",
+    "test:frontend": "cd frontend && npm run test",
+    "test:backend": "cd backend && npm run test",
+    "db:migrate": "cd backend && npm run prisma:migrate",
+    "db:generate": "cd backend && npm run prisma:generate",
+    "db:studio": "cd backend && npm run prisma:studio"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  }
+}
+

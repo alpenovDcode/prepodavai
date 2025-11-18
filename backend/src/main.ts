@@ -1,0 +1,66 @@
+import { NestFactory } from '@nestjs/core';
+import { ValidationPipe } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import helmet from 'helmet';
+import { AppModule } from './app.module';
+import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+
+  const configService = app.get(ConfigService);
+  const port = configService.get<number>('PORT', 3001);
+  const nodeEnv = configService.get<string>('NODE_ENV', 'development');
+
+  // Helmet для безопасности HTTP заголовков
+  app.use(
+    helmet({
+      contentSecurityPolicy: nodeEnv === 'production',
+      crossOriginEmbedderPolicy: false, // Для Telegram WebApp
+    }),
+  );
+
+  // Глобальная обработка ошибок
+  app.useGlobalFilters(new HttpExceptionFilter(configService));
+
+  // Глобальная валидация
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+    }),
+  );
+
+  // CORS с валидацией
+  const corsOrigin = configService.get<string>('CORS_ORIGIN', 'http://localhost:3000');
+  const origins = corsOrigin.split(',').map(origin => origin.trim());
+  
+  // Запрещаем * в production
+  if (nodeEnv === 'production' && origins.includes('*')) {
+    throw new Error('CORS_ORIGIN cannot be * in production');
+  }
+
+  // Валидация формата URL
+  for (const origin of origins) {
+    try {
+      new URL(origin);
+    } catch {
+      throw new Error(`Invalid CORS origin: ${origin}`);
+    }
+  }
+
+  app.enableCors({
+    origin: origins,
+    credentials: true,
+  });
+
+  // Префикс для API
+  app.setGlobalPrefix('api');
+
+  await app.listen(port);
+  console.log(`🚀 Backend API запущен на порту ${port}`);
+}
+
+bootstrap();
+
