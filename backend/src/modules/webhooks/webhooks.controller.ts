@@ -64,5 +64,14 @@ export class WebhooksController {
   async transcriptionCallback(@Body() body: any) {
     return this.webhooksService.handleTranscriptionCallback(body);
   }
+
+  /**
+   * Универсальный callback для n8n
+   * Принимает любой JSON, требует generationRequestId
+   */
+  @Post('n8n-callback')
+  async n8nGenericCallback(@Body() body: any) {
+    return this.webhooksService.handleGenericCallback(body);
+  }
 }
 

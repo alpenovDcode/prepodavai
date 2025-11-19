@@ -47,6 +47,7 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-prepodavai}:${POSTGRES_PASSWORD:-prepodavai_dev}@postgres:5432/${POSTGRES_DB:-prepodavai}
       REDIS_URL: redis://redis:6379
       JWT_SECRET: ${JWT_SECRET:-your-secret-key-change-in-production}
+      ADMIN_USER_IDS: ${ADMIN_USER_IDS:-a408194b-b7bb-45a1-a138-f599139d33d3}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       GAMMA_API_KEY: ${GAMMA_API_KEY}
@@ -94,14 +95,15 @@ services:
   # Telegram Bot
   telegram-bot:
     build:
-      context: ./telegram-bot
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./telegram-bot/Dockerfile
     container_name: prepodavai-telegram-bot
     environment:
       NODE_ENV: ${NODE_ENV:-development}
       DATABASE_URL: postgresql://${POSTGRES_USER:-prepodavai}:${POSTGRES_PASSWORD:-prepodavai_dev}@postgres:5432/${POSTGRES_DB:-prepodavai}
       REDIS_URL: redis://redis:6379
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      WEB_APP_URL: ${WEB_APP_URL:-http://localhost:3000}
       API_URL: http://backend:3001
     depends_on:
       postgres:
@@ -117,26 +119,26 @@ services:
       - prepodavai-network
     command: npm run start:dev
 
-  # Frontend (опционально, для разработки запускайте локально: cd frontend && npm run dev)
-  # frontend:
-  #   build:
-  #     context: ./frontend
-  #     dockerfile: Dockerfile
-  #   container_name: prepodavai-frontend
-  #   environment:
-  #     NEXT_PUBLIC_API_URL: http://localhost:3001
-  #     NEXT_PUBLIC_TELEGRAM_BOT_NAME: ${TELEGRAM_BOT_NAME}
-  #   ports:
-  #     - "3000:3000"
-  #   depends_on:
-  #     - backend
-  #   volumes:
-  #     - ./frontend:/app
-  #     - /app/node_modules
-  #     - /app/.next
-  #   networks:
-  #     - prepodavai-network
-  #   command: node server.js
+  # Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001}
+    container_name: prepodavai-frontend
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001}
+      NEXT_PUBLIC_TELEGRAM_BOT_NAME: ${TELEGRAM_BOT_NAME}
+    ports:
+      - "3000:3000"
+    depends_on:
+      backend:
+        condition: service_started
+    networks:
+      - prepodavai-network
+    restart: unless-stopped
 
 volumes:
   postgres_data:

@@ -11,9 +11,6 @@ export class AdminService {
       take: limit,
       skip: offset,
       orderBy: { createdAt: 'desc' },
-      include: {
-        subscription: true,
-      },
       select: {
         id: true,
         userHash: true,
@@ -47,20 +44,6 @@ export class AdminService {
   async getUser(id: string) {
     const user = await this.prisma.appUser.findUnique({
       where: { id },
-      include: {
-        subscription: true,
-        creditTransactions: {
-          take: 10,
-          orderBy: { createdAt: 'desc' },
-        },
-        userGenerations: {
-          take: 10,
-          orderBy: { createdAt: 'desc' },
-          include: {
-            generationRequest: true,
-          },
-        },
-      },
       select: {
         id: true,
         userHash: true,
@@ -76,8 +59,17 @@ export class AdminService {
         createdAt: true,
         updatedAt: true,
         subscription: true,
-        creditTransactions: true,
-        userGenerations: true,
+        creditTransactions: {
+          take: 10,
+          orderBy: { createdAt: 'desc' },
+        },
+        generations: {
+          take: 10,
+          orderBy: { createdAt: 'desc' },
+          include: {
+            generationRequest: true,
+          },
+        },
         // Исключаем чувствительные поля: passwordHash, apiKey
       },
     });
@@ -158,13 +150,16 @@ export class AdminService {
       skip: offset,
       orderBy: { createdAt: 'desc' },
       include: {
-        userGeneration: true,
-        user: {
-          select: {
-            id: true,
-            username: true,
-            firstName: true,
-            lastName: true,
+        userGeneration: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                username: true,
+                firstName: true,
+                lastName: true,
+              },
+            },
           },
         },
       },
@@ -185,13 +180,16 @@ export class AdminService {
     const generation = await this.prisma.generationRequest.findUnique({
       where: { id },
       include: {
-        userGeneration: true,
-        user: {
-          select: {
-            id: true,
-            username: true,
-            firstName: true,
-            lastName: true,
+        userGeneration: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                username: true,
+                firstName: true,
+                lastName: true,
+              },
+            },
           },
         },
       },
@@ -310,7 +308,7 @@ export class AdminService {
       include: {
         user: true,
         plan: true,
-        creditTransactions: {
+        transactions: {
           take: 20,
           orderBy: { createdAt: 'desc' },
         },

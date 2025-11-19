@@ -22,29 +22,75 @@ export default function AdminPage() {
   const [editing, setEditing] = useState(false)
   const [editData, setEditData] = useState<any>({})
   const [error, setError] = useState<string | null>(null)
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [loginForm, setLoginForm] = useState({ username: '', apiKey: '' })
+  const [loginLoading, setLoginLoading] = useState(false)
 
   useEffect(() => {
     // Проверяем авторизацию
     const token = localStorage.getItem('prepodavai_token')
-    if (!token) {
-      setError('Требуется авторизация. Перенаправление на главную страницу...')
-      setTimeout(() => {
-        router.push('/')
-      }, 2000)
-      return
-    }
-
-    loadStats()
-    if (activeTab !== 'stats') {
-      loadData()
+    if (token) {
+      setIsAuthenticated(true)
+      loadStats()
+      if (activeTab !== 'stats') {
+        loadData()
+      } else {
+        setLoading(false)
+      }
     } else {
+      setIsAuthenticated(false)
       setLoading(false)
     }
   }, [activeTab, router])
 
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoginLoading(true)
+    setError(null)
+
+    try {
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+      const response = await apiClient.post('/auth/login-with-api-key', {
+        username: loginForm.username,
+        apiKey: loginForm.apiKey,
+      }, {
+        timeout: 10000, // 10 секунд таймаут
+      })
+
+      if (response.data.success && response.data.token) {
+        localStorage.setItem('prepodavai_token', response.data.token)
+        localStorage.setItem('prepodavai_authenticated', 'true')
+        setIsAuthenticated(true)
+        setLoading(true)
+        loadStats()
+      } else {
+        setError('Ошибка авторизации')
+      }
+    } catch (error: any) {
+      console.error('Login error:', error)
+      
+      let errorMessage = 'Ошибка входа'
+      
+      if (error.code === 'ECONNREFUSED' || error.code === 'ERR_NETWORK' || error.message === 'Network Error') {
+        errorMessage = `Ошибка сети. Проверьте, что backend запущен на ${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}. Убедитесь, что backend контейнер работает.`
+      } else if (error.response?.status === 401) {
+        errorMessage = error.response?.data?.message || 'Неверный username или API key'
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message
+      } else if (error.message) {
+        errorMessage = error.message
+      }
+      
+      setError(errorMessage)
+    } finally {
+      setLoginLoading(false)
+    }
+  }
+
   const loadStats = async () => {
     try {
       setError(null)
+      setLoading(true)
       const response = await apiClient.get('/admin/stats')
       if (response.data.success) {
         setStats(response.data.stats)
@@ -56,9 +102,14 @@ export default function AdminPage() {
       const errorMessage = error.response?.data?.message || error.message || 'Ошибка загрузки статистики'
       setError(errorMessage)
       
-      if (error.response?.status === 401) {
+      if (error.response?.status === 401 || error.response?.status === 403) {
+        localStorage.removeItem('prepodavai_token')
+        localStorage.removeItem('prepodavai_authenticated')
+        setIsAuthenticated(false)
         setError('Требуется авторизация. Пожалуйста, войдите в систему.')
       }
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -103,10 +154,11 @@ export default function AdminPage() {
       const errorMessage = error.response?.data?.message || error.message || 'Ошибка загрузки данных'
       setError(errorMessage)
       
-      if (error.response?.status === 401) {
+      if (error.response?.status === 401 || error.response?.status === 403) {
+        localStorage.removeItem('prepodavai_token')
+        localStorage.removeItem('prepodavai_authenticated')
+        setIsAuthenticated(false)
         setError('Требуется авторизация. Пожалуйста, войдите в систему.')
-      } else if (error.response?.status === 403) {
-        setError('Доступ запрещен. У вас нет прав для просмотра этой страницы.')
       }
       
       setData([])
@@ -296,13 +348,89 @@ export default function AdminPage() {
     )
   }
 
+  // Форма входа
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="bg-white rounded-lg shadow-lg p-8 max-w-md w-full">
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">Админ-панель</h1>
+          <p className="text-sm text-gray-600 mb-6">Войдите для доступа к панели управления</p>
+          
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+              <p className="text-red-700 text-sm">{error}</p>
+            </div>
+          )}
+
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-1">
+                Username
+              </label>
+              <input
+                id="username"
+                type="text"
+                value={loginForm.username}
+                onChange={(e) => setLoginForm({ ...loginForm, username: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
+                placeholder="test_user"
+                required
+              />
+            </div>
+            
+            <div>
+              <label htmlFor="apiKey" className="block text-sm font-medium text-gray-700 mb-1">
+                API Key
+              </label>
+              <input
+                id="apiKey"
+                type="password"
+                value={loginForm.apiKey}
+                onChange={(e) => setLoginForm({ ...loginForm, apiKey: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
+                placeholder="Введите ваш API ключ"
+                required
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={loginLoading}
+              className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loginLoading ? 'Вход...' : 'Войти'}
+            </button>
+          </form>
+
+          <div className="mt-6 p-4 bg-gray-50 rounded-md">
+            <p className="text-xs text-gray-600 mb-2">Данные для входа:</p>
+            <p className="text-xs font-mono text-gray-800">Username: <span className="font-semibold">prepodavai_esvasileva</span></p>
+            <p className="text-xs font-mono text-gray-800">API Key: <span className="font-semibold">stA-ud3-sKv-4gT</span></p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <div className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          <h1 className="text-2xl font-bold text-gray-900">Админ-панель</h1>
-          <p className="text-sm text-gray-600">Управление данными БД</p>
+        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Админ-панель</h1>
+            <p className="text-sm text-gray-600">Управление данными БД</p>
+          </div>
+          <button
+            onClick={() => {
+              localStorage.removeItem('prepodavai_token')
+              localStorage.removeItem('prepodavai_authenticated')
+              setIsAuthenticated(false)
+            }}
+            className="px-4 py-2 text-sm bg-red-500 text-white rounded hover:bg-red-600"
+          >
+            Выйти
+          </button>
         </div>
       </div>
 

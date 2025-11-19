@@ -58,7 +58,7 @@ async function bootstrap() {
   // Префикс для API
   app.setGlobalPrefix('api');
 
-  await app.listen(port);
+  await app.listen(port, '0.0.0.0');
   console.log(`🚀 Backend API запущен на порту ${port}`);
 }
 
