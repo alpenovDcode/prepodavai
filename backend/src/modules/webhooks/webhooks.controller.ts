@@ -1,4 +1,5 @@
 import { Controller, Post, Body, UseGuards } from '@nestjs/common';
+import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { WebhooksService } from './webhooks.service';
 import { WebhookAuthGuard } from './guards/webhook-auth.guard';
 
@@ -7,7 +8,8 @@ import { WebhookAuthGuard } from './guards/webhook-auth.guard';
  * Все генерации работают через асинхронные webhooks
  */
 @Controller('webhooks')
-@UseGuards(WebhookAuthGuard) // Защита всех webhook endpoints
+@UseGuards(WebhookAuthGuard, ThrottlerGuard) // Защита всех webhook endpoints
+@Throttle(100, 60) // 100 запросов в минуту на каждый endpoint
 export class WebhooksController {
   constructor(private readonly webhooksService: WebhooksService) {}
 

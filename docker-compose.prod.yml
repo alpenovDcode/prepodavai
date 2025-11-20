@@ -158,4 +158,3 @@ volumes:
 networks:
   prepodavai-network:
     driver: bridge
-

@@ -12,6 +12,19 @@ async function bootstrap() {
   const port = configService.get<number>('PORT', 3001);
   const nodeEnv = configService.get<string>('NODE_ENV', 'development');
 
+  // Валидация JWT_SECRET (критично для безопасности)
+  const jwtSecret = configService.get<string>('JWT_SECRET');
+  if (!jwtSecret || jwtSecret.length < 32) {
+    throw new Error(
+      'JWT_SECRET must be set and at least 32 characters long. ' +
+      'Generate a secure secret: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"'
+    );
+  }
+
+  // Ограничение размера body запросов (защита от DoS)
+  app.use(require('express').json({ limit: '10mb' }));
+  app.use(require('express').urlencoded({ limit: '10mb', extended: true }));
+
   // Helmet для безопасности HTTP заголовков
   app.use(
     helmet({

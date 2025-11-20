@@ -299,6 +299,7 @@ export class SubscriptionsService {
 
   /**
    * Списать кредиты за операцию
+   * Использует транзакцию для предотвращения race conditions
    */
   async debitCredits(
     userId: string,
@@ -306,79 +307,122 @@ export class SubscriptionsService {
     generationRequestId?: string,
     description?: string,
   ) {
-    const check = await this.checkCreditsAvailable(userId, operationType);
+    // Используем транзакцию для атомарности операций
+    return await this.prisma.$transaction(async (tx) => {
+      // Повторно проверяем доступность кредитов внутри транзакции
+      const subscription = await tx.userSubscription.findUnique({
+        where: { userId },
+        include: { plan: true },
+      });
 
-    if (!check.available) {
-      return { success: false, transaction: null, message: check.message };
-    }
-
-    const { subscription, plan, cost } = check;
-    const balanceBefore = subscription.creditsBalance + subscription.extraCredits;
-
-    let newBalance = subscription.creditsBalance;
-    let newExtraCredits = subscription.extraCredits;
-    let newOverageCredits = subscription.overageCreditsUsed;
-
-    // Сначала списываем с дополнительных кредитов
-    if (newExtraCredits >= cost) {
-      newExtraCredits -= cost;
-    } else if (newExtraCredits > 0) {
-      const remaining = cost - newExtraCredits;
-      newExtraCredits = 0;
-      // Затем с обычного баланса
-      if (newBalance >= remaining) {
-        newBalance -= remaining;
-      } else {
-        // Используем овередж
-        const overage = remaining - newBalance;
-        newBalance = 0;
-        newOverageCredits += overage;
+      if (!subscription || subscription.status !== 'active') {
+        return { success: false, transaction: null, message: 'Подписка не активна' };
       }
-    } else {
-      // Списываем с обычного баланса
-      if (newBalance >= cost) {
-        newBalance -= cost;
-      } else {
-        // Используем овередж
-        const overage = cost - newBalance;
-        newBalance = 0;
-        newOverageCredits += overage;
+
+      const plan = subscription.plan;
+      const costRecord = await tx.creditCost.findUnique({
+        where: { operationType },
+      });
+
+      if (!costRecord || !costRecord.isActive) {
+        return { success: false, transaction: null, message: `Операция ${operationType} не доступна` };
       }
-    }
 
-    // Обновляем подписку
-    const updatedSubscription = await this.prisma.userSubscription.update({
-      where: { id: subscription.id },
-      data: {
-        creditsBalance: newBalance,
-        extraCredits: newExtraCredits,
-        creditsUsed: subscription.creditsUsed + cost,
-        overageCreditsUsed: newOverageCredits,
-      },
-    });
+      const cost = costRecord.creditCost;
+      const currentBalance = subscription.creditsBalance + subscription.extraCredits;
 
-    // Создаем транзакцию
-    const transaction = await this.prisma.creditTransaction.create({
-      data: {
-        userId,
-        subscriptionId: subscription.id,
-        type: 'debit',
-        amount: cost,
-        balanceBefore,
-        balanceAfter: newBalance + newExtraCredits,
-        operationType,
-        generationRequestId: generationRequestId || '',
-        description: description || `Списание за ${operationType}`,
-        metadata: {
-          plan: plan.planKey,
-          overage: newOverageCredits > subscription.overageCreditsUsed,
+      // Проверяем доступность кредитов с учетом овереджа
+      if (!plan.allowOverage && currentBalance < cost) {
+        return {
+          success: false,
+          transaction: null,
+          message: `Недостаточно кредитов. Требуется: ${cost}, доступно: ${currentBalance}`,
+        };
+      }
+
+      const balanceBefore = currentBalance;
+
+      let newBalance = subscription.creditsBalance;
+      let newExtraCredits = subscription.extraCredits;
+      let newOverageCredits = subscription.overageCreditsUsed;
+
+      // Сначала списываем с дополнительных кредитов
+      if (newExtraCredits >= cost) {
+        newExtraCredits -= cost;
+      } else if (newExtraCredits > 0) {
+        const remaining = cost - newExtraCredits;
+        newExtraCredits = 0;
+        // Затем с обычного баланса
+        if (newBalance >= remaining) {
+          newBalance -= remaining;
+        } else {
+          // Используем овередж (если разрешен планом)
+          if (plan.allowOverage) {
+            const overage = remaining - newBalance;
+            newBalance = 0;
+            newOverageCredits += overage;
+          } else {
+            return {
+              success: false,
+              transaction: null,
+              message: 'Недостаточно кредитов и овередж не разрешен',
+            };
+          }
+        }
+      } else {
+        // Списываем с обычного баланса
+        if (newBalance >= cost) {
+          newBalance -= cost;
+        } else {
+          // Используем овередж (если разрешен планом)
+          if (plan.allowOverage) {
+            const overage = cost - newBalance;
+            newBalance = 0;
+            newOverageCredits += overage;
+          } else {
+            return {
+              success: false,
+              transaction: null,
+              message: 'Недостаточно кредитов и овередж не разрешен',
+            };
+          }
+        }
+      }
+
+      // Обновляем подписку в транзакции
+      const updatedSubscription = await tx.userSubscription.update({
+        where: { id: subscription.id },
+        data: {
+          creditsBalance: newBalance,
+          extraCredits: newExtraCredits,
+          creditsUsed: subscription.creditsUsed + cost,
+          overageCreditsUsed: newOverageCredits,
         },
-      },
+      });
+
+      // Создаем транзакцию в той же транзакции БД
+      const transaction = await tx.creditTransaction.create({
+        data: {
+          userId,
+          subscriptionId: subscription.id,
+          type: 'debit',
+          amount: cost,
+          balanceBefore,
+          balanceAfter: newBalance + newExtraCredits,
+          operationType,
+          generationRequestId: generationRequestId || '',
+          description: description || `Списание за ${operationType}`,
+          metadata: {
+            plan: plan.planKey,
+            overage: newOverageCredits > subscription.overageCreditsUsed,
+          },
+        },
+      });
+
+      console.log(`💳 Credits debited: userId=${userId}, operationType=${operationType}, cost=${cost}, balanceAfter=${newBalance + newExtraCredits}`);
+
+      return { success: true, transaction };
     });
-
-    console.log(`💳 Credits debited: userId=${userId}, operationType=${operationType}, cost=${cost}, balanceAfter=${newBalance + newExtraCredits}`);
-
-    return { success: true, transaction };
   }
 
   /**

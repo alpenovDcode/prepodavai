@@ -74,7 +74,12 @@ export class AuthService {
       throw new UnauthorizedException('No user data in initData');
     }
 
-    const userData = JSON.parse(userStr);
+    let userData;
+    try {
+      userData = JSON.parse(userStr);
+    } catch (error) {
+      throw new UnauthorizedException('Invalid user data format in initData');
+    }
 
     // Создаем/обновляем пользователя
     const appUser = await this.usersService.getOrCreateByTelegram({
