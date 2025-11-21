@@ -28,7 +28,7 @@ COPY telegram-bot/ .
 COPY backend/prisma ./prisma
 
 # Генерируем Prisma Client
-RUN npx prisma@5.10.0 generate --schema=./prisma/schema.prisma
+RUN npx prisma generate --schema=./prisma/schema.prisma
 
 RUN npm run build
 
