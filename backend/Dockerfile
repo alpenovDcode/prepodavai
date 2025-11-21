@@ -33,7 +33,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 # Generate Prisma Client
-RUN npx prisma@5.10.0 generate
+RUN ./node_modules/.bin/prisma generate
 
 RUN npm run build
 
