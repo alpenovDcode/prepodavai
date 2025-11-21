@@ -13,7 +13,7 @@ RUN npm config set fetch-retries 5 && \
 COPY package.json package-lock.json* ./
 # Используем npm install с флагами для более надежной установки
 RUN if [ -f package-lock.json ]; then \
-  npm ci --prefer-offline --no-audit || npm install --prefer-offline --no-audit; \
+  npm ci --include=dev --prefer-offline --no-audit || npm install --prefer-offline --no-audit; \
   else \
   npm install --prefer-offline --no-audit; \
   fi
