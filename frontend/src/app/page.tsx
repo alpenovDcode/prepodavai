@@ -8,6 +8,7 @@ import WebAppIndex from '@/components/WebAppIndex'
 export default function Home() {
   const [isTelegram, setIsTelegram] = useState(false)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
   const router = useRouter()
 
   useEffect(() => {
@@ -35,7 +36,15 @@ export default function Home() {
       webApp.ready()
       webApp.expand()
     }
+
+    // Убираем состояние загрузки
+    setIsLoading(false)
   }, [])
+
+  // Показываем пустой экран во время проверки
+  if (isLoading) {
+    return null
+  }
 
   // Показываем лендинг только для веб-пользователей без авторизации
   if (!isTelegram && !isAuthenticated) {
