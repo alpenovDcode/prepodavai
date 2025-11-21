@@ -30,6 +30,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY backend/prisma ./prisma
 
 # Генерируем Prisma Client
+RUN ls -la node_modules/.bin/ || echo "No .bin directory"
 RUN npm run prisma:generate
 
 RUN npm run build
