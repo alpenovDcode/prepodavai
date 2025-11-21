@@ -10,7 +10,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER}" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -33,7 +33,7 @@ services:
       - redis_data:/data
     command: redis-server --requirepass ${REDIS_PASSWORD} --appendonly yes
     healthcheck:
-      test: ["CMD", "redis-cli", "--no-auth-warning", "-a", "${REDIS_PASSWORD}", "ping"]
+      test: [ "CMD", "redis-cli", "--no-auth-warning", "-a", "${REDIS_PASSWORD}", "ping" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -108,8 +108,8 @@ services:
   # Telegram Bot
   telegram-bot:
     build:
-      context: ./telegram-bot
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./telegram-bot/Dockerfile
     container_name: prepodavai-telegram-bot-prod
     environment:
       NODE_ENV: production
@@ -154,6 +154,7 @@ services:
 volumes:
   postgres_data:
   redis_data:
+
 
 networks:
   prepodavai-network:
