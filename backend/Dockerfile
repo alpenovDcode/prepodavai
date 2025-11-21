@@ -17,9 +17,9 @@ RUN npm config set fetch-retries 5 && \
 COPY package.json package-lock.json* ./
 # Используем npm install с флагами для более надежной установки
 RUN if [ -f package-lock.json ]; then \
-      npm ci --prefer-offline --no-audit || npm install --prefer-offline --no-audit; \
+    npm ci --prefer-offline --no-audit || npm install --prefer-offline --no-audit; \
     else \
-      npm install --prefer-offline --no-audit; \
+    npm install --prefer-offline --no-audit; \
     fi
 
 # Rebuild the source code only when needed
@@ -33,7 +33,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 # Generate Prisma Client
-RUN npx prisma generate
+RUN npx prisma@5.10.0 generate
 
 RUN npm run build
 
