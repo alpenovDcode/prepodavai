@@ -12,7 +12,7 @@ RUN npm config set fetch-retries 5 && \
 
 
 # Install dependencies including devDependencies for prisma CLI
-COPY package.json package-lock.json* ./
+COPY telegram-bot/package.json telegram-bot/package-lock.json* ./
 # Используем npm install с флагами для более надежной установки
 RUN if [ -f package-lock.json ]; then \
   npm ci --include=dev --prefer-offline --no-audit || npm install --prefer-offline --no-audit; \
