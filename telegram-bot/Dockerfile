@@ -19,6 +19,7 @@ RUN if [ -f package-lock.json ]; then \
   fi
 
 FROM base AS builder
+RUN apk add --no-cache openssl libc6-compat
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY telegram-bot/ .
