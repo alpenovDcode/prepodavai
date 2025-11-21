@@ -251,4 +251,3 @@ model VerificationCode {
   @@index([code])
   @@map("verification_codes")
 }
-
