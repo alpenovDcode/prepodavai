@@ -68,6 +68,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    volumes:
+      - uploads_data:/app/uploads
     networks:
       - prepodavai-network
     restart: unless-stopped
@@ -154,6 +156,7 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  uploads_data:
 
 
 networks:
