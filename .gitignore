@@ -19,6 +19,7 @@ out/
 .env.development.local
 .env.test.local
 .env.production.local
+.conf
 
 # IDE
 .vscode/
@@ -53,3 +54,6 @@ tmp/
 temp/
 .cache/
 
+
+# Nginx
+nginx.conf
