@@ -70,6 +70,8 @@ services:
         condition: service_healthy
     volumes:
       - uploads_data:/app/uploads
+    ports:
+      - "127.0.0.1:3001:3001"
     networks:
       - prepodavai-network
     restart: unless-stopped
@@ -144,6 +146,8 @@ services:
     environment:
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
       NEXT_PUBLIC_TELEGRAM_BOT_NAME: ${NEXT_PUBLIC_TELEGRAM_BOT_NAME}
+    ports:
+      - "127.0.0.1:3000:3000"
     networks:
       - prepodavai-network
     restart: unless-stopped
