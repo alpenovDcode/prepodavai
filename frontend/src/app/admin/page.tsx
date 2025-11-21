@@ -68,9 +68,9 @@ export default function AdminPage() {
       }
     } catch (error: any) {
       console.error('Login error:', error)
-      
+
       let errorMessage = 'Ошибка входа'
-      
+
       if (error.code === 'ECONNREFUSED' || error.code === 'ERR_NETWORK' || error.message === 'Network Error') {
         errorMessage = `Ошибка сети. Проверьте, что backend запущен на ${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}. Убедитесь, что backend контейнер работает.`
       } else if (error.response?.status === 401) {
@@ -80,7 +80,7 @@ export default function AdminPage() {
       } else if (error.message) {
         errorMessage = error.message
       }
-      
+
       setError(errorMessage)
     } finally {
       setLoginLoading(false)
@@ -101,7 +101,7 @@ export default function AdminPage() {
       console.error('Failed to load stats:', error)
       const errorMessage = error.response?.data?.message || error.message || 'Ошибка загрузки статистики'
       setError(errorMessage)
-      
+
       if (error.response?.status === 401 || error.response?.status === 403) {
         localStorage.removeItem('prepodavai_token')
         localStorage.removeItem('prepodavai_authenticated')
@@ -139,9 +139,9 @@ export default function AdminPage() {
       if (endpoint) {
         const response = await apiClient.get(endpoint)
         if (response.data.success) {
-          const key = activeTab === 'users' ? 'users' : 
-                     activeTab === 'generations' ? 'generations' :
-                     activeTab === 'subscriptions' ? 'subscriptions' : 'transactions'
+          const key = activeTab === 'users' ? 'users' :
+            activeTab === 'generations' ? 'generations' :
+              activeTab === 'subscriptions' ? 'subscriptions' : 'transactions'
           const items = response.data[key] || []
           setData(items)
           console.log(`✅ Loaded ${items.length} items for ${activeTab}`)
@@ -153,14 +153,14 @@ export default function AdminPage() {
       console.error('Failed to load data:', error)
       const errorMessage = error.response?.data?.message || error.message || 'Ошибка загрузки данных'
       setError(errorMessage)
-      
+
       if (error.response?.status === 401 || error.response?.status === 403) {
         localStorage.removeItem('prepodavai_token')
         localStorage.removeItem('prepodavai_authenticated')
         setIsAuthenticated(false)
         setError('Требуется авторизация. Пожалуйста, войдите в систему.')
       }
-      
+
       setData([])
     } finally {
       setLoading(false)
@@ -179,7 +179,7 @@ export default function AdminPage() {
     try {
       // Удаляем поля, которые нельзя редактировать
       const { id, createdAt, updatedAt, user, plan, subscription, ...dataToSave } = editData
-      
+
       // Для subscriptions нужно сохранить userId и planId как строки
       if (activeTab === 'subscriptions') {
         if (dataToSave.userId && typeof dataToSave.userId === 'object') {
@@ -200,7 +200,7 @@ export default function AdminPage() {
 
       const endpoint = `/admin/${activeTab}/${selectedItem.id}`
       console.log('💾 Saving:', { endpoint, dataToSave })
-      
+
       // Проверяем доступность backend
       const token = localStorage.getItem('prepodavai_token')
       if (!token) {
@@ -210,7 +210,7 @@ export default function AdminPage() {
       const response = await apiClient.put(endpoint, dataToSave, {
         timeout: 10000, // 10 секунд таймаут
       })
-      
+
       if (response.data.success) {
         alert('Данные успешно сохранены!')
         setEditing(false)
@@ -222,10 +222,10 @@ export default function AdminPage() {
       }
     } catch (error: any) {
       console.error('❌ Save error:', error)
-      
+
       // Более детальная обработка ошибок
       let errorMessage = 'Ошибка при сохранении'
-      
+
       if (error.code === 'ERR_NETWORK' || error.message === 'Network Error') {
         errorMessage = 'Ошибка сети. Проверьте, что backend запущен на http://localhost:3001'
       } else if (error.response?.status === 401) {
@@ -239,7 +239,7 @@ export default function AdminPage() {
       } else if (error.message) {
         errorMessage = error.message
       }
-      
+
       alert(`Ошибка при сохранении: ${errorMessage}`)
     }
   }
@@ -259,7 +259,7 @@ export default function AdminPage() {
 
   const renderField = (key: string, value: any, editable: boolean = true) => {
     if (key === 'id' || key === 'createdAt' || key === 'updatedAt') {
-      const formattedValue = key.includes('At') && value 
+      const formattedValue = key.includes('At') && value
         ? new Date(value).toLocaleString('ru-RU')
         : String(value)
       return (
@@ -355,7 +355,7 @@ export default function AdminPage() {
         <div className="bg-white rounded-lg shadow-lg p-8 max-w-md w-full">
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Админ-панель</h1>
           <p className="text-sm text-gray-600 mb-6">Войдите для доступа к панели управления</p>
-          
+
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
               <p className="text-red-700 text-sm">{error}</p>
@@ -377,7 +377,7 @@ export default function AdminPage() {
                 required
               />
             </div>
-            
+
             <div>
               <label htmlFor="apiKey" className="block text-sm font-medium text-gray-700 mb-1">
                 API Key
@@ -402,11 +402,7 @@ export default function AdminPage() {
             </button>
           </form>
 
-          <div className="mt-6 p-4 bg-gray-50 rounded-md">
-            <p className="text-xs text-gray-600 mb-2">Данные для входа:</p>
-            <p className="text-xs font-mono text-gray-800">Username: <span className="font-semibold">prepodavai_esvasileva</span></p>
-            <p className="text-xs font-mono text-gray-800">API Key: <span className="font-semibold">stA-ud3-sKv-4gT</span></p>
-          </div>
+
         </div>
       </div>
     )
@@ -442,17 +438,16 @@ export default function AdminPage() {
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
-                className={`px-6 py-3 font-medium text-sm ${
-                  activeTab === tab
+                className={`px-6 py-3 font-medium text-sm ${activeTab === tab
                     ? 'border-b-2 border-blue-500 text-blue-600'
                     : 'text-gray-600 hover:text-gray-900'
-                }`}
+                  }`}
               >
                 {tab === 'stats' ? 'Статистика' :
-                 tab === 'users' ? 'Пользователи' :
-                 tab === 'generations' ? 'Генерации' :
-                 tab === 'subscriptions' ? 'Подписки' :
-                 'Транзакции'}
+                  tab === 'users' ? 'Пользователи' :
+                    tab === 'generations' ? 'Генерации' :
+                      tab === 'subscriptions' ? 'Подписки' :
+                        'Транзакции'}
               </button>
             ))}
           </div>
@@ -491,27 +486,27 @@ export default function AdminPage() {
               </div>
             ) : stats ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-white rounded-lg shadow-sm p-6">
-              <h3 className="text-sm font-medium text-gray-600 mb-2">Пользователи</h3>
-              <p className="text-2xl font-bold text-gray-900">{stats.users.total}</p>
-              <p className="text-xs text-gray-500 mt-1">Активных: {stats.users.active}</p>
-            </div>
-            <div className="bg-white rounded-lg shadow-sm p-6">
-              <h3 className="text-sm font-medium text-gray-600 mb-2">Генерации</h3>
-              <p className="text-2xl font-bold text-gray-900">{stats.generations.total}</p>
-              <p className="text-xs text-gray-500 mt-1">Завершено: {stats.generations.completed}</p>
-            </div>
-            <div className="bg-white rounded-lg shadow-sm p-6">
-              <h3 className="text-sm font-medium text-gray-600 mb-2">Подписки</h3>
-              <p className="text-2xl font-bold text-gray-900">{stats.subscriptions.total}</p>
-              <p className="text-xs text-gray-500 mt-1">Активных: {stats.subscriptions.active}</p>
-            </div>
-            <div className="bg-white rounded-lg shadow-sm p-6">
-              <h3 className="text-sm font-medium text-gray-600 mb-2">Кредиты</h3>
-              <p className="text-2xl font-bold text-gray-900">{stats.credits.total}</p>
-              <p className="text-xs text-gray-500 mt-1">Всего в системе</p>
-            </div>
-          </div>
+                <div className="bg-white rounded-lg shadow-sm p-6">
+                  <h3 className="text-sm font-medium text-gray-600 mb-2">Пользователи</h3>
+                  <p className="text-2xl font-bold text-gray-900">{stats.users.total}</p>
+                  <p className="text-xs text-gray-500 mt-1">Активных: {stats.users.active}</p>
+                </div>
+                <div className="bg-white rounded-lg shadow-sm p-6">
+                  <h3 className="text-sm font-medium text-gray-600 mb-2">Генерации</h3>
+                  <p className="text-2xl font-bold text-gray-900">{stats.generations.total}</p>
+                  <p className="text-xs text-gray-500 mt-1">Завершено: {stats.generations.completed}</p>
+                </div>
+                <div className="bg-white rounded-lg shadow-sm p-6">
+                  <h3 className="text-sm font-medium text-gray-600 mb-2">Подписки</h3>
+                  <p className="text-2xl font-bold text-gray-900">{stats.subscriptions.total}</p>
+                  <p className="text-xs text-gray-500 mt-1">Активных: {stats.subscriptions.active}</p>
+                </div>
+                <div className="bg-white rounded-lg shadow-sm p-6">
+                  <h3 className="text-sm font-medium text-gray-600 mb-2">Кредиты</h3>
+                  <p className="text-2xl font-bold text-gray-900">{stats.credits.total}</p>
+                  <p className="text-xs text-gray-500 mt-1">Всего в системе</p>
+                </div>
+              </div>
             ) : (
               <div className="bg-white rounded-lg shadow-sm p-8 text-center text-gray-500">
                 Нет данных для отображения
@@ -586,11 +581,10 @@ export default function AdminPage() {
                               {item.userGeneration?.generationType || item.generationType || '-'}
                             </td>
                             <td className="px-4 py-3 text-sm">
-                              <span className={`px-2 py-1 rounded text-xs ${
-                                (item.status || item.userGeneration?.status) === 'completed' ? 'bg-green-100 text-green-800' :
-                                (item.status || item.userGeneration?.status) === 'failed' ? 'bg-red-100 text-red-800' :
-                                'bg-yellow-100 text-yellow-800'
-                              }`}>
+                              <span className={`px-2 py-1 rounded text-xs ${(item.status || item.userGeneration?.status) === 'completed' ? 'bg-green-100 text-green-800' :
+                                  (item.status || item.userGeneration?.status) === 'failed' ? 'bg-red-100 text-red-800' :
+                                    'bg-yellow-100 text-yellow-800'
+                                }`}>
                                 {item.status || item.userGeneration?.status || '-'}
                               </span>
                             </td>
@@ -606,10 +600,9 @@ export default function AdminPage() {
                           <>
                             <td className="px-4 py-3 text-sm text-gray-900">{item.plan?.planName || '-'}</td>
                             <td className="px-4 py-3 text-sm">
-                              <span className={`px-2 py-1 rounded text-xs ${
-                                item.status === 'active' ? 'bg-green-100 text-green-800' :
-                                'bg-gray-100 text-gray-800'
-                              }`}>
+                              <span className={`px-2 py-1 rounded text-xs ${item.status === 'active' ? 'bg-green-100 text-green-800' :
+                                  'bg-gray-100 text-gray-800'
+                                }`}>
                                 {item.status || '-'}
                               </span>
                             </td>
