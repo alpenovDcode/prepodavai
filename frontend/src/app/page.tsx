@@ -6,43 +6,74 @@ import LandingPage from '@/components/LandingPage'
 import WebAppIndex from '@/components/WebAppIndex'
 
 export default function Home() {
-  const [isTelegram, setIsTelegram] = useState(false)
+  const [isTelegram, setIsTelegram] = useState<boolean | null>(null)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
-  const [isLoading, setIsLoading] = useState(true)
   const router = useRouter()
 
   useEffect(() => {
-    // Проверяем, запущено ли в Telegram Mini App
-    const checkTelegram = () => {
-      const tg = (window as any).Telegram?.WebApp
-      return !!(
-        tg?.initDataUnsafe?.user ||
-        tg?.initData ||
-        window.location.search.includes('tgWebAppPlatform') ||
-        (tg && tg.platform !== 'unknown')
-      )
+    // Функция проверки Telegram окружения
+    const checkTelegram = async () => {
+      // 1. Проверяем URL параметры (самый надежный способ)
+      const urlParams = new URLSearchParams(window.location.search)
+      if (
+        urlParams.has('tgWebAppPlatform') ||
+        urlParams.has('tgWebAppVersion') ||
+        urlParams.has('tgWebAppData')
+      ) {
+        return true
+      }
+
+      // 2. Проверяем наличие Telegram WebApp SDK
+      const checkSDK = () => {
+        const tg = (window as any).Telegram?.WebApp
+        return !!(
+          tg?.initDataUnsafe?.user ||
+          tg?.initData ||
+          (tg && tg.platform !== 'unknown')
+        )
+      }
+
+      // Если SDK уже загружен, используем его
+      if (checkSDK()) {
+        return true
+      }
+
+      // 3. Ждем загрузки SDK (максимум 500ms)
+      return new Promise<boolean>((resolve) => {
+        let attempts = 0
+        const maxAttempts = 10
+        const interval = setInterval(() => {
+          attempts++
+          if (checkSDK()) {
+            clearInterval(interval)
+            resolve(true)
+          } else if (attempts >= maxAttempts) {
+            clearInterval(interval)
+            resolve(false)
+          }
+        }, 50)
+      })
     }
 
-    const tg = checkTelegram()
-    setIsTelegram(tg)
+    // Выполняем проверку
+    checkTelegram().then((isTg) => {
+      setIsTelegram(isTg)
 
-    // Проверяем авторизацию
-    const auth = localStorage.getItem('prepodavai_authenticated') === 'true'
-    setIsAuthenticated(auth)
+      // Проверяем авторизацию
+      const auth = localStorage.getItem('prepodavai_authenticated') === 'true'
+      setIsAuthenticated(auth)
 
-    // Если Telegram Mini App, инициализируем
-    if (tg && (window as any).Telegram?.WebApp) {
-      const webApp = (window as any).Telegram.WebApp
-      webApp.ready()
-      webApp.expand()
-    }
-
-    // Убираем состояние загрузки
-    setIsLoading(false)
+      // Если Telegram Mini App, инициализируем
+      if (isTg && (window as any).Telegram?.WebApp) {
+        const webApp = (window as any).Telegram.WebApp
+        webApp.ready()
+        webApp.expand()
+      }
+    })
   }, [])
 
   // Показываем пустой экран во время проверки
-  if (isLoading) {
+  if (isTelegram === null) {
     return null
   }
 
