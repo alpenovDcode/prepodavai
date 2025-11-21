@@ -37,7 +37,7 @@ Thumbs.db
 *.sqlite
 
 # Prisma
-backend/prisma/migrations/
+# Migrations should be committed
 
 # Docker
 docker-compose.override.yml
