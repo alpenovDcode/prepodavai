@@ -10,6 +10,8 @@ RUN npm config set fetch-retries 5 && \
   npm config set fetch-retry-maxtimeout 120000 && \
   npm config set fetch-timeout 300000
 
+
+# Install dependencies including devDependencies for prisma CLI
 COPY package.json package-lock.json* ./
 # Используем npm install с флагами для более надежной установки
 RUN if [ -f package-lock.json ]; then \
