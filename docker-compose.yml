@@ -82,8 +82,8 @@ services:
   # Worker для фоновых задач
   worker:
     build:
-      context: ./worker
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./worker/Dockerfile
     container_name: prepodavai-worker-prod
     environment:
       NODE_ENV: production
