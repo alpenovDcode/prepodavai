@@ -23,8 +23,8 @@ RUN if [ -f package-lock.json ]; then \
 FROM base AS builder
 RUN apk add --no-cache openssl libc6-compat
 WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
 COPY telegram-bot/ .
+COPY --from=deps /app/node_modules ./node_modules
 
 # Копируем Prisma schema из backend
 COPY backend/prisma ./prisma
