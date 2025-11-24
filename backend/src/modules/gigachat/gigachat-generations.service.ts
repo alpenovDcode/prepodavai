@@ -13,9 +13,10 @@ export class GigachatGenerationsService {
     chat: 'gigachat_text',
     image: 'gigachat_image',
     embeddings: 'gigachat_embeddings',
-    audio_speech: 'gigachat_audio',
-    audio_transcription: 'gigachat_audio',
-    audio_translation: 'gigachat_audio',
+    audio_speech: 'gigachat_tts',
+    audio_transcription: 'gigachat_stt',
+    audio_translation: 'gigachat_translation',
+    tokens_count: 'gigachat_tokens_count',
   };
 
   constructor(
@@ -23,7 +24,7 @@ export class GigachatGenerationsService {
     private readonly generationHelpers: GenerationHelpersService,
     private readonly subscriptionsService: SubscriptionsService,
     private readonly filesService: FilesService,
-  ) {}
+  ) { }
 
   async generate(userId: string, dto: GigachatGenerationDto) {
     this.logger.log(`Starting GigaChat generation: userId=${userId}, mode=${dto.mode}, model=${dto.model}`);
@@ -44,7 +45,7 @@ export class GigachatGenerationsService {
 
     const operationType = this.modeToOperation[dto.mode] || 'gigachat_text';
     this.logger.log(`Checking credits: operationType=${operationType}`);
-    
+
     const creditCheck = await this.subscriptionsService.checkAndDebitCredits(userId, operationType);
 
     if (!creditCheck.success) {
@@ -54,7 +55,7 @@ export class GigachatGenerationsService {
 
     const model = dto.model || this.gigachatService.getDefaultModel(dto.mode);
     this.logger.log(`Creating generation record: model=${model}`);
-    
+
     const { generationRequest } = await this.generationHelpers.createGeneration({
       userId,
       generationType: `gigachat-${dto.mode}`,
@@ -66,7 +67,7 @@ export class GigachatGenerationsService {
       this.logger.log(`Dispatching to GigaChat API: mode=${dto.mode}, model=${model}`);
       const rawResult = await this.dispatch(dto, model);
       this.logger.log(`GigaChat API response received, normalizing result`);
-      
+
       const normalized = await this.normalizeResult(dto, model, rawResult);
 
       await this.generationHelpers.completeGeneration(generationRequest.id, normalized);
@@ -79,17 +80,17 @@ export class GigachatGenerationsService {
       };
     } catch (error: any) {
       this.logger.error(`GigaChat generation failed: ${error?.message || error}`, error?.stack);
-      
+
       await this.generationHelpers.failGeneration(
         generationRequest.id,
         error?.message || 'Ошибка интеграции с GigaChat',
       );
-      
-      const errorMessage = error?.response?.data?.message || 
-                          error?.response?.data?.error || 
-                          error?.message || 
-                          'Ошибка интеграции с GigaChat';
-      
+
+      const errorMessage = error?.response?.data?.message ||
+        error?.response?.data?.error ||
+        error?.message ||
+        'Ошибка интеграции с GigaChat';
+
       throw new BadRequestException(errorMessage);
     }
   }
@@ -123,7 +124,7 @@ export class GigachatGenerationsService {
       case 'embeddings': {
         return this.gigachatService.createEmbeddings({
           model,
-          input: dto.inputText,
+          input: dto.inputTexts || [],
         });
       }
       case 'audio_speech': {
@@ -149,6 +150,12 @@ export class GigachatGenerationsService {
           model,
           targetLanguage: dto.targetLanguage,
           file,
+        });
+      }
+      case 'tokens_count': {
+        return this.gigachatService.countTokens({
+          model,
+          input: [dto.text],
         });
       }
       default:

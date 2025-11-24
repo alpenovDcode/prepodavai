@@ -456,7 +456,9 @@ export const templates: Record<string, FunctionTemplate> = {
           { value: 'embeddings', label: 'Эмбеддинги' },
           { value: 'audio_speech', label: 'Текст → речь' },
           { value: 'audio_transcription', label: 'Расшифровка аудио' },
-          { value: 'audio_translation', label: 'Перевод аудио' }
+          { value: 'audio_transcription', label: 'Расшифровка аудио' },
+          { value: 'audio_translation', label: 'Перевод аудио' },
+          { value: 'tokens_count', label: 'Подсчет токенов' }
         ]
       },
       {
@@ -556,7 +558,7 @@ export const templates: Record<string, FunctionTemplate> = {
         type: 'textarea',
         rows: 3,
         placeholder: 'Введите текст',
-        showWhen: { field: 'mode', in: ['embeddings', 'audio_speech'] }
+        showWhen: { field: 'mode', in: ['embeddings', 'audio_speech', 'tokens_count'] }
       },
       {
         key: 'voice',

@@ -75,7 +75,7 @@ export class GigachatService {
 
     this.http = axios.create({
       baseURL: this.apiBaseUrl,
-      timeout: 20000,
+      timeout: 120000, // 120 секунд для генерации изображений
       httpsAgent: this.httpsAgent,
     });
 
@@ -98,6 +98,7 @@ export class GigachatService {
         'GIGACHAT_DEFAULT_AUDIO_MODEL',
         'GigaChat-Audio',
       ),
+      tokens_count: this.configService.get<string>('GIGACHAT_DEFAULT_CHAT_MODEL', 'GigaChat'),
     };
   }
 
@@ -306,15 +307,35 @@ export class GigachatService {
   }
 
 
-  async createEmbeddings(payload: Record<string, any>) {
+  async createEmbeddings(payload: { model: string; input: string[] }) {
+    this.logger.debug(`Creating embeddings for ${payload.input.length} texts`);
+
     return this.requestJson({
       method: 'POST',
       url: '/embeddings',
-      data: payload,
+      data: {
+        model: payload.model,
+        input: payload.input,
+      },
+    });
+  }
+
+  async countTokens(payload: { model: string; input: string[] }) {
+    this.logger.debug(`Counting tokens for ${payload.input.length} texts`);
+
+    return this.requestJson({
+      method: 'POST',
+      url: '/tokens/count',
+      data: {
+        model: payload.model,
+        input: payload.input,
+      },
     });
   }
 
   async createSpeech(payload: Record<string, any>) {
+    this.logger.debug(`Creating speech: voice=${payload.voice}, format=${payload.format}`);
+
     const response = await this.requestRaw<ArrayBuffer>({
       method: 'POST',
       url: '/audio/speech',
@@ -325,6 +346,7 @@ export class GigachatService {
       },
     });
 
+    this.logger.debug('Speech created successfully');
     return {
       buffer: Buffer.from(response.data),
       mimeType:
@@ -338,6 +360,8 @@ export class GigachatService {
     language?: string;
     file: GigachatFilePayload;
   }) {
+    this.logger.debug(`Transcribing audio: language=${payload.language || 'auto'}`);
+
     const form = new FormData();
     form.append('model', payload.model);
     form.append('file', payload.file.buffer, {
@@ -349,12 +373,15 @@ export class GigachatService {
       form.append('language', payload.language);
     }
 
-    return this.requestJson({
+    const result = await this.requestJson({
       method: 'POST',
       url: '/audio/transcriptions',
       data: form,
       headers: form.getHeaders(),
     });
+
+    this.logger.debug('Transcription completed successfully');
+    return result;
   }
 
   async createTranslation(payload: {
@@ -362,6 +389,8 @@ export class GigachatService {
     targetLanguage?: string;
     file: GigachatFilePayload;
   }) {
+    this.logger.debug(`Translating audio: targetLanguage=${payload.targetLanguage || 'ru'}`);
+
     const form = new FormData();
     form.append('model', payload.model);
     form.append('file', payload.file.buffer, {
@@ -373,11 +402,82 @@ export class GigachatService {
       form.append('target_language', payload.targetLanguage);
     }
 
-    return this.requestJson({
+    const result = await this.requestJson({
       method: 'POST',
       url: '/audio/translations',
       data: form,
       headers: form.getHeaders(),
+    });
+
+    this.logger.debug('Translation completed successfully');
+    return result;
+  }
+
+  /**
+   * Upload file to GigaChat
+   * @param file Buffer containing file data
+   * @param purpose Purpose of the file (e.g., 'assistants', 'vision', 'batch')
+   * @returns File ID
+   */
+  async uploadFile(file: Buffer, filename: string, purpose: string = 'assistants'): Promise<string> {
+    this.logger.debug(`Uploading file: ${filename}, purpose: ${purpose}`);
+
+    const form = new FormData();
+    form.append('file', file, { filename });
+    form.append('purpose', purpose);
+
+    const response = await this.requestJson<{ id: string }>({
+      method: 'POST',
+      url: '/files',
+      data: form,
+      headers: form.getHeaders(),
+    });
+
+    this.logger.debug(`File uploaded successfully: ${response.id}`);
+    return response.id;
+  }
+
+  /**
+   * Get file metadata
+   * @param fileId File ID
+   * @returns File metadata
+   */
+  async getFile(fileId: string) {
+    this.logger.debug(`Getting file metadata: ${fileId}`);
+
+    return this.requestJson({
+      method: 'GET',
+      url: `/files/${fileId}`,
+    });
+  }
+
+  /**
+   * Get file content
+   * @param fileId File ID
+   * @returns File content as Buffer
+   */
+  async getFileContent(fileId: string): Promise<Buffer> {
+    this.logger.debug(`Downloading file content: ${fileId}`);
+
+    const response = await this.requestRaw<ArrayBuffer>({
+      method: 'GET',
+      url: `/files/${fileId}/content`,
+      responseType: 'arraybuffer',
+    });
+
+    return Buffer.from(response.data);
+  }
+
+  /**
+   * Delete file
+   * @param fileId File ID
+   */
+  async deleteFile(fileId: string) {
+    this.logger.debug(`Deleting file: ${fileId}`);
+
+    return this.requestJson({
+      method: 'DELETE',
+      url: `/files/${fileId}`,
     });
   }
 

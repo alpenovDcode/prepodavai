@@ -106,7 +106,7 @@ export default function WebAppIndex() {
 
   const isTextResult = generationResult && (
     ['worksheet', 'quiz', 'vocabulary', 'lessonPlan', 'content', 'feedback', 'message', 'transcription'].includes(currentFunctionId) ||
-    (currentFunctionId === 'gigachat' && ['chat', 'embeddings', 'audio_transcription', 'audio_translation'].includes(String(gigachatMode)))
+    (currentFunctionId === 'gigachat' && ['chat', 'embeddings', 'audio_transcription', 'audio_translation', 'tokens_count'].includes(String(gigachatMode)))
   )
 
   const isImageResult = generationResult && (
@@ -294,7 +294,12 @@ export default function WebAppIndex() {
         } else if (mode === 'embeddings') {
           params = {
             ...params,
-            inputText: form.inputText
+            inputTexts: form.inputText ? [form.inputText] : []
+          }
+        } else if (mode === 'tokens_count') {
+          params = {
+            ...params,
+            text: form.inputText
           }
         } else if (mode === 'audio_speech') {
           params = {
@@ -437,8 +442,8 @@ export default function WebAppIndex() {
                 )}
                 {statusMessage && (
                   <div className={`mt-3 p-3 sm:p-4 rounded-xl border ${statusOk
-                      ? 'bg-green-50 border-green-200 text-green-700'
-                      : 'bg-red-50 border-red-200 text-red-700'
+                    ? 'bg-green-50 border-green-200 text-green-700'
+                    : 'bg-red-50 border-red-200 text-red-700'
                     }`}>
                     {statusMessage}
                   </div>

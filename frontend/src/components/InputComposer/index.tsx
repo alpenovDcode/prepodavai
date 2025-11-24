@@ -305,7 +305,8 @@ export default function InputComposer({
       formData.append('file', file)
 
       try {
-        const response = await apiClient.post('/files/upload', formData)
+        const uploadUrl = currentFunction === 'gigachat' ? '/gigachat/files/upload' : '/files/upload'
+        const response = await apiClient.post(uploadUrl, formData)
 
         if (!response.data.success) {
           throw new Error(response.data.error || 'Ошибка загрузки файла')
@@ -392,8 +393,8 @@ export default function InputComposer({
                 type="button"
                 onClick={() => selectFunction(fn.id)}
                 className={`flex items-center gap-2 px-3 sm:px-4 py-1.5 rounded-full text-xs sm:text-sm font-medium transition whitespace-nowrap ${currentFunction === fn.id
-                    ? 'bg-[#FF7E58] text-white shadow'
-                    : 'text-gray-700 hover:bg-slate-50'
+                  ? 'bg-[#FF7E58] text-white shadow'
+                  : 'text-gray-700 hover:bg-slate-50'
                   }`}
               >
                 <i className={`${fn.icon} opacity-90`}></i>

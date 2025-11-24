@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
 import {
+  IsArray,
   IsIn,
   IsNotEmpty,
   IsNumber,
@@ -16,10 +17,11 @@ export type GigachatMode =
   | 'embeddings'
   | 'audio_speech'
   | 'audio_transcription'
-  | 'audio_translation';
+  | 'audio_translation'
+  | 'tokens_count';
 
 export class GigachatGenerationDto {
-  @IsIn(['chat', 'image', 'embeddings', 'audio_speech', 'audio_transcription', 'audio_translation'])
+  @IsIn(['chat', 'image', 'embeddings', 'audio_speech', 'audio_transcription', 'audio_translation', 'tokens_count'])
   mode: GigachatMode;
 
   @IsOptional()
@@ -80,7 +82,13 @@ export class GigachatGenerationDto {
   @IsString()
   quality?: string;
 
-  @ValidateIf((dto) => dto.mode === 'embeddings' || dto.mode === 'audio_speech')
+  @ValidateIf((dto) => dto.mode === 'embeddings')
+  @IsArray()
+  @IsString({ each: true })
+  @IsNotEmpty()
+  inputTexts?: string[];
+
+  @ValidateIf((dto) => dto.mode === 'audio_speech')
   @IsString()
   @IsNotEmpty()
   inputText?: string;
@@ -117,4 +125,9 @@ export class GigachatGenerationDto {
   @IsOptional()
   @IsString()
   targetLanguage?: string;
+
+  @ValidateIf((dto) => dto.mode === 'tokens_count')
+  @IsString()
+  @IsNotEmpty()
+  text?: string;
 }

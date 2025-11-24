@@ -17,11 +17,15 @@ export type OperationType =
   | 'gigachat_text'
   | 'gigachat_image'
   | 'gigachat_audio'
-  | 'gigachat_embeddings';
+  | 'gigachat_tts'
+  | 'gigachat_stt'
+  | 'gigachat_translation'
+  | 'gigachat_embeddings'
+  | 'gigachat_tokens_count';
 
 @Injectable()
 export class SubscriptionsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
 
   /**
    * Инициализация тарифных планов
@@ -166,9 +170,30 @@ export class SubscriptionsService {
       },
       {
         operationType: 'gigachat_audio',
-        operationName: 'GigaChat аудио',
+        operationName: 'GigaChat аудио (общий)',
         creditCost: 4,
-        description: 'Голосовые функции GigaChat (TTS/STT)',
+        description: 'Голосовые функции GigaChat (Legacy)',
+        isActive: false,
+      },
+      {
+        operationType: 'gigachat_tts',
+        operationName: 'GigaChat синтез речи',
+        creditCost: 5,
+        description: 'Синтез речи из текста (TTS)',
+        isActive: true,
+      },
+      {
+        operationType: 'gigachat_stt',
+        operationName: 'GigaChat транскрибация',
+        creditCost: 5,
+        description: 'Распознавание речи (STT)',
+        isActive: true,
+      },
+      {
+        operationType: 'gigachat_translation',
+        operationName: 'GigaChat аудио перевод',
+        creditCost: 7,
+        description: 'Перевод аудио файлов',
         isActive: true,
       },
       {
@@ -176,6 +201,13 @@ export class SubscriptionsService {
         operationName: 'GigaChat эмбеддинги',
         creditCost: 2,
         description: 'Получение эмбеддингов через GigaChat',
+        isActive: true,
+      },
+      {
+        operationType: 'gigachat_tokens_count',
+        operationName: 'GigaChat подсчет токенов',
+        creditCost: 0,
+        description: 'Подсчет токенов (бесплатно)',
         isActive: true,
       },
       {
