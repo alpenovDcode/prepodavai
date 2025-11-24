@@ -79,10 +79,9 @@ export class GigachatService {
     }
     this.logger.log('-----------------------------');
 
-    const disableTls =
-      this.configService.get<string>('GIGACHAT_DISABLE_TLS_VERIFICATION', 'false') === 'true';
+    // Force disable TLS verification to avoid ECONNRESET with Sber servers
     this.httpsAgent = new https.Agent({
-      rejectUnauthorized: !disableTls,
+      rejectUnauthorized: false,
     });
 
     this.http = axios.create({
