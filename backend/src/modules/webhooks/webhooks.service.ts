@@ -36,7 +36,10 @@ export class WebhooksService {
 
     if (success && content) {
       // Парсим JSON если нужно
-      if (typeof content === 'string' && (content.trim().startsWith('{') || content.trim().startsWith('['))) {
+      if (
+        typeof content === 'string' &&
+        (content.trim().startsWith('{') || content.trim().startsWith('['))
+      ) {
         try {
           content = JSON.parse(content);
         } catch (e) {
@@ -205,7 +208,7 @@ export class WebhooksService {
 
     const generationRequestId =
       bodyData?.generationRequestId || bodyData?.requestId || bodyData?.id;
-    
+
     if (!generationRequestId) {
       throw new NotFoundException('Missing generationRequestId');
     }
@@ -233,16 +236,16 @@ export class WebhooksService {
 
     if (success && !error) {
       // Очищаем данные от служебных полей
-      const { 
-        generationRequestId: _id1, 
-        requestId: _id2, 
-        id: _id3, 
-        success: _s, 
-        error: _e, 
+      const {
+        generationRequestId: _id1,
+        requestId: _id2,
+        id: _id3,
+        success: _s,
+        error: _e,
         errorMessage: _em,
         webhook_secret: _ws,
         status: _st,
-        ...payload 
+        ...payload
       } = bodyData;
 
       // Если тип не передан, берем из запроса
@@ -251,8 +254,9 @@ export class WebhooksService {
       // Логика из Chatium: Нормализуем контент из поля output, если нет content/text/result
       if (!payload.content && !payload.text && !payload.result && payload.output) {
         try {
-          const parsedOutput = typeof payload.output === 'string' ? JSON.parse(payload.output) : payload.output;
-          
+          const parsedOutput =
+            typeof payload.output === 'string' ? JSON.parse(payload.output) : payload.output;
+
           if (Array.isArray(parsedOutput)) {
             payload.content = parsedOutput.join('');
           } else if (typeof parsedOutput === 'object') {
@@ -267,10 +271,13 @@ export class WebhooksService {
 
       // Нормализуем контент если он пришел в поле text/content/result
       const mainContent = payload.content || payload.text || payload.result || payload.output;
-      
+
       // Если контент - JSON строка, парсим её (логика из Chatium)
       let parsedContent = mainContent;
-      if (typeof mainContent === 'string' && (mainContent.trim().startsWith('{') || mainContent.trim().startsWith('['))) {
+      if (
+        typeof mainContent === 'string' &&
+        (mainContent.trim().startsWith('{') || mainContent.trim().startsWith('['))
+      ) {
         try {
           parsedContent = JSON.parse(mainContent);
           // Если распарсилось, обновляем в payload
@@ -285,7 +292,7 @@ export class WebhooksService {
       const outputData = {
         ...payload,
         // Убедимся что есть какое-то поле с контентом
-        result: parsedContent || payload, 
+        result: parsedContent || payload,
         type,
         completedAt: new Date().toISOString(),
       };
@@ -300,4 +307,3 @@ export class WebhooksService {
     }
   }
 }
-

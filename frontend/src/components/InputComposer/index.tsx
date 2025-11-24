@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { functions, templates, messagePrompts, photosessionPrompts, Field } from './config'
+import { functions, templates, messagePrompts, photosessionPrompts, Field, FieldOption } from './config'
 import { apiClient } from '@/lib/api/client'
 
 interface InputComposerProps {
@@ -28,12 +28,40 @@ export default function InputComposer({
   const [isUploadingFile, setIsUploadingFile] = useState(false)
   const [currentCost, setCurrentCost] = useState<number | null>(null)
   const scrollWrapRef = useRef<HTMLDivElement>(null)
+  const gigachatModelsLoadedRef = useRef(false)
+  const [gigachatModels, setGigachatModels] = useState<Record<'chat' | 'image' | 'audio' | 'embeddings', FieldOption[]>>({
+    chat: [],
+    image: [],
+    audio: [],
+    embeddings: []
+  })
+  const [isGigachatLoading, setIsGigachatLoading] = useState(false)
 
-  const isTelegramWebApp = typeof window !== 'undefined' && 
+  const isTelegramWebApp = typeof window !== 'undefined' &&
     (window as any).Telegram?.WebApp?.initDataUnsafe?.user !== undefined
 
   const template = templates[currentFunction]
   const activeFields = getActiveFields(currentFunction, localValues)
+  const resolvedFields = activeFields.map(field => {
+    if (currentFunction === 'gigachat' && field.key === 'model') {
+      const mode = localValues.mode || 'chat'
+      const bucket = mode === 'image'
+        ? 'image'
+        : mode === 'embeddings'
+          ? 'embeddings'
+          : mode.startsWith('audio')
+            ? 'audio'
+            : 'chat'
+      const bucketOptions = gigachatModels[bucket as keyof typeof gigachatModels]
+      if (bucketOptions && bucketOptions.length > 0) {
+        return {
+          ...field,
+          options: bucketOptions
+        }
+      }
+    }
+    return field
+  })
 
   // Обновляем localValues при изменении values извне
   useEffect(() => {
@@ -62,7 +90,7 @@ export default function InputComposer({
           response.data.costs.forEach((c: any) => {
             costsMap[c.operationType] = c.creditCost
           })
-          const opMap: Record<string, string> = {
+          const opMap: Record<string, string | Record<string, string>> = {
             worksheet: 'worksheet',
             quiz: 'quiz',
             vocabulary: 'vocabulary',
@@ -73,9 +101,24 @@ export default function InputComposer({
             image: 'image_generation',
             photosession: 'photosession',
             transcription: 'transcription',
-            message: 'message'
+            message: 'message',
+            gigachat: {
+              chat: 'gigachat_text',
+              image: 'gigachat_image',
+              embeddings: 'gigachat_embeddings',
+              audio_speech: 'gigachat_audio',
+              audio_transcription: 'gigachat_audio',
+              audio_translation: 'gigachat_audio'
+            }
           }
-          const op = opMap[currentFunction]
+          const opEntry = opMap[currentFunction]
+          let op: string | null = null
+          if (typeof opEntry === 'string') {
+            op = opEntry
+          } else if (opEntry && typeof opEntry === 'object') {
+            const mode = localValues.mode || 'chat'
+            op = opEntry[mode] || null
+          }
           setCurrentCost(op ? costsMap[op] || null : null)
         }
       } catch (e) {
@@ -83,7 +126,7 @@ export default function InputComposer({
       }
     }
     loadCosts()
-  }, [currentFunction])
+  }, [currentFunction, localValues.mode])
 
   // Обновление состояния прокрутки
   const updateScrollShadows = useCallback(() => {
@@ -91,6 +134,42 @@ export default function InputComposer({
     if (!el) return
     setCanScrollLeft(el.scrollLeft > 0)
     setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 1)
+  }, [])
+
+  const loadGigachatModels = useCallback(async () => {
+    setIsGigachatLoading(true)
+    try {
+      const response = await apiClient.get('/gigachat/models')
+      if (response.data.success) {
+        const normalize = (items?: any[]): FieldOption[] => {
+          if (!Array.isArray(items)) return []
+          return items
+            .map((item: any) => {
+              if (typeof item === 'string') {
+                return { value: item, label: item }
+              }
+              const value = item?.id || item?.label || item?.value
+              if (!value) return null
+              return {
+                value,
+                label: item?.label || item?.display_name || value
+              }
+            })
+            .filter(Boolean) as FieldOption[]
+        }
+
+        setGigachatModels({
+          chat: normalize(response.data.models?.chat),
+          image: normalize(response.data.models?.image),
+          audio: normalize(response.data.models?.audio),
+          embeddings: normalize(response.data.models?.embeddings)
+        })
+      }
+    } catch (error) {
+      console.error('Failed to load GigaChat models:', error)
+    } finally {
+      setIsGigachatLoading(false)
+    }
   }, [])
 
   useEffect(() => {
@@ -109,6 +188,13 @@ export default function InputComposer({
     }
   }, [updateScrollShadows])
 
+  useEffect(() => {
+    if (currentFunction !== 'gigachat') return
+    if (gigachatModelsLoadedRef.current) return
+    gigachatModelsLoadedRef.current = true
+    loadGigachatModels()
+  }, [currentFunction, loadGigachatModels])
+
   function selectFunction(id: string) {
     const fields = templates[id]?.fields || []
     const defaultValues: Record<string, any> = {}
@@ -123,6 +209,24 @@ export default function InputComposer({
         themeName: '',
         tone: '',
         audience: ''
+      },
+      gigachat: {
+        mode: 'chat',
+        model: 'GigaChat',
+        systemPrompt: '',
+        userPrompt: '',
+        temperature: 0.8,
+        topP: 0.9,
+        maxTokens: 1024,
+        prompt: '',
+        size: '1024x1024',
+        quality: 'high',
+        inputText: '',
+        voice: 'BYS',
+        audioFormat: 'mp3',
+        audioSpeed: 1,
+        language: 'ru',
+        targetLanguage: 'en'
       }
     }
 
@@ -171,6 +275,8 @@ export default function InputComposer({
     if (!file) return
 
     const isVideo = file.type.startsWith('video/')
+    const isAudio = file.type.startsWith('audio/')
+    const isImage = file.type.startsWith('image/')
 
     if (isVideo && isTelegramWebApp) {
       const errorMsg = 'Загрузка видео недоступна в Telegram. Используйте веб-версию приложения вне Telegram.'
@@ -192,51 +298,49 @@ export default function InputComposer({
       return
     }
 
+    const maxSize = isVideo ? 3 * 1024 * 1024 * 1024 : isAudio ? 100 * 1024 * 1024 : 10 * 1024 * 1024
+
+    if (file.size > maxSize) {
+      alert(`Файл слишком большой. Максимум ${isVideo ? '3 ГБ' : isAudio ? '100 МБ' : '10 МБ'}.`)
+      return
+    }
+
     try {
       setIsUploadingFile(true)
 
-      // Для изображений загружаем на сервер
-      if (!isVideo) {
-        const formData = new FormData()
-        formData.append('file', file)
-        
-        try {
-          const response = await apiClient.post('/files/upload', formData)
-          
-          if (response.data.success) {
-            // Для изображений создаем preview URL
-            const previewUrl = response.data.url || `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/files/${response.data.hash}`
-            setLocalValues(prev => ({
-              ...prev,
-              [key]: response.data.hash,
-              [key + 'Preview']: previewUrl
-            }))
-          } else {
-            throw new Error(response.data.error || 'Ошибка загрузки файла')
-          }
-        } catch (err: any) {
-          throw new Error(err.response?.data?.error || 'Ошибка загрузки файла')
+      const formData = new FormData()
+      formData.append('file', file)
+
+      try {
+        const response = await apiClient.post('/files/upload', formData)
+
+        if (!response.data.success) {
+          throw new Error(response.data.error || 'Ошибка загрузки файла')
         }
-      } else {
-        // Для видео нужна загрузка на сервер
-        const formData = new FormData()
-        formData.append('file', file)
-        
-        try {
-          const response = await apiClient.post('/files/upload', formData)
-          
-          if (response.data.success) {
-            setLocalValues(prev => ({
-              ...prev,
-              [key]: response.data.hash,
+
+        const previewUrl = response.data.url || `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/files/${response.data.hash}`
+        setLocalValues(prev => ({
+          ...prev,
+          [key]: response.data.hash,
+          ...(isVideo
+            ? {
               [key + 'FileName']: file.name
-            }))
-          } else {
-            throw new Error(response.data.error || 'Ошибка загрузки файла')
-          }
-        } catch (err: any) {
-          throw new Error(err.response?.data?.error || 'Ошибка загрузки файла')
-        }
+            }
+            : isAudio
+              ? {
+                [key + 'FileName']: file.name,
+                [key + 'Preview']: previewUrl
+              }
+              : isImage
+                ? {
+                  [key + 'Preview']: previewUrl
+                }
+                : {
+                  [key + 'FileName']: file.name
+                })
+        }))
+      } catch (err: any) {
+        throw new Error(err.response?.data?.error || 'Ошибка загрузки файла')
       }
     } catch (error: any) {
       console.error('Error uploading file:', error)
@@ -294,11 +398,10 @@ export default function InputComposer({
                 key={fn.id}
                 type="button"
                 onClick={() => selectFunction(fn.id)}
-                className={`flex items-center gap-2 px-3 sm:px-4 py-1.5 rounded-full text-xs sm:text-sm font-medium transition whitespace-nowrap ${
-                  currentFunction === fn.id
+                className={`flex items-center gap-2 px-3 sm:px-4 py-1.5 rounded-full text-xs sm:text-sm font-medium transition whitespace-nowrap ${currentFunction === fn.id
                     ? 'bg-[#FF7E58] text-white shadow'
                     : 'text-gray-700 hover:bg-slate-50'
-                }`}
+                  }`}
               >
                 <i className={`${fn.icon} opacity-90`}></i>
                 <span>{fn.title}</span>
@@ -331,7 +434,7 @@ export default function InputComposer({
                 <button
                   type="button"
                   className="px-1 mx-0.5 rounded-md focus:outline-none focus:ring-2 focus:ring-[#FF7E58]"
-                  onClick={() => {}}
+                  onClick={() => { }}
                 >
                   <span className="px-1.5 py-0.5 rounded-md bg-[#FF7E58]/10 text-[#FF7E58] underline decoration-dotted">
                     {displayValue(segment.key || '', segment.placeholder || '')}
@@ -342,9 +445,16 @@ export default function InputComposer({
           ))}
         </div>
 
+        {currentFunction === 'gigachat' && (
+          <div className="mt-3 mb-1 flex items-center gap-2 text-xs text-gray-500">
+            <i className={`fas ${isGigachatLoading ? 'fa-spinner fa-spin' : 'fa-database'}`}></i>
+            <span>{isGigachatLoading ? 'Загружаем модели GigaChat…' : 'Модели GigaChat доступны'}</span>
+          </div>
+        )}
+
         {/* Inline editors */}
         <div className={`mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 ${currentFunction === 'transcription' ? 'opacity-50 pointer-events-none' : ''}`}>
-          {activeFields.map(field => (
+          {resolvedFields.map(field => (
             <div key={field.key}>
               <label className="block text-[10px] uppercase tracking-wide text-gray-500 mb-1">
                 {field.label}
@@ -394,13 +504,13 @@ export default function InputComposer({
 }
 
 function getActiveFields(functionId: string, values: Record<string, any>): Field[] {
-  const fields = templates[functionId]?.fields || []
+  let fields = templates[functionId]?.fields || []
 
   if (functionId === 'message') {
     const templateId = values.templateId || 'meeting'
     const prompts = messagePrompts[templateId] || messagePrompts.meeting
 
-    return fields.map(field => {
+    fields = fields.map(field => {
       if (field.key === 'formData') {
         return {
           ...field,
@@ -414,7 +524,7 @@ function getActiveFields(functionId: string, values: Record<string, any>): Field
   }
 
   if (functionId === 'photosession') {
-    return fields.map(field => {
+    fields = fields.map(field => {
       if (field.key === 'prompt') {
         return {
           ...field,
@@ -427,7 +537,22 @@ function getActiveFields(functionId: string, values: Record<string, any>): Field
     })
   }
 
-  return fields
+  return fields.filter(field => shouldShowField(field, values))
+}
+
+function shouldShowField(field: Field, values: Record<string, any>) {
+  if (!field.showWhen) return true
+  const comparedValue = values[field.showWhen.field]
+
+  if (field.showWhen.equals !== undefined) {
+    return comparedValue === field.showWhen.equals
+  }
+
+  if (field.showWhen.in) {
+    return field.showWhen.in.includes(comparedValue)
+  }
+
+  return true
 }
 
 function FieldRenderer({
@@ -442,68 +567,86 @@ function FieldRenderer({
   handleFileUpload: (event: React.ChangeEvent<HTMLInputElement>, key: string) => void
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const isTelegramWebApp = typeof window !== 'undefined' && 
+  const isTelegramWebApp = typeof window !== 'undefined' &&
     (window as any).Telegram?.WebApp?.initDataUnsafe?.user !== undefined
+
+  const renderHelperText = () => (
+    field.helperText ? <p className="mt-1 text-[11px] text-gray-500">{field.helperText}</p> : null
+  )
 
   switch (field.type) {
     case 'text':
       return (
-        <input
-          type="text"
-          value={values[field.key] || ''}
-          onChange={(e) => setValues(prev => ({ ...prev, [field.key]: e.target.value }))}
-          placeholder={field.placeholder}
-          className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#FF7E58]"
-        />
+        <>
+          <input
+            type="text"
+            value={values[field.key] || ''}
+            onChange={(e) => setValues(prev => ({ ...prev, [field.key]: e.target.value }))}
+            placeholder={field.placeholder}
+            className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#FF7E58]"
+          />
+          {renderHelperText()}
+        </>
       )
 
     case 'select':
       return (
-        <select
-          value={values[field.key] || ''}
-          onChange={(e) => {
-            setValues(prev => ({ ...prev, [field.key]: e.target.value }))
-            // Сбрасываем formData при изменении templateId
-            if (field.key === 'templateId') {
-              setValues(prev => ({ ...prev, formData: '' }))
-            }
-          }}
-          className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#FF7E58]"
-        >
-          {field.options?.map(opt => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
+        <>
+          <select
+            value={values[field.key] || ''}
+            onChange={(e) => {
+              setValues(prev => ({ ...prev, [field.key]: e.target.value }))
+              // Сбрасываем formData при изменении templateId
+              if (field.key === 'templateId') {
+                setValues(prev => ({ ...prev, formData: '' }))
+              }
+            }}
+            className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#FF7E58]"
+          >
+            {field.options?.map(opt => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+          {renderHelperText()}
+        </>
       )
 
     case 'number':
       return (
-        <input
-          type="number"
-          value={values[field.key] || field.min || 0}
-          onChange={(e) => setValues(prev => ({ ...prev, [field.key]: Number(e.target.value) }))}
-          min={field.min}
-          max={field.max}
-          className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#FF7E58]"
-        />
+        <>
+          <input
+            type="number"
+            value={values[field.key] ?? field.min ?? 0}
+            onChange={(e) => setValues(prev => ({ ...prev, [field.key]: Number(e.target.value) }))}
+            min={field.min}
+            max={field.max}
+            step={field.step}
+            className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#FF7E58]"
+          />
+          {renderHelperText()}
+        </>
       )
 
     case 'textarea':
       return (
-        <textarea
-          value={values[field.key] || ''}
-          onChange={(e) => setValues(prev => ({ ...prev, [field.key]: e.target.value }))}
-          rows={field.rows || 3}
-          placeholder={field.placeholder}
-          className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#FF7E58] resize-y"
-        />
+        <>
+          <textarea
+            value={values[field.key] || ''}
+            onChange={(e) => setValues(prev => ({ ...prev, [field.key]: e.target.value }))}
+            rows={field.rows || 3}
+            placeholder={field.placeholder}
+            className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#FF7E58] resize-y"
+          />
+          {renderHelperText()}
+        </>
       )
 
     case 'file':
       const isVideo = field.accept?.includes('video')
-      const hasFile = values[field.key] || values[field.key + 'Preview']
+      const isAudio = field.accept?.includes('audio')
+      const hasFile = Boolean(values[field.key])
 
       return (
         <div className="space-y-2">
@@ -532,12 +675,14 @@ function FieldRenderer({
               className="w-full py-3 bg-[#FF7E58] text-white rounded-lg font-semibold hover:shadow-lg active:scale-95 transition-all flex items-center justify-center space-x-2"
             >
               <i className="fas fa-cloud-arrow-up"></i>
-              <span>{isVideo ? 'Выбрать видео' : 'Выбрать фото'}</span>
+              <span>
+                {isVideo ? 'Выбрать видео' : isAudio ? 'Выбрать аудио' : 'Выбрать файл'}
+              </span>
             </button>
           )}
           {hasFile && (
             <div className="relative">
-              {isVideo ? (
+              {isVideo && (
                 <div className="p-4 rounded-lg bg-gray-50 border border-gray-200">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-3">
@@ -564,25 +709,65 @@ function FieldRenderer({
                     </button>
                   </div>
                 </div>
-              ) : (
+              )}
+              {!isVideo && (
                 <>
-                  <img
-                    src={values[field.key + 'Preview']}
-                    alt="Preview"
-                    className="w-full rounded-lg object-contain"
-                    style={{ maxHeight: '200px', background: '#f5f5f5' }}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setValues(prev => ({
-                      ...prev,
-                      [field.key]: null,
-                      [field.key + 'Preview']: null
-                    }))}
-                    className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-8 h-8 flex items-center justify-center hover:bg-red-600 transition-colors shadow-lg"
-                  >
-                    <i className="fas fa-times"></i>
-                  </button>
+                  {isAudio ? (
+                    <div className="p-4 rounded-lg bg-gray-50 border border-gray-200">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <i className="fas fa-microphone-lines text-[#FF7E58] text-xl"></i>
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">
+                              {values[field.key + 'FileName'] || 'Аудио файл'}
+                            </p>
+                            {values[field.key] && (
+                              <p className="text-xs text-gray-500">Hash: {values[field.key]}</p>
+                            )}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setValues(prev => ({
+                            ...prev,
+                            [field.key]: null,
+                            [field.key + 'FileName']: null,
+                            [field.key + 'Preview']: null
+                          }))}
+                          className="bg-red-500 text-white rounded-full w-8 h-8 flex items-center justify-center hover:bg-red-600 transition-colors shadow-lg"
+                        >
+                          <i className="fas fa-times"></i>
+                        </button>
+                      </div>
+                      {values[field.key + 'Preview'] && (
+                        <audio
+                          controls
+                          src={values[field.key + 'Preview']}
+                          className="w-full mt-3"
+                        />
+                      )}
+                    </div>
+                  ) : (
+                    <>
+                      <img
+                        src={values[field.key + 'Preview']}
+                        alt="Preview"
+                        className="w-full rounded-lg object-contain"
+                        style={{ maxHeight: '200px', background: '#f5f5f5' }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setValues(prev => ({
+                          ...prev,
+                          [field.key]: null,
+                          [field.key + 'Preview']: null
+                        }))}
+                        className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-8 h-8 flex items-center justify-center hover:bg-red-600 transition-colors shadow-lg"
+                      >
+                        <i className="fas fa-times"></i>
+                      </button>
+                    </>
+                  )}
                 </>
               )}
               {!(isVideo && isTelegramWebApp) && (
@@ -592,11 +777,12 @@ function FieldRenderer({
                   className="mt-2 text-sm text-[#FF7E58] font-medium hover:underline flex items-center justify-center"
                 >
                   <i className="fas fa-sync-alt mr-1"></i>
-                  {isVideo ? 'Загрузить другое видео' : 'Загрузить другое фото'}
+                  {isVideo ? 'Загрузить другое видео' : isAudio ? 'Загрузить другое аудио' : 'Загрузить другой файл'}
                 </button>
               )}
             </div>
           )}
+          {renderHelperText()}
         </div>
       )
 

@@ -134,7 +134,8 @@ export class TelegramService {
     const text = typeof content === 'string' ? content : JSON.stringify(content, null, 2);
 
     // Ограничиваем длину (Telegram limit ~4096 символов)
-    const messageText = text.length > 4000 ? text.substring(0, 3900) + '\n\n... (полный текст в приложении)' : text;
+    const messageText =
+      text.length > 4000 ? text.substring(0, 3900) + '\n\n... (полный текст в приложении)' : text;
 
     await this.bot.api.sendMessage(chatId, messageText);
   }
@@ -150,7 +151,8 @@ export class TelegramService {
    * Приветственное сообщение
    */
   private getWelcomeMessage(appUser: any): string {
-    return `Добро пожаловать в prepodavAI 🎓\n\n` +
+    return (
+      `Добро пожаловать в prepodavAI 🎓\n\n` +
       `Я твой интеллектуальный помощник для:\n` +
       `— Создания учебных материалов\n` +
       `— Планирования уроков\n` +
@@ -161,7 +163,7 @@ export class TelegramService {
       `🔑 Username: ${appUser.username}\n` +
       `🔐 Персональный ключ: ${appUser.apiKey}\n\n` +
       `⚠️ Сохраните эти данные — они понадобятся для входа в веб-версию.\n\n` +
-      `🌐 Перейти в веб-версию: https://prrv.pro`;
+      `🌐 Перейти в веб-версию: https://prrv.pro`
+    );
   }
 }
-

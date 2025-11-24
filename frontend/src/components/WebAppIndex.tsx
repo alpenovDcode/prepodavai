@@ -79,7 +79,7 @@ export default function WebAppIndex() {
     initUser()
   }, [])
 
-  const showLogoutButton = typeof window !== 'undefined' && 
+  const showLogoutButton = typeof window !== 'undefined' &&
     !(window as any).Telegram?.WebApp?.initDataUnsafe?.user
 
   const onComposerUpdate = (values: Record<string, any>) => {
@@ -102,14 +102,43 @@ export default function WebAppIndex() {
     window.location.reload()
   }
 
-  const isTextResult = generationResult && 
-    ['worksheet', 'quiz', 'vocabulary', 'lessonPlan', 'content', 'feedback', 'message', 'transcription'].includes(currentFunctionId)
+  const gigachatMode = currentFunctionId === 'gigachat' ? (form.mode || 'chat') : null
 
-  const isImageResult = generationResult && 
-    ['image', 'photosession'].includes(currentFunctionId)
+  const isTextResult = generationResult && (
+    ['worksheet', 'quiz', 'vocabulary', 'lessonPlan', 'content', 'feedback', 'message', 'transcription'].includes(currentFunctionId) ||
+    (currentFunctionId === 'gigachat' && ['chat', 'embeddings', 'audio_transcription', 'audio_translation'].includes(String(gigachatMode)))
+  )
 
-  const isPresentationResult = generationResult && 
+  const isImageResult = generationResult && (
+    ['image', 'photosession'].includes(currentFunctionId) ||
+    (currentFunctionId === 'gigachat' && gigachatMode === 'image')
+  )
+
+  const isPresentationResult = generationResult &&
     currentFunctionId === 'presentation'
+
+  const isAudioResult = generationResult &&
+    currentFunctionId === 'gigachat' &&
+    gigachatMode === 'audio_speech'
+
+  const textResultPayload = typeof generationResult === 'object' && generationResult?.content
+    ? generationResult.content
+    : generationResult
+
+  const imageDisplayUrl = (() => {
+    if (!generationResult) return null
+    if (typeof generationResult === 'string') return generationResult
+    return generationResult?.imageUrl || generationResult?.imageUrls?.[0] || null
+  })()
+
+  const audioDisplayUrl = (() => {
+    if (!generationResult) return null
+    if (typeof generationResult === 'object') return generationResult?.audioUrl || null
+    if (typeof generationResult === 'string' && generationResult.startsWith('data:audio')) {
+      return generationResult
+    }
+    return null
+  })()
 
   const clearResult = () => {
     setGenerationResult(null)
@@ -131,7 +160,7 @@ export default function WebAppIndex() {
 
     setIsExporting(true)
     try {
-      let content = generationResult
+      let content = textResultPayload || ''
       let mime = 'text/html'
       let extension = 'html'
 
@@ -241,6 +270,53 @@ export default function WebAppIndex() {
           parsed = {}
         }
         params = { ...params, templateId: form.templateId, formData: parsed }
+      } else if (type === 'gigachat') {
+        const mode = form.mode || 'chat'
+        params = { ...params, mode, model: form.model }
+
+        if (mode === 'chat') {
+          params = {
+            ...params,
+            systemPrompt: form.systemPrompt,
+            userPrompt: form.userPrompt,
+            temperature: form.temperature,
+            topP: form.topP,
+            maxTokens: form.maxTokens
+          }
+        } else if (mode === 'image') {
+          params = {
+            ...params,
+            prompt: form.prompt,
+            negativePrompt: form.negativePrompt,
+            size: form.size,
+            quality: form.quality
+          }
+        } else if (mode === 'embeddings') {
+          params = {
+            ...params,
+            inputText: form.inputText
+          }
+        } else if (mode === 'audio_speech') {
+          params = {
+            ...params,
+            inputText: form.inputText,
+            voice: form.voice,
+            audioFormat: form.audioFormat,
+            audioSpeed: form.audioSpeed
+          }
+        } else if (mode === 'audio_transcription') {
+          params = {
+            ...params,
+            audioHash: form.audioHash,
+            language: form.language
+          }
+        } else if (mode === 'audio_translation') {
+          params = {
+            ...params,
+            audioHash: form.audioHash,
+            targetLanguage: form.targetLanguage
+          }
+        }
       }
 
       // Отправляем запрос на генерацию через useGenerations hook
@@ -248,7 +324,9 @@ export default function WebAppIndex() {
       const status = await generateAndWait({ type, params })
 
       // Сохраняем результат для отображения
-      if (type === 'image' || type === 'photosession') {
+      if (type === 'gigachat') {
+        setGenerationResult(status.result || null)
+      } else if (type === 'image' || type === 'photosession') {
         setGenerationResult(status.result?.imageUrl || status.result)
       } else if (type === 'presentation') {
         setGenerationResult(status.result?.message || status.result)
@@ -278,9 +356,9 @@ export default function WebAppIndex() {
         <div className="px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-14 h-14 flex-shrink-0 rounded-xl overflow-hidden shadow">
-              <img 
-                src="https://fs.cdn-chatium.io/thumbnail/image_gc_AmbUAlw8Yq.1024x1024.png/s/128x" 
-                alt="prepodavAI" 
+              <img
+                src="https://fs.cdn-chatium.io/thumbnail/image_gc_AmbUAlw8Yq.1024x1024.png/s/128x"
+                alt="prepodavAI"
                 className="w-full h-full object-cover"
               />
             </div>
@@ -297,14 +375,14 @@ export default function WebAppIndex() {
                 <span className="opacity-90">кред.</span>
               </div>
             )}
-            <button 
+            <button
               onClick={openHistory}
               className="w-9 h-9 rounded-xl bg-[#D8E6FF] border border-[#D8E6FF] hover:bg-[#FF7E58] hover:border-[#FF7E58] transition active:scale-95"
             >
               <i className="fas fa-history text-[#FF7E58]"></i>
             </button>
             {showLogoutButton && (
-              <button 
+              <button
                 onClick={logout}
                 className="w-9 h-9 rounded-xl bg-[#D8E6FF] border border-[#D8E6FF] hover:bg-red-50 hover:border-red-300 transition active:scale-95"
               >
@@ -358,11 +436,10 @@ export default function WebAppIndex() {
                   </div>
                 )}
                 {statusMessage && (
-                  <div className={`mt-3 p-3 sm:p-4 rounded-xl border ${
-                    statusOk 
-                      ? 'bg-green-50 border-green-200 text-green-700' 
+                  <div className={`mt-3 p-3 sm:p-4 rounded-xl border ${statusOk
+                      ? 'bg-green-50 border-green-200 text-green-700'
                       : 'bg-red-50 border-red-200 text-red-700'
-                  }`}>
+                    }`}>
                     {statusMessage}
                   </div>
                 )}
@@ -372,7 +449,7 @@ export default function WebAppIndex() {
 
           {/* Result section */}
           {generationResult && (
-            <div 
+            <div
               ref={resultContainerRef}
               className="mt-4 rounded-3xl border border-[#D8E6FF] bg-white shadow-md overflow-hidden animate-fade-in"
             >
@@ -397,7 +474,7 @@ export default function WebAppIndex() {
                         >
                           <i className="fas fa-download mr-1"></i>Скачать
                         </button>
-                        <button 
+                        <button
                           onClick={copyResult}
                           className="px-3 py-2 bg-[#D8E6FF] border border-[#D8E6FF] text-black rounded-lg text-xs font-medium hover:bg-[#FF7E58] hover:text-white transition active:scale-95"
                         >
@@ -405,7 +482,7 @@ export default function WebAppIndex() {
                         </button>
                       </>
                     )}
-                    <button 
+                    <button
                       onClick={clearResult}
                       className="px-3 py-2 bg-[#D8E6FF] border border-[#D8E6FF] text-red-500 rounded-lg text-xs font-medium hover:bg-red-50 transition active:scale-95"
                     >
@@ -416,27 +493,48 @@ export default function WebAppIndex() {
 
                 {/* Text result */}
                 {isTextResult && (
-                  <div 
+                  <div
                     className="formatted-content result-content prose prose-sm max-w-none text-black"
-                    dangerouslySetInnerHTML={{ __html: formatMarkdown(generationResult) }}
+                    dangerouslySetInnerHTML={{ __html: formatMarkdown(textResultPayload) }}
                   />
                 )}
 
                 {/* Image result */}
-                {isImageResult && (
+                {isImageResult && imageDisplayUrl && (
                   <div className="space-y-3">
-                    <img 
-                      src={generationResult} 
-                      className="w-full rounded-xl border border-[#D8E6FF] shadow-lg" 
-                      alt="Generated image" 
+                    <img
+                      src={imageDisplayUrl}
+                      className="w-full rounded-xl border border-[#D8E6FF] shadow-lg"
+                      alt="Generated image"
                     />
-                    <a 
-                      href={generationResult} 
-                      download 
+                    <a
+                      href={imageDisplayUrl}
+                      download
                       className="inline-flex items-center gap-2 px-4 py-2 bg-[#FF7E58] text-white rounded-lg text-sm font-medium hover:shadow-lg transition active:scale-95"
                     >
                       <i className="fas fa-download"></i>
                       <span>Скачать изображение</span>
+                    </a>
+                  </div>
+                )}
+
+                {/* Audio result */}
+                {isAudioResult && audioDisplayUrl && (
+                  <div className="space-y-3">
+                    <audio
+                      controls
+                      src={audioDisplayUrl}
+                      className="w-full rounded-xl border border-[#D8E6FF] bg-white"
+                    >
+                      Ваш браузер не поддерживает воспроизведение аудио.
+                    </audio>
+                    <a
+                      href={audioDisplayUrl}
+                      download="gigachat-audio.mp3"
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-[#FF7E58] text-white rounded-lg text-sm font-medium hover:shadow-lg transition active:scale-95"
+                    >
+                      <i className="fas fa-download"></i>
+                      <span>Скачать аудио</span>
                     </a>
                   </div>
                 )}
@@ -505,14 +603,14 @@ function isHtmlString(value: any): boolean {
 
 function formatMarkdown(text: any): string {
   if (!text) return ''
-  
+
   if (typeof text === 'object') {
     text = JSON.stringify(text, null, 2)
   }
-  
+
   text = String(text)
   let html = text
-  
+
   // Простое форматирование markdown
   html = html.replace(/^### (.*$)/gim, '<h3 class="text-lg font-bold mt-4 mb-2 text-[#FF7E58]">$1</h3>')
   html = html.replace(/^## (.*$)/gim, '<h2 class="text-xl font-bold mt-5 mb-3 text-[#FF7E58]">$1</h2>')
@@ -523,7 +621,7 @@ function formatMarkdown(text: any): string {
   html = html.replace(/\n\n+/g, '</p><p class="my-3">')
   html = '<p class="my-3">' + html + '</p>'
   html = html.replace(/\n/g, '<br>')
-  
+
   return html
 }
 
@@ -539,7 +637,8 @@ function getGenerationTypeLabel(type: string): string {
     image: 'Изображение',
     photosession: 'ИИ Фотосессия',
     transcription: 'Транскрипция видео',
-    message: 'Сообщение'
+    message: 'Сообщение',
+    gigachat: 'GigaChat'
   }
   return labels[type] || 'Материал'
 }

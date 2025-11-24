@@ -13,7 +13,11 @@ export type OperationType =
   | 'lesson_plan'
   | 'feedback'
   | 'content_adaptation'
-  | 'message';
+  | 'message'
+  | 'gigachat_text'
+  | 'gigachat_image'
+  | 'gigachat_audio'
+  | 'gigachat_embeddings';
 
 @Injectable()
 export class SubscriptionsService {
@@ -147,6 +151,34 @@ export class SubscriptionsService {
         isActive: true,
       },
       {
+        operationType: 'gigachat_text',
+        operationName: 'GigaChat текст',
+        creditCost: 3,
+        description: 'Прямые текстовые запросы к GigaChat',
+        isActive: true,
+      },
+      {
+        operationType: 'gigachat_image',
+        operationName: 'GigaChat изображение',
+        creditCost: 6,
+        description: 'Генерация изображений через GigaChat',
+        isActive: true,
+      },
+      {
+        operationType: 'gigachat_audio',
+        operationName: 'GigaChat аудио',
+        creditCost: 4,
+        description: 'Голосовые функции GigaChat (TTS/STT)',
+        isActive: true,
+      },
+      {
+        operationType: 'gigachat_embeddings',
+        operationName: 'GigaChat эмбеддинги',
+        creditCost: 2,
+        description: 'Получение эмбеддингов через GigaChat',
+        isActive: true,
+      },
+      {
         operationType: 'image_generation',
         operationName: 'Генерация изображения',
         creditCost: 5,
@@ -209,7 +241,9 @@ export class SubscriptionsService {
     });
 
     if (!starterPlan) {
-      throw new BadRequestException('Starter plan not found. Please initialize subscription plans first.');
+      throw new BadRequestException(
+        'Starter plan not found. Please initialize subscription plans first.',
+      );
     }
 
     const now = new Date();
@@ -262,7 +296,8 @@ export class SubscriptionsService {
     const cost = await this.getOperationCost(operationType);
 
     const totalAvailable = subscription.creditsBalance + subscription.extraCredits;
-    const available = totalAvailable >= cost || (plan.allowOverage && subscription.creditsBalance >= 0);
+    const available =
+      totalAvailable >= cost || (plan.allowOverage && subscription.creditsBalance >= 0);
 
     let message: string | undefined;
     if (!available) {
@@ -275,7 +310,11 @@ export class SubscriptionsService {
   /**
    * Проверить и списать кредиты
    */
-  async checkAndDebitCredits(userId: string, operationType: OperationType, generationRequestId?: string) {
+  async checkAndDebitCredits(
+    userId: string,
+    operationType: OperationType,
+    generationRequestId?: string,
+  ) {
     const check = await this.checkCreditsAvailable(userId, operationType);
 
     if (!check.available) {
@@ -325,7 +364,11 @@ export class SubscriptionsService {
       });
 
       if (!costRecord || !costRecord.isActive) {
-        return { success: false, transaction: null, message: `Операция ${operationType} не доступна` };
+        return {
+          success: false,
+          transaction: null,
+          message: `Операция ${operationType} не доступна`,
+        };
       }
 
       const cost = costRecord.creditCost;
@@ -419,7 +462,9 @@ export class SubscriptionsService {
         },
       });
 
-      console.log(`💳 Credits debited: userId=${userId}, operationType=${operationType}, cost=${cost}, balanceAfter=${newBalance + newExtraCredits}`);
+      console.log(
+        `💳 Credits debited: userId=${userId}, operationType=${operationType}, cost=${cost}, balanceAfter=${newBalance + newExtraCredits}`,
+      );
 
       return { success: true, transaction };
     });

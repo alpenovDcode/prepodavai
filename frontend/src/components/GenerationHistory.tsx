@@ -20,7 +20,13 @@ const typeLabels: Record<string, string> = {
   'feedback': '💬 Обратная связь',
   'presentation': '📊 Презентация',
   'transcription': '🎬 Транскрипция видео',
-  'message': '✉️ Сообщение'
+  'message': '✉️ Сообщение',
+  'gigachat-chat': '🧠 GigaChat (текст)',
+  'gigachat-image': '🧠 GigaChat (изображение)',
+  'gigachat-embeddings': '🧠 GigaChat (эмбеддинги)',
+  'gigachat-audio-speech': '🧠 GigaChat (TTS)',
+  'gigachat-audio-transcription': '🧠 GigaChat (STT)',
+  'gigachat-audio-translation': '🧠 GigaChat (перевод аудио)'
 }
 
 export default function GenerationHistory() {
@@ -130,6 +136,10 @@ export default function GenerationHistory() {
     if (gen.params?.topic) return gen.params.topic
     if (gen.params?.prompt) return String(gen.params.prompt).substring(0, 50)
     if (gen.params?.text) return String(gen.params.text).substring(0, 50)
+    if (gen.params?.userPrompt) return String(gen.params.userPrompt).substring(0, 50)
+    if (gen.params?.mode && gen.type?.startsWith('gigachat')) {
+      return `GigaChat • ${gen.params.mode}`
+    }
     return getTypeLabel(gen.type)
   }
 
@@ -156,6 +166,17 @@ export default function GenerationHistory() {
     setIsDownloading(true)
 
     try {
+      const audioUrl = (gen.result as any)?.audioUrl
+      if (audioUrl) {
+        const a = document.createElement('a')
+        a.href = audioUrl
+        a.download = `gigachat-audio-${gen.id}.mp3`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        return
+      }
+
       const imageUrl = gen.result?.imageUrl || (gen.result as any)?.imageUrls?.[0]
 
       // Download image
@@ -406,6 +427,20 @@ export default function GenerationHistory() {
                   metadata={{ style: selectedGeneration.params?.style as string }}
                   showDebug={false}
                 />
+              )}
+
+              {/* Audio Result */}
+              {selectedGeneration.status === 'completed' && (selectedGeneration.result as any)?.audioUrl && (
+                <div>
+                  <p className="text-xs text-gray-500 mb-2">Аудио</p>
+                  <audio
+                    controls
+                    src={(selectedGeneration.result as any).audioUrl}
+                    className="w-full rounded-lg border border-gray-200"
+                  >
+                    Ваш браузер не поддерживает воспроизведение аудио.
+                  </audio>
+                </div>
               )}
 
               {/* Text Result */}

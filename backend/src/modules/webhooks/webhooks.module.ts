@@ -10,4 +10,3 @@ import { GenerationsModule } from '../generations/generations.module';
   providers: [WebhooksService, WebhookAuthGuard],
 })
 export class WebhooksModule {}
-

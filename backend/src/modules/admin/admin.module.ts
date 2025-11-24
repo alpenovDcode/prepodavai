@@ -11,4 +11,3 @@ import { PrismaModule } from '../../common/prisma/prisma.module';
   exports: [AdminService],
 })
 export class AdminModule {}
-

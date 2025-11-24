@@ -41,18 +41,42 @@ export class FilesController {
           'video/webm',
           'video/quicktime',
           'application/pdf',
+          'audio/mpeg',
+          'audio/mp3',
+          'audio/wav',
+          'audio/x-wav',
+          'audio/webm',
+          'audio/ogg',
+          'audio/mp4',
+          'audio/aac',
+          'audio/m4a',
         ];
-        
+
         if (!allowedMimeTypes.includes(file.mimetype)) {
           return cb(new BadRequestException(`Invalid file type: ${file.mimetype}`), false);
         }
-        
+
         const ext = path.extname(file.originalname).toLowerCase();
-        const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.mp4', '.webm', '.mov', '.pdf'];
+        const allowedExtensions = [
+          '.jpg',
+          '.jpeg',
+          '.png',
+          '.gif',
+          '.webp',
+          '.mp4',
+          '.webm',
+          '.mov',
+          '.pdf',
+          '.mp3',
+          '.wav',
+          '.ogg',
+          '.m4a',
+          '.aac',
+        ];
         if (!allowedExtensions.includes(ext)) {
           return cb(new BadRequestException(`Invalid file extension: ${ext}`), false);
         }
-        
+
         cb(null, true);
       },
     }),
@@ -98,4 +122,3 @@ export class FilesController {
     };
   }
 }
-

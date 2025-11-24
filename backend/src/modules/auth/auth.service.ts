@@ -17,7 +17,7 @@ export class AuthService {
    */
   async validateTelegramInitData(initData: string) {
     const botToken = this.configService.get<string>('TELEGRAM_BOT_TOKEN');
-    
+
     if (!botToken) {
       throw new UnauthorizedException('Bot token not configured');
     }
@@ -25,7 +25,7 @@ export class AuthService {
     // Парсим initData
     const params = new URLSearchParams(initData);
     const hash = params.get('hash');
-    
+
     if (!hash) {
       throw new UnauthorizedException('Missing hash in initData');
     }
@@ -40,10 +40,7 @@ export class AuthService {
       .join('\n');
 
     // Вычисляем секретный ключ
-    const secretKey = crypto
-      .createHmac('sha256', 'WebAppData')
-      .update(botToken)
-      .digest();
+    const secretKey = crypto.createHmac('sha256', 'WebAppData').update(botToken).digest();
 
     // Вычисляем подпись
     const calculatedHash = crypto
@@ -62,7 +59,7 @@ export class AuthService {
       const authTimestamp = parseInt(authDate, 10);
       const now = Math.floor(Date.now() / 1000);
       const maxAge = 24 * 60 * 60; // 24 часа
-      
+
       if (isNaN(authTimestamp) || now - authTimestamp > maxAge) {
         throw new UnauthorizedException('initData expired');
       }
@@ -154,4 +151,3 @@ export class AuthService {
     return this.usersService.findById(userId);
   }
 }
-

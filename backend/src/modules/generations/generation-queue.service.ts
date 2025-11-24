@@ -4,9 +4,7 @@ import { Queue } from 'bullmq';
 
 @Injectable()
 export class GenerationQueueService {
-  constructor(
-    @InjectQueue('telegram-send') private telegramSendQueue: Queue,
-  ) {}
+  constructor(@InjectQueue('telegram-send') private telegramSendQueue: Queue) {}
 
   /**
    * Запланировать отправку результата в Telegram

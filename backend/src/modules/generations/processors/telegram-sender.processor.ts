@@ -53,7 +53,7 @@ export class TelegramSenderProcessor extends WorkerHost {
 
     // Отправляем результат в Telegram
     const result = userGeneration.outputData || userGeneration.generationRequest?.result;
-    
+
     if (!result) {
       throw new Error(`No result data for generation: ${generationRequestId}`);
     }

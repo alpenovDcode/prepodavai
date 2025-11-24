@@ -206,15 +206,7 @@ export class AdminService {
   }
 
   async updateGeneration(id: string, data: any) {
-    const {
-      id: _,
-      createdAt,
-      updatedAt,
-      userId,
-      user,
-      userGeneration,
-      ...updateData
-    } = data;
+    const { id: _, createdAt, updatedAt, userId, user, userGeneration, ...updateData } = data;
 
     // Валидация статуса
     if (updateData.status && !['pending', 'completed', 'failed'].includes(updateData.status)) {
@@ -326,15 +318,7 @@ export class AdminService {
   }
 
   async updateSubscription(id: string, data: any) {
-    const {
-      id: _,
-      createdAt,
-      updatedAt,
-      user,
-      plan,
-      creditTransactions,
-      ...updateData
-    } = data;
+    const { id: _, createdAt, updatedAt, user, plan, creditTransactions, ...updateData } = data;
 
     // Преобразуем userId и planId если они пришли как объекты
     if (updateData.userId && typeof updateData.userId === 'object') {
@@ -475,4 +459,3 @@ export class AdminService {
     };
   }
 }
-

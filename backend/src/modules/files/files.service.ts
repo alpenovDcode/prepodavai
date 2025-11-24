@@ -7,7 +7,22 @@ import * as path from 'path';
 @Injectable()
 export class FilesService {
   private readonly uploadDir: string;
-  private readonly allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.mp4', '.webm', '.mov', '.pdf'];
+  private readonly allowedExtensions = [
+    '.jpg',
+    '.jpeg',
+    '.png',
+    '.gif',
+    '.webp',
+    '.mp4',
+    '.webm',
+    '.mov',
+    '.pdf',
+    '.mp3',
+    '.wav',
+    '.ogg',
+    '.m4a',
+    '.aac',
+  ];
   private readonly maxFileSize = 100 * 1024 * 1024; // 100MB
 
   constructor(private configService: ConfigService) {
@@ -50,21 +65,21 @@ export class FilesService {
    */
   private getSafeFilePath(hash: string, extension?: string): string {
     this.validateHash(hash);
-    
+
     if (extension) {
       this.validateExtension(extension);
       const fileName = `${hash}${extension}`;
       const filePath = path.join(this.uploadDir, fileName);
       const resolvedPath = path.resolve(filePath);
       const resolvedDir = path.resolve(this.uploadDir);
-      
+
       if (!resolvedPath.startsWith(resolvedDir)) {
         throw new BadRequestException('Invalid file path');
       }
-      
+
       return filePath;
     }
-    
+
     // Если расширение не указано, ищем файл по hash
     return null;
   }
@@ -114,9 +129,11 @@ export class FilesService {
     try {
       // Ищем файл по hash (может быть с разными расширениями)
       const files = await fs.readdir(this.uploadDir);
-      const file = files.find(f => {
+      const file = files.find((f) => {
         const fileName = path.basename(f);
-        return fileName.startsWith(hash) && fileName.length === hash.length + path.extname(f).length;
+        return (
+          fileName.startsWith(hash) && fileName.length === hash.length + path.extname(f).length
+        );
       });
 
       if (!file) {
@@ -124,7 +141,7 @@ export class FilesService {
       }
 
       const filePath = path.join(this.uploadDir, file);
-      
+
       // Проверка что путь безопасный (защита от path traversal)
       const resolvedPath = path.resolve(filePath);
       const resolvedDir = path.resolve(this.uploadDir);
@@ -154,9 +171,11 @@ export class FilesService {
 
     try {
       const files = await fs.readdir(this.uploadDir);
-      const file = files.find(f => {
+      const file = files.find((f) => {
         const fileName = path.basename(f);
-        return fileName.startsWith(hash) && fileName.length === hash.length + path.extname(f).length;
+        return (
+          fileName.startsWith(hash) && fileName.length === hash.length + path.extname(f).length
+        );
       });
 
       if (!file) {
@@ -164,7 +183,7 @@ export class FilesService {
       }
 
       const filePath = path.join(this.uploadDir, file);
-      
+
       // Проверка что путь безопасный (защита от path traversal)
       const resolvedPath = path.resolve(filePath);
       const resolvedDir = path.resolve(this.uploadDir);
@@ -194,6 +213,11 @@ export class FilesService {
       '.webm': 'video/webm',
       '.mov': 'video/quicktime',
       '.pdf': 'application/pdf',
+      '.mp3': 'audio/mpeg',
+      '.wav': 'audio/wav',
+      '.ogg': 'audio/ogg',
+      '.m4a': 'audio/mp4',
+      '.aac': 'audio/aac',
       '.doc': 'application/msword',
       '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     };
@@ -201,4 +225,3 @@ export class FilesService {
     return mimeTypes[extension.toLowerCase()] || 'application/octet-stream';
   }
 }
-

@@ -17,7 +17,13 @@ export type GenerationType =
   | 'image'
   | 'photosession'
   | 'presentation'
-  | 'transcription';
+  | 'transcription'
+  | 'gigachat-chat'
+  | 'gigachat-image'
+  | 'gigachat-embeddings'
+  | 'gigachat-audio-speech'
+  | 'gigachat-audio-transcription'
+  | 'gigachat-audio-translation';
 
 export interface GenerationRequest {
   userId: string;
@@ -127,7 +133,10 @@ export class GenerationsService {
    * Получить URL webhook для типа генерации
    */
   private getWebhookUrl(generationType: GenerationType): string {
-    const baseUrl = this.configService.get<string>('N8N_WEBHOOK_URL', 'https://prrvauto.ru/webhook');
+    const baseUrl = this.configService.get<string>(
+      'N8N_WEBHOOK_URL',
+      'https://prrvauto.ru/webhook',
+    );
 
     const webhookMap: Record<GenerationType, string> = {
       worksheet: `${baseUrl}/chatgpt-hook`,
@@ -420,11 +429,15 @@ ${studentWork}
     const systemMessages: Partial<Record<GenerationType, string>> = {
       worksheet: 'Ты опытный учитель-методист, создающий качественные учебные материалы',
       quiz: 'Ты опытный учитель-методист, создающий качественные тесты и контрольные работы',
-      vocabulary: 'Ты опытный преподаватель иностранных языков, создающий эффективные учебные словари',
-      'lesson-plan': 'Ты опытный учитель-методист с большим стажем, создающий эффективные планы уроков',
-      'content-adaptation': 'Ты опытный учитель-методист, помогающий адаптировать учебные материалы для разных уровней и целей',
+      vocabulary:
+        'Ты опытный преподаватель иностранных языков, создающий эффективные учебные словари',
+      'lesson-plan':
+        'Ты опытный учитель-методист с большим стажем, создающий эффективные планы уроков',
+      'content-adaptation':
+        'Ты опытный учитель-методист, помогающий адаптировать учебные материалы для разных уровней и целей',
       message: 'Ты опытный учитель, создающий профессиональные сообщения для родителей',
-      feedback: 'Ты опытный педагог-эксперт, предоставляющий конструктивную обратную связь ученикам',
+      feedback:
+        'Ты опытный педагог-эксперт, предоставляющий конструктивную обратную связь ученикам',
     };
 
     return systemMessages[generationType] || 'Ты опытный учитель-методист';
@@ -446,6 +459,12 @@ ${studentWork}
       photosession: 'photosession',
       presentation: 'presentation',
       transcription: 'transcription',
+      'gigachat-chat': 'gigachat_text',
+      'gigachat-image': 'gigachat_image',
+      'gigachat-embeddings': 'gigachat_embeddings',
+      'gigachat-audio-speech': 'gigachat_audio',
+      'gigachat-audio-transcription': 'gigachat_audio',
+      'gigachat-audio-translation': 'gigachat_audio',
     };
 
     return map[generationType];
@@ -467,6 +486,12 @@ ${studentWork}
       photosession: 'DALL-E 2',
       presentation: 'Gamma AI',
       transcription: 'Whisper AI',
+      'gigachat-chat': 'GigaChat',
+      'gigachat-image': 'GigaChat-Image',
+      'gigachat-embeddings': 'GigaChat-Embedding',
+      'gigachat-audio-speech': 'GigaChat-Audio',
+      'gigachat-audio-transcription': 'GigaChat-Audio',
+      'gigachat-audio-translation': 'GigaChat-Audio',
     };
 
     return modelMap[generationType];
@@ -493,7 +518,7 @@ ${studentWork}
 
     // Формируем правильный формат ответа для frontend
     const status: 'pending' | 'completed' | 'failed' = generation.status as any;
-    
+
     return {
       success: true,
       requestId: generation.id,

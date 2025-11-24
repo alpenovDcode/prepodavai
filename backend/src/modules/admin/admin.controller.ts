@@ -26,10 +26,7 @@ export class AdminController {
   // ========== USERS ==========
   @Get('users')
   async getUsers(@Query('limit') limit?: string, @Query('offset') offset?: string) {
-    return this.adminService.getUsers(
-      limit ? parseInt(limit) : 50,
-      offset ? parseInt(offset) : 0,
-    );
+    return this.adminService.getUsers(limit ? parseInt(limit) : 50, offset ? parseInt(offset) : 0);
   }
 
   @Get('users/:id')
@@ -105,4 +102,3 @@ export class AdminController {
     return this.adminService.getStats();
   }
 }
-

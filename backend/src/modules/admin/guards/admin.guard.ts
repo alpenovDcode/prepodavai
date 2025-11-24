@@ -1,9 +1,4 @@
-import {
-  Injectable,
-  CanActivate,
-  ExecutionContext,
-  ForbiddenException,
-} from '@nestjs/common';
+import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 /**
@@ -26,19 +21,21 @@ export class AdminGuard implements CanActivate {
     const adminUserIds = this.configService
       .get<string>('ADMIN_USER_IDS', '')
       .split(',')
-      .map(id => id.trim())
-      .filter(id => id.length > 0);
+      .map((id) => id.trim())
+      .filter((id) => id.length > 0);
 
     // Если список пуст, разрешаем доступ только в development
     if (adminUserIds.length === 0) {
       const nodeEnv = this.configService.get<string>('NODE_ENV', 'development');
       if (nodeEnv === 'production') {
         throw new ForbiddenException(
-          'Admin access is restricted. Set ADMIN_USER_IDS in environment variables.'
+          'Admin access is restricted. Set ADMIN_USER_IDS in environment variables.',
         );
       }
       // В development разрешаем доступ всем авторизованным пользователям
-      console.warn('⚠️ Admin endpoints are accessible to all authenticated users in development mode');
+      console.warn(
+        '⚠️ Admin endpoints are accessible to all authenticated users in development mode',
+      );
       return true;
     }
 
@@ -50,4 +47,3 @@ export class AdminGuard implements CanActivate {
     return true;
   }
 }
-

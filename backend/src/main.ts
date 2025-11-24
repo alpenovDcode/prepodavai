@@ -17,7 +17,7 @@ async function bootstrap() {
   if (!jwtSecret || jwtSecret.length < 32) {
     throw new Error(
       'JWT_SECRET must be set and at least 32 characters long. ' +
-      'Generate a secure secret: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"'
+        "Generate a secure secret: node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\"",
     );
   }
 
@@ -47,8 +47,8 @@ async function bootstrap() {
 
   // CORS с валидацией
   const corsOrigin = configService.get<string>('CORS_ORIGIN', 'http://localhost:3000');
-  const origins = corsOrigin.split(',').map(origin => origin.trim());
-  
+  const origins = corsOrigin.split(',').map((origin) => origin.trim());
+
   // Запрещаем * в production
   if (nodeEnv === 'production' && origins.includes('*')) {
     throw new Error('CORS_ORIGIN cannot be * in production');
@@ -76,4 +76,3 @@ async function bootstrap() {
 }
 
 bootstrap();
-

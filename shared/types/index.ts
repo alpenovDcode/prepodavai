@@ -11,7 +11,13 @@ export type GenerationType =
   | 'image'
   | 'photosession'
   | 'presentation'
-  | 'transcription';
+  | 'transcription'
+  | 'gigachat-chat'
+  | 'gigachat-image'
+  | 'gigachat-embeddings'
+  | 'gigachat-audio-speech'
+  | 'gigachat-audio-transcription'
+  | 'gigachat-audio-translation';
 
 export type OperationType =
   | 'text_generation'
@@ -25,7 +31,11 @@ export type OperationType =
   | 'lesson_plan'
   | 'feedback'
   | 'content_adaptation'
-  | 'message';
+  | 'message'
+  | 'gigachat_text'
+  | 'gigachat_image'
+  | 'gigachat_audio'
+  | 'gigachat_embeddings';
 
 export type SubscriptionPlanKey = 'starter' | 'pro' | 'business';
 

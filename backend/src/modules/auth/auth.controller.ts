@@ -15,4 +15,3 @@ export class AuthController {
     return this.authService.loginWithApiKey(body.username, body.apiKey);
   }
 }
-

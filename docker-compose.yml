@@ -63,6 +63,7 @@ services:
       N8N_WEBHOOK_URL: ${N8N_WEBHOOK_URL}
       PORT: 3001
       CORS_ORIGIN: ${CORS_ORIGIN}
+      ADMIN_USER_IDS: ${ADMIN_USER_IDS}
     depends_on:
       postgres:
         condition: service_healthy

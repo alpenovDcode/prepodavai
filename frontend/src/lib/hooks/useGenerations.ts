@@ -32,7 +32,7 @@ export function useGenerations() {
 
     try {
       const user = getCurrentUser()
-      
+
       // Маппинг типов генераций на API endpoints
       const endpointMap: Record<string, string> = {
         worksheet: '/generate/worksheet',
@@ -45,11 +45,12 @@ export function useGenerations() {
         image: '/generate/image',
         photosession: '/generate/photosession',
         transcription: '/generate/transcribe-video',
-        message: '/generate/message'
+      message: '/generate/message',
+      gigachat: '/gigachat/generate'
       }
 
       const endpoint = endpointMap[request.type] || '/generate/worksheet'
-      
+
       // Отправляем запрос на генерацию
       const response = await apiClient.post<GenerationResponse>(endpoint, request.params)
 
@@ -88,7 +89,7 @@ export function useGenerations() {
         attempts++
         try {
           const response = await apiClient.get<{ success: boolean; status?: GenerationStatus; result?: any; error?: string }>(`/generate/${requestId}`)
-          
+
           if (!response.data.success) {
             reject(new Error(response.data.error || 'Ошибка получения статуса'))
             return

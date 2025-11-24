@@ -1,0 +1,16 @@
+import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+import { GigachatController } from './gigachat.controller';
+import { GigachatService } from './gigachat.service';
+import { GigachatGenerationsService } from './gigachat-generations.service';
+import { GenerationsModule } from '../generations/generations.module';
+import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
+import { FilesModule } from '../files/files.module';
+
+@Module({
+  imports: [ConfigModule, GenerationsModule, SubscriptionsModule, FilesModule],
+  controllers: [GigachatController],
+  providers: [GigachatService, GigachatGenerationsService],
+  exports: [GigachatService, GigachatGenerationsService],
+})
+export class GigachatModule {}

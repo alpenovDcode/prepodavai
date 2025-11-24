@@ -19,6 +19,7 @@ import { WebhooksModule } from './modules/webhooks/webhooks.module';
 import { LogsModule } from './modules/logs/logs.module';
 import { FilesModule } from './modules/files/files.module';
 import { AdminModule } from './modules/admin/admin.module';
+import { GigachatModule } from './modules/gigachat/gigachat.module';
 
 @Module({
   imports: [
@@ -67,6 +68,7 @@ import { AdminModule } from './modules/admin/admin.module';
     LogsModule,
     FilesModule,
     AdminModule,
+    GigachatModule,
   ],
   controllers: [AppController],
   providers: [AppService],

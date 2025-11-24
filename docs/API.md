@@ -101,6 +101,74 @@ Authorization: Bearer <token>
 - `limit` (default: 50)
 - `offset` (default: 0)
 
+### GigaChat
+
+#### GET /gigachat/models
+Получить сгруппированный список моделей GigaChat по типам (chat/image/audio/embeddings). Требует авторизации.
+
+**Response:**
+```json
+{
+  "success": true,
+  "models": {
+    "chat": [{ "id": "GigaChat-Pro", "label": "GigaChat-Pro" }],
+    "image": [{ "id": "GigaChat-Image", "label": "GigaChat-Image" }],
+    "audio": [{ "id": "GigaChat-Audio", "label": "GigaChat-Audio" }],
+    "embeddings": [{ "id": "GigaChat-Embedding", "label": "GigaChat-Embedding" }]
+  }
+}
+```
+
+#### POST /gigachat/generate
+Прямая генерация через API GigaChat. Поддерживаются режимы `chat`, `image`, `embeddings`, `audio_speech`, `audio_transcription`, `audio_translation`.
+
+**Request (пример текстового запроса):**
+```json
+{
+  "mode": "chat",
+  "model": "GigaChat-Pro",
+  "systemPrompt": "Ты внимательный ассистент учителя",
+  "userPrompt": "Составь план урока по теме электричество",
+  "temperature": 0.8,
+  "maxTokens": 1200
+}
+```
+
+**Request (пример генерации изображения):**
+```json
+{
+  "mode": "image",
+  "model": "GigaChat-Image",
+  "prompt": "Учитель объясняет тему в современном классе",
+  "negativePrompt": "низкое качество",
+  "size": "1024x1024",
+  "quality": "high"
+}
+```
+
+**Request (пример TTS):**
+```json
+{
+  "mode": "audio_speech",
+  "model": "GigaChat-Audio",
+  "inputText": "Добрый день! Сегодня говорим о дробях.",
+  "voice": "BYS",
+  "audioFormat": "mp3",
+  "audioSpeed": 1
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "requestId": "uuid",
+  "status": "pending"
+}
+```
+
+Детали результата доступны по стандартному эндпоинту `GET /generate/:requestId` и содержат поля `content`, `imageUrl`, `audioUrl`, `embedding` в зависимости от режима.
+
 ### Подписки
 
 #### GET /subscription/info

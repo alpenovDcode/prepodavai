@@ -8,4 +8,3 @@ import { UsersService } from './users.service';
   exports: [UsersService],
 })
 export class UsersModule {}
-
