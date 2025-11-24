@@ -151,23 +151,27 @@ export class GigachatService {
 
   async createImage(payload: Record<string, any>) {
     this.logger.debug(`Creating image with payload: ${JSON.stringify(payload)}`);
-    
+
     try {
-      // Согласно документации GigaChat, генерация изображений происходит через /chat/completions
-      // с функцией text2image. Модель автоматически вызовет функцию при получении запроса на генерацию изображения
-      // Формируем сообщение с указанием параметров
-      let userMessage = `Сгенерируй изображение: ${payload.prompt}`;
-      
+      // Согласно официальной документации GigaChat, text2image - это встроенная функция.
+      // Она автоматически вызывается моделью при установке function_call: "auto"
+      // и получении запроса на генерацию изображения.
+      // Не нужно вручную определять функцию - GigaChat сделает это сам.
+
+      // Формируем простой и понятный промпт на естественном языке
+      let userMessage = `Нарисуй изображение: ${payload.prompt}`;
+
+      // Добавляем дополнительные параметры в промпт, если они указаны
       if (payload.negative_prompt) {
-        userMessage += `\nИсключи из изображения: ${payload.negative_prompt}`;
+        userMessage += `\nНе включай в изображение: ${payload.negative_prompt}`;
       }
       if (payload.size) {
-        userMessage += `\nРазмер: ${payload.size}`;
+        userMessage += `\nРазмер изображения: ${payload.size}`;
       }
-      if (payload.quality) {
-        userMessage += `\nКачество: ${payload.quality}`;
+      if (payload.quality && payload.quality === 'high') {
+        userMessage += `\nСделай изображение высокого качества`;
       }
-      
+
       const chatPayload: any = {
         model: payload.model,
         messages: [
@@ -176,59 +180,36 @@ export class GigachatService {
             content: userMessage,
           },
         ],
-        functions: [
-          {
-            name: 'text2image',
-            description: 'Генерация изображения по текстовому описанию',
-            parameters: {
-              type: 'object',
-              properties: {
-                prompt: {
-                  type: 'string',
-                  description: 'Описание изображения для генерации',
-                },
-                negative_prompt: {
-                  type: 'string',
-                  description: 'Что нужно исключить из изображения',
-                },
-                size: {
-                  type: 'string',
-                  enum: ['1024x1024', '1024x1792', '1792x1024'],
-                  description: 'Размер изображения. По умолчанию 1024x1024',
-                },
-                quality: {
-                  type: 'string',
-                  enum: ['standard', 'high'],
-                  description: 'Качество изображения. По умолчанию standard',
-                },
-              },
-              required: ['prompt'],
-            },
-          },
-        ],
+        // Устанавливаем function_call: "auto" чтобы GigaChat сам определил,
+        // что нужно вызвать встроенную функцию text2image
         function_call: 'auto',
       };
 
-      this.logger.debug(`Sending chat completion request for image generation: ${JSON.stringify(chatPayload, null, 2)}`);
+      this.logger.debug(`Sending chat completion request for image generation`);
+      this.logger.debug(`Request payload: ${JSON.stringify(chatPayload, null, 2)}`);
+
       const response = await this.requestJson({
         method: 'POST',
         url: '/chat/completions',
         data: chatPayload,
       });
 
-      this.logger.debug(`Received response from GigaChat: ${JSON.stringify(response, null, 2)}`);
+      this.logger.debug(`Received response from GigaChat`);
+      this.logger.debug(`Response structure: ${JSON.stringify(response, null, 2)}`);
 
       // Извлекаем file_id из ответа
       const fileId = this.extractFileIdFromResponse(response);
-      
+
       if (!fileId) {
-        this.logger.error(`Failed to extract file_id from response: ${JSON.stringify(response)}`);
-        throw new Error('Не удалось получить идентификатор изображения от GigaChat. Проверьте логи для деталей.');
+        this.logger.error(`Failed to extract file_id from response`);
+        this.logger.error(`Full response: ${JSON.stringify(response, null, 2)}`);
+        throw new Error('Не удалось получить идентификатор изображения от GigaChat. Возможно, модель не вызвала функцию text2image. Проверьте логи для деталей.');
       }
 
-      this.logger.debug(`Got file_id: ${fileId}, fetching image content`);
-      
-      // Получаем само изображение
+      this.logger.debug(`Successfully extracted file_id: ${fileId}`);
+      this.logger.debug(`Downloading image content from GigaChat`);
+
+      // Получаем само изображение по file_id
       const imageResponse = await this.requestRaw<Buffer>({
         method: 'GET',
         url: `/files/${fileId}/content`,
@@ -237,6 +218,8 @@ export class GigachatService {
           Accept: 'image/jpeg',
         },
       });
+
+      this.logger.debug(`Image downloaded successfully, size: ${imageResponse.data.byteLength} bytes`);
 
       return {
         data: [
@@ -269,15 +252,15 @@ export class GigachatService {
     if (choice?.message?.function_call) {
       const functionCall = choice.message.function_call;
       this.logger.debug(`Found function_call: ${JSON.stringify(functionCall)}`);
-      
+
       if (functionCall.name === 'text2image') {
         try {
-          const args = typeof functionCall.arguments === 'string' 
-            ? JSON.parse(functionCall.arguments) 
+          const args = typeof functionCall.arguments === 'string'
+            ? JSON.parse(functionCall.arguments)
             : functionCall.arguments;
-          
+
           this.logger.debug(`Parsed function arguments: ${JSON.stringify(args)}`);
-          
+
           if (args?.file_id) {
             return args.file_id;
           }
@@ -303,7 +286,7 @@ export class GigachatService {
         this.logger.debug(`Found UUID in content: ${match[0]}`);
         return match[0];
       }
-      
+
       // Или JSON
       try {
         const parsed = typeof content === 'string' ? JSON.parse(content) : content;
@@ -415,8 +398,8 @@ export class GigachatService {
         capabilities.includes('image') || id.includes('image')
           ? 'image'
           : capabilities.includes('audio') ||
-              capabilities.includes('speech') ||
-              id.includes('audio')
+            capabilities.includes('speech') ||
+            id.includes('audio')
             ? 'audio'
             : capabilities.includes('embedding') || id.includes('embed')
               ? 'embeddings'
@@ -507,7 +490,7 @@ export class GigachatService {
           await this.ensureAccessToken(true);
           return this.requestRaw<T>(config, false);
         }
-        
+
         // Логируем детали ошибки
         this.logger.error(`GigaChat API request failed: ${error.message}`, {
           url: config.url,
