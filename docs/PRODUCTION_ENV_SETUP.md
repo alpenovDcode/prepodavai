@@ -89,8 +89,8 @@ GIGACHAT_AUTH_URL=https://ngw.devices.sberbank.ru:9443
 # URL API (обычно не меняется)
 GIGACHAT_API_URL=https://gigachat.devices.sberbank.ru/api/v1
 
-# Endpoint для изображений (обычно не меняется)
-GIGACHAT_IMAGE_ENDPOINT=/images/edits
+# GIGACHAT_IMAGE_ENDPOINT больше не используется
+# Генерация изображений происходит через /chat/completions с функцией text2image
 
 # ВАЖНО: На продакшене ВСЕГДА должно быть false!
 GIGACHAT_DISABLE_TLS_VERIFICATION=false

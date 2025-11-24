@@ -150,14 +150,103 @@ export class GigachatService {
   }
 
   async createImage(payload: Record<string, any>) {
-    const endpoint = this.configService.get<string>('GIGACHAT_IMAGE_ENDPOINT', '/images/generations');
-    this.logger.debug(`Creating image with endpoint: ${endpoint}, payload: ${JSON.stringify(payload)}`);
+    this.logger.debug(`Creating image with payload: ${JSON.stringify(payload)}`);
+    
     try {
-      return await this.requestJson({
+      // Согласно документации GigaChat, генерация изображений происходит через /chat/completions
+      // с функцией text2image. Модель автоматически вызовет функцию при получении запроса на генерацию изображения
+      // Формируем сообщение с указанием параметров
+      let userMessage = `Сгенерируй изображение: ${payload.prompt}`;
+      
+      if (payload.negative_prompt) {
+        userMessage += `\nИсключи из изображения: ${payload.negative_prompt}`;
+      }
+      if (payload.size) {
+        userMessage += `\nРазмер: ${payload.size}`;
+      }
+      if (payload.quality) {
+        userMessage += `\nКачество: ${payload.quality}`;
+      }
+      
+      const chatPayload: any = {
+        model: payload.model,
+        messages: [
+          {
+            role: 'user',
+            content: userMessage,
+          },
+        ],
+        functions: [
+          {
+            name: 'text2image',
+            description: 'Генерация изображения по текстовому описанию',
+            parameters: {
+              type: 'object',
+              properties: {
+                prompt: {
+                  type: 'string',
+                  description: 'Описание изображения для генерации',
+                },
+                negative_prompt: {
+                  type: 'string',
+                  description: 'Что нужно исключить из изображения',
+                },
+                size: {
+                  type: 'string',
+                  enum: ['1024x1024', '1024x1792', '1792x1024'],
+                  description: 'Размер изображения. По умолчанию 1024x1024',
+                },
+                quality: {
+                  type: 'string',
+                  enum: ['standard', 'high'],
+                  description: 'Качество изображения. По умолчанию standard',
+                },
+              },
+              required: ['prompt'],
+            },
+          },
+        ],
+        function_call: 'auto',
+      };
+
+      this.logger.debug(`Sending chat completion request for image generation: ${JSON.stringify(chatPayload, null, 2)}`);
+      const response = await this.requestJson({
         method: 'POST',
-        url: endpoint,
-        data: payload,
+        url: '/chat/completions',
+        data: chatPayload,
       });
+
+      this.logger.debug(`Received response from GigaChat: ${JSON.stringify(response, null, 2)}`);
+
+      // Извлекаем file_id из ответа
+      const fileId = this.extractFileIdFromResponse(response);
+      
+      if (!fileId) {
+        this.logger.error(`Failed to extract file_id from response: ${JSON.stringify(response)}`);
+        throw new Error('Не удалось получить идентификатор изображения от GigaChat. Проверьте логи для деталей.');
+      }
+
+      this.logger.debug(`Got file_id: ${fileId}, fetching image content`);
+      
+      // Получаем само изображение
+      const imageResponse = await this.requestRaw<Buffer>({
+        method: 'GET',
+        url: `/files/${fileId}/content`,
+        responseType: 'arraybuffer',
+        headers: {
+          Accept: 'image/jpeg',
+        },
+      });
+
+      return {
+        data: [
+          {
+            url: `data:image/jpeg;base64,${Buffer.from(imageResponse.data).toString('base64')}`,
+            b64_json: Buffer.from(imageResponse.data).toString('base64'),
+          },
+        ],
+        file_id: fileId,
+      };
     } catch (error: any) {
       this.logger.error(`GigaChat createImage error: ${error.message}`, error.stack);
       if (error.response) {
@@ -166,6 +255,71 @@ export class GigachatService {
       throw error;
     }
   }
+
+  private extractFileIdFromResponse(response: any): string | null {
+    if (!response) {
+      this.logger.warn('Empty response from GigaChat');
+      return null;
+    }
+
+    this.logger.debug(`Extracting file_id from response: ${JSON.stringify(response, null, 2)}`);
+
+    // Проверяем choices[0].message.function_call.arguments (основной путь)
+    const choice = response?.choices?.[0];
+    if (choice?.message?.function_call) {
+      const functionCall = choice.message.function_call;
+      this.logger.debug(`Found function_call: ${JSON.stringify(functionCall)}`);
+      
+      if (functionCall.name === 'text2image') {
+        try {
+          const args = typeof functionCall.arguments === 'string' 
+            ? JSON.parse(functionCall.arguments) 
+            : functionCall.arguments;
+          
+          this.logger.debug(`Parsed function arguments: ${JSON.stringify(args)}`);
+          
+          if (args?.file_id) {
+            return args.file_id;
+          }
+        } catch (e) {
+          this.logger.warn(`Failed to parse function_call arguments: ${e.message}`);
+        }
+      }
+    }
+
+    // Альтернативный вариант: проверяем напрямую в ответе
+    if (response?.file_id) {
+      this.logger.debug(`Found file_id in response root: ${response.file_id}`);
+      return response.file_id;
+    }
+
+    // Проверяем в message.content, если там JSON или UUID
+    const content = choice?.message?.content;
+    if (content) {
+      // Может быть UUID напрямую
+      const uuidRegex = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+      const match = content.match(uuidRegex);
+      if (match) {
+        this.logger.debug(`Found UUID in content: ${match[0]}`);
+        return match[0];
+      }
+      
+      // Или JSON
+      try {
+        const parsed = typeof content === 'string' ? JSON.parse(content) : content;
+        if (parsed?.file_id) {
+          this.logger.debug(`Found file_id in parsed content: ${parsed.file_id}`);
+          return parsed.file_id;
+        }
+      } catch (e) {
+        // Не JSON, игнорируем
+      }
+    }
+
+    this.logger.error(`Could not extract file_id from response: ${JSON.stringify(response)}`);
+    return null;
+  }
+
 
   async createEmbeddings(payload: Record<string, any>) {
     return this.requestJson({
