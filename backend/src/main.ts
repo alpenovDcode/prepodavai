@@ -17,7 +17,7 @@ async function bootstrap() {
   if (!jwtSecret || jwtSecret.length < 32) {
     throw new Error(
       'JWT_SECRET must be set and at least 32 characters long. ' +
-        "Generate a secure secret: node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\"",
+      "Generate a secure secret: node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\"",
     );
   }
 
@@ -40,7 +40,7 @@ async function bootstrap() {
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
-      forbidNonWhitelisted: true,
+      forbidNonWhitelisted: false, // Разрешаем дополнительные поля (например, userHash от фронтенда)
       transform: true,
     }),
   );
