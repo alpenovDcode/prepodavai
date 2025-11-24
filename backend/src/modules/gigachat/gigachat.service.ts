@@ -63,9 +63,13 @@ export class GigachatService {
       'https://gigachat.devices.sberbank.ru/api/v1',
     );
     this.scope = this.configService.get<string>('GIGACHAT_SCOPE', 'GIGACHAT_API_PERS');
-    this.clientId = this.configService.get<string>('GIGACHAT_CLIENT_ID');
-    this.clientSecret = this.configService.get<string>('GIGACHAT_CLIENT_SECRET');
-    this.authToken = this.configService.get<string>('GIGACHAT_AUTH_TOKEN');
+    this.clientId = this.configService.get<string>('GIGACHAT_CLIENT_ID')?.trim();
+    this.clientSecret = this.configService.get<string>('GIGACHAT_CLIENT_SECRET')?.trim();
+    this.authToken = this.configService.get<string>('GIGACHAT_AUTH_TOKEN')?.trim();
+
+    if (this.clientId) this.logger.debug(`Loaded Client ID: ${this.clientId.length} chars`);
+    if (this.clientSecret) this.logger.debug(`Loaded Client Secret: ${this.clientSecret.length} chars`);
+    if (this.authToken) this.logger.debug(`Loaded Auth Token: ${this.authToken.length} chars`);
 
     const disableTls =
       this.configService.get<string>('GIGACHAT_DISABLE_TLS_VERIFICATION', 'false') === 'true';
@@ -541,13 +545,19 @@ export class GigachatService {
       return this.accessToken;
     }
 
-    // Используем GIGACHAT_AUTH_TOKEN если доступен (уже закодирован в base64)
-    // Иначе кодируем CLIENT_ID:CLIENT_SECRET вручную
+    // Используем GIGACHAT_AUTH_TOKEN если доступен
+    // Если он содержит ':', значит это raw id:secret, нужно закодировать
+    // Если нет, считаем что это уже base64
     let authHeader: string;
 
     if (this.authToken) {
-      authHeader = this.authToken;
-      this.logger.debug('Using GIGACHAT_AUTH_TOKEN for authentication');
+      if (this.authToken.includes(':')) {
+        this.logger.debug('GIGACHAT_AUTH_TOKEN appears to be raw id:secret, encoding to Base64');
+        authHeader = Buffer.from(this.authToken).toString('base64');
+      } else {
+        this.logger.debug('Using provided GIGACHAT_AUTH_TOKEN as Base64');
+        authHeader = this.authToken;
+      }
     } else if (this.clientId && this.clientSecret) {
       authHeader = Buffer.from(`${this.clientId}:${this.clientSecret}`).toString('base64');
       this.logger.debug('Using CLIENT_ID:CLIENT_SECRET for authentication');
