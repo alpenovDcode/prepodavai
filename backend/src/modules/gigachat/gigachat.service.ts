@@ -6,7 +6,7 @@ import * as https from 'https';
 import FormData from 'form-data';
 import { GigachatMode } from './dto/gigachat-generation.dto';
 
-interface NormalizedModel {
+export interface NormalizedModel {
   id: string;
   label: string;
   ownedBy?: string;

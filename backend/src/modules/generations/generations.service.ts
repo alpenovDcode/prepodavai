@@ -67,16 +67,21 @@ export class GenerationsService {
       model: model || this.getDefaultModel(generationType),
     });
 
-    // Формируем правильную структуру payload для webhook
-    const webhookPayload = this.buildWebhookPayload(
-      generationType,
-      inputParams,
-      userId,
-      generationRequest.id,
-    );
+    // GigaChat генерации обрабатываются напрямую, не через webhooks
+    const isGigachatGeneration = generationType.startsWith('gigachat-');
+    
+    if (!isGigachatGeneration) {
+      // Формируем правильную структуру payload для webhook
+      const webhookPayload = this.buildWebhookPayload(
+        generationType,
+        inputParams,
+        userId,
+        generationRequest.id,
+      );
 
-    // Отправляем запрос в webhook (n8n) асинхронно
-    await this.sendToWebhook(generationType, webhookPayload);
+      // Отправляем запрос в webhook (n8n) асинхронно
+      await this.sendToWebhook(generationType, webhookPayload);
+    }
 
     return {
       success: true,
@@ -150,6 +155,13 @@ export class GenerationsService {
       photosession: `${baseUrl}/generate-image`,
       presentation: `${baseUrl}/generate-presentation`,
       transcription: `${baseUrl}/transcribe-video`,
+      // GigaChat генерации не используют webhooks (обрабатываются напрямую)
+      'gigachat-chat': '',
+      'gigachat-image': '',
+      'gigachat-embeddings': '',
+      'gigachat-audio-speech': '',
+      'gigachat-audio-transcription': '',
+      'gigachat-audio-translation': '',
     };
 
     return webhookMap[generationType] || `${baseUrl}/chatgpt-hook`;
@@ -172,6 +184,13 @@ export class GenerationsService {
       photosession: `${apiUrl}/api/webhooks/image-callback`,
       presentation: `${apiUrl}/api/webhooks/presentation-callback`,
       transcription: `${apiUrl}/api/webhooks/transcription-callback`,
+      // GigaChat генерации не используют callbacks (обрабатываются напрямую)
+      'gigachat-chat': '',
+      'gigachat-image': '',
+      'gigachat-embeddings': '',
+      'gigachat-audio-speech': '',
+      'gigachat-audio-transcription': '',
+      'gigachat-audio-translation': '',
     };
 
     return callbackMap[generationType];

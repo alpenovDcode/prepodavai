@@ -291,13 +291,6 @@ export default function InputComposer({
       return
     }
 
-    const maxSize = isVideo ? 3 * 1024 * 1024 * 1024 : 10 * 1024 * 1024
-
-    if (file.size > maxSize) {
-      alert(`Файл слишком большой. Максимум ${isVideo ? '3 ГБ' : '10 МБ'}.`)
-      return
-    }
-
     const maxSize = isVideo ? 3 * 1024 * 1024 * 1024 : isAudio ? 100 * 1024 * 1024 : 10 * 1024 * 1024
 
     if (file.size > maxSize) {
