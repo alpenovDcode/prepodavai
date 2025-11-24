@@ -67,9 +67,17 @@ export class GigachatService {
     this.clientSecret = this.configService.get<string>('GIGACHAT_CLIENT_SECRET')?.trim();
     this.authToken = this.configService.get<string>('GIGACHAT_AUTH_TOKEN')?.trim();
 
-    if (this.clientId) this.logger.debug(`Loaded Client ID: ${this.clientId.length} chars`);
-    if (this.clientSecret) this.logger.debug(`Loaded Client Secret: ${this.clientSecret.length} chars`);
-    if (this.authToken) this.logger.debug(`Loaded Auth Token: ${this.authToken.length} chars`);
+    this.logger.log('--- GigaChat Config Debug ---');
+    this.logger.log(`GIGACHAT_AUTH_TOKEN present: ${!!this.authToken}`);
+    if (this.authToken) this.logger.log(`GIGACHAT_AUTH_TOKEN length: ${this.authToken.length}`);
+    this.logger.log(`GIGACHAT_CLIENT_ID present: ${!!this.clientId}`);
+    this.logger.log(`GIGACHAT_CLIENT_SECRET present: ${!!this.clientSecret}`);
+    if (this.clientSecret) this.logger.log(`GIGACHAT_CLIENT_SECRET length: ${this.clientSecret.length}`);
+
+    if (this.clientSecret && this.clientSecret.length > 100) {
+      this.logger.warn('WARNING: GIGACHAT_CLIENT_SECRET appears to be a JWT token (too long). It should be a UUID (e.g. f3c5ffdc-...). Check your .env file!');
+    }
+    this.logger.log('-----------------------------');
 
     const disableTls =
       this.configService.get<string>('GIGACHAT_DISABLE_TLS_VERIFICATION', 'false') === 'true';
