@@ -353,6 +353,7 @@ export class GigachatService {
       data: payload,
       responseType: 'arraybuffer',
       headers: {
+        'Content-Type': 'application/json',
         Accept: payload.format === 'wav' ? 'audio/wav' : 'audio/mpeg',
       },
     });
