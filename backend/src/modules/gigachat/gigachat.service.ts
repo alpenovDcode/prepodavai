@@ -150,12 +150,21 @@ export class GigachatService {
   }
 
   async createImage(payload: Record<string, any>) {
-    const endpoint = this.configService.get<string>('GIGACHAT_IMAGE_ENDPOINT', '/images/edits');
-    return this.requestJson({
-      method: 'POST',
-      url: endpoint,
-      data: payload,
-    });
+    const endpoint = this.configService.get<string>('GIGACHAT_IMAGE_ENDPOINT', '/images/generations');
+    this.logger.debug(`Creating image with endpoint: ${endpoint}, payload: ${JSON.stringify(payload)}`);
+    try {
+      return await this.requestJson({
+        method: 'POST',
+        url: endpoint,
+        data: payload,
+      });
+    } catch (error: any) {
+      this.logger.error(`GigaChat createImage error: ${error.message}`, error.stack);
+      if (error.response) {
+        this.logger.error(`GigaChat API error response: ${JSON.stringify(error.response.data)}`);
+      }
+      throw error;
+    }
   }
 
   async createEmbeddings(payload: Record<string, any>) {
@@ -328,17 +337,31 @@ export class GigachatService {
     const token = await this.ensureAccessToken();
 
     try {
-      return await this.http.request<T>({
+      const response = await this.http.request<T>({
         ...config,
         headers: {
           Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
           ...(config.headers || {}),
         },
       });
-    } catch (error) {
-      if (axios.isAxiosError(error) && error.response?.status === 401 && retry) {
-        await this.ensureAccessToken(true);
-        return this.requestRaw<T>(config, false);
+      return response;
+    } catch (error: any) {
+      if (axios.isAxiosError(error)) {
+        if (error.response?.status === 401 && retry) {
+          this.logger.warn('Got 401, refreshing token and retrying');
+          await this.ensureAccessToken(true);
+          return this.requestRaw<T>(config, false);
+        }
+        
+        // Логируем детали ошибки
+        this.logger.error(`GigaChat API request failed: ${error.message}`, {
+          url: config.url,
+          method: config.method,
+          status: error.response?.status,
+          statusText: error.response?.statusText,
+          data: error.response?.data,
+        });
       }
       throw error;
     }

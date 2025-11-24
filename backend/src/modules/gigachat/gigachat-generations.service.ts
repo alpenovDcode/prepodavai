@@ -26,14 +26,35 @@ export class GigachatGenerationsService {
   ) {}
 
   async generate(userId: string, dto: GigachatGenerationDto) {
+    this.logger.log(`Starting GigaChat generation: userId=${userId}, mode=${dto.mode}, model=${dto.model}`);
+
+    // Валидация обязательных полей в зависимости от режима
+    if (dto.mode === 'image' && !dto.prompt) {
+      throw new BadRequestException('Поле "prompt" обязательно для генерации изображений');
+    }
+    if (dto.mode === 'chat' && !dto.userPrompt) {
+      throw new BadRequestException('Поле "userPrompt" обязательно для текстовой генерации');
+    }
+    if ((dto.mode === 'embeddings' || dto.mode === 'audio_speech') && !dto.inputText) {
+      throw new BadRequestException('Поле "inputText" обязательно для этого режима');
+    }
+    if ((dto.mode === 'audio_transcription' || dto.mode === 'audio_translation') && !dto.audioHash) {
+      throw new BadRequestException('Поле "audioHash" обязательно для этого режима');
+    }
+
     const operationType = this.modeToOperation[dto.mode] || 'gigachat_text';
+    this.logger.log(`Checking credits: operationType=${operationType}`);
+    
     const creditCheck = await this.subscriptionsService.checkAndDebitCredits(userId, operationType);
 
     if (!creditCheck.success) {
+      this.logger.warn(`Insufficient credits: userId=${userId}, operationType=${operationType}`);
       throw new BadRequestException(creditCheck.error || 'Недостаточно кредитов');
     }
 
     const model = dto.model || this.gigachatService.getDefaultModel(dto.mode);
+    this.logger.log(`Creating generation record: model=${model}`);
+    
     const { generationRequest } = await this.generationHelpers.createGeneration({
       userId,
       generationType: `gigachat-${dto.mode}`,
@@ -42,23 +63,34 @@ export class GigachatGenerationsService {
     });
 
     try {
+      this.logger.log(`Dispatching to GigaChat API: mode=${dto.mode}, model=${model}`);
       const rawResult = await this.dispatch(dto, model);
+      this.logger.log(`GigaChat API response received, normalizing result`);
+      
       const normalized = await this.normalizeResult(dto, model, rawResult);
 
       await this.generationHelpers.completeGeneration(generationRequest.id, normalized);
+      this.logger.log(`Generation completed successfully: requestId=${generationRequest.id}`);
 
       return {
         success: true,
         requestId: generationRequest.id,
-        status: 'pending',
+        status: 'completed',
       };
-    } catch (error) {
+    } catch (error: any) {
+      this.logger.error(`GigaChat generation failed: ${error?.message || error}`, error?.stack);
+      
       await this.generationHelpers.failGeneration(
         generationRequest.id,
         error?.message || 'Ошибка интеграции с GigaChat',
       );
-      this.logger.error(`GigaChat generation failed: ${error?.message || error}`, error?.stack);
-      throw new BadRequestException(error?.message || 'Ошибка интеграции с GigaChat');
+      
+      const errorMessage = error?.response?.data?.message || 
+                          error?.response?.data?.error || 
+                          error?.message || 
+                          'Ошибка интеграции с GigaChat';
+      
+      throw new BadRequestException(errorMessage);
     }
   }
 

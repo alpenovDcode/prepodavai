@@ -1,4 +1,4 @@
-import { ExceptionFilter, Catch, ArgumentsHost, HttpException, HttpStatus } from '@nestjs/common';
+import { ExceptionFilter, Catch, ArgumentsHost, HttpException, HttpStatus, BadRequestException } from '@nestjs/common';
 import { Response } from 'express';
 import { ConfigService } from '@nestjs/config';
 
@@ -29,10 +29,15 @@ export class HttpExceptionFilter implements ExceptionFilter {
       if (typeof exceptionResponse === 'string') {
         message = exceptionResponse;
       } else if (typeof exceptionResponse === 'object') {
-        message = (exceptionResponse as any).message || exception.message;
-        // В development показываем больше деталей
-        if (isDevelopment) {
-          details = exceptionResponse;
+        const responseObj = exceptionResponse as any;
+        message = responseObj.message || exception.message;
+        
+        // Для ошибок валидации показываем детали
+        if (status === HttpStatus.BAD_REQUEST && Array.isArray(responseObj.message)) {
+          message = responseObj.message.map((m: string) => m).join(', ');
+          details = responseObj.message;
+        } else if (isDevelopment) {
+          details = responseObj;
         }
       }
     } else if (exception instanceof Error) {
@@ -62,14 +67,14 @@ export class HttpExceptionFilter implements ExceptionFilter {
     // Формируем безопасный ответ
     const errorResponse: any = {
       success: false,
+      error: message,
       statusCode: status,
-      message,
       timestamp: new Date().toISOString(),
       path: request.url,
     };
 
-    // Добавляем детали только в development
-    if (isDevelopment && details) {
+    // Добавляем детали только в development или для ошибок валидации
+    if ((isDevelopment || status === HttpStatus.BAD_REQUEST) && details) {
       errorResponse.details = details;
     }
 
