@@ -32,8 +32,9 @@ export class GigachatService {
   private readonly authUrl: string;
   private readonly apiBaseUrl: string;
   private readonly scope: string;
-  private readonly clientId?: string;
-  private readonly clientSecret?: string;
+  private readonly clientId: string;
+  private readonly clientSecret: string;
+  private readonly authToken: string;
   private readonly httpsAgent: https.Agent;
   private readonly http: AxiosInstance;
   private accessToken: string | null = null;
@@ -64,6 +65,7 @@ export class GigachatService {
     this.scope = this.configService.get<string>('GIGACHAT_SCOPE', 'GIGACHAT_API_PERS');
     this.clientId = this.configService.get<string>('GIGACHAT_CLIENT_ID');
     this.clientSecret = this.configService.get<string>('GIGACHAT_CLIENT_SECRET');
+    this.authToken = this.configService.get<string>('GIGACHAT_AUTH_TOKEN');
 
     const disableTls =
       this.configService.get<string>('GIGACHAT_DISABLE_TLS_VERIFICATION', 'false') === 'true';
@@ -439,11 +441,20 @@ export class GigachatService {
       return this.accessToken;
     }
 
-    if (!this.clientId || !this.clientSecret) {
-      throw new Error('GIGACHAT_CLIENT_ID и GIGACHAT_CLIENT_SECRET должны быть настроены');
+    // Используем GIGACHAT_AUTH_TOKEN если доступен (уже закодирован в base64)
+    // Иначе кодируем CLIENT_ID:CLIENT_SECRET вручную
+    let authHeader: string;
+
+    if (this.authToken) {
+      authHeader = this.authToken;
+      this.logger.debug('Using GIGACHAT_AUTH_TOKEN for authentication');
+    } else if (this.clientId && this.clientSecret) {
+      authHeader = Buffer.from(`${this.clientId}:${this.clientSecret}`).toString('base64');
+      this.logger.debug('Using CLIENT_ID:CLIENT_SECRET for authentication');
+    } else {
+      throw new Error('GIGACHAT_AUTH_TOKEN или (GIGACHAT_CLIENT_ID и GIGACHAT_CLIENT_SECRET) должны быть настроены');
     }
 
-    const authHeader = Buffer.from(`${this.clientId}:${this.clientSecret}`).toString('base64');
     const url = `${this.authUrl}/api/v2/oauth`;
 
     const response = await axios.request({
