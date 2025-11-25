@@ -672,6 +672,12 @@ function getGenerationTypeLabel(type: string): string {
   return labels[type] || 'Материал'
 }
 
+const MATHJAX_SCRIPT = `<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>`
+const IFRAME_STYLES = `<style>
+  body { margin: 0; padding: 32px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, sans-serif; background: white; color: #1a1a1a; }
+  .container { max-width: 820px; margin: 0 auto; }
+</style>`
+
 function FullHtmlPreview({ html }: { html: string }) {
   const iframeRef = useRef<HTMLIFrameElement>(null)
 
@@ -698,12 +704,31 @@ function FullHtmlPreview({ html }: { html: string }) {
     }
   }, [html])
 
+  const hasMathJax = /mathjax/i.test(html)
+  const hasHead = /<head[\s>]/i.test(html)
+  const hasBody = /<body[\s>]/i.test(html)
+
+  let finalHtml = html
+  if (hasHead) {
+    finalHtml = html.replace(
+      /<head([^>]*)>/i,
+      `<head$1>${IFRAME_STYLES}${hasMathJax ? MATHJAX_SCRIPT : ''}`,
+    )
+  } else if (hasBody) {
+    finalHtml = html.replace(
+      /<body([^>]*)>/i,
+      `<head>${IFRAME_STYLES}${hasMathJax ? MATHJAX_SCRIPT : ''}</head><body$1`,
+    )
+  } else {
+    finalHtml = `<!DOCTYPE html><html><head>${IFRAME_STYLES}${hasMathJax ? MATHJAX_SCRIPT : ''}</head><body><div class="container">${html}</div></body></html>`
+  }
+
   return (
     <div className="w-full border border-[#D8E6FF] rounded-2xl overflow-hidden bg-white">
       <iframe
         ref={iframeRef}
         title="HTML результат"
-        srcDoc={html}
+        srcDoc={finalHtml}
         className="w-full border-0"
         style={{ minHeight: '600px' }}
         sandbox="allow-scripts allow-same-origin allow-popups"
