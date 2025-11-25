@@ -69,6 +69,10 @@ COPY --from=builder --chown=nestjs:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=nestjs:nodejs /app/package.json ./package.json
 COPY --from=builder --chown=nestjs:nodejs /app/prisma ./prisma
 
+ENV PUPPETEER_CACHE_DIR=/home/nestjs/.cache/puppeteer
+RUN mkdir -p $PUPPETEER_CACHE_DIR && chown -R nestjs:nodejs /home/nestjs
+RUN PUPPETEER_CACHE_DIR=$PUPPETEER_CACHE_DIR npx puppeteer browsers install chrome
+
 USER nestjs
 
 EXPOSE 3001
