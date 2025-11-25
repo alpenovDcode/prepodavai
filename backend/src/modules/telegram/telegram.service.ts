@@ -1,8 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable, forwardRef } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../common/prisma/prisma.service';
-import { Bot, Context } from 'grammy';
+import { Bot, Context, InputFile } from 'grammy';
 import * as crypto from 'crypto';
+import { HtmlExportService } from './html-export.service';
+import { GigachatService } from '../gigachat/gigachat.service';
 
 @Injectable()
 export class TelegramService {
@@ -11,6 +13,9 @@ export class TelegramService {
   constructor(
     private configService: ConfigService,
     private prisma: PrismaService,
+    private readonly htmlExportService: HtmlExportService,
+    @Inject(forwardRef(() => GigachatService))
+    private readonly gigachatService: GigachatService,
   ) {
     const token = this.configService.get<string>('TELEGRAM_BOT_TOKEN');
     if (token) {
@@ -133,11 +138,81 @@ export class TelegramService {
     const content = result?.content || result;
     const text = typeof content === 'string' ? content : JSON.stringify(content, null, 2);
 
+    const htmlPayload = this.extractHtmlPayload(text);
+    if (htmlPayload.isHtml) {
+      const filename = `${generationType}_${new Date().toISOString().split('T')[0]}_${Date.now()}.pdf`;
+      const pdfBuffer = await this.htmlExportService.htmlToPdf(htmlPayload.html);
+
+      let caption = '✅ Ваш материал готов! Мы прикрепили его в формате PDF.';
+      try {
+        const fileId = await this.gigachatService.uploadFile(pdfBuffer, filename, 'assistants');
+        const shareLink = this.generateShareLink(fileId, filename);
+        caption += `\n\n🔗 Ссылка на скачивание: ${shareLink}`;
+      } catch (error) {
+        console.warn('Failed to upload PDF to GigaChat storage:', error?.message || error);
+        caption += '\n\n⚠️ Не удалось сохранить файл в хранилище GigaChat.';
+      }
+
+      await this.bot.api.sendDocument(chatId, new InputFile(pdfBuffer, filename), {
+        caption,
+      });
+      return;
+    }
+
     // Ограничиваем длину (Telegram limit ~4096 символов)
     const messageText =
-      text.length > 4000 ? text.substring(0, 3900) + '\n\n... (полный текст в приложении)' : text;
+      text.length > 4000 ? text.substring(0, 3900) + '\n\n... (полный текст во вложении).' : text;
 
     await this.bot.api.sendMessage(chatId, messageText);
+  }
+
+  private looksLikeHtml(value: string) {
+    if (!value) return false;
+    const trimmed = value.trim();
+    return /<!DOCTYPE html/i.test(trimmed) || /<html[\s>]/i.test(trimmed) || /<body[\s>]/i.test(trimmed);
+  }
+
+  private extractHtmlPayload(value: string): { isHtml: boolean; html: string } {
+    if (!value) {
+      return { isHtml: false, html: '' };
+    }
+
+    let processed = value.trim();
+
+    // Убираем markdown-блоки ```html ... ```
+    if (processed.startsWith('```')) {
+      processed = processed.replace(/^```(?:html)?/i, '').replace(/```$/, '').trim();
+    }
+
+    // Иногда ответ окружён кавычками / JSON-строками
+    if (
+      (processed.startsWith('"') && processed.endsWith('"')) ||
+      (processed.startsWith("'") && processed.endsWith("'"))
+    ) {
+      processed = processed.slice(1, -1);
+    }
+
+    const isHtml = this.looksLikeHtml(processed) || /<\/?[a-z][\s\S]*>/i.test(processed);
+    return { isHtml, html: processed };
+  }
+
+  private generateShareLink(fileId: string, filename: string) {
+    const baseUrl =
+      this.configService.get<string>('PUBLIC_API_URL') ||
+      this.configService.get<string>('BASE_URL') ||
+      'https://api.prepodavai.ru';
+    const expires = Date.now() + 1000 * 60 * 60 * 24; // 24 часа
+    const token = this.signFileToken(fileId, expires);
+    const normalizedBase = baseUrl.replace(/\/$/, '');
+    const encodedName = encodeURIComponent(filename);
+    return `${normalizedBase}/api/gigachat/files/${fileId}/download?token=${token}&expires=${expires}&filename=${encodedName}`;
+  }
+
+  private signFileToken(fileId: string, expires: number) {
+    const secret =
+      this.configService.get<string>('GIGACHAT_FILE_SHARE_SECRET') ||
+      this.configService.get<string>('JWT_SECRET');
+    return crypto.createHmac('sha256', secret).update(`${fileId}:${expires}`).digest('hex');
   }
 
   /**
