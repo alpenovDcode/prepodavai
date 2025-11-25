@@ -125,6 +125,10 @@ export default function WebAppIndex() {
     ? generationResult.content
     : generationResult
 
+  const isFullHtmlResult =
+    typeof textResultPayload === 'string' &&
+    looksLikeFullHtmlDocument(textResultPayload)
+
   const imageDisplayUrl = (() => {
     if (!generationResult) return null
     if (typeof generationResult === 'string') return generationResult
@@ -498,10 +502,14 @@ export default function WebAppIndex() {
 
                 {/* Text result */}
                 {isTextResult && (
-                  <div
-                    className="formatted-content result-content prose prose-sm max-w-none text-black"
-                    dangerouslySetInnerHTML={{ __html: formatMarkdown(textResultPayload) }}
-                  />
+                  isFullHtmlResult && typeof textResultPayload === 'string' ? (
+                    <FullHtmlPreview html={textResultPayload} />
+                  ) : (
+                    <div
+                      className="formatted-content result-content prose prose-sm max-w-none text-black"
+                      dangerouslySetInnerHTML={{ __html: formatMarkdown(textResultPayload) }}
+                    />
+                  )
                 )}
 
                 {/* Image result */}
@@ -603,7 +611,15 @@ function extractTextFromResult(result: any): string {
 }
 
 function isHtmlString(value: any): boolean {
-  return typeof value === 'string' && /<\/?[a-z][\s\S]*>/i.test(value.trim())
+  if (typeof value !== 'string') return false
+  const trimmed = value.trim()
+  return /<!DOCTYPE html/i.test(trimmed) || /<\/?[a-z][\s\S]*>/i.test(trimmed)
+}
+
+function looksLikeFullHtmlDocument(value: any): boolean {
+  if (typeof value !== 'string') return false
+  const trimmed = value.trim()
+  return /<!DOCTYPE html/i.test(trimmed) || /<html[\s>]/i.test(trimmed) || /<head[\s>]/i.test(trimmed)
 }
 
 function formatMarkdown(text: any): string {
@@ -614,6 +630,14 @@ function formatMarkdown(text: any): string {
   }
 
   text = String(text)
+
+  if (looksLikeFullHtmlDocument(text)) {
+    return text
+  }
+
+  if (isHtmlString(text)) {
+    return text
+  }
   let html = text
 
   // Простое форматирование markdown
@@ -646,4 +670,44 @@ function getGenerationTypeLabel(type: string): string {
     gigachat: 'GigaChat'
   }
   return labels[type] || 'Материал'
+}
+
+function FullHtmlPreview({ html }: { html: string }) {
+  const iframeRef = useRef<HTMLIFrameElement>(null)
+
+  useEffect(() => {
+    const iframe = iframeRef.current
+    if (!iframe) return
+
+    const resize = () => {
+      const doc = iframe.contentDocument || iframe.contentWindow?.document
+      if (!doc) return
+      const height = (doc.body?.scrollHeight || doc.documentElement?.scrollHeight || 600) + 40
+      iframe.style.height = `${Math.max(height, 400)}px`
+    }
+
+    const handleLoad = () => resize()
+    iframe.addEventListener('load', handleLoad)
+
+    // Дополнительное измерение после отрисовки MathJax и т.п.
+    const timer = setTimeout(resize, 1200)
+
+    return () => {
+      iframe.removeEventListener('load', handleLoad)
+      clearTimeout(timer)
+    }
+  }, [html])
+
+  return (
+    <div className="w-full border border-[#D8E6FF] rounded-2xl overflow-hidden bg-white">
+      <iframe
+        ref={iframeRef}
+        title="HTML результат"
+        srcDoc={html}
+        className="w-full border-0"
+        style={{ minHeight: '600px' }}
+        sandbox="allow-scripts allow-same-origin allow-popups"
+      />
+    </div>
+  )
 }
