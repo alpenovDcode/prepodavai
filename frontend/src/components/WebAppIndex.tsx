@@ -581,11 +581,15 @@ export default function WebAppIndex() {
 
                 {/* Text result */}
                 {isTextResult && (
-                  <div
-                    ref={resultHtmlRef}
-                    className="formatted-content result-content prose prose-sm max-w-none text-black mathjax-wrapper"
-                    dangerouslySetInnerHTML={{ __html: renderMath(cleanedTextResult) }}
-                  />
+                  isHtmlResult && htmlResult ? (
+                    <FullHtmlPreview html={htmlResult} />
+                  ) : (
+                    <div
+                      ref={resultHtmlRef}
+                      className="formatted-content result-content prose prose-sm max-w-none text-black mathjax-wrapper"
+                      dangerouslySetInnerHTML={{ __html: renderMath(cleanedTextResult) }}
+                    />
+                  )
                 )}
 
                 {/* Image result */}
@@ -699,6 +703,7 @@ function looksLikeFullHtmlDocument(value: any): boolean {
     /<!DOCTYPE html/i.test(trimmed) ||
     /<html[\s>]/i.test(trimmed) ||
     /<head[\s>]/i.test(trimmed) ||
+    /<style[\s>]/i.test(trimmed) || // Treat content with styles as full HTML to isolate it
     /<\/?[a-z][\s\S]*>/i.test(trimmed)
   )
 }

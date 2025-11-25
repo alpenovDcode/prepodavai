@@ -9,6 +9,7 @@ RUN apt-get update && apt-get install -y \
     libatspi2.0-0 libcups2 libdbus-1-3 libdrm2 libgbm1 libgtk-3-0 libnspr4 \
     libnss3 libx11-xcb1 libxcomposite1 libxcursor1 libxdamage1 libxfixes3 \
     libxi6 libxrandr2 libxrender1 libxss1 libxtst6 wget \
+    fonts-noto fonts-noto-cjk fonts-ipafont-gothic fonts-wqy-zenhei fonts-kacst fonts-freefont-ttf fonts-thai-tlwg fonts-indic \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 
@@ -59,6 +60,7 @@ RUN apt-get update && apt-get install -y \
     libatspi2.0-0 libcups2 libdbus-1-3 libdrm2 libgbm1 libgtk-3-0 libnspr4 \
     libnss3 libx11-xcb1 libxcomposite1 libxcursor1 libxdamage1 libxfixes3 \
     libxi6 libxrandr2 libxrender1 libxss1 libxtst6 wget \
+    fonts-noto fonts-noto-cjk fonts-ipafont-gothic fonts-wqy-zenhei fonts-kacst fonts-freefont-ttf fonts-thai-tlwg fonts-indic \
     && rm -rf /var/lib/apt/lists/*
 
 RUN groupadd --system --gid 1001 nodejs
