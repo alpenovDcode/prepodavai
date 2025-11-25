@@ -47,11 +47,12 @@ window.MathJax = {
     }
 
     /**
-     * Detects LaTeX formula syntax in HTML
-     */
+   * Detects LaTeX formula syntax in HTML
+   */
     private detectLatexFormulas(html: string): boolean {
-        // Check for common LaTeX delimiters
-        return /\\\\\(|\\\\\[|\$\$|\$[^$]+\$/i.test(html);
+        // Check for common LaTeX delimiters with content
+        // Matches: $$ ... $$, $ ... $, \( ... \), \[ ... \]
+        return /\$\$[\s\S]+?\$\$|\$[^$\n]+?\$|\\\\?\([\s\S]+?\\\\?\)|\\\\?\[[\s\S]+?\\\\?\]/i.test(html);
     }
 
     /**
