@@ -5,6 +5,10 @@ FROM base AS deps
 RUN apt-get update && apt-get install -y \
     openssl \
     libssl-dev \
+    ca-certificates fonts-liberation libasound2 libatk-bridge2.0-0 libatk1.0-0 \
+    libatspi2.0-0 libcups2 libdbus-1-3 libdrm2 libgbm1 libgtk-3-0 libnspr4 \
+    libnss3 libx11-xcb1 libxcomposite1 libxcursor1 libxdamage1 libxfixes3 \
+    libxi6 libxrandr2 libxrender1 libxss1 libxtst6 wget \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 
@@ -27,6 +31,10 @@ FROM base AS builder
 RUN apt-get update && apt-get install -y \
     openssl \
     libssl-dev \
+    ca-certificates fonts-liberation libasound2 libatk-bridge2.0-0 libatk1.0-0 \
+    libatspi2.0-0 libcups2 libdbus-1-3 libdrm2 libgbm1 libgtk-3-0 libnspr4 \
+    libnss3 libx11-xcb1 libxcomposite1 libxcursor1 libxdamage1 libxfixes3 \
+    libxi6 libxrandr2 libxrender1 libxss1 libxtst6 wget \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
@@ -47,6 +55,10 @@ ENV NODE_ENV production
 RUN apt-get update && apt-get install -y \
     openssl \
     ca-certificates \
+    fonts-liberation libasound2 libatk-bridge2.0-0 libatk1.0-0 \
+    libatspi2.0-0 libcups2 libdbus-1-3 libdrm2 libgbm1 libgtk-3-0 libnspr4 \
+    libnss3 libx11-xcb1 libxcomposite1 libxcursor1 libxdamage1 libxfixes3 \
+    libxi6 libxrandr2 libxrender1 libxss1 libxtst6 wget \
     && rm -rf /var/lib/apt/lists/*
 
 RUN groupadd --system --gid 1001 nodejs
