@@ -7,7 +7,7 @@ export class GenerationHelpersService {
   constructor(
     private prisma: PrismaService,
     private generationQueue: GenerationQueueService,
-  ) {}
+  ) { }
 
   /**
    * Создать запись генерации в обеих таблицах
@@ -54,6 +54,8 @@ export class GenerationHelpersService {
    * Завершить генерацию успешно
    */
   async completeGeneration(generationRequestId: string, outputData: any) {
+    console.log(`[GenerationHelpers] Completing generation ${generationRequestId}, output data length: ${JSON.stringify(outputData).length}`);
+
     // Обновляем старую таблицу
     await this.prisma.generationRequest.update({
       where: { id: generationRequestId },
@@ -62,6 +64,7 @@ export class GenerationHelpersService {
         result: outputData,
       },
     });
+    console.log(`[GenerationHelpers] Updated generationRequest table for ${generationRequestId}`);
 
     // Обновляем новую таблицу
     const userGeneration = await this.prisma.userGeneration.findUnique({
@@ -76,9 +79,12 @@ export class GenerationHelpersService {
           outputData,
         },
       });
+      console.log(`[GenerationHelpers] Updated userGeneration table for ${generationRequestId}`);
 
       // Запускаем Job для отправки в Telegram
+      console.log(`[GenerationHelpers] Scheduling Telegram send for ${generationRequestId}`);
       await this.generationQueue.scheduleTelegramSend(generationRequestId);
+      console.log(`[GenerationHelpers] Telegram send scheduled successfully for ${generationRequestId}`);
     }
   }
 

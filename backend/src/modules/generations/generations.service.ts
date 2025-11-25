@@ -173,8 +173,10 @@ export class GenerationsService {
     inputParams: Record<string, any>,
     requestedModel?: string,
   ) {
+    console.log(`[GenerationsService] Starting text generation for ${generationType}`);
     const { systemPrompt, userPrompt } = this.buildGigachatPrompt(generationType, inputParams);
     const model = requestedModel || this.gigachatService.getDefaultModel('chat');
+    console.log(`[GenerationsService] Using model: ${model}, prompt length: ${systemPrompt.length + userPrompt.length}`);
 
     const response = (await this.gigachatService.createChatCompletion({
       model,
@@ -188,13 +190,16 @@ export class GenerationsService {
     })) as any;
 
     const content = response?.choices?.[0]?.message?.content;
+    console.log(`[GenerationsService] Received response from GigaChat, content length: ${content?.length || 0}`);
 
     if (!content) {
       throw new BadRequestException('GigaChat вернул пустой результат');
     }
 
     // Postprocess HTML to ensure MathJax is included if formulas are present
+    console.log(`[GenerationsService] Starting HTML postprocessing for ${generationType}`);
     const processedContent = this.htmlPostprocessor.ensureMathJaxScript(content);
+    console.log(`[GenerationsService] HTML postprocessing complete, processed length: ${processedContent.length}`);
 
     const normalizedResult = {
       provider: 'GigaChat-2-Max',
@@ -208,7 +213,9 @@ export class GenerationsService {
       completedAt: new Date().toISOString(),
     };
 
+    console.log(`[GenerationsService] Saving generation result to database for ${generationType}`);
     await this.generationHelpers.completeGeneration(generationRequestId, normalizedResult);
+    console.log(`[GenerationsService] Generation ${generationType} completed successfully`);
 
     return normalizedResult;
   }

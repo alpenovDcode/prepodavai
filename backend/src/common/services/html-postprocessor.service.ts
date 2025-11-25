@@ -21,22 +21,29 @@ window.MathJax = {
      */
     ensureMathJaxScript(html: string): string {
         if (!html || typeof html !== 'string') {
+            console.log('[HtmlPostprocessor] Input is empty or not a string, skipping');
             return html;
         }
 
         // Check if HTML contains LaTeX formulas
         const hasFormulas = this.detectLatexFormulas(html);
+        console.log(`[HtmlPostprocessor] LaTeX formulas detected: ${hasFormulas}`);
         if (!hasFormulas) {
             return html;
         }
 
         // Check if MathJax script is already present
-        if (/mathjax/i.test(html)) {
+        const hasMathJaxScript = /mathjax/i.test(html);
+        console.log(`[HtmlPostprocessor] MathJax script already present: ${hasMathJaxScript}`);
+        if (hasMathJaxScript) {
             return html;
         }
 
         // Inject MathJax script into <head>
-        return this.injectMathJaxScript(html);
+        console.log('[HtmlPostprocessor] Injecting MathJax script into HTML');
+        const result = this.injectMathJaxScript(html);
+        console.log(`[HtmlPostprocessor] MathJax injection complete, result length: ${result.length}`);
+        return result;
     }
 
     /**
