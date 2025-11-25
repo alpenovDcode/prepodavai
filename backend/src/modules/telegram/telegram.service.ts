@@ -140,14 +140,19 @@ export class TelegramService {
     const filename = `${generationType}_${new Date().toISOString().split('T')[0]}_${Date.now()}.pdf`;
 
     try {
+      console.log(`[Telegram] Generating PDF for ${generationType}, text length: ${text.length}`);
       const htmlContent = htmlPayload.isHtml ? htmlPayload.html : this.wrapPlainTextAsHtml(text);
+      console.log(`[Telegram] HTML content prepared, length: ${htmlContent.length}`);
+
       const pdfBuffer = await this.htmlExportService.htmlToPdf(htmlContent);
+      console.log(`[Telegram] PDF generated successfully, size: ${pdfBuffer.length} bytes`);
+
       await this.bot.api.sendDocument(chatId, new InputFile(pdfBuffer, filename), {
         caption: '✅ Ваш материал готов! Мы прикрепили его в формате PDF.',
       });
       return;
     } catch (error) {
-      console.error('Failed to render PDF for Telegram:', error);
+      console.error(`[Telegram] Failed to render PDF for ${generationType}:`, error);
       // Fallback удален по требованию: отправляем только PDF или ошибку (в логах)
     }
 
