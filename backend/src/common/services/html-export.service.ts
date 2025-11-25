@@ -24,7 +24,7 @@ export class HtmlExportService implements OnModuleDestroy {
     });
     await page.waitForFunction(() => (window as any).MathJax && (window as any).MathJax.typesetPromise);
     await page.evaluate(() => (window as any).MathJax.typesetPromise && (window as any).MathJax.typesetPromise());
-    await page.waitForTimeout(200);
+    await new Promise((resolve) => setTimeout(resolve, 200));
     const pdfBuffer = (await page.pdf({
       format: 'A4',
       printBackground: true,
