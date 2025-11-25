@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { Bot, Context, InputFile } from 'grammy';
 import * as crypto from 'crypto';
-import { HtmlExportService } from './html-export.service';
+import { HtmlExportService } from '../../common/services/html-export.service';
 import { GigachatService } from '../gigachat/gigachat.service';
 
 @Injectable()

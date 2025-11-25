@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import InputComposer from './InputComposer'
 import { useGenerations } from '@/lib/hooks/useGenerations'
@@ -125,9 +125,10 @@ export default function WebAppIndex() {
     ? generationResult.content
     : generationResult
 
-  const isFullHtmlResult =
-    typeof textResultPayload === 'string' &&
-    looksLikeFullHtmlDocument(textResultPayload)
+  const { isHtmlResult, htmlResult, cleanedTextResult } = useMemo(
+    () => normalizeResultPayload(textResultPayload),
+    [textResultPayload]
+  )
 
   const imageDisplayUrl = (() => {
     if (!generationResult) return null
@@ -151,7 +152,9 @@ export default function WebAppIndex() {
 
   const copyResult = () => {
     if (generationResult && navigator.clipboard) {
-      const textContent = extractTextFromResult(generationResult)
+      const textContent = isHtmlResult && htmlResult
+        ? stripHtmlTags(htmlResult)
+        : extractTextFromResult(generationResult)
       navigator.clipboard.writeText(textContent)
       setStatusMessage('Скопировано в буфер обмена!')
       setStatusOk(true)
@@ -159,11 +162,37 @@ export default function WebAppIndex() {
     }
   }
 
-  const downloadTextResult = () => {
+  const downloadTextResult = async () => {
     if (!generationResult) return
 
     setIsExporting(true)
     try {
+      if (isHtmlResult && htmlResult) {
+        const typeLabel = getGenerationTypeLabel(currentFunctionId)
+        const safeName = typeLabel.replace(/[^a-zA-Zа-яА-Я0-9]/g, '_') || 'result'
+        const dateSuffix = new Date().toISOString().split('T')[0]
+        const filename = `${safeName}_${dateSuffix}.pdf`
+
+        const response = await apiClient.post<Blob>(
+          '/gigachat/export/pdf',
+          { html: htmlResult, filename },
+          { responseType: 'blob' }
+        )
+
+        const blob = response.data
+        const url = URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = url
+        link.download = filename
+        link.setAttribute('type', 'application/pdf')
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        URL.revokeObjectURL(url)
+        setIsExporting(false)
+        return
+      }
+
       let content = textResultPayload || ''
       let mime = 'text/html'
       let extension = 'html'
@@ -502,12 +531,12 @@ export default function WebAppIndex() {
 
                 {/* Text result */}
                 {isTextResult && (
-                  isFullHtmlResult && typeof textResultPayload === 'string' ? (
-                    <FullHtmlPreview html={textResultPayload} />
+                  isHtmlResult && htmlResult ? (
+                    <FullHtmlPreview html={htmlResult} />
                   ) : (
                     <div
                       className="formatted-content result-content prose prose-sm max-w-none text-black"
-                      dangerouslySetInnerHTML={{ __html: formatMarkdown(textResultPayload) }}
+                      dangerouslySetInnerHTML={{ __html: formatMarkdown(cleanedTextResult) }}
                     />
                   )
                 )}
@@ -619,7 +648,12 @@ function isHtmlString(value: any): boolean {
 function looksLikeFullHtmlDocument(value: any): boolean {
   if (typeof value !== 'string') return false
   const trimmed = value.trim()
-  return /<!DOCTYPE html/i.test(trimmed) || /<html[\s>]/i.test(trimmed) || /<head[\s>]/i.test(trimmed)
+  return (
+    /<!DOCTYPE html/i.test(trimmed) ||
+    /<html[\s>]/i.test(trimmed) ||
+    /<head[\s>]/i.test(trimmed) ||
+    /<\/?[a-z][\s\S]*>/i.test(trimmed)
+  )
 }
 
 function formatMarkdown(text: any): string {
@@ -629,7 +663,7 @@ function formatMarkdown(text: any): string {
     text = JSON.stringify(text, null, 2)
   }
 
-  text = String(text)
+  text = stripCodeFences(String(text))
 
   if (looksLikeFullHtmlDocument(text)) {
     return text
@@ -735,4 +769,45 @@ function FullHtmlPreview({ html }: { html: string }) {
       />
     </div>
   )
+}
+
+function stripCodeFences(text: string) {
+  let processed = text.trim()
+  if (processed.startsWith('```')) {
+    processed = processed.replace(/^```(?:html)?/i, '').replace(/```$/, '').trim()
+  }
+  return processed
+}
+
+function normalizeResultPayload(value: any) {
+  if (typeof value !== 'string') {
+    return { isHtmlResult: false, htmlResult: '', cleanedTextResult: value }
+  }
+
+  let processed = stripCodeFences(value)
+
+  if (
+    (processed.startsWith('"') && processed.endsWith('"')) ||
+    (processed.startsWith("'") && processed.endsWith("'"))
+  ) {
+    processed = processed.slice(1, -1)
+  }
+
+  const isHtmlResult = looksLikeFullHtmlDocument(processed)
+
+  return {
+    isHtmlResult,
+    htmlResult: isHtmlResult ? processed : '',
+    cleanedTextResult: processed,
+  }
+}
+
+function stripHtmlTags(html: string) {
+  if (!html) return ''
+  if (typeof window === 'undefined') {
+    return html.replace(/<[^>]+>/g, ' ')
+  }
+  const div = document.createElement('div')
+  div.innerHTML = html
+  return div.textContent || div.innerText || ''
 }

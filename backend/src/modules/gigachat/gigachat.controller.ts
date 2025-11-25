@@ -18,6 +18,7 @@ import { GigachatService } from './gigachat.service';
 import { Response } from 'express';
 import * as crypto from 'crypto';
 import { ConfigService } from '@nestjs/config';
+import { HtmlExportService } from '../../common/services/html-export.service';
 
 @Controller('gigachat')
 export class GigachatController {
@@ -27,6 +28,7 @@ export class GigachatController {
     private readonly gigachatGenerationsService: GigachatGenerationsService,
     private readonly gigachatService: GigachatService,
     private readonly configService: ConfigService,
+    private readonly htmlExportService: HtmlExportService,
   ) {}
 
   @Post('generate')
@@ -118,6 +120,26 @@ export class GigachatController {
     res.setHeader('Content-Type', meta?.mime_type || 'application/octet-stream');
     res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(downloadName)}"`);
     res.send(Buffer.from(buffer));
+  }
+
+  @Post('export/pdf')
+  @UseGuards(JwtAuthGuard)
+  async exportPdf(
+    @Body() body: { html: string; filename?: string },
+    @Res() res: Response,
+  ): Promise<void> {
+    if (!body?.html) {
+      throw new BadRequestException('HTML payload is required');
+    }
+
+    const pdfBuffer = await this.htmlExportService.htmlToPdf(body.html);
+    const filename =
+      body.filename ||
+      `gigachat-material-${new Date().toISOString().split('T')[0]}-${Date.now()}.pdf`;
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}"`);
+    res.send(pdfBuffer);
   }
 
   private validateShareToken(fileId: string, expires: number, token: string) {
