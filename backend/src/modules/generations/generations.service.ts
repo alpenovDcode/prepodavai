@@ -6,6 +6,7 @@ import { SubscriptionsService, OperationType } from '../subscriptions/subscripti
 import axios from 'axios';
 import { ConfigService } from '@nestjs/config';
 import { GigachatService } from '../gigachat/gigachat.service';
+import { HtmlPostprocessorService } from '../../common/services/html-postprocessor.service';
 
 export type GenerationType =
   | 'worksheet'
@@ -45,6 +46,7 @@ export class GenerationsService {
     private configService: ConfigService,
     @Inject(forwardRef(() => GigachatService))
     private gigachatService: GigachatService,
+    private htmlPostprocessor: HtmlPostprocessorService,
   ) { }
 
   /**
@@ -191,11 +193,14 @@ export class GenerationsService {
       throw new BadRequestException('GigaChat вернул пустой результат');
     }
 
+    // Postprocess HTML to ensure MathJax is included if formulas are present
+    const processedContent = this.htmlPostprocessor.ensureMathJaxScript(content);
+
     const normalizedResult = {
       provider: 'GigaChat-2-Max',
       mode: 'chat',
       model,
-      content,
+      content: processedContent,
       prompt: {
         system: systemPrompt,
         user: userPrompt,

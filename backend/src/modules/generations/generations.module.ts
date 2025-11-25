@@ -8,6 +8,7 @@ import { TelegramSenderProcessor } from './processors/telegram-sender.processor'
 import { TelegramModule } from '../telegram/telegram.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { GigachatModule } from '../gigachat/gigachat.module';
+import { HtmlPostprocessorService } from '../../common/services/html-postprocessor.service';
 
 @Module({
   imports: [
@@ -29,7 +30,8 @@ import { GigachatModule } from '../gigachat/gigachat.module';
     GenerationHelpersService,
     GenerationQueueService,
     TelegramSenderProcessor,
+    HtmlPostprocessorService,
   ],
   exports: [GenerationsService, GenerationQueueService, GenerationHelpersService],
 })
-export class GenerationsModule {}
+export class GenerationsModule { }
