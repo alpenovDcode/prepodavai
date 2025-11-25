@@ -82,6 +82,17 @@ export default function WebAppIndex() {
   const resultHtmlRef = useRef<HTMLDivElement>(null)
   const [isMathJaxReady, setIsMathJaxReady] = useState(false)
 
+  const textResultPayload = useMemo(() => {
+    return typeof generationResult === 'object' && generationResult?.content
+      ? generationResult.content
+      : generationResult
+  }, [generationResult])
+
+  const { isHtmlResult, htmlResult, cleanedTextResult } = useMemo(
+    () => normalizeResultPayload(textResultPayload),
+    [textResultPayload],
+  )
+
   useEffect(() => {
     if (typeof window === 'undefined') return
     if ((window as any).MathJaxLoader) {
@@ -155,17 +166,6 @@ export default function WebAppIndex() {
   const isAudioResult = generationResult &&
     currentFunctionId === 'gigachat' &&
     gigachatMode === 'audio_speech'
-
-  const textResultPayload = useMemo(() => {
-    return typeof generationResult === 'object' && generationResult?.content
-      ? generationResult.content
-      : generationResult
-  }, [generationResult])
-
-  const { isHtmlResult, htmlResult, cleanedTextResult } = useMemo(
-    () => normalizeResultPayload(textResultPayload),
-    [textResultPayload]
-  )
 
   const imageDisplayUrl = (() => {
     if (!generationResult) return null
