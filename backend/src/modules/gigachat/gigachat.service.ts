@@ -26,6 +26,14 @@ interface GigachatFilePayload {
   mimeType: string;
 }
 
+interface GigachatFileMetadata {
+  id: string;
+  filename?: string;
+  mime_type?: string;
+  size?: number;
+  [key: string]: any;
+}
+
 @Injectable()
 export class GigachatService {
   private readonly logger = new Logger(GigachatService.name);
@@ -454,7 +462,7 @@ export class GigachatService {
    * @param fileId File ID
    * @returns File metadata
    */
-  async getFile(fileId: string) {
+  async getFile(fileId: string): Promise<GigachatFileMetadata> {
     this.logger.debug(`Getting file metadata: ${fileId}`);
 
     return this.requestJson({
@@ -477,7 +485,7 @@ export class GigachatService {
       responseType: 'arraybuffer',
     });
 
-    return Buffer.from(response.data);
+    return Buffer.from(response.data as ArrayBuffer);
   }
 
   /**

@@ -1,20 +1,36 @@
-import { Body, Controller, Get, Post, Query, Request, UseGuards, Logger, BadRequestException } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Post,
+  Query,
+  Request,
+  UseGuards,
+  Logger,
+  BadRequestException,
+  Param,
+  Res,
+} from '@nestjs/common';
 import { GigachatGenerationsService } from './gigachat-generations.service';
 import { GigachatGenerationDto } from './dto/gigachat-generation.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { GigachatService } from './gigachat.service';
+import { Response } from 'express';
+import * as crypto from 'crypto';
+import { ConfigService } from '@nestjs/config';
 
 @Controller('gigachat')
-@UseGuards(JwtAuthGuard)
 export class GigachatController {
   private readonly logger = new Logger(GigachatController.name);
 
   constructor(
     private readonly gigachatGenerationsService: GigachatGenerationsService,
     private readonly gigachatService: GigachatService,
-  ) { }
+    private readonly configService: ConfigService,
+  ) {}
 
   @Post('generate')
+  @UseGuards(JwtAuthGuard)
   async generate(@Request() req, @Body() dto: GigachatGenerationDto) {
     try {
       this.logger.log(`GigaChat generation request: mode=${dto.mode}, model=${dto.model}, userId=${req.user.id}`);
@@ -30,11 +46,13 @@ export class GigachatController {
   }
 
   @Get('models')
+  @UseGuards(JwtAuthGuard)
   async listModels(@Query('capability') capability?: string) {
     return this.gigachatService.listModels(capability);
   }
 
   @Post('files/upload')
+  @UseGuards(JwtAuthGuard)
   async uploadFile(@Request() req, @Body() body: { file: string; filename: string; purpose?: string }) {
     try {
       // Decode base64 file
@@ -52,7 +70,8 @@ export class GigachatController {
   }
 
   @Get('files/:fileId')
-  async getFile(@Request() req, @Query('fileId') fileId: string) {
+  @UseGuards(JwtAuthGuard)
+  async getFile(@Param('fileId') fileId: string): Promise<any> {
     try {
       return await this.gigachatService.getFile(fileId);
     } catch (error: any) {
@@ -62,7 +81,8 @@ export class GigachatController {
   }
 
   @Get('files/:fileId/content')
-  async getFileContent(@Request() req, @Query('fileId') fileId: string) {
+  @UseGuards(JwtAuthGuard)
+  async getFileContent(@Param('fileId') fileId: string): Promise<{ success: boolean; content: string }> {
     try {
       const content = await this.gigachatService.getFileContent(fileId);
       return { success: true, content: content.toString('base64') };
@@ -70,5 +90,41 @@ export class GigachatController {
       this.logger.error(`Get file content error: ${error.message}`);
       throw new BadRequestException(error.message);
     }
+  }
+  @Get('files/:fileId/download')
+  async downloadFile(
+    @Param('fileId') fileId: string,
+    @Query('token') token: string,
+    @Query('expires') expires: string,
+    @Query('filename') filename: string,
+    @Res() res: Response,
+  ): Promise<void> {
+    if (!token || !expires) {
+      throw new BadRequestException('Missing token or expires parameter');
+    }
+    const expiresNum = Number(expires);
+    if (!Number.isFinite(expiresNum) || Date.now() > expiresNum) {
+      throw new BadRequestException('Link expired');
+    }
+    if (!this.validateShareToken(fileId, expiresNum, token)) {
+      throw new BadRequestException('Invalid token');
+    }
+
+    const buffer = await this.gigachatService.getFileContent(fileId);
+    const meta = await this.gigachatService.getFile(fileId);
+    const downloadName =
+      filename || meta?.filename || `gigachat-file-${new Date().toISOString().split('T')[0]}.pdf`;
+
+    res.setHeader('Content-Type', meta?.mime_type || 'application/octet-stream');
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(downloadName)}"`);
+    res.send(Buffer.from(buffer));
+  }
+
+  private validateShareToken(fileId: string, expires: number, token: string) {
+    const secret =
+      this.configService.get<string>('GIGACHAT_FILE_SHARE_SECRET') ||
+      this.configService.get<string>('JWT_SECRET');
+    const expected = crypto.createHmac('sha256', secret).update(`${fileId}:${expires}`).digest('hex');
+    return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(token));
   }
 }
