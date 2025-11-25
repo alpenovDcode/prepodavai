@@ -148,22 +148,10 @@ export class TelegramService {
       return;
     } catch (error) {
       console.error('Failed to render PDF for Telegram:', error);
-
-      // Fallback: отправляем HTML файл
-      try {
-        const htmlContent = htmlPayload.isHtml ? htmlPayload.html : this.wrapPlainTextAsHtml(text);
-        const htmlBuffer = Buffer.from(htmlContent, 'utf-8');
-        const htmlFilename = `${generationType}_${new Date().toISOString().split('T')[0]}_${Date.now()}.html`;
-
-        await this.bot.api.sendDocument(chatId, new InputFile(htmlBuffer, htmlFilename), {
-          caption: '⚠️ Не удалось сгенерировать PDF. Отправляем HTML-версию (откройте в браузере).',
-        });
-        return;
-      } catch (fallbackError) {
-        console.error('Failed to send HTML fallback:', fallbackError);
-      }
+      // Fallback удален по требованию: отправляем только PDF или ошибку (в логах)
     }
 
+    // Если PDF не сгенерировался, отправляем текстовое сообщение (но не HTML файл)
     const fallbackText =
       text.length > 3000 ? text.substring(0, 2900) + '\n\n... (полный текст слишком длинный).' : text;
     await this.bot.api.sendMessage(chatId, fallbackText);

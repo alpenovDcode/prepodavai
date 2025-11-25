@@ -28,18 +28,22 @@ export class HtmlExportService implements OnModuleDestroy {
       // Используем domcontentloaded для ускорения и избежания таймаутов при загрузке внешних ресурсов
       await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 30000 });
 
-      // Пытаемся отрендерить формулы, но не падаем если не выйдет
+      // Пытаемся отрендерить формулы с более надежным ожиданием
       try {
-        // Ждем немного, чтобы скрипты могли подгрузиться (если они есть)
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // 1. Ждем появления объекта MathJax
+        await page.waitForFunction(() => (window as any).MathJax, { timeout: 5000 }).catch(() => null);
 
+        // 2. Запускаем рендеринг и ждем его завершения
         await page.evaluate(async () => {
-          if ((window as any).MathJax) {
-            await (window as any).MathJax.typesetPromise?.();
+          if ((window as any).MathJax && (window as any).MathJax.typesetPromise) {
+            await (window as any).MathJax.typesetPromise();
           }
         });
+
+        // 3. Даем еще немного времени на перерисовку (иногда нужно для сложных формул)
+        await new Promise(resolve => setTimeout(resolve, 500));
       } catch (e) {
-        console.warn('MathJax rendering failed in PDF export:', e);
+        console.warn('MathJax rendering warning:', e);
       }
 
       const pdf = await page.pdf({
