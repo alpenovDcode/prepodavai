@@ -23,32 +23,35 @@ export class HtmlExportService implements OnModuleDestroy {
   async htmlToPdf(html: string): Promise<Buffer> {
     const browser = await this.getBrowser();
     const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: 'networkidle0', timeout: 60000 });
-    await page.evaluate(() => {
-      (window as any).MathJax = {
-        tex: {
-          inlineMath: [['$', '$'], ['\\(', '\\)']],
-          displayMath: [['$$', '$$'], ['\\[', '\\]']],
-          processEscapes: true
-        },
-        svg: {
-          fontCache: 'global'
-        }
-      };
-    });
-    await page.addScriptTag({
-      url: 'https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js',
-    });
-    await page.waitForFunction(() => (window as any).MathJax && (window as any).MathJax.typesetPromise);
-    await page.evaluate(() => (window as any).MathJax.typesetPromise && (window as any).MathJax.typesetPromise());
-    await new Promise((resolve) => setTimeout(resolve, 200));
-    const pdfBuffer = (await page.pdf({
-      format: 'A4',
-      printBackground: true,
-      margin: { top: '15mm', bottom: '15mm', left: '12mm', right: '12mm' },
-    })) as Buffer;
-    await page.close();
-    return pdfBuffer;
+
+    try {
+      // Используем domcontentloaded для ускорения и избежания таймаутов при загрузке внешних ресурсов
+      await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 30000 });
+
+      // Пытаемся отрендерить формулы, но не падаем если не выйдет
+      try {
+        // Ждем немного, чтобы скрипты могли подгрузиться (если они есть)
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        await page.evaluate(async () => {
+          if ((window as any).MathJax) {
+            await (window as any).MathJax.typesetPromise?.();
+          }
+        });
+      } catch (e) {
+        console.warn('MathJax rendering failed in PDF export:', e);
+      }
+
+      const pdf = await page.pdf({
+        format: 'A4',
+        printBackground: true,
+        margin: { top: '20px', right: '20px', bottom: '20px', left: '20px' },
+      });
+
+      return Buffer.from(pdf);
+    } finally {
+      await page.close();
+    }
   }
 
   async onModuleDestroy() {
