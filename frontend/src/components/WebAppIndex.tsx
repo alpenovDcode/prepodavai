@@ -156,9 +156,11 @@ export default function WebAppIndex() {
     currentFunctionId === 'gigachat' &&
     gigachatMode === 'audio_speech'
 
-  const textResultPayload = typeof generationResult === 'object' && generationResult?.content
-    ? generationResult.content
-    : generationResult
+  const textResultPayload = useMemo(() => {
+    return typeof generationResult === 'object' && generationResult?.content
+      ? generationResult.content
+      : generationResult
+  }, [generationResult])
 
   const { isHtmlResult, htmlResult, cleanedTextResult } = useMemo(
     () => normalizeResultPayload(textResultPayload),
