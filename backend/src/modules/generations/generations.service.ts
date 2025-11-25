@@ -45,7 +45,7 @@ export class GenerationsService {
     private configService: ConfigService,
     @Inject(forwardRef(() => GigachatService))
     private gigachatService: GigachatService,
-  ) {}
+  ) { }
 
   /**
    * Создать запрос на генерацию
@@ -91,7 +91,7 @@ export class GenerationsService {
 
     // GigaChat генерации обрабатываются напрямую, не через webhooks
     const isGigachatGeneration = generationType.startsWith('gigachat-');
-    
+
     if (!isGigachatGeneration) {
       // Формируем правильную структуру payload для webhook
       const webhookPayload = this.buildWebhookPayload(
@@ -114,10 +114,18 @@ export class GenerationsService {
 
   /**
    * Проверяем, нужно ли использовать прямую генерацию через GigaChat
-   * Временно включаем для отдельных типов (начинаем с worksheet)
+   * Временно включаем для отдельных типов
    */
   private shouldUseDirectGigachatGeneration(generationType: GenerationType): boolean {
-    return generationType === 'worksheet';
+    return [
+      'worksheet',
+      'quiz',
+      'vocabulary',
+      'lesson-plan',
+      'content-adaptation',
+      'message',
+      'feedback',
+    ].includes(generationType);
   }
 
   /**
@@ -130,16 +138,17 @@ export class GenerationsService {
     requestedModel?: string,
   ) {
     try {
-      switch (generationType) {
-        case 'worksheet':
-          return await this.generateWorksheetViaGigachat(
-            generationRequestId,
-            inputParams,
-            requestedModel,
-          );
-        default:
-          throw new BadRequestException(`Direct GigaChat generation is not configured for ${generationType}`);
+      // Все текстовые генерации обрабатываем через единый метод
+      if (this.shouldUseDirectGigachatGeneration(generationType)) {
+        return await this.generateTextViaGigachat(
+          generationType,
+          generationRequestId,
+          inputParams,
+          requestedModel,
+        );
       }
+
+      throw new BadRequestException(`Direct GigaChat generation is not configured for ${generationType}`);
     } catch (error: any) {
       this.logger.error(
         `Direct GigaChat generation failed for ${generationType}: ${error?.message || error}`,
@@ -154,14 +163,15 @@ export class GenerationsService {
   }
 
   /**
-   * Генерация рабочего листа через GigaChat (HTML документ)
+   * Универсальная генерация текста через GigaChat (HTML документ)
    */
-  private async generateWorksheetViaGigachat(
+  private async generateTextViaGigachat(
+    generationType: GenerationType,
     generationRequestId: string,
     inputParams: Record<string, any>,
     requestedModel?: string,
   ) {
-    const { systemPrompt, userPrompt } = this.buildWorksheetPrompt(inputParams);
+    const { systemPrompt, userPrompt } = this.buildGigachatPrompt(generationType, inputParams);
     const model = requestedModel || this.gigachatService.getDefaultModel('chat');
 
     const response = (await this.gigachatService.createChatCompletion({
@@ -170,15 +180,15 @@ export class GenerationsService {
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
       ],
-      temperature: 0.4,
+      temperature: 0.7, // Чуть выше для креативности, но в рамках разумного
       top_p: 0.9,
-      max_tokens: 2048,
+      max_tokens: 3000, // Увеличиваем лимит для больших документов
     })) as any;
 
     const content = response?.choices?.[0]?.message?.content;
 
     if (!content) {
-      throw new BadRequestException('GigaChat вернул пустой результат при генерации рабочего листа');
+      throw new BadRequestException('GigaChat вернул пустой результат');
     }
 
     const normalizedResult = {
@@ -196,6 +206,213 @@ export class GenerationsService {
     await this.generationHelpers.completeGeneration(generationRequestId, normalizedResult);
 
     return normalizedResult;
+  }
+
+  private buildGigachatPrompt(generationType: GenerationType, inputParams: Record<string, any>) {
+    let systemPrompt = '';
+    let userPrompt = '';
+
+    switch (generationType) {
+      case 'worksheet':
+        return this.buildWorksheetPrompt(inputParams);
+
+      case 'quiz': {
+        const { subject, topic, level, questionsCount, answersCount, customPrompt } = inputParams;
+        systemPrompt = `Твоя задача: Сгенерировать полноценный HTML-документ с встроенным CSS в строгом, профессиональном стиле.
+ТРЕБОВАНИЯ К ДИЗАЙНУ (СТРОГИЙ И АККУРАТНЫЙ):
+1. Типографика: Используй нейтральные шрифты (Inter, Roboto, -apple-system, sans-serif). Цвет текста: темно-серый (#222222), фон: белый (#FFFFFF).
+2. Структура: Контейнер max-width: 720px, центрирование (margin: 0 auto), четкие отступы (padding: 40px 20px).
+3. Стиль блоков:
+   - Полный отказ от теней (box-shadow: none). Вместо них используй тонкие границы (border: 1px solid #E5E5E5).
+   - Углы: либо прямые, либо минимальное скругление (border-radius: 4px).
+   - Заголовки: контрастные, с увеличенным margin-bottom.
+   - Цитаты и код: оформлять на светло-сером фоне (#F9F9F9) с моноширинным шрифтом.
+4. Верстка: Адаптивная (mobile-friendly), line-height: 1.6 для основного текста.
+
+ТРЕБОВАНИЯ К ФОРМУЛАМ И СПЕЦСИМВОЛАМ:
+1. Если в ответе есть формулы (математика, физика, химия), ОБЯЗАТЕЛЬНО используй LaTeX.
+2. Используй разделители \\( ... \\) для строчных формул и \\[ ... \\] для отдельных блоков.
+3. Добавь в секцию <head> скрипт для рендеринга LaTeX: <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+4. Убедись, что блоки формул имеют отступы сверху и снизу.
+
+ФОРМАТ ОТВЕТА: Верни ТОЛЬКО валидный HTML-код (начиная с <!DOCTYPE html>). Не используй markdown-блоки кода (т.е. без \`\`\`html), просто чистый текст HTML.`;
+
+        userPrompt = `Создай тест по предмету "${subject}" на тему "${topic}" для ${level} класса.
+Количество вопросов: ${questionsCount || 10}.
+Вариантов ответа: ${answersCount || 4}.
+${customPrompt ? `Дополнительные требования: ${customPrompt}` : ''}`;
+        break;
+      }
+
+      case 'vocabulary': {
+        const { subject, topic, language, wordsCount, level, customPrompt } = inputParams;
+        const languageNames: Record<string, string> = {
+          en: 'английский', de: 'немецкий', fr: 'французский', es: 'испанский', it: 'итальянский', ru: 'русский',
+        };
+        const langName = languageNames[language] || language;
+
+        systemPrompt = `Твоя задача: Сгенерировать структурированный HTML-документ в формате СЛОВАРЯ или ГЛОССАРИЯ.
+!!! ВАЖНОЕ ПРАВИЛО ПРИОРИТЕТА !!!
+В тексте задания (ниже) могут содержаться устаревшие требования вернуть ответ в формате JSON. ТЫ ДОЛЖЕН ПОЛНОСТЬЮ ИГНОРИРОВАТЬ ЛЮБЫЕ ТРЕБОВАНИЯ К ФОРМАТУ JSON В ТЕКСТЕ ЗАДАНИЯ. Твоя задача — взять *данные* из задания, но оформить их ИСКЛЮЧИТЕЛЬНО как HTML-страницу по инструкции ниже.
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+ТРЕБОВАНИЯ К ДИЗАЙНУ (СТРОГИЙ ЭНЦИКЛОПЕДИЧЕСКИЙ СТИЛЬ):
+1. Контейнер: max-width 760px, центрирование, padding 40px 20px.
+2. Стиль записей: Вместо карточек с тенями используй строгие блоки.
+   - Каждый термин отделен тонкой линией снизу (border-bottom: 1px solid #E5E5E5) или заключен в рамку (border: 1px solid #E0E0E0).
+   - Никаких теней (box-shadow: none) и ярких фонов.
+   - Padding внутри блока: 20px 0 (или 20px внутри рамки).
+3. Типографика:
+   - ТЕРМИН: Крупный, жирный, цвет почти черный (#111).
+   - МЕТА-ДАННЫЕ (транскрипция, род, часть речи): Темно-серый цвет (#666), шрифт чуть меньше, возможно моноширинный для транскрипции.
+   - ОПРЕДЕЛЕНИЕ: Контрастный шрифт (line-height: 1.6).
+   - ПРИМЕРЫ: Должны быть визуально отделены (например, серым вертикальным бордером слева border-left: 3px solid #eee, с отступом padding-left).
+4. Шрифт: Inter, Roboto, -apple-system, sans-serif.
+
+ТРЕБОВАНИЯ К СПЕЦСИМВОЛАМ:
+1. Если встречаются формулы, используй LaTeX с разделителями \\( ... \\).
+2. ОБЯЗАТЕЛЬНО добавь в начало ответа скрипт (без тегов html/head, просто в начале): <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+ФОРМАТ ОТВЕТА: Верни ТОЛЬКО валидный HTML-код (начиная с <!DOCTYPE html>). Не используй markdown-блоки кода (т.е. без \`\`\`html), просто чистый текст HTML.`;
+
+        userPrompt = `Создай словарь по теме "${topic}" (${subject || ''}) на ${langName} языке.
+Уровень: ${level || 'базовый'}.
+Количество слов: ${wordsCount || 20}.
+${customPrompt ? `Дополнительно: ${customPrompt}` : ''}`;
+        break;
+      }
+
+      case 'lesson-plan': {
+        const { subject, topic, level, duration, objectives, customPrompt } = inputParams;
+        systemPrompt = `Твоя задача: Сгенерировать четкий, структурированный и профессиональный ПЛАН УРОКА.
+ТРЕБОВАНИЯ К ДИЗАЙНУ (ОФИЦИАЛЬНО-ДЕЛОВОЙ СТИЛЬ):
+1. Контейнер: max-width 800px, центрирование, белый фон.
+2. Типографика: Строгий sans-serif (Inter, Arial, system-ui). Цвет текста #1a1a1a.
+3. Заголовки:
+   - H1 (Тема урока): Крупный, с нижним подчеркиванием (border-bottom: 2px solid #000), margin-bottom: 30px.
+   - H2 (Разделы): Четкие, жирные, с небольшим отступом снизу.
+4. Списки: Аккуратные <ul>/<ol> с отступом слева (padding-left: 20px).
+
+ТРЕБОВАНИЯ К ТАБЛИЦЕ ("ХОД УРОКА"):
+1. Секцию 'Ход урока' ОБЯЗАТЕЛЬНО оформи как HTML-таблицу (<table>).
+2. Стиль таблицы (Strict Grid):
+   - border-collapse: collapse; width: 100%; margin-top: 20px;
+   - Границы ячеек: border: 1px solid #cccccc; (тонкие серые линии).
+   - Заголовок таблицы (thead): Фон светло-серый (#f4f4f4), текст жирный, выравнивание по левому краю.
+   - Ячейки (td): Padding 10px 12px, vertical-align: top (текст всегда сверху).
+3. Колонки: 'Этап', 'Время', 'Деятельность учителя/учеников'.
+
+ТРЕБОВАНИЯ К ФОРМУЛАМ И СПЕЦСИМВОЛАМ:
+1. Если в плане есть формулы, ОБЯЗАТЕЛЬНО используй LaTeX.
+2. Разделители: \\( ... \\) для строчных и \\[ ... \\] для блочных.
+3. Добавь в начало ответа скрипт (без html/head): <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+ФОРМАТ ОТВЕТА: Верни ТОЛЬКО валидный HTML-код (начиная с <!DOCTYPE html>). Не используй markdown-блоки кода (т.е. без \`\`\`html), просто чистый текст HTML.`;
+
+        userPrompt = `Создай план урока по предмету "${subject}" на тему "${topic}" для ${level} класса.
+Длительность: ${duration || 45} мин.
+Цели: ${objectives || 'на твое усмотрение'}.
+${customPrompt ? `Дополнительно: ${customPrompt}` : ''}`;
+        break;
+      }
+
+      case 'content-adaptation': {
+        const { text, action, level, customPrompt } = inputParams;
+        systemPrompt = `Твоя задача: Сгенерировать ответ в виде HTML-документа со строгим, минималистичным дизайном (стиль технической спецификации).
+ТРЕБОВАНИЯ К ДИЗАЙНУ (STRICT & CLEAN):
+1. Макет:
+   - Контейнер max-width: 740px, выравнивание по центру.
+   - Шрифт: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif.
+   - Основной цвет текста: #1F2937 (глубокий серый), Фон: #FFFFFF.
+   - Line-height: 1.6 для основного текста.
+2. Декоративные элементы:
+   - Полный отказ от теней (box-shadow). Используй только границы (border: 1px solid #E5E7EB).
+   - Заголовки: Черные, жирные, отделены от текста отступами.
+   - Если есть блоки кода или выделения: использовать фон #F9FAFB (очень светло-серый) и border-radius: 4px.
+3. Списки: Маркеры должны быть внутри контента (list-style-position: inside) или с аккуратным padding-left.
+
+ТРЕБОВАНИЯ К МАТЕМАТИКЕ (LaTeX):
+1. Все формулы, дроби и математические выражения ОБЯЗАТЕЛЬНО форматируй через LaTeX.
+2. Используй разделители \\( ... \\) для строчных формул и \\[ ... \\] для выносных блоков.
+3. Вставь этот скрипт в самое начало ответа (перед контентом): <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+ФОРМАТ ОТВЕТА: Верни ТОЛЬКО валидный HTML-код (начиная с <!DOCTYPE html>). Не используй markdown-блоки кода (т.е. без \`\`\`html), просто чистый текст HTML.`;
+
+        userPrompt = `Адаптируй текст для ${level} класса.
+Действие: ${action || 'упростить'}.
+Текст:
+${text}
+${customPrompt ? `Дополнительно: ${customPrompt}` : ''}`;
+        break;
+      }
+
+      case 'message': {
+        const { templateId, formData, customPrompt } = inputParams;
+        systemPrompt = `Твоя задача: Сгенерировать ответ в виде HTML-документа с чистым, строгим и профессиональным дизайном.
+ТРЕБОВАНИЯ К ДИЗАЙНУ (MINIMALIST & STRICT):
+1. Структура страницы:
+   - Контейнер: max-width 720px, выравнивание по центру (margin: 0 auto), padding: 40px 20px.
+   - Шрифт: system-ui, -apple-system, Inter, Roboto, sans-serif.
+   - Текст: Темно-серый (#2c2c2c) на белом фоне. Line-height: 1.6.
+2. Оформление элементов:
+   - Заголовки: Четкие, черные, с отступом снизу. H1 и H2 должны иметь тонкую линию снизу (border-bottom: 1px solid #eaeaea).
+   - Таблицы: Строгий стиль. border-collapse: collapse. Границы ячеек: 1px solid #e0e0e0. Шапка таблицы: жирный шрифт, фон #f9f9f9.
+   - Списки: Маркеры аккуратные, с отступами.
+   - Исключи любые тени (box-shadow) и яркие цвета. Используй только границы (border) и оттенки серого.
+
+ТРЕБОВАНИЯ К МАТЕМАТИКЕ (LaTeX):
+1. Все математические выражения, формулы и дроби ОБЯЗАТЕЛЬНО форматируй через LaTeX.
+2. Используй разделители \\( ... \\) для строчных формул и \\[ ... \\] для отдельных блоков.
+3. Вставь этот скрипт в самое начало ответа (перед всем остальным): <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+ФОРМАТ ОТВЕТА: Верни ТОЛЬКО валидный HTML-код (начиная с <!DOCTYPE html>). Не используй markdown-блоки кода (т.е. без \`\`\`html), просто чистый текст HTML.`;
+
+        userPrompt = `Создай сообщение для родителей.
+Данные: ${JSON.stringify(formData || {})}
+${customPrompt ? `Дополнительно: ${customPrompt}` : ''}`;
+        break;
+      }
+
+      case 'feedback': {
+        const { studentWork, taskType, criteria, level, customPrompt } = inputParams;
+        systemPrompt = `Твоя задача: Сгенерировать конструктивный и профессиональный ФИДБЕК (АУДИТ РАБОТЫ).
+ТРЕБОВАНИЯ К ДИЗАЙНУ (СТИЛЬ "ПРОФЕССИОНАЛЬНЫЙ АУДИТ"):
+1. Макет:
+   - Контейнер: max-width 760px, по центру, padding 40px 20px.
+   - Шрифт: Inter, system-ui, sans-serif. Основной текст: #111.
+   - Отказ от теней (box-shadow: none).
+2. Структура отчета (Визуальные блоки):
+   - ОЦЕНКА: Не используй круги или яркие плашки. Сделай строгий блок: "Итоговый результат: X/10" крупным шрифтом с нижней границей (border-bottom).
+   - СЕКЦИИ (Плюсы/Минусы): Вместо заливки цветом используй стиль "Callout" (белый фон, тонкая рамка border: 1px solid #eee).
+     * Для "Сильных сторон": Добавь акцент слева (border-left: 4px solid #10b981) — темно-зеленый.
+     * Для "Зон роста/Ошибок": Добавь акцент слева (border-left: 4px solid #f59e0b) — сдержанный оранжевый.
+   - ЗАГОЛОВКИ СЕКЦИЙ: Используй uppercase (все заглавные), мелкий размер, серый цвет (#666) и letter-spacing (разрядку), как в технической документации.
+3. Списки:
+   - Используй маркированные списки (<ul>) внутри блоков. Маркеры должны быть аккуратными.
+
+ТРЕБОВАНИЯ К ФОРМУЛАМ И ИСПРАВЛЕНИЯМ:
+1. Если приводишь исправления формул, используй LaTeX.
+2. Разделители: \\( ... \\) для строчных и \\[ ... \\] для блочных.
+3. Добавь в начало скрипт: <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+ФОРМАТ ОТВЕТА: Верни ТОЛЬКО валидный HTML-код (начиная с <!DOCTYPE html>). Не используй markdown-блоки кода (т.е. без \`\`\`html), просто чистый текст HTML.`;
+
+        userPrompt = `Дай фидбек по работе ученика.
+Работа:
+${studentWork}
+
+Тип задания: ${taskType || 'общее'}.
+Критерии: ${criteria || 'стандартные'}.
+Уровень: ${level || 'средний'}.
+${customPrompt ? `Дополнительно: ${customPrompt}` : ''}`;
+        break;
+      }
+
+      default:
+        throw new BadRequestException(`Prompt builder not implemented for ${generationType}`);
+    }
+
+    return { systemPrompt, userPrompt };
   }
 
   private buildWorksheetPrompt(inputParams: Record<string, any>) {
