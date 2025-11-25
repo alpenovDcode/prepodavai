@@ -9,7 +9,12 @@ export class HtmlExportService implements OnModuleDestroy {
     if (!this.browserPromise) {
       this.browserPromise = puppeteer.launch({
         headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox'],
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage', // Critical for Docker
+          '--disable-gpu',
+        ],
       });
     }
     return this.browserPromise;
@@ -18,7 +23,7 @@ export class HtmlExportService implements OnModuleDestroy {
   async htmlToPdf(html: string): Promise<Buffer> {
     const browser = await this.getBrowser();
     const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: 'networkidle0' });
+    await page.setContent(html, { waitUntil: 'networkidle0', timeout: 60000 });
     await page.evaluate(() => {
       (window as any).MathJax = {
         tex: {

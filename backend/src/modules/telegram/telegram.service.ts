@@ -108,9 +108,8 @@ export class TelegramService {
     const imageUrl = result?.imageUrl;
     if (!imageUrl) return;
 
-    const messageText = `✅ Ваше изображение готово!${
-      result?.prompt ? `\n\n📝 Промпт: ${result.prompt}` : ''
-    }${result?.style ? `\n🎨 Стиль: ${result.style}` : ''}`;
+    const messageText = `✅ Ваше изображение готово!${result?.prompt ? `\n\n📝 Промпт: ${result.prompt}` : ''
+      }${result?.style ? `\n🎨 Стиль: ${result.style}` : ''}`;
 
     await this.bot.api.sendPhoto(chatId, imageUrl, {
       caption: messageText,
@@ -123,9 +122,8 @@ export class TelegramService {
   private async sendPresentation(chatId: string, result: any) {
     if (result.pdfUrl) {
       await this.bot.api.sendDocument(chatId, result.pdfUrl, {
-        caption: `✅ Ваша презентация готова (PDF)!${
-          result.inputText ? `\n\n📌 Тема: ${result.inputText}` : ''
-        }${result.gammaUrl ? `\n\n🔗 [Открыть в Gamma](${result.gammaUrl})` : ''}`,
+        caption: `✅ Ваша презентация готова (PDF)!${result.inputText ? `\n\n📌 Тема: ${result.inputText}` : ''
+          }${result.gammaUrl ? `\n\n🔗 [Открыть в Gamma](${result.gammaUrl})` : ''}`,
         parse_mode: 'Markdown',
       });
     }
@@ -150,10 +148,24 @@ export class TelegramService {
       return;
     } catch (error) {
       console.error('Failed to render PDF for Telegram:', error);
+
+      // Fallback: отправляем HTML файл
+      try {
+        const htmlContent = htmlPayload.isHtml ? htmlPayload.html : this.wrapPlainTextAsHtml(text);
+        const htmlBuffer = Buffer.from(htmlContent, 'utf-8');
+        const htmlFilename = `${generationType}_${new Date().toISOString().split('T')[0]}_${Date.now()}.html`;
+
+        await this.bot.api.sendDocument(chatId, new InputFile(htmlBuffer, htmlFilename), {
+          caption: '⚠️ Не удалось сгенерировать PDF. Отправляем HTML-версию (откройте в браузере).',
+        });
+        return;
+      } catch (fallbackError) {
+        console.error('Failed to send HTML fallback:', fallbackError);
+      }
     }
 
     const fallbackText =
-      text.length > 8000 ? text.substring(0, 7900) + '\n\n... (полный текст во вложении).' : text;
+      text.length > 3000 ? text.substring(0, 2900) + '\n\n... (полный текст слишком длинный).' : text;
     await this.bot.api.sendMessage(chatId, fallbackText);
   }
 
