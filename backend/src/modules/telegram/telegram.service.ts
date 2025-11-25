@@ -139,31 +139,22 @@ export class TelegramService {
     const text = typeof content === 'string' ? content : JSON.stringify(content, null, 2);
 
     const htmlPayload = this.extractHtmlPayload(text);
-    if (htmlPayload.isHtml) {
-      const filename = `${generationType}_${new Date().toISOString().split('T')[0]}_${Date.now()}.pdf`;
-      const pdfBuffer = await this.htmlExportService.htmlToPdf(htmlPayload.html);
+    const filename = `${generationType}_${new Date().toISOString().split('T')[0]}_${Date.now()}.pdf`;
 
-      let caption = '✅ Ваш материал готов! Мы прикрепили его в формате PDF.';
-      try {
-        const fileId = await this.gigachatService.uploadFile(pdfBuffer, filename, 'assistants');
-        const shareLink = this.generateShareLink(fileId, filename);
-        caption += `\n\n🔗 Ссылка на скачивание: ${shareLink}`;
-      } catch (error) {
-        console.warn('Failed to upload PDF to GigaChat storage:', error?.message || error);
-        caption += '\n\n⚠️ Не удалось сохранить файл в хранилище GigaChat.';
-      }
-
+    try {
+      const htmlContent = htmlPayload.isHtml ? htmlPayload.html : this.wrapPlainTextAsHtml(text);
+      const pdfBuffer = await this.htmlExportService.htmlToPdf(htmlContent);
       await this.bot.api.sendDocument(chatId, new InputFile(pdfBuffer, filename), {
-        caption,
+        caption: '✅ Ваш материал готов! Мы прикрепили его в формате PDF.',
       });
       return;
+    } catch (error) {
+      console.error('Failed to render PDF for Telegram:', error);
     }
 
-    // Ограничиваем длину (Telegram limit ~4096 символов)
-    const messageText =
-      text.length > 4000 ? text.substring(0, 3900) + '\n\n... (полный текст во вложении).' : text;
-
-    await this.bot.api.sendMessage(chatId, messageText);
+    const fallbackText =
+      text.length > 8000 ? text.substring(0, 7900) + '\n\n... (полный текст во вложении).' : text;
+    await this.bot.api.sendMessage(chatId, fallbackText);
   }
 
   private looksLikeHtml(value: string) {
@@ -196,24 +187,44 @@ export class TelegramService {
     return { isHtml, html: processed };
   }
 
-  private generateShareLink(fileId: string, filename: string) {
-    const baseUrl =
-      this.configService.get<string>('PUBLIC_API_URL') ||
-      this.configService.get<string>('BASE_URL') ||
-      'https://api.prepodavai.ru';
-    const expires = Date.now() + 1000 * 60 * 60 * 24; // 24 часа
-    const token = this.signFileToken(fileId, expires);
-    const normalizedBase = baseUrl.replace(/\/$/, '');
-    const encodedName = encodeURIComponent(filename);
-    return `${normalizedBase}/api/gigachat/files/${fileId}/download?token=${token}&expires=${expires}&filename=${encodedName}`;
+  private wrapPlainTextAsHtml(text: string) {
+    const escaped = text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/\n\n+/g, '</p><p>')
+      .replace(/\n/g, '<br>');
+
+    return `<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <title>GigaChat Result</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, sans-serif;
+      line-height: 1.6;
+      padding: 24px;
+      background: #ffffff;
+      color: #1a1a1a;
+    }
+    p { margin: 12px 0; }
+    .math-inline { font-weight: 500; }
+    .math-block { margin: 16px 0; }
+    pre {
+      background: #f5f5f5;
+      padding: 12px;
+      border-radius: 8px;
+      font-family: "JetBrains Mono", Consolas, monospace;
+    }
+  </style>
+</head>
+<body>
+  <p>${escaped}</p>
+</body>
+</html>`;
   }
 
-  private signFileToken(fileId: string, expires: number) {
-    const secret =
-      this.configService.get<string>('GIGACHAT_FILE_SHARE_SECRET') ||
-      this.configService.get<string>('JWT_SECRET');
-    return crypto.createHmac('sha256', secret).update(`${fileId}:${expires}`).digest('hex');
-  }
 
   /**
    * Генерация API ключа

@@ -79,6 +79,20 @@ export default function WebAppIndex() {
     initUser()
   }, [])
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if ((window as any).MathJax) return
+
+    const script = document.createElement('script')
+    script.src = 'https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js'
+    script.async = true
+    document.head.appendChild(script)
+
+    return () => {
+      script.remove()
+    }
+  }, [])
+
   const showLogoutButton = typeof window !== 'undefined' &&
     !(window as any).Telegram?.WebApp?.initDataUnsafe?.user
 
@@ -794,29 +808,30 @@ function stripHtmlTags(html: string) {
 function renderMath(text: string) {
   if (!text) return ''
 
-  // Convert inline LaTeX \( ... \) to MathJax script
-  let html = text.replace(/\\\((.+?)\\\)/gs, (_, formula) => {
+  let processed = stripCodeFences(String(text))
+  const isHtml = isHtmlString(processed) || looksLikeFullHtmlDocument(processed)
+
+  processed = processed.replace(/\\\((.+?)\\\)/gs, (_, formula) => {
     const escaped = formula.replace(/</g, '&lt;').replace(/>/g, '&gt;')
     return `<span class="math-inline">\\(${escaped}\\)</span>`
   })
 
-  // Convert block LaTeX \[ ... \]
-  html = html.replace(/\\\[(.+?)\\\]/gs, (_, formula) => {
+  processed = processed.replace(/\\\[(.+?)\\\]/gs, (_, formula) => {
     const escaped = formula.replace(/</g, '&lt;').replace(/>/g, '&gt;')
     return `<div class="math-block">\\[${escaped}\\]</div>`
   })
 
-  // Basic paragraph formatting
-  html = html.replace(/\n\n+/g, '</p><p class="my-3">')
-  html = '<p class="my-3">' + html + '</p>'
-  html = html.replace(/\n/g, '<br>')
+  if (!isHtml) {
+    processed = processed.replace(/\n\n+/g, '</p><p class="my-3">')
+    processed = '<p class="my-3">' + processed + '</p>'
+    processed = processed.replace(/\n/g, '<br>')
+  }
 
-  // Trigger MathJax if available
   if (typeof window !== 'undefined' && (window as any).MathJax?.typesetPromise) {
     setTimeout(() => {
       ;(window as any).MathJax.typesetPromise?.()
     }, 0)
   }
 
-  return html
+  return processed
 }
