@@ -79,19 +79,40 @@ export default function WebAppIndex() {
     initUser()
   }, [])
 
+  const resultHtmlRef = useRef<HTMLDivElement>(null)
+  const [isMathJaxReady, setIsMathJaxReady] = useState(false)
+
   useEffect(() => {
     if (typeof window === 'undefined') return
-    if ((window as any).MathJax) return
+    if ((window as any).MathJaxLoader) {
+      setIsMathJaxReady(true)
+      return
+    }
 
+    ;(window as any).MathJaxLoader = true
     const script = document.createElement('script')
     script.src = 'https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js'
     script.async = true
+    script.onload = () => {
+      setIsMathJaxReady(true)
+    }
     document.head.appendChild(script)
 
     return () => {
       script.remove()
+      delete (window as any).MathJaxLoader
     }
   }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (!isMathJaxReady) return
+    if (!(window as any).MathJax?.typesetPromise) return
+    if (!resultHtmlRef.current) return
+
+    ;(window as any).MathJax.typesetClear?.([resultHtmlRef.current])
+    ;(window as any).MathJax.typesetPromise?.([resultHtmlRef.current])
+  }, [generationResult, cleanedTextResult, htmlResult, isHtmlResult, isMathJaxReady]);
 
   const showLogoutButton = typeof window !== 'undefined' &&
     !(window as any).Telegram?.WebApp?.initDataUnsafe?.user
@@ -545,9 +566,11 @@ export default function WebAppIndex() {
 
                 {/* Text result */}
                 {isTextResult && (
-                  <div className="formatted-content result-content prose prose-sm max-w-none text-black">
-                    <div className="mathjax-content" dangerouslySetInnerHTML={{ __html: renderMath(cleanedTextResult) }} />
-                  </div>
+                  <div
+                    ref={resultHtmlRef}
+                    className="formatted-content result-content prose prose-sm max-w-none text-black mathjax-wrapper"
+                    dangerouslySetInnerHTML={{ __html: renderMath(cleanedTextResult) }}
+                  />
                 )}
 
                 {/* Image result */}
@@ -814,6 +837,11 @@ function renderMath(text: string) {
   processed = processed.replace(/\\\((.+?)\\\)/gs, (_, formula) => {
     const escaped = formula.replace(/</g, '&lt;').replace(/>/g, '&gt;')
     return `<span class="math-inline">\\(${escaped}\\)</span>`
+  })
+
+  processed = processed.replace(/\$\$(.+?)\$\$/gs, (_, formula) => {
+    const escaped = formula.replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    return `<div class="math-block">\\[${escaped}\\]</div>`
   })
 
   processed = processed.replace(/\\\[(.+?)\\\]/gs, (_, formula) => {

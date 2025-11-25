@@ -22,6 +22,9 @@ export class HtmlExportService implements OnModuleDestroy {
     await page.addScriptTag({
       url: 'https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js',
     });
+    await page.waitForFunction(() => (window as any).MathJax && (window as any).MathJax.typesetPromise);
+    await page.evaluate(() => (window as any).MathJax.typesetPromise && (window as any).MathJax.typesetPromise());
+    await page.waitForTimeout(200);
     const pdfBuffer = (await page.pdf({
       format: 'A4',
       printBackground: true,
