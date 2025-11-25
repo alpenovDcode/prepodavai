@@ -1,10 +1,11 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { GenerationHelpersService } from './generation-helpers.service';
 import { GenerationQueueService } from './generation-queue.service';
 import { SubscriptionsService, OperationType } from '../subscriptions/subscriptions.service';
 import axios from 'axios';
 import { ConfigService } from '@nestjs/config';
+import { GigachatService } from '../gigachat/gigachat.service';
 
 export type GenerationType =
   | 'worksheet'
@@ -34,12 +35,15 @@ export interface GenerationRequest {
 
 @Injectable()
 export class GenerationsService {
+  private readonly logger = new Logger(GenerationsService.name);
+
   constructor(
     private prisma: PrismaService,
     private generationHelpers: GenerationHelpersService,
     private generationQueue: GenerationQueueService,
     private subscriptionsService: SubscriptionsService,
     private configService: ConfigService,
+    private gigachatService: GigachatService,
   ) {}
 
   /**
@@ -67,6 +71,23 @@ export class GenerationsService {
       model: model || this.getDefaultModel(generationType),
     });
 
+    // Прямые генерации через GigaChat (минуя webhooks)
+    if (this.shouldUseDirectGigachatGeneration(generationType)) {
+      const directResult = await this.handleDirectGigachatGeneration(
+        generationType,
+        generationRequest.id,
+        inputParams,
+        model,
+      );
+
+      return {
+        success: true,
+        requestId: generationRequest.id,
+        status: 'completed',
+        result: directResult,
+      };
+    }
+
     // GigaChat генерации обрабатываются напрямую, не через webhooks
     const isGigachatGeneration = generationType.startsWith('gigachat-');
     
@@ -88,6 +109,146 @@ export class GenerationsService {
       requestId: generationRequest.id,
       status: 'pending',
     };
+  }
+
+  /**
+   * Проверяем, нужно ли использовать прямую генерацию через GigaChat
+   * Временно включаем для отдельных типов (начинаем с worksheet)
+   */
+  private shouldUseDirectGigachatGeneration(generationType: GenerationType): boolean {
+    return generationType === 'worksheet';
+  }
+
+  /**
+   * Обработка генерации напрямую через GigaChat
+   */
+  private async handleDirectGigachatGeneration(
+    generationType: GenerationType,
+    generationRequestId: string,
+    inputParams: Record<string, any>,
+    requestedModel?: string,
+  ) {
+    try {
+      switch (generationType) {
+        case 'worksheet':
+          return await this.generateWorksheetViaGigachat(
+            generationRequestId,
+            inputParams,
+            requestedModel,
+          );
+        default:
+          throw new BadRequestException(`Direct GigaChat generation is not configured for ${generationType}`);
+      }
+    } catch (error: any) {
+      this.logger.error(
+        `Direct GigaChat generation failed for ${generationType}: ${error?.message || error}`,
+        error?.stack,
+      );
+      await this.generationHelpers.failGeneration(
+        generationRequestId,
+        error?.response?.data?.message || error?.message || 'Ошибка генерации через GigaChat',
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Генерация рабочего листа через GigaChat (HTML документ)
+   */
+  private async generateWorksheetViaGigachat(
+    generationRequestId: string,
+    inputParams: Record<string, any>,
+    requestedModel?: string,
+  ) {
+    const { systemPrompt, userPrompt } = this.buildWorksheetPrompt(inputParams);
+    const model = requestedModel || this.gigachatService.getDefaultModel('chat');
+
+    const response = (await this.gigachatService.createChatCompletion({
+      model,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+      temperature: 0.4,
+      top_p: 0.9,
+      max_tokens: 2048,
+    })) as any;
+
+    const content = response?.choices?.[0]?.message?.content;
+
+    if (!content) {
+      throw new BadRequestException('GigaChat вернул пустой результат при генерации рабочего листа');
+    }
+
+    const normalizedResult = {
+      provider: 'GigaChat-2-Max',
+      mode: 'chat',
+      model,
+      content,
+      prompt: {
+        system: systemPrompt,
+        user: userPrompt,
+      },
+      completedAt: new Date().toISOString(),
+    };
+
+    await this.generationHelpers.completeGeneration(generationRequestId, normalizedResult);
+
+    return normalizedResult;
+  }
+
+  private buildWorksheetPrompt(inputParams: Record<string, any>) {
+    const {
+      subject,
+      topic,
+      level,
+      questionsCount,
+      preferences,
+      customPrompt,
+    } = inputParams;
+
+    const systemPrompt = `Ты профессиональный помощник. Твоя задача: Сгенерировать полноценный HTML-документ с профессиональной, строгой версткой.
+
+ТРЕБОВАНИЯ К ДИЗАЙНУ (СТРОГИЙ МИНИМАЛИЗМ):
+1. Типографика: Используй чистые шрифты (Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif). Основной цвет текста — темно-серый (#1a1a1a), фон — белый (#ffffff).
+2. Структура: Контейнер max-width: 750px, центрирование, padding: 40px 20px.
+3. Стилизация блоков:
+   - Откажись от теней (box-shadow) в пользу тонких границ (border: 1px solid #e5e5e5).
+   - Используй минимальное скругление углов (border-radius: 4px) или прямые углы.
+   - Заголовки должны быть контрастными и иметь четкие отступы.
+   - Код и цитаты оформляй на светло-сером фоне (#f7f7f7) с моноширинным шрифтом.
+4. Адаптивность: Полная поддержка мобильных устройств, отступы должны масштабироваться.
+
+ТРЕБОВАНИЯ К ФОРМУЛАМ И СПЕЦСИМВОЛАМ:
+1. Если в ответе есть формулы (математика, физика, химия), ОБЯЗАТЕЛЬНО используй LaTeX.
+2. Используй разделители \\( ... \\) для строчных формул и \\[ ... \\] для отдельных блоков.
+3. Добавь в секцию <head> скрипт для рендеринга LaTeX: <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+4. Убедись, что формулы имеют достаточные отступы сверху и снизу для читаемости.
+
+ФОРМАТ ОТВЕТА:
+Верни ТОЛЬКО валидный HTML-код (начиная с <!DOCTYPE html>). Не используй markdown-блоки кода (без \`\`\`). Верни чистый HTML.`;
+
+    const details: string[] = [];
+
+    if (subject) details.push(`Предмет: ${subject}`);
+    if (topic) details.push(`Тема: ${topic}`);
+    if (level) details.push(`Класс / уровень: ${level}`);
+    if (questionsCount) details.push(`Количество заданий: ${questionsCount}`);
+    if (preferences) details.push(`Особые пожелания: ${preferences}`);
+    if (customPrompt) details.push(`Дополнительные инструкции: ${customPrompt}`);
+
+    const userPrompt = `Сгенерируй рабочий лист в HTML-формате по следующим параметрам:
+${details.length ? details.join('\n') : 'Используй стандартные параметры.'}
+
+Структура документа должна включать:
+- Заголовок с предметом и темой
+- Краткое вводное описание/цель урока
+- Нумерованные задания (минимум ${questionsCount || 10})
+- Блок "Ответы/подсказки" в конце
+
+Каждый блок должен быть оформлен в соответствии с требованиями по дизайну.`;
+
+    return { systemPrompt, userPrompt };
   }
 
   /**

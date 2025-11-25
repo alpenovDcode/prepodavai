@@ -7,6 +7,7 @@ import { GenerationQueueService } from './generation-queue.service';
 import { TelegramSenderProcessor } from './processors/telegram-sender.processor';
 import { TelegramModule } from '../telegram/telegram.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
+import { GigachatModule } from '../gigachat/gigachat.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
     }),
     TelegramModule,
     SubscriptionsModule,
+    GigachatModule,
   ],
   controllers: [GenerationsController],
   providers: [
