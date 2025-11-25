@@ -58,6 +58,8 @@ export class TelegramSenderProcessor extends WorkerHost {
       throw new Error(`No result data for generation: ${generationRequestId}`);
     }
 
+    console.log(`[TelegramSender] Sending ${userGeneration.generationType} to Telegram, result type: ${typeof result}, result length: ${JSON.stringify(result).length}`);
+
     const sendResult = await this.telegramService.sendGenerationResult({
       userId: userGeneration.user.id,
       generationType: userGeneration.generationType,

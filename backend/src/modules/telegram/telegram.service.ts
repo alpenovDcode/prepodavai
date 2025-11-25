@@ -133,6 +133,7 @@ export class TelegramService {
    * Отправка текстового результата
    */
   private async sendTextResult(chatId: string, generationType: string, result: any) {
+    console.log(`[Telegram] sendTextResult called for ${generationType}, chatId: ${chatId}`);
     const content = result?.content || result;
     const text = typeof content === 'string' ? content : JSON.stringify(content, null, 2);
 
