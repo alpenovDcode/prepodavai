@@ -100,7 +100,20 @@ export default function WebAppIndex() {
       return
     }
 
-    ;(window as any).MathJaxLoader = true
+    ; (window as any).MathJaxLoader = true
+
+      // Configure MathJax before loading
+      ; (window as any).MathJax = {
+        tex: {
+          inlineMath: [['$', '$'], ['\\(', '\\)']],
+          displayMath: [['$$', '$$'], ['\\[', '\\]']],
+          processEscapes: true
+        },
+        svg: {
+          fontCache: 'global'
+        }
+      };
+
     const script = document.createElement('script')
     script.src = 'https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js'
     script.async = true
@@ -121,8 +134,8 @@ export default function WebAppIndex() {
     if (!(window as any).MathJax?.typesetPromise) return
     if (!resultHtmlRef.current) return
 
-    ;(window as any).MathJax.typesetClear?.([resultHtmlRef.current])
-    ;(window as any).MathJax.typesetPromise?.([resultHtmlRef.current])
+      ; (window as any).MathJax.typesetClear?.([resultHtmlRef.current])
+      ; (window as any).MathJax.typesetPromise?.([resultHtmlRef.current])
   }, [generationResult, cleanedTextResult, htmlResult, isHtmlResult, isMathJaxReady]);
 
   const showLogoutButton = typeof window !== 'undefined' &&
@@ -859,7 +872,7 @@ function renderMath(text: string) {
 
   if (typeof window !== 'undefined' && (window as any).MathJax?.typesetPromise) {
     setTimeout(() => {
-      ;(window as any).MathJax.typesetPromise?.()
+      ; (window as any).MathJax.typesetPromise?.()
     }, 0)
   }
 
