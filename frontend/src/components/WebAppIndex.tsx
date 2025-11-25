@@ -531,14 +531,9 @@ export default function WebAppIndex() {
 
                 {/* Text result */}
                 {isTextResult && (
-                  isHtmlResult && htmlResult ? (
-                    <FullHtmlPreview html={htmlResult} />
-                  ) : (
-                    <div
-                      className="formatted-content result-content prose prose-sm max-w-none text-black"
-                      dangerouslySetInnerHTML={{ __html: formatMarkdown(cleanedTextResult) }}
-                    />
-                  )
+                  <div className="formatted-content result-content prose prose-sm max-w-none text-black">
+                    <div className="mathjax-content" dangerouslySetInnerHTML={{ __html: renderMath(cleanedTextResult) }} />
+                  </div>
                 )}
 
                 {/* Image result */}
@@ -669,23 +664,7 @@ function formatMarkdown(text: any): string {
     return text
   }
 
-  if (isHtmlString(text)) {
-    return text
-  }
-  let html = text
-
-  // Простое форматирование markdown
-  html = html.replace(/^### (.*$)/gim, '<h3 class="text-lg font-bold mt-4 mb-2 text-[#FF7E58]">$1</h3>')
-  html = html.replace(/^## (.*$)/gim, '<h2 class="text-xl font-bold mt-5 mb-3 text-[#FF7E58]">$1</h2>')
-  html = html.replace(/^# (.*$)/gim, '<h1 class="text-2xl font-bold mt-6 mb-4 text-[#FF7E58]">$1</h1>')
-  html = html.replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold">$1</strong>')
-  html = html.replace(/\*(.*?)\*/g, '<em class="italic">$1</em>')
-  html = html.replace(/`([^`]+)`/g, '<code class="bg-[#D8E6FF] px-2 py-1 rounded text-sm border border-[#D8E6FF] font-mono">$1</code>')
-  html = html.replace(/\n\n+/g, '</p><p class="my-3">')
-  html = '<p class="my-3">' + html + '</p>'
-  html = html.replace(/\n/g, '<br>')
-
-  return html
+  return renderMath(text)
 }
 
 function getGenerationTypeLabel(type: string): string {
@@ -810,4 +789,34 @@ function stripHtmlTags(html: string) {
   const div = document.createElement('div')
   div.innerHTML = html
   return div.textContent || div.innerText || ''
+}
+
+function renderMath(text: string) {
+  if (!text) return ''
+
+  // Convert inline LaTeX \( ... \) to MathJax script
+  let html = text.replace(/\\\((.+?)\\\)/gs, (_, formula) => {
+    const escaped = formula.replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    return `<span class="math-inline">\\(${escaped}\\)</span>`
+  })
+
+  // Convert block LaTeX \[ ... \]
+  html = html.replace(/\\\[(.+?)\\\]/gs, (_, formula) => {
+    const escaped = formula.replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    return `<div class="math-block">\\[${escaped}\\]</div>`
+  })
+
+  // Basic paragraph formatting
+  html = html.replace(/\n\n+/g, '</p><p class="my-3">')
+  html = '<p class="my-3">' + html + '</p>'
+  html = html.replace(/\n/g, '<br>')
+
+  // Trigger MathJax if available
+  if (typeof window !== 'undefined' && (window as any).MathJax?.typesetPromise) {
+    setTimeout(() => {
+      ;(window as any).MathJax.typesetPromise?.()
+    }, 0)
+  }
+
+  return html
 }

@@ -16,8 +16,6 @@ import { GigachatGenerationDto } from './dto/gigachat-generation.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { GigachatService } from './gigachat.service';
 import { Response } from 'express';
-import * as crypto from 'crypto';
-import { ConfigService } from '@nestjs/config';
 import { HtmlExportService } from '../../common/services/html-export.service';
 
 @Controller('gigachat')
@@ -27,7 +25,6 @@ export class GigachatController {
   constructor(
     private readonly gigachatGenerationsService: GigachatGenerationsService,
     private readonly gigachatService: GigachatService,
-    private readonly configService: ConfigService,
     private readonly htmlExportService: HtmlExportService,
   ) {}
 
@@ -71,57 +68,6 @@ export class GigachatController {
     }
   }
 
-  @Get('files/:fileId')
-  @UseGuards(JwtAuthGuard)
-  async getFile(@Param('fileId') fileId: string): Promise<any> {
-    try {
-      return await this.gigachatService.getFile(fileId);
-    } catch (error: any) {
-      this.logger.error(`Get file error: ${error.message}`);
-      throw new BadRequestException(error.message);
-    }
-  }
-
-  @Get('files/:fileId/content')
-  @UseGuards(JwtAuthGuard)
-  async getFileContent(@Param('fileId') fileId: string): Promise<{ success: boolean; content: string }> {
-    try {
-      const content = await this.gigachatService.getFileContent(fileId);
-      return { success: true, content: content.toString('base64') };
-    } catch (error: any) {
-      this.logger.error(`Get file content error: ${error.message}`);
-      throw new BadRequestException(error.message);
-    }
-  }
-  @Get('files/:fileId/download')
-  async downloadFile(
-    @Param('fileId') fileId: string,
-    @Query('token') token: string,
-    @Query('expires') expires: string,
-    @Query('filename') filename: string,
-    @Res() res: Response,
-  ): Promise<void> {
-    if (!token || !expires) {
-      throw new BadRequestException('Missing token or expires parameter');
-    }
-    const expiresNum = Number(expires);
-    if (!Number.isFinite(expiresNum) || Date.now() > expiresNum) {
-      throw new BadRequestException('Link expired');
-    }
-    if (!this.validateShareToken(fileId, expiresNum, token)) {
-      throw new BadRequestException('Invalid token');
-    }
-
-    const buffer = await this.gigachatService.getFileContent(fileId);
-    const meta = await this.gigachatService.getFile(fileId);
-    const downloadName =
-      filename || meta?.filename || `gigachat-file-${new Date().toISOString().split('T')[0]}.pdf`;
-
-    res.setHeader('Content-Type', meta?.mime_type || 'application/octet-stream');
-    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(downloadName)}"`);
-    res.send(Buffer.from(buffer));
-  }
-
   @Post('export/pdf')
   @UseGuards(JwtAuthGuard)
   async exportPdf(
@@ -142,11 +88,4 @@ export class GigachatController {
     res.send(pdfBuffer);
   }
 
-  private validateShareToken(fileId: string, expires: number, token: string) {
-    const secret =
-      this.configService.get<string>('GIGACHAT_FILE_SHARE_SECRET') ||
-      this.configService.get<string>('JWT_SECRET');
-    const expected = crypto.createHmac('sha256', secret).update(`${fileId}:${expires}`).digest('hex');
-    return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(token));
-  }
 }
