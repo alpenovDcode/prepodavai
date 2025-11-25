@@ -743,26 +743,9 @@ function getGenerationTypeLabel(type: string): string {
 }
 
 const MATHJAX_SCRIPT = `<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>`
-const MATHJAX_CONFIG = `<script>
-  window.MathJax = {
-    tex: {
-      inlineMath: [['$', '$'], ['\\\\(', '\\\\)']],
-      displayMath: [['$$', '$$'], ['\\\\[', '\\\\]']],
-      processEscapes: true
-    },
-    options: {
-      ignoreHtmlClass: 'tex2jax_ignore',
-      processHtmlClass: 'tex2jax_process',
-      skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'option'] // Removed 'code' and 'pre' to allow math in code blocks
-    }
-  };
-</script>`
-
 const IFRAME_STYLES = `<style>
   body { margin: 0; padding: 32px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, sans-serif; background: white; color: #1a1a1a; }
   .container { max-width: 820px; margin: 0 auto; }
-  code { background: #f5f5f5; padding: 2px 4px; border-radius: 4px; font-family: monospace; }
-  pre { background: #f5f5f5; padding: 12px; border-radius: 8px; overflow-x: auto; }
 </style>`
 
 function FullHtmlPreview({ html }: { html: string }) {
@@ -791,25 +774,23 @@ function FullHtmlPreview({ html }: { html: string }) {
     }
   }, [html])
 
-  const hasMathJax = /mathjax/i.test(html) || /\\\(|\\\[|\$\$/.test(html) // Check for math delimiters too
+  const hasMathJax = /mathjax/i.test(html) || /\\\\\(|\\\\\[|\$\$|\$[^$]+\$/i.test(html)
   const hasHead = /<head[\s>]/i.test(html)
   const hasBody = /<body[\s>]/i.test(html)
 
   let finalHtml = html
-  const mathJaxInjection = hasMathJax ? MATHJAX_CONFIG + MATHJAX_SCRIPT : ''
-
   if (hasHead) {
     finalHtml = html.replace(
       /<head([^>]*)>/i,
-      `<head$1>${IFRAME_STYLES}${mathJaxInjection}`,
+      `<head$1>${IFRAME_STYLES}${hasMathJax ? MATHJAX_SCRIPT : ''}`,
     )
   } else if (hasBody) {
     finalHtml = html.replace(
       /<body([^>]*)>/i,
-      `<head>${IFRAME_STYLES}${mathJaxInjection}</head><body$1`,
+      `<head>${IFRAME_STYLES}${hasMathJax ? MATHJAX_SCRIPT : ''}</head><body$1`,
     )
   } else {
-    finalHtml = `<!DOCTYPE html><html><head>${IFRAME_STYLES}${mathJaxInjection}</head><body><div class="container">${html}</div></body></html>`
+    finalHtml = `<!DOCTYPE html><html><head>${IFRAME_STYLES}${hasMathJax ? MATHJAX_SCRIPT : ''}</head><body><div class="container">${html}</div></body></html>`
   }
 
   return (
