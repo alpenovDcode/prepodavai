@@ -19,11 +19,26 @@ RUN if [ -f package-lock.json ]; then \
   fi
 
 FROM base AS builder
-RUN apk add --no-cache openssl libc6-compat
+RUN apk add --no-cache openssl libc6-compat \
+  chromium \
+  nss \
+  freetype \
+  harfbuzz \
+  ca-certificates \
+  ttf-freefont \
+  font-noto \
+  font-noto-cjk \
+  font-noto-emoji \
+  font-noto-extra
+
 WORKDIR /app
 COPY worker/ .
 COPY --from=deps /app/node_modules ./node_modules
 COPY backend/prisma ./prisma
+
+# Tell Puppeteer to use installed Chromium
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 
 # Generate Prisma Client
 RUN npm run prisma:generate
@@ -35,10 +50,24 @@ WORKDIR /app
 
 ENV NODE_ENV production
 
-RUN apk add --no-cache openssl
+RUN apk add --no-cache openssl \
+  chromium \
+  nss \
+  freetype \
+  harfbuzz \
+  ca-certificates \
+  ttf-freefont \
+  font-noto \
+  font-noto-cjk \
+  font-noto-emoji \
+  font-noto-extra
 
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 worker
+
+# Tell Puppeteer to use installed Chromium
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 
 COPY --from=builder --chown=worker:nodejs /app/dist ./dist
 COPY --from=builder --chown=worker:nodejs /app/node_modules ./node_modules
