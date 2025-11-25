@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { GenerationsController } from './generations.controller';
 import { GenerationsService } from './generations.service';
@@ -21,7 +21,7 @@ import { GigachatModule } from '../gigachat/gigachat.module';
     }),
     TelegramModule,
     SubscriptionsModule,
-    GigachatModule,
+    forwardRef(() => GigachatModule),
   ],
   controllers: [GenerationsController],
   providers: [

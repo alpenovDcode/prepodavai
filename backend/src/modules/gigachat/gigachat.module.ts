@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { GigachatController } from './gigachat.controller';
 import { GigachatService } from './gigachat.service';
@@ -8,7 +8,7 @@ import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { FilesModule } from '../files/files.module';
 
 @Module({
-  imports: [ConfigModule, GenerationsModule, SubscriptionsModule, FilesModule],
+  imports: [ConfigModule, forwardRef(() => GenerationsModule), SubscriptionsModule, FilesModule],
   controllers: [GigachatController],
   providers: [GigachatService, GigachatGenerationsService],
   exports: [GigachatService, GigachatGenerationsService],

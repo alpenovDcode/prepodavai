@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, NotFoundException, Logger } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, Logger, Inject, forwardRef } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { GenerationHelpersService } from './generation-helpers.service';
 import { GenerationQueueService } from './generation-queue.service';
@@ -43,6 +43,7 @@ export class GenerationsService {
     private generationQueue: GenerationQueueService,
     private subscriptionsService: SubscriptionsService,
     private configService: ConfigService,
+    @Inject(forwardRef(() => GigachatService))
     private gigachatService: GigachatService,
   ) {}
 
