@@ -64,6 +64,7 @@ services:
       PORT: 3001
       CORS_ORIGIN: ${CORS_ORIGIN}
       ADMIN_USER_IDS: ${ADMIN_USER_IDS}
+      BASE_URL: ${BASE_URL:-https://api.prepodavai.ru}
       # GigaChat API
       GIGACHAT_AUTH_TOKEN: ${GIGACHAT_AUTH_TOKEN}
       GIGACHAT_CLIENT_ID: ${GIGACHAT_CLIENT_ID}
