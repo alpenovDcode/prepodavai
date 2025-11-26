@@ -7,6 +7,7 @@ import axios from 'axios';
 import { ConfigService } from '@nestjs/config';
 import { GigachatService } from '../gigachat/gigachat.service';
 import { HtmlPostprocessorService } from '../../common/services/html-postprocessor.service';
+import { FilesService } from '../files/files.service';
 
 export type GenerationType =
   | 'worksheet'
@@ -47,6 +48,7 @@ export class GenerationsService {
     @Inject(forwardRef(() => GigachatService))
     private gigachatService: GigachatService,
     private htmlPostprocessor: HtmlPostprocessorService,
+    private filesService: FilesService,
   ) { }
 
   /**
@@ -256,16 +258,29 @@ export class GenerationsService {
       // Для photosession нужно загрузить исходное фото
       let messages: any[] = [];
 
-      if (generationType === 'photosession' && photoUrl) {
-        console.log(`[GenerationsService] Photosession mode, downloading photo: ${photoUrl}`);
+      if (generationType === 'photosession' && (photoUrl || photoHash)) {
+        console.log(`[GenerationsService] Photosession mode, processing photo`);
 
         try {
-          // Скачиваем изображение
-          const axios = (await import('axios')).default;
-          const imageResponse = await axios.get(photoUrl, { responseType: 'arraybuffer' });
-          const imageBuffer = Buffer.from(imageResponse.data);
+          let imageBuffer: Buffer;
 
-          console.log(`[GenerationsService] Photo downloaded, size: ${imageBuffer.length} bytes`);
+          if (photoHash) {
+            console.log(`[GenerationsService] Getting photo from local storage by hash: ${photoHash}`);
+            const file = await this.filesService.getFile(photoHash);
+            if (!file) {
+              throw new BadRequestException(`File with hash ${photoHash} not found`);
+            }
+            imageBuffer = file.buffer;
+          } else if (photoUrl) {
+            console.log(`[GenerationsService] Downloading photo from URL: ${photoUrl}`);
+            const axios = (await import('axios')).default;
+            const imageResponse = await axios.get(photoUrl, { responseType: 'arraybuffer' });
+            imageBuffer = Buffer.from(imageResponse.data);
+          } else {
+            throw new BadRequestException('No photo provided');
+          }
+
+          console.log(`[GenerationsService] Photo loaded, size: ${imageBuffer.length} bytes`);
 
           // Загружаем в GigaChat
           const fileId = await this.gigachatService.uploadFile(
@@ -309,7 +324,8 @@ export class GenerationsService {
 
       const response = await this.gigachatService.createImage({
         model,
-        prompt, // Передаем prompt напрямую
+        prompt,
+        messages, // Передаем сформированные сообщения (важно для photosession)
         function_call: 'auto',
       });
 

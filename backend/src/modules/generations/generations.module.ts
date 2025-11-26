@@ -9,6 +9,7 @@ import { TelegramModule } from '../telegram/telegram.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { GigachatModule } from '../gigachat/gigachat.module';
 import { HtmlPostprocessorService } from '../../common/services/html-postprocessor.service';
+import { FilesModule } from '../files/files.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { HtmlPostprocessorService } from '../../common/services/html-postprocess
     TelegramModule,
     SubscriptionsModule,
     forwardRef(() => GigachatModule),
+    FilesModule,
   ],
   controllers: [GenerationsController],
   providers: [

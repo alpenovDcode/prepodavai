@@ -196,7 +196,7 @@ export class GigachatService {
 
       const chatPayload: any = {
         model: payload.model,
-        messages: [
+        messages: payload.messages || [
           {
             role: 'user',
             content: userMessage,
