@@ -14,7 +14,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @Controller('generate')
 export class GenerationsController {
-  constructor(private readonly generationsService: GenerationsService) {}
+  constructor(private readonly generationsService: GenerationsService) { }
 
   // Текстовые генерации
   @Post('worksheet')
@@ -101,6 +101,9 @@ export class GenerationsController {
   @Post('photosession')
   @UseGuards(JwtAuthGuard)
   async generatePhotosession(@Request() req, @Body() body: any) {
+    console.log('[DEBUG] Photosession request body:', JSON.stringify(body, null, 2));
+    console.log('[DEBUG] photoHash:', body.photoHash);
+    console.log('[DEBUG] photoUrl:', body.photoUrl);
     return this.generationsService.createGeneration({
       userId: req.user.id,
       generationType: 'photosession',
