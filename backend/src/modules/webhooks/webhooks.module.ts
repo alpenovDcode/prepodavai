@@ -4,9 +4,11 @@ import { WebhooksService } from './webhooks.service';
 import { WebhookAuthGuard } from './guards/webhook-auth.guard';
 import { GenerationsModule } from '../generations/generations.module';
 
+import { PhotosessionController } from './photosession.controller';
+
 @Module({
   imports: [GenerationsModule],
-  controllers: [WebhooksController],
+  controllers: [WebhooksController, PhotosessionController],
   providers: [WebhooksService, WebhookAuthGuard],
 })
-export class WebhooksModule {}
+export class WebhooksModule { }

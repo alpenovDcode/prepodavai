@@ -83,6 +83,7 @@ export class GenerationsService {
         generationRequest.id,
         inputParams,
         model,
+        userId,
       );
 
       return {
@@ -142,6 +143,7 @@ export class GenerationsService {
     generationRequestId: string,
     inputParams: Record<string, any>,
     requestedModel?: string,
+    userId?: string,
   ) {
     try {
       // Генерация изображений
@@ -151,6 +153,7 @@ export class GenerationsService {
           generationRequestId,
           inputParams,
           requestedModel,
+          userId,
         );
       }
 
@@ -242,6 +245,7 @@ export class GenerationsService {
     generationRequestId: string,
     inputParams: Record<string, any>,
     requestedModel?: string,
+    userId?: string,
   ) {
     console.log(`[GenerationsService] Starting image generation for ${generationType}`);
     const model = requestedModel || this.gigachatService.getDefaultModel('image');
@@ -256,68 +260,72 @@ export class GenerationsService {
 
     try {
       // Для photosession нужно загрузить исходное фото
-      let messages: any[] = [];
+      // Для фотосессии используем внешний вебхук
+      if (generationType === 'photosession') {
+        const photoHash = inputParams.photoHash;
+        const prompt = inputParams.prompt;
 
-      if (generationType === 'photosession' && (photoUrl || photoHash)) {
-        console.log(`[GenerationsService] Photosession mode, processing photo`);
+        if (!photoHash) {
+          throw new BadRequestException('No photo provided for photosession');
+        }
+
+        // Формируем URL фото
+        // Используем BASE_URL из конфига или дефолтный
+        const baseUrl = this.configService.get<string>('BASE_URL', 'https://api.prepodavai.ru');
+        const photoUrl = `${baseUrl}/api/files/${photoHash}`;
+
+        // URL для обратного вызова
+        const callbackUrl = `${baseUrl}/api/generate-photosession`;
+
+        this.logger.log(`Sending photosession request to webhook: ${photoUrl}`);
 
         try {
-          let imageBuffer: Buffer;
+          // Dynamically import axios to avoid circular dependencies if not already imported
+          const axios = (await import('axios')).default;
+          // Отправляем запрос на внешний сервис
+          await axios.post('https://prrvauto.ru/webhook-test/generate-image', {
+            generationRequestId: generationRequestId,
+            prompt: prompt,
+            photoUrl: photoUrl,
+            callbackUrl: callbackUrl,
+            userId: userId // Use the passed userId
+          });
 
-          if (photoHash) {
-            console.log(`[GenerationsService] Getting photo from local storage by hash: ${photoHash}`);
-            const file = await this.filesService.getFile(photoHash);
-            if (!file) {
-              throw new BadRequestException(`File with hash ${photoHash} not found`);
-            }
-            imageBuffer = file.buffer;
-          } else if (photoUrl) {
-            console.log(`[GenerationsService] Downloading photo from URL: ${photoUrl}`);
-            const axios = (await import('axios')).default;
-            const imageResponse = await axios.get(photoUrl, { responseType: 'arraybuffer' });
-            imageBuffer = Buffer.from(imageResponse.data);
-          } else {
-            throw new BadRequestException('No photo provided');
-          }
+          this.logger.log(`Photosession request sent successfully for generation ${generationRequestId}`);
 
-          console.log(`[GenerationsService] Photo loaded, size: ${imageBuffer.length} bytes`);
-
-          // Загружаем в GigaChat
-          const fileId = await this.gigachatService.uploadFile(
-            imageBuffer,
-            'source_photo.jpg',
-            'general'
-          );
-
-          console.log(`[GenerationsService] Photo uploaded to GigaChat, file_id: ${fileId}`);
-
-          // Формируем messages с прикрепленным файлом
-          messages = [
-            {
-              role: 'user',
-              content: [
-                {
-                  type: 'text',
-                  text: `${prompt}. Создай ${count || 4} вариации этого изображения.`,
-                },
-                {
-                  type: 'image_url',
-                  image_url: {
-                    file_id: fileId,
-                  },
-                },
-              ],
-            },
-          ];
-        } catch (uploadError: any) {
-          console.error(`[GenerationsService] Failed to upload photo:`, uploadError);
-          throw new BadRequestException(`Failed to upload photo: ${uploadError.message}`);
+          // Return a pending status, as the actual result will come via callback
+          return {
+            provider: 'Webhook',
+            mode: 'photosession',
+            status: 'pending',
+            requestId: generationRequestId,
+            completedAt: new Date().toISOString(),
+          };
+        } catch (error: any) {
+          this.logger.error(`Failed to send photosession webhook: ${error.message}`);
+          throw new BadRequestException(`Failed to start photosession: ${error.message}`);
         }
-      } else {
+      }
+
+      // Для остальных типов изображений используем GigaChat напрямую
+      let messages: any[] = [];
+      if (generationType === 'image' && inputParams.prompt) {
         messages = [
           {
             role: 'user',
-            content: prompt,
+            content: inputParams.prompt,
+          },
+        ];
+      } else {
+        // Fallback logic if needed, but currently only image/photosession use this method
+        // and we handled photosession above.
+        // If we are here, it's a regular image generation without prompt? 
+        // Or maybe we should keep the old logic for 'image' type.
+        // The old logic for 'image' was:
+        messages = [
+          {
+            role: 'user',
+            content: inputParams.prompt,
           },
         ];
       }
