@@ -122,6 +122,19 @@ export class TelegramService {
           photo = new InputFile(buffer, 'image.jpg');
         }
       }
+      // Если это внешний URL (например, от Replicate), скачиваем его
+      else if (typeof imageUrl === 'string' && (imageUrl.startsWith('http://') || imageUrl.startsWith('https://'))) {
+        try {
+          const axios = (await import('axios')).default;
+          const response = await axios.get(imageUrl, { responseType: 'arraybuffer' });
+          const buffer = Buffer.from(response.data);
+          photo = new InputFile(buffer, 'image.png');
+        } catch (downloadError) {
+          console.error('Error downloading image:', downloadError);
+          // Fallback: try sending URL directly
+          photo = imageUrl;
+        }
+      }
 
       await this.bot.api.sendPhoto(chatId, photo, {
         caption: messageText,
