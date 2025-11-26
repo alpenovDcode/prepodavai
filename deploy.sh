@@ -22,4 +22,8 @@ docker image prune -f
 echo "🔄 Running database migrations..."
 docker compose -f docker-compose.yml exec backend npx prisma migrate deploy
 
+# Fix permissions for uploads directory (since volume might be owned by root)
+echo "🔧 Fixing permissions for uploads directory..."
+docker compose -f docker-compose.yml exec -u root backend chown -R nestjs:nodejs /app/uploads
+
 echo "✅ Deployment completed successfully!"

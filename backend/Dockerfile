@@ -75,6 +75,9 @@ ENV PUPPETEER_CACHE_DIR=/home/nestjs/.cache/puppeteer
 RUN mkdir -p $PUPPETEER_CACHE_DIR && chown -R nestjs:nodejs /home/nestjs
 RUN PUPPETEER_CACHE_DIR=$PUPPETEER_CACHE_DIR npx puppeteer browsers install chrome
 
+# Create uploads directory with correct permissions
+RUN mkdir -p /app/uploads && chown -R nestjs:nodejs /app/uploads
+
 USER nestjs
 
 EXPOSE 3001
