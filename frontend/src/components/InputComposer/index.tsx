@@ -521,19 +521,7 @@ function getActiveFields(functionId: string, values: Record<string, any>): Field
     })
   }
 
-  if (functionId === 'photosession') {
-    fields = fields.map(field => {
-      if (field.key === 'prompt') {
-        return {
-          ...field,
-          type: 'select',
-          label: 'Готовый промпт',
-          options: photosessionPrompts
-        }
-      }
-      return field
-    })
-  }
+
 
   return fields.filter(field => shouldShowField(field, values))
 }
