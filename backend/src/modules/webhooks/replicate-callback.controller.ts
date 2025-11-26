@@ -22,7 +22,7 @@ export class ReplicateCallbackController {
                 return { success: false, error: 'Missing prediction ID' };
             }
 
-            if (status === 'succeeded' && output && Array.isArray(output)) {
+            if (status === 'succeeded' && output) {
                 // Find generation request by prediction ID
                 const generationRequest = await this.webhooksService['prisma'].generationRequest.findFirst({
                     where: {
@@ -38,10 +38,13 @@ export class ReplicateCallbackController {
                     return { success: false, error: 'Generation request not found' };
                 }
 
+                // Replicate returns output as a string URL, convert to array
+                const imageUrls = Array.isArray(output) ? output : [output];
+
                 // Complete generation with output URLs
                 const outputData = {
-                    imageUrls: output,
-                    imageUrl: output[0], // First image as primary
+                    imageUrls: imageUrls,
+                    imageUrl: imageUrls[0], // First image as primary
                     type: 'photosession',
                     provider: 'Replicate',
                     predictionId: id,
