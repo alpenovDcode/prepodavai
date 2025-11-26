@@ -309,7 +309,7 @@ export class GenerationsService {
 
       const response = await this.gigachatService.createImage({
         model,
-        messages,
+        prompt, // Передаем prompt напрямую
         function_call: 'auto',
       });
 

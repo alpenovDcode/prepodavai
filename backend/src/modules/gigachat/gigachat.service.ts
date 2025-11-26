@@ -99,8 +99,8 @@ export class GigachatService {
     });
 
     this.defaultModels = {
-      chat: this.configService.get<string>('GIGACHAT_DEFAULT_CHAT_MODEL', 'GigaChat'),
-      image: this.configService.get<string>('GIGACHAT_DEFAULT_IMAGE_MODEL', 'GigaChat-Image'),
+      chat: this.configService.get<string>('GIGACHAT_DEFAULT_CHAT_MODEL', 'GigaChat-2-Max'),
+      image: this.configService.get<string>('GIGACHAT_DEFAULT_IMAGE_MODEL', 'GigaChat-Pro'), // Используем GigaChat-Pro для генерации изображений
       embeddings: this.configService.get<string>(
         'GIGACHAT_DEFAULT_EMBEDDINGS_MODEL',
         'GigaChat-Embedding',
@@ -117,7 +117,7 @@ export class GigachatService {
         'GIGACHAT_DEFAULT_AUDIO_MODEL',
         'GigaChat-Audio',
       ),
-      tokens_count: this.configService.get<string>('GIGACHAT_DEFAULT_CHAT_MODEL', 'GigaChat'),
+      tokens_count: this.configService.get<string>('GIGACHAT_DEFAULT_CHAT_MODEL', 'GigaChat-2-Max'),
     };
   }
 
