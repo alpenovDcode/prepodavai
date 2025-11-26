@@ -49,11 +49,14 @@ async function htmlToPdf(html: string): Promise<Buffer> {
     // Try to render formulas with MathJax
     try {
       console.log('[HtmlExport] Waiting for MathJax...');
+      // @ts-ignore - window exists in browser context
       await page.waitForFunction(() => (window as any).MathJax, { timeout: 5000 }).catch(() => null);
 
       await page.evaluate(async () => {
+        // @ts-ignore - window exists in browser context
         if ((window as any).MathJax && (window as any).MathJax.typesetPromise) {
           console.log('[HtmlExport] MathJax found, starting typeset');
+          // @ts-ignore - window exists in browser context
           await (window as any).MathJax.typesetPromise();
         } else {
           console.log('[HtmlExport] MathJax NOT found');
