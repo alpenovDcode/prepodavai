@@ -342,7 +342,7 @@ export default function WebAppIndex() {
       } else if (type === 'image') {
         params = { ...params, prompt: form.prompt, style: form.style }
       } else if (type === 'photosession') {
-        params = { ...params, prompt: form.prompt, style: form.style, photoHash: form.photoHash, size: form.size }
+        params = { ...params, prompt: form.prompt, style: form.style, photoUrl: form.photoUrl, size: form.size }
       } else if (type === 'transcription') {
         params = { ...params, videoHash: form.videoHash, description: form.topic || '', subject: form.subject || 'Общее', language: form.language || 'ru' }
       } else if (type === 'message') {
