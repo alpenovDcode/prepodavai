@@ -100,7 +100,7 @@ export class GigachatService {
 
     this.defaultModels = {
       chat: this.configService.get<string>('GIGACHAT_DEFAULT_CHAT_MODEL', 'GigaChat-2-Max'),
-      image: this.configService.get<string>('GIGACHAT_DEFAULT_IMAGE_MODEL', 'GigaChat-Pro'), // Используем GigaChat-Pro для генерации изображений
+      image: this.configService.get<string>('GIGACHAT_DEFAULT_IMAGE_MODEL', 'GigaChat-2-Max'), // Используем GigaChat-2-Max для генерации изображений
       embeddings: this.configService.get<string>(
         'GIGACHAT_DEFAULT_EMBEDDINGS_MODEL',
         'GigaChat-Embedding',
