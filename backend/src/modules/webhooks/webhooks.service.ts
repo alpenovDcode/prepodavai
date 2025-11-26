@@ -7,7 +7,7 @@ export class WebhooksService {
   constructor(
     private prisma: PrismaService,
     private generationHelpers: GenerationHelpersService,
-  ) {}
+  ) { }
 
   /**
    * Обработка callback для текстовых генераций
@@ -102,6 +102,60 @@ export class WebhooksService {
       await this.generationHelpers.completeGeneration(generationRequestId, outputData);
 
       return { success: true, message: 'Image callback processed successfully' };
+    } else {
+      const errorMsg = error || 'Unknown error from n8n';
+      await this.generationHelpers.failGeneration(generationRequestId, errorMsg);
+      return { success: false, error: errorMsg };
+    }
+  }
+
+  /**
+   * Обработка callback для фотосессий
+   */
+  async handlePhotosessionCallback(body: any) {
+    const bodyData = Array.isArray(body) ? body[0] : body;
+
+    const generationRequestId =
+      bodyData?.generationRequestId || bodyData?.requestId || bodyData?.id;
+    const success = bodyData?.success;
+    const imageUrls = bodyData?.imageUrls || bodyData?.image_urls || [];
+    const imageUrl = bodyData?.imageUrl || bodyData?.image_url; // Fallback для одного изображения
+    const error = bodyData?.error || bodyData?.errorMessage;
+    const prompt = bodyData?.prompt;
+    const style = bodyData?.style;
+    const photoUrl = bodyData?.photoUrl || bodyData?.photo_url; // Исходное фото
+    const count = bodyData?.count || imageUrls.length;
+
+    if (!generationRequestId) {
+      throw new NotFoundException('Missing generationRequestId');
+    }
+
+    const generationRequest = await this.prisma.generationRequest.findUnique({
+      where: { id: generationRequestId },
+    });
+
+    if (!generationRequest) {
+      throw new NotFoundException('Generation request not found');
+    }
+
+    // Если передан массив URL или хотя бы один URL
+    const finalImageUrls = imageUrls.length > 0 ? imageUrls : (imageUrl ? [imageUrl] : []);
+
+    if (success && finalImageUrls.length > 0) {
+      const outputData = {
+        imageUrls: finalImageUrls,
+        imageUrl: finalImageUrls[0], // Первое изображение как основное
+        prompt: prompt || 'N/A',
+        style: style || 'realistic',
+        photoUrl: photoUrl || null,
+        count: count || finalImageUrls.length,
+        type: 'photosession',
+        completedAt: new Date().toISOString(),
+      };
+
+      await this.generationHelpers.completeGeneration(generationRequestId, outputData);
+
+      return { success: true, message: 'Photosession callback processed successfully' };
     } else {
       const errorMsg = error || 'Unknown error from n8n';
       await this.generationHelpers.failGeneration(generationRequestId, errorMsg);

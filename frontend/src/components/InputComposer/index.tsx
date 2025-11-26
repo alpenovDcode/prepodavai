@@ -313,9 +313,13 @@ export default function InputComposer({
         }
 
         const previewUrl = response.data.url || `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/files/${response.data.hash}`
+
+        // Для photosession сохраняем photoUrl вместо photoHash
+        const isPhotosession = currentFunction === 'photosession'
+
         setLocalValues(prev => ({
           ...prev,
-          [key]: response.data.hash,
+          [key]: isPhotosession ? previewUrl : response.data.hash, // Для photosession сохраняем URL
           ...(isVideo
             ? {
               [key + 'FileName']: file.name

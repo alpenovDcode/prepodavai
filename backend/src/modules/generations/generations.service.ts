@@ -127,6 +127,8 @@ export class GenerationsService {
       'content-adaptation',
       'message',
       'feedback',
+      'image',
+      'photosession',
     ].includes(generationType);
   }
 
@@ -140,7 +142,17 @@ export class GenerationsService {
     requestedModel?: string,
   ) {
     try {
-      // Все текстовые генерации обрабатываем через единый метод
+      // Генерация изображений
+      if (generationType === 'image' || generationType === 'photosession') {
+        return await this.generateImageViaGigachat(
+          generationType,
+          generationRequestId,
+          inputParams,
+          requestedModel,
+        );
+      }
+
+      // Текстовые генерации
       if (this.shouldUseDirectGigachatGeneration(generationType)) {
         return await this.generateTextViaGigachat(
           generationType,
@@ -218,6 +230,123 @@ export class GenerationsService {
     console.log(`[GenerationsService] Generation ${generationType} completed successfully`);
 
     return normalizedResult;
+  }
+
+  /**
+   * Генерация изображений через GigaChat
+   */
+  private async generateImageViaGigachat(
+    generationType: GenerationType,
+    generationRequestId: string,
+    inputParams: Record<string, any>,
+    requestedModel?: string,
+  ) {
+    console.log(`[GenerationsService] Starting image generation for ${generationType}`);
+    const model = requestedModel || this.gigachatService.getDefaultModel('image');
+
+    const { prompt, style, size, photoUrl, photoHash, count } = inputParams;
+
+    if (!prompt) {
+      throw new BadRequestException('Prompt is required for image generation');
+    }
+
+    console.log(`[GenerationsService] Using model: ${model}, prompt: ${prompt}`);
+
+    try {
+      // Для photosession нужно загрузить исходное фото
+      let messages: any[] = [];
+
+      if (generationType === 'photosession' && photoUrl) {
+        console.log(`[GenerationsService] Photosession mode, downloading photo: ${photoUrl}`);
+
+        try {
+          // Скачиваем изображение
+          const axios = (await import('axios')).default;
+          const imageResponse = await axios.get(photoUrl, { responseType: 'arraybuffer' });
+          const imageBuffer = Buffer.from(imageResponse.data);
+
+          console.log(`[GenerationsService] Photo downloaded, size: ${imageBuffer.length} bytes`);
+
+          // Загружаем в GigaChat
+          const fileId = await this.gigachatService.uploadFile(
+            imageBuffer,
+            'source_photo.jpg',
+            'assistants'
+          );
+
+          console.log(`[GenerationsService] Photo uploaded to GigaChat, file_id: ${fileId}`);
+
+          // Формируем messages с прикрепленным файлом
+          messages = [
+            {
+              role: 'user',
+              content: [
+                {
+                  type: 'text',
+                  text: `${prompt}. Создай ${count || 4} вариации этого изображения.`,
+                },
+                {
+                  type: 'image_url',
+                  image_url: {
+                    file_id: fileId,
+                  },
+                },
+              ],
+            },
+          ];
+        } catch (uploadError: any) {
+          console.error(`[GenerationsService] Failed to upload photo:`, uploadError);
+          throw new BadRequestException(`Failed to upload photo: ${uploadError.message}`);
+        }
+      } else {
+        messages = [
+          {
+            role: 'user',
+            content: prompt,
+          },
+        ];
+      }
+
+      const response = await this.gigachatService.createImage({
+        model,
+        messages,
+        function_call: 'auto',
+      });
+
+      console.log(`[GenerationsService] Image generated successfully`);
+
+      // Извлекаем URL изображения из ответа
+      const imageUrl = response?.data?.[0]?.url || response?.data?.[0]?.b64_json
+        ? `data:image/jpeg;base64,${response.data[0].b64_json}`
+        : null;
+
+      if (!imageUrl) {
+        throw new Error('No image URL in GigaChat response');
+      }
+
+      const normalizedResult = {
+        provider: 'GigaChat',
+        mode: 'image',
+        model,
+        imageUrl,
+        imageUrls: generationType === 'photosession' ? [imageUrl] : undefined,
+        prompt,
+        style: style || 'realistic',
+        photoUrl: photoUrl || null,
+        count: count || 1,
+        type: generationType,
+        completedAt: new Date().toISOString(),
+      };
+
+      console.log(`[GenerationsService] Saving image generation result to database`);
+      await this.generationHelpers.completeGeneration(generationRequestId, normalizedResult);
+      console.log(`[GenerationsService] Image generation ${generationType} completed successfully`);
+
+      return normalizedResult;
+    } catch (error: any) {
+      console.error(`[GenerationsService] Image generation failed:`, error);
+      throw error;
+    }
   }
 
   private buildGigachatPrompt(generationType: GenerationType, inputParams: Record<string, any>) {
@@ -789,7 +918,7 @@ ${details.length ? details.join('\n') : 'Используй стандартны
       message: `${apiUrl}/api/webhooks/message-callback`,
       feedback: `${apiUrl}/api/webhooks/feedback-callback`,
       image: `${apiUrl}/api/webhooks/image-callback`,
-      photosession: `${apiUrl}/api/webhooks/image-callback`,
+      photosession: `${apiUrl}/api/webhooks/photosession-callback`,
       presentation: `${apiUrl}/api/webhooks/presentation-callback`,
       transcription: `${apiUrl}/api/webhooks/transcription-callback`,
       // GigaChat генерации не используют callbacks (обрабатываются напрямую)

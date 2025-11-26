@@ -365,7 +365,7 @@ export const templates: Record<string, FunctionTemplate> = {
       { type: 'text', value: '.' }
     ],
     fields: [
-      { key: 'photoHash', label: 'Загрузить фото', type: 'file', accept: 'image/*' },
+      { key: 'photoUrl', label: 'Загрузить фото', type: 'file', accept: 'image/*' },
       {
         key: 'style',
         label: 'Стиль',

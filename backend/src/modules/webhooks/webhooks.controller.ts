@@ -11,7 +11,7 @@ import { WebhookAuthGuard } from './guards/webhook-auth.guard';
 @UseGuards(WebhookAuthGuard, ThrottlerGuard) // Защита всех webhook endpoints
 @Throttle({ default: { limit: 100, ttl: 60000 } }) // 100 запросов в минуту на каждый endpoint
 export class WebhooksController {
-  constructor(private readonly webhooksService: WebhooksService) {}
+  constructor(private readonly webhooksService: WebhooksService) { }
 
   // Callback для текстовых генераций
   @Post('worksheet-callback')
@@ -53,6 +53,12 @@ export class WebhooksController {
   @Post('image-callback')
   async imageCallback(@Body() body: any) {
     return this.webhooksService.handleImageCallback(body);
+  }
+
+  // Callback для фотосессий
+  @Post('photosession-callback')
+  async photosessionCallback(@Body() body: any) {
+    return this.webhooksService.handlePhotosessionCallback(body);
   }
 
   // Callback для презентаций
