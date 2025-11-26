@@ -286,20 +286,24 @@ export class GenerationsService {
         try {
           const axios = (await import('axios')).default;
 
+          const requestBody = {
+            model: 'google/nano-banana-pro',
+            input: {
+              prompt: prompt,
+              image: photoUrl,
+              num_outputs: 4,
+              aspect_ratio: '1:1'
+            },
+            webhook: callbackUrl,
+            webhook_events_filter: ['completed']
+          };
+
+          this.logger.log(`Replicate request body: ${JSON.stringify(requestBody, null, 2)}`);
+
           // Отправляем запрос на Replicate API
           const response = await axios.post(
             'https://api.replicate.com/v1/predictions',
-            {
-              version: 'latest',
-              input: {
-                prompt: prompt,
-                image: photoUrl,
-                num_outputs: 4,
-                aspect_ratio: '1:1'
-              },
-              webhook: callbackUrl,
-              webhook_events_filter: ['completed']
-            },
+            requestBody,
             {
               headers: {
                 'Authorization': `Token ${replicateToken}`,
@@ -332,6 +336,9 @@ export class GenerationsService {
           };
         } catch (error: any) {
           this.logger.error(`Failed to send Replicate request: ${error.message}`);
+          if (error.response) {
+            this.logger.error(`Replicate error response: ${JSON.stringify(error.response.data, null, 2)}`);
+          }
           throw new BadRequestException(`Failed to start photosession: ${error.message}`);
         }
       }
