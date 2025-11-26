@@ -136,6 +136,7 @@ model GenerationRequest {
   result    Json?    // Результат генерации
   error     String?
   model     String?
+  metadata  Json?    // Дополнительные данные (например, replicatePredictionId)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

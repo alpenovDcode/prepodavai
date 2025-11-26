@@ -259,8 +259,7 @@ export class GenerationsService {
     console.log(`[GenerationsService] Using model: ${model}, prompt: ${prompt}`);
 
     try {
-      // Для photosession нужно загрузить исходное фото
-      // Для фотосессии используем внешний вебхук
+      // Для фотосессии используем Replicate API
       if (generationType === 'photosession') {
         const photoHash = inputParams.photoHash;
         const prompt = inputParams.prompt;
@@ -270,39 +269,69 @@ export class GenerationsService {
         }
 
         // Формируем URL фото
-        // Используем BASE_URL из конфига или дефолтный
         const baseUrl = this.configService.get<string>('BASE_URL', 'https://api.prepodavai.ru');
         const photoUrl = `${baseUrl}/api/files/${photoHash}`;
 
         // URL для обратного вызова
-        const callbackUrl = `${baseUrl}/api/generate-photosession`;
+        const callbackUrl = `${baseUrl}/api/webhooks/replicate-callback`;
 
-        this.logger.log(`Sending photosession request to webhook: ${photoUrl}`);
+        // Replicate API token
+        const replicateToken = this.configService.get<string>('REPLICATE_API_TOKEN');
+        if (!replicateToken) {
+          throw new BadRequestException('REPLICATE_API_TOKEN not configured');
+        }
+
+        this.logger.log(`Sending photosession request to Replicate API: ${photoUrl}`);
 
         try {
-          // Dynamically import axios to avoid circular dependencies if not already imported
           const axios = (await import('axios')).default;
-          // Отправляем запрос на внешний сервис
-          await axios.post('https://prrvauto.ru/webhook-test/generate-image', {
-            generationRequestId: generationRequestId,
-            prompt: prompt,
-            photoUrl: photoUrl,
-            callbackUrl: callbackUrl,
-            userId: userId // Use the passed userId
+
+          // Отправляем запрос на Replicate API
+          const response = await axios.post(
+            'https://api.replicate.com/v1/predictions',
+            {
+              version: 'latest',
+              input: {
+                prompt: prompt,
+                image: photoUrl,
+                num_outputs: 4,
+                aspect_ratio: '1:1'
+              },
+              webhook: callbackUrl,
+              webhook_events_filter: ['completed']
+            },
+            {
+              headers: {
+                'Authorization': `Token ${replicateToken}`,
+                'Content-Type': 'application/json'
+              }
+            }
+          );
+
+          const predictionId = response.data.id;
+          this.logger.log(`Replicate prediction created: ${predictionId}`);
+
+          // Сохраняем prediction ID в metadata генерации
+          await this.prisma.generationRequest.update({
+            where: { id: generationRequestId },
+            data: {
+              metadata: {
+                replicatePredictionId: predictionId
+              }
+            }
           });
 
-          this.logger.log(`Photosession request sent successfully for generation ${generationRequestId}`);
-
-          // Return a pending status, as the actual result will come via callback
+          // Возвращаем pending статус
           return {
-            provider: 'Webhook',
+            provider: 'Replicate',
             mode: 'photosession',
             status: 'pending',
+            predictionId: predictionId,
             requestId: generationRequestId,
             completedAt: new Date().toISOString(),
           };
         } catch (error: any) {
-          this.logger.error(`Failed to send photosession webhook: ${error.message}`);
+          this.logger.error(`Failed to send Replicate request: ${error.message}`);
           throw new BadRequestException(`Failed to start photosession: ${error.message}`);
         }
       }
