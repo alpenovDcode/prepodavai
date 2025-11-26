@@ -286,7 +286,7 @@ export class GenerationsService {
           const fileId = await this.gigachatService.uploadFile(
             imageBuffer,
             'source_photo.jpg',
-            'assistants'
+            'general'
           );
 
           console.log(`[GenerationsService] Photo uploaded to GigaChat, file_id: ${fileId}`);

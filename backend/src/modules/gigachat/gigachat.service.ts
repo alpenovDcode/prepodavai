@@ -439,7 +439,7 @@ export class GigachatService {
    * @param purpose Purpose of the file (e.g., 'assistants', 'vision', 'batch')
    * @returns File ID
    */
-  async uploadFile(file: Buffer, filename: string, purpose: string = 'assistants'): Promise<string> {
+  async uploadFile(file: Buffer, filename: string, purpose: string = 'general'): Promise<string> {
     this.logger.debug(`Uploading file: ${filename}, purpose: ${purpose}`);
 
     const form = new FormData();
