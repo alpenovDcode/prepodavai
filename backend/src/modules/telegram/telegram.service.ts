@@ -111,9 +111,25 @@ export class TelegramService {
     const messageText = `✅ Ваше изображение готово!${result?.prompt ? `\n\n📝 Промпт: ${result.prompt}` : ''
       }${result?.style ? `\n🎨 Стиль: ${result.style}` : ''}`;
 
-    await this.bot.api.sendPhoto(chatId, imageUrl, {
-      caption: messageText,
-    });
+    try {
+      let photo: string | InputFile = imageUrl;
+
+      // Если это data URL (base64), конвертируем в Buffer
+      if (typeof imageUrl === 'string' && imageUrl.startsWith('data:image')) {
+        const base64Data = imageUrl.split(',')[1];
+        if (base64Data) {
+          const buffer = Buffer.from(base64Data, 'base64');
+          photo = new InputFile(buffer, 'image.jpg');
+        }
+      }
+
+      await this.bot.api.sendPhoto(chatId, photo, {
+        caption: messageText,
+      });
+    } catch (error) {
+      console.error('Error sending photo to Telegram:', error);
+      await this.bot.api.sendMessage(chatId, `⚠️ Не удалось отправить изображение в Telegram, но оно доступно в истории.\n\n${messageText}`);
+    }
   }
 
   /**
