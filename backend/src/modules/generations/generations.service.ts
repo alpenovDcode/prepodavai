@@ -353,7 +353,7 @@ export class GenerationsService {
         mode: 'image',
         model,
         imageUrl,
-        imageUrls: generationType === 'photosession' ? [imageUrl] : undefined,
+        imageUrls: undefined,
         prompt,
         style: style || 'realistic',
         photoUrl: photoUrl || null,
