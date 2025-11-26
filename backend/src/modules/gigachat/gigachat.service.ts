@@ -54,9 +54,9 @@ export class GigachatService {
     chat: [
       { id: 'GigaChat', label: 'GigaChat' },
       { id: 'GigaChat-Pro', label: 'GigaChat-Pro' },
-      { id: 'GigaChat-Max', label: 'GigaChat-Max' },
+      { id: 'GigaChat-2-Max', label: 'GigaChat-2-Max' },
     ],
-    image: [{ id: 'GigaChat-Image', label: 'GigaChat-Image' }],
+    image: [{ id: 'GigaChat-2-Max', label: 'GigaChat-2-Max' }],
     audio: [{ id: 'GigaChat-Audio', label: 'GigaChat-Audio' }],
     embeddings: [{ id: 'GigaChat-Embedding', label: 'GigaChat-Embedding' }],
   };
@@ -160,7 +160,7 @@ export class GigachatService {
   }
 
   getDefaultModel(mode: GigachatMode): string {
-    return this.defaultModels[mode] || 'GigaChat';
+    return this.defaultModels[mode] || 'GigaChat-2-Max';
   }
 
   async createChatCompletion(payload: Record<string, any>) {
