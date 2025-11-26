@@ -287,12 +287,13 @@ export class GenerationsService {
           const axios = (await import('axios')).default;
 
           const requestBody = {
-            model: 'google/nano-banana-pro',
             input: {
               prompt: prompt,
-              image: photoUrl,
-              num_outputs: 4,
-              aspect_ratio: '1:1'
+              image_input: [photoUrl],
+              resolution: '2K',
+              aspect_ratio: '1:1',
+              output_format: 'png',
+              safety_filter_level: 'block_only_high'
             },
             webhook: callbackUrl,
             webhook_events_filter: ['completed']
@@ -302,11 +303,11 @@ export class GenerationsService {
 
           // Отправляем запрос на Replicate API
           const response = await axios.post(
-            'https://api.replicate.com/v1/predictions',
+            'https://api.replicate.com/v1/models/google/nano-banana-pro/predictions',
             requestBody,
             {
               headers: {
-                'Authorization': `Token ${replicateToken}`,
+                'Authorization': `Bearer ${replicateToken}`,
                 'Content-Type': 'application/json'
               }
             }
