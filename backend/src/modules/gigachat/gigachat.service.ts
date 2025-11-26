@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
 import { randomUUID } from 'crypto';
 import * as https from 'https';
-import FormData from 'form-data';
+import FormData = require('form-data');
 import { GigachatMode } from './dto/gigachat-generation.dto';
 
 export interface NormalizedModel {
