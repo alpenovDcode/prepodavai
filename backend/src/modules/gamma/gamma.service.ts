@@ -141,4 +141,55 @@ export class GammaService {
 
         return request;
     }
+
+    /**
+     * Get generation status and file URLs from Gamma API
+     * Poll this endpoint every ~5 seconds until status is 'completed' or 'failed'
+     */
+    async getGenerationStatus(generationId: string): Promise<GammaGenerationResponse> {
+        if (!this.apiKey) {
+            throw new BadRequestException('Gamma API key is not configured');
+        }
+
+        try {
+            this.logger.log(`Checking Gamma generation status: ${generationId}`);
+
+            const response = await axios.get(
+                `${this.baseUrl}/generations/${generationId}`,
+                {
+                    headers: {
+                        'X-API-KEY': this.apiKey,
+                    },
+                },
+            );
+
+            this.logger.log(`Gamma status response: ${JSON.stringify(response.data, null, 2)}`);
+
+            return {
+                id: generationId,
+                status: response.data.status || 'pending',
+                gammaUrl: response.data.gammaUrl,
+                pdfUrl: response.data.pdfUrl,
+                pptxUrl: response.data.pptxUrl,
+                error: response.data.error,
+            };
+        } catch (error: any) {
+            this.logger.error(`Gamma status check failed: ${error.message}`, error.stack);
+
+            if (error.response) {
+                this.logger.error(`Gamma API error response: ${JSON.stringify(error.response.data, null, 2)}`);
+
+                // If generation failed, return failed status
+                if (error.response.status === 404 || error.response.status === 400) {
+                    return {
+                        id: generationId,
+                        status: 'failed',
+                        error: error.response.data?.message || error.response.data?.error || 'Generation not found',
+                    };
+                }
+            }
+
+            throw new BadRequestException(`Failed to check generation status: ${error.message}`);
+        }
+    }
 }

@@ -1,4 +1,6 @@
 import { Injectable, BadRequestException, NotFoundException, Logger, Inject, forwardRef } from '@nestjs/common';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { GenerationHelpersService } from './generation-helpers.service';
 import { GenerationQueueService } from './generation-queue.service';
@@ -51,6 +53,7 @@ export class GenerationsService {
     private gammaService: GammaService,
     private htmlPostprocessor: HtmlPostprocessorService,
     private filesService: FilesService,
+    @InjectQueue('gamma-polling') private gammaPollingQueue: Queue,
   ) { }
 
   /**
@@ -458,7 +461,25 @@ export class GenerationsService {
         },
       });
 
-      // Return pending status - presentation will complete via webhook callback
+      // Enqueue polling job to check status every 5 seconds
+      await this.gammaPollingQueue.add(
+        'poll-gamma-status',
+        {
+          generationRequestId,
+          gammaGenerationId: gammaResponse.id,
+          attempt: 1,
+        },
+        {
+          delay: 5000, // Start polling after 5 seconds
+          attempts: 1, // Don't retry the job itself, processor handles retries
+          removeOnComplete: true,
+          removeOnFail: false,
+        },
+      );
+
+      this.logger.log(`Enqueued polling job for Gamma generation ${gammaResponse.id}`);
+
+      // Return pending status - presentation will complete via polling worker
       return {
         provider: 'Gamma AI',
         mode: 'presentation',

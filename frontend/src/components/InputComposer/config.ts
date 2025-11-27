@@ -510,12 +510,7 @@ export const templates: Record<string, FunctionTemplate> = {
         options: [
           { value: 'chat', label: 'Текстовая беседа' },
           { value: 'image', label: 'Генерация изображения' },
-          { value: 'embeddings', label: 'Эмбеддинги' },
-          { value: 'audio_speech', label: 'Текст → речь' },
-          { value: 'audio_transcription', label: 'Расшифровка аудио' },
-          { value: 'audio_transcription', label: 'Расшифровка аудио' },
-          { value: 'audio_translation', label: 'Перевод аудио' },
-          { value: 'tokens_count', label: 'Подсчет токенов' }
+          { value: 'embeddings', label: 'Эмбеддинги' }
         ]
       },
       {
