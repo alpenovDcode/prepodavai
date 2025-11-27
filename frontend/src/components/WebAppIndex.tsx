@@ -359,6 +359,31 @@ export default function WebAppIndex() {
           parsed = {}
         }
         params = { ...params, templateId: form.templateId, formData: parsed }
+      } else if (type === 'game') {
+        // Для игр используем прямой вызов API, а не через useGenerations
+        try {
+          const response = await apiClient.post('/games/generate', {
+            topic: form.topic,
+            type: form.type
+          })
+
+          setGenerationResult(response.data)
+          setStatusOk(true)
+          setStatusMessage('Готово! Результат отображается ниже.')
+
+          // Прокручиваем к результату
+          setTimeout(() => {
+            resultContainerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+          }, 100)
+
+          return // Выходим из функции, так как уже обработали запрос
+        } catch (e: any) {
+          setStatusOk(false)
+          setStatusMessage(`Ошибка: ${e.message}`)
+          return
+        } finally {
+          setIsGenerating(false)
+        }
       } else if (type === 'gigachat') {
         const mode = form.mode || 'chat'
         params = { ...params, mode, model: form.model }
