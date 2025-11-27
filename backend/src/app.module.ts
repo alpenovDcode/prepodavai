@@ -20,6 +20,7 @@ import { LogsModule } from './modules/logs/logs.module';
 import { FilesModule } from './modules/files/files.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { GigachatModule } from './modules/gigachat/gigachat.module';
+import { GammaModule } from './modules/gamma/gamma.module';
 import { HtmlExportService } from './common/services/html-export.service';
 
 @Module({
@@ -70,8 +71,9 @@ import { HtmlExportService } from './common/services/html-export.service';
     FilesModule,
     AdminModule,
     GigachatModule,
+    GammaModule,
   ],
   controllers: [AppController],
   providers: [AppService, HtmlExportService],
 })
-export class AppModule {}
+export class AppModule { }

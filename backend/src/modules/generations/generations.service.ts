@@ -6,6 +6,7 @@ import { SubscriptionsService, OperationType } from '../subscriptions/subscripti
 import axios from 'axios';
 import { ConfigService } from '@nestjs/config';
 import { GigachatService } from '../gigachat/gigachat.service';
+import { GammaService } from '../gamma/gamma.service';
 import { HtmlPostprocessorService } from '../../common/services/html-postprocessor.service';
 import { FilesService } from '../files/files.service';
 
@@ -47,6 +48,7 @@ export class GenerationsService {
     private configService: ConfigService,
     @Inject(forwardRef(() => GigachatService))
     private gigachatService: GigachatService,
+    private gammaService: GammaService,
     private htmlPostprocessor: HtmlPostprocessorService,
     private filesService: FilesService,
   ) { }
@@ -75,6 +77,21 @@ export class GenerationsService {
       inputParams,
       model: model || this.getDefaultModel(generationType),
     });
+
+    // Прямые генерации через Gamma API (презентации)
+    if (generationType === 'presentation') {
+      const directResult = await this.handleDirectGammaGeneration(
+        generationRequest.id,
+        inputParams,
+      );
+
+      return {
+        success: true,
+        requestId: generationRequest.id,
+        status: 'pending',
+        result: directResult,
+      };
+    }
 
     // Прямые генерации через GigaChat (минуя webhooks)
     if (this.shouldUseDirectGigachatGeneration(generationType)) {
@@ -406,6 +423,59 @@ export class GenerationsService {
       return normalizedResult;
     } catch (error: any) {
       console.error(`[GenerationsService] Image generation failed:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Обработка генерации презентаций напрямую через Gamma API
+   */
+  private async handleDirectGammaGeneration(
+    generationRequestId: string,
+    inputParams: Record<string, any>,
+  ) {
+    try {
+      this.logger.log(`Starting Gamma presentation generation for request ${generationRequestId}`);
+
+      // Build Gamma API request from input parameters
+      const gammaRequest = this.gammaService.buildGenerationRequest(inputParams);
+
+      this.logger.log(`Gamma request payload: ${JSON.stringify(gammaRequest, null, 2)}`);
+
+      // Call Gamma API to start generation
+      const gammaResponse = await this.gammaService.generatePresentation(gammaRequest);
+
+      this.logger.log(`Gamma API response: ${JSON.stringify(gammaResponse, null, 2)}`);
+
+      // Store Gamma generation ID in metadata for tracking
+      await this.prisma.generationRequest.update({
+        where: { id: generationRequestId },
+        data: {
+          metadata: {
+            gammaGenerationId: gammaResponse.id,
+            gammaStatus: gammaResponse.status,
+          } as any,
+        },
+      });
+
+      // Return pending status - presentation will complete via webhook callback
+      return {
+        provider: 'Gamma AI',
+        mode: 'presentation',
+        status: 'pending',
+        gammaGenerationId: gammaResponse.id,
+        requestId: generationRequestId,
+        completedAt: new Date().toISOString(),
+      };
+    } catch (error: any) {
+      this.logger.error(
+        `Gamma presentation generation failed for ${generationRequestId}: ${error?.message || error}`,
+        error?.stack,
+      );
+      await this.generationHelpers.failGeneration(
+        generationRequestId,
+        error?.response?.data?.message || error?.message || 'Ошибка генерации через Gamma API',
+      );
       throw error;
     }
   }

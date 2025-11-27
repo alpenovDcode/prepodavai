@@ -8,6 +8,7 @@ import { TelegramSenderProcessor } from './processors/telegram-sender.processor'
 import { TelegramModule } from '../telegram/telegram.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { GigachatModule } from '../gigachat/gigachat.module';
+import { GammaModule } from '../gamma/gamma.module';
 import { HtmlPostprocessorService } from '../../common/services/html-postprocessor.service';
 import { FilesModule } from '../files/files.module';
 
@@ -24,6 +25,7 @@ import { FilesModule } from '../files/files.module';
     TelegramModule,
     SubscriptionsModule,
     forwardRef(() => GigachatModule),
+    GammaModule,
     FilesModule,
   ],
   controllers: [GenerationsController],
