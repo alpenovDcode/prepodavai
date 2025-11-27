@@ -3,6 +3,7 @@ import { Logger } from '@nestjs/common';
 import { Job, Queue } from 'bullmq';
 import { GammaService } from '../../gamma/gamma.service';
 import { GenerationHelpersService } from '../generation-helpers.service';
+import { PrismaService } from '../../../common/prisma/prisma.service';
 
 export interface GammaPollingJobData {
     generationRequestId: string;
@@ -19,6 +20,7 @@ export class GammaPollingProcessor extends WorkerHost {
     constructor(
         private readonly gammaService: GammaService,
         private readonly generationHelpers: GenerationHelpersService,
+        private readonly prisma: PrismaService,
         @InjectQueue('gamma-polling') private readonly pollingQueue: Queue,
     ) {
         super();
@@ -41,6 +43,13 @@ export class GammaPollingProcessor extends WorkerHost {
                 // Generation completed successfully
                 this.logger.log(`Gamma generation completed: ${gammaGenerationId}`);
 
+                // Fetch generation request to get inputText
+                const generationRequest = await this.prisma.generationRequest.findUnique({
+                    where: { id: generationRequestId },
+                });
+
+                const inputText = (generationRequest?.params as any)?.['inputText'] || '';
+
                 const outputData = {
                     provider: 'Gamma AI',
                     mode: 'presentation',
@@ -48,6 +57,7 @@ export class GammaPollingProcessor extends WorkerHost {
                     pdfUrl: status.pdfUrl,
                     pptxUrl: status.pptxUrl,
                     exportUrl: status.exportUrl, // Direct download link for file
+                    inputText, // Add inputText for Telegram caption
                     gammaGenerationId,
                     type: 'presentation',
                     completedAt: new Date().toISOString(),
