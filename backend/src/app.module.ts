@@ -23,6 +23,7 @@ import { GigachatModule } from './modules/gigachat/gigachat.module';
 import { GammaModule } from './modules/gamma/gamma.module';
 import { AiAssistantModule } from './modules/ai-assistant/ai-assistant.module';
 import { HtmlExportService } from './common/services/html-export.service';
+import { GamesModule } from './modules/games/games.module';
 
 @Module({
   imports: [
@@ -74,6 +75,7 @@ import { HtmlExportService } from './common/services/html-export.service';
     GigachatModule,
     GammaModule,
     AiAssistantModule,
+    GamesModule,
   ],
   controllers: [AppController],
   providers: [AppService, HtmlExportService],

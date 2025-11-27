@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Игра "Найди пару" (Memory)</title>
+    <style>
+        :root {
+            --bg-color: #2c3e50;
+            --card-back-color: #34495e;
+            /* Цвет "рубашки" */
+            --card-face-color: #ecf0f1;
+            /* Цвет лицевой стороны */
+            --accent-color: #e67e22;
+            --match-color: #27ae60;
+            --text-color: #2c3e50;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: white;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        /* --- Header --- */
+        header {
+            width: 100%;
+            padding: 20px;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.2);
+            margin-bottom: 20px;
+        }
+
+        .stats {
+            font-size: 1.2rem;
+            font-weight: bold;
+        }
+
+        .btn-restart {
+            padding: 10px 20px;
+            background: var(--accent-color);
+            border: none;
+            color: white;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: transform 0.2s;
+        }
+
+        .btn-restart:hover {
+            transform: scale(1.05);
+        }
+
+        /* --- Grid --- */
+        .game-container {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            /* 4 колонки */
+            gap: 15px;
+            padding: 10px;
+            max-width: 800px;
+            width: 100%;
+            perspective: 1000px;
+        }
+
+        /* --- Card Styles --- */
+        .card {
+            background-color: transparent;
+            height: 120px;
+            /* Высота карточки */
+            cursor: pointer;
+            position: relative;
+            transform-style: preserve-3d;
+            transition: transform 0.5s;
+        }
+
+        .card.flip {
+            transform: rotateY(180deg);
+            cursor: default;
+        }
+
+        .card.matched .card-front {
+            background-color: var(--match-color);
+            color: white;
+            border-color: white;
+        }
+
+        /* Стороны карточки */
+        .card-face {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            backface-visibility: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            padding: 10px;
+            text-align: center;
+            font-weight: bold;
+            box-sizing: border-box;
+            user-select: none;
+        }
+
+        /* Рубашка (задняя часть, видна сначала) */
+        .card-back {
+            background-color: var(--card-back-color);
+            color: rgba(255, 255, 255, 0.1);
+            font-size: 3rem;
+            border: 2px solid #46627f;
+        }
+
+        .card-back::after {
+            content: "?";
+        }
+
+        /* Лицевая часть (с текстом, скрыта) */
+        .card-front {
+            background-color: var(--card-face-color);
+            color: var(--text-color);
+            transform: rotateY(180deg);
+            font-size: 1rem;
+            /* Базовый размер шрифта */
+            line-height: 1.2;
+            border: 2px solid white;
+        }
+
+        /* --- Modal (Win) --- */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            z-index: 100;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal h2 {
+            font-size: 3rem;
+            color: var(--match-color);
+            margin-bottom: 10px;
+        }
+
+        .modal p {
+            font-size: 1.5rem;
+            margin-bottom: 30px;
+        }
+
+        /* Адаптивность */
+        @media (max-width: 600px) {
+            .game-container {
+                gap: 10px;
+                grid-template-columns: repeat(4, 1fr);
+            }
+
+            .card {
+                height: 80px;
+            }
+
+            .card-front {
+                font-size: 0.8rem;
+            }
+
+            .stats {
+                font-size: 1rem;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <header>
+        <div class="stats">⏳ <span id="timer">00:00</span></div>
+        <div class="stats">Ходы: <span id="moves">0</span></div>
+        <button class="btn-restart" onclick="initGame()">Заново</button>
+    </header>
+
+    <div class="game-container" id="game-board">
+    </div>
+
+    <div class="modal" id="win-modal">
+        <h2>Победа!</h2>
+        <p>Вы нашли все пары за <span id="final-moves">0</span> ходов и <span id="final-time">00:00</span></p>
+        <button class="btn-restart"
+            onclick="initGame(); document.getElementById('win-modal').classList.remove('active')">Играть снова</button>
+    </div>
+
+    <script>
+        // --- ДАННЫЕ (PLACEHOLDER) ---
+        // В реальном приложении бэкенд заменит этот массив.
+        const RAW_PAIRS = {{ GAME_DATA }};
+
+        // --- ЛОГИКА ИГРЫ ---
+
+        let cardsArray = [];
+        let hasFlippedCard = false;
+        let lockBoard = false;
+        let firstCard, secondCard;
+        let moves = 0;
+        let matchesFound = 0;
+        let timerInterval;
+        let seconds = 0;
+        let gameStarted = false;
+
+        const board = document.getElementById('game-board');
+        const movesDisplay = document.getElementById('moves');
+        const timerDisplay = document.getElementById('timer');
+
+        function initGame() {
+            // Сброс переменных
+            moves = 0;
+            matchesFound = 0;
+            seconds = 0;
+            gameStarted = false;
+            hasFlippedCard = false;
+            lockBoard = false;
+            firstCard = null;
+            secondCard = null;
+
+            clearInterval(timerInterval);
+            timerDisplay.innerText = '00:00';
+            movesDisplay.innerText = moves;
+            document.getElementById('win-modal').classList.remove('active');
+
+            // Подготовка данных
+            prepareCards();
+            // Рендер
+            renderBoard();
+        }
+
+        function prepareCards() {
+            // Превращаем 8 пар в 16 отдельных карточек
+            // У каждой карточки будет pairId, чтобы знать, кто её пара
+            let tempArray = [];
+
+            RAW_PAIRS.forEach(pair => {
+                // Карточка А
+                tempArray.push({
+                    text: pair.card1,
+                    pairId: pair.id,
+                    uniqueId: pair.id + '_a'
+                });
+                // Карточка Б
+                tempArray.push({
+                    text: pair.card2,
+                    pairId: pair.id,
+                    uniqueId: pair.id + '_b'
+                });
+            });
+
+            // Перемешивание (Алгоритм Фишера-Йетса)
+            tempArray.sort(() => 0.5 - Math.random());
+            cardsArray = tempArray;
+        }
+
+        function renderBoard() {
+            board.innerHTML = '';
+            cardsArray.forEach(item => {
+                // Создаем HTML структуру карточки
+                const card = document.createElement('div');
+                card.classList.add('card');
+                card.dataset.pairId = item.pairId; // Храним ID пары в data-атрибуте
+
+                const front = document.createElement('div');
+                front.classList.add('card-face', 'card-front');
+                front.innerText = item.text;
+
+                const back = document.createElement('div');
+                back.classList.add('card-face', 'card-back');
+
+                card.appendChild(front);
+                card.appendChild(back);
+
+                // Клик
+                card.addEventListener('click', flipCard);
+                board.appendChild(card);
+            });
+        }
+
+        function startTimer() {
+            if (gameStarted) return;
+            gameStarted = true;
+            timerInterval = setInterval(() => {
+                seconds++;
+                const mins = Math.floor(seconds / 60);
+                const secs = seconds % 60;
+                timerDisplay.innerText =
+                    `${mins < 10 ? '0' : ''}${mins}:${secs < 10 ? '0' : ''}${secs}`;
+            }, 1000);
+        }
+
+        function flipCard() {
+            if (lockBoard) return;
+            if (this === firstCard) return; // Нельзя нажать на ту же карту дважды
+
+            if (!gameStarted) startTimer();
+
+            this.classList.add('flip');
+
+            if (!hasFlippedCard) {
+                // Первое нажатие
+                hasFlippedCard = true;
+                firstCard = this;
+                return;
+            }
+
+            // Второе нажатие
+            secondCard = this;
+            incrementMoves();
+            checkForMatch();
+        }
+
+        function incrementMoves() {
+            moves++;
+            movesDisplay.innerText = moves;
+        }
+
+        function checkForMatch() {
+            let isMatch = firstCard.dataset.pairId === secondCard.dataset.pairId;
+
+            isMatch ? disableCards() : unflipCards();
+        }
+
+        function disableCards() {
+            // Совпадение
+            matchesFound++;
+
+            // Визуально помечаем
+            setTimeout(() => {
+                firstCard.classList.add('matched');
+                secondCard.classList.add('matched');
+                resetBoard();
+
+                // Проверка на победу
+                if (matchesFound === RAW_PAIRS.length) {
+                    gameOver();
+                }
+            }, 500);
+        }
+
+        function unflipCards() {
+            lockBoard = true; // Блокируем нажатия пока карты не перевернутся обратно
+
+            setTimeout(() => {
+                firstCard.classList.remove('flip');
+                secondCard.classList.remove('flip');
+                resetBoard();
+            }, 1000); // 1 секунда на запоминание
+        }
+
+        function resetBoard() {
+            [hasFlippedCard, lockBoard] = [false, false];
+            [firstCard, secondCard] = [null, null];
+        }
+
+        function gameOver() {
+            clearInterval(timerInterval);
+            document.getElementById('final-moves').innerText = moves;
+            document.getElementById('final-time').innerText = timerDisplay.innerText;
+            setTimeout(() => {
+                document.getElementById('win-modal').classList.add('active');
+            }, 500);
+        }
+
+        // Запуск при загрузке
+        initGame();
+
+    </script>
+</body>
+
+</html>

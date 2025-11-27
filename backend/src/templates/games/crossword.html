@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Кроссворд: IT технологии</title>
+    <style>
+        :root {
+            --bg-color: #f8f9fa;
+            --grid-bg: #343a40;
+            --cell-bg: #ffffff;
+            --cell-size: 40px;
+            --accent: #007bff;
+            --highlight: #e2e6ea;
+            --correct: #d4edda;
+            --text-main: #333;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        h1 {
+            margin: 20px 0;
+            text-align: center;
+        }
+
+        /* Контейнер игры */
+        .game-wrapper {
+            display: flex;
+            gap: 40px;
+            padding: 20px;
+            max-width: 1200px;
+            width: 100%;
+            justify-content: center;
+            align-items: flex-start;
+        }
+
+        /* Секция сетки */
+        .grid-container {
+            position: relative;
+            padding: 10px;
+            background: #eee;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            overflow: auto;
+            /* Для скролла на мелких экранах */
+        }
+
+        .crossword-grid {
+            display: grid;
+            gap: 1px;
+            /* Границы ячеек */
+            background-color: var(--text-main);
+            /* Цвет границ */
+            border: 2px solid var(--text-main);
+        }
+
+        .cell {
+            width: var(--cell-size);
+            height: var(--cell-size);
+            background-color: var(--grid-bg);
+            /* Черные пустые клетки */
+            position: relative;
+        }
+
+        .cell.active {
+            background-color: var(--cell-bg);
+        }
+
+        .cell input {
+            width: 100%;
+            height: 100%;
+            border: none;
+            text-align: center;
+            font-size: 1.2rem;
+            text-transform: uppercase;
+            font-weight: bold;
+            background: transparent;
+            color: var(--text-main);
+            padding: 0;
+            outline: none;
+            cursor: pointer;
+        }
+
+        .cell input:focus {
+            background-color: #fff3cd;
+            /* Желтый фокус */
+        }
+
+        .cell.highlight input {
+            background-color: #e9ecef;
+            /* Подсветка активного слова */
+        }
+
+        .cell.correct input {
+            background-color: var(--correct);
+            color: #155724;
+        }
+
+        .cell-number {
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            font-size: 0.6rem;
+            color: #666;
+            pointer-events: none;
+        }
+
+        /* Секция вопросов */
+        .clues-container {
+            width: 300px;
+            max-height: 600px;
+            overflow-y: auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+        }
+
+        .clue-block h3 {
+            border-bottom: 2px solid var(--accent);
+            padding-bottom: 5px;
+            margin-top: 0;
+        }
+
+        .clue-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .clue-item {
+            margin-bottom: 10px;
+            cursor: pointer;
+            padding: 5px;
+            border-radius: 4px;
+            font-size: 0.95rem;
+        }
+
+        .clue-item:hover {
+            background-color: #f1f1f1;
+        }
+
+        .clue-item.active-clue {
+            background-color: #cce5ff;
+            font-weight: bold;
+            border-left: 4px solid var(--accent);
+        }
+
+        .clue-item span {
+            font-weight: bold;
+            margin-right: 5px;
+            color: var(--accent);
+        }
+
+        .clue-item.solved {
+            text-decoration: line-through;
+            color: #aaa;
+        }
+
+        /* Кнопки */
+        .controls {
+            margin-top: 20px;
+            display: flex;
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        .btn {
+            padding: 10px 25px;
+            border: none;
+            border-radius: 5px;
+            font-size: 1rem;
+            cursor: pointer;
+            color: white;
+            transition: 0.2s;
+        }
+
+        .btn-check {
+            background-color: #28a745;
+        }
+
+        .btn-check:hover {
+            background-color: #218838;
+        }
+
+        .btn-reset {
+            background-color: #dc3545;
+        }
+
+        .btn-reset:hover {
+            background-color: #c82333;
+        }
+
+        /* Модальное окно */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .modal {
+            background: white;
+            padding: 40px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .modal h2 {
+            color: #28a745;
+            margin-top: 0;
+        }
+
+        /* Адаптивность */
+        @media (max-width: 850px) {
+            .game-wrapper {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .clues-container {
+                width: 100%;
+                max-height: 300px;
+                display: flex;
+                gap: 20px;
+            }
+
+            .clue-block {
+                flex: 1;
+            }
+
+            :root {
+                --cell-size: 30px;
+            }
+
+            .cell input {
+                font-size: 0.9rem;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>Кроссворд: IT Технологии</h1>
+
+    <div class="controls">
+        <button class="btn btn-check" onclick="checkAnswers()">Проверить</button>
+        <button class="btn btn-reset" onclick="location.reload()">Новая игра</button>
+    </div>
+
+    <div class="game-wrapper">
+        <div class="grid-container">
+            <div id="crossword-grid" class="crossword-grid"></div>
+        </div>
+
+        <div class="clues-container">
+            <div class="clue-block">
+                <h3>По горизонтали</h3>
+                <ul id="clues-across" class="clue-list"></ul>
+            </div>
+            <div class="clue-block">
+                <h3>По вертикали</h3>
+                <ul id="clues-down" class="clue-list"></ul>
+            </div>
+        </div>
+    </div>
+
+    <div id="win-modal" class="modal-overlay">
+        <div class="modal">
+            <h2>Поздравляем!</h2>
+            <p>Вы успешно разгадали кроссворд.</p>
+            <button class="btn btn-check" onclick="location.reload()">Сыграть еще раз</button>
+        </div>
+    </div>
+
+    <script>
+        ];
+
+        // --- ГЕНЕРАТОР СЕТКИ ---
+
+        class CrosswordGenerator {
+            constructor(words) {
+                this.words = words.map(w => ({ ...w, word: w.word.toUpperCase() }));
+                this.gridSize = 20; // Размер поля 20x20
+                this.grid = [];
+                this.placedWords = [];
+            }
+
+            generate() {
+                // Пытаемся сгенерировать несколько раз и берем лучший результат
+                let bestResult = null;
+
+                for (let attempt = 0; attempt < 10; attempt++) {
+                    this.resetGrid();
+                    const result = this.tryPlaceWords();
+                    if (!bestResult || result.length > bestResult.length) {
+                        bestResult = result;
+                        this.currentGridState = JSON.parse(JSON.stringify(this.grid));
+                    }
+                }
+
+                this.grid = this.currentGridState;
+                this.placedWords = bestResult;
+                return this.finalizeGrid();
+            }
+
+            resetGrid() {
+                this.grid = Array(this.gridSize).fill(null).map(() => Array(this.gridSize).fill(null));
+                this.placedWords = [];
+            }
+
+            tryPlaceWords() {
+                // Сортируем слова: длинные сначала
+                const sortedWords = [...this.words].sort((a, b) => b.word.length - a.word.length);
+                const placed = [];
+
+                // Ставим первое слово в центр
+                const firstWord = sortedWords[0];
+                const startX = Math.floor((this.gridSize - firstWord.word.length) / 2);
+                const startY = Math.floor(this.gridSize / 2);
+                this.placeWordOnGrid(firstWord, startX, startY, 'across');
+                placed.push({ ...firstWord, x: startX, y: startY, dir: 'across' });
+
+                // Пытаемся пристроить остальные
+                for (let i = 1; i < sortedWords.length; i++) {
+                    const currentWord = sortedWords[i];
+                    const position = this.findPosition(currentWord);
+
+                    if (position) {
+                        this.placeWordOnGrid(currentWord, position.x, position.y, position.dir);
+                        placed.push({ ...currentWord, x: position.x, y: position.y, dir: position.dir });
+                    }
+                }
+
+                // Сортируем для нумерации: сначала по Y, потом по X
+                placed.sort((a, b) => (a.y - b.y) || (a.x - b.x));
+                return placed;
+            }
+
+            findPosition(wordObj) {
+                const word = wordObj.word;
+                const bestPositions = [];
+
+                // Перебираем уже размещенные слова
+                for (let r = 0; r < this.gridSize; r++) {
+                    for (let c = 0; c < this.gridSize; c++) {
+                        const cell = this.grid[r][c];
+                        if (!cell) continue;
+
+                        // Ищем общую букву
+                        const letterIndex = word.indexOf(cell);
+                        if (letterIndex === -1) continue;
+
+                        // Определяем направление (перпендикулярно текущему)
+                        // Но в grid хранится просто буква, нужно проверять соседей
+                        // Простая эвристика: если есть соседи слева/справа, значит слово горизонтальное -> ставим вертикально
+                        const hasHNeigbor = (c > 0 && this.grid[r][c - 1]) || (c < this.gridSize - 1 && this.grid[r][c + 1]);
+                        const dir = hasHNeigbor ? 'down' : 'across';
+
+                        // Вычисляем начальные координаты потенциального слова
+                        let startX = c;
+                        let startY = r;
+                        if (dir === 'across') startX -= letterIndex;
+                        if (dir === 'down') startY -= letterIndex;
+
+                        if (this.canPlace(word, startX, startY, dir)) {
+                            return { x: startX, y: startY, dir };
+                        }
+                    }
+                }
+                return null;
+            }
+
+            canPlace(word, x, y, dir) {
+                if (x < 0 || y < 0 || x + (dir === 'across' ? word.length : 0) >= this.gridSize || y + (dir === 'down' ? word.length : 0) >= this.gridSize) return false;
+
+                for (let i = 0; i < word.length; i++) {
+                    const cx = x + (dir === 'across' ? i : 0);
+                    const cy = y + (dir === 'down' ? i : 0);
+                    const currentCell = this.grid[cy][cx];
+
+                    // 1. Клетка должна быть пустой ИЛИ содержать ту же букву
+                    if (currentCell && currentCell !== word[i]) return false;
+
+                    // 2. Проверка "слипания" слов. 
+                    // Если клетка пустая, у нее не должно быть соседей по "неправильным" сторонам
+                    if (!currentCell) {
+                        if (dir === 'across') {
+                            // Проверяем сверху и снизу (не должно быть букв, кроме пересечений)
+                            if ((cy > 0 && this.grid[cy - 1][cx]) || (cy < this.gridSize - 1 && this.grid[cy + 1][cx])) return false;
+                            // Проверяем начало и конец слова (слева и справа не должно быть букв)
+                            if (i === 0 && cx > 0 && this.grid[cy][cx - 1]) return false;
+                            if (i === word.length - 1 && cx < this.gridSize - 1 && this.grid[cy][cx + 1]) return false;
+                        } else {
+                            // Проверяем слева и справа
+                            if ((cx > 0 && this.grid[cy][cx - 1]) || (cx < this.gridSize - 1 && this.grid[cy][cx + 1])) return false;
+                            // Проверяем начало и конец
+                            if (i === 0 && cy > 0 && this.grid[cy - 1][cx]) return false;
+                            if (i === word.length - 1 && cy < this.gridSize - 1 && this.grid[cy + 1][cx]) return false;
+                        }
+                    }
+                }
+                return true;
+            }
+
+            placeWordOnGrid(wordObj, x, y, dir) {
+                const word = wordObj.word;
+                for (let i = 0; i < word.length; i++) {
+                    const cx = x + (dir === 'across' ? i : 0);
+                    const cy = y + (dir === 'down' ? i : 0);
+                    this.grid[cy][cx] = word[i];
+                }
+            }
+
+            finalizeGrid() {
+                // Обрезаем пустые края, чтобы сетка была компактной
+                let minX = this.gridSize, maxX = 0, minY = this.gridSize, maxY = 0;
+                for (let y = 0; y < this.gridSize; y++) {
+                    for (let x = 0; x < this.gridSize; x++) {
+                        if (this.grid[y][x]) {
+                            if (x < minX) minX = x;
+                            if (x > maxX) maxX = x;
+                            if (y < minY) minY = y;
+                            if (y > maxY) maxY = y;
+                        }
+                    }
+                }
+
+                // Корректируем координаты слов
+                const finalWidth = maxX - minX + 1;
+                const finalHeight = maxY - minY + 1;
+
+                this.placedWords.forEach(w => {
+                    w.x -= minX;
+                    w.y -= minY;
+                });
+
+                return {
+                    width: finalWidth,
+                    height: finalHeight,
+                    words: this.placedWords
+                };
+            }
+        }
+
+        // --- ЛОГИКА ИНТЕРФЕЙСА ---
+
+        const gridElement = document.getElementById('crossword-grid');
+        const listAcross = document.getElementById('clues-across');
+        const listDown = document.getElementById('clues-down');
+
+        let gameData;
+
+        function initGame() {
+            const generator = new CrosswordGenerator(WORD_LIST);
+            gameData = generator.generate();
+
+            renderGrid(gameData.width, gameData.height);
+            renderWords(gameData.words);
+            renderClues(gameData.words);
+        }
+
+        function renderGrid(w, h) {
+            gridElement.style.gridTemplateColumns = `repeat(${w}, var(--cell-size))`;
+            gridElement.style.gridTemplateRows = `repeat(${h}, var(--cell-size))`;
+
+            // Заполняем пустышками
+            for (let y = 0; y < h; y++) {
+                for (let x = 0; x < w; x++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    cell.dataset.x = x;
+                    cell.dataset.y = y;
+                    gridElement.appendChild(cell);
+                }
+            }
+        }
+
+        function renderWords(words) {
+            // Маркируем активные клетки и добавляем инпуты
+            words.forEach((w, index) => {
+                const number = index + 1;
+
+                // Ставим номер
+                const startCell = getCell(w.x, w.y);
+                if (!startCell.querySelector('.cell-number')) {
+                    const numSpan = document.createElement('span');
+                    numSpan.className = 'cell-number';
+                    numSpan.innerText = number;
+                    startCell.appendChild(numSpan);
+                }
+
+                // Заполняем буквы
+                for (let i = 0; i < w.word.length; i++) {
+                    const cx = w.x + (w.dir === 'across' ? i : 0);
+                    const cy = w.y + (w.dir === 'down' ? i : 0);
+                    const cell = getCell(cx, cy);
+
+                    cell.classList.add('active');
+                    if (!cell.querySelector('input')) {
+                        const input = document.createElement('input');
+                        input.maxLength = 1;
+                        input.dataset.answer = w.word[i]; // Храним правильный ответ (можно шифровать)
+                        input.dataset.x = cx;
+                        input.dataset.y = cy;
+
+                        // События ввода
+                        input.addEventListener('click', () => highlightWord(w));
+                        input.addEventListener('focus', () => highlightWord(w));
+                        input.addEventListener('input', (e) => handleInput(e, w));
+                        input.addEventListener('keydown', (e) => handleKey(e, cx, cy, w));
+
+                        cell.appendChild(input);
+                    }
+                }
+            });
+        }
+
+        function renderClues(words) {
+            words.forEach((w, index) => {
+                const li = document.createElement('li');
+                li.className = 'clue-item';
+                li.innerHTML = `<span>${index + 1}.</span> ${w.clue}`;
+                li.dataset.wordIndex = index;
+                li.onclick = () => {
+                    // Фокус на первую букву
+                    const input = getCell(w.x, w.y).querySelector('input');
+                    input.focus();
+                    highlightWord(w);
+                };
+
+                if (w.dir === 'across') listAcross.appendChild(li);
+                else listDown.appendChild(li);
+            });
+        }
+
+        function getCell(x, y) {
+            return gridElement.children[y * gameData.width + x];
+        }
+
+        // --- ВЗАИМОДЕЙСТВИЕ ---
+
+        let currentActiveWord = null;
+
+        function highlightWord(wordObj) {
+            // Снимаем старую подсветку
+            document.querySelectorAll('.cell.highlight').forEach(c => c.classList.remove('highlight'));
+            document.querySelectorAll('.clue-item.active-clue').forEach(c => c.classList.remove('active-clue'));
+
+            // Подсвечиваем клетки слова
+            for (let i = 0; i < wordObj.word.length; i++) {
+                const cx = wordObj.x + (wordObj.dir === 'across' ? i : 0);
+                const cy = wordObj.y + (wordObj.dir === 'down' ? i : 0);
+                getCell(cx, cy).classList.add('highlight');
+            }
+
+            // Подсвечиваем вопрос
+            const clueItem = document.querySelector(`.clue-item[data-word-index="${gameData.words.indexOf(wordObj)}"]`);
+            if (clueItem) {
+                clueItem.scrollIntoView({ behavior: "smooth", block: "nearest" });
+                clueItem.classList.add('active-clue');
+            }
+
+            currentActiveWord = wordObj;
+        }
+
+        function handleInput(e, wordObj) {
+            const val = e.target.value;
+            if (val) {
+                // Переход к следующей букве
+                const inputX = parseInt(e.target.dataset.x);
+                const inputY = parseInt(e.target.dataset.y);
+
+                // Ищем индекс текущей буквы в слове
+                let indexInWord = -1;
+                if (wordObj.dir === 'across') indexInWord = inputX - wordObj.x;
+                else indexInWord = inputY - wordObj.y;
+
+                if (indexInWord < wordObj.word.length - 1) {
+                    const nextX = wordObj.x + (wordObj.dir === 'across' ? indexInWord + 1 : 0);
+                    const nextY = wordObj.y + (wordObj.dir === 'down' ? indexInWord + 1 : 0);
+                    const nextInput = getCell(nextX, nextY).querySelector('input');
+                    if (nextInput) nextInput.focus();
+                }
+            }
+        }
+
+        function handleKey(e, x, y, wordObj) {
+            if (e.key === 'Backspace' && e.target.value === '') {
+                // Переход назад
+                let prevX = x, prevY = y;
+                if (wordObj.dir === 'across') prevX--;
+                else prevY--;
+
+                const prevCell = getCell(prevX, prevY);
+                if (prevCell && prevCell.querySelector('input')) {
+                    const input = prevCell.querySelector('input');
+                    input.focus();
+                }
+            }
+            // Стрелки
+            let nextX = x, nextY = y;
+            if (e.key === 'ArrowRight') nextX++;
+            if (e.key === 'ArrowLeft') nextX--;
+            if (e.key === 'ArrowDown') nextY++;
+            if (e.key === 'ArrowUp') nextY--;
+
+            if (nextX !== x || nextY !== y) {
+                const nextCell = getCell(nextX, nextY);
+                if (nextCell && nextCell.querySelector('input')) {
+                    nextCell.querySelector('input').focus();
+                }
+            }
+        }
+
+        function checkAnswers() {
+            let correctCount = 0;
+            const inputs = document.querySelectorAll('.cell input');
+            let isAllCorrect = true;
+
+            inputs.forEach(input => {
+                const val = input.value.toUpperCase();
+                const correct = input.dataset.answer;
+
+                if (val === correct) {
+                    input.parentElement.classList.add('correct');
+                } else {
+                    input.parentElement.classList.remove('correct');
+                    if (val !== '') isAllCorrect = false; // Ошибка
+                    else isAllCorrect = false; // Пусто
+                }
+            });
+
+            // Проверка слов целиком для зачеркивания
+            gameData.words.forEach((w, index) => {
+                let wordCorrect = true;
+                for (let i = 0; i < w.word.length; i++) {
+                    const cx = w.x + (w.dir === 'across' ? i : 0);
+                    const cy = w.y + (w.dir === 'down' ? i : 0);
+                    const input = getCell(cx, cy).querySelector('input');
+                    if (input.value.toUpperCase() !== w.word[i]) wordCorrect = false;
+                }
+
+                const clueItem = document.querySelector(`.clue-item[data-word-index="${index}"]`);
+                if (wordCorrect) clueItem.classList.add('solved');
+                else clueItem.classList.remove('solved');
+            });
+
+            if (isAllCorrect && inputs.length > 0) {
+                document.getElementById('win-modal').style.display = 'flex';
+            }
+        }
+
+        // Запуск
+        initGame();
+
+    </script>
+</body>
+
+</html>

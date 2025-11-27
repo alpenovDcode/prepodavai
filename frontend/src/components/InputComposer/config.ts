@@ -104,7 +104,9 @@ export const functions = [
   { id: 'image', title: 'Изображение', icon: 'fas fa-image' },
   { id: 'photosession', title: 'Фотосессия', icon: 'fas fa-camera' },
   { id: 'transcription', title: 'Транскрибация', icon: 'fas fa-file-audio' },
-  { id: 'message', title: 'Сообщение', icon: 'fas fa-envelope' }
+  { id: 'transcription', title: 'Транскрибация', icon: 'fas fa-file-audio' },
+  { id: 'message', title: 'Сообщение', icon: 'fas fa-envelope' },
+  { id: 'game', title: 'Создать игру', icon: 'fas fa-gamepad' }
 ]
 
 export const templates: Record<string, FunctionTemplate> = {
@@ -524,6 +526,30 @@ export const templates: Record<string, FunctionTemplate> = {
       { type: 'text', value: 'Общайся с AI-ассистентом для учителей. Задавай вопросы, получай помощь в создании материалов.' }
     ],
     fields: []
+  },
+  game: {
+    segments: [
+      { type: 'text', value: 'Создай игру ' },
+      { type: 'field', key: 'type', label: 'Тип игры', placeholder: 'миллионер' },
+      { type: 'text', value: ' по теме ' },
+      { type: 'field', key: 'topic', label: 'Тема', placeholder: 'тема урока' },
+      { type: 'text', value: '.' }
+    ],
+    fields: [
+      {
+        key: 'type',
+        label: 'Тип игры',
+        type: 'select',
+        options: [
+          { value: 'millionaire', label: 'Кто хочет стать миллионером' },
+          { value: 'flashcards', label: 'Флеш-карточки' },
+          { value: 'crossword', label: 'Филворд (Поиск слов)' },
+          { value: 'memory', label: 'Найди пару (Memory)' },
+          { value: 'truefalse', label: 'Правда или Ложь' }
+        ]
+      },
+      { key: 'topic', label: 'Тема', type: 'text', placeholder: 'История Древнего Рима' }
+    ]
   }
 }
 

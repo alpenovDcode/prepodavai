@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Флеш-карточки</title>
+    <style>
+        :root {
+            --primary-bg: #f3f4f6;
+            --card-width: 600px;
+            --card-height: 350px;
+            --text-color: #333;
+            --accent-color: #4f46e5;
+            /* Indigo */
+            --accent-hover: #4338ca;
+            --card-bg: #ffffff;
+            --back-bg: #e0e7ff;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--primary-bg);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        /* Заголовок и прогресс */
+        header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            margin: 0 0 10px 0;
+            color: var(--text-color);
+        }
+
+        .progress-container {
+            font-size: 0.9rem;
+            color: #666;
+            margin-bottom: 10px;
+        }
+
+        .progress-bar {
+            width: 200px;
+            height: 6px;
+            background: #ddd;
+            border-radius: 3px;
+            margin: 5px auto;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--accent-color);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        /* Сцена для 3D эффекта */
+        .scene {
+            width: var(--card-width);
+            height: var(--card-height);
+            perspective: 1000px;
+            margin-bottom: 30px;
+            cursor: pointer;
+        }
+
+        /* Сама карточка */
+        .card {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            transition: transform 0.6s;
+            transform-style: preserve-3d;
+            border-radius: 20px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+        }
+
+        .card.is-flipped {
+            transform: rotateY(180deg);
+        }
+
+        /* Общие стили для сторон */
+        .card__face {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            -webkit-backface-visibility: hidden;
+            /* Safari */
+            backface-visibility: hidden;
+            border-radius: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+            text-align: center;
+            font-size: 2rem;
+            font-weight: bold;
+            color: var(--text-color);
+            user-select: none;
+        }
+
+        /* Лицевая сторона */
+        .card__face--front {
+            background-color: var(--card-bg);
+            border: 2px solid #eee;
+        }
+
+        .card__face--front::after {
+            content: "Нажми, чтобы перевернуть";
+            position: absolute;
+            bottom: 20px;
+            font-size: 0.8rem;
+            color: #aaa;
+            font-weight: normal;
+        }
+
+        /* Обратная сторона */
+        .card__face--back {
+            background-color: var(--back-bg);
+            transform: rotateY(180deg);
+            border: 2px solid var(--accent-color);
+            font-size: 1.6rem;
+            /* Чуть меньше шрифт для определения */
+            color: var(--accent-color);
+        }
+
+        /* Панель управления */
+        .controls {
+            display: flex;
+            gap: 15px;
+        }
+
+        .btn {
+            background: white;
+            border: 1px solid #ccc;
+            padding: 12px 24px;
+            border-radius: 50px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+        }
+
+        .btn:hover {
+            background: #f9f9f9;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn-primary {
+            background: var(--accent-color);
+            color: white;
+            border: none;
+        }
+
+        .btn-primary:hover {
+            background: var(--accent-hover);
+        }
+
+        /* Адаптивность */
+        @media (max-width: 650px) {
+            :root {
+                --card-width: 90vw;
+                --card-height: 60vh;
+            }
+
+            .card__face {
+                font-size: 1.5rem;
+            }
+
+            .controls {
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <header>
+        <h1 id="deck-title">Flashcards: Python Basics</h1>
+        <div class="progress-container">
+            Карточка <span id="current-index">1</span> из <span id="total-count">15</span>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progress-fill"></div>
+            </div>
+        </div>
+    </header>
+
+    <div class="scene" onclick="flipCard()">
+        <div class="card" id="card-element">
+            <div class="card__face card__face--front">
+                <div id="card-front-text">Загрузка...</div>
+            </div>
+            <div class="card__face card__face--back">
+                <div id="card-back-text">...</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="controls">
+        <button class="btn" onclick="prevCard()">← Назад</button>
+        <button class="btn" onclick="shuffleCards()">🎲 Перемешать</button>
+        <button class="btn btn-primary" onclick="nextCard()">Вперед →</button>
+    </div>
+    <p style="margin-top: 15px; font-size: 0.8rem; color: #888;">
+        Пробел — перевернуть | Стрелки — навигация
+    </p>
+
+    <script>
+        // --- ДАННЫЕ (PLACEHOLDER) ---
+        // В реальном приложении бэкенд заменит этот массив.
+        let CARDS_DATA = {{ GAME_DATA }};
+
+        // --- ЛОГИКА ПРИЛОЖЕНИЯ ---
+
+        let currentIndex = 0;
+        const cardElement = document.getElementById('card-element');
+        const frontText = document.getElementById('card-front-text');
+        const backText = document.getElementById('card-back-text');
+        const indexDisplay = document.getElementById('current-index');
+        const totalDisplay = document.getElementById('total-count');
+        const progressFill = document.getElementById('progress-fill');
+
+        function initGame() {
+            document.getElementById('total-count').innerText = CARDS_DATA.length;
+            renderCard();
+        }
+
+        function renderCard() {
+            // Сбрасываем переворот перед сменой контента
+            cardElement.classList.remove('is-flipped');
+
+            // Небольшая задержка для плавности, если карточка была перевернута
+            setTimeout(() => {
+                const data = CARDS_DATA[currentIndex];
+                frontText.innerText = data.front;
+                backText.innerText = data.back;
+
+                // Обновляем UI счетчики
+                indexDisplay.innerText = currentIndex + 1;
+                const percentage = ((currentIndex + 1) / CARDS_DATA.length) * 100;
+                progressFill.style.width = percentage + '%';
+            }, 150);
+        }
+
+        function flipCard() {
+            cardElement.classList.toggle('is-flipped');
+        }
+
+        function nextCard() {
+            if (currentIndex < CARDS_DATA.length - 1) {
+                currentIndex++;
+                renderCard();
+            } else {
+                // Эффект "конец колоды" - можно зациклить
+                if (confirm("Колода пройдена! Начать сначала?")) {
+                    currentIndex = 0;
+                    renderCard();
+                }
+            }
+        }
+
+        function prevCard() {
+            if (currentIndex > 0) {
+                currentIndex--;
+                renderCard();
+            }
+        }
+
+        function shuffleCards() {
+            // Алгоритм Фишера-Йетса
+            for (let i = CARDS_DATA.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [CARDS_DATA[i], CARDS_DATA[j]] = [CARDS_DATA[j], CARDS_DATA[i]];
+            }
+            currentIndex = 0;
+            renderCard();
+        }
+
+        // Поддержка клавиатуры
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                e.preventDefault(); // Чтобы страница не скроллилась
+                flipCard();
+            } else if (e.code === 'ArrowRight') {
+                nextCard();
+            } else if (e.code === 'ArrowLeft') {
+                prevCard();
+            }
+        });
+
+        // Запуск
+        initGame();
+    </script>
+</body>
+
+</html>

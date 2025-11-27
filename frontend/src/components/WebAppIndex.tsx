@@ -184,6 +184,8 @@ export default function WebAppIndex() {
     currentFunctionId === 'gigachat' &&
     gigachatMode === 'audio_speech'
 
+  const isGameResult = generationResult && currentFunctionId === 'game'
+
   const imageDisplayUrl = (() => {
     if (!generationResult) return null
     if (typeof generationResult === 'string') return generationResult
@@ -659,6 +661,42 @@ export default function WebAppIndex() {
                       )}
                     </div>
                   </div>
+
+                )}
+
+                {/* Game result */}
+                {isGameResult && (
+                  <div className="space-y-4">
+                    <div className="p-4 rounded-xl bg-gradient-to-r from-[#D8E6FF] to-[#D8E6FF]/50 border border-[#D8E6FF]">
+                      <i className="fas fa-gamepad text-[#FF7E58] text-2xl mb-2"></i>
+                      <p className="text-sm text-black mb-3">
+                        Игра создана! Вы можете открыть её в браузере или скачать файл.
+                      </p>
+                      <div className="flex flex-col gap-2">
+                        <a
+                          href={generationResult.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="w-full px-4 py-2 bg-[#FF7E58] text-white rounded-lg text-sm font-medium hover:shadow-lg transition active:scale-95 flex items-center justify-center gap-2"
+                        >
+                          <i className="fas fa-play"></i>
+                          <span>Играть онлайн</span>
+                        </a>
+                        <a
+                          href={generationResult.downloadUrl}
+                          download
+                          className="w-full px-4 py-2 bg-white border border-[#FF7E58] text-[#FF7E58] rounded-lg text-sm font-medium hover:bg-orange-50 transition active:scale-95 flex items-center justify-center gap-2"
+                        >
+                          <i className="fas fa-download"></i>
+                          <span>Скачать HTML файл</span>
+                        </a>
+                      </div>
+                      <div className="mt-3 text-xs text-black/60">
+                        <p>💡 Ссылку "Играть онлайн" можно отправить ученикам.</p>
+                        <p>💡 HTML файл работает без интернета, если его скачать.</p>
+                      </div>
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
@@ -688,7 +726,7 @@ export default function WebAppIndex() {
           </div>
         </div>
       </div>
-    </div>
+    </div >
   )
 }
 
@@ -751,7 +789,8 @@ function getGenerationTypeLabel(type: string): string {
     transcription: 'Транскрипция видео',
     message: 'Сообщение',
     gigachat: 'GigaChat',
-    aiAssistant: 'AI-ассистент'
+    aiAssistant: 'AI-ассистент',
+    game: 'Мини-игра'
   }
   return labels[type] || 'Материал'
 }

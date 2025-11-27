@@ -30,6 +30,7 @@ async function bootstrap() {
     helmet({
       contentSecurityPolicy: nodeEnv === 'production',
       crossOriginEmbedderPolicy: false, // Для Telegram WebApp
+      crossOriginResourcePolicy: { policy: 'cross-origin' }, // Разрешаем загрузку ресурсов с других доменов
     }),
   );
 

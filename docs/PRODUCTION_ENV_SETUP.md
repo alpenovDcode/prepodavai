@@ -63,6 +63,13 @@ TELEGRAM_BOT_TOKEN=ВАШ_TELEGRAM_BOT_TOKEN
 NEXT_PUBLIC_TELEGRAM_BOT_NAME=your_bot_name
 
 # ============================================
+# Public URLs
+# ============================================
+PUBLIC_API_URL=https://api.yourdomain.com
+# Используется для формирования публичных ссылок на файлы
+GIGACHAT_FILE_SHARE_SECRET=случайный_64символьный_секрет
+
+# ============================================
 # External Services
 # ============================================
 N8N_WEBHOOK_URL=https://your-n8n-instance.com/webhook/

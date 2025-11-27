@@ -567,7 +567,7 @@ CSS ШАБЛОН:
 <style>
   body { background: #f5f5f5; font-family: 'Inter', system-ui, sans-serif; margin: 0; padding: 20px; color: #222; }
   .test-container { position: relative; background: white; max-width: 720px; margin: 0 auto; padding: 40px; border: 1px solid #e0e0e0; border-radius: 4px; }
-  .header-logo { position: absolute; top: 40px; right: 40px; width: 80px; height: auto; }
+  .header-logo { position: absolute; top: 40px; right: 40px; width: 120px; height: auto; }
   h1 { border-bottom: 2px solid #222; padding-bottom: 15px; margin-bottom: 30px; }
   .question-item { margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px dashed #eee; }
   .question-item:last-child { border-bottom: none; }
@@ -647,7 +647,7 @@ CSS ШАБЛОН:
 <style>
   body { background: #f9f9f9; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 20px; color: #333; }
   .dictionary-container { position: relative; background: white; max-width: 760px; margin: 0 auto; padding: 40px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border-radius: 4px; }
-  .header-logo { position: absolute; top: 40px; right: 40px; width: 80px; height: auto; }
+  .header-logo { position: absolute; top: 40px; right: 40px; width: 120px; height: auto; }
   h1 { border-bottom: 2px solid #333; padding-bottom: 15px; margin-bottom: 30px; letter-spacing: -0.5px; }
   .term-item { border-bottom: 1px solid #eaeaea; padding: 25px 0; }
   .term-item:last-child { border-bottom: none; }
@@ -673,7 +673,8 @@ window.MathJax = { tex: { inlineMath: [['$$', '$$']], displayMath: [['$$', '$$']
 ${customPrompt ? `Дополнительно: ${customPrompt}` : ''}
 
 СТРУКТУРА:
-1. Заголовок (Тема словаря) и логотип <img src="LOGO_PLACEHOLDER" class="header-logo">.
+   - Логотип: Вставь <img src="LOGO_PLACEHOLDER" class="header-logo"> в верхнюю часть.
+   - Логотип внизу: Вставь <div style="text-align: center; margin-top: 40px;"><img src="LOGO_PLACEHOLDER" style="width: 120px; opacity: 0.5;"></div> в самом конце документа.
 2. Список терминов (Термин -> Транскрипция/Мета -> Определение -> Пример использования).
 
 Начинай вывод сразу с <!DOCTYPE html>. Не пиши никаких вступлений и никаких заключений после тега </html>.`;
@@ -714,7 +715,7 @@ CSS ШАБЛОН:
 <style>
   body { background: #f0f0f0; font-family: 'Inter', Arial, sans-serif; color: #1a1a1a; margin: 0; padding: 20px; }
   .lesson-plan { position: relative; background: white; max-width: 800px; margin: 0 auto; padding: 40px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
-  .header-logo { position: absolute; top: 40px; right: 40px; width: 80px; height: auto; }
+  .header-logo { position: absolute; top: 40px; right: 40px; width: 120px; height: auto; }
   h1 { border-bottom: 2px solid #000; padding-bottom: 15px; margin-bottom: 30px; }
   h2 { margin-top: 25px; margin-bottom: 15px; color: #333; }
   ul, ol { padding-left: 20px; }
@@ -763,7 +764,8 @@ ${customPrompt ? `Дополнительно: ${customPrompt}` : ''}
    - Полный отказ от теней (box-shadow). Используй только границы (border: 1px solid #E5E7EB).
    - Заголовки: Черные, жирные, отделены от текста отступами.
    - Если есть блоки кода или выделения: использовать фон #F9FAFB (очень светло-серый) и border-radius: 4px.
-   - Логотип: Вставь <img src="LOGO_PLACEHOLDER" style="float: right; width: 80px; margin-left: 20px;"> в начало документа.
+   - Логотип: Вставь <img src="LOGO_PLACEHOLDER" style="float: right; width: 120px; margin-left: 20px;"> в начало документа.
+   - Логотип внизу: Вставь <div style="text-align: center; margin-top: 40px;"><img src="LOGO_PLACEHOLDER" style="width: 120px; opacity: 0.5;"></div> в самом конце документа.
 3. Списки: Маркеры должны быть внутри контента (list-style-position: inside) или с аккуратным padding-left.
 
 КРИТИЧЕСКИ ВАЖНЫЕ ТРЕБОВАНИЯ К МАТЕМАТИЧЕСКИМ ФОРМУЛАМ:
@@ -821,7 +823,8 @@ ${customPrompt ? `Дополнительно: ${customPrompt}` : ''}`;
    - Таблицы: Строгий стиль. border-collapse: collapse. Границы ячеек: 1px solid #e0e0e0. Шапка таблицы: жирный шрифт, фон #f9f9f9.
    - Списки: Маркеры аккуратные, с отступами.
    - Исключи любые тени (box-shadow) и яркие цвета. Используй только границы (border) и оттенки серого.
-   - Логотип: Вставь <img src="LOGO_PLACEHOLDER" style="float: right; width: 80px; margin-left: 20px;"> в верхнюю часть.
+   - Логотип: Вставь <img src="LOGO_PLACEHOLDER" style="float: right; width: 120px; margin-left: 20px;"> в верхнюю часть.
+   - Логотип внизу: Вставь <div style="text-align: center; margin-top: 40px;"><img src="LOGO_PLACEHOLDER" style="width: 120px; opacity: 0.5;"></div> в самом конце документа.
 
 КРИТИЧЕСКИ ВАЖНЫЕ ТРЕБОВАНИЯ К МАТЕМАТИЧЕСКИМ ФОРМУЛАМ:
 1. ДЛЯ СТРОЧНЫХ ФОРМУЛ (внутри текста): используй ТОЛЬКО двойные доллары $$формула$$
@@ -871,7 +874,8 @@ ${customPrompt ? `Дополнительно: ${customPrompt}` : ''}`;
    - Контейнер: max-width 760px, по центру, padding 40px 20px.
    - Шрифт: Inter, system-ui, sans-serif. Основной текст: #111.
    - Отказ от теней (box-shadow: none).
-   - Логотип: Вставь <img src="LOGO_PLACEHOLDER" style="float: right; width: 80px; margin-left: 20px;"> в верхний правый угол.
+   - Логотип: Вставь <img src="LOGO_PLACEHOLDER" style="float: right; width: 120px; margin-left: 20px;"> в верхний правый угол.
+   - Логотип внизу: Вставь <div style="text-align: center; margin-top: 40px;"><img src="LOGO_PLACEHOLDER" style="width: 120px; opacity: 0.5;"></div> в самом конце документа.
 2. Структура отчета (Визуальные блоки):
    - ОЦЕНКА: Не используй круги или яркие плашки. Сделай строгий блок: "Итоговый результат: X/10" крупным шрифтом с нижней границей (border-bottom).
    - СЕКЦИИ (Плюсы/Минусы): Вместо заливки цветом используй стиль "Callout" (белый фон, тонкая рамка border: 1px solid #eee).
@@ -961,6 +965,7 @@ ${customPrompt ? `Дополнительно: ${customPrompt}` : ''}`;
         -   Слева: "Рабочий лист по предмету: [Предмет]" (жирным).
         -   Справа: <img src="LOGO_PLACEHOLDER" class="header-logo" alt="prepodavAI">
         -   Ниже: Поля: "Имя: _______", "Класс: _______", "Дата: _______".
+    -   **Футер:** В самом конце документа (после всех заданий и ответов) вставь логотип: <div style="text-align: center; margin-top: 40px;"><img src="LOGO_PLACEHOLDER" style="width: 120px; opacity: 0.5;"></div>
     -   **Тело заданий:** Нумерованный список. page-break-inside: avoid.
     -   **Блок ответов:** Должен быть на НОВОЙ СТРАНИЦЫ (page-break-before: always).
 
@@ -991,7 +996,7 @@ CSS ШАБЛОН:
   }
   .header { border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 30px; position: relative; }
   .header-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
-  .header-logo { position: absolute; top: 0; right: 0; width: 80px; height: auto; }
+  .header-logo { position: absolute; top: 0; right: 0; width: 120px; height: auto; }
   .student-info { display: flex; gap: 20px; margin-top: 10px; }
   .field { border-bottom: 1px solid black; flex-grow: 1; padding-left: 5px; }
   .task-block { margin-bottom: 25px; page-break-inside: avoid; }
