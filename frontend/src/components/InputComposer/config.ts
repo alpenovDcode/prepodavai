@@ -133,7 +133,15 @@ export const templates: Record<string, FunctionTemplate> = {
           label: `${i + 1} класс`
         }))
       },
-      { key: 'questionsCount', label: 'Количество заданий', type: 'number', min: 1, max: 20 },
+      {
+        key: 'questionsCount',
+        label: 'Количество заданий',
+        type: 'select',
+        options: Array.from({ length: 10 }, (_, i) => ({
+          value: String(i + 1),
+          label: String(i + 1)
+        }))
+      },
       { key: 'preferences', label: 'Пожелания', type: 'text', placeholder: 'формат, сложность' }
     ]
   },
@@ -164,7 +172,15 @@ export const templates: Record<string, FunctionTemplate> = {
           label: `${i + 1} класс`
         }))
       },
-      { key: 'questionsCount', label: 'Кол-во вопросов', type: 'number', min: 1, max: 30 },
+      {
+        key: 'questionsCount',
+        label: 'Кол-во вопросов',
+        type: 'select',
+        options: Array.from({ length: 10 }, (_, i) => ({
+          value: String(i + 1),
+          label: String(i + 1)
+        }))
+      },
       { key: 'answersCount', label: 'Вариантов ответа', type: 'number', min: 2, max: 6 }
     ]
   },
@@ -176,7 +192,7 @@ export const templates: Record<string, FunctionTemplate> = {
       { type: 'field', key: 'language', label: 'Язык', placeholder: 'язык' },
       { type: 'text', value: ' языке. ' },
       { type: 'text', value: 'Количество слов: ' },
-      { type: 'field', key: 'wordsCount', label: 'Слов', placeholder: '20' },
+      { type: 'field', key: 'wordsCount', label: 'Слов', placeholder: '10' },
       { type: 'text', value: '.' }
     ],
     fields: [
@@ -213,7 +229,15 @@ export const templates: Record<string, FunctionTemplate> = {
           { value: 'vi', label: 'Вьетнамский' }
         ]
       },
-      { key: 'wordsCount', label: 'Количество слов', type: 'number', min: 5, max: 50 }
+      {
+        key: 'wordsCount',
+        label: 'Количество слов',
+        type: 'select',
+        options: Array.from({ length: 10 }, (_, i) => ({
+          value: String(i + 1),
+          label: String(i + 1)
+        }))
+      }
     ]
   },
   lessonPlan: {
@@ -491,7 +515,8 @@ export const templates: Record<string, FunctionTemplate> = {
           { value: 'thank-you', label: 'Благодарность' }
         ]
       },
-      { key: 'formData', label: 'Данные (JSON)', type: 'textarea', rows: 4, placeholder: '{ "date": "...", "topic": "..." }' }
+      { key: 'formData', label: 'Данные (JSON)', type: 'textarea', rows: 4, placeholder: '{ "date": "...", "topic": "..." }' },
+      { key: 'draftText', label: 'Черновик (необязательно)', type: 'textarea', rows: 3, placeholder: 'Вставьте ваш текст...' }
     ]
   },
   aiAssistant: {

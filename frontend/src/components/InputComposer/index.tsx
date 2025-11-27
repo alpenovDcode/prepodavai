@@ -312,7 +312,16 @@ export default function InputComposer({
           throw new Error(response.data.error || 'Ошибка загрузки файла')
         }
 
-        const previewUrl = response.data.url || `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/files/${response.data.hash}`
+        // Формируем URL для превью
+        const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' ? window.location.origin.replace(':3000', ':3001') : 'http://localhost:3001')
+        const previewUrl = response.data.url || `${apiBaseUrl}/api/files/${response.data.hash}`
+
+        console.log('File uploaded:', {
+          hash: response.data.hash,
+          previewUrl,
+          apiBaseUrl,
+          responseUrl: response.data.url
+        })
 
         setLocalValues(prev => ({
           ...prev,
@@ -740,6 +749,18 @@ function FieldRenderer({
                         alt="Preview"
                         className="w-full rounded-lg object-contain"
                         style={{ maxHeight: '200px', background: '#f5f5f5' }}
+                        onError={(e) => {
+                          console.error('Image preview failed to load:', {
+                            src: values[field.key + 'Preview'],
+                            hash: values[field.key]
+                          })
+                          // Попробуем альтернативный URL
+                          const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' ? window.location.origin.replace(':3000', ':3001') : 'http://localhost:3001')
+                          const fallbackUrl = `${apiBaseUrl}/api/files/${values[field.key]}`
+                          if (e.currentTarget.src !== fallbackUrl) {
+                            e.currentTarget.src = fallbackUrl
+                          }
+                        }}
                       />
                       <button
                         type="button"
