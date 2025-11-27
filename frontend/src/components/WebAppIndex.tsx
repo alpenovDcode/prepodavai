@@ -661,17 +661,6 @@ export default function WebAppIndex() {
                           })()}
                         </>
                       )}
-                      {typeof generationResult === 'object' && generationResult.gammaUrl && (
-                        <a
-                          href={generationResult.gammaUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="mt-2 w-full px-4 py-2 bg-white border border-[#D8E6FF] text-black rounded-lg text-sm font-medium hover:bg-[#D8E6FF] transition active:scale-95 flex items-center justify-center gap-2"
-                        >
-                          <i className="fas fa-external-link-alt"></i>
-                          <span>Открыть в Gamma</span>
-                        </a>
-                      )}
                     </div>
                   </div>
                 )}
