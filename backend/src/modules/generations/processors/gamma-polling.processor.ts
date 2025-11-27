@@ -1,6 +1,6 @@
-import { Processor, WorkerHost, OnWorkerEvent } from '@nestjs/bullmq';
+import { Processor, WorkerHost, OnWorkerEvent, InjectQueue } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
-import { Job } from 'bullmq';
+import { Job, Queue } from 'bullmq';
 import { GammaService } from '../../gamma/gamma.service';
 import { GenerationHelpersService } from '../generation-helpers.service';
 
@@ -19,6 +19,7 @@ export class GammaPollingProcessor extends WorkerHost {
     constructor(
         private readonly gammaService: GammaService,
         private readonly generationHelpers: GenerationHelpersService,
+        @InjectQueue('gamma-polling') private readonly pollingQueue: Queue,
     ) {
         super();
     }
@@ -80,18 +81,28 @@ export class GammaPollingProcessor extends WorkerHost {
                     throw new Error('Generation timeout');
                 }
 
-                // Re-add job to queue with delay
-                await job.updateData({
-                    ...job.data,
-                    attempt: attempt + 1,
-                });
-
-                // Delay next attempt by POLL_INTERVAL_MS
-                await job.moveToDelayed(Date.now() + this.POLL_INTERVAL_MS);
+                // Add new job to queue for next poll attempt
+                await this.pollingQueue.add(
+                    'poll-gamma-status',
+                    {
+                        generationRequestId,
+                        gammaGenerationId,
+                        attempt: attempt + 1,
+                    },
+                    {
+                        delay: this.POLL_INTERVAL_MS,
+                        attempts: 1,
+                        removeOnComplete: true,
+                        removeOnFail: false,
+                    },
+                );
 
                 this.logger.log(
-                    `Gamma generation still ${status.status}, will check again in ${this.POLL_INTERVAL_MS / 1000}s`,
+                    `Gamma generation still ${status.status}, scheduled next check in ${this.POLL_INTERVAL_MS / 1000}s`,
                 );
+
+                // Current job completes successfully, next poll is a new job
+                return;
             } else {
                 // Unknown status
                 this.logger.warn(`Unknown Gamma status: ${status.status}`);
@@ -104,27 +115,46 @@ export class GammaPollingProcessor extends WorkerHost {
                     throw new Error(`Unknown status: ${status.status}`);
                 }
 
-                // Retry
-                await job.updateData({
-                    ...job.data,
-                    attempt: attempt + 1,
-                });
+                // Retry with new job
+                await this.pollingQueue.add(
+                    'poll-gamma-status',
+                    {
+                        generationRequestId,
+                        gammaGenerationId,
+                        attempt: attempt + 1,
+                    },
+                    {
+                        delay: this.POLL_INTERVAL_MS,
+                        attempts: 1,
+                        removeOnComplete: true,
+                        removeOnFail: false,
+                    },
+                );
 
-                await job.moveToDelayed(Date.now() + this.POLL_INTERVAL_MS);
+                return;
             }
         } catch (error: any) {
             this.logger.error(`Error polling Gamma status: ${error.message}`, error.stack);
 
-            // If it's a network error or API error, retry
+            // If it's a network error or API error, retry with new job
             if (attempt < this.MAX_ATTEMPTS && !error.message.includes('Generation timeout')) {
-                await job.updateData({
-                    ...job.data,
-                    attempt: attempt + 1,
-                });
-
-                await job.moveToDelayed(Date.now() + this.POLL_INTERVAL_MS);
+                await this.pollingQueue.add(
+                    'poll-gamma-status',
+                    {
+                        generationRequestId,
+                        gammaGenerationId,
+                        attempt: attempt + 1,
+                    },
+                    {
+                        delay: this.POLL_INTERVAL_MS,
+                        attempts: 1,
+                        removeOnComplete: true,
+                        removeOnFail: false,
+                    },
+                );
 
                 this.logger.log(`Will retry polling in ${this.POLL_INTERVAL_MS / 1000}s`);
+                return; // Current job completes, retry is a new job
             } else {
                 // Max attempts reached or fatal error
                 await this.generationHelpers.failGeneration(
