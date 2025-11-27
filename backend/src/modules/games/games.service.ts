@@ -195,9 +195,13 @@ export class GamesService {
             // 2. Remove comments (// ...) which are not valid in JSON
             jsonString = jsonString.replace(/\/\/[^\n]*/g, '');
 
-            // 3. Try to fix escaped characters issues
-            // Sometimes AI adds extra backslashes
-            jsonString = jsonString.replace(/\\\\/g, '\\');
+            // 3. Fix escape sequences - remove invalid escapes
+            // Keep only valid JSON escape sequences: \" \\ \/ \b \f \n \r \t \uXXXX
+            // Replace any other \X with just X
+            jsonString = jsonString.replace(/\\([^"\\/bfnrtu])/g, '$1');
+
+            // 4. Remove trailing commas before ] or }
+            jsonString = jsonString.replace(/,(\s*[\]}])/g, '$1');
 
             try {
                 const parsed = JSON.parse(jsonString);
@@ -205,17 +209,15 @@ export class GamesService {
                 return parsed;
             } catch (parseError) {
                 this.logger.error(`JSON parse error: ${parseError.message}`);
-                this.logger.debug(`Problematic JSON substring: ${jsonString.substring(0, 500)}...`);
+                this.logger.debug(`Problematic JSON at position ${parseError.message.match(/\d+/)?.[0]}`);
 
-                // Last resort: try to manually fix the JSON
-                try {
-                    // Remove trailing commas before ] or }
-                    jsonString = jsonString.replace(/,(\s*[\]}])/g, '$1');
-                    return JSON.parse(jsonString);
-                } catch (finalError) {
-                    this.logger.error(`Final parse attempt failed: ${finalError.message}`);
-                    return null;
-                }
+                // Log more context around the error position
+                const errorPos = parseInt(parseError.message.match(/\d+/)?.[0] || '0');
+                const start = Math.max(0, errorPos - 100);
+                const end = Math.min(jsonString.length, errorPos + 100);
+                this.logger.debug(`Context: ...${jsonString.substring(start, end)}...`);
+
+                return null;
             }
         } catch (error) {
             this.logger.error('AI generation failed', error);
