@@ -1,8 +1,8 @@
 import { Processor, WorkerHost, OnWorkerEvent } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
-import { GammaService } from '../gamma/gamma.service';
-import { GenerationHelpersService } from './generation-helpers.service';
+import { GammaService } from '../../gamma/gamma.service';
+import { GenerationHelpersService } from '../generation-helpers.service';
 
 export interface GammaPollingJobData {
     generationRequestId: string;
