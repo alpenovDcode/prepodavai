@@ -47,6 +47,7 @@ export class GammaPollingProcessor extends WorkerHost {
                     gammaUrl: status.gammaUrl,
                     pdfUrl: status.pdfUrl,
                     pptxUrl: status.pptxUrl,
+                    exportUrl: status.exportUrl, // Direct download link for file
                     gammaGenerationId,
                     type: 'presentation',
                     completedAt: new Date().toISOString(),

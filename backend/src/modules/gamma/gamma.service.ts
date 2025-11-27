@@ -31,6 +31,7 @@ export interface GammaGenerationResponse {
     gammaUrl?: string;
     pdfUrl?: string;
     pptxUrl?: string;
+    exportUrl?: string; // Direct download link for PDF or PPTX
     error?: string;
 }
 
@@ -171,6 +172,7 @@ export class GammaService {
                 gammaUrl: response.data.gammaUrl,
                 pdfUrl: response.data.pdfUrl,
                 pptxUrl: response.data.pptxUrl,
+                exportUrl: response.data.exportUrl,
                 error: response.data.error,
             };
         } catch (error: any) {

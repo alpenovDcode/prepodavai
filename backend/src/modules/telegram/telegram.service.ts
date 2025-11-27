@@ -149,12 +149,43 @@ export class TelegramService {
    * Отправка презентации
    */
   private async sendPresentation(chatId: string, result: any) {
-    if (result.pdfUrl) {
-      await this.bot.api.sendDocument(chatId, result.pdfUrl, {
-        caption: `✅ Ваша презентация готова (PDF)!${result.inputText ? `\n\n📌 Тема: ${result.inputText}` : ''
+    const exportUrl = result.exportUrl || result.pdfUrl || result.pptxUrl;
+
+    if (!exportUrl) {
+      // Если нет файла для скачивания, отправляем только ссылку на Gamma
+      const message = `✅ Ваша презентация готова!${result.inputText ? `\n\n📌 Тема: ${result.inputText}` : ''
+        }${result.gammaUrl ? `\n\n🔗 [Открыть в Gamma](${result.gammaUrl})` : ''}`;
+
+      await this.bot.api.sendMessage(chatId, message, { parse_mode: 'Markdown' });
+      return;
+    }
+
+    try {
+      // Определяем тип файла по URL
+      const isPptx = exportUrl.toLowerCase().includes('.pptx') || exportUrl.toLowerCase().includes('pptx');
+      const fileExtension = isPptx ? 'pptx' : 'pdf';
+      const fileType = isPptx ? 'PPTX' : 'PDF';
+      const filename = `presentation_${Date.now()}.${fileExtension}`;
+
+      // Скачиваем файл
+      const axios = (await import('axios')).default;
+      const response = await axios.get(exportUrl, { responseType: 'arraybuffer' });
+      const fileBuffer = Buffer.from(response.data);
+
+      // Отправляем файл в Telegram
+      await this.bot.api.sendDocument(chatId, new InputFile(fileBuffer, filename), {
+        caption: `✅ Ваша презентация готова (${fileType})!${result.inputText ? `\n\n📌 Тема: ${result.inputText}` : ''
           }${result.gammaUrl ? `\n\n🔗 [Открыть в Gamma](${result.gammaUrl})` : ''}`,
         parse_mode: 'Markdown',
       });
+    } catch (error) {
+      console.error('Error downloading/sending presentation file:', error);
+      // Fallback: отправляем только ссылку
+      const message = `✅ Ваша презентация готова!${result.inputText ? `\n\n📌 Тема: ${result.inputText}` : ''
+        }${result.gammaUrl ? `\n\n🔗 [Открыть в Gamma](${result.gammaUrl})` : ''
+        }${exportUrl ? `\n\n📥 [Скачать файл](${exportUrl})` : ''}`;
+
+      await this.bot.api.sendMessage(chatId, message, { parse_mode: 'Markdown' });
     }
   }
 

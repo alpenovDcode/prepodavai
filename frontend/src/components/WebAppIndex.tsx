@@ -642,14 +642,35 @@ export default function WebAppIndex() {
                           ? `Ваша презентация на тему: ${generationResult.inputText}`
                           : 'Ваша презентация готова!'}
                       </p>
-                      {typeof generationResult === 'object' && generationResult.pdfUrl && (
-                        <button
-                          onClick={() => window.open(generationResult.pdfUrl, '_blank')}
-                          className="w-full px-4 py-2 bg-[#FF7E58] text-white rounded-lg text-sm font-medium hover:shadow-lg transition active:scale-95 flex items-center justify-center gap-2"
+                      {typeof generationResult === 'object' && (generationResult.exportUrl || generationResult.pdfUrl || generationResult.pptxUrl) && (
+                        <>
+                          {(() => {
+                            const fileUrl = generationResult.exportUrl || generationResult.pdfUrl || generationResult.pptxUrl;
+                            const isPptx = fileUrl?.toLowerCase().includes('.pptx') || fileUrl?.toLowerCase().includes('pptx');
+                            const fileFormat = isPptx ? 'PPTX' : 'PDF';
+
+                            return (
+                              <button
+                                onClick={() => window.open(fileUrl, '_blank')}
+                                className="w-full px-4 py-2 bg-[#FF7E58] text-white rounded-lg text-sm font-medium hover:shadow-lg transition active:scale-95 flex items-center justify-center gap-2"
+                              >
+                                <i className="fas fa-download"></i>
+                                <span>Скачать презентацию ({fileFormat})</span>
+                              </button>
+                            );
+                          })()}
+                        </>
+                      )}
+                      {typeof generationResult === 'object' && generationResult.gammaUrl && (
+                        <a
+                          href={generationResult.gammaUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-2 w-full px-4 py-2 bg-white border border-[#D8E6FF] text-black rounded-lg text-sm font-medium hover:bg-[#D8E6FF] transition active:scale-95 flex items-center justify-center gap-2"
                         >
-                          <i className="fas fa-download"></i>
-                          <span>Скачать презентацию</span>
-                        </button>
+                          <i className="fas fa-external-link-alt"></i>
+                          <span>Открыть в Gamma</span>
+                        </a>
                       )}
                     </div>
                   </div>
