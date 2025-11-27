@@ -937,7 +937,10 @@ ${customPrompt ? `Дополнительно: ${customPrompt}` : ''}`;
 
 4.  **Математика (MathJax):**
     -   Вставь скрипт MathJax в <head>.
-    -   Формулы в $$...$$ (двойные доллары).
+    -   Вставь скрипт MathJax в <head>.
+    -   Формулы: используй `$$...$$` для выключных формул (на отдельной строке) и `$...$` для строчных (внутри текста).
+    -   **ВАЖНО:** Не используй запятые внутри формул для перечисления, если это не часть математического выражения.
+    -   **ВАЖНО:** Пиши чистый LaTeX без лишних текстовых пояснений внутри формул.
 
 CSS ШАБЛОН:
 <style>
@@ -978,7 +981,17 @@ CSS ШАБЛОН:
   }
 </style>
 <script>
-window.MathJax = { tex: { inlineMath: [['$$', '$$']], displayMath: [['$$', '$$']] }, svg: { fontCache: 'global' } };
+window.MathJax = { 
+  tex: { 
+    inlineMath: [['$', '$'], ['\\(', '\\)']], 
+    displayMath: [['$$', '$$'], ['\\[', '\\]']] 
+  }, 
+  svg: { fontCache: 'global' },
+  options: {
+    ignoreHtmlClass: 'tex2jax_ignore',
+    processHtmlClass: 'tex2jax_process'
+  }
+};
 </script>
 <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
 `;
