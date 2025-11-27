@@ -172,17 +172,51 @@ export class GamesService {
                 temperature: 0.7,
             }) as any;
 
-            const content = response.choices[0].message.content;
+            let content = response.choices[0].message.content;
+            this.logger.debug(`Raw AI response length: ${content.length}`);
+
             // Clean up markdown code blocks if present
-            const cleanContent = content.replace(/```json\n?|\n?```/g, '').trim();
+            content = content.replace(/```json\n?|\n?```/g, '').trim();
 
-            // Try to find array or object
-            const jsonMatch = cleanContent.match(/\[[\s\S]*\]/) || cleanContent.match(/\{[\s\S]*\}/);
+            // Remove any leading/trailing text that's not JSON
+            const jsonMatch = content.match(/\[[\s\S]*\]/) || content.match(/\{[\s\S]*\}/);
 
-            if (jsonMatch) {
-                return JSON.parse(jsonMatch[0]);
+            if (!jsonMatch) {
+                this.logger.error('No JSON found in AI response');
+                return null;
             }
-            return JSON.parse(cleanContent);
+
+            let jsonString = jsonMatch[0];
+
+            // Fix common JSON issues from AI responses
+            // 1. Replace smart quotes with regular quotes
+            jsonString = jsonString.replace(/[""]/g, '"').replace(/['']/g, "'");
+
+            // 2. Remove comments (// ...) which are not valid in JSON
+            jsonString = jsonString.replace(/\/\/[^\n]*/g, '');
+
+            // 3. Try to fix escaped characters issues
+            // Sometimes AI adds extra backslashes
+            jsonString = jsonString.replace(/\\\\/g, '\\');
+
+            try {
+                const parsed = JSON.parse(jsonString);
+                this.logger.debug(`Successfully parsed JSON, type: ${Array.isArray(parsed) ? 'array' : 'object'}`);
+                return parsed;
+            } catch (parseError) {
+                this.logger.error(`JSON parse error: ${parseError.message}`);
+                this.logger.debug(`Problematic JSON substring: ${jsonString.substring(0, 500)}...`);
+
+                // Last resort: try to manually fix the JSON
+                try {
+                    // Remove trailing commas before ] or }
+                    jsonString = jsonString.replace(/,(\s*[\]}])/g, '$1');
+                    return JSON.parse(jsonString);
+                } catch (finalError) {
+                    this.logger.error(`Final parse attempt failed: ${finalError.message}`);
+                    return null;
+                }
+            }
         } catch (error) {
             this.logger.error('AI generation failed', error);
             return null;
