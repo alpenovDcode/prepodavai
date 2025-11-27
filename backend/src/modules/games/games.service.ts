@@ -64,7 +64,8 @@ export class GamesService {
         this.logger.debug(`Game data structure: ${JSON.stringify(gameDataWithMeta, null, 2).substring(0, 500)}...`);
 
         const jsonString = JSON.stringify(gameDataWithMeta, null, 2);
-        let gameHtml = templateContent.replace('{{GAME_DATA}}', jsonString);
+        // Replace both {{GAME_DATA}} and {{ GAME_DATA }} (with spaces)
+        let gameHtml = templateContent.replace(/\{\{\s*GAME_DATA\s*\}\}/g, jsonString);
 
         // Also replace {{TOPIC}} placeholder if present
         gameHtml = gameHtml.replace(/\{\{TOPIC\}\}/g, topic);
