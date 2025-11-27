@@ -12,6 +12,35 @@ interface AiAssistantChatProps {
     onClose?: () => void
 }
 
+// Функция для форматирования markdown в HTML
+function formatMarkdown(text: string): string {
+    let formatted = text
+
+    // Заголовки
+    formatted = formatted.replace(/^### (.*$)/gim, '<h3 class="text-base font-bold mt-3 mb-2">$1</h3>')
+    formatted = formatted.replace(/^## (.*$)/gim, '<h2 class="text-lg font-bold mt-4 mb-2">$1</h2>')
+    formatted = formatted.replace(/^# (.*$)/gim, '<h1 class="text-xl font-bold mt-4 mb-3">$1</h1>')
+
+    // Жирный текст
+    formatted = formatted.replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold">$1</strong>')
+
+    // Курсив
+    formatted = formatted.replace(/\*(.*?)\*/g, '<em class="italic">$1</em>')
+
+    // Код inline
+    formatted = formatted.replace(/`([^`]+)`/g, '<code class="px-1.5 py-0.5 bg-gray-100 rounded text-sm font-mono">$1</code>')
+
+    // Списки (упрощенная версия)
+    formatted = formatted.replace(/^\d+\.\s+(.*)$/gim, '<li class="ml-4 mb-1">$1</li>')
+    formatted = formatted.replace(/^[-*]\s+(.*)$/gim, '<li class="ml-4 mb-1">• $1</li>')
+
+    // Переносы строк
+    formatted = formatted.replace(/\n\n/g, '<br/><br/>')
+    formatted = formatted.replace(/\n/g, '<br/>')
+
+    return formatted
+}
+
 export default function AiAssistantChat({ onClose }: AiAssistantChatProps) {
     const [messages, setMessages] = useState<ChatMessage[]>([])
     const [inputMessage, setInputMessage] = useState('')
@@ -140,7 +169,14 @@ export default function AiAssistantChat({ onClose }: AiAssistantChatProps) {
                                     : 'bg-[#D8E6FF] text-black border border-[#D8E6FF]'
                                 }`}
                         >
-                            <p className="text-sm whitespace-pre-wrap break-words">{msg.content}</p>
+                            {msg.role === 'assistant' ? (
+                                <div
+                                    className="text-sm formatted-markdown"
+                                    dangerouslySetInnerHTML={{ __html: formatMarkdown(msg.content) }}
+                                />
+                            ) : (
+                                <p className="text-sm whitespace-pre-wrap break-words">{msg.content}</p>
+                            )}
                         </div>
                         {msg.role === 'user' && (
                             <div className="w-8 h-8 rounded-lg bg-[#D8E6FF] flex items-center justify-center flex-shrink-0">
@@ -198,6 +234,23 @@ export default function AiAssistantChat({ onClose }: AiAssistantChatProps) {
                     AI может допускать ошибки. Проверяйте важную информацию.
                 </p>
             </div>
+
+            <style jsx>{`
+                .formatted-markdown h1,
+                .formatted-markdown h2,
+                .formatted-markdown h3 {
+                    color: inherit;
+                }
+                .formatted-markdown strong {
+                    color: inherit;
+                }
+                .formatted-markdown code {
+                    background-color: rgba(0, 0, 0, 0.05);
+                }
+                .formatted-markdown li {
+                    list-style-position: inside;
+                }
+            `}</style>
         </div>
     )
 }

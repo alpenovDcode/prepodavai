@@ -328,6 +328,7 @@ export default function InputComposer({
               }
               : isImage
                 ? {
+                  [key + 'FileName']: file.name,
                   [key + 'Preview']: previewUrl
                 }
                 : {
@@ -407,93 +408,95 @@ export default function InputComposer({
       </div>
 
       {/* Sentence composer */}
-      <div className="rounded-2xl border border-gray-200 bg-white p-4 sm:p-5 shadow-sm">
-        {currentFunction === 'transcription' && (
-          <div className="mb-4 p-4 rounded-xl bg-gradient-to-r from-yellow-50 to-orange-50 border-2 border-yellow-300">
-            <div className="flex items-center space-x-3">
-              <i className="fas fa-tools text-yellow-600 text-2xl"></i>
-              <div>
-                <p className="text-base font-semibold text-yellow-800 mb-1">Ведутся технические работы</p>
-                <p className="text-sm text-yellow-700">Функция транскрибации временно недоступна.</p>
+      {currentFunction !== 'aiAssistant' && (
+        <div className="rounded-2xl border border-gray-200 bg-white p-4 sm:p-5 shadow-sm">
+          {currentFunction === 'transcription' && (
+            <div className="mb-4 p-4 rounded-xl bg-gradient-to-r from-yellow-50 to-orange-50 border-2 border-yellow-300">
+              <div className="flex items-center space-x-3">
+                <i className="fas fa-tools text-yellow-600 text-2xl"></i>
+                <div>
+                  <p className="text-base font-semibold text-yellow-800 mb-1">Ведутся технические работы</p>
+                  <p className="text-sm text-yellow-700">Функция транскрибации временно недоступна.</p>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
-        <div className={`text-lg sm:text-xl leading-8 sm:leading-9 text-gray-900 flex flex-wrap ${currentFunction === 'transcription' ? 'opacity-50 pointer-events-none' : ''}`}>
-          {template.segments.map((segment, idx) => (
-            <span key={idx}>
-              {segment.type === 'text' ? (
-                segment.value
-              ) : (
-                <button
-                  type="button"
-                  className="px-1 mx-0.5 rounded-md focus:outline-none focus:ring-2 focus:ring-[#FF7E58]"
-                  onClick={() => { }}
-                >
-                  <span className="px-1.5 py-0.5 rounded-md bg-[#FF7E58]/10 text-[#FF7E58] underline decoration-dotted">
-                    {displayValue(segment.key || '', segment.placeholder || '')}
-                  </span>
-                </button>
+          <div className={`text-lg sm:text-xl leading-8 sm:leading-9 text-gray-900 flex flex-wrap ${currentFunction === 'transcription' ? 'opacity-50 pointer-events-none' : ''}`}>
+            {template.segments.map((segment, idx) => (
+              <span key={idx}>
+                {segment.type === 'text' ? (
+                  segment.value
+                ) : (
+                  <button
+                    type="button"
+                    className="px-1 mx-0.5 rounded-md focus:outline-none focus:ring-2 focus:ring-[#FF7E58]"
+                    onClick={() => { }}
+                  >
+                    <span className="px-1.5 py-0.5 rounded-md bg-[#FF7E58]/10 text-[#FF7E58] underline decoration-dotted">
+                      {displayValue(segment.key || '', segment.placeholder || '')}
+                    </span>
+                  </button>
+                )}
+              </span>
+            ))}
+          </div>
+
+          {currentFunction === 'gigachat' && (
+            <div className="mt-3 mb-1 flex items-center gap-2 text-xs text-gray-500">
+              <i className={`fas ${isGigachatLoading ? 'fa-spinner fa-spin' : 'fa-database'}`}></i>
+              <span>{isGigachatLoading ? 'Загружаем модели GigaChat…' : 'Модели GigaChat доступны'}</span>
+            </div>
+          )}
+
+          {/* Inline editors */}
+          <div className={`mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 ${currentFunction === 'transcription' ? 'opacity-50 pointer-events-none' : ''}`}>
+            {resolvedFields.map(field => (
+              <div key={field.key}>
+                <label className="block text-[10px] uppercase tracking-wide text-gray-500 mb-1">
+                  {field.label}
+                </label>
+                <FieldRenderer
+                  field={field}
+                  values={localValues}
+                  setValues={setLocalValues}
+                  handleFileUpload={handleFileUpload}
+                />
+              </div>
+            ))}
+          </div>
+
+          {/* Action row */}
+          <div className="mt-4 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 justify-between">
+            <div className="flex items-center gap-2 text-xs text-gray-500">
+              <div className="px-2 py-1 rounded-lg bg-white border border-gray-200">
+                Генераций: {generationsCount}
+              </div>
+              {currentCost && (
+                <div className="px-2 py-1 rounded-lg bg-white border border-gray-200 font-semibold text-[#FF7E58]">
+                  Стоимость: {currentCost} кред.
+                </div>
               )}
-            </span>
-          ))}
-        </div>
-
-        {currentFunction === 'gigachat' && (
-          <div className="mt-3 mb-1 flex items-center gap-2 text-xs text-gray-500">
-            <i className={`fas ${isGigachatLoading ? 'fa-spinner fa-spin' : 'fa-database'}`}></i>
-            <span>{isGigachatLoading ? 'Загружаем модели GigaChat…' : 'Модели GigaChat доступны'}</span>
-          </div>
-        )}
-
-        {/* Inline editors */}
-        <div className={`mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 ${currentFunction === 'transcription' ? 'opacity-50 pointer-events-none' : ''}`}>
-          {resolvedFields.map(field => (
-            <div key={field.key}>
-              <label className="block text-[10px] uppercase tracking-wide text-gray-500 mb-1">
-                {field.label}
-              </label>
-              <FieldRenderer
-                field={field}
-                values={localValues}
-                setValues={setLocalValues}
-                handleFileUpload={handleFileUpload}
-              />
             </div>
-          ))}
-        </div>
-
-        {/* Action row */}
-        <div className="mt-4 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 justify-between">
-          <div className="flex items-center gap-2 text-xs text-gray-500">
-            <div className="px-2 py-1 rounded-lg bg-white border border-gray-200">
-              Генераций: {generationsCount}
-            </div>
-            {currentCost && (
-              <div className="px-2 py-1 rounded-lg bg-white border border-gray-200 font-semibold text-[#FF7E58]">
-                Стоимость: {currentCost} кред.
+            {currentFunction === 'transcription' ? (
+              <div className="w-full sm:w-auto">
+                <div className="px-5 py-2 rounded-full bg-gradient-to-r from-yellow-500 to-orange-500 text-white font-semibold shadow-md text-center">
+                  <i className="fas fa-tools mr-2"></i>
+                  Ведутся технические работы
+                </div>
               </div>
+            ) : (
+              <button
+                type="button"
+                onClick={onGenerate}
+                className="px-5 py-2 rounded-full bg-[#FF7E58] text-white font-semibold shadow-md active:scale-95"
+              >
+                Создать →
+              </button>
             )}
           </div>
-          {currentFunction === 'transcription' ? (
-            <div className="w-full sm:w-auto">
-              <div className="px-5 py-2 rounded-full bg-gradient-to-r from-yellow-500 to-orange-500 text-white font-semibold shadow-md text-center">
-                <i className="fas fa-tools mr-2"></i>
-                Ведутся технические работы
-              </div>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={onGenerate}
-              className="px-5 py-2 rounded-full bg-[#FF7E58] text-white font-semibold shadow-md active:scale-95"
-            >
-              Создать →
-            </button>
-          )}
         </div>
-      </div>
+      )}
     </div>
   )
 }

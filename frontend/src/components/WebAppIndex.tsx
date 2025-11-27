@@ -11,7 +11,7 @@ import { apiClient } from '@/lib/api/client' // Используется в init
 
 export default function WebAppIndex() {
   const router = useRouter()
-  const [currentFunctionId, setCurrentFunctionId] = useState('worksheet')
+  const [currentFunctionId, setCurrentFunctionId] = useState('aiAssistant')
   const [form, setForm] = useState<Record<string, any>>({})
   const [isGenerating, setIsGenerating] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
@@ -558,21 +558,13 @@ export default function WebAppIndex() {
                   </div>
                   <div className="flex gap-2">
                     {isTextResult && (
-                      <>
-                        <button
-                          onClick={downloadTextResult}
-                          disabled={isExporting}
-                          className="px-3 py-2 bg-[#FF7E58] text-white rounded-lg text-xs font-medium hover:shadow-lg transition active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
-                        >
-                          <i className="fas fa-download mr-1"></i>Скачать
-                        </button>
-                        <button
-                          onClick={copyResult}
-                          className="px-3 py-2 bg-[#D8E6FF] border border-[#D8E6FF] text-black rounded-lg text-xs font-medium hover:bg-[#FF7E58] hover:text-white transition active:scale-95"
-                        >
-                          <i className="fas fa-copy mr-1"></i>Копировать
-                        </button>
-                      </>
+                      <button
+                        onClick={downloadTextResult}
+                        disabled={isExporting}
+                        className="px-3 py-2 bg-[#FF7E58] text-white rounded-lg text-xs font-medium hover:shadow-lg transition active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
+                      >
+                        <i className="fas fa-download mr-1"></i>Скачать
+                      </button>
                     )}
                     <button
                       onClick={clearResult}
