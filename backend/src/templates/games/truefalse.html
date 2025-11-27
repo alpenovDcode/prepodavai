@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Правда или Ложь?</title>
+    <title>Правда или Ложь - {{TOPIC}}</title>
     <style>
         :root {
             --primary: #6c5ce7;
@@ -232,20 +232,9 @@
 
     <script>
         // --- ДАННЫЕ (JSON) ---
-        const GAME_DATA = [
-            {
-                "statement": "Быки ненавидят красный цвет.",
-                "isTrue": false,
-                "explanation": "Быки — дальтоники и не различают красный. Их раздражает движение плаща тореадора."
-            },
-            {
-                "statement": "Хамелеоны меняют цвет, чтобы сливаться с окружением.",
-            {
-                "statement": "Сердце синего кита размером с легковой автомобиль.",
-                "isTrue": true,
-                "explanation": "Да, синий кит — самое большое животное, и его сердце весит около 600 кг."
-            }
-        ];
+        const GAME_CONFIG = {{ GAME_DATA }};
+        const GAME_DATA = GAME_CONFIG.data;
+        const GAME_TOPIC = GAME_CONFIG.topic;
 
         // --- ЛОГИКА ИГРЫ ---
 

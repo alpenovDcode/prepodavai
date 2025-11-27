@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Игра "Найди пару" (Memory)</title>
+    <title>Игра "Найди пару" - {{TOPIC}}</title>
     <style>
         :root {
             --bg-color: #2c3e50;
@@ -208,7 +208,9 @@
     <script>
         // --- ДАННЫЕ (PLACEHOLDER) ---
         // В реальном приложении бэкенд заменит этот массив.
-        const RAW_PAIRS = {{ GAME_DATA }};
+        const GAME_CONFIG = {{ GAME_DATA }};
+        const RAW_PAIRS = GAME_CONFIG.data;
+        const GAME_TOPIC = GAME_CONFIG.topic;
 
         // --- ЛОГИКА ИГРЫ ---
 

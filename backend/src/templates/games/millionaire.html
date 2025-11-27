@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Кто хочет стать миллионером?</title>
+    <title>Кто хочет стать миллионером? - {{TOPIC}}</title>
     <style>
         /* --- STYLES.HTML (Встроено) --- */
         :root {
@@ -245,7 +245,7 @@
 
     <div id="screen-menu" class="screen active">
         <h1>Кто хочет стать<br>Миллионером?</h1>
-        <p style="color: #aaa; margin-bottom: 40px;">Тема: Астрономия и Космос</p>
+        <p style="color: #aaa; margin-bottom: 40px;" id="topic-display">Тема: Загрузка...</p>
         <button class="btn" onclick="startGame()">Начать игру</button>
     </div>
 
@@ -287,7 +287,12 @@
         // --- ДАННЫЕ (В реальном проекте это заменит бэкенд) ---
         // Плейсхолдер: {{GAME_DATA_PLACEHOLDER}}
 
-        const GAME_DATA = {{ GAME_DATA }};
+        const GAME_CONFIG = {{ GAME_DATA }};
+        const GAME_DATA = GAME_CONFIG.data;
+        const GAME_TOPIC = GAME_CONFIG.topic;
+
+        // Display topic on menu screen
+        document.getElementById('topic-display').innerText = `Тема: ${GAME_TOPIC}`;
 
         // --- ЛОГИКА ИГРЫ ---
         const MONEY_LADDER = [

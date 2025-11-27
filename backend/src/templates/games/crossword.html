@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Кроссворд: IT технологии</title>
+    <title>Кроссворд - {{TOPIC}}</title>
     <style>
         :root {
             --bg-color: #f8f9fa;
@@ -290,7 +290,12 @@
     </div>
 
     <script>
-        ];
+        const GAME_CONFIG = {{ GAME_DATA }};
+        const WORD_LIST = GAME_CONFIG.data;
+        const GAME_TOPIC = GAME_CONFIG.topic;
+
+        // Update page title
+        document.querySelector('h1').innerText = `Кроссворд: ${GAME_TOPIC}`;
 
         // --- ГЕНЕРАТОР СЕТКИ ---
 

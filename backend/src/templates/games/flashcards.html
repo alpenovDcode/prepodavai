@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Флеш-карточки</title>
+    <title>Флеш-карточки - {{TOPIC}}</title>
     <style>
         :root {
             --primary-bg: #f3f4f6;
@@ -199,7 +199,7 @@
 <body>
 
     <header>
-        <h1 id="deck-title">Flashcards: Python Basics</h1>
+        <h1 id="deck-title">Флеш-карточки: Загрузка...</h1>
         <div class="progress-container">
             Карточка <span id="current-index">1</span> из <span id="total-count">15</span>
             <div class="progress-bar">
@@ -231,7 +231,12 @@
     <script>
         // --- ДАННЫЕ (PLACEHOLDER) ---
         // В реальном приложении бэкенд заменит этот массив.
-        let CARDS_DATA = {{ GAME_DATA }};
+        const GAME_CONFIG = {{ GAME_DATA }};
+        let CARDS_DATA = GAME_CONFIG.data;
+        const GAME_TOPIC = GAME_CONFIG.topic;
+
+        // Display topic in header
+        document.getElementById('deck-title').innerText = `Флеш-карточки: ${GAME_TOPIC}`;
 
         // --- ЛОГИКА ПРИЛОЖЕНИЯ ---
 

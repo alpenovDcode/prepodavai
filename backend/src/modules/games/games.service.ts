@@ -54,10 +54,18 @@ export class GamesService {
         }
 
         // 4. Inject data into template
-        // Note: The templates now expect a specific variable assignment, e.g., "const GAME_DATA = ..."
-        // We will replace the placeholder {{GAME_DATA}} with the JSON string.
-        const jsonString = JSON.stringify(jsonResponse, null, 2);
-        const gameHtml = templateContent.replace('{{GAME_DATA}}', jsonString);
+        // Wrap the AI-generated data with metadata (topic, type)
+        const gameDataWithMeta = {
+            topic: topic,
+            type: type,
+            data: jsonResponse
+        };
+
+        const jsonString = JSON.stringify(gameDataWithMeta, null, 2);
+        let gameHtml = templateContent.replace('{{GAME_DATA}}', jsonString);
+
+        // Also replace {{TOPIC}} placeholder if present
+        gameHtml = gameHtml.replace(/\{\{TOPIC\}\}/g, topic);
 
         // 5. Save File
         const gameId = uuidv4();
