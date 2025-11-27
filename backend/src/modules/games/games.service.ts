@@ -61,11 +61,15 @@ export class GamesService {
             data: jsonResponse
         };
 
+        this.logger.debug(`Game data structure: ${JSON.stringify(gameDataWithMeta, null, 2).substring(0, 500)}...`);
+
         const jsonString = JSON.stringify(gameDataWithMeta, null, 2);
         let gameHtml = templateContent.replace('{{GAME_DATA}}', jsonString);
 
         // Also replace {{TOPIC}} placeholder if present
         gameHtml = gameHtml.replace(/\{\{TOPIC\}\}/g, topic);
+
+        this.logger.debug(`Template placeholders replaced, HTML length: ${gameHtml.length}`);
 
         // 5. Save File
         const gameId = uuidv4();
