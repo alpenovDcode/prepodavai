@@ -70,6 +70,7 @@ COPY --from=builder --chown=nestjs:nodejs /app/dist ./dist
 COPY --from=builder --chown=nestjs:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=nestjs:nodejs /app/package.json ./package.json
 COPY --from=builder --chown=nestjs:nodejs /app/prisma ./prisma
+COPY --from=builder --chown=nestjs:nodejs /app/src/templates ./src/templates
 
 ENV PUPPETEER_CACHE_DIR=/home/nestjs/.cache/puppeteer
 RUN mkdir -p $PUPPETEER_CACHE_DIR && chown -R nestjs:nodejs /home/nestjs
