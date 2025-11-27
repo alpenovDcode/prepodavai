@@ -1,4 +1,11 @@
-import { Injectable, BadRequestException, NotFoundException, Logger, Inject, forwardRef } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+  Logger,
+  Inject,
+  forwardRef,
+} from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { PrismaService } from '../../common/prisma/prisma.service';
@@ -12,7 +19,8 @@ import { GammaService } from '../gamma/gamma.service';
 import { HtmlPostprocessorService } from '../../common/services/html-postprocessor.service';
 import { FilesService } from '../files/files.service';
 
-const LOGO_BASE64 = 'data:image/png;base64,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l3s1jvWbwQLuVoG2uuUpJs5uv9sIEPE3yvASXuDEvz7Dl9+KsPOGKicp7zyB7j/31/qYXwhwdVEU5d/DsLyQXaj1deRw0fqt3XXVyrLgbQPp6meffx4XF9/Q0KDUVCo7e4r8liTJmppakjat4uE0kGVr6+tJinbBhGt9DxwBtsu2Ni+cTgXtIFMuQusJpbPf/zEjqFrZ+kXXrl0BALdKS60JdtKyElORIIjDh4cAAObMjZGhRwht+X4rAOCDJfirso5urXktwI1lyEvwh3NzT586XVZW/uP27flHjnLSxkhTU1PmwYMlJSXXr18/frxAhunkyZPbtm07e/asvFhWU3N73/59N2/dLDp/fvv27deuXVWQoigyNy/3hx9+VCrjxQlBKCgs3LFjx40bN3r37t26devyCnzIpby8fO++fb/s3Cm3UFZWlp6efuUK/iIUQkin1+3du7e4uBghlJmZCSR59NFHy8qknyFCaO3adQCAlJQU/AjeZlfHjxz469fTLeov76IQJPnYY48/+LsHO3XqJI9t7LixEMGCY0cBAF2e69KmdZvRo0axDD1u/HgAQKtWrQAAkZF4F/6XX34BADz55JPt27cHALRr3271anx+/datW7169VYqh82YwfEchHDatOnyIx588KGHHnr4vrZtGxrqcw9nyRdBq1b33Xvf1q1brxYXAwD+0bMnL212hoeHAwD27d2LEJow4V9t7r13+vQwAMCSJdJRbYS+/vprAEBaWlogCFDCjW8WIK8W2nCAly1ll/rEE08AAGLmzM3Jzunb9xUAwOpVX12+eAkAcE+re8JmzDh75sz789MAAElJieUV5WEzZgIADmQcyMnJAQA88sgjG9avX7t2TYcOHe6///7y8vLQ0FAAwKxZsw7n5gwePBgAsHHTt/v27gEAvPDCX9PT01Peew8A0KHD/dXVVberdUs+WHTs6JHvNm9p3frep596kufYkNeGAQAKCgpoinrowYee79IFIXTt2lUAwNChwxoaGjt2fOSZp59uaKhDCK3/Zr1kAanaCdBOjFLTt0TMZpXcxIRMAEVSj/7hD48/9hhJ4CWz9F27AABTJk8+f+YMAGBA//5yA4MHDQIAjBwR8vbbb706+FUAQGpqan5eHgAgSrIGhNCUye8AAL7/bstzzz7bvl2727erEUKHc7IBAKFTpsxLTgYAbFi/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';
+const LOGO_BASE64 =
+  'data:image/png;base64,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l3s1jvWbwQLuVoG2uuUpJs5uv9sIEPE3yvASXuDEvz7Dl9+KsPOGKicp7zyB7j/31/qYXwhwdVEU5d/DsLyQXaj1deRw0fqt3XXVyrLgbQPp6meffx4XF9/Q0KDUVCo7e4r8liTJmppakjat4uE0kGVr6+tJinbBhGt9DxwBtsu2Ni+cTgXtIFMuQusJpbPf/zEjqFrZ+kXXrl0BALdKS60JdtKyElORIIjDh4cAAObMjZGhRwht+X4rAOCDJfirso5urXktwI1lyEvwh3NzT586XVZW/uP27flHjnLSxkhTU1PmwYMlJSXXr18/frxAhunkyZPbtm07e/asvFhWU3N73/59N2/dLDp/fvv27deuXVWQoigyNy/3hx9+VCrjxQlBKCgs3LFjx40bN3r37t26devyCnzIpby8fO++fb/s3Cm3UFZWlp6efuUK/iIUQkin1+3du7e4uBghlJmZCSR59NFHy8qknyFCaO3adQCAlJQU/AjeZlfHjxz469fTLeov76IQJPnYY48/+LsHO3XqJI9t7LixEMGCY0cBAF2e69KmdZvRo0axDD1u/HgAQKtWrQAAkZF4F/6XX34BADz55JPt27cHALRr3271anx+/datW7169VYqh82YwfEchHDatOnyIx588KGHHnr4vrZtGxrqcw9nyRdBq1b33Xvf1q1brxYXAwD+0bMnL212hoeHAwD27d2LEJow4V9t7r13+vQwAMCSJdJRbYS+/vprAEBaWlogCFDCjW8WIK8W2nCAly1ll/rEE08AAGLmzM3Jzunb9xUAwOpVX12+eAkAcE+re8JmzDh75sz789MAAElJieUV5WEzZgIADmQcyMnJAQA88sgjG9avX7t2TYcOHe6///7y8vLQ0FAAwKxZsw7n5gwePBgAsHHTt/v27gEAvPDCX9PT01Peew8A0KHD/dXVVberdUs+WHTs6JHvNm9p3frep596kufYkNeGAQAKCgpoinrowYee79IFIXTt2lUAwNChwxoaGjt2fOSZp59uaKhDCK3/Zr1kAanaCdBOjFLTt0TMZpXcxIRMAEVSj/7hD48/9hhJ4CWz9F27AABTJk8+f+YMAGBA//5yA4MHDQIAjBwR8vbbb706+FUAQGpqan5eHgAgSrIGhNCUye8AAL7/bstzzz7bvl2727erEUKHc7IBAKFTpsxLTgYAbFi/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';
 
 export type GenerationType =
   | 'worksheet'
@@ -76,7 +84,7 @@ export class GenerationsService {
     }
 
     // Создаем записи в БД
-    const { generationRequest, userGeneration } = await this.generationHelpers.createGeneration({
+    const { generationRequest } = await this.generationHelpers.createGeneration({
       userId,
       generationType,
       inputParams,
@@ -189,7 +197,9 @@ export class GenerationsService {
         );
       }
 
-      throw new BadRequestException(`Direct GigaChat generation is not configured for ${generationType}`);
+      throw new BadRequestException(
+        `Direct GigaChat generation is not configured for ${generationType}`,
+      );
     } catch (error: any) {
       this.logger.error(
         `Direct GigaChat generation failed for ${generationType}: ${error?.message || error}`,
@@ -215,7 +225,9 @@ export class GenerationsService {
     console.log(`[GenerationsService] Starting text generation for ${generationType}`);
     const { systemPrompt, userPrompt } = this.buildGigachatPrompt(generationType, inputParams);
     const model = requestedModel || this.gigachatService.getDefaultModel('chat');
-    console.log(`[GenerationsService] Using model: ${model}, prompt length: ${systemPrompt.length + userPrompt.length}`);
+    console.log(
+      `[GenerationsService] Using model: ${model}, prompt length: ${systemPrompt.length + userPrompt.length}`,
+    );
 
     const response = (await this.gigachatService.createChatCompletion({
       model,
@@ -229,7 +241,9 @@ export class GenerationsService {
     })) as any;
 
     const content = response?.choices?.[0]?.message?.content;
-    console.log(`[GenerationsService] Received response from GigaChat, content length: ${content?.length || 0}`);
+    console.log(
+      `[GenerationsService] Received response from GigaChat, content length: ${content?.length || 0}`,
+    );
 
     if (!content) {
       throw new BadRequestException('GigaChat вернул пустой результат');
@@ -240,7 +254,9 @@ export class GenerationsService {
     // Replace logo placeholder with actual base64 image
     const contentWithLogo = content.replace('LOGO_PLACEHOLDER', LOGO_BASE64);
     const processedContent = this.htmlPostprocessor.ensureMathJaxScript(contentWithLogo);
-    console.log(`[GenerationsService] HTML postprocessing complete, processed length: ${processedContent.length}`);
+    console.log(
+      `[GenerationsService] HTML postprocessing complete, processed length: ${processedContent.length}`,
+    );
 
     const normalizedResult = {
       provider: 'GigaChat-2-Max',
@@ -269,12 +285,12 @@ export class GenerationsService {
     generationRequestId: string,
     inputParams: Record<string, any>,
     requestedModel?: string,
-    userId?: string,
+    _userId?: string,
   ) {
     console.log(`[GenerationsService] Starting image generation for ${generationType}`);
     const model = requestedModel || this.gigachatService.getDefaultModel('image');
 
-    const { prompt, style, size, photoUrl, photoHash, count } = inputParams;
+    const { prompt, style, photoUrl, count } = inputParams;
 
     if (!prompt) {
       throw new BadRequestException('Prompt is required for image generation');
@@ -317,10 +333,10 @@ export class GenerationsService {
               resolution: '2K',
               aspect_ratio: '1:1',
               output_format: 'png',
-              safety_filter_level: 'block_only_high'
+              safety_filter_level: 'block_only_high',
             },
             webhook: callbackUrl,
-            webhook_events_filter: ['completed']
+            webhook_events_filter: ['completed'],
           };
 
           this.logger.log(`Replicate request body: ${JSON.stringify(requestBody, null, 2)}`);
@@ -331,10 +347,10 @@ export class GenerationsService {
             requestBody,
             {
               headers: {
-                'Authorization': `Bearer ${replicateToken}`,
-                'Content-Type': 'application/json'
-              }
-            }
+                Authorization: `Bearer ${replicateToken}`,
+                'Content-Type': 'application/json',
+              },
+            },
           );
 
           const predictionId = response.data.id;
@@ -345,9 +361,9 @@ export class GenerationsService {
             where: { id: generationRequestId },
             data: {
               metadata: {
-                replicatePredictionId: predictionId
-              }
-            }
+                replicatePredictionId: predictionId,
+              },
+            },
           });
 
           // Возвращаем pending статус
@@ -362,7 +378,9 @@ export class GenerationsService {
         } catch (error: any) {
           this.logger.error(`Failed to send Replicate request: ${error.message}`);
           if (error.response) {
-            this.logger.error(`Replicate error response: ${JSON.stringify(error.response.data, null, 2)}`);
+            this.logger.error(
+              `Replicate error response: ${JSON.stringify(error.response.data, null, 2)}`,
+            );
           }
           throw new BadRequestException(`Failed to start photosession: ${error.message}`);
         }
@@ -380,7 +398,7 @@ export class GenerationsService {
       } else {
         // Fallback logic if needed, but currently only image/photosession use this method
         // and we handled photosession above.
-        // If we are here, it's a regular image generation without prompt? 
+        // If we are here, it's a regular image generation without prompt?
         // Or maybe we should keep the old logic for 'image' type.
         // The old logic for 'image' was:
         messages = [
@@ -401,9 +419,10 @@ export class GenerationsService {
       console.log(`[GenerationsService] Image generated successfully`);
 
       // Извлекаем URL изображения из ответа
-      const imageUrl = response?.data?.[0]?.url || response?.data?.[0]?.b64_json
-        ? `data:image/jpeg;base64,${response.data[0].b64_json}`
-        : null;
+      const imageUrl =
+        response?.data?.[0]?.url || response?.data?.[0]?.b64_json
+          ? `data:image/jpeg;base64,${response.data[0].b64_json}`
+          : null;
 
       if (!imageUrl) {
         throw new Error('No image URL in GigaChat response');
@@ -515,199 +534,219 @@ export class GenerationsService {
 
       case 'quiz': {
         const { subject, topic, level, questionsCount, answersCount, customPrompt } = inputParams;
-        systemPrompt = `Твоя задача: Сгенерировать полноценный HTML-документ с встроенным CSS в строгом, профессиональном стиле.
+        systemPrompt = `Ты — профессиональный технический генератор кода. Твоя единственная функция — выдавать чистый HTML-код. Ты НЕ являешься чат-ботом.
+
+ЗАДАЧА:
+Сгенерировать полноценный HTML-документ с ТЕСТОМ (QUIZ) с встроенным CSS в строгом, профессиональном стиле.
+
+КРИТИЧЕСКИЕ ПРАВИЛА ВЫВОДА (СОБЛЮДАТЬ СТРОГО):
+1.  **ТОЛЬКО КОД:** Твой ответ должен начинаться символами "<!DOCTYPE html>" и заканчиваться символами "</html>".
+2.  **НИКАКОГО ТЕКСТА ПОСЛЕ КОДА:** Категорически запрещено писать после закрывающего тега </html>. Никаких объяснений, вступлений или заключений.
+3.  **БЕЗ MARKDOWN:** Не оборачивай код в тройные кавычки (\`\`\`html ... \`\`\`). Верни "сырую" строку HTML.
+
 ТРЕБОВАНИЯ К ДИЗАЙНУ (СТРОГИЙ И АККУРАТНЫЙ):
-1. Типографика: Используй нейтральные шрифты (Inter, Roboto, -apple-system, sans-serif). Цвет текста: темно-серый (#222222), фон: белый (#FFFFFF).
-2. Структура: Контейнер max-width: 720px, центрирование (margin: 0 auto), четкие отступы (padding: 40px 20px).
-3. Стиль блоков:
-   - Полный отказ от теней (box-shadow: none). Вместо них используй тонкие границы (border: 1px solid #E5E5E5).
-   - Углы: либо прямые, либо минимальное скругление (border-radius: 4px).
-   - Заголовки: контрастные, с увеличенным margin-bottom.
-   - Цитаты и код: оформлять на светло-сером фоне (#F9F9F9) с моноширинным шрифтом.
-4. Верстка: Адаптивная (mobile-friendly), line-height: 1.6 для основного текста.
+1.  **Контейнер:** max-width: 720px, центрирование, белый фон, padding: 40px 20px.
+2.  **Типографика:** Нейтральные шрифты (Inter, Roboto, sans-serif). Цвет #222.
+3.  **Стиль блоков:**
+    -   Отказ от теней (box-shadow: none). Используй границы (border: 1px solid #E5E5E5).
+    -   Углы: прямые или border-radius: 4px.
+    -   Вопросы: Четко отделены друг от друга (margin-bottom: 30px, border-bottom: 1px dashed #eee).
+4.  **Варианты ответов:** Маркированный список (a, b, c, d) или аккуратные блоки.
 
-КРИТИЧЕСКИ ВАЖНЫЕ ТРЕБОВАНИЯ К МАТЕМАТИЧЕСКИМ ФОРМУЛАМ:
-1. ДЛЯ СТРОЧНЫХ ФОРМУЛ (внутри текста): используй ТОЛЬКО двойные доллары $$формула$$
-   Пример: "Найдите значение $$\\frac{5}{6} : \\frac{3}{8}$$"
-   НИКОГДА не используй одинарные $ для формул!
+МАТЕМАТИЧЕСКИЕ ФОРМУЛЫ (MathJax) - КРИТИЧНО:
+1.  Строчные: $$...$$ (только двойные доллары).
+2.  Блочные: $$...$$ (на новой строке).
+3.  Вставь скрипт MathJax в <head>.
 
-2. ДЛЯ БЛОЧНЫХ ФОРМУЛ (отдельной строкой): используй ТОЛЬКО двойные доллары на отдельных строках
-   Пример:
-   $$
-   \\frac{1}{3} : \\frac{2}{9} =
-   $$
+SVG ИЛЛЮСТРАЦИЯМ (ДЛЯ ВИЗУАЛЬНЫХ ЗАДАЧ):
+1.  Если вопрос требует графика, геометрии или схемы — ВСТАВЛЯЙ SVG (inline).
+2.  Стиль SVG: черно-белый, минималистичный, stroke="#222".
+3.  Размер: адаптивный (width="100%").
 
-3. ОБЯЗАТЕЛЬНАЯ КОНФИГУРАЦИЯ MathJax в <head>:
-   <script>
-   window.MathJax = {
-     tex: {
-       inlineMath: [['$$', '$$']],
-       displayMath: [['$$', '$$']],
-       processEscapes: true
-     },
-     svg: { fontCache: 'global' }
-   };
-   </script>
-   <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+CSS ШАБЛОН:
+<style>
+  body { background: #f5f5f5; font-family: 'Inter', system-ui, sans-serif; margin: 0; padding: 20px; color: #222; }
+  .test-container { position: relative; background: white; max-width: 720px; margin: 0 auto; padding: 40px; border: 1px solid #e0e0e0; border-radius: 4px; }
+  .header-logo { position: absolute; top: 40px; right: 40px; width: 80px; height: auto; }
+  h1 { border-bottom: 2px solid #222; padding-bottom: 15px; margin-bottom: 30px; }
+  .question-item { margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px dashed #eee; }
+  .question-item:last-child { border-bottom: none; }
+  .question-text { font-weight: 600; font-size: 1.1em; margin-bottom: 15px; }
+  .options-list { list-style-type: none; padding-left: 0; }
+  .option-item { margin-bottom: 8px; padding: 10px; border: 1px solid #eee; border-radius: 4px; cursor: pointer; display: flex; gap: 10px; }
+  .option-marker { font-weight: bold; color: #555; width: 20px; }
+  .svg-container { margin: 15px 0; text-align: center; }
+  .answer-key { margin-top: 50px; padding-top: 20px; border-top: 2px solid #222; page-break-before: always; }
+</style>
+<script>
+window.MathJax = { tex: { inlineMath: [['$$', '$$']], displayMath: [['$$', '$$']] }, svg: { fontCache: 'global' } };
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+`;
 
-4. ПРИМЕРЫ ПРАВИЛЬНОГО ИСПОЛЬЗОВАНИЯ:
-   ✅ ПРАВИЛЬНО: "Вычислите $$\\frac{2}{3} + \\frac{1}{4}$$"
-   ✅ ПРАВИЛЬНО: "Решите уравнение $$x^2 + 5x + 6 = 0$$"
-   ❌ НЕПРАВИЛЬНО: "Вычислите $\\frac{2}{3}$" (одинарный $)
-   ❌ НЕПРАВИЛЬНО: "Вычислите \\(\\frac{2}{3}\\)" (обратные слеши)
-   ❌ НЕПРАВИЛЬНО: "Вычислите 2/3" (без LaTeX)
+        userPrompt = `Сгенерируй HTML-код теста.
+Вводные данные:
+Предмет: ${subject || 'Общие знания'}
+Тема: ${topic || 'Случайная тема'}
+Класс/Уровень: ${level || 'Средний'}
+Количество вопросов: ${questionsCount || 10}
+Вариантов ответа: ${answersCount || 4}
+${customPrompt ? `Дополнительно: ${customPrompt}` : ''}
 
-5. ВСЕ математические выражения ОБЯЗАТЕЛЬНО оборачивай в $$...$$ даже простые дроби!
+СТРУКТУРА:
+1. Заголовок теста (с логотипом <img src="LOGO_PLACEHOLDER" class="header-logo">).
+2. Список вопросов с вариантами ответов. (Для задач по геометрии или физике обязательно генерируй SVG иллюстрации).
+3. Блок "КЛЮЧИ С ОТВЕТАМИ" (в самом конце, желательно с кратким пояснением).
 
-ТРЕБОВАНИЯ К SVG ИЛЛЮСТРАЦИЯМ:
-1. Для визуальных задач (геометрия, графики, диаграммы) ОБЯЗАТЕЛЬНО добавляй SVG иллюстрации прямо в HTML.
-2. SVG должен быть встроенным (inline), не используй внешние файлы.
-3. Примеры использования SVG:
-   - Геометрические фигуры (треугольники, окружности, многоугольники)
-   - Графики функций и координатные плоскости
-   - Диаграммы (столбчатые, круговые, линейные)
-   - Схемы и иллюстрации (молекулы, электрические схемы)
-4. Стиль SVG: минималистичный, используй цвета из палитры (#222222, #666666, #E5E5E5)
-5. Размер SVG: адаптивный (width="100%", max-width в CSS)
-6. Пример SVG треугольника:
-   <svg width="200" height="200" viewBox="0 0 200 200">
-     <polygon points="100,20 20,180 180,180" fill="none" stroke="#222222" stroke-width="2"/>
-     <text x="100" y="15" text-anchor="middle" font-size="14">A</text>
-   </svg>
-
-ФОРМАТ ОТВЕТА: Верни ТОЛЬКО валидный HTML-код (начиная с <!DOCTYPE html>). Не используй markdown-блоки кода (т.е. без \`\`\`html), просто чистый текст HTML.`;
-
-        userPrompt = `Создай тест по предмету "${subject}" на тему "${topic}" для ${level} класса.
-Количество вопросов: ${questionsCount || 10}.
-Вариантов ответа: ${answersCount || 4}.
-${customPrompt ? `Дополнительные требования: ${customPrompt}` : ''}`;
+Начинай вывод сразу с <!DOCTYPE html>. Не пиши никаких вступлений и никаких заключений после тега </html>.`;
         break;
       }
 
       case 'vocabulary': {
         const { subject, topic, language, wordsCount, level, customPrompt } = inputParams;
         const languageNames: Record<string, string> = {
-          en: 'английский', de: 'немецкий', fr: 'французский', es: 'испанский', it: 'итальянский', ru: 'русский',
+          en: 'английский',
+          de: 'немецкий',
+          fr: 'французский',
+          es: 'испанский',
+          it: 'итальянский',
+          ru: 'русский',
         };
         const langName = languageNames[language] || language;
 
-        systemPrompt = `Твоя задача: Сгенерировать структурированный HTML-документ в формате СЛОВАРЯ или ГЛОССАРИЯ.
+        systemPrompt = `Ты — профессиональный технический генератор кода. Твоя единственная функция — выдавать чистый HTML-код. Ты НЕ являешься чат-ботом.
+
+ЗАДАЧА:
+Сгенерировать структурированный HTML-документ в формате СЛОВАРЯ или ГЛОССАРИЯ.
+
 !!! ВАЖНОЕ ПРАВИЛО ПРИОРИТЕТА !!!
-В тексте задания (ниже) могут содержаться устаревшие требования вернуть ответ в формате JSON. ТЫ ДОЛЖЕН ПОЛНОСТЬЮ ИГНОРИРОВАТЬ ЛЮБЫЕ ТРЕБОВАНИЯ К ФОРМАТУ JSON В ТЕКСТЕ ЗАДАНИЯ. Твоя задача — взять *данные* из задания, но оформить их ИСКЛЮЧИТЕЛЬНО как HTML-страницу по инструкции ниже.
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+В тексте задания (ниже) могут содержаться устаревшие требования вернуть ответ в формате JSON. ТЫ ДОЛЖЕН ПОЛНОСТЬЮ ИГНОРИРОВАТЬ ЛЮБЫЕ ТРЕБОВАНИЯ К ФОРМАТУ JSON В ТЕКСТЕ ЗАДАНИЯ. Твоя задача — взять данные, но оформить их ИСКЛЮЧИТЕЛЬНО как HTML-страницу.
+
+КРИТИЧЕСКИЕ ПРАВИЛА ВЫВОДА (СОБЛЮДАТЬ СТРОГО):
+1.  **ТОЛЬКО КОД:** Твой ответ должен начинаться символами "<!DOCTYPE html>" и заканчиваться символами "</html>".
+2.  **НИКАКОГО ТЕКСТА ПОСЛЕ КОДА:** Категорически запрещено писать после закрывающего тега </html>. Никаких объяснений, вступлений или заключений.
+3.  **БЕЗ MARKDOWN:** Не оборачивай код в тройные кавычки (\`\`\`html ... \`\`\`). Верни "сырую" строку HTML.
 
 ТРЕБОВАНИЯ К ДИЗАЙНУ (СТРОГИЙ ЭНЦИКЛОПЕДИЧЕСКИЙ СТИЛЬ):
-1. Контейнер: max-width 760px, центрирование, padding 40px 20px.
-2. Стиль записей: Вместо карточек с тенями используй строгие блоки.
-   - Каждый термин отделен тонкой линией снизу (border-bottom: 1px solid #E5E5E5) или заключен в рамку (border: 1px solid #E0E0E0).
-   - Никаких теней (box-shadow: none) и ярких фонов.
-   - Padding внутри блока: 20px 0 (или 20px внутри рамки).
-3. Типографика:
-   - ТЕРМИН: Крупный, жирный, цвет почти черный (#111).
-   - МЕТА-ДАННЫЕ (транскрипция, род, часть речи): Темно-серый цвет (#666), шрифт чуть меньше, возможно моноширинный для транскрипции.
-   - ОПРЕДЕЛЕНИЕ: Контрастный шрифт (line-height: 1.6).
-   - ПРИМЕРЫ: Должны быть визуально отделены (например, серым вертикальным бордером слева border-left: 3px solid #eee, с отступом padding-left).
-4. Шрифт: Inter, Roboto, -apple-system, sans-serif.
+1.  **Контейнер:** max-width 760px, центрирование, padding 40px 20px, белый фон.
+2.  **Стиль записей:** Строгий список терминов.
+    -   Разделитель: Тонкая линия снизу (border-bottom: 1px solid #E5E5E5).
+    -   Отступы: Padding 20px 0.
+3.  **Типографика:**
+    -   **Термин:** Крупный, жирный, цвет #111.
+    -   **Мета-данные** (транскрипция, часть речи): Цвет #666, шрифт меньше, возможно моноширинный.
+    -   **Определение:** Четкое, line-height: 1.6.
+    -   **Примеры:** Визуально отделены (серый вертикальный бордер слева, отступ).
 
-КРИТИЧЕСКИ ВАЖНЫЕ ТРЕБОВАНИЯ К МАТЕМАТИЧЕСКИМ ФОРМУЛАМ:
-1. ДЛЯ СТРОЧНЫХ ФОРМУЛ (внутри текста): используй ТОЛЬКО двойные доллары $$формула$$
-   Пример: "Найдите значение $$\\frac{5}{6} : \\frac{3}{8}$$"
-   НИКОГДА не используй одинарные $ для формул!
+МАТЕМАТИЧЕСКИЕ ФОРМУЛЫ (MathJax):
+1.  Строчные: $$...$$ (только двойные доллары).
+2.  Блочные: $$...$$ (на новой строке).
+3.  Вставь скрипт конфигурации MathJax в <head>.
 
-2. ДЛЯ БЛОЧНЫХ ФОРМУЛ (отдельной строкой): используй ТОЛЬКО двойные доллары на отдельных строках
-   Пример:
-   $$
-   \\frac{1}{3} : \\frac{2}{9} =
-   $$
+CSS ШАБЛОН:
+<style>
+  body { background: #f9f9f9; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 20px; color: #333; }
+  .dictionary-container { position: relative; background: white; max-width: 760px; margin: 0 auto; padding: 40px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border-radius: 4px; }
+  .header-logo { position: absolute; top: 40px; right: 40px; width: 80px; height: auto; }
+  h1 { border-bottom: 2px solid #333; padding-bottom: 15px; margin-bottom: 30px; letter-spacing: -0.5px; }
+  .term-item { border-bottom: 1px solid #eaeaea; padding: 25px 0; }
+  .term-item:last-child { border-bottom: none; }
+  .term-header { margin-bottom: 8px; display: flex; align-items: baseline; flex-wrap: wrap; gap: 10px; }
+  .term-word { font-size: 1.4em; font-weight: 700; color: #111; }
+  .term-meta { color: #777; font-size: 0.9em; font-family: monospace; }
+  .definition { line-height: 1.6; color: #222; margin-bottom: 12px; }
+  .example { margin-top: 10px; padding-left: 15px; border-left: 3px solid #eee; color: #555; font-style: italic; }
+</style>
+<script>
+window.MathJax = { tex: { inlineMath: [['$$', '$$']], displayMath: [['$$', '$$']] }, svg: { fontCache: 'global' } };
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+`;
 
-3. ОБЯЗАТЕЛЬНАЯ КОНФИГУРАЦИЯ MathJax в <head>:
-   <script>
-   window.MathJax = {
-     tex: {
-       inlineMath: [['$$', '$$']],
-       displayMath: [['$$', '$$']],
-       processEscapes: true
-     },
-     svg: { fontCache: 'global' }
-   };
-   </script>
-   <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+        userPrompt = `Сгенерируй HTML-код словаря.
+Вводные данные:
+Тема: ${topic}
+Предмет: ${subject || ''}
+Язык: ${langName}
+Уровень: ${level || 'базовый'}
+Количество слов: ${wordsCount || 20}
+${customPrompt ? `Дополнительно: ${customPrompt}` : ''}
 
-4. ПРИМЕРЫ ПРАВИЛЬНОГО ИСПОЛЬЗОВАНИЯ:
-   ✅ ПРАВИЛЬНО: "Вычислите $$\\frac{2}{3} + \\frac{1}{4}$$"
-   ✅ ПРАВИЛЬНО: "Решите уравнение $$x^2 + 5x + 6 = 0$$"
-   ❌ НЕПРАВИЛЬНО: "Вычислите $\\frac{2}{3}$" (одинарный $)
-   ❌ НЕПРАВИЛЬНО: "Вычислите \\(\\frac{2}{3}\\)" (обратные слеши)
-   ❌ НЕПРАВИЛЬНО: "Вычислите 2/3" (без LaTeX)
+СТРУКТУРА:
+1. Заголовок (Тема словаря) и логотип <img src="LOGO_PLACEHOLDER" class="header-logo">.
+2. Список терминов (Термин -> Транскрипция/Мета -> Определение -> Пример использования).
 
-5. ВСЕ математические выражения ОБЯЗАТЕЛЬНО оборачивай в $$...$$ даже простые дроби!
-ФОРМАТ ОТВЕТА: Верни ТОЛЬКО валидный HTML-код (начиная с <!DOCTYPE html>). Не используй markdown-блоки кода (т.е. без \`\`\`html), просто чистый текст HTML.`;
-
-        userPrompt = `Создай словарь по теме "${topic}" (${subject || ''}) на ${langName} языке.
-Уровень: ${level || 'базовый'}.
-Количество слов: ${wordsCount || 20}.
-${customPrompt ? `Дополнительно: ${customPrompt}` : ''}`;
+Начинай вывод сразу с <!DOCTYPE html>. Не пиши никаких вступлений и никаких заключений после тега </html>.`;
         break;
       }
 
       case 'lesson-plan': {
         const { subject, topic, level, duration, objectives, customPrompt } = inputParams;
-        systemPrompt = `Твоя задача: Сгенерировать четкий, структурированный и профессиональный ПЛАН УРОКА.
-ТРЕБОВАНИЯ К ДИЗАЙНУ (ОФИЦИАЛЬНО-ДЕЛОВОЙ СТИЛЬ):
-1. Контейнер: max-width 800px, центрирование, белый фон.
-2. Типографика: Строгий sans-serif (Inter, Arial, system-ui). Цвет текста #1a1a1a.
-3. Заголовки:
-   - H1 (Тема урока): Крупный, с нижним подчеркиванием (border-bottom: 2px solid #000), margin-bottom: 30px.
-   - H2 (Разделы): Четкие, жирные, с небольшим отступом снизу.
-4. Списки: Аккуратные <ul>/<ol> с отступом слева (padding-left: 20px).
+        systemPrompt = `Ты — профессиональный технический генератор кода. Твоя единственная функция — выдавать чистый HTML-код. Ты НЕ являешься чат-ботом.
 
-ТРЕБОВАНИЯ К ТАБЛИЦЕ ("ХОД УРОКА"):
-1. Секцию 'Ход урока' ОБЯЗАТЕЛЬНО оформи как HTML-таблицу (<table>).
-2. Стиль таблицы (Strict Grid):
-   - border-collapse: collapse; width: 100%; margin-top: 20px;
-   - Границы ячеек: border: 1px solid #cccccc; (тонкие серые линии).
-   - Заголовок таблицы (thead): Фон светло-серый (#f4f4f4), текст жирный, выравнивание по левому краю.
-   - Ячейки (td): Padding 10px 12px, vertical-align: top (текст всегда сверху).
-3. Колонки: 'Этап', 'Время', 'Деятельность учителя/учеников'.
+ЗАДАЧА:
+Сгенерировать четкий, структурированный и профессиональный ПЛАН УРОКА в формате HTML.
 
-КРИТИЧЕСКИ ВАЖНЫЕ ТРЕБОВАНИЯ К МАТЕМАТИЧЕСКИМ ФОРМУЛАМ:
-1. ДЛЯ СТРОЧНЫХ ФОРМУЛ (внутри текста): используй ТОЛЬКО двойные доллары $$формула$$
-   Пример: "Найдите значение $$\\frac{5}{6} : \\frac{3}{8}$$"
-   НИКОГДА не используй одинарные $ для формул!
+КРИТИЧЕСКИЕ ПРАВИЛА ВЫВОДА (СОБЛЮДАТЬ СТРОГО):
+1.  **ТОЛЬКО КОД:** Твой ответ должен начинаться символами "<!DOCTYPE html>" и заканчиваться символами "</html>".
+2.  **НИКАКОГО ТЕКСТА ПОСЛЕ КОДА:** Категорически запрещено писать после закрывающего тега </html>. Никаких объяснений, вступлений или заключений.
+3.  **БЕЗ MARKDOWN:** Не оборачивай код в тройные кавычки (\`\`\`html ... \`\`\`). Верни "сырую" строку HTML.
 
-2. ДЛЯ БЛОЧНЫХ ФОРМУЛ (отдельной строкой): используй ТОЛЬКО двойные доллары на отдельных строках
-   Пример:
-   $$
-   \\frac{1}{3} : \\frac{2}{9} =
-   $$
+ТРЕБОВАНИЯ К ДИЗАЙНУ И ВЕРСТКЕ:
+1.  **Контейнер:** max-width 800px, центрирование, белый фон, padding 40px.
+2.  **Типографика:** Шрифт Inter, Arial, system-ui. Цвет текста #1a1a1a.
+3.  **Заголовки:**
+    -   H1: Крупный, с нижним подчеркиванием (border-bottom: 2px solid #000), margin-bottom: 30px.
+    -   H2: Четкие, жирные, отступ снизу.
+4.  **Таблица "Ход урока" (ОБЯЗАТЕЛЬНО):**
+    -   Используй тег <table>.
+    -   Стиль: border-collapse: collapse; width: 100%; margin-top: 20px.
+    -   Шапка (thead): Фон #f4f4f4, жирный текст.
+    -   Ячейки (td): Границы 1px solid #cccccc, padding 10px 12px, vertical-align: top.
+    -   Колонки: "Этап", "Время", "Деятельность учителя/учеников".
 
-3. ОБЯЗАТЕЛЬНАЯ КОНФИГУРАЦИЯ MathJax в <head>:
-   <script>
-   window.MathJax = {
-     tex: {
-       inlineMath: [['$$', '$$']],
-       displayMath: [['$$', '$$']],
-       processEscapes: true
-     },
-     svg: { fontCache: 'global' }
-   };
-   </script>
-   <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+МАТЕМАТИЧЕСКИЕ ФОРМУЛЫ (MathJax):
+1.  Строчные: $$...$$ (только двойные доллары).
+2.  Блочные: $$...$$ (на новой строке).
+3.  Вставь скрипт конфигурации MathJax в <head>.
 
-4. ПРИМЕРЫ ПРАВИЛЬНОГО ИСПОЛЬЗОВАНИЯ:
-   ✅ ПРАВИЛЬНО: "Вычислите $$\\frac{2}{3} + \\frac{1}{4}$$"
-   ✅ ПРАВИЛЬНО: "Решите уравнение $$x^2 + 5x + 6 = 0$$"
-   ❌ НЕПРАВИЛЬНО: "Вычислите $\\frac{2}{3}$" (одинарный $)
-   ❌ НЕПРАВИЛЬНО: "Вычислите \\(\\frac{2}{3}\\)" (обратные слеши)
-   ❌ НЕПРАВИЛЬНО: "Вычислите 2/3" (без LaTeX)
+CSS ШАБЛОН:
+<style>
+  body { background: #f0f0f0; font-family: 'Inter', Arial, sans-serif; color: #1a1a1a; margin: 0; padding: 20px; }
+  .lesson-plan { position: relative; background: white; max-width: 800px; margin: 0 auto; padding: 40px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
+  .header-logo { position: absolute; top: 40px; right: 40px; width: 80px; height: auto; }
+  h1 { border-bottom: 2px solid #000; padding-bottom: 15px; margin-bottom: 30px; }
+  h2 { margin-top: 25px; margin-bottom: 15px; color: #333; }
+  ul, ol { padding-left: 20px; }
+  li { margin-bottom: 5px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+  th { background-color: #f4f4f4; font-weight: bold; text-align: left; padding: 12px; border: 1px solid #ccc; }
+  td { padding: 12px; border: 1px solid #ccc; vertical-align: top; }
+  .meta-info { margin-bottom: 30px; background: #fafafa; padding: 15px; border-radius: 4px; }
+</style>
+<script>
+window.MathJax = { tex: { inlineMath: [['$$', '$$']], displayMath: [['$$', '$$']] }, svg: { fontCache: 'global' } };
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+`;
 
-5. ВСЕ математические выражения ОБЯЗАТЕЛЬНО оборачивай в $$...$$ даже простые дроби!
-ФОРМАТ ОТВЕТА: Верни ТОЛЬКО валидный HTML-код (начиная с <!DOCTYPE html>). Не используй markdown-блоки кода (т.е. без \`\`\`html), просто чистый текст HTML.`;
-
-        userPrompt = `Создай план урока по предмету "${subject}" на тему "${topic}" для ${level} класса.
+        userPrompt = `Сгенерируй HTML-код плана урока.
+Вводные данные:
+Предмет: ${subject || 'На усмотрение ИИ'}
+Тема: ${topic || 'На усмотрение ИИ'}
+Класс: ${level || 'Средняя школа'}
 Длительность: ${duration || 45} мин.
-Цели: ${objectives || 'на твое усмотрение'}.
-${customPrompt ? `Дополнительно: ${customPrompt}` : ''}`;
+Цели: ${objectives || 'Сформулируй стандартные образовательные цели'}
+${customPrompt ? `Дополнительно: ${customPrompt}` : ''}
+
+СТРУКТУРА:
+1. Шапка (Тема, Предмет, Класс) и логотип <img src="LOGO_PLACEHOLDER" class="header-logo">.
+2. Цели и задачи.
+3. Оборудование/Материалы.
+4. ТАБЛИЦА "Ход урока" (Этап, Время, Деятельность).
+5. Домашнее задание.
+
+Начинай вывод сразу с <!DOCTYPE html>. Не пиши никаких вступлений и никаких заключений после тега </html>.`;
         break;
       }
 
@@ -724,6 +763,7 @@ ${customPrompt ? `Дополнительно: ${customPrompt}` : ''}`;
    - Полный отказ от теней (box-shadow). Используй только границы (border: 1px solid #E5E7EB).
    - Заголовки: Черные, жирные, отделены от текста отступами.
    - Если есть блоки кода или выделения: использовать фон #F9FAFB (очень светло-серый) и border-radius: 4px.
+   - Логотип: Вставь <img src="LOGO_PLACEHOLDER" style="float: right; width: 80px; margin-left: 20px;"> в начало документа.
 3. Списки: Маркеры должны быть внутри контента (list-style-position: inside) или с аккуратным padding-left.
 
 КРИТИЧЕСКИ ВАЖНЫЕ ТРЕБОВАНИЯ К МАТЕМАТИЧЕСКИМ ФОРМУЛАМ:
@@ -769,7 +809,7 @@ ${customPrompt ? `Дополнительно: ${customPrompt}` : ''}`;
       }
 
       case 'message': {
-        const { templateId, formData, customPrompt } = inputParams;
+        const { formData, customPrompt } = inputParams;
         systemPrompt = `Твоя задача: Сгенерировать ответ в виде HTML-документа с чистым, строгим и профессиональным дизайном.
 ТРЕБОВАНИЯ К ДИЗАЙНУ (MINIMALIST & STRICT):
 1. Структура страницы:
@@ -781,6 +821,7 @@ ${customPrompt ? `Дополнительно: ${customPrompt}` : ''}`;
    - Таблицы: Строгий стиль. border-collapse: collapse. Границы ячеек: 1px solid #e0e0e0. Шапка таблицы: жирный шрифт, фон #f9f9f9.
    - Списки: Маркеры аккуратные, с отступами.
    - Исключи любые тени (box-shadow) и яркие цвета. Используй только границы (border) и оттенки серого.
+   - Логотип: Вставь <img src="LOGO_PLACEHOLDER" style="float: right; width: 80px; margin-left: 20px;"> в верхнюю часть.
 
 КРИТИЧЕСКИ ВАЖНЫЕ ТРЕБОВАНИЯ К МАТЕМАТИЧЕСКИМ ФОРМУЛАМ:
 1. ДЛЯ СТРОЧНЫХ ФОРМУЛ (внутри текста): используй ТОЛЬКО двойные доллары $$формула$$
@@ -830,6 +871,7 @@ ${customPrompt ? `Дополнительно: ${customPrompt}` : ''}`;
    - Контейнер: max-width 760px, по центру, padding 40px 20px.
    - Шрифт: Inter, system-ui, sans-serif. Основной текст: #111.
    - Отказ от теней (box-shadow: none).
+   - Логотип: Вставь <img src="LOGO_PLACEHOLDER" style="float: right; width: 80px; margin-left: 20px;"> в верхний правый угол.
 2. Структура отчета (Визуальные блоки):
    - ОЦЕНКА: Не используй круги или яркие плашки. Сделай строгий блок: "Итоговый результат: X/10" крупным шрифтом с нижней границей (border-bottom).
    - СЕКЦИИ (Плюсы/Минусы): Вместо заливки цветом используй стиль "Callout" (белый фон, тонкая рамка border: 1px solid #eee).
@@ -892,14 +934,7 @@ ${customPrompt ? `Дополнительно: ${customPrompt}` : ''}`;
   }
 
   private buildWorksheetPrompt(inputParams: Record<string, any>) {
-    const {
-      subject,
-      topic,
-      level,
-      questionsCount,
-      preferences,
-      customPrompt,
-    } = inputParams;
+    const { subject, topic, level, questionsCount, preferences, customPrompt } = inputParams;
 
     // 1. SYSTEM PROMPT: Жесткие технические ограничения
     const systemPrompt = `Ты — профессиональный технический генератор кода. Твоя единственная функция — выдавать чистый HTML-код. Ты НЕ являешься чат-ботом.
@@ -995,15 +1030,14 @@ window.MathJax = {
 <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
 `;
 
-
-
     // 2. СБОР ПАРАМЕТРОВ
     const details: string[] = [];
 
     if (subject) details.push(`Предмет: ${subject}`);
     if (topic) details.push(`Тема: ${topic}`);
     if (level) details.push(`Класс / уровень: ${level}`);
-    if (questionsCount) details.push(`Количество заданий: ${questionsCount} (Распредели на несколько страниц)`);
+    if (questionsCount)
+      details.push(`Количество заданий: ${questionsCount} (Распредели на несколько страниц)`);
     if (preferences) details.push(`Особые пожелания: ${preferences}`);
     if (customPrompt) details.push(`Дополнительные инструкции: ${customPrompt}`);
 
@@ -1317,7 +1351,7 @@ ${customPrompt ? `\nДОПОЛНИТЕЛЬНЫЕ ТРЕБОВАНИЯ:\n${custom
       }
 
       case 'content-adaptation': {
-        const { text, action, level, sourceType } = inputParams;
+        const { text, action, level } = inputParams;
         return `Ты опытный учитель-методист. Адаптируй следующий учебный материал для ${level} класса.
 
 ДЕЙСТВИЕ: ${action || 'упростить'}
@@ -1334,7 +1368,7 @@ ${text}
       }
 
       case 'message': {
-        const { templateId, formData } = inputParams;
+        const { formData } = inputParams;
         return `Ты опытный учитель. Создай сообщение для родителей на основе следующих данных:
 
 ${formData ? `Данные:\n${JSON.stringify(formData, null, 2)}` : ''}
