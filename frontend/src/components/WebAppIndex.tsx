@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import InputComposer from './InputComposer'
+import AiAssistantChat from './AiAssistantChat'
 import { useGenerations } from '@/lib/hooks/useGenerations'
 import { useSubscription } from '@/lib/hooks/useSubscription'
 import { getCurrentUser } from '@/lib/utils/userIdentity'
@@ -162,6 +163,9 @@ export default function WebAppIndex() {
   }
 
   const gigachatMode = currentFunctionId === 'gigachat' ? (form.mode || 'chat') : null
+
+  // AI Assistant - показываем чат вместо результата
+  const isAiAssistant = currentFunctionId === 'aiAssistant'
 
   const isTextResult = generationResult && (
     ['worksheet', 'quiz', 'vocabulary', 'lessonPlan', 'content', 'feedback', 'message', 'transcription'].includes(currentFunctionId) ||
@@ -668,6 +672,13 @@ export default function WebAppIndex() {
             </div>
           )}
 
+          {/* AI Assistant Chat */}
+          {isAiAssistant && (
+            <div className="mt-4">
+              <AiAssistantChat />
+            </div>
+          )}
+
           {/* Secondary info row: tips */}
           <div className="mt-4 grid sm:grid-cols-3 gap-3 text-xs">
             <div className="p-3 rounded-xl bg-white border border-[#D8E6FF] flex items-center gap-2">
@@ -747,7 +758,8 @@ function getGenerationTypeLabel(type: string): string {
     photosession: 'ИИ Фотосессия',
     transcription: 'Транскрипция видео',
     message: 'Сообщение',
-    gigachat: 'GigaChat'
+    gigachat: 'GigaChat',
+    aiAssistant: 'AI-ассистент'
   }
   return labels[type] || 'Материал'
 }

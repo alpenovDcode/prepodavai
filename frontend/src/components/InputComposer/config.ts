@@ -104,7 +104,7 @@ export const functions = [
   { id: 'photosession', title: 'Фотосессия', icon: 'fas fa-camera' },
   { id: 'transcription', title: 'Транскрибация', icon: 'fas fa-file-audio' },
   { id: 'message', title: 'Сообщение', icon: 'fas fa-envelope' },
-  { id: 'gigachat', title: 'GigaChat', icon: 'fas fa-brain' }
+  { id: 'aiAssistant', title: 'AI-ассистент', icon: 'fas fa-robot' }
 ]
 
 export const templates: Record<string, FunctionTemplate> = {
@@ -494,187 +494,11 @@ export const templates: Record<string, FunctionTemplate> = {
       { key: 'formData', label: 'Данные (JSON)', type: 'textarea', rows: 4, placeholder: '{ "date": "...", "topic": "..." }' }
     ]
   },
-  gigachat: {
+  aiAssistant: {
     segments: [
-      { type: 'text', value: 'Запусти ' },
-      { type: 'field', key: 'mode', label: 'Режим', placeholder: 'чат' },
-      { type: 'text', value: ' в GigaChat c моделью ' },
-      { type: 'field', key: 'model', label: 'Модель', placeholder: 'GigaChat' },
-      { type: 'text', value: '.' }
+      { type: 'text', value: 'Общайся с AI-ассистентом для учителей. Задавай вопросы, получай помощь в создании материалов.' }
     ],
-    fields: [
-      {
-        key: 'mode',
-        label: 'Режим GigaChat',
-        type: 'select',
-        options: [
-          { value: 'chat', label: 'Текстовая беседа' },
-          { value: 'image', label: 'Генерация изображения' },
-          { value: 'embeddings', label: 'Эмбеддинги' }
-        ]
-      },
-      {
-        key: 'model',
-        label: 'Модель GigaChat',
-        type: 'select',
-        options: [
-          { value: 'GigaChat', label: 'GigaChat' },
-          { value: 'GigaChat-Pro', label: 'GigaChat-Pro' }
-        ],
-        helperText: 'Модели подгружаются автоматически, можно выбрать вручную'
-      },
-      {
-        key: 'systemPrompt',
-        label: 'System prompt',
-        type: 'textarea',
-        rows: 2,
-        placeholder: 'Опишите роль ассистента',
-        showWhen: { field: 'mode', equals: 'chat' }
-      },
-      {
-        key: 'userPrompt',
-        label: 'Пользовательский запрос',
-        type: 'textarea',
-        rows: 4,
-        placeholder: 'Что нужно сгенерировать',
-        showWhen: { field: 'mode', equals: 'chat' }
-      },
-      {
-        key: 'temperature',
-        label: 'Temperature',
-        type: 'number',
-        min: 0,
-        max: 2,
-        step: 0.1,
-        helperText: 'От 0 до 2, выше — креативнее',
-        showWhen: { field: 'mode', equals: 'chat' }
-      },
-      {
-        key: 'topP',
-        label: 'Top P',
-        type: 'number',
-        min: 0,
-        max: 1,
-        step: 0.05,
-        helperText: 'Nucleus sampling',
-        showWhen: { field: 'mode', equals: 'chat' }
-      },
-      {
-        key: 'maxTokens',
-        label: 'Max tokens',
-        type: 'number',
-        min: 64,
-        max: 4096,
-        helperText: 'Ограничение длины ответа',
-        showWhen: { field: 'mode', equals: 'chat' }
-      },
-      {
-        key: 'prompt',
-        label: 'Описание изображения',
-        type: 'textarea',
-        rows: 3,
-        placeholder: 'Подробно опишите сцену',
-        showWhen: { field: 'mode', equals: 'image' }
-      },
-      {
-        key: 'negativePrompt',
-        label: 'Негативный промпт',
-        type: 'text',
-        placeholder: 'Что нужно исключить',
-        showWhen: { field: 'mode', equals: 'image' }
-      },
-      {
-        key: 'size',
-        label: 'Размер',
-        type: 'select',
-        options: [
-          { value: '1024x1024', label: '1024x1024' },
-          { value: '1792x1024', label: '1792x1024' },
-          { value: '1024x1792', label: '1024x1792' }
-        ],
-        showWhen: { field: 'mode', equals: 'image' }
-      },
-      {
-        key: 'quality',
-        label: 'Качество',
-        type: 'select',
-        options: [
-          { value: 'high', label: 'High' },
-          { value: 'standard', label: 'Standard' }
-        ],
-        showWhen: { field: 'mode', equals: 'image' }
-      },
-      {
-        key: 'inputText',
-        label: 'Текст',
-        type: 'textarea',
-        rows: 3,
-        placeholder: 'Введите текст',
-        showWhen: { field: 'mode', in: ['embeddings', 'audio_speech', 'tokens_count'] }
-      },
-      {
-        key: 'voice',
-        label: 'Голос',
-        type: 'select',
-        options: [
-          { value: 'BYS', label: 'BYS (мужской)' },
-          { value: 'TATYANA', label: 'TATYANA (женский)' },
-          { value: 'VOICE_3', label: 'VOICE 3' }
-        ],
-        showWhen: { field: 'mode', equals: 'audio_speech' }
-      },
-      {
-        key: 'audioFormat',
-        label: 'Формат аудио',
-        type: 'select',
-        options: [
-          { value: 'mp3', label: 'MP3' },
-          { value: 'wav', label: 'WAV' },
-          { value: 'ogg', label: 'OGG' }
-        ],
-        showWhen: { field: 'mode', equals: 'audio_speech' }
-      },
-      {
-        key: 'audioSpeed',
-        label: 'Скорость речи',
-        type: 'number',
-        min: 0.5,
-        max: 2,
-        step: 0.1,
-        showWhen: { field: 'mode', equals: 'audio_speech' }
-      },
-      {
-        key: 'audioHash',
-        label: 'Аудио файл',
-        type: 'file',
-        accept: 'audio/*',
-        showWhen: { field: 'mode', in: ['audio_transcription', 'audio_translation'] }
-      },
-      {
-        key: 'language',
-        label: 'Язык записи',
-        type: 'select',
-        options: [
-          { value: 'ru', label: 'Русский' },
-          { value: 'en', label: 'Английский' },
-          { value: 'es', label: 'Испанский' },
-          { value: 'de', label: 'Немецкий' }
-        ],
-        showWhen: { field: 'mode', equals: 'audio_transcription' }
-      },
-      {
-        key: 'targetLanguage',
-        label: 'Целевой язык',
-        type: 'select',
-        options: [
-          { value: 'ru', label: 'Русский' },
-          { value: 'en', label: 'Английский' },
-          { value: 'es', label: 'Испанский' },
-          { value: 'de', label: 'Немецкий' }
-        ],
-        showWhen: { field: 'mode', equals: 'audio_translation' }
-      }
-    ]
+    fields: []
   }
 }
 

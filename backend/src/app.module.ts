@@ -21,6 +21,7 @@ import { FilesModule } from './modules/files/files.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { GigachatModule } from './modules/gigachat/gigachat.module';
 import { GammaModule } from './modules/gamma/gamma.module';
+import { AiAssistantModule } from './modules/ai-assistant/ai-assistant.module';
 import { HtmlExportService } from './common/services/html-export.service';
 
 @Module({
@@ -72,6 +73,7 @@ import { HtmlExportService } from './common/services/html-export.service';
     AdminModule,
     GigachatModule,
     GammaModule,
+    AiAssistantModule,
   ],
   controllers: [AppController],
   providers: [AppService, HtmlExportService],
