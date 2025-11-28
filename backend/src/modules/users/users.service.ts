@@ -4,7 +4,7 @@ import * as crypto from 'crypto';
 
 @Injectable()
 export class UsersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
 
   /**
    * Генерация API ключа
@@ -84,6 +84,17 @@ export class UsersService {
       where: {
         username,
         apiKey,
+      },
+    });
+  }
+
+  /**
+   * Найти пользователя по username
+   */
+  async findByUsername(username: string) {
+    return this.prisma.appUser.findFirst({
+      where: {
+        username,
       },
     });
   }

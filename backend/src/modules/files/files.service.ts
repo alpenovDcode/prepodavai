@@ -163,6 +163,36 @@ export class FilesService {
   }
 
   /**
+   * Получить список всех файлов
+   */
+  async listFiles(): Promise<Array<{ name: string; size: number; createdAt: Date; url: string }>> {
+    try {
+      const files = await fs.readdir(this.uploadDir);
+      const baseUrl = this.configService.get<string>('BASE_URL', 'http://localhost:3001');
+
+      const fileList = await Promise.all(
+        files.map(async (fileName) => {
+          const filePath = path.join(this.uploadDir, fileName);
+          const stats = await fs.stat(filePath);
+          const hash = fileName.split('.')[0];
+
+          return {
+            name: fileName,
+            size: stats.size,
+            createdAt: stats.birthtime,
+            url: `${baseUrl}/api/files/${hash}`,
+          };
+        })
+      );
+
+      return fileList.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    } catch (error) {
+      console.error('Failed to list files:', error);
+      return [];
+    }
+  }
+
+  /**
    * Удалить файл по hash
    */
   async deleteFile(hash: string): Promise<boolean> {

@@ -21,7 +21,7 @@ import { AdminGuard } from './guards/admin.guard';
 @Controller('admin')
 @UseGuards(JwtAuthGuard, AdminGuard)
 export class AdminController {
-  constructor(private readonly adminService: AdminService) {}
+  constructor(private readonly adminService: AdminService) { }
 
   // ========== USERS ==========
   @Get('users')
@@ -91,6 +91,26 @@ export class AdminController {
   @Get('transactions')
   async getTransactions(@Query('limit') limit?: string, @Query('offset') offset?: string) {
     return this.adminService.getTransactions(
+      limit ? parseInt(limit) : 50,
+      offset ? parseInt(offset) : 0,
+    );
+  }
+
+  // ========== FILES ==========
+  @Get('files')
+  async getFiles() {
+    return this.adminService.getFiles();
+  }
+
+  @Delete('files/:hash')
+  async deleteFile(@Param('hash') hash: string) {
+    return this.adminService.deleteFile(hash);
+  }
+
+  // ========== SYSTEM LOGS ==========
+  @Get('logs')
+  async getSystemLogs(@Query('limit') limit?: string, @Query('offset') offset?: string) {
+    return this.adminService.getSystemLogs(
       limit ? parseInt(limit) : 50,
       offset ? parseInt(offset) : 0,
     );

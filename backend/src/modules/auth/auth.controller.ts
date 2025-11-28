@@ -3,7 +3,7 @@ import { AuthService } from './auth.service';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(private readonly authService: AuthService) { }
 
   @Post('validate-init-data')
   async validateInitData(@Body() body: { initData: string }) {
@@ -13,5 +13,10 @@ export class AuthController {
   @Post('login-with-api-key')
   async loginWithApiKey(@Body() body: { username: string; apiKey: string }) {
     return this.authService.loginWithApiKey(body.username, body.apiKey);
+  }
+
+  @Post('login')
+  async login(@Body() body: { username: string; pass: string }) {
+    return this.authService.login(body.username, body.pass);
   }
 }

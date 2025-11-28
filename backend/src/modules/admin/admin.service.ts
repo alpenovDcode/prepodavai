@@ -1,9 +1,13 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { FilesService } from '../files/files.service';
 
 @Injectable()
 export class AdminService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private filesService: FilesService,
+  ) { }
 
   // ========== USERS ==========
   async getUsers(limit = 50, offset = 0) {
@@ -391,6 +395,54 @@ export class AdminService {
     return {
       success: true,
       transactions,
+      total,
+      limit,
+      offset,
+    };
+  }
+
+  // ========== FILES ==========
+  async getFiles() {
+    const files = await this.filesService.listFiles();
+    return {
+      success: true,
+      files,
+      total: files.length,
+    };
+  }
+
+  async deleteFile(hash: string) {
+    const result = await this.filesService.deleteFile(hash);
+    if (!result) {
+      throw new NotFoundException('File not found');
+    }
+    return {
+      success: true,
+      message: 'File deleted successfully',
+    };
+  }
+
+  // ========== SYSTEM LOGS ==========
+  async getSystemLogs(limit = 50, offset = 0) {
+    const logs = await this.prisma.systemLog.findMany({
+      take: limit,
+      skip: offset,
+      orderBy: { timestamp: 'desc' },
+      include: {
+        user: {
+          select: {
+            id: true,
+            username: true,
+          },
+        },
+      },
+    });
+
+    const total = await this.prisma.systemLog.count();
+
+    return {
+      success: true,
+      logs,
       total,
       limit,
       offset,

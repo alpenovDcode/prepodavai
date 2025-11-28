@@ -10,7 +10,7 @@ export class AuthService {
     private usersService: UsersService,
     private jwtService: JwtService,
     private configService: ConfigService,
-  ) {}
+  ) { }
 
   /**
    * Валидация Telegram initData с проверкой подписи
@@ -132,6 +132,41 @@ export class AuthService {
         phone: user.phone,
         telegramId: user.telegramId,
         source: user.source,
+      },
+    };
+  }
+
+  /**
+   * Авторизация через username + password
+   */
+  async login(username: string, pass: string) {
+    const user = await this.usersService.findByUsername(username);
+
+    if (!user || !user.passwordHash) {
+      throw new UnauthorizedException('Неверный логин или пароль');
+    }
+
+    const isMatch = await import('bcrypt').then(m => m.compare(pass, user.passwordHash));
+
+    if (!isMatch) {
+      throw new UnauthorizedException('Неверный логин или пароль');
+    }
+
+    // Обновляем lastAccessAt
+    await this.usersService.updateLastAccess(user.id);
+
+    // Генерируем JWT токен
+    const token = this.generateJwtToken(user.id);
+
+    return {
+      success: true,
+      token,
+      user: {
+        id: user.id,
+        username: user.username,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: 'admin', // Временно хардкодим роль, так как это админский вход
       },
     };
   }

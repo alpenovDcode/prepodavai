@@ -3,11 +3,12 @@ import { AdminController } from './admin.controller';
 import { AdminService } from './admin.service';
 import { AdminGuard } from './guards/admin.guard';
 import { PrismaModule } from '../../common/prisma/prisma.module';
+import { FilesModule } from '../files/files.module';
 
 @Module({
-  imports: [PrismaModule],
+  imports: [PrismaModule, FilesModule],
   controllers: [AdminController],
   providers: [AdminService, AdminGuard],
   exports: [AdminService],
 })
-export class AdminModule {}
+export class AdminModule { }
