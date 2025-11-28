@@ -294,6 +294,12 @@
         const WORD_LIST = GAME_CONFIG.data;
         const GAME_TOPIC = GAME_CONFIG.topic;
 
+        // Clean word list - remove spaces from words
+        const cleanedWordList = WORD_LIST.map(item => ({
+            ...item,
+            word: item.word.replace(/\s+/g, '').toUpperCase()
+        }));
+
         // Update page title
         document.querySelector('h1').innerText = `Кроссворд: ${GAME_TOPIC}`;
 
@@ -473,7 +479,7 @@
         let gameData;
 
         function initGame() {
-            const generator = new CrosswordGenerator(WORD_LIST);
+            const generator = new CrosswordGenerator(cleanedWordList);
             gameData = generator.generate();
 
             renderGrid(gameData.width, gameData.height);
