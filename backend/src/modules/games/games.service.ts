@@ -90,8 +90,10 @@ export class GamesService {
 
         // 6. Return URL
         const baseUrl = this.configService.get<string>('BASE_URL', 'http://localhost:3001');
-        const gameUrl = `${baseUrl}/api/games/${gameId}`;
-        const downloadUrl = `${baseUrl}/api/games/${gameId}/download`;
+        const contentBaseUrl = this.configService.get<string>('CONTENT_BASE_URL') || baseUrl;
+
+        const gameUrl = `${contentBaseUrl}/api/games/${gameId}`;
+        const downloadUrl = `${contentBaseUrl}/api/games/${gameId}/download`;
 
         // 7. Save to Database
         try {

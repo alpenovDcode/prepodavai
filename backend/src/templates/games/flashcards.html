@@ -194,6 +194,17 @@
             }
         }
     </style>
+    <script>
+        window.MathJax = {
+            tex: {
+                inlineMath: [['$', '$'], ['\\(', '\\)']],
+                displayMath: [['$$', '$$'], ['\\[', '\\]']],
+                processEscapes: true
+            },
+            svg: { fontCache: 'global' }
+        };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
 </head>
 
 <body>
@@ -267,6 +278,11 @@
                 indexDisplay.innerText = currentIndex + 1;
                 const percentage = ((currentIndex + 1) / CARDS_DATA.length) * 100;
                 progressFill.style.width = percentage + '%';
+
+                // Trigger MathJax
+                if (window.MathJax) {
+                    MathJax.typesetPromise && MathJax.typesetPromise();
+                }
             }, 150);
         }
 
