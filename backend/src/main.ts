@@ -26,9 +26,18 @@ async function bootstrap() {
   app.use(require('express').urlencoded({ limit: '10mb', extended: true }));
 
   // Helmet для безопасности HTTP заголовков
+  // Helmet для безопасности HTTP заголовков
   app.use(
     helmet({
-      contentSecurityPolicy: nodeEnv === 'production',
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          imgSrc: ["'self'", "data:", "https:"],
+          connectSrc: ["'self'", "https:"],
+        },
+      },
       crossOriginEmbedderPolicy: false, // Для Telegram WebApp
       crossOriginResourcePolicy: { policy: 'cross-origin' }, // Разрешаем загрузку ресурсов с других доменов
     }),
