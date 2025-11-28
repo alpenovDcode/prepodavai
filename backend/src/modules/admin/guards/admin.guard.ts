@@ -7,7 +7,7 @@ import { ConfigService } from '@nestjs/config';
  */
 @Injectable()
 export class AdminGuard implements CanActivate {
-  constructor(private configService: ConfigService) {}
+  constructor(private configService: ConfigService) { }
 
   canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest();
@@ -41,6 +41,7 @@ export class AdminGuard implements CanActivate {
 
     // Проверяем, является ли пользователь администратором
     if (!adminUserIds.includes(user.id)) {
+      console.error(`Admin access denied. User ID: ${user.id}, Allowed IDs: ${JSON.stringify(adminUserIds)}`);
       throw new ForbiddenException('Access denied. Admin privileges required.');
     }
 
