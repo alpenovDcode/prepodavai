@@ -74,9 +74,9 @@ export default function LandingPage() {
           <div className="flex justify-between items-center">
             <div className="flex items-center space-x-2">
               <div className="w-20 h-20 flex-shrink-0 rounded-xl overflow-hidden">
-                <img 
-                  src="https://fs.cdn-chatium.io/thumbnail/image_gc_AmbUAlw8Yq.1024x1024.png/s/128x" 
-                  alt="prepodavAI" 
+                <img
+                  src="https://fs.cdn-chatium.io/thumbnail/image_gc_AmbUAlw8Yq.1024x1024.png/s/128x"
+                  alt="prepodavAI"
                   className="w-full h-full object-cover"
                 />
               </div>
@@ -84,7 +84,7 @@ export default function LandingPage() {
                 prepodavAI
               </span>
             </div>
-            <button 
+            <button
               onClick={() => setShowAuthModal(true)}
               className="px-6 py-2.5 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-xl font-medium hover:shadow-lg transition-all duration-300 hover:scale-105 active:scale-95"
             >
@@ -112,14 +112,14 @@ export default function LandingPage() {
               Автоматизируйте подготовку к урокам, создавайте учебные материалы и экономьте до 10 часов в неделю с помощью искусственного интеллекта
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-              <button 
+              <button
                 onClick={() => setShowAuthModal(true)}
                 className="px-8 py-4 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-2xl text-lg font-semibold hover:shadow-2xl transition-all duration-300 hover:scale-105 active:scale-95 flex items-center gap-2"
               >
                 <i className="fas fa-rocket"></i>
                 Начать бесплатно
               </button>
-              <button 
+              <button
                 onClick={scrollToFeatures}
                 className="px-8 py-4 bg-white text-orange-600 rounded-2xl text-lg font-semibold border-2 border-orange-200 hover:border-orange-300 hover:shadow-lg transition-all duration-300 flex items-center gap-2"
               >
@@ -145,7 +145,7 @@ export default function LandingPage() {
 
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
             {features.map((feature, idx) => (
-              <div 
+              <div
                 key={idx}
                 className="p-6 rounded-2xl border-2 border-orange-100 hover:border-orange-300 hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-white to-orange-50/30"
               >
@@ -206,7 +206,7 @@ export default function LandingPage() {
           <p className="text-xl text-orange-50 mb-8">
             Присоединяйтесь к тысячам репетиторов, которые уже используют ИИ в своей работе
           </p>
-          <button 
+          <button
             onClick={() => setShowAuthModal(true)}
             className="px-10 py-5 bg-white text-orange-600 rounded-2xl text-xl font-bold hover:shadow-2xl transition-all duration-300 hover:scale-105 active:scale-95"
           >
@@ -218,23 +218,37 @@ export default function LandingPage() {
 
       {/* Footer */}
       <footer className="py-8 px-4 sm:px-6 lg:px-8 bg-gray-900 text-gray-400 text-center">
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6">
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6 flex-wrap">
           <p>&copy; 2025 prepodavAI - ИИ-помощник для репетиторов</p>
           <span className="hidden sm:inline text-gray-600">|</span>
-          <a 
+          <a
             href="/public-offer"
             className="text-orange-400 hover:text-orange-300 underline transition-colors duration-200"
           >
             Публичная оферта
+          </a>
+          <span className="hidden sm:inline text-gray-600">|</span>
+          <a
+            href="/privacy-policy"
+            className="text-orange-400 hover:text-orange-300 underline transition-colors duration-200"
+          >
+            Политика конфиденциальности
+          </a>
+          <span className="hidden sm:inline text-gray-600">|</span>
+          <a
+            href="/personal-data"
+            className="text-orange-400 hover:text-orange-300 underline transition-colors duration-200"
+          >
+            Согласие на обработку ПД
           </a>
         </div>
       </footer>
 
       {/* Auth Modal */}
       {showAuthModal && (
-        <AuthModal 
-          onClose={() => setShowAuthModal(false)} 
-          onSuccess={handleAuthSuccess} 
+        <AuthModal
+          onClose={() => setShowAuthModal(false)}
+          onSuccess={handleAuthSuccess}
         />
       )}
     </div>
