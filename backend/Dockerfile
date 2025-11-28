@@ -46,6 +46,9 @@ RUN ./node_modules/.bin/prisma generate
 
 RUN npm run build
 
+# Compile admin creation script
+RUN npx tsc scripts/create-admin.ts --outDir dist/scripts --esModuleInterop --skipLibCheck
+
 # Production image, copy all the files and run the app
 FROM base AS runner
 WORKDIR /app
