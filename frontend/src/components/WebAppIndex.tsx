@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import InputComposer from './InputComposer'
 import AiAssistantChat from './AiAssistantChat'
+import GenerationProgress from './GenerationProgress'
 import { useGenerations } from '@/lib/hooks/useGenerations'
 import { useSubscription } from '@/lib/hooks/useSubscription'
 import { getCurrentUser } from '@/lib/utils/userIdentity'
@@ -548,13 +549,9 @@ export default function WebAppIndex() {
 
             {(isGenerating || statusMessage) && (
               <div className="px-4 sm:px-6 pb-4 sm:pb-6">
-                {isGenerating && (
-                  <div className="mt-2 p-3 sm:p-4 rounded-xl bg-[#D8E6FF] border border-[#D8E6FF] flex items-center gap-3">
-                    <i className="fas fa-spinner fa-spin text-[#FF7E58]"></i>
-                    <span className="text-sm text-black">Генерация... попытка {attempts}/{maxAttempts}</span>
-                  </div>
-                )}
-                {statusMessage && (
+                <GenerationProgress isGenerating={isGenerating} />
+
+                {!isGenerating && statusMessage && (
                   <div className={`mt-3 p-3 sm:p-4 rounded-xl border ${statusOk
                     ? 'bg-green-50 border-green-200 text-green-700'
                     : 'bg-red-50 border-red-200 text-red-700'
