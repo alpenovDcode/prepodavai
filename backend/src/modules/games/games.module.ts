@@ -4,8 +4,10 @@ import { GamesController } from './games.controller';
 import { GamesService } from './games.service';
 import { GigachatModule } from '../gigachat/gigachat.module';
 
+import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
+
 @Module({
-    imports: [ConfigModule, GigachatModule],
+    imports: [ConfigModule, GigachatModule, SubscriptionsModule],
     controllers: [GamesController],
     providers: [GamesService],
 })

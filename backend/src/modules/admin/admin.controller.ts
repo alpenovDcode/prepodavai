@@ -121,4 +121,18 @@ export class AdminController {
   async getStats() {
     return this.adminService.getStats();
   }
+
+  // ========== CREDIT COSTS ==========
+  @Get('costs')
+  async getCreditCosts() {
+    return this.adminService.getCreditCosts();
+  }
+
+  @Put('costs/:operationType')
+  async updateCreditCost(
+    @Param('operationType') operationType: string,
+    @Body('creditCost') creditCost: number,
+  ) {
+    return this.adminService.updateCreditCost(operationType, creditCost);
+  }
 }

@@ -7,6 +7,8 @@ import { GigachatService } from '../gigachat/gigachat.service';
 import { CreateGameDto, GameType } from './dto/create-game.dto';
 import { PrismaService } from '../../common/prisma/prisma.service';
 
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
+
 @Injectable()
 export class GamesService {
     private readonly logger = new Logger(GamesService.name);
@@ -17,6 +19,7 @@ export class GamesService {
         private readonly gigachatService: GigachatService,
         private readonly configService: ConfigService,
         private readonly prisma: PrismaService, // Added PrismaService injection
+        private readonly subscriptionsService: SubscriptionsService,
     ) {
         const uploadDir = this.configService.get<string>('UPLOAD_DIR', './uploads');
         this.gamesDir = path.join(path.resolve(uploadDir), 'games');
@@ -35,6 +38,12 @@ export class GamesService {
     async generateGame(dto: CreateGameDto, userId: string) { // Modified signature
         const { topic, type } = dto;
         this.logger.log(`Generating game ${type} for topic: ${topic}`);
+
+        // 0. Check Credits
+        const creditCheck = await this.subscriptionsService.checkCreditsAvailable(userId, 'game_generation');
+        if (!creditCheck.available) {
+            throw new Error(creditCheck.message || 'Недостаточно кредитов для генерации игры');
+        }
 
         // 1. Get Prompt
         const prompt = this.getPrompt(type, topic);
@@ -95,7 +104,7 @@ export class GamesService {
         const gameUrl = `${contentBaseUrl}/api/games/${gameId}`;
         const downloadUrl = `${contentBaseUrl}/api/games/${gameId}/download`;
 
-        // 7. Save to Database
+        // 7. Save to Database & Debit Credits
         try {
             // Create GenerationRequest
             const generationRequest = await this.prisma.generationRequest.create({
@@ -134,7 +143,15 @@ export class GamesService {
                 }
             });
 
-            this.logger.log(`Saved game generation to DB for user ${userId}`);
+            // Debit Credits
+            await this.subscriptionsService.debitCredits(
+                userId,
+                'game_generation',
+                generationRequest.id,
+                `Генерация игры: ${topic} (${type})`
+            );
+
+            this.logger.log(`Saved game generation to DB and debited credits for user ${userId}`);
         } catch (error) {
             this.logger.error(`Failed to save game generation to DB: ${error.message}`, error.stack);
             // We don't throw here to avoid failing the request if DB save fails, 

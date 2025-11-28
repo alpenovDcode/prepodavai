@@ -510,4 +510,29 @@ export class AdminService {
       },
     };
   }
+
+  // ========== CREDIT COSTS ==========
+  async getCreditCosts() {
+    const costs = await this.prisma.creditCost.findMany({
+      orderBy: { creditCost: 'asc' },
+    });
+
+    return {
+      success: true,
+      costs,
+    };
+  }
+
+  async updateCreditCost(operationType: string, creditCost: number) {
+    const cost = await this.prisma.creditCost.update({
+      where: { operationType },
+      data: { creditCost },
+    });
+
+    return {
+      success: true,
+      cost,
+      message: 'Credit cost updated successfully',
+    };
+  }
 }

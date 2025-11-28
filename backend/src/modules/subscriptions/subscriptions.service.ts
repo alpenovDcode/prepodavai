@@ -21,7 +21,8 @@ export type OperationType =
   | 'gigachat_stt'
   | 'gigachat_translation'
   | 'gigachat_embeddings'
-  | 'gigachat_tokens_count';
+  | 'gigachat_tokens_count'
+  | 'game_generation';
 
 @Injectable()
 export class SubscriptionsService {
@@ -236,6 +237,13 @@ export class SubscriptionsService {
         operationName: 'Транскрибация видео',
         creditCost: 15,
         description: 'Транскрибация видео через Whisper',
+        isActive: true,
+      },
+      {
+        operationType: 'game_generation',
+        operationName: 'Генерация игры',
+        creditCost: 15,
+        description: 'Создание образовательной игры',
         isActive: true,
       },
     ];

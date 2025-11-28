@@ -77,7 +77,7 @@ export default function AdminDashboard() {
 
             <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
                 <div className="flex space-x-4 mb-6 border-b">
-                    {['stats', 'users', 'generations', 'files', 'logs'].map((tab) => (
+                    {['stats', 'users', 'generations', 'files', 'logs', 'costs'].map((tab) => (
                         <button
                             key={tab}
                             onClick={() => setActiveTab(tab)}
@@ -96,6 +96,7 @@ export default function AdminDashboard() {
                 {activeTab === 'generations' && <GenerationsTable />}
                 {activeTab === 'files' && <FilesTable />}
                 {activeTab === 'logs' && <LogsTable />}
+                {activeTab === 'costs' && <CreditCostsTable />}
             </div>
         </div>
     );
@@ -109,6 +110,92 @@ function StatCard({ title, value, subValue }: { title: string; value: number | s
                 <dd className="mt-1 text-3xl font-semibold text-gray-900">{value}</dd>
                 {subValue && <dd className="mt-1 text-sm text-gray-400">{subValue}</dd>}
             </div>
+        </div>
+    );
+}
+
+function CreditCostsTable() {
+    const [costs, setCosts] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [editingId, setEditingId] = useState<string | null>(null);
+    const [editValue, setEditValue] = useState<number>(0);
+
+    const fetchCosts = () => {
+        axios.get(`${API_URL}/api/admin/costs`, {
+            headers: { Authorization: `Bearer ${localStorage.getItem('adminToken')}` }
+        }).then(res => {
+            setCosts(res.data.costs);
+            setLoading(false);
+        });
+    };
+
+    useEffect(() => {
+        fetchCosts();
+    }, []);
+
+    const handleEdit = (cost: any) => {
+        setEditingId(cost.operationType);
+        setEditValue(cost.creditCost);
+    };
+
+    const handleSave = async (operationType: string) => {
+        try {
+            await axios.put(`${API_URL}/api/admin/costs/${operationType}`, {
+                creditCost: Number(editValue)
+            }, {
+                headers: { Authorization: `Bearer ${localStorage.getItem('adminToken')}` }
+            });
+            setEditingId(null);
+            fetchCosts();
+        } catch (error) {
+            alert('Failed to update cost');
+        }
+    };
+
+    if (loading) return <div>Loading costs...</div>;
+
+    return (
+        <div className="bg-white shadow overflow-hidden sm:rounded-lg">
+            <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                    <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Operation Name</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cost (Credits)</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                    {costs.map((cost) => (
+                        <tr key={cost.operationType}>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{cost.operationName}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{cost.operationType}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                {editingId === cost.operationType ? (
+                                    <input
+                                        type="number"
+                                        value={editValue}
+                                        onChange={(e) => setEditValue(Number(e.target.value))}
+                                        className="w-20 border rounded px-2 py-1"
+                                    />
+                                ) : (
+                                    cost.creditCost
+                                )}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                {editingId === cost.operationType ? (
+                                    <div className="flex space-x-2">
+                                        <button onClick={() => handleSave(cost.operationType)} className="text-green-600 hover:text-green-900">Save</button>
+                                        <button onClick={() => setEditingId(null)} className="text-gray-600 hover:text-gray-900">Cancel</button>
+                                    </div>
+                                ) : (
+                                    <button onClick={() => handleEdit(cost)} className="text-blue-600 hover:text-blue-900">Edit</button>
+                                )}
+                            </td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
         </div>
     );
 }
@@ -186,7 +273,7 @@ function GenerationsTable() {
                             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{gen.type}</td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                 <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${gen.status === 'completed' ? 'bg-green-100 text-green-800' :
-                                        gen.status === 'failed' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'
+                                    gen.status === 'failed' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'
                                     }`}>
                                     {gen.status}
                                 </span>
@@ -295,7 +382,7 @@ function LogsTable() {
                         <tr key={log.id}>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                 <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${log.level === 'error' ? 'bg-red-100 text-red-800' :
-                                        log.level === 'warn' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'
+                                    log.level === 'warn' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'
                                     }`}>
                                     {log.level}
                                 </span>
