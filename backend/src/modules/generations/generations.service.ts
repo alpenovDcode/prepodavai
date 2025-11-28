@@ -252,7 +252,7 @@ export class GenerationsService {
     // Postprocess HTML to ensure MathJax is included if formulas are present
     console.log(`[GenerationsService] Starting HTML postprocessing for ${generationType}`);
     // Replace logo placeholder with actual base64 image
-    const contentWithLogo = content.replace('LOGO_PLACEHOLDER', LOGO_BASE64);
+    const contentWithLogo = content.replace(/LOGO_PLACEHOLDER/g, LOGO_BASE64);
     const processedContent = this.htmlPostprocessor.ensureMathJaxScript(contentWithLogo);
     console.log(
       `[GenerationsService] HTML postprocessing complete, processed length: ${processedContent.length}`,
@@ -594,10 +594,10 @@ window.MathJax = { tex: { inlineMath: [['$$', '$$']], displayMath: [['$$', '$$']
 ${customPrompt ? `Дополнительно: ${customPrompt}` : ''}
 
 СТРУКТУРА:
-1. Заголовок теста (с логотипом <img src="LOGO_PLACEHOLDER" class="header-logo">).
+1. Заголовок теста (СТРОГО НА ПЕРВОЙ СТРАНИЦЕ ВВЕРХУ СЛЕВА: <img src="LOGO_PLACEHOLDER" class="header-logo">).
 2. Список вопросов с вариантами ответов. (Для задач по геометрии или физике обязательно генерируй SVG иллюстрации).
 3. Блок "КЛЮЧИ С ОТВЕТАМИ" (в самом конце, желательно с кратким пояснением).
-4. Логотип внизу: Вставь <div style="text-align: right; margin-top: 40px;"><img src="LOGO_PLACEHOLDER" style="width: 120px; opacity: 0.5;"></div> в самом конце документа.
+4. Логотип внизу: Вставь <div style="text-align: right; margin-top: 40px;"><img src="LOGO_PLACEHOLDER" style="width: 120px; opacity: 0.5;"></div> СТРОГО В САМОМ КОНЦЕ ДОКУМЕНТА (на последней странице).
 
 Начинай вывод сразу с <!DOCTYPE html>. Не пиши никаких вступлений и никаких заключений после тега </html>.`;
         break;
@@ -674,8 +674,8 @@ window.MathJax = { tex: { inlineMath: [['$$', '$$']], displayMath: [['$$', '$$']
 ${customPrompt ? `Дополнительно: ${customPrompt}` : ''}
 
 СТРУКТУРА:
-   - Логотип: Вставь <img src="LOGO_PLACEHOLDER" class="header-logo"> в верхнюю часть.
-   - Логотип внизу: Вставь <div style="text-align: right; margin-top: 40px;"><img src="LOGO_PLACEHOLDER" style="width: 120px; opacity: 0.5;"></div> в самом конце документа.
+   - Логотип: Вставь <img src="LOGO_PLACEHOLDER" class="header-logo"> СТРОГО В ВЕРХНЕМ ЛЕВОМ УГЛУ ПЕРВОЙ СТРАНИЦЫ.
+   - Логотип внизу: Вставь <div style="text-align: right; margin-top: 40px;"><img src="LOGO_PLACEHOLDER" style="width: 120px; opacity: 0.5;"></div> СТРОГО В САМОМ КОНЦЕ ДОКУМЕНТА (на последней странице).
 2. Список терминов (Термин -> Транскрипция/Мета -> Определение -> Пример использования).
 
 Начинай вывод сразу с <!DOCTYPE html>. Не пиши никаких вступлений и никаких заключений после тега </html>.`;
@@ -742,12 +742,12 @@ window.MathJax = { tex: { inlineMath: [['$$', '$$']], displayMath: [['$$', '$$']
 ${customPrompt ? `Дополнительно: ${customPrompt}` : ''}
 
 СТРУКТУРА:
-1. Шапка (Тема, Предмет, Класс) и логотип <img src="LOGO_PLACEHOLDER" class="header-logo">.
+1. Шапка (Тема, Предмет, Класс) и логотип <img src="LOGO_PLACEHOLDER" class="header-logo"> (СТРОГО ВВЕРХУ СЛЕВА НА ПЕРВОЙ СТРАНИЦЕ).
 2. Цели и задачи.
 3. Оборудование/Материалы.
 4. ТАБЛИЦА "Ход урока" (Этап, Время, Деятельность).
 5. Домашнее задание.
-6. Логотип внизу: Вставь <div style="text-align: right; margin-top: 40px;"><img src="LOGO_PLACEHOLDER" style="width: 120px; opacity: 0.5;"></div> в самом конце документа.
+6. Логотип внизу: Вставь <div style="text-align: right; margin-top: 40px;"><img src="LOGO_PLACEHOLDER" style="width: 120px; opacity: 0.5;"></div> СТРОГО В САМОМ КОНЦЕ ДОКУМЕНТА (на последней странице).
 
 Начинай вывод сразу с <!DOCTYPE html>. Не пиши никаких вступлений и никаких заключений после тега </html>.`;
         break;
@@ -766,8 +766,8 @@ ${customPrompt ? `Дополнительно: ${customPrompt}` : ''}
    - Полный отказ от теней (box-shadow). Используй только границы (border: 1px solid #E5E7EB).
    - Заголовки: Черные, жирные, отделены от текста отступами.
    - Если есть блоки кода или выделения: использовать фон #F9FAFB (очень светло-серый) и border-radius: 4px.
-   - Логотип: Вставь <img src="LOGO_PLACEHOLDER" style="float: left; width: 120px; margin-right: 20px;"> в начало документа.
-   - Логотип внизу: Вставь <div style="text-align: right; margin-top: 40px;"><img src="LOGO_PLACEHOLDER" style="width: 120px; opacity: 0.5;"></div> в самом конце документа.
+   - Логотип: Вставь <img src="LOGO_PLACEHOLDER" style="float: left; width: 120px; margin-right: 20px;"> СТРОГО В НАЧАЛЕ ДОКУМЕНТА (ВЕРХНИЙ ЛЕВЫЙ УГОЛ).
+   - Логотип внизу: Вставь <div style="text-align: right; margin-top: 40px;"><img src="LOGO_PLACEHOLDER" style="width: 120px; opacity: 0.5;"></div> СТРОГО В САМОМ КОНЦЕ ДОКУМЕНТА (на последней странице).
 3. Списки: Маркеры должны быть внутри контента (list-style-position: inside) или с аккуратным padding-left.
 
 КРИТИЧЕСКИ ВАЖНЫЕ ТРЕБОВАНИЯ К МАТЕМАТИЧЕСКИМ ФОРМУЛАМ:
@@ -825,8 +825,8 @@ ${customPrompt ? `Дополнительно: ${customPrompt}` : ''}`;
    - Таблицы: Строгий стиль. border-collapse: collapse. Границы ячеек: 1px solid #e0e0e0. Шапка таблицы: жирный шрифт, фон #f9f9f9.
    - Списки: Маркеры аккуратные, с отступами.
    - Исключи любые тени (box-shadow) и яркие цвета. Используй только границы (border) и оттенки серого.
-   - Логотип: Вставь <img src="LOGO_PLACEHOLDER" style="float: left; width: 120px; margin-right: 20px;"> в верхнюю часть.
-   - Логотип внизу: Вставь <div style="text-align: right; margin-top: 40px;"><img src="LOGO_PLACEHOLDER" style="width: 120px; opacity: 0.5;"></div> в самом конце документа.
+   - Логотип: Вставь <img src="LOGO_PLACEHOLDER" style="float: left; width: 120px; margin-right: 20px;"> СТРОГО В ВЕРХНЕМ ЛЕВОМ УГЛУ.
+   - Логотип внизу: Вставь <div style="text-align: right; margin-top: 40px;"><img src="LOGO_PLACEHOLDER" style="width: 120px; opacity: 0.5;"></div> СТРОГО В САМОМ КОНЦЕ ДОКУМЕНТА.
 
 КРИТИЧЕСКИ ВАЖНЫЕ ТРЕБОВАНИЯ К МАТЕМАТИЧЕСКИМ ФОРМУЛАМ:
 1. ДЛЯ СТРОЧНЫХ ФОРМУЛ (внутри текста): используй ТОЛЬКО двойные доллары $$формула$$
@@ -876,8 +876,8 @@ ${customPrompt ? `Дополнительно: ${customPrompt}` : ''}`;
    - Контейнер: max-width 760px, по центру, padding 40px 20px.
    - Шрифт: Inter, system-ui, sans-serif. Основной текст: #111.
    - Отказ от теней (box-shadow: none).
-   - Логотип: Вставь <img src="LOGO_PLACEHOLDER" style="float: left; width: 120px; margin-right: 20px;"> в верхний левый угол.
-   - Логотип внизу: Вставь <div style="text-align: right; margin-top: 40px;"><img src="LOGO_PLACEHOLDER" style="width: 120px; opacity: 0.5;"></div> в самом конце документа.
+   - Логотип: Вставь <img src="LOGO_PLACEHOLDER" style="float: left; width: 120px; margin-right: 20px;"> СТРОГО В ВЕРХНЕМ ЛЕВОМ УГЛУ.
+   - Логотип внизу: Вставь <div style="text-align: right; margin-top: 40px;"><img src="LOGO_PLACEHOLDER" style="width: 120px; opacity: 0.5;"></div> СТРОГО В САМОМ КОНЦЕ ДОКУМЕНТА.
 2. Структура отчета (Визуальные блоки):
    - ОЦЕНКА: Не используй круги или яркие плашки. Сделай строгий блок: "Итоговый результат: X/10" крупным шрифтом с нижней границей (border-bottom).
    - СЕКЦИИ (Плюсы/Минусы): Вместо заливки цветом используй стиль "Callout" (белый фон, тонкая рамка border: 1px solid #eee).
@@ -963,11 +963,11 @@ ${customPrompt ? `Дополнительно: ${customPrompt}` : ''}`;
     -   Шрифт: "Times New Roman", Times, serif.
 
 2.  **Структура документа:**
-    -   **Шапка (на первом листе):**
+    -   **Шапка (СТРОГО НА ПЕРВОМ ЛИСТЕ):**
         -   Слева: <img src="LOGO_PLACEHOLDER" class="header-logo" alt="prepodavAI">
         -   Справа: "Рабочий лист по предмету: [Предмет]" (жирным).
         -   Ниже: Поля: "Имя: _______", "Класс: _______", "Дата: _______".
-    -   **Футер:** В самом конце документа (после всех заданий и ответов) вставь логотип: <div style="text-align: right; margin-top: 40px;"><img src="LOGO_PLACEHOLDER" style="width: 120px; opacity: 0.5;"></div>
+    -   **Футер:** СТРОГО В САМОМ КОНЦЕ ДОКУМЕНТА (на последней странице) вставь логотип: <div style="text-align: right; margin-top: 40px;"><img src="LOGO_PLACEHOLDER" style="width: 120px; opacity: 0.5;"></div>
     -   **Тело заданий:** Нумерованный список. page-break-inside: avoid.
     -   **Блок ответов:** Должен быть на НОВОЙ СТРАНИЦЫ (page-break-before: always).
 
