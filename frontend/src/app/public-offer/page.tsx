@@ -10,7 +10,7 @@ export default function PublicOfferPage() {
   return (
     <div className="min-h-screen bg-white">
       <div className="max-w-4xl mx-auto px-4 py-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-6">Договор публичной оферты об оказании образовательных услуг</h1>
+        <h1 className="text-3xl font-bold text-gray-900 mb-6">Договор публичной оферты</h1>
 
         <div className="prose prose-lg max-w-none text-gray-700">
           <p className="text-sm text-gray-500 mb-8">
@@ -18,7 +18,7 @@ export default function PublicOfferPage() {
           </p>
 
           <p className="mb-6">
-            Индивидуальный предприниматель <strong>[ФИО ИП]</strong>, действующий на основании Свидетельства о государственной регистрации физического лица в качестве индивидуального предпринимателя, именуемый в дальнейшем «Исполнитель», предлагает любому физическому лицу, в дальнейшем именуемому «Заказчик», заключить договор на указанных ниже условиях.
+            Индивидуальный предприниматель <strong>Васильева Елизавета Сергеевна</strong>, действующий на основании Свидетельства о государственной регистрации физического лица в качестве индивидуального предпринимателя, именуемый в дальнейшем «Исполнитель», предлагает любому физическому лицу, в дальнейшем именуемому «Заказчик», заключить договор на указанных ниже условиях.
           </p>
 
           <p className="mb-6">
@@ -151,15 +151,10 @@ export default function PublicOfferPage() {
           <section className="mb-8">
             <h2 className="text-xl font-bold text-gray-900 mb-4">8. РЕКВИЗИТЫ ИСПОЛНИТЕЛЯ</h2>
             <div className="bg-gray-50 p-6 rounded-lg text-sm border border-gray-100">
-              <p className="mb-2"><strong>Исполнитель:</strong> ИП [ФИО]</p>
-              <p className="mb-2"><strong>ИНН:</strong> [Ваш ИНН]</p>
-              <p className="mb-2"><strong>ОГРНИП:</strong> [Ваш ОГРНИП]</p>
-              <p className="mb-2"><strong>Юридический адрес:</strong> [Ваш адрес]</p>
-              <p className="mb-2"><strong>Банковские реквизиты:</strong></p>
-              <p className="mb-1 ml-4">Р/с: [Номер счета]</p>
-              <p className="mb-1 ml-4">Банк: [Название банка]</p>
-              <p className="mb-1 ml-4">К/с: [Корр. счет]</p>
-              <p className="mb-1 ml-4">БИК: [БИК]</p>
+              <p className="mb-2"><strong>Исполнитель:</strong> ИП Васильева Елизавета Сергеевна</p>
+              <p className="mb-2"><strong>ИНН:</strong> 230816006900</p>
+              <p className="mb-2"><strong>ОГРНИП:</strong> 319237500350882</p>
+              <p className="mb-2"><strong>Юридический адрес:</strong> Ленинградский пр-кт, д. 36 стр. 39, помещ. 4 Москва, Москва</p>
               <div className="mt-4 pt-4 border-t border-gray-200">
                 <p className="mb-2"><strong>Email:</strong> <a href="mailto:support@prepodavai.ru" className="text-blue-600 hover:underline">support@prepodavai.ru</a></p>
               </div>
