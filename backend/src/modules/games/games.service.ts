@@ -184,6 +184,7 @@ export class GamesService {
                 model: this.gigachatService.getDefaultModel('chat'),
                 messages: [{ role: 'user', content: prompt }],
                 temperature: 0.7,
+                max_tokens: 5000,
             }) as any;
 
             let content = response.choices[0].message.content;
