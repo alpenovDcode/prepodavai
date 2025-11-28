@@ -109,7 +109,8 @@ export default function InputComposer({
               audio_speech: 'gigachat_audio',
               audio_transcription: 'gigachat_audio',
               audio_translation: 'gigachat_audio'
-            }
+            },
+            game: 'game_generation'
           }
           const opEntry = opMap[currentFunction]
           let op: string | null = null
