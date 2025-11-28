@@ -7,8 +7,13 @@ dotenv.config();
 const prisma = new PrismaClient();
 
 async function main() {
-    const username = 'prepodavai_esvasileva';
-    const password = 'stA-ud3-sKv-4gT';
+    const username = process.env.ADMIN_USERNAME;
+    const password = process.env.ADMIN_PASSWORD;
+
+    if (!username || !password) {
+        console.error('Error: ADMIN_USERNAME and ADMIN_PASSWORD environment variables must be set.');
+        process.exit(1);
+    }
 
     console.log(`Creating admin user: ${username}`);
 
