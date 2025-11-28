@@ -23,7 +23,7 @@ export default function AdminPage() {
   const [editData, setEditData] = useState<any>({})
   const [error, setError] = useState<string | null>(null)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
-  const [loginForm, setLoginForm] = useState({ username: '', apiKey: '' })
+  const [loginForm, setLoginForm] = useState({ username: '', password: '' })
   const [loginLoading, setLoginLoading] = useState(false)
 
   useEffect(() => {
@@ -50,9 +50,9 @@ export default function AdminPage() {
 
     try {
       const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
-      const response = await apiClient.post('/auth/login-with-api-key', {
+      const response = await apiClient.post('/auth/login', {
         username: loginForm.username,
-        apiKey: loginForm.apiKey,
+        pass: loginForm.password,
       }, {
         timeout: 10000, // 10 секунд таймаут
       })
@@ -74,7 +74,7 @@ export default function AdminPage() {
       if (error.code === 'ECONNREFUSED' || error.code === 'ERR_NETWORK' || error.message === 'Network Error') {
         errorMessage = `Ошибка сети. Проверьте, что backend запущен на ${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}. Убедитесь, что backend контейнер работает.`
       } else if (error.response?.status === 401) {
-        errorMessage = error.response?.data?.message || 'Неверный username или API key'
+        errorMessage = error.response?.data?.message || 'Неверный логин или пароль'
       } else if (error.response?.data?.message) {
         errorMessage = error.response.data.message
       } else if (error.message) {
@@ -379,16 +379,16 @@ export default function AdminPage() {
             </div>
 
             <div>
-              <label htmlFor="apiKey" className="block text-sm font-medium text-gray-700 mb-1">
-                API Key
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+                Password
               </label>
               <input
-                id="apiKey"
+                id="password"
                 type="password"
-                value={loginForm.apiKey}
-                onChange={(e) => setLoginForm({ ...loginForm, apiKey: e.target.value })}
+                value={loginForm.password}
+                onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
-                placeholder="Введите ваш API ключ"
+                placeholder="Введите пароль"
                 required
               />
             </div>
@@ -439,8 +439,8 @@ export default function AdminPage() {
                 key={tab}
                 onClick={() => setActiveTab(tab)}
                 className={`px-6 py-3 font-medium text-sm ${activeTab === tab
-                    ? 'border-b-2 border-blue-500 text-blue-600'
-                    : 'text-gray-600 hover:text-gray-900'
+                  ? 'border-b-2 border-blue-500 text-blue-600'
+                  : 'text-gray-600 hover:text-gray-900'
                   }`}
               >
                 {tab === 'stats' ? 'Статистика' :
@@ -582,8 +582,8 @@ export default function AdminPage() {
                             </td>
                             <td className="px-4 py-3 text-sm">
                               <span className={`px-2 py-1 rounded text-xs ${(item.status || item.userGeneration?.status) === 'completed' ? 'bg-green-100 text-green-800' :
-                                  (item.status || item.userGeneration?.status) === 'failed' ? 'bg-red-100 text-red-800' :
-                                    'bg-yellow-100 text-yellow-800'
+                                (item.status || item.userGeneration?.status) === 'failed' ? 'bg-red-100 text-red-800' :
+                                  'bg-yellow-100 text-yellow-800'
                                 }`}>
                                 {item.status || item.userGeneration?.status || '-'}
                               </span>
@@ -601,7 +601,7 @@ export default function AdminPage() {
                             <td className="px-4 py-3 text-sm text-gray-900">{item.plan?.planName || '-'}</td>
                             <td className="px-4 py-3 text-sm">
                               <span className={`px-2 py-1 rounded text-xs ${item.status === 'active' ? 'bg-green-100 text-green-800' :
-                                  'bg-gray-100 text-gray-800'
+                                'bg-gray-100 text-gray-800'
                                 }`}>
                                 {item.status || '-'}
                               </span>
