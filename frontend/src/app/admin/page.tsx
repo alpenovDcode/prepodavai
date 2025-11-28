@@ -14,7 +14,7 @@ interface Stats {
 
 export default function AdminPage() {
   const router = useRouter()
-  const [activeTab, setActiveTab] = useState<'stats' | 'users' | 'generations' | 'subscriptions' | 'transactions'>('stats')
+  const [activeTab, setActiveTab] = useState<'stats' | 'users' | 'generations' | 'subscriptions' | 'transactions' | 'costs'>('stats')
   const [stats, setStats] = useState<Stats | null>(null)
   const [data, setData] = useState<any[]>([])
   const [selectedItem, setSelectedItem] = useState<any | null>(null)
@@ -131,6 +131,9 @@ export default function AdminPage() {
         case 'transactions':
           endpoint = '/admin/transactions'
           break
+        case 'costs':
+          endpoint = '/admin/costs'
+          break
         default:
           setLoading(false)
           return
@@ -141,7 +144,8 @@ export default function AdminPage() {
         if (response.data.success) {
           const key = activeTab === 'users' ? 'users' :
             activeTab === 'generations' ? 'generations' :
-              activeTab === 'subscriptions' ? 'subscriptions' : 'transactions'
+              activeTab === 'subscriptions' ? 'subscriptions' :
+                activeTab === 'transactions' ? 'transactions' : 'costs'
           const items = response.data[key] || []
           setData(items)
           console.log(`✅ Loaded ${items.length} items for ${activeTab}`)
@@ -198,7 +202,18 @@ export default function AdminPage() {
         delete dataToSave.systemLogs
       }
 
-      const endpoint = `/admin/${activeTab}/${selectedItem.id}`
+      let endpoint = `/admin/${activeTab}/${selectedItem.id}`
+
+      // Для costs endpoint другой
+      if (activeTab === 'costs') {
+        endpoint = `/admin/costs/${selectedItem.operationType}`
+        // Оставляем только creditCost
+        const { creditCost } = dataToSave
+        // Очищаем dataToSave и оставляем только creditCost
+        Object.keys(dataToSave).forEach(key => delete dataToSave[key])
+        dataToSave.creditCost = Number(creditCost)
+      }
+
       console.log('💾 Saving:', { endpoint, dataToSave })
 
       // Проверяем доступность backend
@@ -434,7 +449,7 @@ export default function AdminPage() {
         {/* Tabs */}
         <div className="bg-white rounded-lg shadow-sm mb-6">
           <div className="flex border-b">
-            {(['stats', 'users', 'generations', 'subscriptions', 'transactions'] as const).map((tab) => (
+            {(['stats', 'users', 'generations', 'subscriptions', 'transactions', 'costs'] as const).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -447,7 +462,8 @@ export default function AdminPage() {
                   tab === 'users' ? 'Пользователи' :
                     tab === 'generations' ? 'Генерации' :
                       tab === 'subscriptions' ? 'Подписки' :
-                        'Транзакции'}
+                        tab === 'transactions' ? 'Транзакции' :
+                          'Стоимость'}
               </button>
             ))}
           </div>
@@ -560,6 +576,14 @@ export default function AdminPage() {
                           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Дата</th>
                         </>
                       )}
+                      {activeTab === 'costs' && (
+                        <>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Операция</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Тип</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Стоимость</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Описание</th>
+                        </>
+                      )}
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Действия</th>
                     </tr>
                   </thead>
@@ -621,6 +645,14 @@ export default function AdminPage() {
                             <td className="px-4 py-3 text-sm text-gray-900">
                               {item.createdAt ? new Date(item.createdAt).toLocaleDateString('ru-RU') : '-'}
                             </td>
+                          </>
+                        )}
+                        {activeTab === 'costs' && (
+                          <>
+                            <td className="px-4 py-3 text-sm text-gray-900">{item.operationName || '-'}</td>
+                            <td className="px-4 py-3 text-sm text-gray-900">{item.operationType || '-'}</td>
+                            <td className="px-4 py-3 text-sm text-gray-900 font-bold">{item.creditCost}</td>
+                            <td className="px-4 py-3 text-sm text-gray-900">{item.description || '-'}</td>
                           </>
                         )}
                         <td className="px-4 py-3 text-sm">
