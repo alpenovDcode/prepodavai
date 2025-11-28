@@ -567,8 +567,9 @@ CSS ШАБЛОН:
 <style>
   body { background: #f5f5f5; font-family: 'Inter', system-ui, sans-serif; margin: 0; padding: 20px; color: #222; }
   .test-container { position: relative; background: white; max-width: 720px; margin: 0 auto; padding: 40px; border: 1px solid #e0e0e0; border-radius: 4px; }
-  .header-logo { position: absolute; top: 40px; left: 40px; width: 120px; height: auto; }
-  h1 { border-bottom: 2px solid #222; padding-bottom: 15px; margin-bottom: 30px; }
+  .header { display: flex; align-items: center; gap: 20px; margin-bottom: 30px; border-bottom: 2px solid #222; padding-bottom: 15px; }
+  .header-logo { width: 120px; height: auto; flex-shrink: 0; }
+  h1 { margin: 0; flex-grow: 1; border-bottom: none; padding-bottom: 0; }
   .question-item { margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px dashed #eee; }
   .question-item:last-child { border-bottom: none; }
   .question-text { font-weight: 600; font-size: 1.1em; margin-bottom: 15px; }
@@ -577,6 +578,7 @@ CSS ШАБЛОН:
   .option-marker { font-weight: bold; color: #555; width: 20px; }
   .svg-container { margin: 15px 0; text-align: center; }
   .answer-key { margin-top: 50px; padding-top: 20px; border-top: 2px solid #222; page-break-before: always; }
+  .footer-logo { text-align: right; margin-top: 40px; page-break-inside: avoid; }
 </style>
 <script>
 window.MathJax = { tex: { inlineMath: [['$$', '$$']], displayMath: [['$$', '$$']] }, svg: { fontCache: 'global' } };
@@ -594,10 +596,10 @@ window.MathJax = { tex: { inlineMath: [['$$', '$$']], displayMath: [['$$', '$$']
 ${customPrompt ? `Дополнительно: ${customPrompt}` : ''}
 
 СТРУКТУРА:
-1. Заголовок теста (СТРОГО НА ПЕРВОЙ СТРАНИЦЕ ВВЕРХУ СЛЕВА: <img src="LOGO_PLACEHOLDER" class="header-logo">).
+1. Шапка (Flexbox): <div class="header"><img src="LOGO_PLACEHOLDER" class="header-logo"><h1>Заголовок теста</h1></div>. Логотип слева, заголовок справа. Логотип НЕ должен перекрывать текст.
 2. Список вопросов с вариантами ответов. (Для задач по геометрии или физике обязательно генерируй SVG иллюстрации).
 3. Блок "КЛЮЧИ С ОТВЕТАМИ" (в самом конце, желательно с кратким пояснением).
-4. Логотип внизу: Вставь <div style="text-align: right; margin-top: 40px;"><img src="LOGO_PLACEHOLDER" style="width: 120px; opacity: 0.5;"></div> СТРОГО В САМОМ КОНЦЕ ДОКУМЕНТА (на последней странице).
+4. Логотип внизу: Вставь <div class="footer-logo"><img src="LOGO_PLACEHOLDER" style="width: 120px; opacity: 0.5;"></div> СТРОГО В САМОМ КОНЦЕ ДОКУМЕНТА (на последней странице, внутри границ листа).
 
 Начинай вывод сразу с <!DOCTYPE html>. Не пиши никаких вступлений и никаких заключений после тега </html>.`;
         break;
@@ -648,8 +650,9 @@ CSS ШАБЛОН:
 <style>
   body { background: #f9f9f9; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 20px; color: #333; }
   .dictionary-container { position: relative; background: white; max-width: 760px; margin: 0 auto; padding: 40px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border-radius: 4px; }
-  .header-logo { position: absolute; top: 40px; left: 40px; width: 120px; height: auto; }
-  h1 { border-bottom: 2px solid #333; padding-bottom: 15px; margin-bottom: 30px; letter-spacing: -0.5px; }
+  .header { display: flex; align-items: center; gap: 20px; margin-bottom: 30px; border-bottom: 2px solid #333; padding-bottom: 15px; }
+  .header-logo { width: 120px; height: auto; flex-shrink: 0; }
+  h1 { margin: 0; flex-grow: 1; border-bottom: none; padding-bottom: 0; letter-spacing: -0.5px; }
   .term-item { border-bottom: 1px solid #eaeaea; padding: 25px 0; }
   .term-item:last-child { border-bottom: none; }
   .term-header { margin-bottom: 8px; display: flex; align-items: baseline; flex-wrap: wrap; gap: 10px; }
@@ -657,6 +660,7 @@ CSS ШАБЛОН:
   .term-meta { color: #777; font-size: 0.9em; font-family: monospace; }
   .definition { line-height: 1.6; color: #222; margin-bottom: 12px; }
   .example { margin-top: 10px; padding-left: 15px; border-left: 3px solid #eee; color: #555; font-style: italic; }
+  .footer-logo { text-align: right; margin-top: 40px; page-break-inside: avoid; }
 </style>
 <script>
 window.MathJax = { tex: { inlineMath: [['$$', '$$']], displayMath: [['$$', '$$']] }, svg: { fontCache: 'global' } };
@@ -674,8 +678,8 @@ window.MathJax = { tex: { inlineMath: [['$$', '$$']], displayMath: [['$$', '$$']
 ${customPrompt ? `Дополнительно: ${customPrompt}` : ''}
 
 СТРУКТУРА:
-   - Логотип: Вставь <img src="LOGO_PLACEHOLDER" class="header-logo"> СТРОГО В ВЕРХНЕМ ЛЕВОМ УГЛУ ПЕРВОЙ СТРАНИЦЫ.
-   - Логотип внизу: Вставь <div style="text-align: right; margin-top: 40px;"><img src="LOGO_PLACEHOLDER" style="width: 120px; opacity: 0.5;"></div> СТРОГО В САМОМ КОНЦЕ ДОКУМЕНТА (на последней странице).
+   - Логотип: Вставь <div class="header"><img src="LOGO_PLACEHOLDER" class="header-logo"><h1>Словарь</h1></div>. Логотип слева, заголовок справа. Без наложения.
+   - Логотип внизу: Вставь <div class="footer-logo"><img src="LOGO_PLACEHOLDER" style="width: 120px; opacity: 0.5;"></div> СТРОГО В САМОМ КОНЦЕ ДОКУМЕНТА (на последней странице).
 2. Список терминов (Термин -> Транскрипция/Мета -> Определение -> Пример использования).
 
 Начинай вывод сразу с <!DOCTYPE html>. Не пиши никаких вступлений и никаких заключений после тега </html>.`;
@@ -716,8 +720,9 @@ CSS ШАБЛОН:
 <style>
   body { background: #f0f0f0; font-family: 'Inter', Arial, sans-serif; color: #1a1a1a; margin: 0; padding: 20px; }
   .lesson-plan { position: relative; background: white; max-width: 800px; margin: 0 auto; padding: 40px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
-  .header-logo { position: absolute; top: 40px; left: 40px; width: 120px; height: auto; }
-  h1 { border-bottom: 2px solid #000; padding-bottom: 15px; margin-bottom: 30px; }
+  .header { display: flex; align-items: center; gap: 20px; margin-bottom: 30px; border-bottom: 2px solid #000; padding-bottom: 15px; }
+  .header-logo { width: 120px; height: auto; flex-shrink: 0; }
+  h1 { margin: 0; flex-grow: 1; border-bottom: none; padding-bottom: 0; }
   h2 { margin-top: 25px; margin-bottom: 15px; color: #333; }
   ul, ol { padding-left: 20px; }
   li { margin-bottom: 5px; }
@@ -725,6 +730,7 @@ CSS ШАБЛОН:
   th { background-color: #f4f4f4; font-weight: bold; text-align: left; padding: 12px; border: 1px solid #ccc; }
   td { padding: 12px; border: 1px solid #ccc; vertical-align: top; }
   .meta-info { margin-bottom: 30px; background: #fafafa; padding: 15px; border-radius: 4px; }
+  .footer-logo { text-align: right; margin-top: 40px; page-break-inside: avoid; }
 </style>
 <script>
 window.MathJax = { tex: { inlineMath: [['$$', '$$']], displayMath: [['$$', '$$']] }, svg: { fontCache: 'global' } };
@@ -742,12 +748,12 @@ window.MathJax = { tex: { inlineMath: [['$$', '$$']], displayMath: [['$$', '$$']
 ${customPrompt ? `Дополнительно: ${customPrompt}` : ''}
 
 СТРУКТУРА:
-1. Шапка (Тема, Предмет, Класс) и логотип <img src="LOGO_PLACEHOLDER" class="header-logo"> (СТРОГО ВВЕРХУ СЛЕВА НА ПЕРВОЙ СТРАНИЦЕ).
+1. Шапка (Flexbox): <div class="header"><img src="LOGO_PLACEHOLDER" class="header-logo"><h1>Тема урока</h1></div>. Логотип слева, заголовок справа.
 2. Цели и задачи.
 3. Оборудование/Материалы.
 4. ТАБЛИЦА "Ход урока" (Этап, Время, Деятельность).
 5. Домашнее задание.
-6. Логотип внизу: Вставь <div style="text-align: right; margin-top: 40px;"><img src="LOGO_PLACEHOLDER" style="width: 120px; opacity: 0.5;"></div> СТРОГО В САМОМ КОНЦЕ ДОКУМЕНТА (на последней странице).
+6. Логотип внизу: Вставь <div class="footer-logo"><img src="LOGO_PLACEHOLDER" style="width: 120px; opacity: 0.5;"></div> СТРОГО В САМОМ КОНЦЕ ДОКУМЕНТА (на последней странице).
 
 Начинай вывод сразу с <!DOCTYPE html>. Не пиши никаких вступлений и никаких заключений после тега </html>.`;
         break;
@@ -766,8 +772,8 @@ ${customPrompt ? `Дополнительно: ${customPrompt}` : ''}
    - Полный отказ от теней (box-shadow). Используй только границы (border: 1px solid #E5E7EB).
    - Заголовки: Черные, жирные, отделены от текста отступами.
    - Если есть блоки кода или выделения: использовать фон #F9FAFB (очень светло-серый) и border-radius: 4px.
-   - Логотип: Вставь <img src="LOGO_PLACEHOLDER" style="float: left; width: 120px; margin-right: 20px;"> СТРОГО В НАЧАЛЕ ДОКУМЕНТА (ВЕРХНИЙ ЛЕВЫЙ УГОЛ).
-   - Логотип внизу: Вставь <div style="text-align: right; margin-top: 40px;"><img src="LOGO_PLACEHOLDER" style="width: 120px; opacity: 0.5;"></div> СТРОГО В САМОМ КОНЦЕ ДОКУМЕНТА (на последней странице).
+   - Логотип: Вставь <div style="display: flex; align-items: center; gap: 20px; margin-bottom: 20px;"><img src="LOGO_PLACEHOLDER" style="width: 120px;"><h1>Заголовок</h1></div>. Логотип слева, текст справа. БЕЗ НАЛОЖЕНИЯ.
+   - Логотип внизу: Вставь <div style="text-align: right; margin-top: 40px; page-break-inside: avoid;"><img src="LOGO_PLACEHOLDER" style="width: 120px; opacity: 0.5;"></div> СТРОГО В САМОМ КОНЦЕ ДОКУМЕНТА (на последней странице).
 3. Списки: Маркеры должны быть внутри контента (list-style-position: inside) или с аккуратным padding-left.
 
 КРИТИЧЕСКИ ВАЖНЫЕ ТРЕБОВАНИЯ К МАТЕМАТИЧЕСКИМ ФОРМУЛАМ:
@@ -825,8 +831,8 @@ ${customPrompt ? `Дополнительно: ${customPrompt}` : ''}`;
    - Таблицы: Строгий стиль. border-collapse: collapse. Границы ячеек: 1px solid #e0e0e0. Шапка таблицы: жирный шрифт, фон #f9f9f9.
    - Списки: Маркеры аккуратные, с отступами.
    - Исключи любые тени (box-shadow) и яркие цвета. Используй только границы (border) и оттенки серого.
-   - Логотип: Вставь <img src="LOGO_PLACEHOLDER" style="float: left; width: 120px; margin-right: 20px;"> СТРОГО В ВЕРХНЕМ ЛЕВОМ УГЛУ.
-   - Логотип внизу: Вставь <div style="text-align: right; margin-top: 40px;"><img src="LOGO_PLACEHOLDER" style="width: 120px; opacity: 0.5;"></div> СТРОГО В САМОМ КОНЦЕ ДОКУМЕНТА.
+   - Логотип: Вставь <div style="display: flex; align-items: center; gap: 20px; margin-bottom: 20px;"><img src="LOGO_PLACEHOLDER" style="width: 120px;"><h1>Сообщение</h1></div>. Логотип слева, текст справа. БЕЗ НАЛОЖЕНИЯ.
+   - Логотип внизу: Вставь <div style="text-align: right; margin-top: 40px; page-break-inside: avoid;"><img src="LOGO_PLACEHOLDER" style="width: 120px; opacity: 0.5;"></div> СТРОГО В САМОМ КОНЦЕ ДОКУМЕНТА.
 
 КРИТИЧЕСКИ ВАЖНЫЕ ТРЕБОВАНИЯ К МАТЕМАТИЧЕСКИМ ФОРМУЛАМ:
 1. ДЛЯ СТРОЧНЫХ ФОРМУЛ (внутри текста): используй ТОЛЬКО двойные доллары $$формула$$
@@ -876,8 +882,8 @@ ${customPrompt ? `Дополнительно: ${customPrompt}` : ''}`;
    - Контейнер: max-width 760px, по центру, padding 40px 20px.
    - Шрифт: Inter, system-ui, sans-serif. Основной текст: #111.
    - Отказ от теней (box-shadow: none).
-   - Логотип: Вставь <img src="LOGO_PLACEHOLDER" style="float: left; width: 120px; margin-right: 20px;"> СТРОГО В ВЕРХНЕМ ЛЕВОМ УГЛУ.
-   - Логотип внизу: Вставь <div style="text-align: right; margin-top: 40px;"><img src="LOGO_PLACEHOLDER" style="width: 120px; opacity: 0.5;"></div> СТРОГО В САМОМ КОНЦЕ ДОКУМЕНТА.
+   - Логотип: Вставь <div style="display: flex; align-items: center; gap: 20px; margin-bottom: 20px;"><img src="LOGO_PLACEHOLDER" style="width: 120px;"><h1>Фидбек</h1></div>. Логотип слева, текст справа. БЕЗ НАЛОЖЕНИЯ.
+   - Логотип внизу: Вставь <div style="text-align: right; margin-top: 40px; page-break-inside: avoid;"><img src="LOGO_PLACEHOLDER" style="width: 120px; opacity: 0.5;"></div> СТРОГО В САМОМ КОНЦЕ ДОКУМЕНТА.
 2. Структура отчета (Визуальные блоки):
    - ОЦЕНКА: Не используй круги или яркие плашки. Сделай строгий блок: "Итоговый результат: X/10" крупным шрифтом с нижней границей (border-bottom).
    - СЕКЦИИ (Плюсы/Минусы): Вместо заливки цветом используй стиль "Callout" (белый фон, тонкая рамка border: 1px solid #eee).
