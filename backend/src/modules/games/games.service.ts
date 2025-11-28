@@ -5,6 +5,7 @@ import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { GigachatService } from '../gigachat/gigachat.service';
 import { CreateGameDto, GameType } from './dto/create-game.dto';
+import { PrismaService } from '../../common/prisma/prisma.service';
 
 @Injectable()
 export class GamesService {
@@ -15,6 +16,7 @@ export class GamesService {
     constructor(
         private readonly gigachatService: GigachatService,
         private readonly configService: ConfigService,
+        private readonly prisma: PrismaService, // Added PrismaService injection
     ) {
         const uploadDir = this.configService.get<string>('UPLOAD_DIR', './uploads');
         this.gamesDir = path.join(path.resolve(uploadDir), 'games');
@@ -30,7 +32,7 @@ export class GamesService {
         }
     }
 
-    async generateGame(dto: CreateGameDto) {
+    async generateGame(dto: CreateGameDto, userId: string) { // Modified signature
         const { topic, type } = dto;
         this.logger.log(`Generating game ${type} for topic: ${topic}`);
 
@@ -65,7 +67,15 @@ export class GamesService {
 
         const jsonString = JSON.stringify(gameDataWithMeta, null, 2);
         // Replace both {{GAME_DATA}} and {{ GAME_DATA }} (with spaces)
-        let gameHtml = templateContent.replace(/\{\{\s*GAME_DATA\s*\}\}/g, jsonString);
+        // Also fix escape sequences for LaTeX
+        const cleanedJsonString = jsonString.replace(/\\(u[0-9a-fA-F]{4}|[^])/g, (match, group1) => {
+            if (group1.length === 5 && group1.startsWith('u')) return match;
+            const char = group1;
+            if (['"', '\\', '/', 'b', 'f', 'n', 'r', 't'].includes(char)) return match;
+            return '\\\\' + char;
+        });
+
+        let gameHtml = templateContent.replace(/\{\{\s*GAME_DATA\s*\}\}/g, cleanedJsonString); // Used cleanedJsonString
 
         // Also replace {{TOPIC}} placeholder if present
         gameHtml = gameHtml.replace(/\{\{TOPIC\}\}/g, topic);
@@ -80,11 +90,60 @@ export class GamesService {
 
         // 6. Return URL
         const baseUrl = this.configService.get<string>('BASE_URL', 'http://localhost:3001');
+        const gameUrl = `${baseUrl}/api/games/${gameId}`;
+        const downloadUrl = `${baseUrl}/api/games/${gameId}/download`;
+
+        // 7. Save to Database
+        try {
+            // Create GenerationRequest
+            const generationRequest = await this.prisma.generationRequest.create({
+                data: {
+                    userId,
+                    type: `game_${type}`,
+                    status: 'completed',
+                    params: dto as any,
+                    result: {
+                        gameId,
+                        url: gameUrl,
+                        downloadUrl,
+                        topic,
+                        type
+                    },
+                    model: 'GigaChat', // Assuming GigaChat is used
+                }
+            });
+
+            // Create UserGeneration
+            await this.prisma.userGeneration.create({
+                data: {
+                    userId,
+                    generationType: `game_${type}`,
+                    status: 'completed',
+                    inputParams: dto as any,
+                    outputData: {
+                        gameId,
+                        url: gameUrl,
+                        downloadUrl,
+                        topic,
+                        type
+                    },
+                    model: 'GigaChat',
+                    generationRequestId: generationRequest.id,
+                }
+            });
+
+            this.logger.log(`Saved game generation to DB for user ${userId}`);
+        } catch (error) {
+            this.logger.error(`Failed to save game generation to DB: ${error.message}`, error.stack);
+            // We don't throw here to avoid failing the request if DB save fails, 
+            // but in production you might want to handle this differently.
+        }
+
         return {
             success: true,
             gameId,
-            url: `${baseUrl}/api/games/${gameId}`,
-            downloadUrl: `${baseUrl}/api/games/${gameId}/download`,
+            url: gameUrl,
+            downloadUrl,
         };
     }
 
@@ -210,10 +269,22 @@ export class GamesService {
             // 2. Remove comments (// ...) which are not valid in JSON
             jsonString = jsonString.replace(/\/\/[^\n]*/g, '');
 
-            // 3. Fix escape sequences - remove invalid escapes
-            // Keep only valid JSON escape sequences: \" \\ \/ \b \f \n \r \t \uXXXX
-            // Replace any other \X with just X
-            jsonString = jsonString.replace(/\\([^"\\/bfnrtu])/g, '$1');
+            // 3. Fix escape sequences - escape invalid backslashes (e.g. \l in \ln, \f in \frac)
+            // Valid JSON escapes: \" \\ \/ \b \f \n \r \t \uXXXX
+            // We want to preserve valid escapes, but escape the backslash for others (e.g. \ln -> \\ln)
+            jsonString = jsonString.replace(/\\(u[0-9a-fA-F]{4}|[^])/g, (match, group1) => {
+                // If it matched a valid unicode escape \uXXXX
+                if (group1.length === 5 && group1.startsWith('u')) {
+                    return match;
+                }
+                // If it matched a single character
+                const char = group1;
+                if (['"', '\\', '/', 'b', 'f', 'n', 'r', 't'].includes(char)) {
+                    return match; // Keep valid single-char escapes
+                }
+                // Otherwise, it's an invalid escape (like \l, \a, etc.), so escape the backslash
+                return '\\\\' + char;
+            });
 
             // 4. Remove trailing commas before ] or }
             jsonString = jsonString.replace(/,(\s*[\]}])/g, '$1');

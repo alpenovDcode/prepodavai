@@ -1,17 +1,17 @@
-import { Controller, Post, Body, Get, Param, Res, UseGuards, Header } from '@nestjs/common';
+import { Controller, Post, Body, Get, Param, Res, UseGuards, Header, Req } from '@nestjs/common';
 import { Response } from 'express';
 import { GamesService } from './games.service';
 import { CreateGameDto } from './dto/create-game.dto';
-// import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'; // Optional: protect generation
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @Controller('games')
 export class GamesController {
     constructor(private readonly gamesService: GamesService) { }
 
     @Post('generate')
-    // @UseGuards(JwtAuthGuard) // Uncomment if auth is required
-    async generate(@Body() createGameDto: CreateGameDto) {
-        return this.gamesService.generateGame(createGameDto);
+    @UseGuards(JwtAuthGuard)
+    async generate(@Body() createGameDto: CreateGameDto, @Req() req) {
+        return this.gamesService.generateGame(createGameDto, req.user.userId);
     }
 
     @Get(':id')
