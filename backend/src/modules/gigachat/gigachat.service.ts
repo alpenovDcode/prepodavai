@@ -150,7 +150,7 @@ export class GigachatService {
     return this.defaultModels[mode] || 'GigaChat-2-Max';
   }
 
-  async crempletateChatCoion(payload: Record<string, any>) {
+  async createChatCompletion(payload: Record<string, any>) {
     return this.requestJson({
       method: 'POST',
       url: '/chat/completions',
