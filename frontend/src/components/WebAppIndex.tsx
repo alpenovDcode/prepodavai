@@ -12,7 +12,7 @@ import { apiClient } from '@/lib/api/client' // Используется в init
 
 export default function WebAppIndex() {
   const router = useRouter()
-  const [currentFunctionId, setCurrentFunctionId] = useState('aiAssistant')
+  const [currentFunctionId, setCurrentFunctionId] = useState('worksheet') // Изменено с aiAssistant на worksheet
   const [form, setForm] = useState<Record<string, any>>({})
   const [isGenerating, setIsGenerating] = useState(false)
   const [isExporting, setIsExporting] = useState(false)

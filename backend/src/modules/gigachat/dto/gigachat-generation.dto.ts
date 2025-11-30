@@ -15,13 +15,10 @@ export type GigachatMode =
   | 'chat'
   | 'image'
   | 'embeddings'
-  | 'audio_speech'
-  | 'audio_transcription'
-  | 'audio_translation'
   | 'tokens_count';
 
 export class GigachatGenerationDto {
-  @IsIn(['chat', 'image', 'embeddings', 'audio_speech', 'audio_transcription', 'audio_translation', 'tokens_count'])
+  @IsIn(['chat', 'image', 'embeddings', 'tokens_count'])
   mode: GigachatMode;
 
   @IsOptional()

@@ -93,7 +93,7 @@ export interface FunctionTemplate {
 }
 
 export const functions = [
-  { id: 'aiAssistant', title: 'AI-ассистент', icon: 'fas fa-robot' },
+  // { id: 'aiAssistant', title: 'AI-ассистент', icon: 'fas fa-robot' }, // Временно скрыто
   { id: 'worksheet', title: 'Рабочий лист', icon: 'fas fa-file-alt' },
   { id: 'quiz', title: 'Тест', icon: 'fas fa-question-circle' },
   { id: 'vocabulary', title: 'Словарь', icon: 'fas fa-book' },
@@ -103,8 +103,8 @@ export const functions = [
   { id: 'presentation', title: 'Презентация', icon: 'fas fa-slideshare' },
   { id: 'image', title: 'Изображение', icon: 'fas fa-image' },
   { id: 'photosession', title: 'Фотосессия', icon: 'fas fa-camera' },
-  { id: 'transcription', title: 'Транскрибация', icon: 'fas fa-file-audio' },
-  { id: 'transcription', title: 'Транскрибация', icon: 'fas fa-file-audio' },
+  // { id: 'transcription', title: 'Транскрибация', icon: 'fas fa-file-audio' }, // Временно скрыто
+  // { id: 'transcription', title: 'Транскрибация', icon: 'fas fa-file-audio' }, // Временно скрыто (дубликат)
   { id: 'message', title: 'Сообщение', icon: 'fas fa-envelope' },
   { id: 'game', title: 'Создать игру', icon: 'fas fa-gamepad' }
 ]

@@ -87,14 +87,13 @@ export class GigachatService {
     }
     this.logger.log('-----------------------------');
 
-    // Force disable TLS verification to avoid ECONNRESET with Sber servers
     this.httpsAgent = new https.Agent({
       rejectUnauthorized: false,
     });
 
     this.http = axios.create({
       baseURL: this.apiBaseUrl,
-      timeout: 120000, // 120 секунд для генерации изображений
+      timeout: 120000,
       httpsAgent: this.httpsAgent,
     });
 
@@ -104,18 +103,6 @@ export class GigachatService {
       embeddings: this.configService.get<string>(
         'GIGACHAT_DEFAULT_EMBEDDINGS_MODEL',
         'GigaChat-Embedding',
-      ),
-      audio_speech: this.configService.get<string>(
-        'GIGACHAT_DEFAULT_AUDIO_MODEL',
-        'GigaChat-Audio',
-      ),
-      audio_transcription: this.configService.get<string>(
-        'GIGACHAT_DEFAULT_AUDIO_MODEL',
-        'GigaChat-Audio',
-      ),
-      audio_translation: this.configService.get<string>(
-        'GIGACHAT_DEFAULT_AUDIO_MODEL',
-        'GigaChat-Audio',
       ),
       tokens_count: this.configService.get<string>('GIGACHAT_DEFAULT_CHAT_MODEL', 'GigaChat-2-Max'),
     };
@@ -163,7 +150,7 @@ export class GigachatService {
     return this.defaultModels[mode] || 'GigaChat-2-Max';
   }
 
-  async createChatCompletion(payload: Record<string, any>) {
+  async crempletateChatCoion(payload: Record<string, any>) {
     return this.requestJson({
       method: 'POST',
       url: '/chat/completions',
@@ -560,10 +547,6 @@ export class GigachatService {
     if (!force && this.accessToken && Date.now() < this.tokenExpiresAt - 60 * 1000) {
       return this.accessToken;
     }
-
-    // Используем GIGACHAT_AUTH_TOKEN если доступен
-    // Если он содержит ':', значит это raw id:secret, нужно закодировать
-    // Если нет, считаем что это уже base64
     let authHeader: string;
 
     if (this.authToken) {

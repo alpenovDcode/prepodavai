@@ -36,10 +36,7 @@ export type GenerationType =
   | 'transcription'
   | 'gigachat-chat'
   | 'gigachat-image'
-  | 'gigachat-embeddings'
-  | 'gigachat-audio-speech'
-  | 'gigachat-audio-transcription'
-  | 'gigachat-audio-translation';
+  | 'gigachat-embeddings';
 
 export interface GenerationRequest {
   userId: string;
@@ -66,10 +63,6 @@ export class GenerationsService {
     @InjectQueue('gamma-polling') private gammaPollingQueue: Queue,
   ) { }
 
-  /**
-   * Создать запрос на генерацию
-   * Все генерации работают через webhooks (n8n)
-   */
   async createGeneration(request: GenerationRequest) {
     const { userId, generationType, inputParams, model } = request;
 
@@ -463,17 +456,14 @@ export class GenerationsService {
     try {
       this.logger.log(`Starting Gamma presentation generation for request ${generationRequestId}`);
 
-      // Build Gamma API request from input parameters
       const gammaRequest = this.gammaService.buildGenerationRequest(inputParams);
 
       this.logger.log(`Gamma request payload: ${JSON.stringify(gammaRequest, null, 2)}`);
 
-      // Call Gamma API to start generation
       const gammaResponse = await this.gammaService.generatePresentation(gammaRequest);
 
       this.logger.log(`Gamma API response: ${JSON.stringify(gammaResponse, null, 2)}`);
 
-      // Store Gamma generation ID in metadata for tracking
       await this.prisma.generationRequest.update({
         where: { id: generationRequestId },
         data: {
@@ -1139,9 +1129,6 @@ ${details.length ? details.join('\n') : 'Предмет не указан. Вы�
       'gigachat-chat': '',
       'gigachat-image': '',
       'gigachat-embeddings': '',
-      'gigachat-audio-speech': '',
-      'gigachat-audio-transcription': '',
-      'gigachat-audio-translation': '',
     };
 
     return webhookMap[generationType] || `${baseUrl}/chatgpt-hook`;
@@ -1168,9 +1155,6 @@ ${details.length ? details.join('\n') : 'Предмет не указан. Вы�
       'gigachat-chat': '',
       'gigachat-image': '',
       'gigachat-embeddings': '',
-      'gigachat-audio-speech': '',
-      'gigachat-audio-transcription': '',
-      'gigachat-audio-translation': '',
     };
 
     return callbackMap[generationType];
@@ -1461,9 +1445,6 @@ ${studentWork}
       'gigachat-chat': 'gigachat_text',
       'gigachat-image': 'gigachat_image',
       'gigachat-embeddings': 'gigachat_embeddings',
-      'gigachat-audio-speech': 'gigachat_audio',
-      'gigachat-audio-transcription': 'gigachat_audio',
-      'gigachat-audio-translation': 'gigachat_audio',
     };
 
     return map[generationType];
@@ -1488,9 +1469,6 @@ ${studentWork}
       'gigachat-chat': 'GigaChat',
       'gigachat-image': 'GigaChat-2-Max',
       'gigachat-embeddings': 'GigaChat-Embedding',
-      'gigachat-audio-speech': 'GigaChat-Audio',
-      'gigachat-audio-transcription': 'GigaChat-Audio',
-      'gigachat-audio-translation': 'GigaChat-Audio',
     };
 
     return modelMap[generationType];

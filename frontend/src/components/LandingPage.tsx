@@ -38,11 +38,6 @@ export default function LandingPage() {
       description: 'Создавайте уникальные иллюстрации для уроков'
     },
     {
-      icon: 'fas fa-video',
-      title: 'Транскрибация видео',
-      description: 'Преобразуйте видеоуроки в текстовый формат'
-    },
-    {
       icon: 'fas fa-presentation',
       title: 'Создание презентаций',
       description: 'Генерируйте структуру презентаций автоматически'
@@ -51,6 +46,11 @@ export default function LandingPage() {
       icon: 'fas fa-envelope',
       title: 'Шаблоны сообщений',
       description: 'Готовые шаблоны для переписки с родителями'
+    },
+    {
+      icon: 'fas fa-envelope',
+      title: 'Создание интерактивных игр',
+      description: 'Готовые шаблоны игр для уроков'
     }
   ]
 
@@ -160,7 +160,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Benefits Section */}
+      {/* Benefits Section
       <section className="py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-orange-50 to-white">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
@@ -195,7 +195,7 @@ export default function LandingPage() {
             </div>
           </div>
         </div>
-      </section>
+      </section> */}
 
       {/* CTA Section */}
       <section className="py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-orange-500 to-orange-600">

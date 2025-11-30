@@ -13,9 +13,6 @@ export class GigachatGenerationsService {
     chat: 'gigachat_text',
     image: 'gigachat_image',
     embeddings: 'gigachat_embeddings',
-    audio_speech: 'gigachat_tts',
-    audio_transcription: 'gigachat_stt',
-    audio_translation: 'gigachat_translation',
     tokens_count: 'gigachat_tokens_count',
   };
 
@@ -29,18 +26,11 @@ export class GigachatGenerationsService {
   async generate(userId: string, dto: GigachatGenerationDto) {
     this.logger.log(`Starting GigaChat generation: userId=${userId}, mode=${dto.mode}, model=${dto.model}`);
 
-    // Валидация обязательных полей в зависимости от режима
     if (dto.mode === 'image' && !dto.prompt) {
       throw new BadRequestException('Поле "prompt" обязательно для генерации изображений');
     }
     if (dto.mode === 'chat' && !dto.userPrompt) {
       throw new BadRequestException('Поле "userPrompt" обязательно для текстовой генерации');
-    }
-    if ((dto.mode === 'embeddings' || dto.mode === 'audio_speech') && !dto.inputText) {
-      throw new BadRequestException('Поле "inputText" обязательно для этого режима');
-    }
-    if ((dto.mode === 'audio_transcription' || dto.mode === 'audio_translation') && !dto.audioHash) {
-      throw new BadRequestException('Поле "audioHash" обязательно для этого режима');
     }
 
     const operationType = this.modeToOperation[dto.mode] || 'gigachat_text';
@@ -121,37 +111,12 @@ export class GigachatGenerationsService {
           quality: dto.quality || 'high',
         });
       }
-      case 'embeddings': {
-        return this.gigachatService.createEmbeddings({
-          model,
-          input: dto.inputTexts || [],
-        });
-      }
-      case 'audio_speech': {
-        return this.gigachatService.createSpeech({
-          model,
-          input: dto.inputText,
-          voice: dto.voice || 'BYS',
-          format: dto.audioFormat || 'mp3',
-          speed: dto.audioSpeed || 1.0,
-        });
-      }
-      case 'audio_transcription': {
-        const file = await this.loadFile(dto.audioHash);
-        return this.gigachatService.createTranscription({
-          model,
-          language: dto.language,
-          file,
-        });
-      }
-      case 'audio_translation': {
-        const file = await this.loadFile(dto.audioHash);
-        return this.gigachatService.createTranslation({
-          model,
-          targetLanguage: dto.targetLanguage,
-          file,
-        });
-      }
+      // case 'embeddings': {
+      //   return this.gigachatService.createEmbeddings({
+      //     model,
+      //     input: dto.inputTexts || [],
+      //   });
+      // }
       case 'tokens_count': {
         return this.gigachatService.countTokens({
           model,
@@ -161,40 +126,6 @@ export class GigachatGenerationsService {
       default:
         throw new BadRequestException(`Неизвестный режим GigaChat: ${dto.mode}`);
     }
-  }
-
-  private async loadFile(hash?: string) {
-    if (!hash) {
-      throw new BadRequestException('Хеш файла обязателен для этого режима');
-    }
-
-    const file = await this.filesService.getFile(hash);
-    if (!file) {
-      throw new BadRequestException('Файл не найден или был удален');
-    }
-
-    const extension = this.detectExtension(file.mimeType);
-
-    return {
-      buffer: file.buffer,
-      filename: `${hash}.${extension}`,
-      mimeType: file.mimeType,
-    };
-  }
-
-  private detectExtension(mimeType: string) {
-    const mapping: Record<string, string> = {
-      'audio/mpeg': 'mp3',
-      'audio/mp3': 'mp3',
-      'audio/wav': 'wav',
-      'audio/x-wav': 'wav',
-      'audio/webm': 'webm',
-      'audio/ogg': 'ogg',
-      'audio/mp4': 'm4a',
-      'audio/aac': 'aac',
-    };
-
-    return mapping[mimeType] || 'bin';
   }
 
   private async normalizeResult(dto: GigachatGenerationDto, model: string, rawResult: any) {
@@ -229,22 +160,6 @@ export class GigachatGenerationsService {
           ...base,
           embedding,
           dimensions: embedding.length,
-          raw: rawResult,
-        };
-      }
-      case 'audio_speech': {
-        const audioUrl = this.bufferToDataUrl(rawResult?.buffer, rawResult?.mimeType);
-        return {
-          ...base,
-          audioUrl,
-          mimeType: rawResult?.mimeType,
-        };
-      }
-      case 'audio_transcription':
-      case 'audio_translation': {
-        return {
-          ...base,
-          content: this.extractTranscription(rawResult),
           raw: rawResult,
         };
       }

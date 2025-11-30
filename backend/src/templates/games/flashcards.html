@@ -240,13 +240,10 @@
     </p>
 
     <script>
-        // --- ДАННЫЕ (PLACEHOLDER) ---
-        // В реальном приложении бэкенд заменит этот массив.
         const GAME_CONFIG = {{ GAME_DATA }};
         let CARDS_DATA = GAME_CONFIG.data;
         const GAME_TOPIC = GAME_CONFIG.topic;
 
-        // Display topic in header
         document.getElementById('deck-title').innerText = `Флеш-карточки: ${GAME_TOPIC}`;
 
         // --- ЛОГИКА ПРИЛОЖЕНИЯ ---
@@ -265,7 +262,6 @@
         }
 
         function renderCard() {
-            // Сбрасываем переворот перед сменой контента
             cardElement.classList.remove('is-flipped');
 
             // Небольшая задержка для плавности, если карточка была перевернута

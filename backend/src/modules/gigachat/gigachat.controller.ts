@@ -26,7 +26,7 @@ export class GigachatController {
     private readonly gigachatGenerationsService: GigachatGenerationsService,
     private readonly gigachatService: GigachatService,
     private readonly htmlExportService: HtmlExportService,
-  ) {}
+  ) { }
 
   @Post('generate')
   @UseGuards(JwtAuthGuard)
