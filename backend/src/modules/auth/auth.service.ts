@@ -1,7 +1,9 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { UsersService } from '../users/users.service';
+import { PrismaService } from '../../common/prisma/prisma.service';
+import { SmscService } from '../smsc/smsc.service';
 import * as crypto from 'crypto';
 
 @Injectable()
@@ -10,6 +12,8 @@ export class AuthService {
     private usersService: UsersService,
     private jwtService: JwtService,
     private configService: ConfigService,
+    private prisma: PrismaService,
+    private smscService: SmscService,
   ) { }
 
   /**
@@ -184,5 +188,86 @@ export class AuthService {
    */
   async validateUser(userId: string) {
     return this.usersService.findById(userId);
+  }
+
+  /**
+   * Отправка кода подтверждения на телефон
+   */
+  async sendPhoneVerificationCode(phone: string) {
+    // 1. Генерируем код
+    const code = Math.floor(1000 + Math.random() * 9000).toString(); // 4 цифры
+
+    // 2. Сохраняем в БД (или обновляем)
+    // Удаляем старые коды для этого телефона
+    await this.prisma.verificationCode.deleteMany({
+      where: { phone, type: 'sms' },
+    });
+
+    // Создаем новый
+    await this.prisma.verificationCode.create({
+      data: {
+        phone,
+        code,
+        type: 'sms',
+        expiresAt: new Date(Date.now() + 5 * 60 * 1000), // 5 минут
+      },
+    });
+
+    // 3. Отправляем SMS
+    const message = `Ваш код подтверждения PrepodavAI: ${code}`;
+    const sent = await this.smscService.sendSms(phone, message);
+
+    if (!sent) {
+      throw new BadRequestException('Не удалось отправить SMS. Попробуйте позже.');
+    }
+
+    return { success: true, message: 'SMS отправлено' };
+  }
+
+  /**
+   * Вход по номеру телефона и коду
+   */
+  async loginWithPhone(phone: string, code: string) {
+    // 1. Ищем код
+    const record = await this.prisma.verificationCode.findFirst({
+      where: {
+        phone,
+        code,
+        type: 'sms',
+        verified: false,
+        expiresAt: { gt: new Date() },
+      },
+    });
+
+    if (!record) {
+      throw new UnauthorizedException('Неверный код или срок действия истек');
+    }
+
+    // 2. Помечаем как использованный
+    await this.prisma.verificationCode.update({
+      where: { id: record.id },
+      data: { verified: true },
+    });
+
+    // 3. Находим или создаем пользователя
+    const user = await this.usersService.findOrCreateByPhone(phone);
+
+    // 4. Обновляем lastAccess
+    await this.usersService.updateLastAccess(user.id);
+
+    // 5. Генерируем токен
+    const token = this.generateJwtToken(user.id);
+
+    return {
+      success: true,
+      token,
+      user: {
+        id: user.id,
+        phone: user.phone,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        username: user.username,
+      },
+    };
   }
 }

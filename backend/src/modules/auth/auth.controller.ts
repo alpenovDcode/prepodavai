@@ -19,4 +19,14 @@ export class AuthController {
   async login(@Body() body: { username: string; pass: string }) {
     return this.authService.login(body.username, body.pass);
   }
+
+  @Post('phone/send-code')
+  async sendPhoneVerificationCode(@Body() body: { phone: string }) {
+    return this.authService.sendPhoneVerificationCode(body.phone);
+  }
+
+  @Post('phone/login')
+  async loginWithPhone(@Body() body: { phone: string; code: string }) {
+    return this.authService.loginWithPhone(body.phone, body.code);
+  }
 }

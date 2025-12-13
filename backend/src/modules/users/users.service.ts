@@ -108,4 +108,31 @@ export class UsersService {
       data: { lastAccessAt: new Date() },
     });
   }
+
+  /**
+   * Найти или создать пользователя по номеру телефона
+   */
+  async findOrCreateByPhone(phone: string) {
+    let user = await this.prisma.appUser.findFirst({ // Phone is not unique in schema, but we treat it as unique here
+      where: { phone },
+    });
+
+    if (!user) {
+      const apiKey = this.generateApiKey();
+      const userHash = `phone_${phone}`;
+
+      user = await this.prisma.appUser.create({
+        data: {
+          phone,
+          userHash,
+          apiKey,
+          source: 'web', // Default for phone auth
+          phoneVerified: true,
+          lastAccessAt: new Date(),
+        },
+      });
+    }
+
+    return user;
+  }
 }
