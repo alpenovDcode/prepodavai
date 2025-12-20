@@ -343,6 +343,7 @@ export class GenerationsService {
                 Authorization: `Bearer ${replicateToken}`,
                 'Content-Type': 'application/json',
               },
+              timeout: 300000,
             },
           );
 

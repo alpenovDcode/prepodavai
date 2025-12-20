@@ -93,7 +93,7 @@ export class GigachatService {
 
     this.http = axios.create({
       baseURL: this.apiBaseUrl,
-      timeout: 120000,
+      timeout: 300000,
       httpsAgent: this.httpsAgent,
     });
 
