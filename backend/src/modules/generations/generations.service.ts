@@ -461,7 +461,7 @@ export class GenerationsService {
     try {
       this.logger.log(`Starting Replicate presentation generation for request ${generationRequestId}`);
 
-      const inputText = inputParams.prompt || inputParams.text || inputParams.topic || '';
+      const inputText = inputParams.prompt || inputParams.text || inputParams.topic || inputParams.inputText || '';
       const numCards = inputParams.length || 8;
 
       if (!inputText) {
