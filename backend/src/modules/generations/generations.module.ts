@@ -12,6 +12,7 @@ import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { GigachatModule } from '../gigachat/gigachat.module';
 import { GammaModule } from '../gamma/gamma.module';
 import { HtmlPostprocessorService } from '../../common/services/html-postprocessor.service';
+import { HtmlExportService } from '../../common/services/html-export.service';
 import { FilesModule } from '../files/files.module';
 
 @Module({
@@ -46,6 +47,7 @@ import { FilesModule } from '../files/files.module';
     GammaPollingProcessor,
     ReplicatePresentationProcessor,
     HtmlPostprocessorService,
+    HtmlExportService,
   ],
   exports: [GenerationsService, GenerationQueueService, GenerationHelpersService],
 })
