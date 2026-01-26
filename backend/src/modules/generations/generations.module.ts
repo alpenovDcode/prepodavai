@@ -6,6 +6,7 @@ import { GenerationHelpersService } from './generation-helpers.service';
 import { GenerationQueueService } from './generation-queue.service';
 import { TelegramSenderProcessor } from './processors/telegram-sender.processor';
 import { GammaPollingProcessor } from './processors/gamma-polling.processor';
+import { ReplicatePresentationProcessor } from './processors/replicate-presentation.processor';
 import { TelegramModule } from '../telegram/telegram.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { GigachatModule } from '../gigachat/gigachat.module';
@@ -27,6 +28,9 @@ import { FilesModule } from '../files/files.module';
     BullModule.registerQueue({
       name: 'gamma-polling',
     }),
+    BullModule.registerQueue({
+      name: 'replicate-presentation',
+    }),
     TelegramModule,
     SubscriptionsModule,
     forwardRef(() => GigachatModule),
@@ -40,6 +44,7 @@ import { FilesModule } from '../files/files.module';
     GenerationQueueService,
     TelegramSenderProcessor,
     GammaPollingProcessor,
+    ReplicatePresentationProcessor,
     HtmlPostprocessorService,
   ],
   exports: [GenerationsService, GenerationQueueService, GenerationHelpersService],

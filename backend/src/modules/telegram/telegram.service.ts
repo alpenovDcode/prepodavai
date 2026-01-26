@@ -152,6 +152,14 @@ export class TelegramService {
     const exportUrl = result.exportUrl || result.pdfUrl || result.pptxUrl;
 
     if (!exportUrl) {
+      // Check if we have raw presentation data (Replicate)
+      if (result.presentation) {
+        const message = `✅ Ваша презентация готова!${result.inputText ? `\n\n📌 Тема: ${result.inputText}` : ''
+          }\n\n🌐 Просмотр доступен в веб-версии: https://prrv.pro`;
+        await this.bot.api.sendMessage(chatId, message);
+        return;
+      }
+
       // Если нет файла для скачивания, отправляем только ссылку на Gamma
       const message = `✅ Ваша презентация готова!${result.inputText ? `\n\n📌 Тема: ${result.inputText}` : ''
         }${result.gammaUrl ? `\n\n🔗 [Открыть в Gamma](${result.gammaUrl})` : ''}`;

@@ -61,6 +61,7 @@ export class GenerationsService {
     private htmlPostprocessor: HtmlPostprocessorService,
     private filesService: FilesService,
     @InjectQueue('gamma-polling') private gammaPollingQueue: Queue,
+    @InjectQueue('replicate-presentation') private readonly replicatePresentationQueue: Queue,
   ) { }
 
   async createGeneration(request: GenerationRequest) {
@@ -84,9 +85,9 @@ export class GenerationsService {
       model: model || this.getDefaultModel(generationType),
     });
 
-    // Прямые генерации через Gamma API (презентации)
+    // Генерации через Replicate (презентации)
     if (generationType === 'presentation') {
-      const directResult = await this.handleDirectGammaGeneration(
+      const directResult = await this.handleReplicatePresentationGeneration(
         generationRequest.id,
         inputParams,
       );
@@ -450,66 +451,46 @@ export class GenerationsService {
   /**
    * Обработка генерации презентаций напрямую через Gamma API
    */
-  private async handleDirectGammaGeneration(
+  /**
+   * Обработка генерации презентаций через Replicate (Claude + Nano Banana)
+   */
+  private async handleReplicatePresentationGeneration(
     generationRequestId: string,
     inputParams: Record<string, any>,
   ) {
     try {
-      this.logger.log(`Starting Gamma presentation generation for request ${generationRequestId}`);
+      this.logger.log(`Starting Replicate presentation generation for request ${generationRequestId}`);
 
-      const gammaRequest = this.gammaService.buildGenerationRequest(inputParams);
+      const inputText = inputParams.prompt || inputParams.text || inputParams.topic || '';
+      const numCards = inputParams.length || 8;
 
-      this.logger.log(`Gamma request payload: ${JSON.stringify(gammaRequest, null, 2)}`);
+      if (!inputText) {
+        throw new BadRequestException('No prompt provided for presentation generation');
+      }
 
-      const gammaResponse = await this.gammaService.generatePresentation(gammaRequest);
-
-      this.logger.log(`Gamma API response: ${JSON.stringify(gammaResponse, null, 2)}`);
-
-      await this.prisma.generationRequest.update({
-        where: { id: generationRequestId },
-        data: {
-          metadata: {
-            gammaGenerationId: gammaResponse.id,
-            gammaStatus: gammaResponse.status,
-          } as any,
-        },
+      await this.replicatePresentationQueue.add('generate-presentation', {
+        generationRequestId,
+        inputText,
+        numCards,
       });
 
-      // Enqueue polling job to check status every 5 seconds
-      await this.gammaPollingQueue.add(
-        'poll-gamma-status',
-        {
-          generationRequestId,
-          gammaGenerationId: gammaResponse.id,
-          attempt: 1,
-        },
-        {
-          delay: 5000, // Start polling after 5 seconds
-          attempts: 1, // Don't retry the job itself, processor handles retries
-          removeOnComplete: true,
-          removeOnFail: false,
-        },
-      );
+      this.logger.log(`Enqueued Replicate presentation job for ${generationRequestId}`);
 
-      this.logger.log(`Enqueued polling job for Gamma generation ${gammaResponse.id}`);
-
-      // Return pending status - presentation will complete via polling worker
       return {
-        provider: 'Gamma AI',
+        provider: 'Replicate',
         mode: 'presentation',
         status: 'pending',
-        gammaGenerationId: gammaResponse.id,
         requestId: generationRequestId,
-        completedAt: new Date().toISOString(),
+        createdAd: new Date().toISOString(),
       };
     } catch (error: any) {
       this.logger.error(
-        `Gamma presentation generation failed for ${generationRequestId}: ${error?.message || error}`,
+        `Replicate presentation generation failed for ${generationRequestId}: ${error?.message || error}`,
         error?.stack,
       );
       await this.generationHelpers.failGeneration(
         generationRequestId,
-        error?.response?.data?.message || error?.message || 'Ошибка генерации через Gamma API',
+        error?.message || 'Ошибка генерации презентации',
       );
       throw error;
     }
