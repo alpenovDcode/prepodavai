@@ -22,6 +22,7 @@ export class FilesService {
     '.ogg',
     '.m4a',
     '.aac',
+    '.pptx',
   ];
   private readonly maxFileSize = 100 * 1024 * 1024; // 100MB
 
@@ -108,6 +109,36 @@ export class FilesService {
 
     // Сохраняем файл
     await fs.writeFile(filePath, file.buffer);
+
+    // Возвращаем hash и URL для доступа к файлу
+    const baseUrl = this.configService.get<string>('BASE_URL', 'http://localhost:3001');
+    const fileUrl = `${baseUrl}/api/files/${fileHash}`;
+
+    return {
+      hash: fileHash,
+      url: fileUrl,
+    };
+  }
+
+  /**
+   * Сохранить буфер как файл
+   */
+  async saveBuffer(buffer: Buffer, originalName: string): Promise<{ hash: string; url: string }> {
+    // Проверка размера
+    if (buffer.length > this.maxFileSize) {
+      throw new BadRequestException(`File size exceeds ${this.maxFileSize / 1024 / 1024}MB`);
+    }
+
+    // Проверка расширения
+    const fileExtension = path.extname(originalName);
+    this.validateExtension(fileExtension);
+
+    // Генерируем уникальный hash для файла
+    const fileHash = crypto.randomBytes(16).toString('hex');
+    const filePath = this.getSafeFilePath(fileHash, fileExtension);
+
+    // Сохраняем файл
+    await fs.writeFile(filePath, buffer);
 
     // Возвращаем hash и URL для доступа к файлу
     const baseUrl = this.configService.get<string>('BASE_URL', 'http://localhost:3001');

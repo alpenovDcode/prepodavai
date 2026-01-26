@@ -5,18 +5,20 @@ import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 import { GenerationHelpersService } from '../generation-helpers.service';
 import { PrismaService } from '../../../common/prisma/prisma.service';
+import { HtmlExportService } from '../../../common/services/html-export.service';
+import { FilesService } from '../../files/files.service';
 
 export interface ReplicatePresentationJobData {
     generationRequestId: string;
     inputText: string;
-    numCards: number; // Number of slides
+    numCards: number;
 }
 
 interface Slide {
     title: string;
-    content: string; // Bullet points or text
-    imagePrompt: string; // Prompt for generating the image
-    imageUrl?: string; // Filled later
+    content: string;
+    imagePrompt: string;
+    imageUrl?: string;
 }
 
 interface PresentationStructure {
@@ -33,6 +35,8 @@ export class ReplicatePresentationProcessor extends WorkerHost {
         private readonly configService: ConfigService,
         private readonly generationHelpers: GenerationHelpersService,
         private readonly prisma: PrismaService,
+        private readonly htmlExportService: HtmlExportService,
+        private readonly filesService: FilesService,
         @InjectQueue('replicate-presentation') private readonly presentationQueue: Queue,
     ) {
         super();
@@ -47,22 +51,20 @@ export class ReplicatePresentationProcessor extends WorkerHost {
         this.logger.log(`Processing Replicate presentation generation for request ${generationRequestId}`);
 
         try {
-            // 1. Generate text content using Replicate (Claude 3.5 Sonnet)
+            // 1. Generate text content
             const presentationData = await this.generatePresentationContent(inputText, numCards);
             this.logger.log(`Generated presentation structure: ${JSON.stringify(presentationData, null, 2)}`);
 
-            // 2. Generate images for each slide (Replicate Nano Banana)
-            // We start all image generations in parallel if possible, or wait for them sequentially
-            // For simplicity and stability, let's do `Promise.all` with concurrency control if needed, but for < 10 slides, parallel is fine.
+            // 2. Generate images for each slide
             const slidesWithImages = await Promise.all(
                 presentationData.slides.map(async (slide) => {
                     if (slide.imagePrompt) {
                         try {
                             const imageUrl = await this.generateImage(slide.imagePrompt);
                             return { ...slide, imageUrl };
-                        } catch (imgError) {
+                        } catch (imgError: any) {
                             this.logger.error(`Failed to generate image for slide "${slide.title}": ${imgError.message}`);
-                            return { ...slide, imageUrl: null }; // Continue without image on error
+                            return { ...slide, imageUrl: null };
                         }
                     }
                     return slide;
@@ -76,11 +78,31 @@ export class ReplicatePresentationProcessor extends WorkerHost {
 
             this.logger.log(`Final presentation data: ${JSON.stringify(finalPresentation, null, 2)}`);
 
-            // 3. Save result and complete generation
+            // 3. Generate PDF
+            let pdfUrl: string | undefined;
+            let exportUrl: string | undefined;
+
+            try {
+                this.logger.log(`Generating PDF for request ${generationRequestId}`);
+                const html = this.generatePresentationHtml(finalPresentation);
+                const pdfBuffer = await this.htmlExportService.htmlToPdf(html);
+
+                const fileData = await this.filesService.saveBuffer(pdfBuffer, 'presentation.pdf');
+                pdfUrl = fileData.url;
+                exportUrl = fileData.url; // Use same URL for export
+                this.logger.log(`PDF generated and saved: ${pdfUrl}`);
+            } catch (pdfError: any) {
+                this.logger.error(`Failed to generate PDF: ${pdfError.message}`, pdfError.stack);
+                // Continue without PDF if it fails
+            }
+
+            // 4. Save result and complete generation
             const outputData = {
                 provider: 'Replicate',
                 mode: 'presentation',
-                presentation: finalPresentation, // Save full JSON structure
+                presentation: finalPresentation,
+                pdfUrl,
+                exportUrl,
                 inputText,
                 completedAt: new Date().toISOString(),
             };
@@ -115,20 +137,12 @@ Output ONLY valid JSON in the following format, without any markdown formatting 
   ]
 }
 `;
-        // Replicate API call for text generation
-        // Model: anthropic/claude-3.5-sonnet using the prediction API with 'stream: false' typically, or just waiting.
-        // Since we need to wait for completion, we might need a simple polling helper or check if 'stream: false' waits (it usually returns immediately with an id).
-        // For Replicate "predictions", we usually create a prediction and then poll for it.
-        // However, for simplicity here, I'll implement a basic create-and-poll loop.
-
         const prediction = await this.runReplicatePrediction('anthropic/claude-3.5-sonnet', {
             prompt: prompt,
             max_tokens: 2000,
             system_prompt: "You are a helpful assistant that outputs only JSON.",
         });
 
-        // The output from Claude on Replicate is usually an array of strings (parts of stream) or a joined string.
-        // We need to join it if it's an array.
         let rawOutput = "";
         if (Array.isArray(prediction.output)) {
             rawOutput = prediction.output.join('');
@@ -136,7 +150,6 @@ Output ONLY valid JSON in the following format, without any markdown formatting 
             rawOutput = prediction.output;
         }
 
-        // Clean up markdown blocks if present
         rawOutput = rawOutput.replace(/```json/g, '').replace(/```/g, '').trim();
 
         try {
@@ -149,24 +162,11 @@ Output ONLY valid JSON in the following format, without any markdown formatting 
 
 
     private async generateImage(imagePrompt: string): Promise<string> {
-        // Model: google/nano-banana (as requested by user originally? or was it just valid for the previous example?)
-        // Task description said "Картинки в презентации генерируй через https://api.replicate.com/v1/models/google/nano-banana/predictions"
-
-        // Wait, 'google/nano-banana' sounds like a very specific model or maybe the user meant something else?
-        // Let's assume the user knows what they are talking about or meant a Stable Diffusion variant. 
-        // If 'google/nano-banana' is just an example URL or a misunderstanding, I might want to use a standard fast model like 'stability-ai/sdxl' or 'black-forest-labs/flux-schnell'.
-        // BUT, I must follow USER instructions. The user provided this URL: https://api.replicate.com/v1/models/google/nano-banana/predictions
-        // Wait, "google/nano-banana" does not sound like a real public Replicate model. It might be a user's private model or a typo.
-        // However, I will try to use exactly what is requested or fall back to a standard one if it fails?
-        // Actually, looking at the user prompt: "Картинки в презентации генерируй через https://api.replicate.com/v1/models/google/nano-banana/predictions"
-        // I will use 'google/nano-banana' as the model string.
-
         const prediction = await this.runReplicatePrediction('google/nano-banana', {
             prompt: imagePrompt,
-            num_inference_steps: 20, // Reasonable default
+            num_inference_steps: 20,
         });
 
-        // Replicate image output is usually an array of URLs
         if (Array.isArray(prediction.output) && prediction.output.length > 0) {
             return prediction.output[0];
         }
@@ -180,11 +180,7 @@ Output ONLY valid JSON in the following format, without any markdown formatting 
 
     private async runReplicatePrediction(model: string, input: any): Promise<any> {
         const response = await axios.post(
-            `https://api.replicate.com/v1/models/${model}/predictions`, // This might fail if model needs version, but usually /models/owner/name/predictions works for latest version
-            // Verify if we need 'versions' instead. Replicate API usually supports /predictions with 'version' in body OR /models/.../predictions for latest.
-            // Let's stick to the URL structure requested by user if possible, or the standard one.
-            // User URL: https://api.replicate.com/v1/models/google/nano-banana/predictions
-            // This implies using the owner/name format.
+            `https://api.replicate.com/v1/models/${model}/predictions`,
             {
                 input: input,
             },
@@ -192,14 +188,13 @@ Output ONLY valid JSON in the following format, without any markdown formatting 
                 headers: {
                     Authorization: `Bearer ${this.replicateToken}`,
                     'Content-Type': 'application/json',
-                    'Prefer': 'wait', // Request to wait for completion if short
+                    'Prefer': 'wait',
                 },
             }
         );
 
         let prediction = response.data;
 
-        // If not completed (Prefer: wait might return uncompleted if it takes too long), we need to poll
         if (prediction.status !== 'succeeded' && prediction.status !== 'failed' && prediction.status !== 'canceled') {
             prediction = await this.pollPrediction(prediction.id);
         }
@@ -212,7 +207,7 @@ Output ONLY valid JSON in the following format, without any markdown formatting 
     }
 
     private async pollPrediction(predictionId: string): Promise<any> {
-        const maxAttempts = 60; // 120s timeout
+        const maxAttempts = 60;
         const delayMs = 2000;
 
         for (let i = 0; i < maxAttempts; i++) {
@@ -234,6 +229,141 @@ Output ONLY valid JSON in the following format, without any markdown formatting 
             }
         }
         throw new Error("Prediction timed out");
+    }
+
+    private generatePresentationHtml(data: PresentationStructure): string {
+        const slidesHtml = data.slides.map((slide, index) => {
+            const imageUrl = slide.imageUrl ? `<div class="image-container"><img src="${slide.imageUrl}" alt="Slide Image" crossorigin="anonymous"></div>` : '';
+            // Convert newline-separated bullet points to HTML list if possible, or just preserve newlines
+            const contentHtml = slide.content.split('\n').map(line => `<p>${line}</p>`).join('');
+
+            return `
+            <div class="slide">
+                <div class="slide-content">
+                    <h2>${slide.title}</h2>
+                    <div class="text-content">
+                        ${contentHtml}
+                    </div>
+                    ${imageUrl}
+                </div>
+                <div class="page-number">${index + 1} / ${data.slides.length}</div>
+            </div>
+            `;
+        }).join('');
+
+        return `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <style>
+                @page {
+                    size: A4 landscape;
+                    margin: 0;
+                }
+                body {
+                    margin: 0;
+                    font-family: 'Segoe UI', opt, Arial, sans-serif;
+                    background: #f0f0f0;
+                }
+                .slide {
+                    width: 297mm;
+                    height: 210mm;
+                    page-break-after: always;
+                    background: white;
+                    position: relative;
+                    overflow: hidden;
+                    display: flex;
+                    flex-direction: column;
+                    justify-content: center;
+                    padding: 40px;
+                    box-sizing: border-box;
+                }
+                .slide-content {
+                    height: 100%;
+                    display: flex;
+                    flex-direction: column;
+                }
+                h1 {
+                    font-size: 48px;
+                    color: #333;
+                    text-align: center;
+                    margin-bottom: 40px;
+                }
+                h2 {
+                    font-size: 36px;
+                    color: #2c3e50;
+                    margin-top: 0;
+                    margin-bottom: 30px;
+                    border-bottom: 2px solid #3498db;
+                    padding-bottom: 10px;
+                }
+                .text-content {
+                    font-size: 24px;
+                    color: #555;
+                    line-height: 1.5;
+                    flex: 1;
+                }
+                .image-container {
+                    margin-top: 20px;
+                    height: 400px;
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    background: #f9f9f9;
+                    border-radius: 8px;
+                    overflow: hidden;
+                }
+                img {
+                    max-width: 100%;
+                    max-height: 100%;
+                    object-fit: contain;
+                }
+                .page-number {
+                    position: absolute;
+                    bottom: 20px;
+                    right: 20px;
+                    font-size: 14px;
+                    color: #999;
+                }
+                /* Title Slide Style */
+                .slide:first-child {
+                    background: linear-gradient(135deg, #3498db, #2c3e50);
+                    color: white;
+                    align-items: center;
+                    text-align: center;
+                }
+                .slide:first-child h2 {
+                    border: none;
+                    color: white;
+                    font-size: 56px;
+                    margin-bottom: 20px;
+                }
+                .slide:first-child .text-content {
+                    color: #ecf0f1;
+                    font-size: 28px;
+                    flex: 0;
+                }
+                .slide:first-child .image-container {
+                    display: none; /* Hide image on title slide generally, or verify if we want it */
+                } 
+                /* Override image display for first slide if we want */
+            </style>
+        </head>
+        <body>
+            <!-- Title Slide (Optional, constructed from main title) -->
+            <div class="slide">
+                <div class="slide-content" style="justify-content: center; align-items: center;">
+                    <h2>${data.title}</h2>
+                    <div class="text-content">
+                        ${data.slides.length} Slides
+                    </div>
+                </div>
+            </div>
+            ${slidesHtml}
+        </body>
+        </html>
+        `;
     }
 
     @OnWorkerEvent('completed')
