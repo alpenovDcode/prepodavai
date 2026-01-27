@@ -22,7 +22,8 @@ export type OperationType =
   | 'gigachat_translation'
   | 'gigachat_embeddings'
   | 'gigachat_tokens_count'
-  | 'game_generation';
+  | 'game_generation'
+  | 'lesson_preparation';
 
 @Injectable()
 export class SubscriptionsService {
@@ -244,6 +245,13 @@ export class SubscriptionsService {
         operationName: 'Генерация игры',
         creditCost: 15,
         description: 'Создание образовательной игры',
+        isActive: true,
+      },
+      {
+        operationType: 'lesson_preparation',
+        operationName: 'Подготовка к уроку',
+        creditCost: 5,
+        description: 'Создание материалов для урока (WOW-урок)',
         isActive: true,
       },
     ];

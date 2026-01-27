@@ -169,7 +169,7 @@ export default function WebAppIndex() {
   const isAiAssistant = currentFunctionId === 'aiAssistant'
 
   const isTextResult = generationResult && (
-    ['worksheet', 'quiz', 'vocabulary', 'lessonPlan', 'content', 'feedback', 'message', 'transcription'].includes(currentFunctionId) ||
+    ['worksheet', 'quiz', 'vocabulary', 'lessonPlan', 'lessonPreparation', 'content', 'feedback', 'message', 'transcription'].includes(currentFunctionId) ||
     (currentFunctionId === 'gigachat' && ['chat', 'embeddings', 'audio_transcription', 'audio_translation', 'tokens_count'].includes(String(gigachatMode)))
   )
 
@@ -340,6 +340,8 @@ export default function WebAppIndex() {
         params = { ...params, subject: form.subject, topic: form.topic, language: form.language, wordsCount: form.wordsCount, format: form.format || 'JSON', model: form.model || 'gpt-4o', customPrompt: form.customPrompt }
       } else if (type === 'lessonPlan') {
         params = { ...params, subject: form.subject, topic: form.topic, level: form.level, duration: form.duration, objectives: form.objectives }
+      } else if (type === 'lessonPreparation') {
+        params = { ...params, subject: form.subject, topic: form.topic, level: form.level, interests: form.interests, generationTypes: form.generationTypes }
       } else if (type === 'content') {
         params = { ...params, sourceType: 'text', text: form.text, youtubeUrl: '', action: form.action, level: form.level }
       } else if (type === 'feedback') {
@@ -923,25 +925,37 @@ function stripHtmlTags(html: string) {
   return div.textContent || div.innerText || ''
 }
 
+
+function escapeHtml(text: string) {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 function renderMath(text: string) {
   if (!text) return ''
 
   let processed = stripCodeFences(String(text))
   const isHtml = isHtmlString(processed) || looksLikeFullHtmlDocument(processed)
 
+  if (!isHtml) {
+    processed = escapeHtml(processed)
+  }
+
   processed = processed.replace(/\\\((.+?)\\\)/gs, (_, formula) => {
-    const escaped = formula.replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    return `<span class="math-inline">\\(${escaped}\\)</span>`
+    // Formula might allow html entities, but we wrap it in a span
+    return `<span class="math-inline">\\(${formula}\\)</span>`
   })
 
   processed = processed.replace(/\$\$(.+?)\$\$/gs, (_, formula) => {
-    const escaped = formula.replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    return `<div class="math-block">\\[${escaped}\\]</div>`
+    return `<div class="math-block">\\[${formula}\\]</div>`
   })
 
   processed = processed.replace(/\\\[(.+?)\\\]/gs, (_, formula) => {
-    const escaped = formula.replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    return `<div class="math-block">\\[${escaped}\\]</div>`
+    return `<div class="math-block">\\[${formula}\\]</div>`
   })
 
   if (!isHtml) {

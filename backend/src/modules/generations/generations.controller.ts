@@ -159,4 +159,14 @@ export class GenerationsController {
   async deleteGeneration(@Request() req, @Param('requestId') requestId: string) {
     return this.generationsService.deleteGeneration(requestId, req.user.id);
   }
+
+  @Post('lesson-preparation')
+  @UseGuards(JwtAuthGuard)
+  async generateLessonPreparation(@Request() req, @Body() body: any) {
+    return this.generationsService.createGeneration({
+      userId: req.user.id,
+      generationType: 'lessonPreparation',
+      inputParams: body,
+    });
+  }
 }

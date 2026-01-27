@@ -110,7 +110,8 @@ export default function InputComposer({
               audio_transcription: 'gigachat_audio',
               audio_translation: 'gigachat_audio'
             },
-            game: 'game_generation'
+            game: 'game_generation',
+            lessonPreparation: 'lesson_preparation'
           }
           const opEntry = opMap[currentFunction]
           let op: string | null = null
@@ -240,6 +241,8 @@ export default function InputComposer({
       } else if (field.type === 'select' && field.options && field.options.length > 0) {
         const firstNonEmptyOption = field.options.find(opt => opt.value !== '') || field.options[0]
         defaultValues[field.key] = firstNonEmptyOption ? firstNonEmptyOption.value : field.options[0].value
+      } else if (field.type === 'multiselect') {
+        defaultValues[field.key] = []
       } else if (field.type === 'number') {
         defaultValues[field.key] = field.min !== undefined ? field.min : 0
       } else {
@@ -790,6 +793,38 @@ function FieldRenderer({
               )}
             </div>
           )}
+          {renderHelperText()}
+        </div>
+      )
+
+    case 'multiselect':
+      const currentValues = Array.isArray(values[field.key]) ? values[field.key] : []
+      return (
+        <div className="space-y-2">
+          <div className="flex flex-wrap gap-2">
+            {field.options?.map(opt => {
+              const isSelected = currentValues.includes(opt.value)
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => {
+                    const newValues = isSelected
+                      ? currentValues.filter((v: string) => v !== opt.value)
+                      : [...currentValues, opt.value]
+                    setValues(prev => ({ ...prev, [field.key]: newValues }))
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors flex items-center ${isSelected
+                    ? 'bg-[#FF7E58] text-white border-[#FF7E58]'
+                    : 'bg-white text-gray-700 border-gray-200 hover:border-[#FF7E58]/50'
+                    }`}
+                >
+                  {isSelected && <i className="fas fa-check mr-1.5 text-[10px]"></i>}
+                  {opt.label}
+                </button>
+              )
+            })}
+          </div>
           {renderHelperText()}
         </div>
       )

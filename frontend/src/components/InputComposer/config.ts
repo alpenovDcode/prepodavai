@@ -63,7 +63,7 @@ export const photosessionPrompts: FieldOption[] = [
 export interface Field {
   key: string
   label: string
-  type: 'text' | 'select' | 'number' | 'textarea' | 'file'
+  type: 'text' | 'select' | 'number' | 'textarea' | 'file' | 'multiselect'
   placeholder?: string
   options?: FieldOption[]
   min?: number
@@ -98,6 +98,7 @@ export const functions = [
   { id: 'quiz', title: 'Тест', icon: 'fas fa-question-circle' },
   { id: 'vocabulary', title: 'Словарь', icon: 'fas fa-book' },
   { id: 'lessonPlan', title: 'План урока', icon: 'fas fa-chalkboard-teacher' },
+  { id: 'lessonPreparation', title: 'Вау-урок', icon: 'fas fa-magic' },
   { id: 'content', title: 'Адаптация', icon: 'fas fa-exchange-alt' },
   { id: 'feedback', title: 'Фидбек', icon: 'fas fa-comments' },
   { id: 'presentation', title: 'Презентация', icon: 'fas fa-slideshare' },
@@ -239,6 +240,47 @@ export const templates: Record<string, FunctionTemplate> = {
           value: String(i + 1),
           label: String(i + 1)
         }))
+      }
+    ]
+  },
+  lessonPreparation: {
+    segments: [
+      { type: 'text', value: 'Создай материалы для урока по предмету ' },
+      { type: 'field', key: 'subject', label: 'Предмет', placeholder: 'Предмет' },
+      { type: 'text', value: ' на тему ' },
+      { type: 'field', key: 'topic', label: 'Тема', placeholder: 'Тема' },
+      { type: 'text', value: ' для ' },
+      { type: 'field', key: 'level', label: 'Класс', placeholder: 'класс' },
+      { type: 'text', value: '. ' },
+      { type: 'text', value: 'Ученик интересуется: ' },
+      { type: 'field', key: 'interests', label: 'Интересы', placeholder: 'Minecraft, Roblox...' },
+      { type: 'text', value: '.' }
+    ],
+    fields: [
+      { key: 'subject', label: 'Предмет', type: 'text', placeholder: 'Математика' },
+      { key: 'topic', label: 'Тема', type: 'text', placeholder: 'Дроби' },
+      {
+        key: 'level',
+        label: 'Класс',
+        type: 'select',
+        options: Array.from({ length: 11 }, (_, i) => ({
+          value: String(i + 1),
+          label: `${i + 1} класс`
+        }))
+      },
+      { key: 'interests', label: 'Интересы ученика', type: 'textarea', rows: 2, placeholder: 'Minecraft, Roblox, футбол (для персонализации)' },
+      {
+        key: 'generationTypes',
+        label: 'ЧТО СГЕНЕРИРОВАТЬ',
+        type: 'multiselect',
+        options: [
+          { value: 'lessonPlan', label: 'План урока' },
+          { value: 'worksheet', label: 'Рабочий лист' },
+          { value: 'presentation', label: 'Структура презентации' },
+          { value: 'quest', label: 'Сценарий квеста' },
+          { value: 'visuals', label: 'Тематические изображения' },
+          { value: 'quiz', label: 'Тест' }
+        ]
       }
     ]
   },

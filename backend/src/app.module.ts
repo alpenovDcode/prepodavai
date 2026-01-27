@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { BullModule } from '@nestjs/bullmq';
 
 import { AppController } from './app.controller';
@@ -78,6 +79,13 @@ import { GamesModule } from './modules/games/games.module';
     GamesModule,
   ],
   controllers: [AppController],
-  providers: [AppService, HtmlExportService],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
+    AppService,
+    HtmlExportService,
+  ],
 })
 export class AppModule { }

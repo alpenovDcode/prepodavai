@@ -5,6 +5,7 @@ import { UsersService } from '../users/users.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { SmscService } from '../smsc/smsc.service';
 import * as crypto from 'crypto';
+import * as bcrypt from 'bcryptjs';
 
 @Injectable()
 export class AuthService {
@@ -150,7 +151,11 @@ export class AuthService {
       throw new UnauthorizedException('Неверный логин или пароль');
     }
 
-    const isMatch = await import('bcrypt').then(m => m.compare(pass, user.passwordHash));
+
+
+    // ... (inside class)
+
+    const isMatch = await bcrypt.compare(pass, user.passwordHash);
 
     if (!isMatch) {
       throw new UnauthorizedException('Неверный логин или пароль');

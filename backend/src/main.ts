@@ -32,12 +32,15 @@ async function bootstrap() {
       contentSecurityPolicy: {
         directives: {
           defaultSrc: ["'self'"],
-          scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+          // Removed 'unsafe-eval' to improve security. If frontend breaks (e.g. some obscure library), revert this.
+          // Added 'unsafe-inline' for styles because many UI libraries need it.
+          scriptSrc: ["'self'", "'unsafe-inline'"],
           scriptSrcAttr: ["'unsafe-inline'"],
           styleSrc: ["'self'", "'unsafe-inline'"],
           styleSrcAttr: ["'unsafe-inline'"],
           imgSrc: ["'self'", "data:", "https:"],
           connectSrc: ["'self'", "https:"],
+          frameSrc: ["'self'", "https:"], // For iframes if needed
         },
       },
       crossOriginEmbedderPolicy: false, // Для Telegram WebApp
