@@ -39,14 +39,15 @@ export function useGenerations() {
         quiz: '/generate/quiz',
         vocabulary: '/generate/vocabulary',
         lessonPlan: '/generate/lesson-plan',
+        lessonPreparation: '/generate/lesson-preparation',
         content: '/generate/content-adaptation',
         feedback: '/generate/feedback',
         presentation: '/generate/presentation',
         image: '/generate/image',
         photosession: '/generate/photosession',
         transcription: '/generate/transcribe-video',
-      message: '/generate/message',
-      gigachat: '/gigachat/generate'
+        message: '/generate/message',
+        gigachat: '/gigachat/generate'
       }
 
       const endpoint = endpointMap[request.type] || '/generate/worksheet'
