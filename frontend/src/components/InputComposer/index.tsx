@@ -11,6 +11,7 @@ interface InputComposerProps {
   onFunctionChange: (functionId: string) => void
   onGenerate: () => void
   generationsCount?: number
+  hideNavigation?: boolean
 }
 
 export default function InputComposer({
@@ -19,7 +20,8 @@ export default function InputComposer({
   onValuesChange,
   onFunctionChange,
   onGenerate,
-  generationsCount = 0
+  generationsCount = 0,
+  hideNavigation = false
 }: InputComposerProps) {
   const [currentFunction, setCurrentFunction] = useState(functionId)
   const [localValues, setLocalValues] = useState<Record<string, any>>(values || {})
@@ -375,50 +377,52 @@ export default function InputComposer({
   return (
     <div className="w-full">
       {/* Function switcher */}
-      <div className="relative mb-3">
-        {canScrollLeft && (
-          <div className="absolute left-0 top-1/2 -translate-y-1/2 z-10">
-            <button
-              onClick={scrollLeft}
-              className="w-7 h-7 rounded-full bg-white/80 shadow border border-gray-200 flex items-center justify-center hover:bg-white"
-            >
-              <i className="fas fa-chevron-left text-gray-700 text-xs"></i>
-            </button>
-          </div>
-        )}
-        {canScrollRight && (
-          <div className="absolute right-0 top-1/2 -translate-y-1/2 z-10">
-            <button
-              onClick={scrollRight}
-              className="w-7 h-7 rounded-full bg-white/80 shadow border border-gray-200 flex items-center justify-center hover:bg-white"
-            >
-              <i className="fas fa-chevron-right text-gray-700 text-xs"></i>
-            </button>
-          </div>
-        )}
-
-        <div
-          ref={scrollWrapRef}
-          className="overflow-x-auto no-scrollbar px-8 -mx-2"
-        >
-          <div className="flex items-center gap-2 min-w-max p-1 rounded-full bg-white border border-gray-200 shadow-sm">
-            {functions.map(fn => (
+      {!hideNavigation && (
+        <div className="relative mb-3">
+          {canScrollLeft && (
+            <div className="absolute left-0 top-1/2 -translate-y-1/2 z-10">
               <button
-                key={fn.id}
-                type="button"
-                onClick={() => selectFunction(fn.id)}
-                className={`flex items-center gap-2 px-3 sm:px-4 py-1.5 rounded-full text-xs sm:text-sm font-medium transition whitespace-nowrap ${currentFunction === fn.id
-                  ? 'bg-[#FF7E58] text-white shadow'
-                  : 'text-gray-700 hover:bg-slate-50'
-                  }`}
+                onClick={scrollLeft}
+                className="w-7 h-7 rounded-full bg-white/80 shadow border border-gray-200 flex items-center justify-center hover:bg-white"
               >
-                <i className={`${fn.icon} opacity-90`}></i>
-                <span>{fn.title}</span>
+                <i className="fas fa-chevron-left text-gray-700 text-xs"></i>
               </button>
-            ))}
+            </div>
+          )}
+          {canScrollRight && (
+            <div className="absolute right-0 top-1/2 -translate-y-1/2 z-10">
+              <button
+                onClick={scrollRight}
+                className="w-7 h-7 rounded-full bg-white/80 shadow border border-gray-200 flex items-center justify-center hover:bg-white"
+              >
+                <i className="fas fa-chevron-right text-gray-700 text-xs"></i>
+              </button>
+            </div>
+          )}
+
+          <div
+            ref={scrollWrapRef}
+            className="overflow-x-auto no-scrollbar px-8 -mx-2"
+          >
+            <div className="flex items-center gap-2 min-w-max p-1 rounded-full bg-white border border-gray-200 shadow-sm">
+              {functions.map(fn => (
+                <button
+                  key={fn.id}
+                  type="button"
+                  onClick={() => selectFunction(fn.id)}
+                  className={`flex items-center gap-2 px-3 sm:px-4 py-1.5 rounded-full text-xs sm:text-sm font-medium transition whitespace-nowrap ${currentFunction === fn.id
+                    ? 'bg-[#FF7E58] text-white shadow'
+                    : 'text-gray-700 hover:bg-slate-50'
+                    }`}
+                >
+                  <i className={`${fn.icon} opacity-90`}></i>
+                  <span>{fn.title}</span>
+                </button>
+              ))}
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Sentence composer */}
       {currentFunction !== 'aiAssistant' && (
@@ -833,4 +837,3 @@ function FieldRenderer({
       return null
   }
 }
-

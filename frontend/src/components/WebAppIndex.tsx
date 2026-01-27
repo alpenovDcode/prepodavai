@@ -12,7 +12,8 @@ import { apiClient } from '@/lib/api/client' // Используется в init
 
 export default function WebAppIndex() {
   const router = useRouter()
-  const [currentFunctionId, setCurrentFunctionId] = useState('worksheet') // Изменено с aiAssistant на worksheet
+  const [currentFunctionId, setCurrentFunctionId] = useState('worksheet')
+  const [topLevelTab, setTopLevelTab] = useState<'wow' | 'all'>('wow') // По умолчанию "Вау-урок"
   const [form, setForm] = useState<Record<string, any>>({})
   const [isGenerating, setIsGenerating] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
@@ -152,6 +153,20 @@ export default function WebAppIndex() {
     setGenerationResult(null)
     setStatusMessage('')
   }
+
+  // Effect to sync currentFunctionId when switching tabs
+  useEffect(() => {
+    if (topLevelTab === 'wow') {
+      setCurrentFunctionId('lessonPreparation')
+    } else {
+      // When switching to 'all', default to 'worksheet' if currently on 'lessonPreparation'
+      setCurrentFunctionId(prev => prev === 'lessonPreparation' ? 'worksheet' : prev)
+    }
+    setGenerationResult(null)
+    setStatusMessage('')
+  }, [topLevelTab])
+
+
 
   const openHistory = () => {
     router.push('/history')
@@ -540,13 +555,38 @@ export default function WebAppIndex() {
         <div className="max-w-5xl mx-auto">
           <div className="rounded-3xl border border-[#D8E6FF] bg-white shadow-md overflow-hidden">
             <div className="p-4 sm:p-6 bg-gradient-to-r from-[#D8E6FF]/30 to-transparent">
+              {/* Top-level Tabs */}
+              <div className="flex space-x-1 mb-4 bg-gray-100/50 p-1 rounded-xl w-fit">
+                <button
+                  onClick={() => setTopLevelTab('all')}
+                  className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${topLevelTab === 'all'
+                    ? 'bg-white text-[#FF7E58] shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700 hover:bg-white/50'
+                    }`}
+                >
+                  Все функции
+                </button>
+                <button
+                  onClick={() => setTopLevelTab('wow')}
+                  className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${topLevelTab === 'wow'
+                    ? 'bg-[#FF7E58] text-white shadow-md'
+                    : 'text-gray-500 hover:text-gray-700 hover:bg-white/50'
+                    }`}
+                >
+                  Вау-урок
+                </button>
+              </div>
+
               <InputComposer
-                functionId={currentFunctionId}
+                functionId={topLevelTab === 'wow' ? 'lessonPreparation' : currentFunctionId}
                 values={form}
                 onValuesChange={onComposerUpdate}
                 onFunctionChange={onFunctionChange}
                 onGenerate={generateMaterial}
+                generationsCount={(subscription as any)?.generationsCount || 0}
+                hideNavigation={topLevelTab === 'wow'}
               />
+
             </div>
 
             {(isGenerating || statusMessage) && (
