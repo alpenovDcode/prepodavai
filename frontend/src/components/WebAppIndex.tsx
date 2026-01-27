@@ -186,7 +186,8 @@ export default function WebAppIndex() {
   const isTextResult = generationResult && (
     ['worksheet', 'quiz', 'vocabulary', 'lessonPlan', 'lessonPreparation', 'content', 'feedback', 'message', 'transcription'].includes(currentFunctionId) ||
     (currentFunctionId === 'gigachat' && ['chat', 'embeddings', 'audio_transcription', 'audio_translation', 'tokens_count'].includes(String(gigachatMode)))
-  )
+  ) && (!generationResult?.sections) // Only treat as simple text if no sections
+
 
   const isImageResult = generationResult && (
     ['image', 'photosession'].includes(currentFunctionId) ||
@@ -201,6 +202,9 @@ export default function WebAppIndex() {
     gigachatMode === 'audio_speech'
 
   const isGameResult = generationResult && currentFunctionId === 'game'
+
+  const isStructuredResult = generationResult && generationResult.sections && Array.isArray(generationResult.sections)
+
 
   const imageDisplayUrl = (() => {
     if (!generationResult) return null
@@ -640,6 +644,34 @@ export default function WebAppIndex() {
                     </button>
                   </div>
                 </div>
+
+                {/* Structured Result (Lesson Preparation) */}
+                {isStructuredResult && (
+                  <div className="space-y-4">
+                    {/* <p className="text-sm text-gray-600 mb-4">Материалы успешно сгенерированы. Откройте каждый раздел в отдельном окне:</p> */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {generationResult.sections.map((section: any, index: number) => (
+                        <div key={index} className="p-4 rounded-xl border border-[#D8E6FF] bg-gray-50 flex flex-col justify-between">
+                          <div>
+                            <h4 className="font-semibold text-gray-900 mb-1">{section.title}</h4>
+                            <p className="text-xs text-gray-500 mb-3">Нажмите, чтобы открыть или распечатать</p>
+                          </div>
+                          <button
+                            onClick={() => {
+                              const blob = new Blob([section.content], { type: 'text/html;charset=utf-8' });
+                              const url = URL.createObjectURL(blob);
+                              window.open(url, '_blank');
+                            }}
+                            className="w-full py-2 px-4 bg-white border border-[#FF7E58] text-[#FF7E58] rounded-lg text-sm font-medium hover:bg-[#FF7E58] hover:text-white transition-colors shadow-sm flex items-center justify-center gap-2"
+                          >
+                            <i className="fas fa-external-link-alt"></i>
+                            <span>Открыть</span>
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {/* Text result */}
                 {isTextResult && (

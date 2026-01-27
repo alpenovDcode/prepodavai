@@ -52,20 +52,24 @@ export class LessonPreparationProcessor extends WorkerHost {
             // As per requirements: "Generate thematic images... using google/nano-banana"
             // We will ask Claude to include [IMAGE: prompt] tags, and we will replace them.
 
-            const contentWithImages = await this.processImageTags(content);
+            // 2 & 3. Process sections and images
+            // We parse the content into sections FIRST, then process images for each section
+            // This allows us to keep the structure clean.
 
             // 3. Convert to HTML/Markdown for result
             // Since WebAppIndex expects "content", we just return the processed string.
             // If we want a PDF, we can generate it similar to presentation.
             // For now, let's return HTML string which can be downloaded.
 
-            const htmlContent = this.formatToHtml(contentWithImages, topic);
+            const parsedSections = await this.processContentSections(content, topic);
 
             // 4. Save result
             const outputData = {
                 provider: 'Replicate',
                 mode: 'lessonPreparation',
-                content: htmlContent,
+                content: null, // Legacy field
+                sections: parsedSections, // New structured field
+                htmlResult: parsedSections.map(s => s.content).join('\n\n'), // Combined HTML for backward compatibility
                 // pdfUrl, // If we decide to generate PDF later
                 completedAt: new Date().toISOString(),
             };
@@ -112,6 +116,12 @@ INSTRUCTIONS:
 4. **Visuals**: You MUST suggest relevant, high-quality images to visually support the lesson. Insert them using exactly this format: [IMAGE: <detailed, descriptive prompt for an AI image generator>].
    - The image prompt should describe the scene visually (e.g., "A colorful educational illustration of...", "A realistic diagram of...").
    - Place these tags where the images should logically appear.
+5. **Separation**: STRICTLY separate each requested material type with a delimiter line: "---SECTION: [Material Name]---".
+   - Example:
+     ---SECTION: Lesson Plan---
+     (Content)
+     ---SECTION: Quiz---
+     (Content)
 
 FORMATTING:
 - Use clean Markdown.
@@ -158,6 +168,52 @@ FORMATTING:
         }
 
         return newContent;
+    }
+
+    private async processContentSections(rawContent: string, mainTopic: string): Promise<{ title: string; content: string }[]> {
+        // Split by the delimiter
+        const sectionRegex = /---SECTION:\s*(.*?)---/g;
+        const sections: { title: string; content: string }[] = [];
+
+        let lastIndex = 0;
+        let match;
+
+        // Find all delimiters
+        while ((match = sectionRegex.exec(rawContent)) !== null) {
+            const title = match[1].trim();
+            const startIndex = match.index + match[0].length;
+            const endIndex = rawContent.indexOf('---SECTION:', startIndex);
+
+            let sectionContent = endIndex === -1
+                ? rawContent.substring(startIndex)
+                : rawContent.substring(startIndex, endIndex);
+
+            sectionContent = sectionContent.trim();
+
+            if (sectionContent) {
+                // Process images for this section
+                const contentWithImages = await this.processImageTags(sectionContent);
+                // Format HTML
+                const htmlContent = this.formatToHtml(contentWithImages, `${mainTopic} - ${title}`);
+                sections.push({
+                    title,
+                    content: htmlContent
+                });
+            }
+            lastIndex = startIndex;
+        }
+
+        // Fallback: If no sections found, treat the hole thing as one section
+        if (sections.length === 0) {
+            const contentWithImages = await this.processImageTags(rawContent);
+            const htmlContent = this.formatToHtml(contentWithImages, mainTopic);
+            sections.push({
+                title: 'Lesson Material',
+                content: htmlContent
+            });
+        }
+
+        return sections;
     }
 
     private async generateImage(imagePrompt: string): Promise<string> {
