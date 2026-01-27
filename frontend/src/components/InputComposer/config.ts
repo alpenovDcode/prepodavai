@@ -65,6 +65,7 @@ export interface Field {
   label: string
   type: 'text' | 'select' | 'number' | 'textarea' | 'file' | 'multiselect'
   placeholder?: string
+  defaultValue?: any // Default value for the field
   options?: FieldOption[]
   min?: number
   max?: number
@@ -273,6 +274,7 @@ export const templates: Record<string, FunctionTemplate> = {
         key: 'generationTypes',
         label: 'ЧТО СГЕНЕРИРОВАТЬ',
         type: 'multiselect',
+        defaultValue: ['lessonPlan', 'worksheet', 'visuals', 'quiz'],
         options: [
           { value: 'lessonPlan', label: 'План урока' },
           { value: 'worksheet', label: 'Рабочий лист' },

@@ -237,6 +237,8 @@ export default function InputComposer({
     fields.forEach(field => {
       if (specialDefaults[id] && specialDefaults[id][field.key] !== undefined) {
         defaultValues[field.key] = specialDefaults[id][field.key]
+      } else if (field.defaultValue !== undefined) {
+        defaultValues[field.key] = field.defaultValue
       } else if (field.type === 'file') {
         defaultValues[field.key] = null
         defaultValues[field.key + 'Preview'] = null
@@ -590,6 +592,35 @@ function FieldRenderer({
           />
           {renderHelperText()}
         </>
+      )
+
+    case 'multiselect':
+      return (
+        <div className="flex flex-wrap gap-2">
+          {field.options?.map(opt => {
+            const selected = (values[field.key] || []).includes(opt.value)
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => {
+                  const current = values[field.key] || []
+                  const newValues = selected
+                    ? current.filter((v: string) => v !== opt.value)
+                    : [...current, opt.value]
+                  setValues(prev => ({ ...prev, [field.key]: newValues }))
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${selected
+                  ? 'bg-[#FF7E58] text-white border-[#FF7E58]'
+                  : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+                  }`}
+              >
+                {selected && <i className="fas fa-check mr-1.5"></i>}
+                {opt.label}
+              </button>
+            )
+          })}
+        </div>
       )
 
     case 'select':
