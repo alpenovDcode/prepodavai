@@ -82,7 +82,7 @@ export function useGenerations() {
     }
   }, [])
 
-  const pollStatus = useCallback(async (requestId: string, maxAttempts: number = 60): Promise<GenerationStatus> => {
+  const pollStatus = useCallback(async (requestId: string, maxAttempts: number = 300, onProgress?: (result: any) => void): Promise<GenerationStatus> => {
     let attempts = 0
 
     return new Promise((resolve, reject) => {
@@ -99,6 +99,11 @@ export function useGenerations() {
           const status = response.data.status || {
             status: response.data.result ? 'completed' : 'pending',
             result: response.data.result
+          }
+
+          // If we have a partial result, notify the callback
+          if (status.result && onProgress) {
+            onProgress(status.result)
           }
 
           if (status.status === 'completed') {
@@ -138,13 +143,13 @@ export function useGenerations() {
     })
   }, [])
 
-  const generateAndWait = useCallback(async (request: GenerationRequest): Promise<GenerationStatus> => {
+  const generateAndWait = useCallback(async (request: GenerationRequest, onProgress?: (result: any) => void): Promise<GenerationStatus> => {
     const requestId = await generate(request)
     if (!requestId) {
       throw new Error('Не удалось создать запрос на генерацию')
     }
 
-    return pollStatus(requestId)
+    return pollStatus(requestId, 300, onProgress)
   }, [generate, pollStatus])
 
   return {

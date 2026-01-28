@@ -42,39 +42,65 @@ export class LessonPreparationProcessor extends WorkerHost {
         this.logger.log(`Processing Lesson Preparation for request ${generationRequestId}`);
 
         try {
-            // 1. Generate text content
-            const content = await this.generateLessonContent(subject, topic, level, interests, generationTypes);
-            this.logger.log(`Generated lesson content structure`);
+            const sections: { title: string; content: string }[] = [];
+            const previousContext: string[] = [];
 
-            // 2. Generate images if needed (we will parse the content for image prompts)
-            // For now, let's assume the content generation returns a structure including image prompts
-            // But to keep it simple and compatible with "text" result, we will specific format.
-            // As per requirements: "Generate thematic images... using google/nano-banana"
-            // We will ask Claude to include [IMAGE: prompt] tags, and we will replace them.
+            // Iterate through each requested type and generate content
+            for (const type of generationTypes) {
+                this.logger.log(`Generating section: ${type}`);
 
-            // 2 & 3. Process sections and images
-            // We parse the content into sections FIRST, then process images for each section
-            // This allows us to keep the structure clean.
+                // 1. Generate content for this specific type
+                const sectionRawContent = await this.generateSection(
+                    type,
+                    subject,
+                    topic,
+                    level,
+                    interests,
+                    previousContext.join('\n\n')
+                );
 
-            // 3. Convert to HTML/Markdown for result
-            // Since WebAppIndex expects "content", we just return the processed string.
-            // If we want a PDF, we can generate it similar to presentation.
-            // For now, let's return HTML string which can be downloaded.
+                // 2. Process images
+                const contentWithImages = await this.processImageTags(sectionRawContent);
 
-            const parsedSections = await this.processContentSections(content, topic);
+                // 3. Format to HTML
+                const typeLabel = this.getTypeLabel(type);
+                const htmlContent = this.formatToHtml(contentWithImages, `${topic} - ${typeLabel}`);
 
-            // 4. Save result
-            const outputData = {
+                // 4. Add to sections list
+                sections.push({
+                    title: typeLabel,
+                    content: htmlContent
+                });
+
+                // 5. Update context for next generations (keep it brief to avoid token limits)
+                // We keep the raw content of previous sections to maintain consistency
+                previousContext.push(`Context from ${typeLabel}:\n${sectionRawContent.slice(0, 1000)}...`);
+
+                // 6. Update progress in DB
+                const outputData = {
+                    provider: 'Replicate',
+                    mode: 'lessonPreparation',
+                    content: null,
+                    sections: sections,
+                    htmlResult: sections.map(s => s.content).join('\n\n'),
+                    completedAt: null, // Not finished yet
+                };
+
+                await this.generationHelpers.updateProgress(generationRequestId, outputData);
+                this.logger.log(`Updated progress for ${type}`);
+            }
+
+            // Final completion
+            const finalOutputData = {
                 provider: 'Replicate',
                 mode: 'lessonPreparation',
-                content: null, // Legacy field
-                sections: parsedSections, // New structured field
-                htmlResult: parsedSections.map(s => s.content).join('\n\n'), // Combined HTML for backward compatibility
-                // pdfUrl, // If we decide to generate PDF later
+                content: null,
+                sections: sections,
+                htmlResult: sections.map(s => s.content).join('\n\n'),
                 completedAt: new Date().toISOString(),
             };
 
-            await this.generationHelpers.completeGeneration(generationRequestId, outputData);
+            await this.generationHelpers.completeGeneration(generationRequestId, finalOutputData);
             this.logger.log(`Generation request ${generationRequestId} completed successfully`);
 
         } catch (error: any) {
@@ -87,19 +113,32 @@ export class LessonPreparationProcessor extends WorkerHost {
         }
     }
 
-    private async generateLessonContent(
+    private getTypeLabel(type: string): string {
+        const map: Record<string, string> = {
+            lessonPlan: 'План урока',
+            worksheet: 'Рабочий лист',
+            presentation: 'Структура презентации',
+            quest: 'Сценарий квеста',
+            visuals: 'Тематические изображения',
+            quiz: 'Тест'
+        };
+        return map[type] || type;
+    }
+
+    private async generateSection(
+        targetType: string,
         subject: string,
         topic: string,
         level: string,
         interests: string | undefined,
-        generationTypes: string[]
+        context: string
     ): Promise<string> {
-        const typesList = generationTypes.join(', ');
         const interestsStr = interests ? `Student Interests: ${interests}` : '';
+        const typeLabel = this.getTypeLabel(targetType);
 
         const prompt = `
-You are a world-class expert teacher and creative curriculum designer known for creating engaging, high-quality, and modern educational materials.
-Your goal is to create a "WOW-lesson" preparation package.
+You are a world-class expert teacher.
+Goal: Create a **${typeLabel}** for a lesson.
 
 Lesson Details:
 - Subject: ${subject}
@@ -107,31 +146,24 @@ Lesson Details:
 - Target Grade/Level: ${level}
 ${interestsStr}
 
-Requested Materials: ${typesList}
+CONTEXT from previous parts of this lesson:
+${context}
 
 INSTRUCTIONS:
-1. **Structure**: For each requested material type, provide a dedicated section with a clear Markdown header (e.g., "## Lesson Plan", "## Quiz", "## Visual Aids Guide").
-2. **Quality**: The content must be pedagogically sound, engaging, and directly ready to use in a classroom.
-3. **Personalization**: If student interests are provided, deeply weave them into examples, analogies, and problem scenarios.
-4. **Visuals**: You MUST suggest relevant, high-quality images to visually support the lesson. Insert them using exactly this format: [IMAGE: <detailed, descriptive prompt for an AI image generator>].
-   - The image prompt should describe the scene visually (e.g., "A colorful educational illustration of...", "A realistic diagram of...").
-   - Place these tags where the images should logically appear.
-5. **Separation**: STRICTLY separate each requested material type with a delimiter line: "---SECTION: [Material Name]---".
-   - Example:
-     ---SECTION: Lesson Plan---
-     (Content)
-     ---SECTION: Quiz---
-     (Content)
+1. Create ONLY the **${typeLabel}**. Do not create other materials.
+2. **Quality**: Pedagogically sound, engaging, ready for classroom.
+3. **Personalization**: Weave in interests (${interests || 'none'}).
+4. **Visuals**: Suggest images using format: [IMAGE: <detailed prompt>].
+   - Insert tags where images logically appear.
+5. **Format**: Use clean Markdown.
 
-FORMATTING:
-- Use clean Markdown.
-- Use bullet points and numbered lists where appropriate.
+Output ONLY the content for ${typeLabel}.
 `;
 
         const prediction = await this.runReplicatePrediction('anthropic/claude-3.5-sonnet', {
             prompt: prompt,
-            max_tokens: 4000,
-            system_prompt: "You are a helpful and creative educational assistant.",
+            max_tokens: 2000,
+            system_prompt: "You are a helpful educational assistant.",
         });
 
         let rawOutput = "";
@@ -170,51 +202,7 @@ FORMATTING:
         return newContent;
     }
 
-    private async processContentSections(rawContent: string, mainTopic: string): Promise<{ title: string; content: string }[]> {
-        // Split by the delimiter
-        const sectionRegex = /---SECTION:\s*(.*?)---/g;
-        const sections: { title: string; content: string }[] = [];
 
-        let lastIndex = 0;
-        let match;
-
-        // Find all delimiters
-        while ((match = sectionRegex.exec(rawContent)) !== null) {
-            const title = match[1].trim();
-            const startIndex = match.index + match[0].length;
-            const endIndex = rawContent.indexOf('---SECTION:', startIndex);
-
-            let sectionContent = endIndex === -1
-                ? rawContent.substring(startIndex)
-                : rawContent.substring(startIndex, endIndex);
-
-            sectionContent = sectionContent.trim();
-
-            if (sectionContent) {
-                // Process images for this section
-                const contentWithImages = await this.processImageTags(sectionContent);
-                // Format HTML
-                const htmlContent = this.formatToHtml(contentWithImages, `${mainTopic} - ${title}`);
-                sections.push({
-                    title,
-                    content: htmlContent
-                });
-            }
-            lastIndex = startIndex;
-        }
-
-        // Fallback: If no sections found, treat the hole thing as one section
-        if (sections.length === 0) {
-            const contentWithImages = await this.processImageTags(rawContent);
-            const htmlContent = this.formatToHtml(contentWithImages, mainTopic);
-            sections.push({
-                title: 'Lesson Material',
-                content: htmlContent
-            });
-        }
-
-        return sections;
-    }
 
     private async generateImage(imagePrompt: string): Promise<string> {
         const prediction = await this.runReplicatePrediction('google/nano-banana', {

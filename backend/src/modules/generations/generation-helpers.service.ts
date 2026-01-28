@@ -116,4 +116,30 @@ export class GenerationHelpersService {
       });
     }
   }
+  /**
+   * Обновить прогресс генерации (частичный результат)
+   */
+  async updateProgress(generationRequestId: string, partialData: any) {
+    // Обновляем старую таблицу
+    await this.prisma.generationRequest.update({
+      where: { id: generationRequestId },
+      data: {
+        result: partialData,
+      },
+    });
+
+    // Обновляем новую таблицу
+    const userGeneration = await this.prisma.userGeneration.findUnique({
+      where: { generationRequestId },
+    });
+
+    if (userGeneration) {
+      await this.prisma.userGeneration.update({
+        where: { id: userGeneration.id },
+        data: {
+          outputData: partialData,
+        },
+      });
+    }
+  }
 }

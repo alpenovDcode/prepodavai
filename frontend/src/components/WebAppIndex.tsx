@@ -462,7 +462,12 @@ export default function WebAppIndex() {
 
       // Отправляем запрос на генерацию через useGenerations hook
       // Это автоматически отправит запрос и начнет polling
-      const status = await generateAndWait({ type, params })
+      const status = await generateAndWait({ type, params }, (partialResult) => {
+        // Обновляем результат в реальном времени (для lessonPreparation)
+        if (type === 'lessonPreparation') {
+          setGenerationResult(partialResult)
+        }
+      })
 
       // Сохраняем результат для отображения
       if (type === 'gigachat') {
