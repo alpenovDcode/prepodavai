@@ -321,7 +321,8 @@ ${interests ? `Интересы учеников: ${interests}` : ''}
         // Construct URL (assuming static file serving)
         const baseUrl = this.configService.get<string>('BASE_URL', 'http://localhost:3001');
         const contentBaseUrl = this.configService.get<string>('CONTENT_BASE_URL') || baseUrl;
-        return `${contentBaseUrl}/uploads/presentations/${fileName}`;
+        // Use /api/uploads to match main.ts configuration and Nginx proxy
+        return `${contentBaseUrl}/api/uploads/presentations/${fileName}`;
     }
 
     private getTypeLabel(type: string): string {

@@ -25,8 +25,8 @@ async function bootstrap() {
   app.use(require('express').json({ limit: '10mb' }));
   app.use(require('express').urlencoded({ limit: '10mb', extended: true }));
 
-  // Serve static files from uploads directory
-  app.use('/uploads', require('express').static(require('path').join(process.cwd(), 'uploads')));
+  // Serve static files from uploads directory (under /api prefix to match Nginx proxying)
+  app.use('/api/uploads', require('express').static(require('path').join(process.cwd(), 'uploads')));
 
   // Helmet для безопасности HTTP заголовков
   // Helmet для безопасности HTTP заголовков
