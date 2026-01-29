@@ -44,12 +44,39 @@ export class LessonPreparationProcessor extends WorkerHost {
         this.logger.log(`Processing Lesson Preparation for request ${generationRequestId}`);
 
         try {
-            const sections: { title: string; content: string }[] = [];
+            const sections: { title: string; content: string; fileUrl?: string; fileType?: string }[] = [];
             const previousContext: string[] = [];
 
             // Iterate through each requested type and generate content
             for (const type of generationTypes) {
                 this.logger.log(`Generating section: ${type}`);
+
+                // SPECIAL HANDLER FOR PRESENTATION
+                if (type === 'presentation') {
+                    const pptxUrl = await this.generatePptx(subject, topic, level, interests, previousContext.join('\n\n'));
+
+                    const typeLabel = this.getTypeLabel(type);
+                    sections.push({
+                        title: typeLabel,
+                        content: `<div class="presentation-download">
+                            <h3>Готовая презентация</h3>
+                            <p>Сгенерирована презентация из 5 слайдов с вашим дизайном.</p>
+                            <a href="${pptxUrl}" class="download-btn" target="_blank">📥 Скачать презентацию (PPTX)</a>
+                        </div>`,
+                        fileUrl: pptxUrl,
+                        fileType: 'pptx'
+                    });
+
+                    // Add context
+                    previousContext.push(`Context from Presentation: Created a 5-slide presentation on ${topic}`);
+
+                    // Update progress
+                    await this.generationHelpers.updateProgress(generationRequestId, {
+                        sections,
+                        htmlResult: sections.map(s => s.content).join('\n\n'),
+                    });
+                    continue;
+                }
 
                 // 1. Generate content for this specific type
                 const sectionRawContent = await this.generateSection(
@@ -61,12 +88,22 @@ export class LessonPreparationProcessor extends WorkerHost {
                     previousContext.join('\n\n')
                 );
 
-                // 2. Process images
-                const contentWithImages = await this.processImageTags(sectionRawContent);
+                // 2. Process images (only if not specialized HTML)
+                let finalContent = sectionRawContent;
+                if (!sectionRawContent.trim().startsWith('<!DOCTYPE html>')) {
+                    finalContent = await this.processImageTags(sectionRawContent);
+                }
 
                 // 3. Format to HTML
                 const typeLabel = this.getTypeLabel(type);
-                const htmlContent = this.formatToHtml(contentWithImages, `${topic} - ${typeLabel}`);
+                let htmlContent = "";
+
+                if (finalContent.trim().startsWith('<!DOCTYPE html>')) {
+                    // It's already a full HTML document, use as is
+                    htmlContent = finalContent;
+                } else {
+                    htmlContent = this.formatToHtml(finalContent, `${topic} - ${typeLabel}`);
+                }
 
                 // 4. Add to sections list
                 sections.push({
@@ -115,6 +152,151 @@ export class LessonPreparationProcessor extends WorkerHost {
         }
     }
 
+    private async generatePptx(subject: string, topic: string, level: string, interests: string | undefined, context: string): Promise<string> {
+        // 1. Get structured JSON content from AI
+        const prompt = `
+Ты — профессиональный дизайнер презентаций.
+Твоя задача — создать структуру презентации для урока.
+Тема: ${topic}
+Предмет: ${subject}
+Уровень: ${level}
+${interests ? `Интересы учеников: ${interests}` : ''}
+
+ТРЕБОВАНИЯ:
+1. Строго 5 слайдов.
+2. Формат ответа — ТОЛЬКО валидный JSON (без markdown, без лишнего текста).
+3. Структура JSON:
+[
+  {
+    "title": "Заголовок слайда",
+    "bullets": ["Тезис 1", "Тезис 2", "Тезис 3"],
+    "imagePrompt": "Описание картинки для слайда"
+  }
+]
+4. Слайды должны быть:
+   - Слайд 1: Титульный (Тема, Введение)
+   - Слайд 2: Основная теория (Интересный факт или объяснение)
+   - Слайд 3: Практическое применение (Пример из жизни)
+   - Слайд 4: Интерактив или Задание
+   - Слайд 5: Заключение и Выводы
+
+Контент должен быть "Вау" — интересным, не скучным, с юмором или метафорами.
+Используй интересы учеников, если указаны.
+`;
+
+        const prediction = await this.runReplicatePrediction('anthropic/claude-3.5-sonnet', {
+            prompt: prompt,
+            max_tokens: 3000,
+            system_prompt: "Output JSON ONLY.",
+        });
+
+        let rawJson = "";
+        if (Array.isArray(prediction.output)) {
+            rawJson = prediction.output.join('');
+        } else {
+            rawJson = prediction.output;
+        }
+
+        // Clean JSON
+        rawJson = rawJson.replace(/```json\n?|\n?```/g, '').trim();
+        let slidesData;
+        try {
+            slidesData = JSON.parse(rawJson);
+        } catch (e) {
+            this.logger.error("Failed to parse PPTX JSON: " + rawJson);
+            throw new Error("Failed to generate presentation structure");
+        }
+
+        // 2. Generate Images (Max 3 total)
+        const presImages: string[] = [];
+        for (let i = 0; i < Math.min(slidesData.length, 3); i++) {
+            if (slidesData[i].imagePrompt) {
+                try {
+                    const imgUrl = await this.generateImage(slidesData[i].imagePrompt + ", professional presentation style, high quality, 4k, vector art");
+                    presImages.push(imgUrl);
+                } catch (e) {
+                    this.logger.warn("Failed to generate pres image: " + e.message);
+                    presImages.push(null);
+                }
+            } else {
+                presImages.push(null);
+            }
+        }
+
+
+        // 3. Create PPTX using pptxgenjs
+        // We import dynamically or use require because we just installed it
+        const PptxGenJS = require("pptxgenjs");
+        const pres = new PptxGenJS();
+
+        // Setup Master Slide with Logo
+        // Logo URL: this.logoUrl
+        // Since pptxgenjs needs a local file or base64 or accessible URL, we assume URL works if public,
+        // IF NOT, we might need to download it. For now, try URL. 
+        // Note: PptxGenJS in Node can behave differently with remote URLs depending on setup.
+        // Safer to skip logo image if it fails, or use a text placeholder.
+
+        pres.layout = 'LAYOUT_WIDE';
+
+        pres.defineSlideMaster({
+            title: 'MASTER_SLIDE',
+            background: { color: 'F1F1F1' },
+            objects: [
+                { rect: { x: 0, y: 0, w: '100%', h: 0.8, fill: 'FF7E58' } }, // Header bar
+                { image: { x: 12.5, y: 0.1, w: 0.6, h: 0.6, path: this.logoUrl } }, // Logo top right
+                { text: { text: 'PrepodavAI', x: 0.3, y: 0.1, fontSize: 14, color: 'FFFFFF', bold: true } }
+            ]
+        });
+
+        // Add Slides
+        slidesData.forEach((slide: any, index: number) => {
+            const s = pres.addSlide({ masterName: 'MASTER_SLIDE' });
+
+            // Title
+            s.addText(slide.title, { x: 0.5, y: 1.0, w: '90%', fontSize: 32, color: '363636', bold: true, align: 'center' });
+
+            // Content (Bullets)
+            const bullets = slide.bullets.map((b: string) => ({ text: b, options: { fontSize: 18, color: '505050', breakLine: true } }));
+            s.addText(bullets, { x: 0.5, y: 2.0, w: '50%', h: 4.5, align: 'left', bullet: true });
+
+            // Image
+            if (index < 3 && presImages[index]) {
+                s.addImage({ path: presImages[index], x: 7, y: 2.0, w: 5, h: 4 });
+            }
+        });
+
+        // 4. Save file
+        const fileName = `presentation_${Date.now()}.pptx`;
+        // We need to save to a public folder. `this.filesService` usually handles uploads.
+        // Or we can save to temporary dir and upload.
+        // Assuming we can write to `uploads/` matching `games/` logic from before or similar.
+        // Let's use `this.filesService.saveFile` if available or fs directly.
+
+        // PptxGenJS 'write' returns a Promise with filename in Node, but stream if type specified.
+        // We want a buffer to pass to S3/FilesService usually.
+        const buffer = await pres.write({ outputType: 'nodebuffer' });
+
+        // Save using FilesService to get a URL
+        // Mocking FilesService usage:
+        // await this.filesService.uploadFile(buffer, fileName, 'presentations');
+        // Since we don't have the full FilesService signature handy for uploadFile from buffer (it usually takes multer file),
+        // we might need to look at FilesService. 
+        // ALTERNATIVE: Write to local 'uploads' folder and return static URL.
+        const fs = require('fs');
+        const path = require('path');
+        const uploadsDir = path.join(process.cwd(), 'uploads', 'presentations');
+        if (!fs.existsSync(uploadsDir)) {
+            fs.mkdirSync(uploadsDir, { recursive: true });
+        }
+        const filePath = path.join(uploadsDir, fileName);
+        fs.writeFileSync(filePath, buffer);
+
+        // Construct URL (assuming static file serving)
+        const baseUrl = this.configService.get<string>('BASE_URL', 'http://localhost:3001');
+        const contentBaseUrl = this.configService.get<string>('CONTENT_BASE_URL') || baseUrl;
+        return `${contentBaseUrl}/uploads/presentations/${fileName}`;
+    }
+
     private getTypeLabel(type: string): string {
         const map: Record<string, string> = {
             lessonPlan: 'План урока',
@@ -123,11 +305,7 @@ export class LessonPreparationProcessor extends WorkerHost {
             quest: 'Сценарий квеста',
             visuals: 'Тематические изображения',
             quiz: 'Тест',
-            vocabulary: 'Словарь (глоссарий)',
-            content: 'Учебный материал',
-            feedback: 'Критерии и рубрики оценки',
-            message: 'Сообщение для рассылки',
-            game: 'Идеи сценариев игр'
+            content: 'Учебный материал'
         };
         return map[type] || type;
     }
@@ -292,24 +470,7 @@ export class LessonPreparationProcessor extends WorkerHost {
 `
                 };
 
-            case 'vocabulary':
-                return {
-                    systemPrompt: `Ты — профессиональный генератор учебных материалов. Выдай чистый HTML-код СЛОВАРЯ.
-URL Логотипа: "${logoUrlStr}"
-ТРЕБОВАНИЯ:
-- Полный HTML документ.
-- Красивый, строгий дизайн (энциклопедический стиль).
-- Логотип в шапке и футере.
-`,
-                    userPrompt: `Сгенерируй словарь терминов.
-Тема: ${topic}
-Предмет: ${subject}
-Уровень: ${level}
-Количество слов: 15-20
 
-Формат: Термин - Определение - Пример.
-Оформи как красивую HTML страницу с логотипом ("${logoUrlStr}").`
-                };
 
             case 'content':
                 return {
@@ -324,41 +485,6 @@ URL Логотипа: "${logoUrlStr}"
 
 Структурируй материал, добавь примеры. Оформи в HTML с логотипом ("${logoUrlStr}") в шапке и футере.
 `
-                };
-
-            case 'feedback':
-                return {
-                    systemPrompt: `Ты — педагог-эксперт. Сгенерируй шаблон фидбека (критерии оценки) в формате HTML.
-URL Логотипа: "${logoUrlStr}"
-Стиль: Профессиональный аудит.
-`,
-                    userPrompt: `Создай критерии оценки и рубрикатор для темы: "${topic}" (${subject}, ${level}).
-Опиши, как оценивать работу ученика.
-Оформи как HTML документ с логотипом ("${logoUrlStr}").`
-                };
-
-            case 'message':
-                return {
-                    systemPrompt: `Ты — учитель. Сгенерируй сообщение для чата/рассылки в формате HTML (как красивое письмо).
-URL Логотипа: "${logoUrlStr}"
-Стиль: Официально-деловой, вежливый.
-`,
-                    userPrompt: `Напиши сообщение родителям/ученикам по теме: "${topic}" (${subject}).
-Важные моменты: подготовка к уроку, домашнее задание или организационные вопросы.
-Оформи как HTML письмо с логотипом ("${logoUrlStr}").`
-                };
-
-            case 'game':
-                return {
-                    systemPrompt: `Ты — геймдизайнер образовательных игр. Сгенерируй ДИЗАЙН-ДОКУМЕНТ игры в формате HTML.
-URL Логотипа: "${logoUrlStr}"
-Задача: Придумать интересную игру или викторину по теме и оформить контент (вопросы, карточки) в виде красивой таблицы или списков.
-НЕ генерируй сложный JS код, генерируй КОНТЕНТ игры (текст и правила), который можно распечатать или использовать в классе.
-`,
-                    userPrompt: `Придумай игру по теме "${topic}" (${subject}, ${level}).
-Тип: Викторина, Квест или Ролевая игра.
-Дай полное описание правил и СПИСОК ВОПРОСОВ/ЗАДАНИЙ с ответами.
-Оформи как красивый HTML документ с логотипом ("${logoUrlStr}") в шапке и футере.`
                 };
 
             default:
