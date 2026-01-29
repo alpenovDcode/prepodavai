@@ -201,7 +201,16 @@ ${interests ? `Интересы учеников: ${interests}` : ''}
         rawJson = rawJson.replace(/```json\n?|\n?```/g, '').trim();
         let slidesData;
         try {
-            slidesData = JSON.parse(rawJson);
+            const parsed = JSON.parse(rawJson);
+            if (Array.isArray(parsed)) {
+                slidesData = parsed;
+            } else if (parsed.slides && Array.isArray(parsed.slides)) {
+                slidesData = parsed.slides;
+            } else {
+                // Fallback: try to find an array in values or throw
+                this.logger.warn("PPTX JSON is not an array or {slides: []}. Raw: " + rawJson.slice(0, 200));
+                throw new Error("Invalid structure");
+            }
         } catch (e) {
             this.logger.error("Failed to parse PPTX JSON: " + rawJson);
             throw new Error("Failed to generate presentation structure");
