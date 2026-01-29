@@ -197,22 +197,40 @@ ${interests ? `Интересы учеников: ${interests}` : ''}
             rawJson = prediction.output;
         }
 
-        // Clean JSON
-        rawJson = rawJson.replace(/```json\n?|\n?```/g, '').trim();
+        // Clean JSON using regex to find the array pattern
+        // This handles cases where model wraps array in {} without key or adds text
+        const jsonArrayMatch = rawJson.match(/\[\s*\{[\s\S]*\}\s*\]/);
+
         let slidesData;
         try {
-            const parsed = JSON.parse(rawJson);
-            if (Array.isArray(parsed)) {
-                slidesData = parsed;
-            } else if (parsed.slides && Array.isArray(parsed.slides)) {
-                slidesData = parsed.slides;
+            if (jsonArrayMatch) {
+                // We found something that looks like [ ... ]
+                slidesData = JSON.parse(jsonArrayMatch[0]);
             } else {
-                // Fallback: try to find an array in values or throw
-                this.logger.warn("PPTX JSON is not an array or {slides: []}. Raw: " + rawJson.slice(0, 200));
-                throw new Error("Invalid structure");
+                // Maybe it is a valid JSON object with a key?
+                const parsed = JSON.parse(rawJson);
+                if (parsed.slides && Array.isArray(parsed.slides)) {
+                    slidesData = parsed.slides;
+                } else if (Array.isArray(parsed)) {
+                    slidesData = parsed;
+                } else {
+                    // Try to find any array in the object values
+                    const values = Object.values(parsed);
+                    const foundArray = values.find(v => Array.isArray(v) && v.length > 0 && v[0].title);
+                    if (foundArray) {
+                        slidesData = foundArray;
+                    } else {
+                        throw new Error("No slide array found");
+                    }
+                }
             }
+
+            if (!slidesData || !Array.isArray(slidesData)) {
+                throw new Error("Parsed data is not an array");
+            }
+
         } catch (e) {
-            this.logger.error("Failed to parse PPTX JSON: " + rawJson);
+            this.logger.error("Failed to parse PPTX JSON. Raw: " + rawJson + ". Error: " + e.message);
             throw new Error("Failed to generate presentation structure");
         }
 
