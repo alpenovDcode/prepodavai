@@ -120,7 +120,12 @@ export class LessonPreparationProcessor extends WorkerHost {
             presentation: 'Структура презентации',
             quest: 'Сценарий квеста',
             visuals: 'Тематические изображения',
-            quiz: 'Тест'
+            quiz: 'Тест',
+            vocabulary: 'Словарь (глоссарий)',
+            content: 'Учебный материал',
+            feedback: 'Критерии и рубрики оценки',
+            message: 'Сообщение для рассылки',
+            game: 'Идеи сценариев игр'
         };
         return map[type] || type;
     }
@@ -144,7 +149,7 @@ export class LessonPreparationProcessor extends WorkerHost {
             <style>
                 body { 
                     font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
-                    max-width: 800px; 
+                    max-width: 900px; 
                     margin: 0 auto; 
                     padding: 40px; 
                     line-height: 1.6; 
@@ -153,22 +158,49 @@ export class LessonPreparationProcessor extends WorkerHost {
                     background-color: #fff;
                     position: relative;
                 }
-                .logo-header, .logo-footer {
-                    text-align: center;
+                
+                /* Header Layout */
+                .header-container {
+                    display: flex;
+                    align-items: center;
+                    gap: 30px;
                     margin-bottom: 40px;
-                    opacity: 0.8;
+                    border-bottom: 2px solid #FF7E58;
+                    padding-bottom: 20px;
                 }
-                .logo-header img, .logo-footer img {
-                    height: 200px;
+                .header-logo {
+                    height: 120px;
+                    flex-shrink: 0;
                 }
-                .logo-footer {
-                    margin-top: 60px;
+                h1.main-title { 
+                    font-size: 2.5em; 
+                    color: #1a202c; 
+                    margin: 0; 
+                    line-height: 1.2;
+                    flex-grow: 1;
+                }
+
+                /* Footer Layout */
+                .footer-container {
+                    margin-top: 80px;
                     border-top: 1px solid #eee;
-                    padding-top: 20px;
+                    padding-top: 30px;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: flex-end; /* Align right */
+                    text-align: right;
+                }
+                .footer-logo {
+                    height: 80px;
+                    opacity: 0.8;
+                    margin-bottom: 10px;
+                }
+                .footer-text {
+                    font-size: 12px; 
+                    color: #888;
                 }
                 
-                h1, h2, h3 { color: #2d3748; margin-top: 1.5em; margin-bottom: 0.5em; }
-                h1.main-title { font-size: 2.5em; border-bottom: 2px solid #FF7E58; padding-bottom: 10px; color: #1a202c; }
+                h2, h3 { color: #2d3748; margin-top: 1.5em; margin-bottom: 0.5em; }
                 h2.section-title { font-size: 1.8em; color: #2c5282; margin-top: 2em; }
                 h3.subsection-title { font-size: 1.3em; color: #4a5568; }
                 
@@ -209,16 +241,16 @@ export class LessonPreparationProcessor extends WorkerHost {
             </script>
         </head>
         <body>
-            <div class="logo-header">
-                <img src="${logoUrl}" alt="PrepodavAI Logo" />
+            <div class="header-container">
+                <img src="${logoUrl}" alt="PrepodavAI Logo" class="header-logo" />
+                <h1>${title}</h1>
             </div>
             
-            <h1>${title}</h1>
             ${formattedBody}
             
-            <div class="logo-footer">
-                <img src="${logoUrl}" alt="PrepodavAI Logo" />
-                <p style="font-size: 12px; color: #888;">Сгенерировано с помощью PrepodavAI</p>
+            <div class="footer-container">
+                <img src="${logoUrl}" alt="PrepodavAI Logo" class="footer-logo" />
+                <div class="footer-text">Сгенерировано с помощью PrepodavAI</div>
             </div>
         </body>
         </html>

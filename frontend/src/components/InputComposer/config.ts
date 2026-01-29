@@ -281,7 +281,12 @@ export const templates: Record<string, FunctionTemplate> = {
           { value: 'presentation', label: 'Структура презентации' },
           { value: 'quest', label: 'Сценарий квеста' },
           { value: 'visuals', label: 'Тематические изображения' },
-          { value: 'quiz', label: 'Тест' }
+          { value: 'quiz', label: 'Тест' },
+          { value: 'vocabulary', label: 'Словарь' },
+          { value: 'content', label: 'Учебный материал' },
+          { value: 'feedback', label: 'Критерии оценки' },
+          { value: 'message', label: 'Сообщение для чата' },
+          { value: 'game', label: 'Идея игры' }
         ]
       }
     ]
