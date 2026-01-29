@@ -670,48 +670,61 @@ export default function WebAppIndex() {
                             <p className="text-xs text-gray-500 mb-3">Нажмите, чтобы открыть или распечатать</p>
                           </div>
                           <div className="flex gap-2">
-                            <button
-                              onClick={() => {
-                                const blob = new Blob([section.content], { type: 'text/html;charset=utf-8' });
-                                const url = URL.createObjectURL(blob);
-                                window.open(url, '_blank');
-                              }}
-                              className="flex-1 py-2 px-3 bg-white border border-[#FF7E58] text-[#FF7E58] rounded-lg text-sm font-medium hover:bg-[#FF7E58] hover:text-white transition-colors shadow-sm flex items-center justify-center gap-2"
-                            >
-                              <i className="fas fa-external-link-alt"></i>
-                              <span>Открыть</span>
-                            </button>
-                            <button
-                              onClick={() => {
-                                const printContent = `
-                                  <html>
-                                    <head>
-                                      <title>${section.title}</title>
-                                      <style>
-                                        body { font-family: sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
-                                        img { max-width: 100%; }
-                                        @media print {
-                                          body { -webkit-print-color-adjust: exact; }
-                                        }
-                                      </style>
-                                    </head>
-                                    <body>
-                                      ${section.content}
-                                      <script>
-                                        window.onload = function() { window.print(); }
-                                      </script>
-                                    </body>
-                                  </html>
-                                `;
-                                const blob = new Blob([printContent], { type: 'text/html;charset=utf-8' });
-                                const url = URL.createObjectURL(blob);
-                                const win = window.open(url, '_blank');
-                              }}
-                              className="flex-1 py-2 px-3 bg-[#FF7E58] text-white rounded-lg text-sm font-medium hover:shadow-lg transition active:scale-95 flex items-center justify-center gap-2"
-                            >
-                              <i className="fas fa-file-pdf"></i>
-                              <span>Скачать PDF</span>
-                            </button>
+                            {section.fileType === 'pptx' ? (
+                              <a
+                                href={section.fileUrl}
+                                target="_blank"
+                                className="flex-1 py-2 px-3 bg-[#FF7E58] text-white rounded-lg text-sm font-medium hover:shadow-lg transition active:scale-95 flex items-center justify-center gap-2"
+                              >
+                                <i className="fas fa-download"></i>
+                                <span>Скачать презентацию (PPTX)</span>
+                              </a>
+                            ) : (
+                              <>
+                                <button
+                                  onClick={() => {
+                                    const blob = new Blob([section.content], { type: 'text/html;charset=utf-8' });
+                                    const url = URL.createObjectURL(blob);
+                                    window.open(url, '_blank');
+                                  }}
+                                  className="flex-1 py-2 px-3 bg-white border border-[#FF7E58] text-[#FF7E58] rounded-lg text-sm font-medium hover:bg-[#FF7E58] hover:text-white transition-colors shadow-sm flex items-center justify-center gap-2"
+                                >
+                                  <i className="fas fa-external-link-alt"></i>
+                                  <span>Открыть</span>
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    const printContent = `
+                                      <html>
+                                        <head>
+                                          <title>${section.title}</title>
+                                          <style>
+                                            body { font-family: sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
+                                            img { max-width: 100%; }
+                                            @media print {
+                                              body { -webkit-print-color-adjust: exact; }
+                                            }
+                                          </style>
+                                        </head>
+                                        <body>
+                                          ${section.content}
+                                          <script>
+                                            window.onload = function() { window.print(); }
+                                          </script>
+                                        </body>
+                                      </html>
+                                    `;
+                                    const blob = new Blob([printContent], { type: 'text/html;charset=utf-8' });
+                                    const url = URL.createObjectURL(blob);
+                                    const win = window.open(url, '_blank');
+                                  }}
+                                  className="flex-1 py-2 px-3 bg-[#FF7E58] text-white rounded-lg text-sm font-medium hover:shadow-lg transition active:scale-95 flex items-center justify-center gap-2"
+                                >
+                                  <i className="fas fa-file-pdf"></i>
+                                  <span>Скачать PDF</span>
+                                </button>
+                              </>
+                            )}
                           </div>
                         </div>
                       ))}
