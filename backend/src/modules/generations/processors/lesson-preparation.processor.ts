@@ -125,6 +125,106 @@ export class LessonPreparationProcessor extends WorkerHost {
         return map[type] || type;
     }
 
+    private formatToHtml(markdownContent: string, title: string): string {
+        // Basic Markdown to HTML conversion
+        const formattedBody = markdownContent
+            .replace(/^# (.*$)/gim, '<h1 class="main-title">$1</h1>')
+            .replace(/^## (.*$)/gim, '<h2 class="section-title">$1</h2>')
+            .replace(/^### (.*$)/gim, '<h3 class="subsection-title">$1</h3>')
+            .replace(/\*\*(.*)\*\*/gim, '<b>$1</b>')
+            .replace(/\*\*(.*)\*\*/gim, '<b>$1</b>');
+
+        const logoUrl = "https://fs.cdn-chatium.io/thumbnail/image_gc_AmbUAlw8Yq.1024x1024.png/s/128x";
+
+        return `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <style>
+                body { 
+                    font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
+                    max-width: 800px; 
+                    margin: 0 auto; 
+                    padding: 40px; 
+                    line-height: 1.6; 
+                    white-space: pre-wrap; 
+                    color: #333;
+                    background-color: #fff;
+                    position: relative;
+                }
+                .logo-header, .logo-footer {
+                    text-align: center;
+                    margin-bottom: 40px;
+                    opacity: 0.8;
+                }
+                .logo-header img, .logo-footer img {
+                    height: 50px;
+                }
+                .logo-footer {
+                    margin-top: 60px;
+                    border-top: 1px solid #eee;
+                    padding-top: 20px;
+                }
+                
+                h1, h2, h3 { color: #2d3748; margin-top: 1.5em; margin-bottom: 0.5em; }
+                h1.main-title { font-size: 2.5em; border-bottom: 2px solid #FF7E58; padding-bottom: 10px; color: #1a202c; }
+                h2.section-title { font-size: 1.8em; color: #2c5282; margin-top: 2em; }
+                h3.subsection-title { font-size: 1.3em; color: #4a5568; }
+                
+                .generated-image-container { 
+                    margin: 30px 0; 
+                    text-align: center; 
+                    transition: transform 0.3s ease;
+                }
+                .generated-image-container:hover {
+                    transform: scale(1.01);
+                }
+                .generated-image-container img { 
+                    max-width: 100%; 
+                    border-radius: 12px; 
+                    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+                    border: 1px solid #e2e8f0;
+                }
+                
+                ul, ol { margin-left: 20px; }
+                li { margin-bottom: 8px; }
+                strong { color: #2b6cb0; }
+            </style>
+            <!-- MathJax Configuration -->
+            <script>
+            window.MathJax = {
+              tex: {
+                inlineMath: [['$', '$'], ['\\\\(', '\\\\)']],
+                displayMath: [['$$', '$$'], ['\\\\[', '\\\\]']],
+                processEscapes: true
+              },
+              svg: {
+                fontCache: 'global'
+              }
+            };
+            </script>
+            <script type="text/javascript" id="MathJax-script" async
+              src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js">
+            </script>
+        </head>
+        <body>
+            <div class="logo-header">
+                <img src="${logoUrl}" alt="PrepodavAI Logo" />
+            </div>
+            
+            <h1>${title}</h1>
+            ${formattedBody}
+            
+            <div class="logo-footer">
+                <img src="${logoUrl}" alt="PrepodavAI Logo" />
+                <p style="font-size: 12px; color: #888;">Сгенерировано с помощью PrepodavAI</p>
+            </div>
+        </body>
+        </html>
+        `;
+    }
+
     private async generateSection(
         targetType: string,
         subject: string,
@@ -137,33 +237,56 @@ export class LessonPreparationProcessor extends WorkerHost {
         const typeLabel = this.getTypeLabel(targetType);
 
         const prompt = `
-You are a world-class expert teacher.
-Goal: Create a **${typeLabel}** for a lesson.
+You are a WORLD-CLASS Award-Winning Curriculum Designer and Creative Director.
+Your name is "PrepodavAI Genius".
+Your goal is to create a **"WOW-EFFECT" ${typeLabel}** that will amaze both the teacher and the students.
 
-Lesson Details:
+**CRITICAL: LANGUAGE SETTINGS**
+- **OUTPUT LANGUAGE: STRICTLY RUSSIAN (Русский язык).** All content must be in Russian.
+- **Formulas:** MUST use LaTeX format wrapped in \`$\` for inline and \`$$\` for block equations. Example: $E=mc^2$ or $$x = \\frac{-b \\pm \\sqrt{b^2-4ac}}{2a}$$.
+- **Images:** Any text inside generated images must be in Russian.
+
+DETAILS:
 - Subject: ${subject}
 - Topic: ${topic}
-- Target Grade/Level: ${level}
+- Target Level: ${level}
 ${interestsStr}
 
-CONTEXT from previous parts of this lesson:
+CONTEXT from previous sections:
 ${context}
 
-INSTRUCTIONS:
-1. Create ONLY the **${typeLabel}**. Do not create other materials.
-2. **Quality**: Pedagogically sound, engaging, ready for classroom.
-3. **Personalization**: Weave in interests (${interests || 'none'}).
-4. **Visuals**: Suggest images using format: [IMAGE: <detailed prompt>].
-   - Insert tags where images logically appear.
-5. **Format**: Use clean Markdown.
+--------
+CREATIVE DIRECTION (THE "WOW" FACTOR):
+1. **Tone**: Inspiring, modern, energetic, and pedagogically deeply sound. Avoid boring academic dry text.
+2. **Visual Storytelling**: The content MUST be visually rich. Do not write walls of text. Break it up!
+3. **Personalization**: If interests are provided (${interests || 'none'}), weave them seamlessly into metaphors, examples, and scenarios. Make the student feel this was written JUST for them.
 
-Output ONLY the content for ${typeLabel}.
+IMAGE INSTRUCTIONS (CRITICAL):
+You act as an Art Director. You MUST insert image placeholders where they add value (at least 2-3 images per section).
+Format: [IMAGE: <style description> | <detailed visual prompt>]
+- Styles to use: "Pixar style 3D", "Detailed scientific illustration", "Minimalist modern vector", "Watercolor educational poster", "National Geographic photography".
+- **Vary the styles** based on the content needs.
+- **IMPORTANT**: If the image requires text, specify "text in Russian".
+- Examples:
+  - [IMAGE: Pixar style 3D | A happy robot teaching math to a group of diverse students, bright colors]
+  - [IMAGE: Educational Poster | Diagram of a cell with Russian labels, clean vector style]
+
+STRUCTURE & FORMATTING:
+- Use Markdown.
+- Use Emojis 🌟 where appropriate.
+- **Headings**: Catchy and intriguing (In Russian).
+- **Micro-learning**: Short paragraphs, bullet points.
+
+OUTPUT GOAL:
+Create the content for **${typeLabel}** ONLY (In Russian).
+Make it shine. Make it look expensive and professional.
+--------
 `;
 
         const prediction = await this.runReplicatePrediction('anthropic/claude-3.5-sonnet', {
             prompt: prompt,
-            max_tokens: 2000,
-            system_prompt: "You are a helpful educational assistant.",
+            max_tokens: 3000,
+            system_prompt: "You are a creative educational genius. You create content STRICTLY IN RUSSIAN.",
         });
 
         let rawOutput = "";
@@ -181,21 +304,37 @@ Output ONLY the content for ${typeLabel}.
         let newContent = content;
 
         // We find all matches first
-        const matches: { full: string, prompt: string }[] = [];
+        const matches: { full: string, content: string }[] = [];
         while ((match = imageRegex.exec(content)) !== null) {
-            matches.push({ full: match[0], prompt: match[1] });
+            matches.push({ full: match[0], content: match[1] });
         }
 
-        // Process sequentially (or parallel)
+        // Process sequentially
         for (const m of matches) {
             try {
-                const imageUrl = await this.generateImage(m.prompt);
-                const imageHtml = `<div class="generated-image"><img src="${imageUrl}" alt="${m.prompt}" style="max-width: 100%; border-radius: 8px; margin: 10px 0;" /></div>`;
+                // Handle "Style | Prompt" format
+                let finalPrompt = m.content;
+                const parts = m.content.split('|');
+                if (parts.length > 1) {
+                    const style = parts[0].trim();
+                    const prompt = parts.slice(1).join('|').trim();
+                    finalPrompt = `${style}, ${prompt}, high quality, detailed, 4k`;
+                } else {
+                    finalPrompt = `${m.content}, high quality, educational illustration`;
+                }
+
+                const imageUrl = await this.generateImage(finalPrompt);
+
+                // Enhanced HTML for image
+                const imageHtml = `
+                <div class="generated-image-container">
+                    <img src="${imageUrl}" alt="${finalPrompt}" />
+                </div>`;
+
                 newContent = newContent.replace(m.full, imageHtml);
             } catch (e) {
-                this.logger.error(`Failed to generate image for prompt "${m.prompt}": ${e}`);
-                // Replace with nothing or error text
-                newContent = newContent.replace(m.full, `(Image generation failed: ${m.prompt})`);
+                this.logger.error(`Failed to generate image for prompt "${m.content}": ${e}`);
+                newContent = newContent.replace(m.full, `<div style="color:red; font-size:10px;">(Image error: ${m.content})</div>`);
             }
         }
 
@@ -272,39 +411,7 @@ Output ONLY the content for ${typeLabel}.
         throw new Error("Prediction timed out");
     }
 
-    private formatToHtml(markdownContent: string, title: string): string {
-        // Basic Markdown to HTML conversion (simplified)
-        // In a real app we might want to use a library like 'marked' or 'showdown'
-        // But for now, preserving line breaks and basic formatting is enough if the frontend displays it as HTML
-        // Wait, the frontend might expect HTML.
-        // Let's do a simple wrap.
 
-        const formattedBody = markdownContent
-            .replace(/^# (.*$)/gim, '<h1>$1</h1>')
-            .replace(/^## (.*$)/gim, '<h2>$1</h2>')
-            .replace(/^### (.*$)/gim, '<h3>$1</h3>')
-            .replace(/\*\*(.*)\*\*/gim, '<b>$1</b>')
-            .replace(/\*\*(.*)\*\*/gim, '<b>$1</b>');
-
-        return `
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="UTF-8">
-            <style>
-                body { font-family: sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; line-height: 1.6; white-space: pre-wrap; }
-                h1, h2, h3 { color: #333; }
-                img { max-width: 100%; }
-                .generated-image { margin: 20px 0; text-align: center; }
-            </style>
-        </head>
-        <body>
-            <h1>Lesson Preparation: ${title}</h1>
-            ${formattedBody}
-        </body>
-        </html>
-        `;
-    }
 
     @OnWorkerEvent('completed')
     onCompleted(job: Job<LessonPreparationJobData>) {
