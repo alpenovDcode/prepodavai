@@ -37,6 +37,8 @@ export class LessonPreparationProcessor extends WorkerHost {
         }
     }
 
+    private readonly logoUrl = "https://fs.cdn-chatium.io/thumbnail/image_gc_AmbUAlw8Yq.1024x1024.png/s/128x";
+
     async process(job: Job<LessonPreparationJobData>): Promise<void> {
         const { generationRequestId, subject, topic, level, interests, generationTypes } = job.data;
         this.logger.log(`Processing Lesson Preparation for request ${generationRequestId}`);
@@ -139,7 +141,8 @@ export class LessonPreparationProcessor extends WorkerHost {
             .replace(/\*\*(.*)\*\*/gim, '<b>$1</b>')
             .replace(/\*\*(.*)\*\*/gim, '<b>$1</b>');
 
-        const logoUrl = "https://fs.cdn-chatium.io/thumbnail/image_gc_AmbUAlw8Yq.1024x1024.png/s/128x";
+        // Use class property instead of hardcoded
+        const logoUrl = this.logoUrl;
 
         return `
         <!DOCTYPE html>
@@ -257,6 +260,112 @@ export class LessonPreparationProcessor extends WorkerHost {
         `;
     }
 
+    private getSpecializedPrompt(type: string, subject: string, topic: string, level: string): { systemPrompt: string, userPrompt: string } | null {
+        const logoUrlStr = this.logoUrl;
+
+        switch (type) {
+            case 'quiz':
+                return {
+                    systemPrompt: `Ты — профессиональный технический генератор кода. Твоя единственная функция — выдавать чистый HTML-код.
+ЗАДАЧА: Сгенерировать полноценный HTML-документ с ТЕСТОМ (QUIZ).
+КРИТИЧЕСКИЕ ПРАВИЛА:
+1. Только код (начинается с <!DOCTYPE html>).
+2. Никакого текста до или после.
+3. Вставь скрипт MathJax.
+ТРЕБОВАНИЯ К ДИЗАЙНУ:
+- Контейнер max-width: 720px, центрирование.
+- Логотип в шапке (слева) и футере (справа). URL логотипа: "${logoUrlStr}"
+- Стиль: строгий, профессиональный.
+`,
+                    userPrompt: `Сгенерируй HTML-код теста.
+Предмет: ${subject}
+Тема: ${topic}
+Уровень: ${level}
+Количество вопросов: 10
+Вариантов ответа: 4
+
+СТРУКТУРА:
+1. Шапка: Логотип слева ("${logoUrlStr}"), заголовок теста справа.
+2. Список вопросов.
+3. Ключи с ответами в конце.
+4. Футер: Логотип справ ("${logoUrlStr}") в самом низу.
+`
+                };
+
+            case 'vocabulary':
+                return {
+                    systemPrompt: `Ты — профессиональный генератор учебных материалов. Выдай чистый HTML-код СЛОВАРЯ.
+URL Логотипа: "${logoUrlStr}"
+ТРЕБОВАНИЯ:
+- Полный HTML документ.
+- Красивый, строгий дизайн (энциклопедический стиль).
+- Логотип в шапке и футере.
+`,
+                    userPrompt: `Сгенерируй словарь терминов.
+Тема: ${topic}
+Предмет: ${subject}
+Уровень: ${level}
+Количество слов: 15-20
+
+Формат: Термин - Определение - Пример.
+Оформи как красивую HTML страницу с логотипом ("${logoUrlStr}").`
+                };
+
+            case 'content':
+                return {
+                    systemPrompt: `Ты — методист. Сгенерируй учебный материал в формате HTML.
+URL Логотипа: "${logoUrlStr}"
+Дизайн: Минималистичный, как техническая спецификация или учебник.
+`,
+                    userPrompt: `Создай учебный материал (конспект) по теме:
+Предмет: ${subject}
+Тема: ${topic}
+Уровень: ${level}
+
+Структурируй материал, добавь примеры. Оформи в HTML с логотипом ("${logoUrlStr}") в шапке и футере.
+`
+                };
+
+            case 'feedback':
+                return {
+                    systemPrompt: `Ты — педагог-эксперт. Сгенерируй шаблон фидбека (критерии оценки) в формате HTML.
+URL Логотипа: "${logoUrlStr}"
+Стиль: Профессиональный аудит.
+`,
+                    userPrompt: `Создай критерии оценки и рубрикатор для темы: "${topic}" (${subject}, ${level}).
+Опиши, как оценивать работу ученика.
+Оформи как HTML документ с логотипом ("${logoUrlStr}").`
+                };
+
+            case 'message':
+                return {
+                    systemPrompt: `Ты — учитель. Сгенерируй сообщение для чата/рассылки в формате HTML (как красивое письмо).
+URL Логотипа: "${logoUrlStr}"
+Стиль: Официально-деловой, вежливый.
+`,
+                    userPrompt: `Напиши сообщение родителям/ученикам по теме: "${topic}" (${subject}).
+Важные моменты: подготовка к уроку, домашнее задание или организационные вопросы.
+Оформи как HTML письмо с логотипом ("${logoUrlStr}").`
+                };
+
+            case 'game':
+                return {
+                    systemPrompt: `Ты — геймдизайнер образовательных игр. Сгенерируй ДИЗАЙН-ДОКУМЕНТ игры в формате HTML.
+URL Логотипа: "${logoUrlStr}"
+Задача: Придумать интересную игру или викторину по теме и оформить контент (вопросы, карточки) в виде красивой таблицы или списков.
+НЕ генерируй сложный JS код, генерируй КОНТЕНТ игры (текст и правила), который можно распечатать или использовать в классе.
+`,
+                    userPrompt: `Придумай игру по теме "${topic}" (${subject}, ${level}).
+Тип: Викторина, Квест или Ролевая игра.
+Дай полное описание правил и СПИСОК ВОПРОСОВ/ЗАДАНИЙ с ответами.
+Оформи как красивый HTML документ с логотипом ("${logoUrlStr}") в шапке и футере.`
+                };
+
+            default:
+                return null;
+        }
+    }
+
     private async generateSection(
         targetType: string,
         subject: string,
@@ -265,6 +374,26 @@ export class LessonPreparationProcessor extends WorkerHost {
         interests: string | undefined,
         context: string
     ): Promise<string> {
+
+        // Check for specialized prompt
+        const specialized = this.getSpecializedPrompt(targetType, subject, topic, level);
+
+        if (specialized) {
+            this.logger.log(`Using specialized prompt for ${targetType}`);
+            const prediction = await this.runReplicatePrediction('anthropic/claude-3.5-sonnet', {
+                prompt: specialized.userPrompt,
+                max_tokens: 5000,
+                system_prompt: specialized.systemPrompt,
+            });
+            let rawOutput = "";
+            if (Array.isArray(prediction.output)) {
+                rawOutput = prediction.output.join('');
+            } else if (typeof prediction.output === 'string') {
+                rawOutput = prediction.output;
+            }
+            return rawOutput;
+        }
+
         const interestsStr = interests ? `Student Interests: ${interests}` : '';
         const typeLabel = this.getTypeLabel(targetType);
 
@@ -341,8 +470,16 @@ Make it shine. Make it look expensive and professional.
             matches.push({ full: match[0], content: match[1] });
         }
 
-        // Process sequentially
-        for (const m of matches) {
+        // Process strictly max 3 images
+        for (let i = 0; i < matches.length; i++) {
+            const m = matches[i];
+
+            if (i >= 3) {
+                // Remove extra image tags
+                newContent = newContent.replace(m.full, '');
+                continue;
+            }
+
             try {
                 // Handle "Style | Prompt" format
                 let finalPrompt = m.content;
@@ -366,7 +503,8 @@ Make it shine. Make it look expensive and professional.
                 newContent = newContent.replace(m.full, imageHtml);
             } catch (e) {
                 this.logger.error(`Failed to generate image for prompt "${m.content}": ${e}`);
-                newContent = newContent.replace(m.full, `<div style="color:red; font-size:10px;">(Image error: ${m.content})</div>`);
+                // Remove failed tags or show error (removing is cleaner for production)
+                newContent = newContent.replace(m.full, '');
             }
         }
 
