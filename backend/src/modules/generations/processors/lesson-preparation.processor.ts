@@ -159,7 +159,7 @@ export class LessonPreparationProcessor extends WorkerHost {
                     opacity: 0.8;
                 }
                 .logo-header img, .logo-footer img {
-                    height: 50px;
+                    height: 200px;
                 }
                 .logo-footer {
                     margin-top: 60px;
