@@ -107,6 +107,7 @@ export const functions = [
   { id: 'photosession', title: 'Фотосессия', icon: 'fas fa-camera' },
   // { id: 'transcription', title: 'Транскрибация', icon: 'fas fa-file-audio' }, // Временно скрыто
   // { id: 'transcription', title: 'Транскрибация', icon: 'fas fa-file-audio' }, // Временно скрыто (дубликат)
+  { id: 'unpacking', title: 'Распаковка', icon: 'fas fa-box-open' },
   { id: 'message', title: 'Сообщение', icon: 'fas fa-envelope' },
   { id: 'game', title: 'Создать игру', icon: 'fas fa-gamepad' }
 ]
@@ -594,6 +595,26 @@ export const templates: Record<string, FunctionTemplate> = {
         ]
       },
       { key: 'topic', label: 'Тема', type: 'text', placeholder: 'История Древнего Рима' }
+    ]
+  },
+  unpacking: {
+    segments: [
+      { type: 'text', value: 'Провести распаковку экспертности и создать товарную линейку.' }
+    ],
+    fields: [
+      { key: 'q1', label: '1. Ваша ниша и тема', type: 'text', placeholder: 'Например: Психология отношений, Английский для IT' },
+      { key: 'q2', label: '2. Кто ваша целевая аудитория?', type: 'textarea', rows: 2, placeholder: 'Возраст, пол, интересы, боли' },
+      { key: 'q3', label: '3. Какую главную проблему вы решаете?', type: 'textarea', rows: 2, placeholder: 'С чем люди приходят к вам?' },
+      { key: 'q4', label: '4. В чем ваша уникальность (метод)?', type: 'textarea', rows: 2, placeholder: 'Почему именно вы? Чем отличаетесь от других?' },
+      { key: 'q5', label: '5. Ваш опыт и твердые факты', type: 'textarea', rows: 2, placeholder: 'Образование, стаж, цифры, достижения' },
+      { key: 'q6', label: '6. Ключевые кейсы / результаты клиентов', type: 'textarea', rows: 2, placeholder: 'Было -> Стало' },
+      { key: 'q7', label: '7. Ваши ценности и миссия', type: 'text', placeholder: 'Что для вас важно в работе?' },
+      { key: 'q8', label: '8. Короткая история о вас (путь героя)', type: 'textarea', rows: 2, placeholder: 'Как вы пришли в профессию?' },
+      { key: 'q9', label: '9. Какой основной продукт вы хотите продавать?', type: 'text', placeholder: 'Курс, наставничество, консультации' },
+      { key: 'q10', label: '10. Есть ли недорогой продукт (Tripwire)?', type: 'text', placeholder: 'Гайд, вебинар, мини-курс' },
+      { key: 'q11', label: '11. Есть ли VIP формат?', type: 'text', placeholder: 'Личное сопровождение, «под ключ»' },
+      { key: 'q12', label: '12. Основные возражения клиентов', type: 'text', placeholder: 'Дорого, нет времени, не получится' },
+      { key: 'q13', label: '13. Желаемый стиль общения (Tone of Voice)', type: 'text', placeholder: 'Дружеский, экспертный, провокационный' }
     ]
   }
 }

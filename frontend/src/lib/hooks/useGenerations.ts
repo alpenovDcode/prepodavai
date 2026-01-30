@@ -40,6 +40,7 @@ export function useGenerations() {
         vocabulary: '/generate/vocabulary',
         lessonPlan: '/generate/lesson-plan',
         lessonPreparation: '/generate/lesson-preparation',
+        unpacking: '/generate/lesson-preparation',
         content: '/generate/content-adaptation',
         feedback: '/generate/feedback',
         presentation: '/generate/presentation',

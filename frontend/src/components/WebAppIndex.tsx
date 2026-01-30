@@ -361,6 +361,17 @@ export default function WebAppIndex() {
         params = { ...params, subject: form.subject, topic: form.topic, level: form.level, duration: form.duration, objectives: form.objectives }
       } else if (type === 'lessonPreparation') {
         params = { ...params, subject: form.subject, topic: form.topic, level: form.level, interests: form.interests, generationTypes: form.generationTypes }
+      } else if (type === 'unpacking') {
+        params = {
+          ...params,
+          generationTypes: ['unpacking'],
+          subject: form.q1,
+          topic: 'Распаковка экспертности',
+          level: 'Expert',
+          q1: form.q1, q2: form.q2, q3: form.q3, q4: form.q4, q5: form.q5,
+          q6: form.q6, q7: form.q7, q8: form.q8, q9: form.q9, q10: form.q10,
+          q11: form.q11, q12: form.q12, q13: form.q13
+        }
       } else if (type === 'content') {
         params = { ...params, sourceType: 'text', text: form.text, youtubeUrl: '', action: form.action, level: form.level }
       } else if (type === 'feedback') {

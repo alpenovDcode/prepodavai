@@ -10,11 +10,12 @@ import { FilesService } from '../../files/files.service';
 
 export interface LessonPreparationJobData {
     generationRequestId: string;
-    subject: string;
-    topic: string;
-    level: string;
+    subject?: string;
+    topic?: string;
+    level?: string;
     interests?: string;
     generationTypes: string[];
+    [key: string]: any;
 }
 
 @Processor('lesson-preparation')
@@ -40,7 +41,7 @@ export class LessonPreparationProcessor extends WorkerHost {
     private readonly logoUrl = "https://fs.cdn-chatium.io/thumbnail/image_gc_AmbUAlw8Yq.1024x1024.png/s/128x";
 
     async process(job: Job<LessonPreparationJobData>): Promise<void> {
-        const { generationRequestId, subject, topic, level, interests, generationTypes } = job.data;
+        const { generationRequestId, subject, topic, level, interests, generationTypes, ...otherData } = job.data;
         this.logger.log(`Processing Lesson Preparation for request ${generationRequestId}`);
 
         try {
@@ -53,7 +54,7 @@ export class LessonPreparationProcessor extends WorkerHost {
 
                 // SPECIAL HANDLER FOR PRESENTATION
                 if (type === 'presentation') {
-                    const pptxUrl = await this.generatePptx(subject, topic, level, interests, previousContext.join('\n\n'));
+                    const pptxUrl = await this.generatePptx(subject || 'Презентация', topic || '', level || '', interests, previousContext.join('\n\n'));
 
                     const typeLabel = this.getTypeLabel(type);
                     sections.push({
@@ -81,11 +82,12 @@ export class LessonPreparationProcessor extends WorkerHost {
                 // 1. Generate content for this specific type
                 const sectionRawContent = await this.generateSection(
                     type,
-                    subject,
-                    topic,
-                    level,
+                    subject || '',
+                    topic || '',
+                    level || '',
                     interests,
-                    previousContext.join('\n\n')
+                    previousContext.join('\n\n'),
+                    otherData
                 );
 
                 // 2. Process images (only if not specialized HTML)
@@ -333,7 +335,8 @@ ${interests ? `Интересы учеников: ${interests}` : ''}
             quest: 'Сценарий квеста',
             visuals: 'Тематические изображения',
             quiz: 'Тест',
-            content: 'Учебный материал'
+            content: 'Учебный материал',
+            unpacking: 'Распаковка и Продуктовая линейка'
         };
         return map[type] || type;
     }
@@ -466,10 +469,52 @@ ${interests ? `Интересы учеников: ${interests}` : ''}
         `;
     }
 
-    private getSpecializedPrompt(type: string, subject: string, topic: string, level: string): { systemPrompt: string, userPrompt: string } | null {
+    private getSpecializedPrompt(type: string, subject: string, topic: string, level: string, extraData: any = {}): { systemPrompt: string, userPrompt: string } | null {
         const logoUrlStr = this.logoUrl;
 
         switch (type) {
+            case 'unpacking':
+                const answers = [
+                    `1. Ниша: ${extraData.q1 || '-'}`,
+                    `2. Аудитория: ${extraData.q2 || '-'}`,
+                    `3. Боль: ${extraData.q3 || '-'}`,
+                    `4. Уникальность: ${extraData.q4 || '-'}`,
+                    `5. Опыт: ${extraData.q5 || '-'}`,
+                    `6. Кейсы: ${extraData.q6 || '-'}`,
+                    `7. Ценности: ${extraData.q7 || '-'}`,
+                    `8. История: ${extraData.q8 || '-'}`,
+                    `9. Основной продукт: ${extraData.q9 || '-'}`,
+                    `10. Tripwire: ${extraData.q10 || '-'}`,
+                    `11. VIP: ${extraData.q11 || '-'}`,
+                    `12. Возражения: ${extraData.q12 || '-'}`,
+                    `13. Tone of Voice: ${extraData.q13 || '-'}`
+                ].join('\n');
+
+                return {
+                    systemPrompt: `Ты — Маркетолог и Бренд-Стратег мирового уровня.
+Твоя задача — провести глубокую "Распаковку экспертности" и создать структуру Товарной линейки на основе ответов клиента.
+Результат должен быть в формате HTML с красивым, дорогим дизайном.
+
+СТРУКТУРА HTML:
+1. Шапка с Логотипом (URL: "${logoUrlStr}") и Заголовком "Стратегия Личного Бренда".
+2. Раздел "КТО Я": Самопрезентация. Преврати сухие факты в захватывающую историю. Выдели уникальность.
+3. Раздел "ДЛЯ КОГО": Портрет аудитории и её боли.
+4. Раздел "ПРОДУКТОВАЯ ЛИНЕЙКА":
+   - Трипваер (Легкий вход)
+   - Основной продукт (Флагман)
+   - VIP (Премиум)
+   Распиши ценность каждого уровня.
+5. Раздел "РАБОТА С ВОЗРАЖЕНИЯМИ": Как закрыть страхи клиентов.
+6. Футер.
+
+СТИЛЬ И ТОН:
+- Используй Tone of Voice клиента.
+- Дизайн: Современный, "воздушный", с акцентными блоками, иконками (можно emoji), тенями.
+- Текст: Продающий, вовлекающий, без воды.
+Твой ответ должен начинаться с <!DOCTYPE html> и содержать ТОЛЬКО HTML код c inline CSS.`,
+                    userPrompt: `Проведи распаковку для эксперта на основе анкеты:\n\n${answers}\n\nСоздай полную стратегию.`
+                };
+
             case 'quiz':
                 return {
                     systemPrompt: `Ты — профессиональный технический генератор кода. Твоя единственная функция — выдавать чистый HTML-код.
@@ -498,8 +543,6 @@ ${interests ? `Интересы учеников: ${interests}` : ''}
 `
                 };
 
-
-
             case 'content':
                 return {
                     systemPrompt: `Ты — методист. Сгенерируй учебный материал в формате HTML.
@@ -526,11 +569,12 @@ URL Логотипа: "${logoUrlStr}"
         topic: string,
         level: string,
         interests: string | undefined,
-        context: string
+        context: string,
+        extraData: any = {}
     ): Promise<string> {
 
         // Check for specialized prompt
-        const specialized = this.getSpecializedPrompt(targetType, subject, topic, level);
+        const specialized = this.getSpecializedPrompt(targetType, subject, topic, level, extraData);
 
         if (specialized) {
             this.logger.log(`Using specialized prompt for ${targetType}`);
