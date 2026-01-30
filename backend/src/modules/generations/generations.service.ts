@@ -520,7 +520,7 @@ export class GenerationsService {
     try {
       this.logger.log(`Starting Lesson Preparation generation for request ${generationRequestId}`);
 
-      const { subject, topic, level, interests, generationTypes } = inputParams;
+      const { subject, topic, level, interests, generationTypes, ...otherParams } = inputParams;
 
       if (!subject || !topic) {
         throw new BadRequestException('Missing required fields for lesson preparation');
@@ -533,6 +533,7 @@ export class GenerationsService {
         level,
         interests,
         generationTypes: generationTypes || [],
+        ...otherParams
       });
 
       this.logger.log(`Enqueued Lesson Preparation job for ${generationRequestId}`);
