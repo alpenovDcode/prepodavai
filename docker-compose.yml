@@ -82,7 +82,10 @@ services:
       GIGACHAT_DEFAULT_EMBEDDINGS_MODEL: ${GIGACHAT_DEFAULT_EMBEDDINGS_MODEL:-GigaChat-Embedding}
       GIGACHAT_DEFAULT_AUDIO_MODEL: ${GIGACHAT_DEFAULT_AUDIO_MODEL:-GigaChat-Audio}
       # Replicate API
+      # Replicate API
       REPLICATE_API_TOKEN: ${REPLICATE_API_TOKEN}
+      # AssemblyAI API
+      ASSEMBLYAI_API_KEY: ${ASSEMBLYAI_API_KEY}
     depends_on:
       postgres:
         condition: service_healthy
@@ -115,6 +118,7 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       GAMMA_API_KEY: ${GAMMA_API_KEY:-}
       N8N_WEBHOOK_URL: ${N8N_WEBHOOK_URL}
+      ASSEMBLYAI_API_KEY: ${ASSEMBLYAI_API_KEY}
     depends_on:
       postgres:
         condition: service_healthy

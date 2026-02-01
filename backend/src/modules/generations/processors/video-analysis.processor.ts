@@ -145,7 +145,6 @@ ${transcript.substring(0, 25000)} {/* Truncate to avoid context limit issues if 
             let prediction = response.data;
             const predictionId = prediction.id;
 
-            // Poll
             while (['starting', 'processing'].includes(prediction.status)) {
                 await new Promise(resolve => setTimeout(resolve, 2000));
                 const statusRes = await axios.get(
