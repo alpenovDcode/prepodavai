@@ -104,9 +104,14 @@ export class GenerationsService {
     }
 
     if (generationType === 'video-analysis') {
+      const baseUrl = this.configService.get<string>('BASE_URL', 'https://api.prepodavai.ru');
+      const videoUrl = inputParams.videoHash
+        ? `${baseUrl}/api/files/${inputParams.videoHash}`
+        : inputParams.videoUrl;
+
       await this.videoAnalysisQueue.add('analyze', {
         generationRequestId: generationRequest.id,
-        videoUrl: inputParams.videoUrl, // Expecting direct URL from frontend upload
+        videoUrl: videoUrl,
         analysisType: inputParams.analysisType || 'sales',
       });
 
