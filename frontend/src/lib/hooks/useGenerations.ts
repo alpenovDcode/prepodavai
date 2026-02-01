@@ -48,7 +48,8 @@ export function useGenerations() {
         photosession: '/generate/photosession',
         transcription: '/generate/transcribe-video',
         message: '/generate/message',
-        gigachat: '/gigachat/generate'
+        gigachat: '/gigachat/generate',
+        videoAnalysis: '/generate/video-analysis'
       }
 
       const endpoint = endpointMap[request.type] || '/generate/worksheet'

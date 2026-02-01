@@ -8,25 +8,29 @@ import { TelegramSenderProcessor } from './processors/telegram-sender.processor'
 import { GammaPollingProcessor } from './processors/gamma-polling.processor';
 import { ReplicatePresentationProcessor } from './processors/replicate-presentation.processor';
 import { LessonPreparationProcessor } from './processors/lesson-preparation.processor';
-import { TelegramModule } from '../telegram/telegram.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
+
 import { GigachatModule } from '../gigachat/gigachat.module';
 import { GammaModule } from '../gamma/gamma.module';
 import { HtmlPostprocessorService } from '../../common/services/html-postprocessor.service';
 import { HtmlExportService } from '../../common/services/html-export.service';
 import { FilesModule } from '../files/files.module';
+import { TelegramModule } from '../telegram/telegram.module';
+import { AssemblyAiService } from '../integrations/assemblyai.service';
+import { VideoAnalysisProcessor } from './processors/video-analysis.processor';
+
 
 @Module({
   imports: [
-    // Очередь для генераций
+    // Queue for generations
     BullModule.registerQueue({
       name: 'generation',
     }),
-    // Очередь для отправки в Telegram
+    // Queue for Telegram sending
     BullModule.registerQueue({
       name: 'telegram-send',
     }),
-    // Очередь для polling статуса Gamma
+    // Queue for Gamma polling
     BullModule.registerQueue({
       name: 'gamma-polling',
     }),
@@ -35,6 +39,9 @@ import { FilesModule } from '../files/files.module';
     }),
     BullModule.registerQueue({
       name: 'lesson-preparation',
+    }),
+    BullModule.registerQueue({
+      name: 'video-analysis',
     }),
     TelegramModule,
     SubscriptionsModule,
@@ -51,6 +58,8 @@ import { FilesModule } from '../files/files.module';
     GammaPollingProcessor,
     ReplicatePresentationProcessor,
     LessonPreparationProcessor,
+    VideoAnalysisProcessor,
+    AssemblyAiService,
     HtmlPostprocessorService,
     HtmlExportService,
   ],

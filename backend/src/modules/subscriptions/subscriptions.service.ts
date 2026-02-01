@@ -23,7 +23,8 @@ export type OperationType =
   | 'gigachat_embeddings'
   | 'gigachat_tokens_count'
   | 'game_generation'
-  | 'lesson_preparation';
+  | 'lesson_preparation'
+  | 'video_analysis';
 
 @Injectable()
 export class SubscriptionsService {
@@ -252,6 +253,13 @@ export class SubscriptionsService {
         operationName: 'Подготовка к уроку',
         creditCost: 5,
         description: 'Создание материалов для урока (WOW-урок)',
+        isActive: true,
+      },
+      {
+        operationType: 'video_analysis',
+        operationName: 'Анализ видео',
+        creditCost: 15,
+        description: 'Анализ видео (Sales/Methodist)',
         isActive: true,
       },
     ];

@@ -108,6 +108,7 @@ export const functions = [
   // { id: 'transcription', title: 'Транскрибация', icon: 'fas fa-file-audio' }, // Временно скрыто
   // { id: 'transcription', title: 'Транскрибация', icon: 'fas fa-file-audio' }, // Временно скрыто (дубликат)
   { id: 'unpacking', title: 'Распаковка', icon: 'fas fa-box-open' },
+  { id: 'videoAnalysis', title: 'Анализ урока', icon: 'fas fa-video' },
   { id: 'message', title: 'Сообщение', icon: 'fas fa-envelope' },
   { id: 'game', title: 'Создать игру', icon: 'fas fa-gamepad' }
 ]
@@ -242,6 +243,27 @@ export const templates: Record<string, FunctionTemplate> = {
           value: String(i + 1),
           label: String(i + 1)
         }))
+      }
+    ]
+  },
+  videoAnalysis: {
+    segments: [
+      { type: 'text', value: 'Проведи анализ видео ' },
+      { type: 'field', key: 'videoHash', label: 'Видео', placeholder: 'файл' },
+      { type: 'text', value: '. Тип анализа: ' },
+      { type: 'field', key: 'analysisType', label: 'Тип', placeholder: 'sales/methodological' },
+      { type: 'text', value: '.' }
+    ],
+    fields: [
+      { key: 'videoHash', label: 'Видео (mp4, mov)', type: 'file', accept: 'video/*' },
+      {
+        key: 'analysisType',
+        label: 'Тип анализа',
+        type: 'select',
+        options: [
+          { value: 'sales', label: 'Анализ продаж' },
+          { value: 'methodological', label: 'Методический анализ' }
+        ]
       }
     ]
   },

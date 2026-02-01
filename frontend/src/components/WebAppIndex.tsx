@@ -184,7 +184,7 @@ export default function WebAppIndex() {
   const isAiAssistant = currentFunctionId === 'aiAssistant'
 
   const isTextResult = generationResult && (
-    ['worksheet', 'quiz', 'vocabulary', 'lessonPlan', 'lessonPreparation', 'content', 'feedback', 'message', 'transcription'].includes(currentFunctionId) ||
+    ['worksheet', 'quiz', 'vocabulary', 'lessonPlan', 'lessonPreparation', 'content', 'feedback', 'message', 'transcription', 'videoAnalysis'].includes(currentFunctionId) ||
     (currentFunctionId === 'gigachat' && ['chat', 'embeddings', 'audio_transcription', 'audio_translation', 'tokens_count'].includes(String(gigachatMode)))
   ) && (!generationResult?.sections) // Only treat as simple text if no sections
 
@@ -384,6 +384,8 @@ export default function WebAppIndex() {
         params = { ...params, prompt: form.prompt, style: form.style, photoHash: form.photoHash, size: form.size }
       } else if (type === 'transcription') {
         params = { ...params, videoHash: form.videoHash, description: form.topic || '', subject: form.subject || 'Общее', language: form.language || 'ru' }
+      } else if (type === 'videoAnalysis') {
+        params = { ...params, videoHash: form.videoHash, analysisType: form.analysisType }
       } else if (type === 'message') {
         let parsed
         try {

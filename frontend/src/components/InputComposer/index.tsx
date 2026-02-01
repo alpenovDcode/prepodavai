@@ -113,7 +113,8 @@ export default function InputComposer({
               audio_translation: 'gigachat_audio'
             },
             game: 'game_generation',
-            lessonPreparation: 'lesson_preparation'
+            lessonPreparation: 'lesson_preparation',
+            videoAnalysis: 'video_analysis'
           }
           const opEntry = opMap[currentFunction]
           let op: string | null = null

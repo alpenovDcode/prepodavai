@@ -29,7 +29,7 @@ export class FilesController {
   @UseInterceptors(
     FileInterceptor('file', {
       limits: {
-        fileSize: 100 * 1024 * 1024, // 100MB вместо 3GB
+        fileSize: 2 * 1024 * 1024 * 1024, // 2GB for video analysis
       },
       fileFilter: (req, file, cb) => {
         const allowedMimeTypes = [

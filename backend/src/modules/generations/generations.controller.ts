@@ -169,4 +169,14 @@ export class GenerationsController {
       inputParams: body,
     });
   }
+
+  @Post('video-analysis')
+  @UseGuards(JwtAuthGuard)
+  async analyzeVideo(@Request() req, @Body() body: any) {
+    return this.generationsService.createGeneration({
+      userId: req.user.id,
+      generationType: 'video-analysis',
+      inputParams: body,
+    });
+  }
 }

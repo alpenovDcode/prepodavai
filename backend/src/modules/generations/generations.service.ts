@@ -37,7 +37,8 @@ export type GenerationType =
   | 'transcription'
   | 'gigachat-chat'
   | 'gigachat-image'
-  | 'gigachat-embeddings';
+  | 'gigachat-embeddings'
+  | 'video-analysis';
 
 export interface GenerationRequest {
   userId: string;
@@ -64,6 +65,7 @@ export class GenerationsService {
     @InjectQueue('gamma-polling') private gammaPollingQueue: Queue,
     @InjectQueue('replicate-presentation') private readonly replicatePresentationQueue: Queue,
     @InjectQueue('lesson-preparation') private readonly lessonPreparationQueue: Queue,
+    @InjectQueue('video-analysis') private readonly videoAnalysisQueue: Queue,
   ) { }
 
   async createGeneration(request: GenerationRequest) {
@@ -98,9 +100,24 @@ export class GenerationsService {
         success: true,
         requestId: generationRequest.id,
         status: 'pending',
-        result: directResult,
       };
     }
+
+    if (generationType === 'video-analysis') {
+      await this.videoAnalysisQueue.add('analyze', {
+        generationRequestId: generationRequest.id,
+        videoUrl: inputParams.videoUrl, // Expecting direct URL from frontend upload
+        analysisType: inputParams.analysisType || 'sales',
+      });
+
+      return {
+        success: true,
+        requestId: generationRequest.id,
+        status: 'pending',
+      };
+    }
+
+
 
     // Генерация подготовки к уроку (WOW-урок)
     if (generationType === 'lessonPreparation') {
@@ -1174,6 +1191,7 @@ ${details.length ? details.join('\n') : 'Предмет не указан. Вы�
       'gigachat-image': '',
       'gigachat-embeddings': '',
       'lessonPreparation': '',
+      'video-analysis': '',
     };
 
     return webhookMap[generationType] || `${baseUrl}/chatgpt-hook`;
@@ -1201,6 +1219,7 @@ ${details.length ? details.join('\n') : 'Предмет не указан. Вы�
       'gigachat-image': '',
       'gigachat-embeddings': '',
       'lessonPreparation': '',
+      'video-analysis': '',
     };
 
     return callbackMap[generationType];
@@ -1492,6 +1511,7 @@ ${studentWork}
       'gigachat-image': 'gigachat_image',
       'gigachat-embeddings': 'gigachat_embeddings',
       'lessonPreparation': 'lesson_preparation',
+      'video-analysis': 'video_analysis',
     };
 
     return map[generationType];
@@ -1517,6 +1537,7 @@ ${studentWork}
       'gigachat-image': 'GigaChat-2-Max',
       'gigachat-embeddings': 'GigaChat-Embedding',
       'lessonPreparation': 'claude-3.5-sonnet',
+      'video-analysis': 'claude-3.5-sonnet',
     };
 
     return modelMap[generationType];
