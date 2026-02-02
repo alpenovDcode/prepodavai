@@ -167,7 +167,7 @@ ${type === 'sales' ? `
 ${transcript.substring(0, 25000)} {/* Truncate to avoid context limit issues if massive */}
 `;
 
-        return this.runReplicatePrediction('anthropic/claude-3.5-sonnet', {
+        return this.runReplicatePrediction('anthropic/claude-3.5-haiku', {
             system_prompt: systemPrompt,
             prompt: userPrompt,
             max_tokens: 3000
@@ -179,7 +179,7 @@ ${transcript.substring(0, 25000)} {/* Truncate to avoid context limit issues if 
         // Ideally this should be in a shared service, but for now copying is safer than refactoring the massive service
         try {
             const response = await axios.post(
-                'https://api.replicate.com/v1/models/anthropic/claude-3.5-sonnet/predictions',
+                `https://api.replicate.com/v1/models/${version}/predictions`,
                 {
                     input: input,
                     stream: false
