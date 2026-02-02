@@ -481,6 +481,7 @@ export default function InputComposer({
                   values={localValues}
                   setValues={setLocalValues}
                   handleFileUpload={handleFileUpload}
+                  isUploadingFile={isUploadingFile}
                 />
               </div>
             ))}
@@ -565,12 +566,14 @@ function FieldRenderer({
   field,
   values,
   setValues,
-  handleFileUpload
+  handleFileUpload,
+  isUploadingFile
 }: {
   field: Field
   values: Record<string, any>
   setValues: React.Dispatch<React.SetStateAction<Record<string, any>>>
   handleFileUpload: (event: React.ChangeEvent<HTMLInputElement>, key: string) => void
+  isUploadingFile?: boolean
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const isTelegramWebApp = typeof window !== 'undefined' &&
@@ -709,10 +712,20 @@ function FieldRenderer({
               onClick={() => fileInputRef.current?.click()}
               className="w-full py-3 bg-[#FF7E58] text-white rounded-lg font-semibold hover:shadow-lg active:scale-95 transition-all flex items-center justify-center space-x-2"
             >
-              <i className="fas fa-cloud-arrow-up"></i>
-              <span>
-                {isVideo ? 'Выбрать видео' : isAudio ? 'Выбрать аудио' : 'Выбрать файл'}
-              </span>
+
+              {isUploadingFile ? (
+                <>
+                  <i className="fas fa-circle-notch fa-spin"></i>
+                  <span>Загрузка...</span>
+                </>
+              ) : (
+                <>
+                  <i className="fas fa-cloud-arrow-up"></i>
+                  <span>
+                    {isVideo ? 'Выбрать видео' : isAudio ? 'Выбрать аудио' : 'Выбрать файл'}
+                  </span>
+                </>
+              )}
             </button>
           )}
           {hasFile && (

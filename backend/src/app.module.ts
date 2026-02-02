@@ -38,7 +38,7 @@ import { GamesModule } from './modules/games/games.module';
     ThrottlerModule.forRoot([
       {
         ttl: 60000, // 1 minute
-        limit: 100, // 100 requests per minute
+        limit: 2000, // 2000 requests per minute to handle polling
       },
     ]),
 
