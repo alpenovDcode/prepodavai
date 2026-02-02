@@ -353,18 +353,11 @@ ${interests ? `- Интересы аудитории (Интегрируй их 
         const fileName = `presentation_${Date.now()}.pptx`;
         const buffer = await pres.write({ outputType: 'nodebuffer' });
 
-        const fs = require('fs');
-        const path = require('path');
-        const uploadsDir = path.join(process.cwd(), 'uploads', 'presentations');
-        if (!fs.existsSync(uploadsDir)) {
-            fs.mkdirSync(uploadsDir, { recursive: true });
-        }
-        const filePath = path.join(uploadsDir, fileName);
-        fs.writeFileSync(filePath, buffer as any);
+        // Use FilesService to save the file properly (handles paths, hashing, and URL generation)
+        const savedFile = await this.filesService.saveBuffer(buffer as Buffer, fileName);
 
-        const baseUrl = this.configService.get<string>('BASE_URL', 'http://localhost:3001');
-        const contentBaseUrl = this.configService.get<string>('CONTENT_BASE_URL') || baseUrl;
-        return `${contentBaseUrl}/api/uploads/presentations/${fileName}`;
+        this.logger.log(`Presentation saved: ${savedFile.url}`);
+        return savedFile.url;
     }
 
     private getTypeLabel(type: string): string {
