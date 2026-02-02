@@ -154,6 +154,7 @@ export class LessonPreparationProcessor extends WorkerHost {
         }
     }
 
+    // Updated to use Legendary Visionary Presentation Engine
     private async generatePptx(subject: string, topic: string, level: string, interests: string | undefined, context: string): Promise<string> {
         // 1. Get structured JSON content from AI
         const prompt = `

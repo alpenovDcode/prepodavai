@@ -281,6 +281,7 @@ export class FilesService {
       '.aac': 'audio/aac',
       '.doc': 'application/msword',
       '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
     };
 
     return mimeTypes[extension.toLowerCase()] || 'application/octet-stream';
