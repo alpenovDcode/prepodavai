@@ -325,12 +325,7 @@ export default function InputComposer({
         const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' ? window.location.origin.replace(':3000', ':3001') : 'http://localhost:3001')
         const previewUrl = response.data.url || `${apiBaseUrl}/api/files/${response.data.hash}`
 
-        console.log('File uploaded:', {
-          hash: response.data.hash,
-          previewUrl,
-          apiBaseUrl,
-          responseUrl: response.data.url
-        })
+
 
         setLocalValues(prev => ({
           ...prev,

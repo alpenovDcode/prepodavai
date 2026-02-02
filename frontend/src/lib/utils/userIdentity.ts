@@ -16,17 +16,17 @@ export function generateUserHash(): string {
  */
 export function getUserHash(): string {
   const STORAGE_KEY = 'ai_tutor_user_hash'
-  
+
   if (typeof window === 'undefined') return ''
-  
+
   let hash = localStorage.getItem(STORAGE_KEY)
-  
+
   if (!hash) {
     hash = generateUserHash()
     localStorage.setItem(STORAGE_KEY, hash)
-    console.log('✅ Created new user hash:', hash)
+
   }
-  
+
   return hash
 }
 
@@ -42,12 +42,12 @@ export function getTelegramUserData(): {
   username?: string
 } | null {
   if (typeof window === 'undefined') return null
-  
+
   const tg = (window as any).Telegram?.WebApp
   if (!tg?.initDataUnsafe?.user) return null
-  
+
   const user = tg.initDataUnsafe.user
-  
+
   return {
     source: 'telegram',
     userHash: user.username || `tg_${user.id}`,
@@ -74,7 +74,7 @@ export function getCurrentUser(): {
   if (tgUser) {
     return tgUser
   }
-  
+
   // Иначе используем веб хэш
   return {
     source: 'web',
@@ -88,6 +88,6 @@ export function getCurrentUser(): {
 export function clearUserData(): void {
   if (typeof window === 'undefined') return
   localStorage.removeItem('ai_tutor_user_hash')
-  console.log('🧹 User data cleared')
+
 }
 

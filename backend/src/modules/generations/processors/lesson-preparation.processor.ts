@@ -157,33 +157,42 @@ export class LessonPreparationProcessor extends WorkerHost {
     private async generatePptx(subject: string, topic: string, level: string, interests: string | undefined, context: string): Promise<string> {
         // 1. Get structured JSON content from AI
         const prompt = `
-Ты — профессиональный дизайнер презентаций.
-Твоя задача — создать структуру презентации для урока.
-Тема: ${topic}
-Предмет: ${subject}
-Уровень: ${level}
-${interests ? `Интересы учеников: ${interests}` : ''}
+ТЫ — ЛЕГЕНДАРНЫЙ ВИЗИОНЕР И АРТ-ДИРЕКТОР (уровень Steve Jobs + TED talk).
+Твоя задача — спроектировать структуру образовательной презентации, которая вызовет "ВАУ-эффект" и визуальный экстаз.
 
-ТРЕБОВАНИЯ:
-1. Строго 5 слайдов.
-2. Формат ответа — ТОЛЬКО валидный JSON (без markdown, без лишнего текста).
-3. Структура JSON:
-[
-  {
-    "title": "Заголовок слайда",
-    "bullets": ["Тезис 1", "Тезис 2", "Тезис 3"],
-    "imagePrompt": "Описание картинки для слайда"
-  }
-]
-4. Слайды должны быть:
-   - Слайд 1: Титульный (Тема, Введение)
-   - Слайд 2: Основная теория (Интересный факт или объяснение)
-   - Слайд 3: Практическое применение (Пример из жизни)
-   - Слайд 4: Интерактив или Задание
-   - Слайд 5: Заключение и Выводы
+ВВОДНЫЕ ДАННЫЕ:
+- Предмет: ${subject}
+- Тема: ${topic}
+- Уровень: ${level}
+${interests ? `- Интересы аудитории (Интегрируй их в метафоры и стиль!): ${interests}` : ''}
 
-Контент должен быть "Вау" — интересным, не скучным, с юмором или метафорами.
-Используй интересы учеников, если указаны.
+ГЛАВНЫЕ ПРАВИЛА (Mental Model):
+1. **MINIMALISM IS KING:** Минимум текста на слайде. Только суть. Никаких "стен текста".
+2. **STORYTELLING:** Это не лекция, это история. Используй "Путь героя", интригу, клиффхэнгеры.
+3. **VISUAL VARIETY:** Каждый слайд должен иметь свой тип верстки (Layout).
+
+ВЕРНИ СТРОГО ВАЛИДНЫЙ JSON С ТАКОЙ СТРУКТУРОЙ:
+{
+  "themeColor": "HEX Code (например #FF5733 — выбери цвет под настроение темы)",
+  "slides": [
+    {
+      "layout": "COVER", // Типы: COVER (Титульный), BIG_FACT (Огромная цифра/Фраза), SPLIT (Картинка + Буллиты), CHALLENGE (Задание), QUOTE (Цитата/Вывод)
+      "title": "Короткий панчлайн (Русский)",
+      "content": ["Тезис 1", "Тезис 2"], // Для BIG_FACT или QUOTE здесь может быть одна строка или массив
+      "imagePrompt": "High-end 3D render or vector art description in English...",
+      "speakerNotes": "Что сказать учителю на этом слайде (Русский)"
+    }
+  ]
+}
+
+СЦЕНАРИЙ (РОВНО 5 СЛАЙДОВ):
+1. **LAYOUT: COVER.** Название, от которого хочется кликнуть. Не скучное "Тема урока", а интрига.
+2. **LAYOUT: BIG_FACT.** Разрыв шаблона. Одна гигантская цифра или шокирующий факт. Минимум слов.
+3. **LAYOUT: SPLIT.** Объяснение через интерес ученика (игры/фильмы/жизнь). Картинка + 3 коротких буллита.
+4. **LAYOUT: CHALLENGE.** Интерактив. Вопрос или мини-игра.
+5. **LAYOUT: QUOTE.** Вдохновляющий финал или призыв к действию.
+
+Язык контента: Русский. Стиль: Дерзкий, живой, для Gen Z.
 `;
 
         const prediction = await this.runReplicatePrediction('anthropic/claude-3.5-sonnet', {
@@ -199,52 +208,44 @@ ${interests ? `Интересы учеников: ${interests}` : ''}
             rawJson = prediction.output;
         }
 
-        // Clean JSON using regex to find the array pattern
-        // This handles cases where model wraps array in {} without key or adds text
-        const jsonArrayMatch = rawJson.match(/\[\s*\{[\s\S]*\}\s*\]/);
+        // Clean JSON using regex
+        const jsonMatch = rawJson.match(/\{[\s\S]*\}/);
+        let parsedData: any;
 
-        let slidesData;
         try {
-            if (jsonArrayMatch) {
-                // We found something that looks like [ ... ]
-                slidesData = JSON.parse(jsonArrayMatch[0]);
+            if (jsonMatch) {
+                parsedData = JSON.parse(jsonMatch[0]);
             } else {
-                // Maybe it is a valid JSON object with a key?
-                const parsed = JSON.parse(rawJson);
-                if (parsed.slides && Array.isArray(parsed.slides)) {
-                    slidesData = parsed.slides;
-                } else if (Array.isArray(parsed)) {
-                    slidesData = parsed;
-                } else {
-                    // Try to find any array in the object values
-                    const values = Object.values(parsed);
-                    const foundArray = values.find(v => Array.isArray(v) && v.length > 0 && v[0].title);
-                    if (foundArray) {
-                        slidesData = foundArray;
-                    } else {
-                        throw new Error("No slide array found");
-                    }
-                }
+                parsedData = JSON.parse(rawJson);
             }
 
-            if (!slidesData || !Array.isArray(slidesData)) {
-                throw new Error("Parsed data is not an array");
+            if (!parsedData.slides || !Array.isArray(parsedData.slides)) {
+                throw new Error("Invalid structure: missing slides array");
             }
-
         } catch (e) {
             this.logger.error("Failed to parse PPTX JSON. Raw: " + rawJson + ". Error: " + e.message);
-            throw new Error("Failed to generate presentation structure");
+            // Fallback minimal structure if parsing fails significantly
+            parsedData = {
+                themeColor: '#FF7E58',
+                slides: [
+                    { layout: 'COVER', title: topic, content: [], imagePrompt: `${topic} abstract art` },
+                    { layout: 'BIG_FACT', title: 'Loading...', content: ['Error parsing content'], imagePrompt: null }
+                ]
+            };
         }
 
-        // 2. Generate Images (Max 3 total)
-        const presImages: string[] = [];
-        for (let i = 0; i < Math.min(slidesData.length, 3); i++) {
-            if (slidesData[i].imagePrompt) {
+        const slidesData = parsedData.slides;
+        const accentColor = parsedData.themeColor ? parsedData.themeColor.replace('#', '') : 'FF7E58';
+
+        // 2. Generate Images
+        const presImages: (string | null)[] = [];
+        for (const slide of slidesData) {
+            if (slide.imagePrompt) {
                 try {
-                    const imgUrl = await this.generateImage(slidesData[i].imagePrompt + ", professional presentation style, high quality, 4k, vector art");
+                    const styleSuffix = "minimalist, trending on artstation, vivid colors, high quality 3d render, 8k, no text";
+                    const imgUrl = await this.generateImage(`${slide.imagePrompt}, ${styleSuffix}`);
                     presImages.push(imgUrl);
                 } catch (e) {
-                    this.logger.warn("Failed to generate pres image: " + e.message);
                     presImages.push(null);
                 }
             } else {
@@ -252,65 +253,106 @@ ${interests ? `Интересы учеников: ${interests}` : ''}
             }
         }
 
-
-        // 3. Create PPTX using pptxgenjs
-        // We import dynamically or use require because we just installed it
+        // 3. Create PPTX
         const PptxGenJS = require("pptxgenjs");
         const pres = new PptxGenJS();
-
-        // Setup Master Slide with Logo
-        // Logo URL: this.logoUrl
-        // Since pptxgenjs needs a local file or base64 or accessible URL, we assume URL works if public,
-        // IF NOT, we might need to download it. For now, try URL. 
-        // Note: PptxGenJS in Node can behave differently with remote URLs depending on setup.
-        // Safer to skip logo image if it fails, or use a text placeholder.
-
-        pres.layout = 'LAYOUT_WIDE';
+        pres.layout = 'LAYOUT_16x9';
 
         pres.defineSlideMaster({
-            title: 'MASTER_SLIDE',
-            background: { color: 'F1F1F1' },
+            title: 'MASTER',
+            background: { color: 'F4F4F5' },
             objects: [
-                { rect: { x: 0, y: 0, w: '100%', h: 0.8, fill: 'FF7E58' } }, // Header bar
-                { image: { x: 12.5, y: 0.1, w: 0.6, h: 0.6, path: this.logoUrl } }, // Logo top right
-                { text: { text: 'PrepodavAI', x: 0.3, y: 0.1, fontSize: 14, color: 'FFFFFF', bold: true } }
+                { rect: { x: 0, y: 0, w: 0.2, h: '100%', fill: accentColor } },
+                { text: { text: 'PrepodavAI', x: 0.4, y: 7.2, fontSize: 10, color: 'AAAAAA', bold: true } }
             ]
         });
 
-        // Add Slides
         slidesData.forEach((slide: any, index: number) => {
-            const s = pres.addSlide({ masterName: 'MASTER_SLIDE' });
+            const s = pres.addSlide({ masterName: 'MASTER' });
+            const img = presImages[index];
 
-            // Title
-            s.addText(slide.title, { x: 0.5, y: 1.0, w: '90%', fontSize: 32, color: '363636', bold: true, align: 'center' });
+            switch (slide.layout) {
+                case 'COVER':
+                    if (img) s.addImage({ path: img, x: 0, y: 0, w: '100%', h: '100%', transparency: 85 });
+                    s.addText(slide.title.toUpperCase(), {
+                        x: 0.5, y: 2.5, w: '90%', h: 2,
+                        fontSize: 64, color: '2D3748', bold: true, align: 'center', fontFace: 'Arial Black'
+                    });
+                    s.addText(topic, {
+                        x: 0.5, y: 4.5, w: '90%', fontSize: 24, color: accentColor, align: 'center'
+                    });
+                    break;
 
-            // Content (Bullets)
-            const bullets = slide.bullets.map((b: string) => ({ text: b, options: { fontSize: 18, color: '505050', breakLine: true } }));
-            s.addText(bullets, { x: 0.5, y: 2.0, w: '50%', h: 4.5, align: 'left', bullet: true });
+                case 'BIG_FACT':
+                    s.addShape(pres.ShapeType.rect, { x: 0, y: 0, w: '50%', h: '100%', fill: accentColor });
 
-            // Image
-            if (index < 3 && presImages[index]) {
-                s.addImage({ path: presImages[index], x: 7, y: 2.0, w: 5, h: 4 });
+                    const factText = Array.isArray(slide.content) ? slide.content[0] : slide.content;
+                    s.addText(factText, {
+                        x: 0.2, y: 1.5, w: '45%', h: 4,
+                        fontSize: 80, color: 'FFFFFF', bold: true, align: 'center'
+                    });
+
+                    s.addText(slide.title, {
+                        x: 5.5, y: 2.5, w: '45%',
+                        fontSize: 32, color: '2D3748', bold: true
+                    });
+                    break;
+
+                case 'SPLIT':
+                    if (img) s.addImage({ path: img, x: 0.5, y: 1.5, w: 4.5, h: 4.5, sizing: { type: 'cover', w: 4.5, h: 4.5, r: 20 } });
+
+                    s.addText(slide.title, {
+                        x: 5.2, y: 0.8, w: '50%',
+                        fontSize: 32, color: accentColor, bold: true
+                    });
+
+                    const bulletsData = Array.isArray(slide.content) ? slide.content : [slide.content];
+                    const bullets = bulletsData.map((b: string) => ({ text: b, options: { breakLine: true } }));
+
+                    s.addText(bullets, {
+                        x: 5.2, y: 1.8, w: '50%', h: 4,
+                        fontSize: 18, color: '4A5568', bullet: { code: '25CF', color: accentColor }, lineSpacing: 35
+                    });
+                    break;
+
+                case 'CHALLENGE':
+                    s.background = { color: '1A202C' };
+                    s.addText("CHALLENGE TIME", { x: 0, y: 0.5, w: '100%', align: 'center', color: accentColor, fontSize: 14, bold: true });
+
+                    s.addText(slide.title, {
+                        x: 1, y: 1.5, w: '80%', h: 1.5,
+                        fontSize: 40, color: 'FFFFFF', bold: true, align: 'center'
+                    });
+
+                    if (img) s.addImage({ path: img, x: 3.5, y: 3.2, w: 6, h: 3 });
+                    break;
+
+                case 'QUOTE':
+                    s.addText("“", { x: 0.5, y: 1.0, fontSize: 100, color: accentColor, fontFace: 'Georgia' });
+                    s.addText(slide.title, {
+                        x: 1.5, y: 2.0, w: '70%',
+                        fontSize: 36, color: '2D3748', italic: true, align: 'center', fontFace: 'Georgia'
+                    });
+                    const quoteAuthor = Array.isArray(slide.content) ? slide.content[0] : slide.content;
+                    s.addText(quoteAuthor, {
+                        x: 4, y: 5, w: '50%', fontSize: 18, color: '718096', align: 'right'
+                    });
+                    break;
+
+                default:
+                    s.addText(slide.title, { x: 0.5, y: 0.5, w: '90%', fontSize: 24, bold: true, color: '2D3748' });
+                    break;
+            }
+
+            if (slide.speakerNotes) {
+                s.addNotes(slide.speakerNotes);
             }
         });
 
         // 4. Save file
         const fileName = `presentation_${Date.now()}.pptx`;
-        // We need to save to a public folder. `this.filesService` usually handles uploads.
-        // Or we can save to temporary dir and upload.
-        // Assuming we can write to `uploads/` matching `games/` logic from before or similar.
-        // Let's use `this.filesService.saveFile` if available or fs directly.
-
-        // PptxGenJS 'write' returns a Promise with filename in Node, but stream if type specified.
-        // We want a buffer to pass to S3/FilesService usually.
         const buffer = await pres.write({ outputType: 'nodebuffer' });
 
-        // Save using FilesService to get a URL
-        // Mocking FilesService usage:
-        // await this.filesService.uploadFile(buffer, fileName, 'presentations');
-        // Since we don't have the full FilesService signature handy for uploadFile from buffer (it usually takes multer file),
-        // we might need to look at FilesService. 
-        // ALTERNATIVE: Write to local 'uploads' folder and return static URL.
         const fs = require('fs');
         const path = require('path');
         const uploadsDir = path.join(process.cwd(), 'uploads', 'presentations');
@@ -318,12 +360,10 @@ ${interests ? `Интересы учеников: ${interests}` : ''}
             fs.mkdirSync(uploadsDir, { recursive: true });
         }
         const filePath = path.join(uploadsDir, fileName);
-        fs.writeFileSync(filePath, buffer);
+        fs.writeFileSync(filePath, buffer as any);
 
-        // Construct URL (assuming static file serving)
         const baseUrl = this.configService.get<string>('BASE_URL', 'http://localhost:3001');
         const contentBaseUrl = this.configService.get<string>('CONTENT_BASE_URL') || baseUrl;
-        // Use /api/uploads to match main.ts configuration and Nginx proxy
         return `${contentBaseUrl}/api/uploads/presentations/${fileName}`;
     }
 

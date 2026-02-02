@@ -26,7 +26,7 @@ export default function ImageResultDisplay({
 
   const onImageLoad = () => {
     setIsLoading(false)
-    console.log('✅ Image loaded successfully', imageUrl)
+
   }
 
   const onImageError = (evt: React.SyntheticEvent<HTMLImageElement, Event>) => {
@@ -39,7 +39,7 @@ export default function ImageResultDisplay({
     if (!imageUrl || isDownloading) return
 
     setIsDownloading(true)
-    console.log('🔽 Starting download:', imageUrl)
+
 
     try {
       const response = await fetch(imageUrl)
@@ -49,16 +49,16 @@ export default function ImageResultDisplay({
 
       const blob = await response.blob()
       const blobUrl = window.URL.createObjectURL(blob)
-      
+
       const a = document.createElement('a')
       a.href = blobUrl
       a.download = `generated-image-${Date.now()}.png`
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)
-      
+
       window.URL.revokeObjectURL(blobUrl)
-      console.log('✅ Download completed')
+
     } catch (err) {
       console.error('❌ Download failed:', err)
       window.open(imageUrl, '_blank')
@@ -78,8 +78,8 @@ export default function ImageResultDisplay({
       {/* Image Container */}
       {imageUrl && (
         <div className="relative bg-gray-100">
-          <img 
-            src={imageUrl} 
+          <img
+            src={imageUrl}
             alt={title || 'Generated image'}
             className="w-full h-auto object-contain bg-gray-100"
             style={{ maxHeight: '500px' }}

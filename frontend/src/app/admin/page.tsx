@@ -148,7 +148,7 @@ export default function AdminPage() {
                 activeTab === 'transactions' ? 'transactions' : 'costs'
           const items = response.data[key] || []
           setData(items)
-          console.log(`✅ Loaded ${items.length} items for ${activeTab}`)
+
         } else {
           setError('Не удалось загрузить данные')
         }
@@ -214,7 +214,7 @@ export default function AdminPage() {
         dataToSave.creditCost = Number(creditCost)
       }
 
-      console.log('💾 Saving:', { endpoint, dataToSave })
+
 
       // Проверяем доступность backend
       const token = localStorage.getItem('prepodavai_token')

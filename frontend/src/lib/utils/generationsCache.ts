@@ -22,7 +22,7 @@ export interface CachedGeneration {
  */
 export function getCachedGenerations(): CachedGeneration[] {
   if (typeof window === 'undefined') return []
-  
+
   try {
     const cached = localStorage.getItem(CACHE_KEY)
     if (!cached) return []
@@ -38,13 +38,13 @@ export function getCachedGenerations(): CachedGeneration[] {
  */
 export function cacheGeneration(generation: CachedGeneration): void {
   if (typeof window === 'undefined') return
-  
+
   try {
     const cached = getCachedGenerations()
-    
+
     // Найти существующую генерацию
     const existingIndex = cached.findIndex(g => g.id === generation.id)
-    
+
     if (existingIndex >= 0) {
       // Обновить существующую
       cached[existingIndex] = {
@@ -59,15 +59,15 @@ export function cacheGeneration(generation: CachedGeneration): void {
         createdAt: generation.createdAt || new Date().toISOString(),
         updatedAt: new Date().toISOString()
       })
-      
+
       // Ограничить размер кэша
       if (cached.length > MAX_CACHE_SIZE) {
         cached.splice(MAX_CACHE_SIZE)
       }
     }
-    
+
     localStorage.setItem(CACHE_KEY, JSON.stringify(cached))
-    console.log('✅ Generation cached:', generation.id, generation.status)
+
   } catch (error) {
     console.error('Failed to cache generation:', error)
   }
@@ -86,12 +86,12 @@ export function getCachedGeneration(id: string): CachedGeneration | null {
  */
 export function removeCachedGeneration(id: string): void {
   if (typeof window === 'undefined') return
-  
+
   try {
     const cached = getCachedGenerations()
     const filtered = cached.filter(g => g.id !== id)
     localStorage.setItem(CACHE_KEY, JSON.stringify(filtered))
-    console.log('🗑️ Generation removed from cache:', id)
+
   } catch (error) {
     console.error('Failed to remove generation from cache:', error)
   }
@@ -110,10 +110,10 @@ export function getUserGenerations(userId: string): CachedGeneration[] {
  */
 export function clearGenerationsCache(): void {
   if (typeof window === 'undefined') return
-  
+
   try {
     localStorage.removeItem(CACHE_KEY)
-    console.log('🧹 Generations cache cleared')
+
   } catch (error) {
     console.error('Failed to clear cache:', error)
   }
