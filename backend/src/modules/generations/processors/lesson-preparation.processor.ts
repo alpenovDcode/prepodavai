@@ -54,15 +54,47 @@ export class LessonPreparationProcessor extends WorkerHost {
 
                 // SPECIAL HANDLER FOR PRESENTATION
                 if (type === 'presentation') {
-                    const pptxUrl = await this.generatePptx(subject || 'Презентация', topic || '', level || '', interests, previousContext.join('\n\n'));
+                    const { pptxUrl, htmlUrl } = await this.generatePresentationPackage(subject || 'Презентация', topic || '', level || '', interests, previousContext.join('\n\n'));
 
                     const typeLabel = this.getTypeLabel(type);
                     sections.push({
                         title: typeLabel,
-                        content: `<div class="presentation-download">
-                            <h3>Готовая презентация</h3>
-                            <p>Сгенерирована презентация из 5 слайдов с вашим дизайном.</p>
-                            <a href="${pptxUrl}" class="download-btn" target="_blank">📥 Скачать презентацию (PPTX)</a>
+                        content: `<div class="presentation-download" style="text-align: center; padding: 20px; background: #f8f9fa; border-radius: 12px; border: 1px solid #e9ecef;">
+                            <h3 style="margin-top: 0; color: #2d3748;">✨ Ваша Легендарная Презентация готова</h3>
+                            <p style="color: #718096; margin-bottom: 20px;">Мы создали для вас структуру из 5 слайдов с премиальным дизайном.</p>
+                            
+                            <div style="display: flex; gap: 15px; justify-content: center; flex-wrap: wrap;">
+                                <a href="${htmlUrl}" target="_blank" class="btn-open" style="
+                                    background: #3182ce; 
+                                    color: white; 
+                                    padding: 12px 24px; 
+                                    border-radius: 8px; 
+                                    text-decoration: none; 
+                                    font-weight: 600; 
+                                    display: inline-flex; 
+                                    align-items: center; 
+                                    gap: 8px;
+                                    transition: transform 0.2s;
+                                ">
+                                    👁️ Открыть (Смотреть)
+                                </a>
+
+                                <a href="${pptxUrl}" download class="btn-download" style="
+                                    background: #FF7E58; 
+                                    color: white; 
+                                    padding: 12px 24px; 
+                                    border-radius: 8px; 
+                                    text-decoration: none; 
+                                    font-weight: 600; 
+                                    display: inline-flex; 
+                                    align-items: center; 
+                                    gap: 8px;
+                                    transition: transform 0.2s;
+                                ">
+                                    💾 Скачать (PPTX)
+                                </a>
+                            </div>
+                            <p style="font-size: 12px; color: #a0aec0; margin-top: 15px;">*Для редактирования скачайте PPTX файл</p>
                         </div>`,
                         fileUrl: pptxUrl,
                         fileType: 'pptx'
@@ -155,7 +187,7 @@ export class LessonPreparationProcessor extends WorkerHost {
     }
 
     // Updated to use Legendary Visionary Presentation Engine
-    private async generatePptx(subject: string, topic: string, level: string, interests: string | undefined, context: string): Promise<string> {
+    private async generatePresentationPackage(subject: string, topic: string, level: string, interests: string | undefined, context: string): Promise<{ pptxUrl: string, htmlUrl: string }> {
         // 1. Get structured JSON content from AI
         const prompt = `
 ТЫ — ЛЕГЕНДАРНЫЙ ВИЗИОНЕР И АРТ-ДИРЕКТОР (уровень Steve Jobs + TED talk).
@@ -355,10 +387,162 @@ ${interests ? `- Интересы аудитории (Интегрируй их 
         const buffer = await pres.write({ outputType: 'nodebuffer' });
 
         // Use FilesService to save the file properly (handles paths, hashing, and URL generation)
-        const savedFile = await this.filesService.saveBuffer(buffer as Buffer, fileName);
+        const savedPptx = await this.filesService.saveBuffer(buffer as Buffer, fileName);
 
-        this.logger.log(`Presentation saved: ${savedFile.url}`);
-        return savedFile.url;
+        // 5. Generate and Save HTML View
+        const htmlContent = this.generateHtmlPresentation(slidesData, presImages, accentColor);
+        const htmlFileName = `presentation_${Date.now()}.html`;
+        const savedHtml = await this.filesService.saveBuffer(Buffer.from(htmlContent), htmlFileName);
+
+        this.logger.log(`Presentation package saved: PPTX=${savedPptx.url}, HTML=${savedHtml.url}`);
+        return {
+            pptxUrl: savedPptx.url,
+            htmlUrl: savedHtml.url
+        };
+    }
+
+    private generateHtmlPresentation(slides: any[], images: (string | null)[], accentColor: string): string {
+        const logoUrl = this.logoUrl;
+
+        const slidesHtml = slides.map((slide, index) => {
+            const img = images[index];
+            let contentHtml = '';
+
+            // Layout logic for HTML
+            switch (slide.layout) {
+                case 'COVER':
+                    contentHtml = `
+                        <div class="slide-content cover" style="background: ${img ? `url('${img}') center/cover no-repeat` : accentColor}; position: relative;">
+                            ${img ? '<div class="overlay"></div>' : ''}
+                            <div class="content-wrapper" style="z-index: 2;">
+                                <h1 style="font-size: 3.5rem; color: ${img ? '#fff' : '#fff'}; text-transform: uppercase; margin-bottom: 20px;">${slide.title}</h1>
+                                <p style="font-size: 1.5rem; color: ${img ? '#e2e8f0' : '#fff'}; opacity: 0.9;">PrepodavAI Presentation</p>
+                            </div>
+                        </div>
+                    `;
+                    break;
+                case 'BIG_FACT':
+                    const fact = Array.isArray(slide.content) ? slide.content[0] : slide.content;
+                    contentHtml = `
+                        <div class="slide-content big-fact" style="display: flex;">
+                            <div class="left" style="flex: 1; background: #${accentColor}; display: flex; align-items: center; justify-content: center; padding: 40px;">
+                                <div style="font-size: 5rem; font-weight: bold; color: white; line-height: 1.1;">${fact}</div>
+                            </div>
+                            <div class="right" style="flex: 1; display: flex; align-items: center; padding: 50px;">
+                                <h2 style="font-size: 2.5rem; color: #2d3748;">${slide.title}</h2>
+                            </div>
+                        </div>
+                    `;
+                    break;
+                case 'SPLIT':
+                    const bullets = Array.isArray(slide.content) ? slide.content : [slide.content];
+                    contentHtml = `
+                        <div class="slide-content split" style="display: flex; gap: 40px; padding: 50px; align-items: center;">
+                            <div class="visual" style="flex: 1;">
+                                ${img ? `<img src="${img}" style="width: 100%; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.1);" />` : `<div style="width: 100%; height: 400px; background: #edF2F7; border-radius: 20px;"></div>`}
+                            </div>
+                            <div class="text" style="flex: 1;">
+                                <h2 style="color: #${accentColor}; font-size: 2rem; margin-bottom: 30px;">${slide.title}</h2>
+                                <ul style="list-style: none; padding: 0;">
+                                    ${bullets.map((b: string) => `<li style="font-size: 1.3rem; margin-bottom: 20px; display: flex; gap: 15px; color: #4a5568;"><span style="color: #${accentColor};">●</span> ${b}</li>`).join('')}
+                                </ul>
+                            </div>
+                        </div>
+                    `;
+                    break;
+                case 'CHALLENGE':
+                    contentHtml = `
+                        <div class="slide-content challenge" style="background: #1a202c; color: white; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 40px;">
+                            <div style="color: #${accentColor}; font-weight: bold; letter-spacing: 2px; margin-bottom: 20px;">CHALLENGE TIME</div>
+                            <h2 style="font-size: 3rem; margin-bottom: 40px;">${slide.title}</h2>
+                            ${img ? `<img src="${img}" style="max-height: 300px; border-radius: 12px;" />` : ''}
+                        </div>
+                    `;
+                    break;
+                case 'QUOTE':
+                    const quote = Array.isArray(slide.content) ? slide.content[0] : slide.content;
+                    contentHtml = `
+                        <div class="slide-content quote" style="display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 60px;">
+                            <div style="font-size: 6rem; color: #${accentColor}; font-family: Georgia; line-height: 1;">“</div>
+                            <h2 style="font-size: 2.5rem; font-family: Georgia; font-style: italic; color: #2d3748; margin: 20px 0;">${slide.title}</h2>
+                            <p style="font-size: 1.2rem; color: #718096; margin-top: 30px;">— ${quote}</p>
+                        </div>
+                    `;
+                    break;
+                default:
+                    contentHtml = `<div style="padding: 50px;"><h1>${slide.title}</h1></div>`;
+            }
+
+            return `
+                <div class="swiper-slide">
+                    <div class="slide-container">
+                        ${contentHtml}
+                        <div class="logo-badge">
+                            <img src="${logoUrl}" alt="Logo" />
+                            <span>PrepodavAI</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        return `
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PrepodavAI Presentation</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
+    <style>
+        body { margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; background: #000; height: 100vh; display: flex; align-items: center; justify-content: center; }
+        .swiper { width: 100%; height: 100%; max-width: 1200px; max-height: 675px; background: white; }
+        .swiper-slide { display: flex; align-items: stretch; justify-content: stretch; background: white; overflow: hidden; }
+        .slide-container { width: 100%; height: 100%; position: relative; display: flex; flex-direction: column; justify-content: center; }
+        
+        .overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.5); z-index: 1; }
+        .logo-badge { position: absolute; top: 20px; left: 30px; display: flex; align-items: center; gap: 10px; z-index: 10; background: rgba(255,255,255,0.9); padding: 8px 16px; border-radius: 50px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .logo-badge img { height: 24px; }
+        .logo-badge span { font-weight: bold; color: #2d3748; font-size: 14px; }
+        
+        /* Navigation Buttons */
+        .swiper-button-next, .swiper-button-prev { color: #${accentColor} !important; background: white; width: 50px; height: 50px; border-radius: 50%; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        .swiper-button-next:after, .swiper-button-prev:after { font-size: 20px; font-weight: bold; }
+        
+        .slide-content { width: 100%; height: 100%; }
+    </style>
+</head>
+<body>
+    <div class="swiper">
+        <div class="swiper-wrapper">
+            ${slidesHtml}
+        </div>
+        <div class="swiper-button-next"></div>
+        <div class="swiper-button-prev"></div>
+        <div class="swiper-pagination"></div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
+    <script>
+        const swiper = new Swiper('.swiper', {
+            effect: 'fade',
+            speed: 600,
+            navigation: {
+                nextEl: '.swiper-button-next',
+                prevEl: '.swiper-button-prev',
+            },
+            pagination: {
+                el: '.swiper-pagination',
+                clickable: true,
+            },
+            keyboard: {
+                enabled: true,
+            },
+        });
+    </script>
+</body>
+</html>
+        `;
     }
 
     private getTypeLabel(type: string): string {
