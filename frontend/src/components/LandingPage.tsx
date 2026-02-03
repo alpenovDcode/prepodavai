@@ -222,21 +222,28 @@ export default function LandingPage() {
           <p>&copy; 2025 prepodavAI - ИИ-помощник для репетиторов</p>
           <span className="hidden sm:inline text-gray-600">|</span>
           <a
-            href="/public-offer"
+            href="/legal/offer"
             className="text-orange-400 hover:text-orange-300 underline transition-colors duration-200"
           >
             Публичная оферта
           </a>
           <span className="hidden sm:inline text-gray-600">|</span>
           <a
-            href="/privacy-policy"
+            href="/legal/terms"
+            className="text-orange-400 hover:text-orange-300 underline transition-colors duration-200"
+          >
+            Условия использования
+          </a>
+          <span className="hidden sm:inline text-gray-600">|</span>
+          <a
+            href="/legal/privacy"
             className="text-orange-400 hover:text-orange-300 underline transition-colors duration-200"
           >
             Политика конфиденциальности
           </a>
           <span className="hidden sm:inline text-gray-600">|</span>
           <a
-            href="/personal-data"
+            href="/legal/consent/processing"
             className="text-orange-400 hover:text-orange-300 underline transition-colors duration-200"
           >
             Согласие на обработку ПД
