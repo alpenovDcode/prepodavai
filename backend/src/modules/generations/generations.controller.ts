@@ -179,4 +179,14 @@ export class GenerationsController {
       inputParams: body,
     });
   }
+
+  @Post('sales-advisor')
+  @UseGuards(JwtAuthGuard)
+  async analyzeSalesDialog(@Request() req, @Body() body: any) {
+    return this.generationsService.createGeneration({
+      userId: req.user.id,
+      generationType: 'sales-advisor',
+      inputParams: body,
+    });
+  }
 }

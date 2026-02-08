@@ -18,7 +18,7 @@ import { FilesModule } from '../files/files.module';
 import { TelegramModule } from '../telegram/telegram.module';
 import { AssemblyAiService } from '../integrations/assemblyai.service';
 import { VideoAnalysisProcessor } from './processors/video-analysis.processor';
-import { SalesAnalysisProcessor } from './processors/sales-analysis.processor';
+import { SalesAdvisorProcessor } from './processors/sales-advisor.processor';
 
 
 @Module({
@@ -45,7 +45,7 @@ import { SalesAnalysisProcessor } from './processors/sales-analysis.processor';
       name: 'video-analysis',
     }),
     BullModule.registerQueue({
-      name: 'sales-analysis',
+      name: 'sales-advisor',
     }),
     TelegramModule,
     SubscriptionsModule,
@@ -63,7 +63,7 @@ import { SalesAnalysisProcessor } from './processors/sales-analysis.processor';
     ReplicatePresentationProcessor,
     LessonPreparationProcessor,
     VideoAnalysisProcessor,
-    SalesAnalysisProcessor,
+    SalesAdvisorProcessor,
     AssemblyAiService,
     HtmlPostprocessorService,
     HtmlExportService,

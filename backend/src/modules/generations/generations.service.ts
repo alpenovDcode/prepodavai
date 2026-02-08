@@ -39,7 +39,7 @@ export type GenerationType =
   | 'gigachat-image'
   | 'gigachat-embeddings'
   | 'video-analysis'
-  | 'sales-analysis';
+  | 'sales-advisor';
 
 export interface GenerationRequest {
   userId: string;
@@ -67,7 +67,7 @@ export class GenerationsService {
     @InjectQueue('replicate-presentation') private readonly replicatePresentationQueue: Queue,
     @InjectQueue('lesson-preparation') private readonly lessonPreparationQueue: Queue,
     @InjectQueue('video-analysis') private readonly videoAnalysisQueue: Queue,
-    @InjectQueue('sales-analysis') private readonly salesAnalysisQueue: Queue,
+    @InjectQueue('sales-advisor') private readonly salesAdvisorQueue: Queue,
   ) { }
 
   async createGeneration(request: GenerationRequest) {
@@ -124,15 +124,16 @@ export class GenerationsService {
       };
     }
 
-    if (generationType === 'sales-analysis') {
+    if (generationType === 'sales-advisor') {
       const baseUrl = this.configService.get<string>('BASE_URL', 'https://api.prepodavai.ru');
-      const fileUrl = inputParams.fileHash
-        ? `${baseUrl}/api/files/${inputParams.fileHash}`
-        : inputParams.fileUrl;
+      const imageUrl = inputParams.imageHash
+        ? `${baseUrl}/api/files/${inputParams.imageHash}`
+        : inputParams.imageUrl;
 
-      await this.salesAnalysisQueue.add('analyze', {
+      await this.salesAdvisorQueue.add('analyze', {
         generationRequestId: generationRequest.id,
-        fileUrl: fileUrl,
+        imageHash: inputParams.imageHash,
+        imageUrl: imageUrl,
       });
 
       return {
@@ -1217,7 +1218,7 @@ ${details.length ? details.join('\n') : 'Предмет не указан. Вы�
       'gigachat-embeddings': '',
       'lessonPreparation': '',
       'video-analysis': '',
-      'sales-analysis': '',
+      'sales-advisor': '',
     };
 
     return webhookMap[generationType] || `${baseUrl}/chatgpt-hook`;
@@ -1246,7 +1247,7 @@ ${details.length ? details.join('\n') : 'Предмет не указан. Вы�
       'gigachat-embeddings': '',
       'lessonPreparation': '',
       'video-analysis': '',
-      'sales-analysis': '',
+      'sales-advisor': '',
     };
 
     return callbackMap[generationType];
@@ -1539,7 +1540,7 @@ ${studentWork}
       'gigachat-embeddings': 'gigachat_embeddings',
       'lessonPreparation': 'lesson_preparation',
       'video-analysis': 'video_analysis',
-      'sales-analysis': 'sales_analysis',
+      'sales-advisor': 'sales_advisor',
     };
 
     return map[generationType];
@@ -1566,7 +1567,7 @@ ${studentWork}
       'gigachat-embeddings': 'GigaChat-Embedding',
       'lessonPreparation': 'claude-3.5-sonnet',
       'video-analysis': 'claude-3.5-sonnet',
-      'sales-analysis': 'llama-3.2-11b-vision-preview',
+      'sales-advisor': 'claude-3.5-sonnet',
     };
 
     return modelMap[generationType];

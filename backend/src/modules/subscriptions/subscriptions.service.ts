@@ -25,7 +25,7 @@ export type OperationType =
   | 'game_generation'
   | 'lesson_preparation'
   | 'video_analysis'
-  | 'sales_analysis';
+  | 'sales_advisor';
 
 @Injectable()
 export class SubscriptionsService {
@@ -264,10 +264,10 @@ export class SubscriptionsService {
         isActive: true,
       },
       {
-        operationType: 'sales_analysis',
-        operationName: 'Анализ переписки',
-        creditCost: 5,
-        description: 'Анализ скриншотов переписки (Sales AI)',
+        operationType: 'sales_advisor',
+        operationName: 'ИИ-продажник',
+        creditCost: 10,
+        description: 'Анализ диалога с клиентом и рекомендации',
         isActive: true,
       },
     ];
