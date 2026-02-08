@@ -205,12 +205,17 @@ export class SalesAdvisorProcessor extends WorkerHost {
      */
     private async runReplicatePredictionWithMessages(model: string, input: any): Promise<string> {
         try {
+            const requestBody = {
+                input: input,
+                stream: false
+            };
+
+            // Log the request for debugging
+            this.logger.log(`Replicate API Request Body: ${JSON.stringify(requestBody, null, 2)}`);
+
             const response = await axios.post(
                 `https://api.replicate.com/v1/models/${model}/predictions`,
-                {
-                    input: input,
-                    stream: false
-                },
+                requestBody,
                 {
                     headers: {
                         'Authorization': `Bearer ${this.replicateToken}`,
@@ -241,6 +246,10 @@ export class SalesAdvisorProcessor extends WorkerHost {
             }
         } catch (error: any) {
             this.logger.error(`Replicate Messages API Error: ${error.message}`);
+            if (error.response) {
+                this.logger.error(`Replicate API Response Status: ${error.response.status}`);
+                this.logger.error(`Replicate API Response Data: ${JSON.stringify(error.response.data, null, 2)}`);
+            }
             throw error;
         }
     }
