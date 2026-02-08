@@ -387,7 +387,11 @@ export default function WebAppIndex() {
       } else if (type === 'videoAnalysis') {
         params = { ...params, videoHash: form.videoHash, analysisType: form.analysisType }
       } else if (type === 'salesAdvisor') {
+        console.log('[DEBUG] salesAdvisor - form.imageHashes:', form.imageHashes)
+        console.log('[DEBUG] salesAdvisor - type:', typeof form.imageHashes)
+        console.log('[DEBUG] salesAdvisor - isArray:', Array.isArray(form.imageHashes))
         params = { ...params, imageHashes: form.imageHashes || [] }
+        console.log('[DEBUG] salesAdvisor - params:', params)
       } else if (type === 'message') {
         let parsed
         try {

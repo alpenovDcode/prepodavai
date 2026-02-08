@@ -127,8 +127,13 @@ export class GenerationsService {
     if (generationType === 'sales-advisor') {
       const baseUrl = this.configService.get<string>('BASE_URL', 'https://api.prepodavai.ru');
 
+      // Log incoming params for debugging
+      this.logger.log(`Sales Advisor - inputParams: ${JSON.stringify(inputParams)}`);
+
       // Support both single imageHash and array imageHashes
       const imageHashes = inputParams.imageHashes || (inputParams.imageHash ? [inputParams.imageHash] : []);
+
+      this.logger.log(`Sales Advisor - imageHashes: ${JSON.stringify(imageHashes)}, length: ${imageHashes.length}`);
 
       if (imageHashes.length === 0) {
         throw new Error('At least one image is required for sales advisor analysis');
