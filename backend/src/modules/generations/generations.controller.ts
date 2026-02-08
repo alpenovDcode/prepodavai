@@ -183,10 +183,21 @@ export class GenerationsController {
   @Post('sales-advisor')
   @UseGuards(JwtAuthGuard)
   async analyzeSalesDialog(@Request() req, @Body() body: any) {
-    return this.generationsService.createGeneration({
-      userId: req.user.id,
-      generationType: 'sales-advisor',
-      inputParams: body,
-    });
+    console.log('[DEBUG Controller] sales-advisor request body:', JSON.stringify(body));
+    console.log('[DEBUG Controller] user:', req.user);
+
+    try {
+      const result = await this.generationsService.createGeneration({
+        userId: req.user.id,
+        generationType: 'sales-advisor',
+        inputParams: body,
+      });
+
+      console.log('[DEBUG Controller] sales-advisor result:', result);
+      return result;
+    } catch (error) {
+      console.error('[ERROR Controller] sales-advisor error:', error);
+      throw error;
+    }
   }
 }
