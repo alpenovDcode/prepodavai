@@ -310,6 +310,8 @@ export default function InputComposer({
         for (let i = 0; i < files.length; i++) {
           const file = files[i]
 
+          console.log(`[DEBUG] Uploading file ${i + 1}/${files.length}:`, file.name)
+
           if (!file.type.startsWith('image/')) {
             alert(`Файл ${file.name} не является изображением`)
             continue
@@ -325,12 +327,16 @@ export default function InputComposer({
 
           const response = await apiClient.post('/files/upload', formData)
 
+          console.log(`[DEBUG] Upload response for ${file.name}:`, response.data)
+
           if (!response.data.success) {
             throw new Error(response.data.error || `Ошибка загрузки ${file.name}`)
           }
 
           const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' ? window.location.origin.replace(':3000', ':3001') : 'http://localhost:3001')
           const previewUrl = response.data.url || `${apiBaseUrl}/api/files/${response.data.hash}`
+
+          console.log(`[DEBUG] Adding hash:`, response.data.hash)
 
           uploadedHashes.push(response.data.hash)
           uploadedPreviews.push(previewUrl)
@@ -343,9 +349,15 @@ export default function InputComposer({
           const existingPreviews = Array.isArray(prev[key + 'Previews']) ? prev[key + 'Previews'] : []
           const existingFileNames = Array.isArray(prev[key + 'FileNames']) ? prev[key + 'FileNames'] : []
 
+          console.log('[DEBUG] Before merge - existingHashes:', existingHashes)
+          console.log('[DEBUG] Before merge - uploadedHashes:', uploadedHashes)
+
+          const newHashes = [...existingHashes, ...uploadedHashes]
+          console.log('[DEBUG] After merge - newHashes:', newHashes)
+
           return {
             ...prev,
-            [key]: [...existingHashes, ...uploadedHashes],
+            [key]: newHashes,
             [key + 'Previews']: [...existingPreviews, ...uploadedPreviews],
             [key + 'FileNames']: [...existingFileNames, ...uploadedFileNames]
           }
