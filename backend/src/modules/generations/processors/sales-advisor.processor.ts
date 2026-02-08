@@ -120,7 +120,7 @@ export class SalesAdvisorProcessor extends WorkerHost {
 
     /**
      * Run Replicate prediction with support for multiple images
-     * Uses Messages API format with base64 encoded images
+     * Analyzes images sequentially and combines results
      */
     private async runReplicatePredictionWithMultipleImages(
         imageUrls: string[],
@@ -140,119 +140,62 @@ export class SalesAdvisorProcessor extends WorkerHost {
                 });
             }
 
-            // For multiple images, we need to download them and convert to base64
-            // Then use Messages API format
-            this.logger.log(`Downloading and converting ${imageUrls.length} images to base64...`);
+            // For multiple images, analyze each one sequentially and combine results
+            this.logger.log(`Analyzing ${imageUrls.length} images sequentially...`);
 
-            const imageBase64Data: Array<{ type: string; source: { type: string; media_type: string; data: string } }> = [];
+            const analyses: string[] = [];
 
             for (let i = 0; i < imageUrls.length; i++) {
-                const imageUrl = imageUrls[i];
-                this.logger.log(`Downloading image ${i + 1}/${imageUrls.length}: ${imageUrl}`);
+                const imageNumber = i + 1;
+                this.logger.log(`Analyzing image ${imageNumber}/${imageUrls.length}`);
 
-                try {
-                    // Download image
-                    const response = await axios.get(imageUrl, { responseType: 'arraybuffer' });
-                    const buffer = Buffer.from(response.data);
-                    const base64 = buffer.toString('base64');
+                const imagePrompt = `Это скриншот ${imageNumber} из ${imageUrls.length} (в хронологическом порядке).
+                
+Проанализируй ТОЛЬКО этот скриншот и опиши:
+1. Что происходит на этом этапе диалога
+2. Ключевые моменты и фразы
+3. Реакция клиента
+4. Действия менеджера
 
-                    // Determine media type from content-type header or default to jpeg
-                    const contentType = response.headers['content-type'] || 'image/jpeg';
+Будь кратким, это промежуточный анализ.`;
 
-                    imageBase64Data.push({
-                        type: 'image',
-                        source: {
-                            type: 'base64',
-                            media_type: contentType,
-                            data: base64
-                        }
-                    });
+                const analysis = await this.runReplicatePrediction('anthropic/claude-3.5-sonnet', {
+                    prompt: imagePrompt,
+                    system_prompt: 'Ты эксперт по анализу диалогов продаж. Анализируй скриншоты переписки.',
+                    max_tokens: 1000,
+                    image: imageUrls[i],
+                });
 
-                    this.logger.log(`Image ${i + 1} converted to base64 (${Math.round(base64.length / 1024)}KB)`);
-                } catch (error) {
-                    this.logger.error(`Failed to download image ${i + 1}: ${error.message}`);
-                    throw new Error(`Failed to download image ${i + 1}: ${error.message}`);
-                }
+                analyses.push(`### Скриншот ${imageNumber}/${imageUrls.length}\n\n${analysis}`);
             }
 
-            // Construct messages array with text prompt and all images
-            const messages = [
-                {
-                    role: 'user',
-                    content: [
-                        { type: 'text', text: userPrompt },
-                        ...imageBase64Data
-                    ]
-                }
-            ];
+            // Now combine all analyses into final comprehensive analysis
+            this.logger.log(`Combining ${analyses.length} analyses into final report`);
 
-            this.logger.log(`Sending request to Replicate with ${imageUrls.length} images using Messages API format`);
+            const combinedContext = analyses.join('\n\n---\n\n');
 
-            // Use Messages API format
-            return this.runReplicatePredictionWithMessages('anthropic/claude-3.5-sonnet', {
-                messages: messages,
-                system: systemPrompt,
+            const finalPrompt = `Ты получил анализ ${imageUrls.length} скриншотов диалога с клиентом (в хронологическом порядке).
+
+ПРОМЕЖУТОЧНЫЕ АНАЛИЗЫ:
+${combinedContext}
+
+Теперь на основе ВСЕХ этих скриншотов предоставь ИТОГОВЫЙ комплексный анализ всего диалога целиком:
+
+${userPrompt}`;
+
+            const finalAnalysis = await this.runReplicatePrediction('anthropic/claude-3.5-sonnet', {
+                prompt: finalPrompt,
+                system_prompt: systemPrompt,
                 max_tokens: 3000,
             });
+
+            return finalAnalysis;
         } catch (error: any) {
             this.logger.error(`Error in runReplicatePredictionWithMultipleImages: ${error.message}`);
             throw error;
         }
     }
 
-    /**
-     * Run Replicate prediction using Messages API format
-     */
-    private async runReplicatePredictionWithMessages(model: string, input: any): Promise<string> {
-        try {
-            const requestBody = {
-                input: input,
-                stream: false
-            };
-
-            // Log the request for debugging
-            this.logger.log(`Replicate API Request Body: ${JSON.stringify(requestBody, null, 2)}`);
-
-            const response = await axios.post(
-                `https://api.replicate.com/v1/models/${model}/predictions`,
-                requestBody,
-                {
-                    headers: {
-                        'Authorization': `Bearer ${this.replicateToken}`,
-                        'Content-Type': 'application/json',
-                    }
-                }
-            );
-
-            let prediction = response.data;
-            const predictionId = prediction.id;
-
-            // Poll for completion
-            while (['starting', 'processing'].includes(prediction.status)) {
-                await new Promise(resolve => setTimeout(resolve, 2000));
-                const statusRes = await axios.get(
-                    `https://api.replicate.com/v1/predictions/${predictionId}`,
-                    {
-                        headers: { 'Authorization': `Bearer ${this.replicateToken}` }
-                    }
-                );
-                prediction = statusRes.data;
-            }
-
-            if (prediction.status === 'succeeded') {
-                return Array.isArray(prediction.output) ? prediction.output.join('') : prediction.output;
-            } else {
-                throw new Error(`Replicate failed: ${prediction.error}`);
-            }
-        } catch (error: any) {
-            this.logger.error(`Replicate Messages API Error: ${error.message}`);
-            if (error.response) {
-                this.logger.error(`Replicate API Response Status: ${error.response.status}`);
-                this.logger.error(`Replicate API Response Data: ${JSON.stringify(error.response.data, null, 2)}`);
-            }
-            throw error;
-        }
-    }
 
     private async runReplicatePrediction(model: string, input: any): Promise<string> {
         try {
