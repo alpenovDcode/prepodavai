@@ -78,9 +78,11 @@ export class SalesAdvisorProcessor extends WorkerHost {
 - Даешь конкретные, готовые к использованию формулировки
 
 ФОРМАТ ОТВЕТА (HTML):
-Используй теги <h3>, <h4>, <ul>, <li>, <strong>, <em> для структурирования.
-НЕ используй теги <html>, <head>, <body> — только содержимое.
-Используй эмодзи для визуальной привлекательности.`;
+Используй теги <h3> для разделов, <ul> и <li> для списков.
+Используй <strong> для выделения важных мыслей.
+Можешь использовать <div class="highlight-box">...</div> для особо важных рекомендаций или выводов.
+Не используй markdown, только чистый HTML.
+Не добавляй теги html, head, body - только контент.`;
 
         const userPrompt = imageCount > 1
             ? `Проанализируй ${imageCount} скриншота диалога с клиентом (они идут в хронологическом порядке) и предоставь детальный разбор ВСЕГО диалога целиком.`
@@ -241,21 +243,101 @@ ${userPrompt}`;
 
     private formatToHtml(analysis: string): string {
         return `
-        <div class="sales-advisor-result" style="font-family: sans-serif; max-width: 900px; margin: 0 auto;">
-            <div style="text-align: center; margin-bottom: 30px; border-bottom: 2px solid #FF7E58; padding-bottom: 20px;">
-                <img src="${LOGO_BASE64}" alt="Logo" style="max-height: 80px;" />
-                <h2 style="color: #2d3748; margin-top: 15px;">ИИ-Продажник: Анализ диалога</h2>
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <style>
+                body {
+                    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+                    line-height: 1.6;
+                    color: #333;
+                    max-width: 900px;
+                    margin: 0 auto;
+                    padding: 40px;
+                    background-color: #fff;
+                }
+                .header {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    border-bottom: 3px solid #FF7E58;
+                    padding-bottom: 20px;
+                    margin-bottom: 40px;
+                }
+                .header-logo {
+                    max-height: 70px;
+                }
+                .header-title {
+                    font-size: 28px;
+                    color: #2d3748;
+                    font-weight: 700;
+                    margin: 0;
+                    text-align: right;
+                }
+                .content {
+                    font-size: 16px;
+                }
+                h3 {
+                    color: #FF7E58;
+                    font-size: 22px;
+                    margin-top: 30px;
+                    margin-bottom: 15px;
+                    border-left: 4px solid #FF7E58;
+                    padding-left: 15px;
+                }
+                h4 {
+                    color: #4a5568;
+                    font-size: 18px;
+                    margin-top: 20px;
+                    margin-bottom: 10px;
+                }
+                ul {
+                    padding-left: 20px;
+                    margin-bottom: 20px;
+                }
+                li {
+                    margin-bottom: 8px;
+                }
+                strong {
+                    color: #2d3748;
+                }
+                .footer {
+                    margin-top: 60px;
+                    padding-top: 20px;
+                    border-top: 1px solid #eee;
+                    display: flex;
+                    justify-content: flex-end;
+                    align-items: center;
+                }
+                .footer-logo {
+                    max-height: 40px;
+                    opacity: 0.6;
+                }
+                .highlight-box {
+                    background-color: #f7fafc;
+                    border-radius: 8px;
+                    padding: 20px;
+                    margin: 20px 0;
+                    border: 1px solid #e2e8f0;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <img src="${LOGO_BASE64}" alt="PrepodavAI" class="header-logo" />
+                <h1 class="header-title">Анализ диалога продаж</h1>
             </div>
             
-            <div style="line-height: 1.6; color: #333;">
+            <div class="content">
                 ${analysis}
             </div>
 
-            <div style="text-align: center; margin-top: 40px; border-top: 1px solid #eee; padding-top: 20px;">
-                <img src="${LOGO_BASE64}" alt="Logo" style="max-height: 50px; opacity: 0.7;" />
-                <p style="font-size: 12px; color: #888; margin-top: 10px;">Сгенерировано PrepodavAI</p>
+            <div class="footer">
+                <img src="${LOGO_BASE64}" alt="PrepodavAI" class="footer-logo" />
             </div>
-        </div>
+        </body>
+        </html>
         `;
     }
 }
