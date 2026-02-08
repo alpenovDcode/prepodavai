@@ -126,14 +126,24 @@ export class GenerationsService {
 
     if (generationType === 'sales-advisor') {
       const baseUrl = this.configService.get<string>('BASE_URL', 'https://api.prepodavai.ru');
-      const imageUrl = inputParams.imageHash
-        ? `${baseUrl}/api/files/${inputParams.imageHash}`
-        : inputParams.imageUrl;
+
+      // Support both single imageHash and array imageHashes
+      const imageHashes = inputParams.imageHashes || (inputParams.imageHash ? [inputParams.imageHash] : []);
+
+      if (imageHashes.length === 0) {
+        throw new Error('At least one image is required for sales advisor analysis');
+      }
+
+      if (imageHashes.length > 6) {
+        throw new Error('Maximum 6 images allowed for sales advisor analysis');
+      }
+
+      const imageUrls = imageHashes.map(hash => `${baseUrl}/api/files/${hash}`);
 
       await this.salesAdvisorQueue.add('analyze', {
         generationRequestId: generationRequest.id,
-        imageHash: inputParams.imageHash,
-        imageUrl: imageUrl,
+        imageHashes: imageHashes,
+        imageUrls: imageUrls,
       });
 
       return {

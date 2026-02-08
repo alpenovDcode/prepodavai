@@ -280,8 +280,90 @@ export default function InputComposer({
     return String(v)
   }
 
+
   async function handleFileUpload(event: React.ChangeEvent<HTMLInputElement>, key: string) {
-    const file = event.target.files?.[0]
+    const files = event.target.files
+    if (!files || files.length === 0) return
+
+    // Check if this is salesAdvisor with multiple files
+    const isSalesAdvisor = currentFunction === 'salesAdvisor' && key === 'imageHashes'
+    const isMultiple = isSalesAdvisor && files.length > 1
+
+    if (isSalesAdvisor) {
+      // Validate max 6 images
+      const existingCount = Array.isArray(localValues[key]) ? localValues[key].length : 0
+      const totalCount = existingCount + files.length
+
+      if (totalCount > 6) {
+        alert(`Максимум 6 изображений. У вас уже загружено ${existingCount}, попытка добавить ${files.length}.`)
+        if (event.target) event.target.value = ''
+        return
+      }
+
+      // Upload multiple files
+      try {
+        setIsUploadingFile(true)
+        const uploadedHashes: string[] = []
+        const uploadedPreviews: string[] = []
+        const uploadedFileNames: string[] = []
+
+        for (let i = 0; i < files.length; i++) {
+          const file = files[i]
+
+          if (!file.type.startsWith('image/')) {
+            alert(`Файл ${file.name} не является изображением`)
+            continue
+          }
+
+          if (file.size > 10 * 1024 * 1024) {
+            alert(`Файл ${file.name} слишком большой. Максимум 10 МБ.`)
+            continue
+          }
+
+          const formData = new FormData()
+          formData.append('file', file)
+
+          const response = await apiClient.post('/files/upload', formData)
+
+          if (!response.data.success) {
+            throw new Error(response.data.error || `Ошибка загрузки ${file.name}`)
+          }
+
+          const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' ? window.location.origin.replace(':3000', ':3001') : 'http://localhost:3001')
+          const previewUrl = response.data.url || `${apiBaseUrl}/api/files/${response.data.hash}`
+
+          uploadedHashes.push(response.data.hash)
+          uploadedPreviews.push(previewUrl)
+          uploadedFileNames.push(file.name)
+        }
+
+        // Append to existing arrays or create new ones
+        setLocalValues(prev => {
+          const existingHashes = Array.isArray(prev[key]) ? prev[key] : []
+          const existingPreviews = Array.isArray(prev[key + 'Previews']) ? prev[key + 'Previews'] : []
+          const existingFileNames = Array.isArray(prev[key + 'FileNames']) ? prev[key + 'FileNames'] : []
+
+          return {
+            ...prev,
+            [key]: [...existingHashes, ...uploadedHashes],
+            [key + 'Previews']: [...existingPreviews, ...uploadedPreviews],
+            [key + 'FileNames']: [...existingFileNames, ...uploadedFileNames]
+          }
+        })
+
+        if (event.target) event.target.value = ''
+      } catch (error: any) {
+        console.error('Error uploading files:', error)
+        const errorMessage = error.message || 'Ошибка при загрузке файлов'
+        alert(errorMessage)
+      } finally {
+        setIsUploadingFile(false)
+      }
+      return
+    }
+
+    // Original single file upload logic
+    const file = files[0]
     if (!file) return
 
     const isVideo = file.type.startsWith('video/')
@@ -680,7 +762,10 @@ function FieldRenderer({
     case 'file':
       const isVideo = field.accept?.includes('video')
       const isAudio = field.accept?.includes('audio')
-      const hasFile = Boolean(values[field.key])
+      const isSalesAdvisorMultiple = field.key === 'imageHashes'
+      const hasFile = isSalesAdvisorMultiple
+        ? (Array.isArray(values[field.key]) && values[field.key].length > 0)
+        : Boolean(values[field.key])
 
       return (
         <div className="space-y-2">
@@ -699,14 +784,16 @@ function FieldRenderer({
             ref={fileInputRef}
             type="file"
             accept={field.accept || 'image/*'}
+            multiple={isSalesAdvisorMultiple}
             onChange={(e) => handleFileUpload(e, field.key)}
             className="hidden"
           />
-          {!hasFile && !(isVideo && isTelegramWebApp) && (
+          {(!hasFile || isSalesAdvisorMultiple) && !(isVideo && isTelegramWebApp) && (
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="w-full py-3 bg-[#FF7E58] text-white rounded-lg font-semibold hover:shadow-lg active:scale-95 transition-all flex items-center justify-center space-x-2"
+              disabled={isSalesAdvisorMultiple && Array.isArray(values[field.key]) && values[field.key].length >= 6}
+              className="w-full py-3 bg-[#FF7E58] text-white rounded-lg font-semibold hover:shadow-lg active:scale-95 transition-all flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
 
               {isUploadingFile ? (
@@ -718,13 +805,54 @@ function FieldRenderer({
                 <>
                   <i className="fas fa-cloud-arrow-up"></i>
                   <span>
-                    {isVideo ? 'Выбрать видео' : isAudio ? 'Выбрать аудио' : 'Выбрать файл'}
+                    {isSalesAdvisorMultiple
+                      ? `Выбрать изображения (${Array.isArray(values[field.key]) ? values[field.key].length : 0}/6)`
+                      : isVideo ? 'Выбрать видео' : isAudio ? 'Выбрать аудио' : 'Выбрать файл'}
                   </span>
                 </>
               )}
             </button>
           )}
-          {hasFile && (
+
+          {/* Multiple images grid for salesAdvisor */}
+          {isSalesAdvisorMultiple && Array.isArray(values[field.key]) && values[field.key].length > 0 && (
+            <div className="grid grid-cols-2 gap-2 mt-3">
+              {values[field.key].map((hash: string, index: number) => {
+                const preview = Array.isArray(values[field.key + 'Previews']) ? values[field.key + 'Previews'][index] : null
+                const fileName = Array.isArray(values[field.key + 'FileNames']) ? values[field.key + 'FileNames'][index] : `Image ${index + 1}`
+
+                return (
+                  <div key={index} className="relative group">
+                    <img
+                      src={preview || ''}
+                      alt={fileName}
+                      className="w-full h-32 object-cover rounded-lg border border-gray-200"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setValues(prev => ({
+                          ...prev,
+                          [field.key]: prev[field.key].filter((_: any, i: number) => i !== index),
+                          [field.key + 'Previews']: (prev[field.key + 'Previews'] || []).filter((_: any, i: number) => i !== index),
+                          [field.key + 'FileNames']: (prev[field.key + 'FileNames'] || []).filter((_: any, i: number) => i !== index)
+                        }))
+                      }}
+                      className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center hover:bg-red-600 transition-colors shadow-lg opacity-0 group-hover:opacity-100"
+                    >
+                      <i className="fas fa-times text-xs"></i>
+                    </button>
+                    <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-xs p-1 rounded-b-lg truncate">
+                      {index + 1}. {fileName}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {/* Original single file display */}
+          {!isSalesAdvisorMultiple && hasFile && (
             <div className="relative">
               {isVideo && (
                 <div className="p-4 rounded-lg bg-gray-50 border border-gray-200">

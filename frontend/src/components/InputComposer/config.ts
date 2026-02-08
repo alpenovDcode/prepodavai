@@ -720,12 +720,12 @@ export const templates: Record<string, FunctionTemplate> = {
   },
   salesAdvisor: {
     segments: [
-      { type: 'text', value: 'Проанализируй диалог с клиентом по скриншоту ' },
-      { type: 'field', key: 'imageHash', label: 'Скриншот', placeholder: 'файл' },
+      { type: 'text', value: 'Проанализируй диалог с клиентом по скриншотам ' },
+      { type: 'field', key: 'imageHashes', label: 'Скриншоты', placeholder: 'до 6 файлов' },
       { type: 'text', value: ' и дай рекомендации по продажам.' }
     ],
     fields: [
-      { key: 'imageHash', label: 'Скриншот диалога (PNG, JPG)', type: 'file', accept: 'image/*' }
+      { key: 'imageHashes', label: 'Скриншоты диалога (до 6 изображений)', type: 'file', accept: 'image/*' }
     ]
   }
 }

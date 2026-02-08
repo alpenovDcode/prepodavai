@@ -8,8 +8,8 @@ import { LOGO_BASE64 } from '../generations.service';
 
 export interface SalesAdvisorJobData {
     generationRequestId: string;
-    imageHash: string;
-    imageUrl: string; // Public URL of the uploaded screenshot
+    imageHashes: string[];
+    imageUrls: string[]; // Public URLs of the uploaded screenshots (up to 6)
 }
 
 @Processor('sales-advisor')
@@ -26,18 +26,19 @@ export class SalesAdvisorProcessor extends WorkerHost {
     }
 
     async process(job: Job<SalesAdvisorJobData>): Promise<void> {
-        const { generationRequestId, imageUrl } = job.data;
-        this.logger.log(`Processing Sales Advisor analysis for ${generationRequestId}`);
+        const { generationRequestId, imageUrls } = job.data;
+        const imageCount = imageUrls.length;
+        this.logger.log(`Processing Sales Advisor analysis for ${generationRequestId} with ${imageCount} image(s)`);
 
         try {
             // 1. Update progress
             await this.generationHelpers.updateProgress(generationRequestId, {
                 percent: 10,
-                message: 'Анализ диалога...'
+                message: `Анализ ${imageCount} скриншот(ов) диалога...`
             });
 
             // 2. Analyze dialog using Claude Vision
-            const analysis = await this.analyzeDialog(imageUrl);
+            const analysis = await this.analyzeDialog(imageUrls);
 
             await this.generationHelpers.updateProgress(generationRequestId, {
                 percent: 80,
@@ -64,7 +65,8 @@ export class SalesAdvisorProcessor extends WorkerHost {
         }
     }
 
-    private async analyzeDialog(imageUrl: string): Promise<string> {
+    private async analyzeDialog(imageUrls: string[]): Promise<string> {
+        const imageCount = imageUrls.length;
         const systemPrompt = `Ты — опытный директор по продажам и эксперт по переговорам в EdTech индустрии.
 
 Твоя задача — провести профессиональный анализ диалога между менеджером и потенциальным клиентом, выявить ошибки, возражения и дать конкретные рекомендации для закрытия сделки.
@@ -80,7 +82,7 @@ export class SalesAdvisorProcessor extends WorkerHost {
 НЕ используй теги <html>, <head>, <body> — только содержимое.
 Используй эмодзи для визуальной привлекательности.`;
 
-        const userPrompt = `Проанализируй скриншот диалога с клиентом и предоставь детальный разбор.
+        const userPrompt = imageCount > 1 ? `Проанализируй ${imageCount} скриншота диалога с клиентом (они идут в хронологическом порядке) и предоставь детальный разбор ВСЕГО диалога целиком.` : `Проанализируй скриншот диалога с клиентом и предоставь детальный разбор.
 
 СТРУКТУРА АНАЛИЗА:
 
@@ -119,7 +121,7 @@ export class SalesAdvisorProcessor extends WorkerHost {
             prompt: userPrompt,
             system_prompt: systemPrompt,
             max_tokens: 3000,
-            image: imageUrl, // Vision API parameter
+            image: imageUrls.length === 1 ? imageUrls[0] : imageUrls,
         });
     }
 

@@ -387,7 +387,7 @@ export default function WebAppIndex() {
       } else if (type === 'videoAnalysis') {
         params = { ...params, videoHash: form.videoHash, analysisType: form.analysisType }
       } else if (type === 'salesAdvisor') {
-        params = { ...params, imageHash: form.imageHash }
+        params = { ...params, imageHashes: form.imageHashes || [] }
       } else if (type === 'message') {
         let parsed
         try {
