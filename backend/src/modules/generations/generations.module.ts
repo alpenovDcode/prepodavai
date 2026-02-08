@@ -18,6 +18,7 @@ import { FilesModule } from '../files/files.module';
 import { TelegramModule } from '../telegram/telegram.module';
 import { AssemblyAiService } from '../integrations/assemblyai.service';
 import { VideoAnalysisProcessor } from './processors/video-analysis.processor';
+import { SalesAnalysisProcessor } from './processors/sales-analysis.processor';
 
 
 @Module({
@@ -43,6 +44,9 @@ import { VideoAnalysisProcessor } from './processors/video-analysis.processor';
     BullModule.registerQueue({
       name: 'video-analysis',
     }),
+    BullModule.registerQueue({
+      name: 'sales-analysis',
+    }),
     TelegramModule,
     SubscriptionsModule,
     forwardRef(() => GigachatModule),
@@ -59,6 +63,7 @@ import { VideoAnalysisProcessor } from './processors/video-analysis.processor';
     ReplicatePresentationProcessor,
     LessonPreparationProcessor,
     VideoAnalysisProcessor,
+    SalesAnalysisProcessor,
     AssemblyAiService,
     HtmlPostprocessorService,
     HtmlExportService,

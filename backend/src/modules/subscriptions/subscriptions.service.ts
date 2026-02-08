@@ -24,7 +24,8 @@ export type OperationType =
   | 'gigachat_tokens_count'
   | 'game_generation'
   | 'lesson_preparation'
-  | 'video_analysis';
+  | 'video_analysis'
+  | 'sales_analysis';
 
 @Injectable()
 export class SubscriptionsService {
@@ -260,6 +261,13 @@ export class SubscriptionsService {
         operationName: 'Анализ видео',
         creditCost: 15,
         description: 'Анализ видео (Sales/Methodist)',
+        isActive: true,
+      },
+      {
+        operationType: 'sales_analysis',
+        operationName: 'Анализ переписки',
+        creditCost: 5,
+        description: 'Анализ скриншотов переписки (Sales AI)',
         isActive: true,
       },
     ];
