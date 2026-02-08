@@ -114,7 +114,8 @@ export default function InputComposer({
             },
             game: 'game_generation',
             lessonPreparation: 'lesson_preparation',
-            videoAnalysis: 'video_analysis'
+            videoAnalysis: 'video_analysis',
+            salesAdvisor: 'sales_advisor'
           }
           const opEntry = opMap[currentFunction]
           let op: string | null = null

@@ -109,6 +109,7 @@ export const functions = [
   // { id: 'transcription', title: 'Транскрибация', icon: 'fas fa-file-audio' }, // Временно скрыто (дубликат)
   { id: 'unpacking', title: 'Распаковка', icon: 'fas fa-box-open' },
   { id: 'videoAnalysis', title: 'Анализ урока', icon: 'fas fa-video' },
+  { id: 'salesAdvisor', title: 'ИИ-продажник', icon: 'fas fa-chart-line' },
   { id: 'message', title: 'Сообщение', icon: 'fas fa-envelope' },
   { id: 'game', title: 'Создать игру', icon: 'fas fa-gamepad' }
 ]
@@ -715,6 +716,16 @@ export const templates: Record<string, FunctionTemplate> = {
         rows: 2,
         placeholder: 'Вдохновение...'
       }
+    ]
+  },
+  salesAdvisor: {
+    segments: [
+      { type: 'text', value: 'Проанализируй диалог с клиентом по скриншоту ' },
+      { type: 'field', key: 'imageHash', label: 'Скриншот', placeholder: 'файл' },
+      { type: 'text', value: ' и дай рекомендации по продажам.' }
+    ],
+    fields: [
+      { key: 'imageHash', label: 'Скриншот диалога (PNG, JPG)', type: 'file', accept: 'image/*' }
     ]
   }
 }
