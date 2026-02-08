@@ -82,47 +82,167 @@ export class SalesAdvisorProcessor extends WorkerHost {
 НЕ используй теги <html>, <head>, <body> — только содержимое.
 Используй эмодзи для визуальной привлекательности.`;
 
-        const userPrompt = imageCount > 1 ? `Проанализируй ${imageCount} скриншота диалога с клиентом (они идут в хронологическом порядке) и предоставь детальный разбор ВСЕГО диалога целиком.` : `Проанализируй скриншот диалога с клиентом и предоставь детальный разбор.
+        const userPrompt = imageCount > 1
+            ? `Проанализируй ${imageCount} скриншота диалога с клиентом (они идут в хронологическом порядке) и предоставь детальный разбор ВСЕГО диалога целиком.`
+            : `Проанализируй скриншот диалога с клиентом и предоставь детальный разбор.
 
 СТРУКТУРА АНАЛИЗА:
 
-1. **📊 ЭКСПРЕСС-ДИАГНОСТИКА**
-   - На каком этапе воронки находится клиент? (Холодный контакт / Интерес / Обдумывание / Готовность / Возражения)
-   - Общая оценка качества ведения диалога (1-10)
-   - Главная проблема в текущем диалоге
+<h3>📊 Общая оценка диалога</h3>
+- Краткая оценка качества ведения переговоров (1-10)
+- Ключевые сильные и слабые стороны менеджера
 
-2. **🎯 АНАЛИЗ КЛИЕНТА**
-   - Какие потребности/боли клиента видны в диалоге?
-   - Какие возражения озвучены явно?
-   - Какие возражения скрыты (читаются между строк)?
-   - Уровень заинтересованности (горячий/теплый/холодный)
+<h3>✅ Что сделано хорошо</h3>
+- Конкретные примеры удачных фраз и техник
+- Что стоит повторять в будущем
 
-3. **⚠️ ОШИБКИ МЕНЕДЖЕРА**
-   - Что сделано неправильно?
-   - Какие возможности упущены?
-   - Что вызвало сопротивление клиента?
+<h3>❌ Критические ошибки</h3>
+- Что НЕ нужно было говорить/делать
+- Упущенные возможности
 
-4. **✅ ЧТО НАПИСАТЬ ПРЯМО СЕЙЧАС**
-   - Конкретный текст следующего сообщения (готовый к копированию)
-   - Почему именно эта формулировка сработает
-   - Альтернативный вариант (если клиент не ответит)
+<h3>🎯 Анализ возражений клиента</h3>
+- Какие возражения были озвучены
+- Истинные причины возражений (что стоит за словами)
+- Как правильно было бы отработать каждое возражение
 
-5. **🔮 СТРАТЕГИЯ ДАЛЬНЕЙШИХ ДЕЙСТВИЙ**
-   - Следующие 2-3 шага после ответа клиента
-   - Как закрыть на встречу/звонок/покупку
-   - Красные флаги (когда стоит отпустить клиента)
+<h3>💡 Конкретные рекомендации</h3>
+- Готовые фразы для следующего контакта
+- Стратегия дальнейшей работы с этим клиентом
+- Что изменить в подходе
 
 ВАЖНО:
 - Будь конкретным, избегай общих фраз
 - Давай готовые формулировки, а не советы "типа напиши о..."
 - Учитывай специфику EdTech (родители, ученики, преподаватели)`;
 
-        return this.runReplicatePrediction('anthropic/claude-3.5-sonnet', {
-            prompt: userPrompt,
-            system_prompt: systemPrompt,
-            max_tokens: 3000,
-            image: imageUrls.length === 1 ? imageUrls[0] : imageUrls,
-        });
+        return this.runReplicatePredictionWithMultipleImages(imageUrls, userPrompt, systemPrompt);
+    }
+
+    /**
+     * Run Replicate prediction with support for multiple images
+     * Uses Messages API format with base64 encoded images
+     */
+    private async runReplicatePredictionWithMultipleImages(
+        imageUrls: string[],
+        userPrompt: string,
+        systemPrompt: string
+    ): Promise<string> {
+        try {
+            this.logger.log(`Analyzing ${imageUrls.length} image(s) using Replicate Claude API`);
+
+            // For single image, use simple format
+            if (imageUrls.length === 1) {
+                return this.runReplicatePrediction('anthropic/claude-3.5-sonnet', {
+                    prompt: userPrompt,
+                    system_prompt: systemPrompt,
+                    max_tokens: 3000,
+                    image: imageUrls[0],
+                });
+            }
+
+            // For multiple images, we need to download them and convert to base64
+            // Then use Messages API format
+            this.logger.log(`Downloading and converting ${imageUrls.length} images to base64...`);
+
+            const imageBase64Data: Array<{ type: string; source: { type: string; media_type: string; data: string } }> = [];
+
+            for (let i = 0; i < imageUrls.length; i++) {
+                const imageUrl = imageUrls[i];
+                this.logger.log(`Downloading image ${i + 1}/${imageUrls.length}: ${imageUrl}`);
+
+                try {
+                    // Download image
+                    const response = await axios.get(imageUrl, { responseType: 'arraybuffer' });
+                    const buffer = Buffer.from(response.data);
+                    const base64 = buffer.toString('base64');
+
+                    // Determine media type from content-type header or default to jpeg
+                    const contentType = response.headers['content-type'] || 'image/jpeg';
+
+                    imageBase64Data.push({
+                        type: 'image',
+                        source: {
+                            type: 'base64',
+                            media_type: contentType,
+                            data: base64
+                        }
+                    });
+
+                    this.logger.log(`Image ${i + 1} converted to base64 (${Math.round(base64.length / 1024)}KB)`);
+                } catch (error) {
+                    this.logger.error(`Failed to download image ${i + 1}: ${error.message}`);
+                    throw new Error(`Failed to download image ${i + 1}: ${error.message}`);
+                }
+            }
+
+            // Construct messages array with text prompt and all images
+            const messages = [
+                {
+                    role: 'user',
+                    content: [
+                        { type: 'text', text: userPrompt },
+                        ...imageBase64Data
+                    ]
+                }
+            ];
+
+            this.logger.log(`Sending request to Replicate with ${imageUrls.length} images using Messages API format`);
+
+            // Use Messages API format
+            return this.runReplicatePredictionWithMessages('anthropic/claude-3.5-sonnet', {
+                messages: messages,
+                system: systemPrompt,
+                max_tokens: 3000,
+            });
+        } catch (error: any) {
+            this.logger.error(`Error in runReplicatePredictionWithMultipleImages: ${error.message}`);
+            throw error;
+        }
+    }
+
+    /**
+     * Run Replicate prediction using Messages API format
+     */
+    private async runReplicatePredictionWithMessages(model: string, input: any): Promise<string> {
+        try {
+            const response = await axios.post(
+                `https://api.replicate.com/v1/models/${model}/predictions`,
+                {
+                    input: input,
+                    stream: false
+                },
+                {
+                    headers: {
+                        'Authorization': `Bearer ${this.replicateToken}`,
+                        'Content-Type': 'application/json',
+                    }
+                }
+            );
+
+            let prediction = response.data;
+            const predictionId = prediction.id;
+
+            // Poll for completion
+            while (['starting', 'processing'].includes(prediction.status)) {
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                const statusRes = await axios.get(
+                    `https://api.replicate.com/v1/predictions/${predictionId}`,
+                    {
+                        headers: { 'Authorization': `Bearer ${this.replicateToken}` }
+                    }
+                );
+                prediction = statusRes.data;
+            }
+
+            if (prediction.status === 'succeeded') {
+                return Array.isArray(prediction.output) ? prediction.output.join('') : prediction.output;
+            } else {
+                throw new Error(`Replicate failed: ${prediction.error}`);
+            }
+        } catch (error: any) {
+            this.logger.error(`Replicate Messages API Error: ${error.message}`);
+            throw error;
+        }
     }
 
     private async runReplicatePrediction(model: string, input: any): Promise<string> {

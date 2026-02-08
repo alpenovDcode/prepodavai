@@ -101,9 +101,6 @@ export class GenerationsController {
   @Post('photosession')
   @UseGuards(JwtAuthGuard)
   async generatePhotosession(@Request() req, @Body() body: any) {
-    console.log('[DEBUG] Photosession request body:', JSON.stringify(body, null, 2));
-    console.log('[DEBUG] photoHash:', body.photoHash);
-    console.log('[DEBUG] photoUrl:', body.photoUrl);
     return this.generationsService.createGeneration({
       userId: req.user.id,
       generationType: 'photosession',
@@ -183,9 +180,6 @@ export class GenerationsController {
   @Post('sales-advisor')
   @UseGuards(JwtAuthGuard)
   async analyzeSalesDialog(@Request() req, @Body() body: any) {
-    console.log('[DEBUG Controller] sales-advisor request body:', JSON.stringify(body));
-    console.log('[DEBUG Controller] user:', req.user);
-
     try {
       const result = await this.generationsService.createGeneration({
         userId: req.user.id,
@@ -193,10 +187,8 @@ export class GenerationsController {
         inputParams: body,
       });
 
-      console.log('[DEBUG Controller] sales-advisor result:', result);
       return result;
     } catch (error) {
-      console.error('[ERROR Controller] sales-advisor error:', error);
       throw error;
     }
   }

@@ -107,20 +107,12 @@ export class FilesService {
     const fileHash = crypto.randomBytes(16).toString('hex');
     const filePath = this.getSafeFilePath(fileHash, fileExtension);
 
-    console.log('[DEBUG FilesService] Original filename:', file.originalname);
-    console.log('[DEBUG FilesService] Generated fileHash:', fileHash);
-    console.log('[DEBUG FilesService] File extension:', fileExtension);
-    console.log('[DEBUG FilesService] File path:', filePath);
-
     // Сохраняем файл
     await fs.writeFile(filePath, file.buffer);
 
     // Возвращаем hash и URL для доступа к файлу
     const baseUrl = this.configService.get<string>('BASE_URL', 'http://localhost:3001');
     const fileUrl = `${baseUrl}/api/files/${fileHash}`;
-
-    console.log('[DEBUG FilesService] Returning hash:', fileHash);
-    console.log('[DEBUG FilesService] Returning URL:', fileUrl);
 
     return {
       hash: fileHash,
