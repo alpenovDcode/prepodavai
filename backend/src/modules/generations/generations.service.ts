@@ -283,7 +283,7 @@ export class GenerationsService {
   }
 
   /**
-   * Универсальная генерация текста через GigaChat (HTML документ)
+   * Универсальная генерация текста через Replicate (Claude)
    */
   private async generateTextViaGigachat(
     generationType: GenerationType,
@@ -291,63 +291,121 @@ export class GenerationsService {
     inputParams: Record<string, any>,
     requestedModel?: string,
   ) {
-    console.log(`[GenerationsService] Starting text generation for ${generationType}`);
+    this.logger.log(`[GenerationsService] Starting text generation for ${generationType}`);
     const { systemPrompt, userPrompt } = this.buildGigachatPrompt(generationType, inputParams);
-    const model = requestedModel || this.gigachatService.getDefaultModel('chat');
-    console.log(
-      `[GenerationsService] Using model: ${model}, prompt length: ${systemPrompt.length + userPrompt.length}`,
+    const model = requestedModel || 'anthropic/claude-3.5-sonnet';
+
+    this.logger.log(
+      `[GenerationsService] Using Replicate model: ${model}, prompt length: ${systemPrompt.length + userPrompt.length}`,
     );
 
-    const response = (await this.gigachatService.createChatCompletion({
-      model,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
-      temperature: 0.7, // Чуть выше для креативности, но в рамках разумного
-      top_p: 0.9,
-      max_tokens: 8000, // Увеличено для больших рабочих листов с множеством заданий
-    })) as any;
+    try {
+      const replicateToken = this.configService.get<string>('REPLICATE_API_TOKEN');
+      if (!replicateToken) {
+        throw new BadRequestException('REPLICATE_API_TOKEN not configured');
+      }
 
-    const content = response?.choices?.[0]?.message?.content;
-    console.log(
-      `[GenerationsService] Received response from GigaChat, content length: ${content?.length || 0}`,
-    );
+      const axios = (await import('axios')).default;
 
-    if (!content) {
-      throw new BadRequestException('GigaChat вернул пустой результат');
+      // Создаем prediction через Replicate API
+      const response = await axios.post(
+        `https://api.replicate.com/v1/models/${model}/predictions`,
+        {
+          input: {
+            prompt: `${systemPrompt}\n\nUser: ${userPrompt}\n\nAssistant:`,
+            max_tokens: 8000,
+            temperature: 0.7,
+            top_p: 0.9,
+          },
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${replicateToken}`,
+            'Content-Type': 'application/json',
+          },
+          timeout: 120000,
+        },
+      );
+
+      const predictionId = response.data.id;
+      this.logger.log(`Replicate prediction created: ${predictionId}`);
+
+      // Polling для получения результата
+      let attempts = 0;
+      const maxAttempts = 60;
+      let content: string | null = null;
+
+      while (attempts < maxAttempts) {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+
+        const statusResponse = await axios.get(
+          `https://api.replicate.com/v1/predictions/${predictionId}`,
+          {
+            headers: {
+              Authorization: `Bearer ${replicateToken}`,
+            },
+          },
+        );
+
+        const status = statusResponse.data.status;
+        this.logger.log(`Prediction ${predictionId} status: ${status}`);
+
+        if (status === 'succeeded') {
+          content = statusResponse.data.output?.join('') || statusResponse.data.output;
+          break;
+        } else if (status === 'failed' || status === 'canceled') {
+          throw new Error(`Prediction failed with status: ${status}`);
+        }
+
+        attempts++;
+      }
+
+      if (!content) {
+        throw new BadRequestException('Replicate не вернул результат в течение 2 минут');
+      }
+
+      this.logger.log(
+        `[GenerationsService] Received response from Replicate, content length: ${content.length}`,
+      );
+
+      // Postprocess HTML to ensure MathJax is included if formulas are present
+      console.log(`[GenerationsService] Starting HTML postprocessing for ${generationType}`);
+      // Replace logo placeholder with actual base64 image
+      const contentWithLogo = content.replace(/LOGO_PLACEHOLDER/g, LOGO_BASE64);
+      const processedContent = this.htmlPostprocessor.ensureMathJaxScript(contentWithLogo);
+      console.log(
+        `[GenerationsService] HTML postprocessing complete, processed length: ${processedContent.length}`,
+      );
+
+      const normalizedResult = {
+        provider: 'Replicate (Claude)',
+        mode: 'chat',
+        model,
+        content: processedContent,
+        prompt: {
+          system: systemPrompt,
+          user: userPrompt,
+        },
+        completedAt: new Date().toISOString(),
+      };
+
+      console.log(`[GenerationsService] Saving generation result to database for ${generationType}`);
+      await this.generationHelpers.completeGeneration(generationRequestId, normalizedResult);
+      console.log(`[GenerationsService] Generation ${generationType} completed successfully`);
+
+      return normalizedResult;
+    } catch (error: any) {
+      this.logger.error(`Replicate text generation error: ${error.message}`);
+      await this.generationHelpers.failGeneration(
+        generationRequestId,
+        error.message || 'Ошибка генерации текста через Replicate',
+      );
+      throw error;
     }
-
-    // Postprocess HTML to ensure MathJax is included if formulas are present
-    console.log(`[GenerationsService] Starting HTML postprocessing for ${generationType}`);
-    // Replace logo placeholder with actual base64 image
-    const contentWithLogo = content.replace(/LOGO_PLACEHOLDER/g, LOGO_BASE64);
-    const processedContent = this.htmlPostprocessor.ensureMathJaxScript(contentWithLogo);
-    console.log(
-      `[GenerationsService] HTML postprocessing complete, processed length: ${processedContent.length}`,
-    );
-
-    const normalizedResult = {
-      provider: 'GigaChat-2-Max',
-      mode: 'chat',
-      model,
-      content: processedContent,
-      prompt: {
-        system: systemPrompt,
-        user: userPrompt,
-      },
-      completedAt: new Date().toISOString(),
-    };
-
-    console.log(`[GenerationsService] Saving generation result to database for ${generationType}`);
-    await this.generationHelpers.completeGeneration(generationRequestId, normalizedResult);
-    console.log(`[GenerationsService] Generation ${generationType} completed successfully`);
-
-    return normalizedResult;
   }
 
   /**
-   * Генерация изображений через GigaChat
+   * Генерация изображений через Replicate (nano-banana-pro)
    */
   private async generateImageViaGigachat(
     generationType: GenerationType,
@@ -356,167 +414,113 @@ export class GenerationsService {
     requestedModel?: string,
     _userId?: string,
   ) {
-    console.log(`[GenerationsService] Starting image generation for ${generationType}`);
-    const model = requestedModel || this.gigachatService.getDefaultModel('image');
-
+    this.logger.log(`[GenerationsService] Starting image generation for ${generationType}`);
     const { prompt, style, photoUrl, count } = inputParams;
 
     if (!prompt) {
       throw new BadRequestException('Prompt is required for image generation');
     }
 
-    console.log(`[GenerationsService] Using model: ${model}, prompt: ${prompt}`);
-
     try {
-      // Для фотосессии используем Replicate API
-      if (generationType === 'photosession') {
-        const photoHash = inputParams.photoHash;
-        const prompt = inputParams.prompt;
+      // Для всех типов изображений используем Replicate API (nano-banana-pro)
+      const isPhotosession = generationType === 'photosession';
+      const promptText = prompt;
 
+      // Если это фотосессия, нужен хэш фото
+      let imageUrlInput: string | null = null;
+      if (isPhotosession) {
+        const photoHash = inputParams.photoHash;
         if (!photoHash) {
           throw new BadRequestException('No photo provided for photosession');
         }
-
-        // Формируем URL фото
         const baseUrl = this.configService.get<string>('BASE_URL', 'https://api.prepodavai.ru');
-        const photoUrl = `${baseUrl}/api/files/${photoHash}`;
+        imageUrlInput = `${baseUrl}/api/files/${photoHash}`;
+      } else if (inputParams.imageUrl) {
+        imageUrlInput = inputParams.imageUrl;
+      }
 
-        // URL для обратного вызова
-        const callbackUrl = `${baseUrl}/api/webhooks/replicate-callback`;
+      // URL для обратного вызова
+      const baseUrl = this.configService.get<string>('BASE_URL', 'https://api.prepodavai.ru');
+      const callbackUrl = `${baseUrl}/api/webhooks/replicate-callback`;
 
-        // Replicate API token
-        const replicateToken = this.configService.get<string>('REPLICATE_API_TOKEN');
-        if (!replicateToken) {
-          throw new BadRequestException('REPLICATE_API_TOKEN not configured');
+      // Replicate API token
+      const replicateToken = this.configService.get<string>('REPLICATE_API_TOKEN');
+      if (!replicateToken) {
+        throw new BadRequestException('REPLICATE_API_TOKEN not configured');
+      }
+
+      this.logger.log(`Sending image generation request to Replicate API: prompt="${promptText}"`);
+
+      try {
+        const axios = (await import('axios')).default;
+
+        const input: any = {
+          prompt: promptText,
+          output_format: 'png',
+          safety_filter_level: 'block_only_high',
+        };
+
+        // Если это фотосессия или есть входное изображение
+        if (imageUrlInput) {
+          input.image_input = [imageUrlInput];
+          input.aspect_ratio = '1:1';
+          input.resolution = '2K';
+        } else {
+          // Для обычной генерации
+          input.aspect_ratio = '1:1';
         }
 
-        this.logger.log(`Sending photosession request to Replicate API: ${photoUrl}`);
+        const requestBody = {
+          input: input,
+          webhook: callbackUrl,
+          webhook_events_filter: ['completed'],
+        };
 
-        try {
-          const axios = (await import('axios')).default;
+        this.logger.log(`Replicate request body: ${JSON.stringify(requestBody, null, 2)}`);
 
-          const requestBody = {
-            input: {
-              prompt: prompt,
-              image_input: [photoUrl],
-              resolution: '2K',
-              aspect_ratio: '1:1',
-              output_format: 'png',
-              safety_filter_level: 'block_only_high',
+        const response = await axios.post(
+          'https://api.replicate.com/v1/models/google/nano-banana-pro/predictions',
+          requestBody,
+          {
+            headers: {
+              Authorization: `Bearer ${replicateToken}`,
+              'Content-Type': 'application/json',
             },
-            webhook: callbackUrl,
-            webhook_events_filter: ['completed'],
-          };
+            timeout: 300000,
+          },
+        );
 
-          this.logger.log(`Replicate request body: ${JSON.stringify(requestBody, null, 2)}`);
+        const predictionId = response.data.id;
+        this.logger.log(`Replicate prediction created: ${predictionId}`);
 
-          // Отправляем запрос на Replicate API
-          const response = await axios.post(
-            'https://api.replicate.com/v1/models/google/nano-banana-pro/predictions',
-            requestBody,
-            {
-              headers: {
-                Authorization: `Bearer ${replicateToken}`,
-                'Content-Type': 'application/json',
-              },
-              timeout: 300000,
+        // Сохраняем prediction ID в metadata генерации
+        await this.prisma.generationRequest.update({
+          where: { id: generationRequestId },
+          data: {
+            metadata: {
+              replicatePredictionId: predictionId,
             },
+          },
+        });
+
+        // Возвращаем pending статус
+        return {
+          provider: 'Replicate',
+          mode: generationType,
+          status: 'pending',
+          predictionId: predictionId,
+          requestId: generationRequestId,
+          completedAt: new Date().toISOString(),
+        };
+      } catch (error: any) {
+        this.logger.error(`Failed to send Replicate request: ${error.message}`);
+        if (error.response) {
+          this.logger.error(
+            `Replicate error response: ${JSON.stringify(error.response.data, null, 2)}`,
           );
-
-          const predictionId = response.data.id;
-          this.logger.log(`Replicate prediction created: ${predictionId}`);
-
-          // Сохраняем prediction ID в metadata генерации
-          await this.prisma.generationRequest.update({
-            where: { id: generationRequestId },
-            data: {
-              metadata: {
-                replicatePredictionId: predictionId,
-              },
-            },
-          });
-
-          // Возвращаем pending статус
-          return {
-            provider: 'Replicate',
-            mode: 'photosession',
-            status: 'pending',
-            predictionId: predictionId,
-            requestId: generationRequestId,
-            completedAt: new Date().toISOString(),
-          };
-        } catch (error: any) {
-          this.logger.error(`Failed to send Replicate request: ${error.message}`);
-          if (error.response) {
-            this.logger.error(
-              `Replicate error response: ${JSON.stringify(error.response.data, null, 2)}`,
-            );
-          }
-          throw new BadRequestException(`Failed to start photosession: ${error.message}`);
         }
+        throw new BadRequestException(`Failed to start generation: ${error.message}`);
       }
-
-      // Для остальных типов изображений используем GigaChat напрямую
-      let messages: any[] = [];
-      if (generationType === 'image' && inputParams.prompt) {
-        messages = [
-          {
-            role: 'user',
-            content: inputParams.prompt,
-          },
-        ];
-      } else {
-        // Fallback logic if needed, but currently only image/photosession use this method
-        // and we handled photosession above.
-        // If we are here, it's a regular image generation without prompt?
-        // Or maybe we should keep the old logic for 'image' type.
-        // The old logic for 'image' was:
-        messages = [
-          {
-            role: 'user',
-            content: inputParams.prompt,
-          },
-        ];
-      }
-
-      const response = await this.gigachatService.createImage({
-        model,
-        prompt,
-        messages, // Передаем сформированные сообщения (важно для photosession)
-        function_call: 'auto',
-      });
-
-      console.log(`[GenerationsService] Image generated successfully`);
-
-      // Извлекаем URL изображения из ответа
-      const imageUrl =
-        response?.data?.[0]?.url || response?.data?.[0]?.b64_json
-          ? `data:image/jpeg;base64,${response.data[0].b64_json}`
-          : null;
-
-      if (!imageUrl) {
-        throw new Error('No image URL in GigaChat response');
-      }
-
-      const normalizedResult = {
-        provider: 'GigaChat',
-        mode: 'image',
-        model,
-        imageUrl,
-        imageUrls: undefined,
-        prompt,
-        style: style || 'realistic',
-        photoUrl: photoUrl || null,
-        count: count || 1,
-        type: generationType,
-        completedAt: new Date().toISOString(),
-      };
-
-      console.log(`[GenerationsService] Saving image generation result to database`);
-      await this.generationHelpers.completeGeneration(generationRequestId, normalizedResult);
-      console.log(`[GenerationsService] Image generation ${generationType} completed successfully`);
-
-      return normalizedResult;
     } catch (error: any) {
       console.error(`[GenerationsService] Image generation failed:`, error);
       throw error;
