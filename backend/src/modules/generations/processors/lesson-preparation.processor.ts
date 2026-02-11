@@ -846,7 +846,7 @@ Your goal is to create a **"WOW-EFFECT" ${typeLabel}** that will amaze both the 
 
 **CRITICAL: LANGUAGE SETTINGS**
 - **OUTPUT LANGUAGE: STRICTLY RUSSIAN (Русский язык).** All content must be in Russian.
-- **Formulas:** MUST use LaTeX format wrapped in \`$\` for inline and \`$$\` for block equations. Example: $E=mc^2$ or $$x = \\frac{-b \\pm \\sqrt{b^2-4ac}}{2a}$$.
+- **Formulas:** MUST use LaTeX format wrapped in \`\\(\` and \`\\)\` for inline and \`\\[\` and \`\\]\` for block equations. Example: \\(E=mc^2\\) or \\[x = \\frac{-b \\pm \\sqrt{b^2-4ac}}{2a}\\]. STRICTLY FORBIDDEN: \`$\` and \`$$\`.
 - **Images:** Any text inside generated images must be in Russian.
 
 DETAILS:

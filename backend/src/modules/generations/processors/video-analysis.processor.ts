@@ -161,6 +161,9 @@ export class VideoAnalysisProcessor extends WorkerHost {
 *   Используй <strong>жирный шрифт</strong> для акцентов.
 *   Используй блоки <div style="background: #f0f8ff; padding: 15px; border-radius: 8px; margin: 10px 0;"> для цитат или инсайтов.
 *   **НЕ ИСПОЛЬЗУЙ** теги <html>, <head>, <body>. Верни только содержимое (body content).
+*   **МАТЕМАТИЧЕСКИЕ ФОРМУЛЫ (ЕСЛИ ЕСТЬ):**
+    *   Строчные: \`\\(...\\)\`. ЗАПРЕЩЕНО \`$\`!
+    *   Блочные: \`\\[...\\]\`. ЗАПРЕЩЕНО \`$$\`!
 
 ТЕКСТ ТРАНСКРИПЦИИ ДЛЯ АНАЛИЗА:
 ${transcript.substring(0, 30000)}
