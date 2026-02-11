@@ -26,7 +26,7 @@ export default function WebAppIndex() {
   const [userSource, setUserSource] = useState<'web' | 'telegram' | null>(null)
 
   const { generateAndWait, isGenerating: isGenGenerating } = useGenerations()
-  const { subscription, totalCredits, loading: subscriptionLoading } = useSubscription()
+  const { subscription, totalCredits, loading: subscriptionLoading } = useSubscription({ enabled: !!userHash })
   const resultContainerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {

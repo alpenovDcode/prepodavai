@@ -10,9 +10,10 @@ export interface Subscription {
   planId?: string
 }
 
-export function useSubscription() {
+export function useSubscription(options: { enabled?: boolean } = {}) {
+  const { enabled = true } = options
   const [subscription, setSubscription] = useState<Subscription | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(enabled)
   const [error, setError] = useState<string | null>(null)
 
   const totalCredits = subscription
@@ -20,10 +21,12 @@ export function useSubscription() {
     : 0
 
   const fetchSubscription = async () => {
+    if (!enabled) return
+
     try {
       setLoading(true)
       const response = await apiClient.get<{ success: boolean; subscription?: Subscription }>('/subscriptions/me')
-      
+
       if (response.data.success && response.data.subscription) {
         setSubscription(response.data.subscription)
       }
@@ -36,7 +39,7 @@ export function useSubscription() {
 
   useEffect(() => {
     fetchSubscription()
-  }, [])
+  }, [enabled])
 
   return {
     subscription,
