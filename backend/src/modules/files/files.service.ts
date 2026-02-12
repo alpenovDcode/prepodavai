@@ -23,6 +23,7 @@ export class FilesService {
     '.m4a',
     '.aac',
     '.pptx',
+    '.html',
   ];
   private readonly maxFileSize = 100 * 1024 * 1024; // 100MB
 
@@ -282,6 +283,7 @@ export class FilesService {
       '.doc': 'application/msword',
       '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      '.html': 'text/html',
     };
 
     return mimeTypes[extension.toLowerCase()] || 'application/octet-stream';
