@@ -15,13 +15,13 @@ export default function ProcessingConsentPage() {
         </CardTitle>
       </CardHeader>
       <CardContent className="prose prose-sm max-w-none dark:prose-invert prose-headings:text-black prose-p:text-black prose-strong:text-black prose-li:text-black prose-a:text-blue-600 text-black">
-        
+
         <div className="mb-8 p-4 border rounded-md bg-gray-50 dark:bg-slate-900">
           <p className="m-0"><strong>Оператор:</strong> Общество с ограниченной ответственностью “МАСТЕРСКАЯ ЗНАНИЙ”</p>
           <p className="m-0"><strong>ОГРН:</strong> 1257700218071, <strong>ИНН:</strong> 9714075294, <strong>КПП:</strong> 771401001</p>
           <p className="m-0"><strong>Адрес:</strong> 125167, Г.МОСКВА, ВН.ТЕР.Г. МУНИЦИПАЛЬНЫЙ ОКРУГ АЭРОПОРТ, ПР-КТ ЛЕНИНГРАДСКИЙ, Д. 36, СТР. 39, ПОМЕЩ. 4</p>
-          <p className="m-0"><strong>E-mail:</strong> <a href="mailto:hello@prrv.tech">hello@prrv.tech</a></p>
-          <p className="m-0"><strong>Сайт:</strong> <a href="https://prrv.tech/" target="_blank" rel="noopener noreferrer">https://prrv.tech/</a></p>
+          <p className="m-0"><strong>E-mail:</strong> <a href="mailto:hello@prrv.pro">hello@prrv.pro</a></p>
+          <p className="m-0"><strong>Сайт:</strong> <a href="https://prepodavai.ru" target="_blank" rel="noopener noreferrer">https://prepodavai.ru</a></p>
         </div>
 
         <p>
@@ -41,19 +41,19 @@ export default function ProcessingConsentPage() {
               <tr>
                 <td className="border border-gray-300 p-2 text-xs">Подготовка, заключение и исполнение гражданско-правового договора</td>
                 <td className="border border-gray-300 p-2 text-xs">
-                  Контрагенты, Клиенты. <br/>
+                  Контрагенты, Клиенты. <br />
                   <strong>Данные:</strong> ФИО, email, номер телефона (Общие категории).
                 </td>
                 <td className="border border-gray-300 p-2 text-xs" rowSpan={2}>
-                  <strong>Способы:</strong> автоматизированная, с передачей по сети Интернет. <br/>
-                  <strong>Срок:</strong> До достижения целей, истечения срока согласия или его отзыва. <br/>
+                  <strong>Способы:</strong> автоматизированная, с передачей по сети Интернет. <br />
+                  <strong>Срок:</strong> До достижения целей, истечения срока согласия или его отзыва. <br />
                   <strong>Уничтожение:</strong> согласно п. 4.2.8. Политики.
                 </td>
               </tr>
               <tr>
                 <td className="border border-gray-300 p-2 text-xs">Осуществление рекламной деятельности</td>
                 <td className="border border-gray-300 p-2 text-xs">
-                  Посетители сайта, Клиенты. <br/>
+                  Посетители сайта, Клиенты. <br />
                   <strong>Данные:</strong> ФИО, email, номер телефона (Общие категории).
                 </td>
               </tr>
@@ -78,7 +78,7 @@ export default function ProcessingConsentPage() {
         </p>
 
         <p>
-          Я принимаю условия <a href="https://prrv.tech/" target="_blank" rel="noopener noreferrer">Политики конфиденциальности Оператора</a> и подтверждаю, что ознакомлен(а) с ней на момент предоставления настоящего Согласия.
+          Я принимаю условия <a href="https://prepodavai.ru" target="_blank" rel="noopener noreferrer">Политики конфиденциальности Оператора</a> и подтверждаю, что ознакомлен(а) с ней на момент предоставления настоящего Согласия.
         </p>
 
         <p>
@@ -86,7 +86,7 @@ export default function ProcessingConsentPage() {
         </p>
 
         <p className="italic">
-          Согласие может быть отозвано путем направления письменного заявления по адресу Оператора или на электронную почту: <a href="mailto:hello@prrv.tech">hello@prrv.tech</a>.
+          Согласие может быть отозвано путем направления письменного заявления по адресу Оператора или на электронную почту: <a href="mailto:hello@prrv.pro">hello@prrv.pro</a>.
         </p>
       </CardContent>
     </Card>
