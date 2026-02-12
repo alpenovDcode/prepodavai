@@ -347,13 +347,13 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
               </label>
               <input
                 value={verificationCode}
-                onChange={(e) => setVerificationCode(e.target.value.replace(/[^0-9]/g, '').slice(0, 6))}
+                onChange={(e) => setVerificationCode(e.target.value.replace(/[^0-9]/g, '').slice(0, 4))}
                 type="text"
                 required
-                maxLength={6}
-                pattern="[0-9]{6}"
+                maxLength={4}
+                pattern="[0-9]{4}"
                 className="w-full px-4 py-4 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none transition-colors text-center text-2xl font-bold text-gray-900 placeholder:text-gray-400 tracking-widest"
-                placeholder="000000"
+                placeholder="0000"
               />
             </div>
 
@@ -376,7 +376,7 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
 
             <button
               type="submit"
-              disabled={loading || verificationCode.length !== 6}
+              disabled={loading || verificationCode.length !== 4}
               className="w-full py-4 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300 hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               <i className={`fas ${loading ? 'fa-spinner fa-spin' : 'fa-check'}`}></i>
