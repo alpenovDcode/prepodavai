@@ -577,13 +577,18 @@ ${interests ? `- Интересы аудитории (Интегрируй их 
         <head>
             <meta charset="UTF-8">
             <style>
+                @page {
+                    size: A4;
+                    margin: 0;
+                }
                 body { 
                     font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
-                    max-width: 900px; 
+                    width: 210mm;
+                    min-height: 297mm;
                     margin: 0 auto; 
-                    padding: 40px; 
+                    padding: 20mm; 
+                    box-sizing: border-box;
                     line-height: 1.6; 
-                    white-space: pre-wrap; 
                     color: #333;
                     background-color: #fff;
                     position: relative;
@@ -599,11 +604,11 @@ ${interests ? `- Интересы аудитории (Интегрируй их 
                     padding-bottom: 20px;
                 }
                 .header-logo {
-                    height: 120px;
+                    height: 80px;
                     flex-shrink: 0;
                 }
                 h1.main-title { 
-                    font-size: 2.5em; 
+                    font-size: 24pt; 
                     color: #1a202c; 
                     margin: 0; 
                     line-height: 1.2;
@@ -612,46 +617,58 @@ ${interests ? `- Интересы аудитории (Интегрируй их 
 
                 /* Footer Layout */
                 .footer-container {
-                    margin-top: 80px;
+                    margin-top: 50px;
                     border-top: 1px solid #eee;
-                    padding-top: 30px;
+                    padding-top: 20px;
                     display: flex;
                     flex-direction: column;
                     align-items: flex-end; /* Align right */
                     text-align: right;
+                    page-break-inside: avoid;
                 }
                 .footer-logo {
-                    height: 80px;
+                    height: 40px;
                     opacity: 0.8;
-                    margin-bottom: 10px;
+                    margin-bottom: 5px;
                 }
                 .footer-text {
-                    font-size: 12px; 
+                    font-size: 10pt; 
                     color: #888;
                 }
                 
-                h2, h3 { color: #2d3748; margin-top: 1.5em; margin-bottom: 0.5em; }
-                h2.section-title { font-size: 1.8em; color: #2c5282; margin-top: 2em; }
-                h3.subsection-title { font-size: 1.3em; color: #4a5568; }
+                h2, h3 { color: #2d3748; margin-top: 1.5em; margin-bottom: 0.5em; page-break-after: avoid; }
+                h2.section-title { font-size: 18pt; color: #2c5282; margin-top: 2em; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px; }
+                h3.subsection-title { font-size: 14pt; color: #4a5568; }
                 
                 .generated-image-container { 
-                    margin: 30px 0; 
+                    margin: 30px auto; 
                     text-align: center; 
-                    transition: transform 0.3s ease;
-                }
-                .generated-image-container:hover {
-                    transform: scale(1.01);
+                    page-break-inside: avoid;
+                    max-width: 80%;
                 }
                 .generated-image-container img { 
                     max-width: 100%; 
-                    border-radius: 12px; 
-                    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+                    max-height: 100mm; /* Restrict height to not take full page */
+                    border-radius: 8px; 
+                    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
                     border: 1px solid #e2e8f0;
                 }
                 
                 ul, ol { margin-left: 20px; }
                 li { margin-bottom: 8px; }
+                p { margin-bottom: 1em; text-align: justify; }
                 strong { color: #2b6cb0; }
+                
+                @media print {
+                    body {
+                        width: 210mm;
+                        height: auto;
+                        padding: 20mm;
+                    }
+                    .header-container {
+                        /* Ensure header repeats or is handled properly */
+                    }
+                }
             </style>
             <!-- MathJax Configuration -->
             <script>
@@ -759,48 +776,7 @@ ${interests ? `- Интересы аудитории (Интегрируй их 
                     userPrompt: `Проведи распаковку для эксперта на основе следующих ответов:\n\n${answers}\n\nСоздай полную стратегию личного бренда и продуктовой линейки.`
                 };
 
-            case 'quiz':
-                return {
-                    systemPrompt: `Ты — профессиональный технический генератор кода. Твоя единственная функция — выдавать чистый HTML-код.
-ЗАДАЧА: Сгенерировать полноценный HTML-документ с ТЕСТОМ (QUIZ).
-КРИТИЧЕСКИЕ ПРАВИЛА:
-1. Только код (начинается с <!DOCTYPE html>).
-2. Никакого текста до или после.
-3. Вставь скрипт MathJax.
-ТРЕБОВАНИЯ К ДИЗАЙНУ:
-- Контейнер max-width: 720px, центрирование.
-- Логотип в шапке (слева) и футере (справа). URL логотипа: "${logoUrlStr}"
-- Стиль: строгий, профессиональный.
-`,
-                    userPrompt: `Сгенерируй HTML-код теста.
-Предмет: ${subject}
-Тема: ${topic}
-Уровень: ${level}
-Количество вопросов: 10
-Вариантов ответа: 4
 
-СТРУКТУРА:
-1. Шапка: Логотип слева ("${logoUrlStr}"), заголовок теста справа.
-2. Список вопросов.
-3. Ключи с ответами в конце.
-4. Футер: Логотип справ ("${logoUrlStr}") в самом низу.
-`
-                };
-
-            case 'content':
-                return {
-                    systemPrompt: `Ты — методист. Сгенерируй учебный материал в формате HTML.
-URL Логотипа: "${logoUrlStr}"
-Дизайн: Минималистичный, как техническая спецификация или учебник.
-`,
-                    userPrompt: `Создай учебный материал (конспект) по теме:
-Предмет: ${subject}
-Тема: ${topic}
-Уровень: ${level}
-
-Структурируй материал, добавь примеры. Оформи в HTML с логотипом ("${logoUrlStr}") в шапке и футере.
-`
-                };
 
             default:
                 return null;
@@ -840,14 +816,14 @@ URL Логотипа: "${logoUrlStr}"
         const typeLabel = this.getTypeLabel(targetType);
 
         const prompt = `
-You are a WORLD-CLASS Award-Winning Curriculum Designer and Creative Director.
+You are a WORLD-CLASS Award-Winning Educational Content Creator (History Channel / Discovery Style).
 Your name is "PrepodavAI Genius".
-Your goal is to create a **"WOW-EFFECT" ${typeLabel}** that will amaze both the teacher and the students.
+Your goal is to create a **"WOW-EFFECT" ${typeLabel}** that is deeply engaging, narrative-driven, and visually structured.
 
-**CRITICAL: LANGUAGE SETTINGS**
-- **OUTPUT LANGUAGE: STRICTLY RUSSIAN (Русский язык).** All content must be in Russian.
-- **Formulas:** MUST use LaTeX format wrapped in \`\\(\` and \`\\)\` for inline and \`\\[\` and \`\\]\` for block equations. Example: \\(E=mc^2\\) or \\[x = \\frac{-b \\pm \\sqrt{b^2-4ac}}{2a}\\]. STRICTLY FORBIDDEN: \`$\` and \`$$\`.
-- **Images:** Any text inside generated images must be in Russian.
+**CRITICAL: LANGUAGE FORMULAS & IMAGES**
+1. **OUTPUT LANGUAGE: STRICTLY RUSSIAN (Русский язык).**
+2. **Formulas:** MUST use LaTeX format wrapped in \`\\(\` and \`\\)\` for inline and \`\\[\` and \`\\]\` for block equations. Example: \\(E=mc^2\\). STRICTLY FORBIDDEN: \`$\` and \`$$\`.
+3. **Images:** Generate prompts strictly relevant to the content. Images should support the narrative, not just be decoration.
 
 DETAILS:
 - Subject: ${subject}
@@ -860,29 +836,27 @@ ${context}
 
 --------
 CREATIVE DIRECTION (THE "WOW" FACTOR):
-1. **Tone**: Inspiring, modern, energetic, and pedagogically deeply sound. Avoid boring academic dry text.
-2. **Visual Storytelling**: The content MUST be visually rich. Do not write walls of text. Break it up!
-3. **Personalization**: If interests are provided (${interests || 'none'}), weave them seamlessly into metaphors, examples, and scenarios. Make the student feel this was written JUST for them.
+1. **DEEP NARRATIVE (Storytelling):** Do NOT write short, bullet-point summaries. Write **rich, detailed paragraphs**. Unfold the topic like a fascinating story. Use hooks, questions, and vivid language.
+2. **EDUCATIONAL DEPTH:** Explain concepts thoroughly. If it's a "Worksheet", provide context before questions. If it's a "Lesson Plan", assume the teacher wants a script.
+3. **PERSONALIZATION:** Weave the student's interests (${interests || 'general'}) into the fabric of the explanation. Use analogies from their world.
 
 IMAGE INSTRUCTIONS (CRITICAL):
-You act as an Art Director. You MUST insert image placeholders where they add value (at least 2-3 images per section).
-Format: [IMAGE: <style description> | <detailed visual prompt>]
-- Styles to use: "Pixar style 3D", "Detailed scientific illustration", "Minimalist modern vector", "Watercolor educational poster", "National Geographic photography".
-- **Vary the styles** based on the content needs.
-- **IMPORTANT**: If the image requires text, specify "text in Russian".
-- Examples:
-  - [IMAGE: Pixar style 3D | A happy robot teaching math to a group of diverse students, bright colors]
-  - [IMAGE: Educational Poster | Diagram of a cell with Russian labels, clean vector style]
+- Act as an Art Director. Insert image placeholders where they enhance the story.
+- **Format:** [IMAGE: <style description> | <detailed visual prompt>]
+- **Styles:** "Historical reconstruction", "Scientific diagram", "Atmospheric concept art", "Minimalist vector".
+- **Rule:** Images should NOT be generic. If talking about Caesar, the image must show Caesar crossing the Rubicon, not just a Roman helmet.
+- **Limit:** 2-3 high-quality images per section.
+- **Text in images:** If needed, specify "Russian text".
 
 STRUCTURE & FORMATTING:
 - Use Markdown.
-- Use Emojis 🌟 where appropriate.
-- **Headings**: Catchy and intriguing (In Russian).
-- **Micro-learning**: Short paragraphs, bullet points.
+- **Headings:** Intriguing and descriptive.
+- **Body:** Use a mix of long-form text (story) and structured elements (tables, lists) where appropriate.
+- **Layout:** Alternate between Text and Images to create a magazine-like flow.
 
 OUTPUT GOAL:
-Create the content for **${typeLabel}** ONLY (In Russian).
-Make it shine. Make it look expensive and professional.
+Create the content for **${typeLabel}** in Russian.
+Make it immersive. Make it detailed. Make it beautiful.
 --------
 `;
 

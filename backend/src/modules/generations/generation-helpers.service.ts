@@ -83,8 +83,8 @@ export class GenerationHelpersService {
 
       // Запускаем Job для отправки в Telegram
       console.log(`[GenerationHelpers] Scheduling Telegram send for ${generationRequestId}`);
-      await this.generationQueue.scheduleTelegramSend(generationRequestId);
-      console.log(`[GenerationHelpers] Telegram send scheduled successfully for ${generationRequestId}`);
+      // TEMP DISABLED: await this.generationQueue.scheduleTelegramSend(generationRequestId);
+      // console.log(`[GenerationHelpers] Telegram send scheduled successfully for ${generationRequestId}`);
     }
   }
 
