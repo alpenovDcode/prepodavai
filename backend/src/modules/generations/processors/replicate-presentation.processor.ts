@@ -122,8 +122,14 @@ export class ReplicatePresentationProcessor extends WorkerHost {
 
     private async generatePresentationContent(inputText: string, numCards: number): Promise<PresentationStructure> {
         const prompt = `
-You are an expert presentation creator. Create a presentation structure based on the following topic/text: "${inputText}".
-The presentation should have exactly ${numCards} slides.
+You are an expert presentation creator. Create a comprehensive and detailed presentation structure based on the following topic/text: "${inputText}".
+The presentation MUST have exactly ${numCards} cards/slides.
+
+STRICT INSTRUCTIONS:
+1.  **Narrative Flow:** Ensure a logical flow from introduction to conclusion across the slides.
+2.  **Detailed Content:** For each slide, "content" must provide substantial, well-written text explaining the points fully. Do not just use short bullet points; write cohesive paragraphs or detailed lists that can serve as the speaker's main content or detailed slide text. The text should be educational and engaging.
+3.  **Visual Context:** The "imagePrompt" for each slide must be highly descriptive and specifically tailored to visually represent the content of that slide.
+4.  **Slide Count:** You must generate exactly ${numCards} slides. Plan the content distribution accordingly.
 
 Output ONLY valid JSON in the following format, without any markdown formatting or extra text:
 {
@@ -131,7 +137,7 @@ Output ONLY valid JSON in the following format, without any markdown formatting 
   "slides": [
     {
       "title": "Slide Title",
-      "content": "Key bullet points or concise text for the slide body.",
+      "content": "Detailed text content for the slide. Explain the concepts clearly and thoroughly.",
       "imagePrompt": "A detailed, descriptive prompt for an AI image generator to create a relevant illustration for this slide."
     }
   ]
