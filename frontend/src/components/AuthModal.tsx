@@ -433,53 +433,21 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
 
         {/* Login Form: Phone + Password */}
         {isLogin && loginMode === 'phone' && (
-          <form onSubmit={(e) => { e.preventDefault(); handleLoginWithPassword(); }} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                <i className="fas fa-phone text-orange-500 mr-2"></i>
-                Номер телефона
-              </label>
-              <input
-                value={form.phone}
-                onChange={(e) => setForm(prev => ({ ...prev, phone: e.target.value }))}
-                type="tel"
-                required
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none transition-colors text-gray-900 placeholder:text-gray-400"
-                placeholder="+7 900 123 45 67"
-              />
+          <div className="py-10 text-center">
+            <div className="w-16 h-16 rounded-full bg-orange-100 mx-auto mb-4 flex items-center justify-center">
+              <i className="fas fa-phone-slash text-orange-500 text-2xl"></i>
             </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                <i className="fas fa-lock text-orange-500 mr-2"></i>
-                Пароль
-              </label>
-              <input
-                value={form.password}
-                onChange={(e) => setForm(prev => ({ ...prev, password: e.target.value }))}
-                type="password"
-                required
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none transition-colors text-gray-900 placeholder:text-gray-400"
-                placeholder="••••••••"
-              />
-            </div>
-
-            {errorMessage && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">
-                <i className="fas fa-exclamation-circle mr-2"></i>
-                {errorMessage}
-              </div>
-            )}
-
+            <h3 className="text-lg font-bold text-gray-900 mb-2">Вход по телефону недоступен</h3>
+            <p className="text-gray-500 mb-4">
+              В данный момент вход по номеру телефона временно закрыт.
+            </p>
             <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-4 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300 hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              onClick={() => setLoginMode('apikey')}
+              className="text-orange-600 hover:text-orange-700 font-medium"
             >
-              <i className={`fas ${loading ? 'fa-spinner fa-spin' : 'fa-sign-in-alt'}`}></i>
-              {loading ? 'Вход...' : 'Войти'}
+              Войти через Telegram
             </button>
-          </form>
+          </div>
         )}
 
         {/* Login Form: Username + API Key */}
