@@ -19,7 +19,7 @@ function generateApiKey(): string {
 bot.command('start', async (ctx: Context) => {
   const user = ctx.from;
   if (!user) {
-    await ctx.reply('❌ Ошибка: не удалось получить данные пользователя');
+    // await ctx.reply('❌ Ошибка: не удалось получить данные пользователя');
     return;
   }
 
@@ -31,87 +31,39 @@ bot.command('start', async (ctx: Context) => {
     const chatId = ctx.chat?.id.toString() || telegramId;
 
     // Ищем существующего пользователя
-    let appUser = await prisma.appUser.findUnique({
+    const appUser = await prisma.appUser.findUnique({
       where: { telegramId },
     });
 
-    let isNewUser = false;
-    let apiKey: string;
-
     if (appUser) {
       // Пользователь уже существует
-      // Если у него нет API ключа - генерируем
-      if (!appUser.apiKey) {
-        apiKey = generateApiKey();
-        appUser = await prisma.appUser.update({
-          where: { id: appUser.id },
-          data: {
-            apiKey,
-            username: username || appUser.username,
-            firstName: firstName || appUser.firstName,
-            lastName: lastName || appUser.lastName,
-            chatId,
-            lastAccessAt: new Date(),
-            lastTelegramAppAccess: new Date(),
-          },
-        });
-      } else {
-        apiKey = appUser.apiKey;
-        // Обновляем последний доступ
-        appUser = await prisma.appUser.update({
-          where: { id: appUser.id },
-          data: {
-            chatId,
-            lastAccessAt: new Date(),
-            lastTelegramAppAccess: new Date(),
-          },
-        });
-      }
-    } else {
-      // Создаем нового пользователя
-      isNewUser = true;
-      apiKey = generateApiKey();
-      const userHash = username || `tg_${telegramId}`;
-
-      appUser = await prisma.appUser.create({
+      // Обновляем последний доступ и имя
+      await prisma.appUser.update({
+        where: { id: appUser.id },
         data: {
-          userHash,
-          source: 'telegram',
-          telegramId,
+          username: username || appUser.username,
+          firstName: firstName || appUser.firstName,
+          lastName: lastName || appUser.lastName,
           chatId,
-          username: username || telegramId,
-          apiKey,
-          firstName,
-          lastName,
           lastAccessAt: new Date(),
           lastTelegramAppAccess: new Date(),
         },
       });
+
+      await ctx.reply(
+        `С возвращением в prepodavAI! 🎓\n\n` +
+        `Я твой интеллектуальный помощник.\n` +
+        `Открой Mini App для начала работы! 👇`
+      );
+    } else {
+      // Нового пользователя НЕ создаем
+      await ctx.reply(
+        `К сожалению, регистрация новых пользователей временно закрыта. 🔒\n\n` +
+        `Следите за новостями проекта!`
+      );
     }
 
-    // Формируем сообщение
-    let message = `Добро пожаловать в prepodavAI 🎓\n\n`;
-
-    if (isNewUser) {
-      message += `✅ Вы успешно зарегистрированы!\n\n`;
-    }
-
-    message += `🔑 Ваши данные для входа в веб-версию:\n\n`;
-    message += `👤 Username: ${appUser.username}\n`;
-    message += `🔐 API Key: ${apiKey}\n\n`;
-    message += `⚠️ Сохраните эти данные! Они понадобятся для входа в веб-версию.\n\n`;
-    message += `🌐 Веб-версия: ${process.env.WEB_APP_URL || 'http://prepodavai.ru/'}\n\n`;
-    message += `Я твой интеллектуальный помощник для:\n`;
-    message += `— Создания учебных материалов\n`;
-    message += `— Планирования уроков\n`;
-    message += `— Проверки работ учеников\n`;
-    message += `— Адаптации контента\n`;
-    message += `— Методической поддержки\n\n`;
-    message += `Открой Mini App для начала работы!`;
-
-    await ctx.reply(message);
-
-    console.log(`✅ User ${isNewUser ? 'registered' : 'updated'}: ${telegramId} (${appUser.username})`);
+    console.log(`✅ User handled: ${telegramId} (${username})`);
   } catch (error: any) {
     console.error('❌ Error handling /start command:', error);
     await ctx.reply(
