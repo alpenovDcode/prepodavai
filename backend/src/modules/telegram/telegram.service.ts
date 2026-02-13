@@ -33,30 +33,37 @@ export class TelegramService {
       const user = ctx.from;
       if (!user) return;
 
-      // Создаем/обновляем пользователя
-      const appUser = await this.prisma.appUser.upsert({
+      // Проверяем, есть ли пользователь в базе
+      const existingUser = await this.prisma.appUser.findUnique({
         where: { telegramId: user.id.toString() },
-        update: {
-          lastAccessAt: new Date(),
-          chatId: ctx.chat.id.toString(),
-        },
-        create: {
-          userHash: user.username || `tg_${user.id}`,
-          source: 'telegram',
-          telegramId: user.id.toString(),
-          chatId: ctx.chat.id.toString(),
-          username: user.username || user.id.toString(),
-          apiKey: this.generateApiKey(),
-          firstName: user.first_name || '',
-          lastName: user.last_name || '',
-          lastAccessAt: new Date(),
-          lastTelegramAppAccess: new Date(),
-        },
       });
 
-      // Отправляем приветственное сообщение
-      const welcomeMessage = this.getWelcomeMessage(appUser);
-      await ctx.reply(welcomeMessage);
+      if (existingUser) {
+        // Пользователь уже есть - просто приветствуем (без данных для входа)
+        // Обновляем данные доступа
+        await this.prisma.appUser.update({
+          where: { id: existingUser.id },
+          data: {
+            lastAccessAt: new Date(),
+            chatId: ctx.chat.id.toString(),
+            firstName: user.first_name || existingUser.firstName,
+            lastName: user.last_name || existingUser.lastName,
+            username: user.username || existingUser.username,
+          },
+        });
+
+        await ctx.reply(
+          `С возвращением в prepodavAI! 🎓\n\n` +
+          `Я твой интеллектуальный помощник.\n` +
+          `Открой Mini App для начала работы! 👇`
+        );
+      } else {
+        // Нового пользователя НЕ создаем
+        await ctx.reply(
+          `К сожалению, регистрация новых пользователей временно закрыта. 🔒\n\n` +
+          `Следите за новостями проекта!`
+        );
+      }
     });
   }
 
