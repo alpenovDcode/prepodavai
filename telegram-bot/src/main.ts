@@ -52,9 +52,20 @@ bot.command('start', async (ctx: Context) => {
 
       await ctx.reply(
         `С возвращением в prepodavAI! 🎓\n\n` +
-        `Я твой интеллектуальный помощник.\n` +
-        `Открой Mini App для начала работы! 👇`
+        `Я твой интеллектуальный помощник.`
       );
+
+      // Сбрасываем кнопку меню, чтобы убрать Mini App
+      try {
+        if (ctx.chat) {
+          await ctx.api.setChatMenuButton({
+            chat_id: ctx.chat.id,
+            menu_button: { type: 'default' },
+          });
+        }
+      } catch (e) {
+        console.error('Error resetting menu button:', e);
+      }
     } else {
       // Нового пользователя НЕ создаем
       await ctx.reply(
