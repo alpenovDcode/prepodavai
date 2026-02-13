@@ -540,12 +540,19 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
 
         {/* Toggle */}
         <div className="mt-6 text-center">
-          <button
-            onClick={toggleMode}
-            className="text-orange-600 hover:text-orange-700 font-medium"
-          >
-            {isLogin ? 'Нет аккаунта? Зарегистрируйтесь' : 'Уже есть аккаунт? Войдите'}
-          </button>
+          {isLogin ? (
+            <div className="p-3 bg-gray-50 rounded-xl text-sm text-gray-500">
+              <i className="fas fa-info-circle mr-2"></i>
+              Регистрация временно закрыта
+            </div>
+          ) : (
+            <button
+              onClick={toggleMode}
+              className="text-orange-600 hover:text-orange-700 font-medium"
+            >
+              Уже есть аккаунт? Войдите
+            </button>
+          )}
         </div>
       </div>
     </div>
