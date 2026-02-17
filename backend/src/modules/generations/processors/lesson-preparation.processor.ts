@@ -20,7 +20,7 @@ export interface LessonPreparationJobData {
     [key: string]: any;
 }
 
-@Processor('lesson-preparation')
+@Processor('lesson-preparation', { concurrency: 1 })
 export class LessonPreparationProcessor extends WorkerHost {
     private readonly logger = new Logger(LessonPreparationProcessor.name);
     private readonly replicateToken: string;
@@ -866,31 +866,55 @@ Make it immersive. Make it detailed. Make it beautiful.
     }
 
     private async runReplicatePrediction(model: string, input: any): Promise<any> {
-        const response = await axios.post(
-            `https://api.replicate.com/v1/models/${model}/predictions`,
-            {
-                input: input,
-            },
-            {
-                headers: {
-                    Authorization: `Bearer ${this.replicateToken}`,
-                    'Content-Type': 'application/json',
-                    'Prefer': 'wait',
-                },
+        let attempts = 0;
+        const maxAttempts = 5;
+        let delayMs = 2000;
+
+        while (attempts < maxAttempts) {
+            try {
+                // Determine URL based on whether it's a model version or a model alias
+                const url = `https://api.replicate.com/v1/models/${model}/predictions`;
+
+                const response = await axios.post(
+                    url,
+                    {
+                        input: input,
+                    },
+                    {
+                        headers: {
+                            Authorization: `Bearer ${this.replicateToken}`,
+                            'Content-Type': 'application/json',
+                            'Prefer': 'wait',
+                        },
+                    }
+                );
+
+                let prediction = response.data;
+
+                if (prediction.status !== 'succeeded' && prediction.status !== 'failed' && prediction.status !== 'canceled') {
+                    prediction = await this.pollPrediction(prediction.id);
+                }
+
+                if (prediction.status === 'failed' || prediction.status === 'canceled') {
+                    throw new Error(`Replicate prediction failed: ${prediction.error}`);
+                }
+
+                return prediction;
+
+            } catch (error: any) {
+                if (axios.isAxiosError(error) && (error.response?.status === 429 || error.response?.status >= 500)) {
+                    attempts++;
+                    this.logger.warn(`Replicate API error ${error.response?.status}. Retrying in ${delayMs}ms... (Attempt ${attempts}/${maxAttempts})`);
+                    if (attempts >= maxAttempts) {
+                        throw error;
+                    }
+                    await new Promise(resolve => setTimeout(resolve, delayMs));
+                    delayMs *= 2; // Exponential backoff
+                } else {
+                    throw error; // Propagate other errors
+                }
             }
-        );
-
-        let prediction = response.data;
-
-        if (prediction.status !== 'succeeded' && prediction.status !== 'failed' && prediction.status !== 'canceled') {
-            prediction = await this.pollPrediction(prediction.id);
         }
-
-        if (prediction.status === 'failed' || prediction.status === 'canceled') {
-            throw new Error(`Replicate prediction failed: ${prediction.error}`);
-        }
-
-        return prediction;
     }
 
     private async pollPrediction(predictionId: string): Promise<any> {
