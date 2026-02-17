@@ -10,7 +10,6 @@ interface AuthModalProps {
 
 export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
   const [isLogin, setIsLogin] = useState(true)
-  const [loginMode, setLoginMode] = useState<'phone' | 'apikey'>('phone')
   const [loading, setLoading] = useState(false)
   const [step, setStep] = useState(1) // 1 = form, 2 = verification code
   const [errorMessage, setErrorMessage] = useState('')
@@ -30,16 +29,7 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
   })
 
   useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search)
-    const tab = urlParams.get('tab')
-
-    if (tab === 'telegram') {
-      setIsLogin(true)
-      setLoginMode('apikey')
-    } else if (tab === 'phone') {
-      setIsLogin(true)
-      setLoginMode('phone')
-    }
+    // URL params handling removed - only Telegram login now
   }, [])
 
   useEffect(() => {
@@ -197,7 +187,6 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
     setErrorMessage('')
     setVerificationCode('')
     setDebugCode('')
-    setLoginMode('phone')
     setForm({
       name: '',
       phone: '',
@@ -239,7 +228,7 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
         </h2>
         <p className="text-center text-gray-900 mb-8">
           {isLogin
-            ? (loginMode === 'phone' ? 'Введите телефон и пароль' : 'Введите данные из Telegram')
+            ? 'Введите данные из Telegram бота'
             : (step === 1 ? 'Создайте новый аккаунт' : 'Введите код из SMS')
           }
         </p>
@@ -403,55 +392,8 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
           </form>
         )}
 
-        {/* Login Mode Switcher */}
+        {/* Login Form: Username + API Key from Telegram */}
         {isLogin && (
-          <div className="flex gap-2 mb-6">
-            <button
-              type="button"
-              onClick={() => { setLoginMode('phone'); setErrorMessage(''); }}
-              className={`flex-1 py-3 rounded-xl font-medium transition-all ${loginMode === 'phone'
-                ? 'bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-lg'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
-            >
-              <i className="fas fa-phone mr-2"></i>
-              Телефон
-            </button>
-            <button
-              type="button"
-              onClick={() => { setLoginMode('apikey'); setErrorMessage(''); }}
-              className={`flex-1 py-3 rounded-xl font-medium transition-all ${loginMode === 'apikey'
-                ? 'bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-lg'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
-            >
-              <i className="fab fa-telegram mr-2"></i>
-              Telegram
-            </button>
-          </div>
-        )}
-
-        {/* Login Form: Phone + Password */}
-        {isLogin && loginMode === 'phone' && (
-          <div className="py-10 text-center">
-            <div className="w-16 h-16 rounded-full bg-orange-100 mx-auto mb-4 flex items-center justify-center">
-              <i className="fas fa-phone-slash text-orange-500 text-2xl"></i>
-            </div>
-            <h3 className="text-lg font-bold text-gray-900 mb-2">Вход по телефону недоступен</h3>
-            <p className="text-gray-500 mb-4">
-              В данный момент вход по номеру телефона временно закрыт.
-            </p>
-            <button
-              onClick={() => setLoginMode('apikey')}
-              className="text-orange-600 hover:text-orange-700 font-medium"
-            >
-              Войти через Telegram
-            </button>
-          </div>
-        )}
-
-        {/* Login Form: Username + API Key */}
-        {isLogin && loginMode === 'apikey' && (
           <form onSubmit={(e) => { e.preventDefault(); handleLoginWithApiKey(); }} className="space-y-4">
             <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl text-blue-800 text-sm mb-4">
               <i className="fab fa-telegram text-blue-500 mr-2"></i>
