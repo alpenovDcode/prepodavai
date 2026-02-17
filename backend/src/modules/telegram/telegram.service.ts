@@ -34,14 +34,13 @@ export class TelegramService {
       if (!user) return;
 
       // Проверяем, есть ли пользователь в базе
-      const existingUser = await this.prisma.appUser.findUnique({
+      let existingUser = await this.prisma.appUser.findUnique({
         where: { telegramId: user.id.toString() },
       });
 
       if (existingUser) {
-        // Пользователь уже есть - просто приветствуем (без данных для входа)
-        // Обновляем данные доступа
-        await this.prisma.appUser.update({
+        // Пользователь уже есть - обновляем данные и показываем credentials
+        existingUser = await this.prisma.appUser.update({
           where: { id: existingUser.id },
           data: {
             lastAccessAt: new Date(),
@@ -52,17 +51,26 @@ export class TelegramService {
           },
         });
 
-        await ctx.reply(
-          `С возвращением в prepodavAI! 🎓\n\n` +
-          `Я твой интеллектуальный помощник.\n` +
-          `Открой Mini App для начала работы! 👇`
-        );
+        // Показываем приветствие с данными для входа
+        await ctx.reply(this.getWelcomeMessage(existingUser));
       } else {
-        // Нового пользователя НЕ создаем
-        await ctx.reply(
-          `К сожалению, регистрация новых пользователей временно закрыта. 🔒\n\n` +
-          `Следите за новостями проекта!`
-        );
+        // Создаём нового пользователя
+        const apiKey = this.generateApiKey();
+        const newUser = await this.prisma.appUser.create({
+          data: {
+            telegramId: user.id.toString(),
+            chatId: ctx.chat.id.toString(),
+            firstName: user.first_name || 'User',
+            lastName: user.last_name || '',
+            username: user.username || `user${user.id}`,
+            source: 'telegram',
+            apiKey,
+            lastAccessAt: new Date(),
+          },
+        });
+
+        // Показываем приветствие с данными для входа
+        await ctx.reply(this.getWelcomeMessage(newUser));
       }
     });
   }
@@ -320,17 +328,18 @@ export class TelegramService {
   private getWelcomeMessage(appUser: any): string {
     return (
       `Добро пожаловать в prepodavAI 🎓\n\n` +
+      `🔑 Ваши данные для входа в веб-версию:\n\n` +
+      `👤 Username: ${appUser.username}\n` +
+      `🔐 API Key: ${appUser.apiKey}\n\n` +
+      `⚠️ Сохраните эти данные! Они понадобятся для входа в веб-версию.\n\n` +
+      `🌐 Веб-версия: http://prepodavai.ru/\n\n` +
       `Я твой интеллектуальный помощник для:\n` +
       `— Создания учебных материалов\n` +
       `— Планирования уроков\n` +
       `— Проверки работ учеников\n` +
       `— Адаптации контента\n` +
       `— Методической поддержки\n\n` +
-      `Вы зарегистрированы! ✅\n\n` +
-      `🔑 Username: ${appUser.username}\n` +
-      `🔐 Персональный ключ: ${appUser.apiKey}\n\n` +
-      `⚠️ Сохраните эти данные — они понадобятся для входа в веб-версию.\n\n` +
-      `🌐 Перейти в веб-версию: https://prrv.pro`
+      `Открой Mini App для начала работы!`
     );
   }
 }
