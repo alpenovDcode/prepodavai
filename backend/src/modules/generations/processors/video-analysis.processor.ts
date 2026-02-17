@@ -6,7 +6,7 @@ import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 import { GenerationHelpersService } from '../generation-helpers.service';
 import { AssemblyAiService } from '../../integrations/assemblyai.service';
-import { LOGO_BASE64 } from '../generations.service';
+import { LOGO_BASE64 } from '../generation.constants';
 
 export interface VideoAnalysisJobData {
     generationRequestId: string;

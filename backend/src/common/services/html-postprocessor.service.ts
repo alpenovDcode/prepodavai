@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { LOGO_BASE64 } from '../../modules/generations/generation.constants';
 
 @Injectable()
 export class HtmlPostprocessorService {
@@ -17,33 +18,78 @@ window.MathJax = {
 <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>`;
 
     /**
+     * Process HTML to ensure all requirements are met:
+     * 1. Replace LOGO_PLACEHOLDER with actual base64 logo
+     * 2. Ensure MathJax script is present if formulas are detected
+     * 3. Clean up any markdown formatting if present
+     */
+    process(html: string): string {
+        if (!html || typeof html !== 'string') {
+            return html;
+        }
+
+        let processed = html;
+
+        // 1. Remove markdown code blocks if present (common LLM artifact)
+        processed = this.removeMarkdownWrapper(processed);
+
+        // 2. Replace Logo Placeholder
+        processed = this.replaceLogo(processed);
+
+        // 3. Inject MathJax
+        processed = this.ensureMathJaxScript(processed);
+
+        return processed;
+    }
+
+    /**
+     * Replaces LOGO_PLACEHOLDER with the actual base64 logo
+     */
+    private replaceLogo(html: string): string {
+        if (html.includes('LOGO_PLACEHOLDER')) {
+            return html.replace(/LOGO_PLACEHOLDER/g, LOGO_BASE64);
+        }
+        return html;
+    }
+
+    /**
+     * Removes ```html ... ``` wrapper if present
+     */
+    private removeMarkdownWrapper(html: string): string {
+        let content = html;
+        // Remove starting ```html or ```
+        if (content.startsWith('```')) {
+            content = content.replace(/^```(html)?\s*/i, '');
+        }
+        // Remove ending ```
+        if (content.endsWith('```')) {
+            content = content.replace(/\s*```$/, '');
+        }
+        return content;
+    }
+
+    /**
      * Ensures MathJax script is present in HTML if LaTeX formulas are detected
      */
     ensureMathJaxScript(html: string): string {
         if (!html || typeof html !== 'string') {
-            console.log('[HtmlPostprocessor] Input is empty or not a string, skipping');
             return html;
         }
 
         // Check if HTML contains LaTeX formulas
         const hasFormulas = this.detectLatexFormulas(html);
-        console.log(`[HtmlPostprocessor] LaTeX formulas detected: ${hasFormulas}`);
         if (!hasFormulas) {
             return html;
         }
 
         // Check if MathJax script is already present
         const hasMathJaxScript = /mathjax/i.test(html);
-        console.log(`[HtmlPostprocessor] MathJax script already present: ${hasMathJaxScript}`);
         if (hasMathJaxScript) {
             return html;
         }
 
         // Inject MathJax script into <head>
-        console.log('[HtmlPostprocessor] Injecting MathJax script into HTML');
-        const result = this.injectMathJaxScript(html);
-        console.log(`[HtmlPostprocessor] MathJax injection complete, result length: ${result.length}`);
-        return result;
+        return this.injectMathJaxScript(html);
     }
 
     /**

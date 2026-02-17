@@ -7,6 +7,8 @@ import { GenerationHelpersService } from '../generation-helpers.service';
 import { PrismaService } from '../../../common/prisma/prisma.service';
 import { HtmlExportService } from '../../../common/services/html-export.service';
 import { FilesService } from '../../files/files.service';
+import { HtmlPostprocessorService } from '../../../common/services/html-postprocessor.service';
+import { LOGO_BASE64, SHARED_CSS, SHARED_MATHJAX_SCRIPT } from '../generation.constants';
 
 export interface LessonPreparationJobData {
     generationRequestId: string;
@@ -29,6 +31,7 @@ export class LessonPreparationProcessor extends WorkerHost {
         private readonly prisma: PrismaService,
         private readonly htmlExportService: HtmlExportService,
         private readonly filesService: FilesService,
+        private readonly htmlPostprocessor: HtmlPostprocessorService,
         @InjectQueue('lesson-preparation') private readonly lessonQueue: Queue,
     ) {
         super();
@@ -38,7 +41,7 @@ export class LessonPreparationProcessor extends WorkerHost {
         }
     }
 
-    private readonly logoUrl = "https://fs.cdn-chatium.io/thumbnail/image_gc_AmbUAlw8Yq.1024x1024.png/s/128x";
+
 
     async process(job: Job<LessonPreparationJobData>): Promise<void> {
         const { generationRequestId, subject, topic, level, interests, generationTypes, ...otherData } = job.data;
@@ -403,7 +406,7 @@ ${interests ? `- Интересы аудитории (Интегрируй их 
     }
 
     private generateHtmlPresentation(slides: any[], images: (string | null)[], accentColor: string): string {
-        const logoUrl = this.logoUrl;
+        const logoUrl = LOGO_BASE64;
 
         const slidesHtml = slides.map((slide, index) => {
             const img = images[index];
@@ -566,139 +569,56 @@ ${interests ? `- Интересы аудитории (Интегрируй их 
             .replace(/^# (.*$)/gim, '<h1 class="main-title">$1</h1>')
             .replace(/^## (.*$)/gim, '<h2 class="section-title">$1</h2>')
             .replace(/^### (.*$)/gim, '<h3 class="subsection-title">$1</h3>')
-            .replace(/\*\*(.*)\*\*/gim, '<b>$1</b>')
             .replace(/\*\*(.*)\*\*/gim, '<b>$1</b>');
 
-        // Use class property instead of hardcoded
-        const logoUrl = this.logoUrl;
+        const logoUrl = LOGO_BASE64;
 
         return `
         <!DOCTYPE html>
         <html>
         <head>
             <meta charset="UTF-8">
+            ${SHARED_CSS}
             <style>
                 @page {
                     size: A4;
                     margin: 0;
                 }
-                body { 
-                    font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
+                /* Overlay specific print styles on top of SHARED_CSS if needed */
+                body {
                     width: 210mm;
                     min-height: 297mm;
-                    margin: 0 auto; 
-                    padding: 20mm; 
+                    margin: 0 auto;
+                    padding: 20mm;
                     box-sizing: border-box;
-                    line-height: 1.6; 
-                    color: #333;
-                    background-color: #fff;
-                    position: relative;
                 }
-                
-                /* Header Layout */
-                .header-container {
-                    display: flex;
-                    align-items: center;
-                    gap: 30px;
-                    margin-bottom: 40px;
-                    border-bottom: 2px solid #FF7E58;
-                    padding-bottom: 20px;
-                }
-                .header-logo {
-                    height: 80px;
-                    flex-shrink: 0;
-                }
-                h1.main-title { 
-                    font-size: 24pt; 
-                    color: #1a202c; 
-                    margin: 0; 
-                    line-height: 1.2;
-                    flex-grow: 1;
-                }
-
-                /* Footer Layout */
-                .footer-container {
-                    margin-top: 50px;
-                    border-top: 1px solid #eee;
-                    padding-top: 20px;
-                    display: flex;
-                    flex-direction: column;
-                    align-items: flex-end; /* Align right */
-                    text-align: right;
-                    page-break-inside: avoid;
-                }
-                .footer-logo {
-                    height: 40px;
-                    opacity: 0.8;
-                    margin-bottom: 5px;
-                }
-                .footer-text {
-                    font-size: 10pt; 
-                    color: #888;
-                }
-                
-                h2, h3 { color: #2d3748; margin-top: 1.5em; margin-bottom: 0.5em; page-break-after: avoid; }
-                h2.section-title { font-size: 18pt; color: #2c5282; margin-top: 2em; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px; }
-                h3.subsection-title { font-size: 14pt; color: #4a5568; }
-                
-                .generated-image-container { 
-                    margin: 30px auto; 
-                    text-align: center; 
+                /* Additional manual styles for generated content structure */
+                .generated-image-container {
+                    margin: 30px auto;
+                    text-align: center;
                     page-break-inside: avoid;
                     max-width: 80%;
                 }
-                .generated-image-container img { 
-                    max-width: 100%; 
-                    max-height: 100mm; /* Restrict height to not take full page */
-                    border-radius: 8px; 
-                    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+                .generated-image-container img {
+                    max-width: 100%;
+                    max-height: 100mm;
+                    border-radius: 8px;
                     border: 1px solid #e2e8f0;
                 }
-                
-                ul, ol { margin-left: 20px; }
-                li { margin-bottom: 8px; }
-                p { margin-bottom: 1em; text-align: justify; }
-                strong { color: #2b6cb0; }
-                
-                @media print {
-                    body {
-                        width: 210mm;
-                        height: auto;
-                        padding: 20mm;
-                    }
-                    .header-container {
-                        /* Ensure header repeats or is handled properly */
-                    }
-                }
             </style>
-            <!-- MathJax Configuration -->
-            <script>
-            window.MathJax = {
-              tex: {
-                inlineMath: [['$', '$'], ['\\\\(', '\\\\)']],
-                displayMath: [['$$', '$$'], ['\\\\[', '\\\\]']],
-                processEscapes: true
-              },
-              svg: {
-                fontCache: 'global'
-              }
-            };
-            </script>
-            <script type="text/javascript" id="MathJax-script" async
-              src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js">
-            </script>
+            ${SHARED_MATHJAX_SCRIPT}
         </head>
         <body>
-            <div class="header-container">
+            <div class="header">
                 <img src="${logoUrl}" alt="PrepodavAI Logo" class="header-logo" />
                 <h1>${title}</h1>
             </div>
-            
+
             ${formattedBody}
-            
-            <div class="footer-container">
-                <img src="${logoUrl}" alt="PrepodavAI Logo" class="footer-logo" />
-                <div class="footer-text">Сгенерировано с помощью PrepodavAI</div>
+
+            <div class="footer-logo">
+                <img src="${logoUrl}" alt="PrepodavAI Logo" />
+                <div style="font-size: 10px; color: #9CA3AF; margin-top: 5px;">Сгенерировано с помощью PrepodavAI</div>
             </div>
         </body>
         </html>
@@ -706,7 +626,7 @@ ${interests ? `- Интересы аудитории (Интегрируй их 
     }
 
     private getSpecializedPrompt(type: string, subject: string, topic: string, level: string, extraData: any = {}): { systemPrompt: string, userPrompt: string } | null {
-        const logoUrlStr = this.logoUrl;
+        const logoUrlStr = LOGO_BASE64;
 
         switch (type) {
             case 'unpacking':

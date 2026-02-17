@@ -4,7 +4,7 @@ import { Job } from 'bullmq';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 import { GenerationHelpersService } from '../generation-helpers.service';
-import { LOGO_BASE64 } from '../generations.service';
+import { LOGO_BASE64 } from '../generation.constants';
 
 export interface SalesAdvisorJobData {
     generationRequestId: string;
