@@ -232,7 +232,7 @@ ${interests ? `- Интересы аудитории (Интегрируй их 
 Язык контента: Русский. Стиль: Дерзкий, живой, для Gen Z.
 `;
 
-        const prediction = await this.runReplicatePrediction('anthropic/claude-3.5-sonnet', {
+        const prediction = await this.runReplicatePrediction('anthropic/claude-3.7-sonnet', {
             prompt: prompt,
             max_tokens: 3000,
             system_prompt: "Output JSON ONLY.",
@@ -719,7 +719,7 @@ ${interests ? `- Интересы аудитории (Интегрируй их 
 
         if (specialized) {
             this.logger.log(`Using specialized prompt for ${targetType}`);
-            const prediction = await this.runReplicatePrediction('anthropic/claude-3.5-sonnet', {
+            const prediction = await this.runReplicatePrediction('anthropic/claude-3.7-sonnet', {
                 prompt: specialized.userPrompt,
                 max_tokens: 5000,
                 system_prompt: specialized.systemPrompt,
@@ -781,7 +781,7 @@ Make it immersive. Make it detailed. Make it beautiful.
 --------
 `;
 
-        const prediction = await this.runReplicatePrediction('anthropic/claude-3.5-sonnet', {
+        const prediction = await this.runReplicatePrediction('anthropic/claude-3.7-sonnet', {
             prompt: prompt,
             max_tokens: 3000,
             system_prompt: "You are a creative educational genius. You create content STRICTLY IN RUSSIAN.",

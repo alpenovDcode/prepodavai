@@ -143,7 +143,7 @@ Output ONLY valid JSON in the following format, without any markdown formatting 
   ]
 }
 `;
-        const prediction = await this.runReplicatePrediction('anthropic/claude-3.5-sonnet', {
+        const prediction = await this.runReplicatePrediction('anthropic/claude-3.7-sonnet', {
             prompt: prompt,
             max_tokens: 2000,
             system_prompt: "You are a helpful assistant that outputs only JSON.",

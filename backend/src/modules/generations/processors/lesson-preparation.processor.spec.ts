@@ -6,6 +6,7 @@ import { GenerationHelpersService } from '../generation-helpers.service';
 import { PrismaService } from '../../../common/prisma/prisma.service';
 import { HtmlExportService } from '../../../common/services/html-export.service';
 import { FilesService } from '../../files/files.service';
+import { HtmlPostprocessorService } from '../../../common/services/html-postprocessor.service';
 import { getQueueToken } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import axios from 'axios';
@@ -45,6 +46,7 @@ describe('LessonPreparationProcessor', () => {
     const mockGenerationHelpers = {
         completeGeneration: jest.fn(),
         failGeneration: jest.fn(),
+        updateProgress: jest.fn(),
     };
 
     const mockPrismaService = {};
@@ -65,6 +67,7 @@ describe('LessonPreparationProcessor', () => {
                 { provide: PrismaService, useValue: mockPrismaService },
                 { provide: HtmlExportService, useValue: mockHtmlExportService },
                 { provide: FilesService, useValue: mockFilesService },
+                { provide: HtmlPostprocessorService, useValue: {} },
                 { provide: getQueueToken('lesson-preparation'), useValue: mockQueue },
             ],
         }).compile();
@@ -103,7 +106,7 @@ describe('LessonPreparationProcessor', () => {
 
             // Setup axios mocks
             mockedAxios.post.mockImplementation((url) => {
-                if (url.includes('anthropic/claude-3.5-sonnet')) {
+                if (url.includes('anthropic/claude-3.7-sonnet')) {
                     return Promise.resolve(mockTextResponse);
                 }
                 if (url.includes('google/nano-banana')) {

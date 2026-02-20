@@ -345,7 +345,7 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
   ) {
     this.logger.log(`[GenerationsService] Starting text generation for ${generationType}`);
     const { systemPrompt, userPrompt } = this.buildGigachatPrompt(generationType, inputParams);
-    const model = requestedModel || 'anthropic/claude-3.5-sonnet';
+    const model = requestedModel || 'anthropic/claude-3.7-sonnet';
 
     this.logger.log(
       `[GenerationsService] Using Replicate model: ${model}, prompt length: ${systemPrompt.length + userPrompt.length}`,

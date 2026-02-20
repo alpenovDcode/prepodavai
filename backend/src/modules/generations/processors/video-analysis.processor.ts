@@ -169,7 +169,7 @@ export class VideoAnalysisProcessor extends WorkerHost {
 ${transcript.substring(0, 30000)}
 `;
 
-        return this.runReplicatePrediction('anthropic/claude-3.5-haiku', {
+        return this.runReplicatePrediction('anthropic/claude-3.7-sonnet', {
             system_prompt: systemPrompt,
             prompt: userPrompt,
             max_tokens: 3000
