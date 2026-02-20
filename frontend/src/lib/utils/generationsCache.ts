@@ -66,10 +66,28 @@ export function cacheGeneration(generation: CachedGeneration): void {
       }
     }
 
-    localStorage.setItem(CACHE_KEY, JSON.stringify(cached))
+    // Пытаемся сохранить, если превышена квота - удаляем старые записи
+    let saved = false;
+    let currentCached = [...cached];
 
+    while (!saved && currentCached.length > 0) {
+      try {
+        localStorage.setItem(CACHE_KEY, JSON.stringify(currentCached));
+        saved = true;
+      } catch (e: any) {
+        if (e.name === 'QuotaExceededError' || e.message?.includes('exceeded the quota')) {
+          // Удаляем 20% самых старых записей
+          const removeCount = Math.max(1, Math.floor(currentCached.length * 0.2));
+          currentCached = currentCached.slice(0, currentCached.length - removeCount);
+          console.warn(`Local storage quota exceeded. Removed ${removeCount} old generations from cache. Retrying...`);
+        } else {
+          console.error('Failed to cache generation:', e);
+          break;
+        }
+      }
+    }
   } catch (error) {
-    console.error('Failed to cache generation:', error)
+    console.error('Failed to update generation cache:', error);
   }
 }
 

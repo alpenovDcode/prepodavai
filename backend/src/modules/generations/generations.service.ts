@@ -406,7 +406,8 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
           content = statusResponse.data.output?.join('') || statusResponse.data.output;
           break;
         } else if (status === 'failed' || status === 'canceled') {
-          throw new Error(`Prediction failed with status: ${status}`);
+          this.logger.error(`Prediction failed with status: ${status}. Replicate Error: ${statusResponse.data.error}`);
+          throw new Error(`Prediction failed with status: ${status}. Error: ${statusResponse.data.error}`);
         }
 
         attempts++;
