@@ -88,6 +88,85 @@ export class AdminService {
     };
   }
 
+  async createUser(data: any) {
+    const { username, password, firstName, lastName, phone } = data;
+
+    if (!username) {
+      throw new BadRequestException('Username is required');
+    }
+
+    // Проверяем существование пользователя
+    const existing = await this.prisma.appUser.findFirst({
+      where: { username },
+    });
+
+    if (existing) {
+      throw new BadRequestException('User with this username already exists');
+    }
+
+    // Хешируем пароль, если передан
+    let passwordHash = null;
+    if (password) {
+      const bcrypt = require('bcryptjs');
+      passwordHash = await bcrypt.hash(password, 10);
+    }
+
+    // Генерация apiKey
+    const crypto = require('crypto');
+    const apiKey = crypto.randomBytes(16).toString('hex');
+    const userHash = username;
+
+    const user = await this.prisma.appUser.create({
+      data: {
+        username,
+        userHash,
+        apiKey,
+        passwordHash,
+        firstName: firstName || null,
+        lastName: lastName || null,
+        phone: phone || null,
+        source: 'web',
+      },
+    });
+
+    // Создаем подписку по умолчанию Starter (100 кредитов)
+    const starterPlan = await this.prisma.subscriptionPlan.findUnique({
+      where: { planKey: 'starter' },
+    });
+
+    if (starterPlan) {
+      const now = new Date();
+      const endDate = new Date(now);
+      endDate.setMonth(endDate.getMonth() + 1);
+
+      await this.prisma.userSubscription.create({
+        data: {
+          userId: user.id,
+          planId: starterPlan.id,
+          status: 'active',
+          creditsBalance: 100, // Явно 100 кредитов как просил пользователь
+          extraCredits: 0,
+          creditsUsed: 0,
+          overageCreditsUsed: 0,
+          startDate: now,
+          endDate,
+          autoRenew: true,
+        },
+      });
+    }
+
+    const createdUser = await this.prisma.appUser.findUnique({
+      where: { id: user.id },
+      include: { subscription: true },
+    });
+
+    return {
+      success: true,
+      user: createdUser,
+      message: 'User created successfully',
+    };
+  }
+
   async updateUser(id: string, data: any) {
     // Удаляем поля, которые нельзя обновлять напрямую
     const {

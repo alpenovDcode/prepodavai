@@ -202,7 +202,9 @@ export default function AdminPage() {
         delete dataToSave.systemLogs
       }
 
-      let endpoint = `/admin/${activeTab}/${selectedItem.id}`
+      // Если это новый пользователь
+      const isNew = activeTab === 'users' && !selectedItem.id;
+      let endpoint = isNew ? `/admin/users` : `/admin/${activeTab}/${selectedItem.id}`
 
       // Для costs endpoint другой
       if (activeTab === 'costs') {
@@ -214,20 +216,25 @@ export default function AdminPage() {
         dataToSave.creditCost = Number(creditCost)
       }
 
-
-
       // Проверяем доступность backend
       const token = localStorage.getItem('prepodavai_token')
       if (!token) {
         throw new Error('Требуется авторизация. Пожалуйста, войдите в систему.')
       }
 
-      const response = await apiClient.put(endpoint, dataToSave, {
-        timeout: 10000, // 10 секунд таймаут
-      })
+      let response;
+      if (isNew) {
+        response = await apiClient.post(endpoint, dataToSave, {
+          timeout: 10000,
+        });
+      } else {
+        response = await apiClient.put(endpoint, dataToSave, {
+          timeout: 10000,
+        });
+      }
 
       if (response.data.success) {
-        alert('Данные успешно сохранены!')
+        alert(isNew ? 'Пользователь успешно создан!' : 'Данные успешно сохранены!')
         setEditing(false)
         setSelectedItem(null)
         loadData()
@@ -446,9 +453,9 @@ export default function AdminPage() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 py-6">
-        {/* Tabs */}
-        <div className="bg-white rounded-lg shadow-sm mb-6">
-          <div className="flex border-b">
+        {/* Tabs and Actions */}
+        <div className="bg-white rounded-lg shadow-sm mb-6 flex justify-between items-center pr-4">
+          <div className="flex border-b flex-grow">
             {(['stats', 'users', 'generations', 'subscriptions', 'transactions', 'costs'] as const).map((tab) => (
               <button
                 key={tab}
@@ -467,6 +474,19 @@ export default function AdminPage() {
               </button>
             ))}
           </div>
+          {activeTab === 'users' && (
+            <button
+              onClick={() => {
+                setSelectedItem({ id: '' }) // Имитация пустого объекта для формы создания
+                setEditData({ username: '', password: '', firstName: '', lastName: '', phone: '' })
+                setEditing(true)
+              }}
+              className="ml-4 px-4 py-2 text-sm bg-green-500 text-white rounded hover:bg-green-600 flex items-center"
+            >
+              <i className="fas fa-plus mr-2"></i>
+              Создать пользователя
+            </button>
+          )}
         </div>
 
         {/* Error Message */}
@@ -680,13 +700,15 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* Edit Modal */}
+        {/* Edit/Create Modal */}
         {editing && selectedItem && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto m-4">
               <div className="p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-xl font-bold text-gray-900">Редактирование</h2>
+                  <h2 className="text-xl font-bold text-gray-900">
+                    {activeTab === 'users' && !selectedItem.id ? 'Создание пользователя' : 'Редактирование'}
+                  </h2>
                   <button
                     onClick={() => {
                       setEditing(false)
@@ -699,9 +721,21 @@ export default function AdminPage() {
                 </div>
 
                 <div className="space-y-2">
-                  {Object.entries(selectedItem)
-                    .filter(([key]) => key !== 'id' && key !== 'createdAt' && key !== 'updatedAt')
-                    .map(([key, value]) => renderField(key, value))}
+                  {/* If creating a new user, we want to show input fields for username, password, etc. */}
+                  {activeTab === 'users' && !selectedItem.id ? (
+                    <>
+                      {renderField('username', editData.username, true)}
+                      {renderField('password', editData.password, true)}
+                      {renderField('firstName', editData.firstName, true)}
+                      {renderField('lastName', editData.lastName, true)}
+                      {renderField('phone', editData.phone, true)}
+                      <p className="text-xs text-gray-500 mt-2 italic px-2">Пароль будет захеширован. Пользователь автоматически получит тариф Starter (100 кредитов).</p>
+                    </>
+                  ) : (
+                    Object.entries(selectedItem)
+                      .filter(([key]) => key !== 'id' && key !== 'createdAt' && key !== 'updatedAt')
+                      .map(([key, value]) => renderField(key, value))
+                  )}
                 </div>
 
                 <div className="mt-6 flex gap-2">
@@ -710,7 +744,7 @@ export default function AdminPage() {
                     className="flex-1 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 font-medium"
                   >
                     <i className="fas fa-save mr-2"></i>
-                    Сохранить
+                    {activeTab === 'users' && !selectedItem.id ? 'Создать' : 'Сохранить'}
                   </button>
                   <button
                     onClick={() => {

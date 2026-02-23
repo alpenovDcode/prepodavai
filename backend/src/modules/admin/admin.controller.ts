@@ -29,6 +29,11 @@ export class AdminController {
     return this.adminService.getUsers(limit ? parseInt(limit) : 50, offset ? parseInt(offset) : 0);
   }
 
+  @Post('users')
+  async createUser(@Body() body: any) {
+    return this.adminService.createUser(body);
+  }
+
   @Get('users/:id')
   async getUser(@Param('id') id: string) {
     return this.adminService.getUser(id);
