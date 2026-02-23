@@ -25,6 +25,9 @@ export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [loginForm, setLoginForm] = useState({ username: '', password: '' })
   const [loginLoading, setLoginLoading] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalItems, setTotalItems] = useState(0)
+  const PAGE_SIZE = 20
 
   useEffect(() => {
     // Проверяем авторизацию
@@ -113,7 +116,7 @@ export default function AdminPage() {
     }
   }
 
-  const loadData = async () => {
+  const loadData = async (page = currentPage) => {
     setLoading(true)
     setError(null)
     try {
@@ -140,7 +143,8 @@ export default function AdminPage() {
       }
 
       if (endpoint) {
-        const response = await apiClient.get(endpoint)
+        const offset = (page - 1) * PAGE_SIZE
+        const response = await apiClient.get(`${endpoint}?limit=${PAGE_SIZE}&offset=${offset}`)
         if (response.data.success) {
           const key = activeTab === 'users' ? 'users' :
             activeTab === 'generations' ? 'generations' :
@@ -148,7 +152,9 @@ export default function AdminPage() {
                 activeTab === 'transactions' ? 'transactions' : 'costs'
           const items = response.data[key] || []
           setData(items)
-
+          if (response.data.total !== undefined) {
+            setTotalItems(response.data.total)
+          }
         } else {
           setError('Не удалось загрузить данные')
         }
@@ -463,7 +469,7 @@ export default function AdminPage() {
             {(['stats', 'users', 'generations', 'subscriptions', 'transactions', 'costs'] as const).map((tab) => (
               <button
                 key={tab}
-                onClick={() => setActiveTab(tab)}
+                onClick={() => { setActiveTab(tab); setCurrentPage(1) }}
                 className={`px-6 py-3 font-medium text-sm ${activeTab === tab
                   ? 'border-b-2 border-blue-500 text-blue-600'
                   : 'text-gray-600 hover:text-gray-900'
@@ -699,6 +705,42 @@ export default function AdminPage() {
                     ))}
                   </tbody>
                 </table>
+              </div>
+            )}
+
+            {/* Pagination */}
+            {!loading && data.length > 0 && totalItems > PAGE_SIZE && (
+              <div className="flex items-center justify-between px-4 py-3 border-t bg-gray-50">
+                <div className="text-sm text-gray-600">
+                  Показано {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, totalItems)} из {totalItems}
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      const newPage = currentPage - 1
+                      setCurrentPage(newPage)
+                      loadData(newPage)
+                    }}
+                    disabled={currentPage <= 1}
+                    className="px-3 py-1 text-sm bg-white border border-gray-300 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed text-gray-700"
+                  >
+                    ← Назад
+                  </button>
+                  <span className="px-3 py-1 text-sm text-gray-700">
+                    Стр. {currentPage} из {Math.ceil(totalItems / PAGE_SIZE)}
+                  </span>
+                  <button
+                    onClick={() => {
+                      const newPage = currentPage + 1
+                      setCurrentPage(newPage)
+                      loadData(newPage)
+                    }}
+                    disabled={currentPage >= Math.ceil(totalItems / PAGE_SIZE)}
+                    className="px-3 py-1 text-sm bg-white border border-gray-300 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed text-gray-700"
+                  >
+                    Вперёд →
+                  </button>
+                </div>
               </div>
             )}
           </div>
