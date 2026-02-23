@@ -234,7 +234,11 @@ export default function AdminPage() {
       }
 
       if (response.data.success) {
-        alert(isNew ? 'Пользователь успешно создан!' : 'Данные успешно сохранены!')
+        if (isNew && response.data.user?.apiKey) {
+          alert(`Пользователь успешно создан!\n\nAPI-ключ: ${response.data.user.apiKey}\n\nСкопируйте ключ — он нужен для входа.`)
+        } else {
+          alert(isNew ? 'Пользователь успешно создан!' : 'Данные успешно сохранены!')
+        }
         setEditing(false)
         setSelectedItem(null)
         loadData()

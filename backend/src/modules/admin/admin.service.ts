@@ -21,6 +21,7 @@ export class AdminService {
         source: true,
         telegramId: true,
         username: true,
+        apiKey: true,
         firstName: true,
         lastName: true,
         phone: true,
@@ -30,7 +31,7 @@ export class AdminService {
         createdAt: true,
         updatedAt: true,
         subscription: true,
-        // Исключаем чувствительные поля: passwordHash, apiKey
+        // Исключаем чувствительные поля: passwordHash
       },
     });
 
@@ -54,6 +55,7 @@ export class AdminService {
         source: true,
         telegramId: true,
         username: true,
+        apiKey: true,
         firstName: true,
         lastName: true,
         phone: true,
@@ -74,7 +76,7 @@ export class AdminService {
             generationRequest: true,
           },
         },
-        // Исключаем чувствительные поля: passwordHash, apiKey
+        // Исключаем чувствительные поля: passwordHash
       },
     });
 
