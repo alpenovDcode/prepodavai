@@ -359,6 +359,10 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
 
       const axios = (await import('axios')).default;
 
+      // URL для обратного вызова
+      const baseUrl = this.configService.get<string>('BASE_URL', 'https://api.prepodavai.ru');
+      const callbackUrl = `${baseUrl}/api/webhooks/replicate-callback`;
+
       // Создаем prediction через Replicate API
       const response = await axios.post(
         `https://api.replicate.com/v1/models/${model}/predictions`,
@@ -369,6 +373,8 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
             temperature: 0.7,
             top_p: 0.9,
           },
+          webhook: callbackUrl,
+          webhook_events_filter: ['completed'],
         },
         {
           headers: {
@@ -380,73 +386,29 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
       );
 
       const predictionId = response.data.id;
-      this.logger.log(`Replicate prediction created: ${predictionId}`);
+      this.logger.log(`Replicate prediction created for text generation: ${predictionId}`);
 
-      // Polling для получения результата
-      let attempts = 0;
-      const maxAttempts = 60;
-      let content: string | null = null;
-
-      while (attempts < maxAttempts) {
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-
-        const statusResponse = await axios.get(
-          `https://api.replicate.com/v1/predictions/${predictionId}`,
-          {
-            headers: {
-              Authorization: `Bearer ${replicateToken}`,
-            },
+      // Сохраняем prediction ID и модель в metadata генерации
+      await this.prisma.generationRequest.update({
+        where: { id: generationRequestId },
+        data: {
+          metadata: {
+            replicatePredictionId: predictionId,
+            model: model,
           },
-        );
+        },
+      });
 
-        const status = statusResponse.data.status;
-        this.logger.log(`Prediction ${predictionId} status: ${status}`);
-
-        if (status === 'succeeded') {
-          content = statusResponse.data.output?.join('') || statusResponse.data.output;
-          break;
-        } else if (status === 'failed' || status === 'canceled') {
-          this.logger.error(`Prediction failed with status: ${status}. Replicate Error: ${statusResponse.data.error}`);
-          throw new Error(`Prediction failed with status: ${status}. Error: ${statusResponse.data.error}`);
-        }
-
-        attempts++;
-      }
-
-      if (!content) {
-        throw new BadRequestException('Replicate не вернул результат в течение 2 минут');
-      }
-
-      this.logger.log(
-        `[GenerationsService] Received response from Replicate, content length: ${content.length}`,
-      );
-
-      // Postprocess HTML to ensure MathJax is included if formulas are present
-      console.log(`[GenerationsService] Starting HTML postprocessing for ${generationType}`);
-      // Replace logo placeholder with actual base64 image
-      const contentWithLogo = content.replace(/LOGO_PLACEHOLDER/g, LOGO_BASE64);
-      const processedContent = this.htmlPostprocessor.ensureMathJaxScript(contentWithLogo);
-      console.log(
-        `[GenerationsService] HTML postprocessing complete, processed length: ${processedContent.length}`,
-      );
-
-      const normalizedResult = {
+      // Возвращаем pending статус, webhook обработает завершение
+      return {
         provider: 'Replicate (Claude)',
         mode: 'chat',
         model,
-        content: processedContent,
-        prompt: {
-          system: systemPrompt,
-          user: userPrompt,
-        },
+        status: 'pending',
+        predictionId: predictionId,
+        requestId: generationRequestId,
         completedAt: new Date().toISOString(),
       };
-
-      console.log(`[GenerationsService] Saving generation result to database for ${generationType}`);
-      await this.generationHelpers.completeGeneration(generationRequestId, normalizedResult);
-      console.log(`[GenerationsService] Generation ${generationType} completed successfully`);
-
-      return normalizedResult;
     } catch (error: any) {
       this.logger.error(`Replicate text generation error: ${error.message}`);
       await this.generationHelpers.failGeneration(

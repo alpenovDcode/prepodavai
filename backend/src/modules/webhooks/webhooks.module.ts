@@ -8,10 +8,12 @@ import { FilesModule } from '../files/files.module';
 import { PhotosessionController } from './photosession.controller';
 import { ReplicateCallbackController } from './replicate-callback.controller';
 
+import { HtmlPostprocessorService } from '../../common/services/html-postprocessor.service';
+
 @Module({
   imports: [GenerationsModule, FilesModule],
   controllers: [WebhooksController, PhotosessionController, ReplicateCallbackController],
-  providers: [WebhooksService, WebhookAuthGuard],
+  providers: [WebhooksService, WebhookAuthGuard, HtmlPostprocessorService],
 })
 export class WebhooksModule { }
 
