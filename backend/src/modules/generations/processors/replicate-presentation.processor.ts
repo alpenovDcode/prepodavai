@@ -168,7 +168,7 @@ Output ONLY valid JSON in the following format, without any markdown formatting 
 
 
     private async generateImage(imagePrompt: string): Promise<string> {
-        const prediction = await this.runReplicatePrediction('google/nano-banana', {
+        const prediction = await this.runReplicatePrediction('google/nano-banana-pro', {
             prompt: imagePrompt,
             num_inference_steps: 20,
         });
