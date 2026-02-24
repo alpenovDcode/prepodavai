@@ -88,10 +88,12 @@ export class ReplicateCallbackController {
                     this.logger.log(`Starting HTML postprocessing for ${generationRequest.type}`);
                     const processedContent = this.htmlPostprocessor.process(content);
 
+                    const metadata = (generationRequest.metadata as Record<string, any>) || {};
+
                     const outputData = {
                         provider: 'Replicate (Claude)',
                         mode: 'chat',
-                        model: generationRequest.metadata?.model || 'anthropic/claude-3.7-sonnet',
+                        model: metadata.model || 'anthropic/claude-3.7-sonnet',
                         content: processedContent,
                         predictionId: id,
                         completedAt: new Date().toISOString(),
