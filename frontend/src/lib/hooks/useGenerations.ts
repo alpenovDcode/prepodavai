@@ -92,7 +92,7 @@ export function useGenerations() {
       const check = async () => {
         attempts++
         try {
-          const response = await apiClient.get<{ success: boolean; status?: GenerationStatus; result?: any; error?: string }>(`/generate/${requestId}`)
+          const response = await apiClient.get<{ success: boolean; status?: GenerationStatus; result?: any; error?: string }>(`/generate/${requestId}?_t=${Date.now()}`)
 
           if (!response.data.success) {
             reject(new Error(response.data.error || 'Ошибка получения статуса'))

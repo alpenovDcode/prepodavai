@@ -8,6 +8,7 @@ import {
   Query,
   UseGuards,
   Request,
+  Header,
 } from '@nestjs/common';
 import { GenerationsService } from './generations.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -146,6 +147,9 @@ export class GenerationsController {
   // Получить статус генерации
   @Get(':requestId')
   @UseGuards(JwtAuthGuard)
+  @Header('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate')
+  @Header('Pragma', 'no-cache')
+  @Header('Expires', '0')
   async getGenerationStatus(@Request() req, @Param('requestId') requestId: string) {
     return this.generationsService.getGenerationStatus(requestId, req.user.id);
   }
