@@ -477,11 +477,11 @@ export default function GenerationHistory() {
                   {section.fileType === 'pptx' ? (
                     <a
                       href={section.fileUrl}
-                      target="_blank"
+                      download={`${section.title || 'presentation'}.pptx`}
                       className="flex-1 py-2 px-3 bg-[#FF7E58] text-white rounded-lg text-sm font-medium hover:shadow-lg transition active:scale-95 flex items-center justify-center gap-2"
                     >
                       <i className="fas fa-download"></i>
-                      <span>Скачать (PPTX)</span>
+                      <span>Скачать PPTX</span>
                     </a>
                   ) : (
                     <>
@@ -570,22 +570,25 @@ export default function GenerationHistory() {
     if (isPresentationType(gen)) {
       const res = gen.result as any
       const fileUrl = res?.exportUrl || res?.pdfUrl || res?.pptxUrl || res?.content?.exportUrl || res?.content?.pdfUrl || res?.content?.pptxUrl
-      const message = res?.message || res?.content?.message || res?.inputText || ''
+      const isPptx = fileUrl?.toLowerCase().includes('.pptx') || fileUrl?.toLowerCase().includes('pptx')
+      const formatLabel = isPptx ? 'PPTX' : 'PDF'
+      const message = res?.inputText || res?.message || res?.content?.message || ''
       return (
         <div className="space-y-3">
           <div className="p-4 rounded-xl bg-gradient-to-r from-[#D8E6FF] to-[#D8E6FF]/50 border border-[#D8E6FF]">
             <i className="fas fa-file-powerpoint text-[#FF7E58] text-2xl mb-2"></i>
             <p className="text-sm text-black mb-3">
-              {message || 'Ваша презентация готова!'}
+              {message ? `Презентация: ${message}` : 'Ваша презентация готова!'}
             </p>
             {fileUrl && (
-              <button
-                onClick={() => window.open(fileUrl, '_blank')}
+              <a
+                href={fileUrl}
+                download={`presentation.${isPptx ? 'pptx' : 'pdf'}`}
                 className="w-full px-4 py-2 bg-[#FF7E58] text-white rounded-lg text-sm font-medium hover:shadow-lg transition active:scale-95 flex items-center justify-center gap-2"
               >
                 <i className="fas fa-download"></i>
-                <span>Скачать презентацию</span>
-              </button>
+                <span>Скачать презентацию ({formatLabel})</span>
+              </a>
             )}
           </div>
         </div>

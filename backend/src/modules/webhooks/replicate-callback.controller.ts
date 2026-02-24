@@ -1,14 +1,20 @@
 import { Controller, Post, Body, Logger } from '@nestjs/common';
 import { WebhooksService } from './webhooks.service';
+import { FilesService } from '../files/files.service';
 
 /**
- * Controller for handling Replicate API webhook callbacks
+ * Controller for handling Replicate API webhook callbacks.
+ * Downloads generated images and saves them locally so they persist
+ * beyond Replicate's 30-minute URL expiry.
  */
 @Controller('webhooks')
 export class ReplicateCallbackController {
     private readonly logger = new Logger(ReplicateCallbackController.name);
 
-    constructor(private readonly webhooksService: WebhooksService) { }
+    constructor(
+        private readonly webhooksService: WebhooksService,
+        private readonly filesService: FilesService,
+    ) { }
 
     @Post('replicate-callback')
     async handleReplicateCallback(@Body() body: any) {
@@ -39,12 +45,25 @@ export class ReplicateCallbackController {
                 }
 
                 // Replicate returns output as a string URL, convert to array
-                const imageUrls = Array.isArray(output) ? output : [output];
+                const replicateUrls = Array.isArray(output) ? output : [output];
 
-                // Complete generation with output URLs
+                // Download each image and save locally
+                const localUrls: string[] = [];
+                for (const url of replicateUrls) {
+                    try {
+                        const saved = await this.downloadAndSaveImage(url);
+                        localUrls.push(saved);
+                        this.logger.log(`Saved image locally: ${saved}`);
+                    } catch (err: any) {
+                        this.logger.error(`Failed to save image locally, using original URL: ${err.message}`);
+                        localUrls.push(url); // Fallback to original URL
+                    }
+                }
+
+                // Complete generation with local URLs
                 const outputData = {
-                    imageUrls: imageUrls,
-                    imageUrl: imageUrls[0], // First image as primary
+                    imageUrls: localUrls,
+                    imageUrl: localUrls[0],
                     type: 'photosession',
                     provider: 'Replicate',
                     predictionId: id,
@@ -87,5 +106,32 @@ export class ReplicateCallbackController {
             this.logger.error(`Error processing Replicate callback: ${err.message}`, err.stack);
             return { success: false, error: err.message };
         }
+    }
+
+    /**
+     * Downloads an image from a URL and saves it locally via FilesService.
+     * Returns the permanent local URL.
+     */
+    private async downloadAndSaveImage(imageUrl: string): Promise<string> {
+        const axios = (await import('axios')).default;
+
+        const response = await axios.get(imageUrl, {
+            responseType: 'arraybuffer',
+            timeout: 30000,
+        });
+
+        const buffer = Buffer.from(response.data);
+
+        // Determine extension from content-type or URL
+        const contentType = response.headers['content-type'] || '';
+        let ext = '.png';
+        if (contentType.includes('jpeg') || contentType.includes('jpg')) ext = '.jpg';
+        else if (contentType.includes('webp')) ext = '.webp';
+        else if (contentType.includes('gif')) ext = '.gif';
+
+        const filename = `replicate-${Date.now()}${ext}`;
+        const saved = await this.filesService.saveBuffer(buffer, filename);
+
+        return saved.url;
     }
 }
