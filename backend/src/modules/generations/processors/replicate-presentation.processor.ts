@@ -185,31 +185,54 @@ Output ONLY valid JSON in the following format, without any markdown formatting 
 
 
     private async runReplicatePrediction(model: string, input: any): Promise<any> {
-        const response = await axios.post(
-            `https://api.replicate.com/v1/models/${model}/predictions`,
-            {
-                input: input,
-            },
-            {
-                headers: {
-                    Authorization: `Bearer ${this.replicateToken}`,
-                    'Content-Type': 'application/json',
-                    'Prefer': 'wait',
-                },
+        let attempts = 0;
+        const maxAttempts = 3;
+
+        while (attempts < maxAttempts) {
+            try {
+                const response = await axios.post(
+                    `https://api.replicate.com/v1/models/${model}/predictions`,
+                    {
+                        input: input,
+                    },
+                    {
+                        headers: {
+                            Authorization: `Bearer ${this.replicateToken}`,
+                            'Content-Type': 'application/json',
+                            'Prefer': 'wait',
+                        },
+                    }
+                );
+
+                let prediction = response.data;
+
+                if (prediction.status !== 'succeeded' && prediction.status !== 'failed' && prediction.status !== 'canceled') {
+                    prediction = await this.pollPrediction(prediction.id);
+                }
+
+                if (prediction.status === 'failed' || prediction.status === 'canceled') {
+                    // Check if it's a temporary unavailable error
+                    if (prediction.error && prediction.error.includes('E004')) {
+                        throw new Error(`Replicate temporary error (E004): ${prediction.error}`);
+                    }
+                    throw new Error(`Replicate prediction failed: ${prediction.error}`);
+                }
+
+                return prediction;
+            } catch (error: any) {
+                attempts++;
+                this.logger.warn(`runReplicatePrediction attempt ${attempts} failed: ${error.message}`);
+
+                // If it's the last attempt or a non-retryable error, throw it
+                if (attempts >= maxAttempts) {
+                    throw error;
+                }
+
+                // Exponential backoff: 2s, 4s, 8s
+                await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempts) * 1000));
             }
-        );
-
-        let prediction = response.data;
-
-        if (prediction.status !== 'succeeded' && prediction.status !== 'failed' && prediction.status !== 'canceled') {
-            prediction = await this.pollPrediction(prediction.id);
         }
-
-        if (prediction.status === 'failed' || prediction.status === 'canceled') {
-            throw new Error(`Replicate prediction failed: ${prediction.error}`);
-        }
-
-        return prediction;
+        throw new Error("Replicate prediction failed after max attempts");
     }
 
     private async pollPrediction(predictionId: string): Promise<any> {
