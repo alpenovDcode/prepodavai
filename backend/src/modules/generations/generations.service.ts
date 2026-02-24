@@ -458,7 +458,7 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
   }
 
   /**
-   * Генерация изображений через Replicate (nano-banana-pro)
+   * Генерация изображений через Replicate (z-image-turbo)
    */
   private async generateImageViaGigachat(
     generationType: GenerationType,
@@ -475,7 +475,7 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
     }
 
     try {
-      // Для всех типов изображений используем Replicate API (nano-banana-pro)
+      // Для всех типов изображений используем Replicate API (z-image-turbo)
       const isPhotosession = generationType === 'photosession';
       const promptText = prompt;
 
@@ -509,19 +509,8 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
 
         const input: any = {
           prompt: promptText,
-          output_format: 'png',
-          safety_filter_level: 'block_only_high',
+          height: 768,
         };
-
-        // Если это фотосессия или есть входное изображение
-        if (imageUrlInput) {
-          input.image_input = [imageUrlInput];
-          input.aspect_ratio = '1:1';
-          input.resolution = '2K';
-        } else {
-          // Для обычной генерации
-          input.aspect_ratio = '1:1';
-        }
 
         const requestBody = {
           input: input,
@@ -532,7 +521,7 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
         this.logger.log(`Replicate request body: ${JSON.stringify(requestBody, null, 2)}`);
 
         const response = await axios.post(
-          'https://api.replicate.com/v1/models/google/nano-banana-pro/predictions',
+          'https://api.replicate.com/v1/models/prunaai/z-image-turbo/predictions',
           requestBody,
           {
             headers: {

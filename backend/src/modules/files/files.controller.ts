@@ -95,17 +95,42 @@ export class FilesController {
 
   /**
    * Получить файл по hash
+   * Поддерживает ?download=1 для принудительного скачивания с правильным именем
    */
   @Get(':hash')
-  async getFile(@Param('hash') hash: string, @Res() res: Response) {
+  async getFile(
+    @Param('hash') hash: string,
+    @Res() res: Response,
+  ) {
     const file = await this.filesService.getFile(hash);
 
     if (!file) {
       return res.status(404).json({ success: false, error: 'Файл не найден' });
     }
 
+    // Определяем расширение из MIME типа
+    const extMap: Record<string, string> = {
+      'image/png': '.png',
+      'image/jpeg': '.jpg',
+      'image/gif': '.gif',
+      'image/webp': '.webp',
+      'video/mp4': '.mp4',
+      'video/webm': '.webm',
+      'video/quicktime': '.mov',
+      'application/pdf': '.pdf',
+      'audio/mpeg': '.mp3',
+      'audio/wav': '.wav',
+      'audio/ogg': '.ogg',
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation': '.pptx',
+    };
+    const ext = extMap[file.mimeType] || '';
+    const filename = `${hash}${ext}`;
+
+    const isDownload = (res.req as any)?.query?.download === '1';
+    const disposition = isDownload ? 'attachment' : 'inline';
+
     res.setHeader('Content-Type', file.mimeType);
-    res.setHeader('Content-Disposition', `inline; filename="${hash}"`);
+    res.setHeader('Content-Disposition', `${disposition}; filename="${filename}"`);
     // Явно разрешаем кросс-доменные запросы для файлов
     res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
     res.setHeader('Access-Control-Allow-Origin', '*');

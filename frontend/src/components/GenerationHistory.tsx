@@ -457,6 +457,28 @@ export default function GenerationHistory() {
     )
   }
 
+  // ─── Programmatic download helper ────────────────────────────────
+
+  const downloadFile = async (url: string, filename: string) => {
+    try {
+      const downloadUrl = url.includes('?') ? `${url}&download=1` : `${url}?download=1`
+      const response = await fetch(downloadUrl)
+      if (!response.ok) throw new Error('Download failed')
+      const blob = await response.blob()
+      const blobUrl = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = blobUrl
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(blobUrl)
+    } catch (err: any) {
+      console.error('Download failed, opening in new tab:', err)
+      window.open(url, '_blank')
+    }
+  }
+
   // ─── Render Result ───────────────────────────────────────────────
 
   const renderResult = (gen: CachedGeneration) => {
@@ -475,14 +497,13 @@ export default function GenerationHistory() {
                 </div>
                 <div className="flex gap-2">
                   {section.fileType === 'pptx' ? (
-                    <a
-                      href={section.fileUrl}
-                      download={`${section.title || 'presentation'}.pptx`}
+                    <button
+                      onClick={() => downloadFile(section.fileUrl, `${section.title || 'presentation'}.pptx`)}
                       className="flex-1 py-2 px-3 bg-[#FF7E58] text-white rounded-lg text-sm font-medium hover:shadow-lg transition active:scale-95 flex items-center justify-center gap-2"
                     >
                       <i className="fas fa-download"></i>
                       <span>Скачать PPTX</span>
-                    </a>
+                    </button>
                   ) : (
                     <>
                       <button
@@ -581,14 +602,13 @@ export default function GenerationHistory() {
               {message ? `Презентация: ${message}` : 'Ваша презентация готова!'}
             </p>
             {fileUrl && (
-              <a
-                href={fileUrl}
-                download={`presentation.${isPptx ? 'pptx' : 'pdf'}`}
+              <button
+                onClick={() => downloadFile(fileUrl, `presentation.${isPptx ? 'pptx' : 'pdf'}`)}
                 className="w-full px-4 py-2 bg-[#FF7E58] text-white rounded-lg text-sm font-medium hover:shadow-lg transition active:scale-95 flex items-center justify-center gap-2"
               >
                 <i className="fas fa-download"></i>
                 <span>Скачать презентацию ({formatLabel})</span>
-              </a>
+              </button>
             )}
           </div>
         </div>
