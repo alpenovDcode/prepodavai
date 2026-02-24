@@ -89,13 +89,15 @@ function getResultContent(gen: CachedGeneration): any {
 }
 
 function isImageType(gen: CachedGeneration): boolean {
-  return ['image', 'photosession'].includes(gen.type) ||
-    gen.type?.startsWith('gigachat') && gen.params?.mode === 'image' ||
-    !!(gen.result as any)?.imageUrl
+  if (['image', 'photosession'].includes(gen.type)) return true
+  if (gen.type?.startsWith('gigachat') && gen.params?.mode === 'image') return true
+  if (getImageUrl(gen)) return true
+  return false
 }
 
 function isAudioType(gen: CachedGeneration): boolean {
-  return !!(gen.result as any)?.audioUrl
+  const r = gen.result as any
+  return !!(r?.audioUrl || r?.content?.audioUrl)
 }
 
 function isPresentationType(gen: CachedGeneration): boolean {
@@ -112,7 +114,18 @@ function isStructuredType(gen: CachedGeneration): boolean {
 
 function getImageUrl(gen: CachedGeneration): string | null {
   if (!gen.result) return null
-  return (gen.result as any)?.imageUrl || (gen.result as any)?.imageUrls?.[0] || null
+  const r = gen.result as any
+  // Direct string URL
+  if (typeof r === 'string' && (r.startsWith('http') || r.startsWith('data:image'))) return r
+  // result.imageUrl
+  if (r?.imageUrl) return r.imageUrl
+  // result.imageUrls[0]
+  if (r?.imageUrls?.[0]) return r.imageUrls[0]
+  // result.content (which may be a URL string)
+  if (typeof r?.content === 'string' && (r.content.startsWith('http') || r.content.startsWith('data:image'))) return r.content
+  // result.content.imageUrl
+  if (r?.content?.imageUrl) return r.content.imageUrl
+  return null
 }
 
 // ─── FullHtmlPreview (iframe-based) ──────────────────────────────────
