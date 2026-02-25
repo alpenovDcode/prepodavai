@@ -471,7 +471,7 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
 
         const input: any = {
           prompt: promptText,
-          height: 768,
+          aspect_ratio: imageUrlInput ? "match_input_image" : "4:3",
         };
 
         if (imageUrlInput) {
@@ -487,7 +487,7 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
         this.logger.log(`Replicate request body: ${JSON.stringify(requestBody, null, 2)}`);
 
         const response = await axios.post(
-          'https://api.replicate.com/v1/models/google/nano-banana/predictions',
+          'https://api.replicate.com/v1/models/bytedance/seedream-4/predictions',
           requestBody,
           {
             headers: {
