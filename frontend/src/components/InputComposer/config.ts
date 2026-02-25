@@ -12,51 +12,51 @@ export interface FieldOption {
 export const photosessionPrompts: FieldOption[] = [
   {
     label: 'Летний портрет в саду',
-    value: 'Реалистичный летний портрет в цветущем саду, теплый солнечный свет, золотой час, яркие насыщенные цвета, естественная поза. Снято на объектив 85mm, диафрагма f/1.8, красивое боке, кинематографичное освещение, RAW фото, высочайшая детализация, 8k.'
+    value: 'A breathtaking summer portrait of a person in a blooming garden. Pose: looking over the shoulder with a relaxed natural smile, one hand gently touching a blooming branch. Warm sunlight, golden hour, vibrant colors. Shot on 85mm lens, f/1.8, soft bokeh. Native 4K, UHD, highly detailed skin texture, cinematic lighting, photorealistic.'
   },
   {
     label: 'Деловой портрет в офисе',
-    value: 'Профессиональный бизнес-портрет в современном стеклянном офисе, строгая деловая одежда, уверенная открытая поза, естественный свет из окна, софтбокс, объектив 50mm, f/2.8, резкий фокус на лице, премиальное журнальное качество, фотореализм.'
+    value: 'Professional corporate headshot in a modern glass office, stylish business attire. Pose: standing confidently with arms loosely crossed, looking directly at the camera, slight confident smile. Soft natural window light, softbox. Shot on 50mm, f/2.8, sharp focus. Native 4K, ultra-realistic, magazine editorial quality, highly detailed.'
   },
   {
     label: 'Семейная фотосессия на природе',
-    value: 'Живая семейная фотография на фоне красивой природы, теплая атмосфера, искренние радостные эмоции, мягкий вечерний свет, закат, глубина резкости, объектив 35mm, кинематографичная цветокоррекция, высочайшее качество, шедевр.'
+    value: 'Candid family photography in beautiful nature, warm and joyful atmosphere. Pose: walking hand-in-hand towards the camera, looking at each other and laughing genuinely, dynamic movement. Sunset lighting. DSLR, 35mm lens, cinematic depth of field. Native 4K, masterpiece, highly detailed, hyper-realistic.'
   },
   {
     label: 'Портрет в студии',
-    value: 'Выразительный студийный портрет, нейтральный темно-серый фон, профессиональный студийный свет, рисующий свет, рефлектор, глубокий взгляд. Снято на зеркальную камеру, 85mm, f/5.6, сверхвысокая детализация текстуры кожи, 8k.'
+    value: 'Expressive studio portrait, neutral dark grey background. Pose: sitting on a high stool, one hand elegantly resting near the chin, slight head tilt, intense direct gaze. Professional studio lighting, rim light, reflector. Shot on DSLR, 85mm, f/5.6. Native 4K, UHD, ultra-high skin texture detail, high-end retouching.'
   },
   {
     label: 'Романтическая фотосессия на закате',
-    value: 'Романтическая пара на фоне заката, мягкое золотистое контровое освещение, живописный пейзаж, нежные объятия, естественность, объектив 50mm, f/1.4, кинематографичная атмосфера, блики объектива, сверхреалистично.'
+    value: 'Romantic couple at sunset, picturesque landscape. Pose: foreheads gently touching, wrapped in a warm close embrace, eyes closed in a tender moment. Soft golden backlighting. 50mm lens, f/1.4, cinematic atmosphere, lens flare. Native 4K, ultra-realistic, award-winning photography.'
   },
   {
     label: 'Спортивная фотосессия',
-    value: 'Динамичная спортивная фотография, атлетичная фигура в движении, современная экипировка, контрастное драматичное освещение, короткая выдержка, резкий фокус, спортивный зал или стадион на фоне, снято на профессиональную камеру, 8k.'
+    value: 'Dynamic sports photography, modern sportswear, gym or stadium background. Pose: dynamic mid-stride running pose, body leaning forward, muscles tensed, focused and determined expression. Contrasting dramatic lighting. Fast shutter speed, sharp focus, sweat drops. Native 4K, photorealistic.'
   },
   {
     label: 'Детская фотосессия в парке',
-    value: 'Радостный ребенок играет в солнечном парке, искренний смех, чистые цвета, мягкий дневной свет. Объектив 85mm, f/2.0, сильное размытие заднего фона, сказочная атмосфера, профессиональная семейная фотография.'
+    value: 'Joyful child playing in a sunny park, vibrant clean colors. Pose: running towards the camera with arms wide open, big genuine laugh, hair flying in the wind. Soft daylight. 85mm lens, f/2.0, heavy background blur, magical atmosphere. Native 4K, professional family photography, hyper-detailed.'
   },
   {
     label: 'Выпускная фотосессия',
-    value: 'Торжественный выпускной портрет, элегантный вечерний наряд, на фоне красивой классической архитектуры, мягкое вечернее освещение, уверенный взгляд, журнальный стиль, профессиональная цветокоррекция, RAW фото, 8k.'
+    value: 'Elegant graduation portrait, evening gown or suit, classic architecture background. Pose: holding the diploma proudly against the chest with both hands, chin slightly up, triumphant bright smile. Soft evening light, magazine style. Professional color grading, RAW photo. Native 4K, UHD, masterpiece.'
   },
   {
     label: 'Портрет в городской среде',
-    value: 'Стильный стрит-стайл портрет в современном мегаполисе, динамичная композиция, модная одежда, малая глубина резкости, объектив 35mm, f/1.4, красивое боке от городских фонарей, кинематографичная уличная фотография.'
+    value: 'Stylish street-style portrait in a modern metropolis, trendy outfit. Pose: walking confidently towards the camera, one hand casually resting in a coat pocket, glancing away over the shoulder. City lights. 35mm lens, f/1.4, shallow depth of field, beautiful city bokeh. Native 4K, cinematic street photography, highly detailed.'
   },
   {
     label: 'Фотосессия на пляже',
-    value: 'Атмосферная фотография на песчаном пляже, морской бриз, развевающиеся волосы, расслабленная поза, свет золотого часа, закатное солнце отражается в воде, пленочная эстетика, гиперреализм, высокое разрешение.'
+    value: 'Atmospheric beach photography, sea breeze. Pose: standing barefoot in the shallow surf, holding a wide-brimmed sun hat with one hand, looking dreamily at the ocean horizon. Golden hour light, sun reflecting on water. 50mm lens, film aesthetic. Native 4K, hyper-realistic, high resolution, soft cinematic colors.'
   },
   {
     label: 'Портрет в библиотеке',
-    value: 'Уютный портрет в старинной библиотеке, теплый свет от настольной лампы, стеллажи с книгами в мягком расфокусе, задумчивый взгляд, интеллектуальная атмосфера, объектив 50mm, f/2.0, высочайшая детализация теней и света, 8k.'
+    value: 'Cozy portrait in an antique library, intellectual atmosphere. Pose: sitting at a wooden desk, leaning over an open ancient book, holding a pen, looking up thoughtfully off-camera. Warm light from a desk lamp, bookshelves in soft focus. 50mm lens, f/2.0. Native 4K, highest detail of shadows and highlights.'
   },
   {
     label: 'Свадебная фотосессия',
-    value: 'Роскошная свадебная фотография, элегантные наряды, нежный поцелуй, на фоне живописного сада, мягкий рассеянный свет, пастельные тона, объектив 85mm, f/1.8, сказочная атмосфера, свадебная фотография премиум-класса.'
+    value: 'Luxury wedding photography, elegant wedding dress and suit, picturesque castle or garden background. Pose: groom gently dipping the bride backward for a cinematic kiss, holding hands tightly. Soft diffused light, pastel tones. 85mm lens, f/1.8. Native 4K, fairy tale atmosphere, premium quality.'
   }
 ]
 
