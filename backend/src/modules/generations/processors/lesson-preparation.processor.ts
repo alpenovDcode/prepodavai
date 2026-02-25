@@ -851,7 +851,7 @@ Make it immersive. Make it detailed. Make it beautiful.
 
 
     private async generateImage(imagePrompt: string): Promise<string> {
-        const prediction = await this.runReplicatePrediction('prunaai/z-image-turbo', {
+        const prediction = await this.runReplicatePrediction('google/nano-banana-pro', {
             prompt: imagePrompt,
             height: 768,
         });
