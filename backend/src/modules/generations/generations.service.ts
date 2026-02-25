@@ -474,6 +474,10 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
           height: 768,
         };
 
+        if (imageUrlInput) {
+          input.image_input = [imageUrlInput];
+        }
+
         const requestBody = {
           input: input,
           webhook: callbackUrl,
