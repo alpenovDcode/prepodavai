@@ -122,23 +122,31 @@ export class ReplicatePresentationProcessor extends WorkerHost {
 
     private async generatePresentationContent(inputText: string, numCards: number): Promise<PresentationStructure> {
         const prompt = `
-You are an expert presentation creator. Create a comprehensive and detailed presentation structure based on the following topic/text: "${inputText}".
-The presentation MUST have exactly ${numCards} cards/slides.
+You are a WORLD-CLASS STORYTELLER and MASTER PRESENTATION DESIGNER (think TED Talks & Apple Keynotes).
+Your mission is to transform the following raw text/topic into a breathtaking, "WOW-effect" presentation structure.
 
-STRICT INSTRUCTIONS:
-1.  **Narrative Flow:** Ensure a logical flow from introduction to conclusion across the slides.
-2.  **Detailed Content:** For each slide, "content" must provide substantial, well-written text explaining the points fully. Do not just use short bullet points; write cohesive paragraphs or detailed lists that can serve as the speaker's main content or detailed slide text. The text should be educational and engaging.
-3.  **Visual Context:** The "imagePrompt" for each slide must be highly descriptive and specifically tailored to visually represent the content of that slide.
-4.  **Slide Count:** You must generate exactly ${numCards} slides. Plan the content distribution accordingly.
+INPUT TOPIC/TEXT: "${inputText}"
+EXACT SLIDE COUNT: ${numCards}
 
-Output ONLY valid JSON in the following format, without any markdown formatting or extra text:
+STRICT DESIGN & STORYTELLING RULES:
+1.  **KILL THE WALL OF TEXT (Minimalism):** DO NOT write long, boring paragraphs for the slide content. Audiences hate reading blocks of text. The "content" field must contain punchy, highly engaging, bite-sized insights. Use short bullet points, bold statements, or powerful one-liners that a viewer can read in 5 seconds.
+2.  **THE NARRATIVE ARC:** Structure the ${numCards} slides as a compelling story. 
+    - Slide 1: The Hook (A provocative statement or question).
+    - Middle Slides: The Meat (Fascinating facts, core concepts, broken down beautifully).
+    - Final Slide: The Mic-Drop (A powerful conclusion, quote, or call-to-action).
+3.  **CINEMATIC VISUALS:** The "imagePrompt" must be a masterpiece prompt for an advanced AI image generator (like Midjourney v6). It MUST include: a specific art style (e.g., hyper-realistic 3D render, high-end editorial photography, abstract minimalist geometry), dramatic lighting, and EXACTLY the phrase: "clean negative space on one side for typography readability".
+4.  **PRECISION:** You must generate EXACTLY ${numCards} slides. Plan the pacing accordingly.
+
+OUTPUT FORMAT:
+Return ONLY valid JSON. No markdown wrappers (do not use \`\`\`json), no preamble, no explanations. 
+
 {
-  "title": "Presentation Main Title",
+  "title": "An Epic, Attention-Grabbing Main Title",
   "slides": [
     {
-      "title": "Slide Title",
-      "content": "Detailed text content for the slide. Explain the concepts clearly and thoroughly.",
-      "imagePrompt": "A detailed, descriptive prompt for an AI image generator to create a relevant illustration for this slide."
+      "title": "Punchy Slide Title (max 5-6 words)",
+      "content": "Engaging, bite-sized content. Bullet points or 2-3 short, powerful sentences. Make it sound brilliant and inspiring.",
+      "imagePrompt": "Detailed AI image prompt in English. Include: main subject, style, cinematic lighting, ultra-detailed, 8k, and 'clean negative space for text'."
     }
   ]
 }
