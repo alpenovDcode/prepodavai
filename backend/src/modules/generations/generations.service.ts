@@ -483,7 +483,7 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
         this.logger.log(`Replicate request body: ${JSON.stringify(requestBody, null, 2)}`);
 
         const response = await axios.post(
-          'https://api.replicate.com/v1/models/prunaai/z-image-turbo/predictions',
+          'https://api.replicate.com/v1/models/google/nano-banana-pro/predictions',
           requestBody,
           {
             headers: {
