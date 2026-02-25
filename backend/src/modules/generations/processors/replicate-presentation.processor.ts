@@ -168,9 +168,9 @@ Output ONLY valid JSON in the following format, without any markdown formatting 
 
 
     private async generateImage(imagePrompt: string): Promise<string> {
-        const prediction = await this.runReplicatePrediction('google/nano-banana-pro', {
+        const prediction = await this.runReplicatePrediction('bytedance/seedream-4', {
             prompt: imagePrompt,
-            height: 768,
+            aspect_ratio: '4:3',
         });
 
         if (Array.isArray(prediction.output) && prediction.output.length > 0) {
