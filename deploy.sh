@@ -86,11 +86,11 @@ EOF
 
 # Reload Nginx
 echo "🔄 Reloading Nginx..."
-if [ "$(docker ps -q -f name=$NGINX_CONTAINER)" ]; then
+if [ "$(docker ps -q -f name=$NGINX_CONTAINER)" ] && [ "$(docker inspect -f '{{.State.Status}}' $NGINX_CONTAINER)" == "running" ]; then
     docker exec $NGINX_CONTAINER nginx -s reload
 else
-    echo "⚠️ Nginx container not found or not running. Restarting nginx..."
-    docker compose -f $DOCKER_COMPOSE_FILE up -d nginx
+    echo "⚠️ Nginx container is not running (might be in a crash loop). Force restarting nginx..."
+    docker compose -f $DOCKER_COMPOSE_FILE restart nginx
 fi
 
 # Stop old containers
