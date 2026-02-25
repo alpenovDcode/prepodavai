@@ -109,7 +109,7 @@ describe('LessonPreparationProcessor', () => {
                 if (url.includes('anthropic/claude-3.7-sonnet')) {
                     return Promise.resolve(mockTextResponse);
                 }
-                if (url.includes('prunaai/z-image-turbo')) {
+                if (url.includes('google/nano-banana-pro')) {
                     return Promise.resolve(mockImageResponse);
                 }
                 return Promise.reject(new Error('Unknown URL'));
