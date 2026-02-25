@@ -46,12 +46,11 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  # Backend API
-  backend:
+  # Backend Defaults
+  x-backend-defaults: &backend-defaults
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: prepodavai-backend-prod
     environment:
       NODE_ENV: production
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
@@ -82,7 +81,6 @@ services:
       GIGACHAT_DEFAULT_EMBEDDINGS_MODEL: ${GIGACHAT_DEFAULT_EMBEDDINGS_MODEL:-GigaChat-Embedding}
       GIGACHAT_DEFAULT_AUDIO_MODEL: ${GIGACHAT_DEFAULT_AUDIO_MODEL:-GigaChat-Audio}
       # Replicate API
-      # Replicate API
       REPLICATE_API_TOKEN: ${REPLICATE_API_TOKEN}
       # AssemblyAI API
       ASSEMBLYAI_API_KEY: ${ASSEMBLYAI_API_KEY}
@@ -93,16 +91,32 @@ services:
         condition: service_healthy
     volumes:
       - uploads_data:/app/uploads
-    ports:
-      - "127.0.0.1:3001:3001"
     networks:
       - prepodavai-network
     restart: unless-stopped
+    healthcheck:
+      test: [ "CMD-SHELL", "wget -q --spider http://localhost:3001/ || exit 1" ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
     logging:
       driver: "json-file"
       options:
         max-size: "10m"
         max-file: "3"
+
+  backend-blue:
+    <<: *backend-defaults
+    container_name: prepodavai-backend-blue-prod
+
+  backend-green:
+    <<: *backend-defaults
+    container_name: prepodavai-backend-green-prod
 
   # Worker для фоновых задач
   worker:
@@ -144,14 +158,12 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
-      API_URL: http://backend:3001
+      API_URL: http://nginx:3001
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-      backend:
-        condition: service_started
     networks:
       - prepodavai-network
     restart: unless-stopped
@@ -161,22 +173,56 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  # Frontend
-  frontend:
+  # Frontend Defaults
+  x-frontend-defaults: &frontend-defaults
     build:
       context: ./frontend
       dockerfile: Dockerfile
       args:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
-    container_name: prepodavai-frontend-prod
     environment:
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
       NEXT_PUBLIC_TELEGRAM_BOT_NAME: ${NEXT_PUBLIC_TELEGRAM_BOT_NAME}
-    ports:
-      - "127.0.0.1:3000:3000"
     networks:
       - prepodavai-network
     restart: unless-stopped
+    healthcheck:
+      test: [ "CMD-SHELL", "wget -q --spider http://localhost:3000/ || exit 1" ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  frontend-blue:
+    <<: *frontend-defaults
+    container_name: prepodavai-frontend-blue-prod
+
+  frontend-green:
+    <<: *frontend-defaults
+    container_name: prepodavai-frontend-green-prod
+
+  # NGINX Load Balancer
+  nginx:
+    image: nginx:alpine
+    container_name: prepodavai-nginx-prod
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:3000"
+      - "127.0.0.1:3001:3001"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+    networks:
+      - prepodavai-network
     logging:
       driver: "json-file"
       options:
