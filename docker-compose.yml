@@ -95,11 +95,11 @@ services:
       - prepodavai-network
     restart: unless-stopped
     healthcheck:
-      test: [ "CMD-SHELL", "wget -q --spider http://localhost:3001/ || exit 1" ]
+      test: [ "CMD", "node", "-e", "fetch('http://localhost:3001/api/health').then(r => {if(!r.ok) process.exit(1)}).catch(() => process.exit(1))" ]
       interval: 15s
       timeout: 5s
       retries: 5
-      start_period: 40s
+      start_period: 60s
     deploy:
       resources:
         limits:
@@ -187,11 +187,11 @@ services:
       - prepodavai-network
     restart: unless-stopped
     healthcheck:
-      test: [ "CMD-SHELL", "wget -q --spider http://localhost:3000/ || exit 1" ]
+      test: [ "CMD", "node", "-e", "fetch('http://localhost:3000/').then(r => {if(r.status >= 400) process.exit(1)}).catch(() => process.exit(1))" ]
       interval: 15s
       timeout: 5s
       retries: 5
-      start_period: 40s
+      start_period: 60s
     deploy:
       resources:
         limits:

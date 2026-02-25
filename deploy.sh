@@ -49,7 +49,7 @@ docker exec -u root prepodavai-backend-$NEW_COLOR-prod chown -R nestjs:nodejs /a
 # Wait for healthchecks
 echo "⏳ Waiting for backend-$NEW_COLOR and frontend-$NEW_COLOR to be healthy..."
 attempt=0
-max_attempts=40
+max_attempts=60
 
 while [ $attempt -le $max_attempts ]; do
     attempt=$(( attempt + 1 ))
