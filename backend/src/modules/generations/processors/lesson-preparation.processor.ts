@@ -275,9 +275,12 @@ ${interests ? `- Интересы аудитории (Интегрируй их 
         const accentColor = parsedData.themeColor ? parsedData.themeColor.replace('#', '') : 'FF7E58';
 
         // 2. Generate Images
+        // 2. Generate Images (Only for the first slide to save time/costs)
         const presImages: (string | null)[] = [];
-        for (const slide of slidesData) {
-            if (slide.imagePrompt) {
+        for (let i = 0; i < slidesData.length; i++) {
+            const slide = slidesData[i];
+            // Only generate image for the cover slide (first slide)
+            if (i === 0 && slide.imagePrompt) {
                 try {
                     const styleSuffix = "minimalist, trending on artstation, vivid colors, high quality 3d render, 8k, no text";
                     const imgUrl = await this.generateImage(`${slide.imagePrompt}, ${styleSuffix}`);
@@ -807,11 +810,11 @@ Make it immersive. Make it detailed. Make it beautiful.
             matches.push({ full: match[0], content: match[1] });
         }
 
-        // Process strictly max 3 images
+        // Process strictly max 1 image to save time
         for (let i = 0; i < matches.length; i++) {
             const m = matches[i];
 
-            if (i >= 3) {
+            if (i >= 1) {
                 // Remove extra image tags
                 newContent = newContent.replace(m.full, '');
                 continue;
