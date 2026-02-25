@@ -7,17 +7,17 @@ WORKDIR /app
 
 # Настройка npm для более надежной установки
 RUN npm config set fetch-retries 5 && \
-    npm config set fetch-retry-mintimeout 20000 && \
-    npm config set fetch-retry-maxtimeout 120000 && \
-    npm config set fetch-timeout 300000
+  npm config set fetch-retry-mintimeout 20000 && \
+  npm config set fetch-retry-maxtimeout 120000 && \
+  npm config set fetch-timeout 300000
 
 COPY package.json package-lock.json* ./
 # Используем npm install с флагами для более надежной установки
 RUN if [ -f package-lock.json ]; then \
-      npm ci --prefer-offline --no-audit || npm install --prefer-offline --no-audit; \
-    else \
-      npm install --prefer-offline --no-audit; \
-    fi
+  npm ci --prefer-offline --no-audit || npm install --prefer-offline --no-audit; \
+  else \
+  npm install --prefer-offline --no-audit; \
+  fi
 
 # Rebuild the source code only when needed
 FROM base AS builder
@@ -51,6 +51,7 @@ USER nextjs
 EXPOSE 3000
 
 ENV PORT 3000
+ENV HOSTNAME "0.0.0.0"
 
 CMD ["node", "server.js"]
 
