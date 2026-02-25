@@ -272,16 +272,16 @@ ${interests ? `- Интересы аудитории (Интегрируй их 
             this.logger.error("Failed to parse PPTX JSON. Raw: " + rawJson + ". Error: " + e.message);
             // Fallback minimal structure if parsing fails significantly
             parsedData = {
-                themeColor: '#FF7E58',
+                designSystem: { themeColor: '#FF7E58' },
                 slides: [
-                    { layout: 'COVER', title: topic, content: [], imagePrompt: `${topic} abstract art` },
-                    { layout: 'BIG_FACT', title: 'Loading...', content: ['Error parsing content'], imagePrompt: null }
+                    { layout: 'COVER_CENTERED', title: topic, content: [], imagePrompt: `${topic} abstract art` },
+                    { layout: 'BIG_NUMBER_LEFT', title: 'Loading...', content: ['Error parsing content'], imagePrompt: null }
                 ]
             };
         }
 
         const slidesData = parsedData.slides;
-        const accentColor = parsedData.themeColor ? parsedData.themeColor.replace('#', '') : 'FF7E58';
+        const accentColor = parsedData.designSystem && parsedData.designSystem.themeColor ? parsedData.designSystem.themeColor.replace('#', '') : 'FF7E58';
 
         // 2. Generate Images
         // 2. Generate Images (Only for the first slide to save time/costs)
@@ -321,18 +321,18 @@ ${interests ? `- Интересы аудитории (Интегрируй их 
             const img = presImages[index];
 
             switch (slide.layout) {
-                case 'COVER':
+                case 'COVER_CENTERED':
                     if (img) s.addImage({ path: img, x: 0, y: 0, w: '100%', h: '100%', transparency: 85 });
                     s.addText(slide.title.toUpperCase(), {
                         x: 0.5, y: 2.5, w: '90%', h: 2,
                         fontSize: 64, color: '2D3748', bold: true, align: 'center', fontFace: 'Arial Black'
                     });
-                    s.addText(topic, {
+                    s.addText(slide.subtitle || topic, {
                         x: 0.5, y: 4.5, w: '90%', fontSize: 24, color: accentColor, align: 'center'
                     });
                     break;
 
-                case 'BIG_FACT':
+                case 'BIG_NUMBER_LEFT':
                     s.addShape(pres.ShapeType.rect, { x: 0, y: 0, w: '50%', h: '100%', fill: accentColor });
 
                     const factText = Array.isArray(slide.content) ? slide.content[0] : slide.content;
@@ -347,7 +347,7 @@ ${interests ? `- Интересы аудитории (Интегрируй их 
                     });
                     break;
 
-                case 'SPLIT':
+                case 'SPLIT_40_60':
                     if (img) s.addImage({ path: img, x: 0.5, y: 1.5, w: 4.5, h: 4.5, sizing: { type: 'cover', w: 4.5, h: 4.5, r: 20 } });
 
                     s.addText(slide.title, {
@@ -364,7 +364,7 @@ ${interests ? `- Интересы аудитории (Интегрируй их 
                     });
                     break;
 
-                case 'CHALLENGE':
+                case 'GRID_INTERACTIVE':
                     s.background = { color: '1A202C' };
                     s.addText("CHALLENGE TIME", { x: 0, y: 0.5, w: '100%', align: 'center', color: accentColor, fontSize: 14, bold: true });
 
@@ -376,7 +376,7 @@ ${interests ? `- Интересы аудитории (Интегрируй их 
                     if (img) s.addImage({ path: img, x: 3.5, y: 3.2, w: 6, h: 3 });
                     break;
 
-                case 'QUOTE':
+                case 'QUOTE_MINIMAL':
                     s.addText("“", { x: 0.5, y: 1.0, fontSize: 100, color: accentColor, fontFace: 'Georgia' });
                     s.addText(slide.title, {
                         x: 1.5, y: 2.0, w: '70%',
@@ -426,18 +426,18 @@ ${interests ? `- Интересы аудитории (Интегрируй их 
 
             // Layout logic for HTML
             switch (slide.layout) {
-                case 'COVER':
+                case 'COVER_CENTERED':
                     contentHtml = `
                         <div class="slide-content cover" style="background: ${img ? `url('${img}') center/cover no-repeat` : accentColor}; position: relative;">
                             ${img ? '<div class="overlay"></div>' : ''}
                             <div class="content-wrapper" style="z-index: 2;">
                                 <h1 style="font-size: 3.5rem; color: ${img ? '#fff' : '#fff'}; text-transform: uppercase; margin-bottom: 20px;">${slide.title}</h1>
-                                <p style="font-size: 1.5rem; color: ${img ? '#e2e8f0' : '#fff'}; opacity: 0.9;">PrepodavAI Presentation</p>
+                                <p style="font-size: 1.5rem; color: ${img ? '#e2e8f0' : '#fff'}; opacity: 0.9;">${slide.subtitle || 'PrepodavAI Presentation'}</p>
                             </div>
                         </div>
                     `;
                     break;
-                case 'BIG_FACT':
+                case 'BIG_NUMBER_LEFT':
                     const fact = Array.isArray(slide.content) ? slide.content[0] : slide.content;
                     contentHtml = `
                         <div class="slide-content big-fact" style="display: flex;">
@@ -450,7 +450,7 @@ ${interests ? `- Интересы аудитории (Интегрируй их 
                         </div>
                     `;
                     break;
-                case 'SPLIT':
+                case 'SPLIT_40_60':
                     const bullets = Array.isArray(slide.content) ? slide.content : [slide.content];
                     contentHtml = `
                         <div class="slide-content split" style="display: flex; gap: 40px; padding: 50px; align-items: center;">
@@ -466,7 +466,7 @@ ${interests ? `- Интересы аудитории (Интегрируй их 
                         </div>
                     `;
                     break;
-                case 'CHALLENGE':
+                case 'GRID_INTERACTIVE':
                     contentHtml = `
                         <div class="slide-content challenge" style="background: #1a202c; color: white; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 40px;">
                             <div style="color: #${accentColor}; font-weight: bold; letter-spacing: 2px; margin-bottom: 20px;">CHALLENGE TIME</div>
@@ -475,7 +475,7 @@ ${interests ? `- Интересы аудитории (Интегрируй их 
                         </div>
                     `;
                     break;
-                case 'QUOTE':
+                case 'QUOTE_MINIMAL':
                     const quote = Array.isArray(slide.content) ? slide.content[0] : slide.content;
                     contentHtml = `
                         <div class="slide-content quote" style="display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 60px;">
