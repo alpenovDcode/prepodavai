@@ -670,7 +670,6 @@ ${interests ? `- Интересы аудитории (Интегрируй их 
 
 ФОРМАТ ОТВЕТА (HTML):
 Документ должен быть с красивым, дорогим, современным дизайном (тени, скругления, акценты).
-Используй логотип: "${logoUrlStr}" в шапке.
 
 СТРУКТУРА ОТЧЕТА:
 1.  **ШАПКА**
@@ -736,6 +735,16 @@ ${interests ? `- Интересы аудитории (Интегрируй их 
                 max_tokens: 5000,
                 system_prompt: specialized.systemPrompt,
             });
+
+            if (prediction.metrics) {
+                const inputTokens = prediction.metrics.input_token_count || 0;
+                const outputTokens = prediction.metrics.output_token_count || 0;
+                const cost = (inputTokens / 1000000 * 3) + (outputTokens / 1000000 * 15);
+                this.logger.log(`Стоимость генерации (${targetType}): $${cost.toFixed(6)} (Input: ${inputTokens}, Output: ${outputTokens})`);
+            } else {
+                this.logger.log(`Стоимость генерации (${targetType}): Метрики недоступны. ${JSON.stringify(prediction.metrics)}`);
+            }
+
             let rawOutput = "";
             if (Array.isArray(prediction.output)) {
                 rawOutput = prediction.output.join('');
