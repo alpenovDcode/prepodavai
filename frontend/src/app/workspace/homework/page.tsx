@@ -210,7 +210,7 @@ export default function HomeworkReviewPage() {
                 <div className="text-center py-20 bg-white rounded-2xl border border-gray-100">
                     <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />
                     <h3 className="text-lg font-bold text-gray-900 mb-1">У вас пока нет классов</h3>
-                    <p className="text-gray-500">Добавьте классы в разделе "Ученики", чтобы выдавать им задания.</p>
+                    <p className="text-gray-500">Добавьте классы в разделе &quot;Ученики&quot;, чтобы выдавать им задания.</p>
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -256,7 +256,7 @@ export default function HomeworkReviewPage() {
                 <div className="text-center py-20 bg-white rounded-2xl border border-gray-100">
                     <ScrollText className="w-16 h-16 text-gray-300 mx-auto mb-4" />
                     <h3 className="text-lg font-bold text-gray-900 mb-1">Этому классу не выдавались задания</h3>
-                    <p className="text-gray-500">Зайдите в любой материал и нажмите "Назначить домашнее задание".</p>
+                    <p className="text-gray-500">Зайдите в любой материал и нажмите &quot;Назначить домашнее задание&quot;.</p>
                 </div>
             ) : (
                 <div className="space-y-4">
