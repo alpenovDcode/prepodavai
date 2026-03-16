@@ -1063,9 +1063,36 @@ const IFRAME_STYLES = `<style>
   body { margin: 0; padding: 32px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, sans-serif; background: white; color: #1a1a1a; }
   .container { max-width: 820px; margin: 0 auto; }
 </style>`
+const IFRAME_READY_SCRIPT = `<script>
+  window.addEventListener('load', function() {
+    if (window.MathJax) {
+      setTimeout(function() { window.parent.postMessage('IFRAME_READY', '*'); }, 1500);
+    } else {
+      setTimeout(function() { window.parent.postMessage('IFRAME_READY', '*'); }, 500);
+    }
+  });
+</script>`
 
 function FullHtmlPreview({ html }: { html: string }) {
   const iframeRef = useRef<HTMLIFrameElement>(null)
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    const handler = (e: MessageEvent) => {
+      if (e.data === 'IFRAME_READY') {
+        setIsLoading(false)
+      }
+    }
+    window.addEventListener('message', handler)
+    
+    // Fallback: hide loader after 5 seconds anyway
+    const fallbackTimer = setTimeout(() => setIsLoading(false), 5000)
+    
+    return () => {
+      window.removeEventListener('message', handler)
+      clearTimeout(fallbackTimer)
+    }
+  }, [])
 
   useEffect(() => {
     const iframe = iframeRef.current
@@ -1094,28 +1121,47 @@ function FullHtmlPreview({ html }: { html: string }) {
   const hasHead = /<head[\s>]/i.test(html)
   const hasBody = /<body[\s>]/i.test(html)
 
+  const INJECTED_HEAD = `${IFRAME_STYLES}${hasMathJax ? MATHJAX_SCRIPT : ''}`
+  const INJECTED_BODY = `${IFRAME_READY_SCRIPT}`
+
   let finalHtml = html
   if (hasHead) {
+    // Вставляем стили/скрипты ДО закрывающего тега </head> или сразу после открывающего
     finalHtml = html.replace(
       /<head([^>]*)>/i,
-      `<head$1>${IFRAME_STYLES}${hasMathJax ? MATHJAX_SCRIPT : ''}`,
+      `<head$1>${INJECTED_HEAD}`,
     )
   } else if (hasBody) {
     finalHtml = html.replace(
       /<body([^>]*)>/i,
-      `<head>${IFRAME_STYLES}${hasMathJax ? MATHJAX_SCRIPT : ''}</head><body$1`,
+      `<head>${INJECTED_HEAD}</head><body$1`,
     )
   } else {
-    finalHtml = `<!DOCTYPE html><html><head>${IFRAME_STYLES}${hasMathJax ? MATHJAX_SCRIPT : ''}</head><body><div class="container">${html}</div></body></html>`
+    finalHtml = `<!DOCTYPE html><html><head>${INJECTED_HEAD}</head><body><div class="container">${html}</div>${INJECTED_BODY}</body></html>`
+  }
+
+  // Если был head или body, вставим скрипт готовности перед </body>
+  if (hasHead || hasBody) {
+    if (/<\/body>/i.test(finalHtml)) {
+      finalHtml = finalHtml.replace(/<\/body>/i, `${INJECTED_BODY}</body>`)
+    } else {
+      finalHtml += INJECTED_BODY
+    }
   }
 
   return (
-    <div className="w-full border border-[#D8E6FF] rounded-2xl overflow-hidden bg-white">
+    <div className="relative w-full border border-[#D8E6FF] rounded-2xl overflow-hidden bg-white min-h-[600px] flex items-center justify-center">
+      {isLoading && (
+        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white backdrop-blur-sm">
+           <Loader2 className="w-8 h-8 text-[#FF7E58] animate-spin mb-4" />
+           <p className="text-gray-500 font-medium animate-pulse">Готовим документ к просмотру (шрифты, формулы, верстка)...</p>
+        </div>
+      )}
       <iframe
         ref={iframeRef}
         title="HTML результат"
         srcDoc={finalHtml}
-        className="w-full border-0"
+        className={`w-full border-0 transition-opacity duration-700 ${isLoading ? 'opacity-0' : 'opacity-100'}`}
         style={{ minHeight: '600px' }}
         sandbox="allow-scripts allow-same-origin allow-popups allow-modals"
       />
