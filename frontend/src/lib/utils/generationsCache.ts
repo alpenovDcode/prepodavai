@@ -13,6 +13,8 @@ export interface CachedGeneration {
   params: any
   result?: any
   error?: string
+  tokensUsed?: number
+  creditCost?: number
   createdAt: string
   updatedAt: string
 }

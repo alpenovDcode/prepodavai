@@ -1,15 +1,12 @@
-'use client'
-
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { apiClient } from '@/lib/api/client'
 
 interface Stats {
   users: { total: number; active: number }
-  generations: { total: number; completed: number; pending: number }
+  generations: { total: number; completed: number }
   subscriptions: { total: number; active: number }
   credits: { total: number }
-  transactions: { total: number }
 }
 
 export default function AdminPage() {
@@ -25,9 +22,6 @@ export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [loginForm, setLoginForm] = useState({ username: '', password: '' })
   const [loginLoading, setLoginLoading] = useState(false)
-  const [currentPage, setCurrentPage] = useState(1)
-  const [totalItems, setTotalItems] = useState(0)
-  const PAGE_SIZE = 20
 
   useEffect(() => {
     // Проверяем авторизацию
@@ -55,7 +49,7 @@ export default function AdminPage() {
       const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
       const response = await apiClient.post('/auth/login', {
         username: loginForm.username,
-        pass: loginForm.password,
+        password: loginForm.password,
       }, {
         timeout: 10000, // 10 секунд таймаут
       })
@@ -116,7 +110,7 @@ export default function AdminPage() {
     }
   }
 
-  const loadData = async (page = currentPage) => {
+  const loadData = async () => {
     setLoading(true)
     setError(null)
     try {
@@ -143,8 +137,7 @@ export default function AdminPage() {
       }
 
       if (endpoint) {
-        const offset = (page - 1) * PAGE_SIZE
-        const response = await apiClient.get(`${endpoint}?limit=${PAGE_SIZE}&offset=${offset}`)
+        const response = await apiClient.get(endpoint)
         if (response.data.success) {
           const key = activeTab === 'users' ? 'users' :
             activeTab === 'generations' ? 'generations' :
@@ -152,9 +145,7 @@ export default function AdminPage() {
                 activeTab === 'transactions' ? 'transactions' : 'costs'
           const items = response.data[key] || []
           setData(items)
-          if (response.data.total !== undefined) {
-            setTotalItems(response.data.total)
-          }
+          console.log(`✅ Loaded ${items.length} items for ${activeTab}`)
         } else {
           setError('Не удалось загрузить данные')
         }
@@ -208,9 +199,7 @@ export default function AdminPage() {
         delete dataToSave.systemLogs
       }
 
-      // Если это новый пользователь
-      const isNew = activeTab === 'users' && !selectedItem.id;
-      let endpoint = isNew ? `/admin/users` : `/admin/${activeTab}/${selectedItem.id}`
+      let endpoint = `/admin/${activeTab}/${selectedItem.id}`
 
       // Для costs endpoint другой
       if (activeTab === 'costs') {
@@ -222,29 +211,20 @@ export default function AdminPage() {
         dataToSave.creditCost = Number(creditCost)
       }
 
+      console.log('💾 Saving:', { endpoint, dataToSave })
+
       // Проверяем доступность backend
       const token = localStorage.getItem('prepodavai_token')
       if (!token) {
         throw new Error('Требуется авторизация. Пожалуйста, войдите в систему.')
       }
 
-      let response;
-      if (isNew) {
-        response = await apiClient.post(endpoint, dataToSave, {
-          timeout: 10000,
-        });
-      } else {
-        response = await apiClient.put(endpoint, dataToSave, {
-          timeout: 10000,
-        });
-      }
+      const response = await apiClient.put(endpoint, dataToSave, {
+        timeout: 10000, // 10 секунд таймаут
+      })
 
       if (response.data.success) {
-        if (isNew && response.data.user?.apiKey) {
-          alert(`Пользователь успешно создан!\n\nAPI-ключ: ${response.data.user.apiKey}\n\nСкопируйте ключ — он нужен для входа.`)
-        } else {
-          alert(isNew ? 'Пользователь успешно создан!' : 'Данные успешно сохранены!')
-        }
+        alert('Данные успешно сохранены!')
         setEditing(false)
         setSelectedItem(null)
         loadData()
@@ -463,13 +443,13 @@ export default function AdminPage() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 py-6">
-        {/* Tabs and Actions */}
-        <div className="bg-white rounded-lg shadow-sm mb-6 flex justify-between items-center pr-4">
-          <div className="flex border-b flex-grow">
+        {/* Tabs */}
+        <div className="bg-white rounded-lg shadow-sm mb-6">
+          <div className="flex border-b">
             {(['stats', 'users', 'generations', 'subscriptions', 'transactions', 'costs'] as const).map((tab) => (
               <button
                 key={tab}
-                onClick={() => { setActiveTab(tab); setCurrentPage(1) }}
+                onClick={() => setActiveTab(tab)}
                 className={`px-6 py-3 font-medium text-sm ${activeTab === tab
                   ? 'border-b-2 border-blue-500 text-blue-600'
                   : 'text-gray-600 hover:text-gray-900'
@@ -484,19 +464,6 @@ export default function AdminPage() {
               </button>
             ))}
           </div>
-          {activeTab === 'users' && (
-            <button
-              onClick={() => {
-                setSelectedItem({ id: '' }) // Имитация пустого объекта для формы создания
-                setEditData({ username: '', password: '', firstName: '', lastName: '', phone: '' })
-                setEditing(true)
-              }}
-              className="ml-4 px-4 py-2 text-sm bg-green-500 text-white rounded hover:bg-green-600 flex items-center"
-            >
-              <i className="fas fa-plus mr-2"></i>
-              Создать пользователя
-            </button>
-          )}
         </div>
 
         {/* Error Message */}
@@ -707,54 +674,16 @@ export default function AdminPage() {
                 </table>
               </div>
             )}
-
-            {/* Pagination */}
-            {!loading && data.length > 0 && totalItems > PAGE_SIZE && (
-              <div className="flex items-center justify-between px-4 py-3 border-t bg-gray-50">
-                <div className="text-sm text-gray-600">
-                  Показано {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, totalItems)} из {totalItems}
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => {
-                      const newPage = currentPage - 1
-                      setCurrentPage(newPage)
-                      loadData(newPage)
-                    }}
-                    disabled={currentPage <= 1}
-                    className="px-3 py-1 text-sm bg-white border border-gray-300 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed text-gray-700"
-                  >
-                    ← Назад
-                  </button>
-                  <span className="px-3 py-1 text-sm text-gray-700">
-                    Стр. {currentPage} из {Math.ceil(totalItems / PAGE_SIZE)}
-                  </span>
-                  <button
-                    onClick={() => {
-                      const newPage = currentPage + 1
-                      setCurrentPage(newPage)
-                      loadData(newPage)
-                    }}
-                    disabled={currentPage >= Math.ceil(totalItems / PAGE_SIZE)}
-                    className="px-3 py-1 text-sm bg-white border border-gray-300 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed text-gray-700"
-                  >
-                    Вперёд →
-                  </button>
-                </div>
-              </div>
-            )}
           </div>
         )}
 
-        {/* Edit/Create Modal */}
+        {/* Edit Modal */}
         {editing && selectedItem && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto m-4">
               <div className="p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-xl font-bold text-gray-900">
-                    {activeTab === 'users' && !selectedItem.id ? 'Создание пользователя' : 'Редактирование'}
-                  </h2>
+                  <h2 className="text-xl font-bold text-gray-900">Редактирование</h2>
                   <button
                     onClick={() => {
                       setEditing(false)
@@ -767,21 +696,9 @@ export default function AdminPage() {
                 </div>
 
                 <div className="space-y-2">
-                  {/* If creating a new user, we want to show input fields for username, password, etc. */}
-                  {activeTab === 'users' && !selectedItem.id ? (
-                    <>
-                      {renderField('username', editData.username, true)}
-                      {renderField('password', editData.password, true)}
-                      {renderField('firstName', editData.firstName, true)}
-                      {renderField('lastName', editData.lastName, true)}
-                      {renderField('phone', editData.phone, true)}
-                      <p className="text-xs text-gray-500 mt-2 italic px-2">Пароль будет захеширован. Пользователь автоматически получит тариф Starter (100 кредитов).</p>
-                    </>
-                  ) : (
-                    Object.entries(selectedItem)
-                      .filter(([key]) => key !== 'id' && key !== 'createdAt' && key !== 'updatedAt')
-                      .map(([key, value]) => renderField(key, value))
-                  )}
+                  {Object.entries(selectedItem)
+                    .filter(([key]) => key !== 'id' && key !== 'createdAt' && key !== 'updatedAt')
+                    .map(([key, value]) => renderField(key, value))}
                 </div>
 
                 <div className="mt-6 flex gap-2">
@@ -790,7 +707,7 @@ export default function AdminPage() {
                     className="flex-1 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 font-medium"
                   >
                     <i className="fas fa-save mr-2"></i>
-                    {activeTab === 'users' && !selectedItem.id ? 'Создать' : 'Сохранить'}
+                    Сохранить
                   </button>
                   <button
                     onClick={() => {

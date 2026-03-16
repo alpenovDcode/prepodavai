@@ -3,8 +3,11 @@
 import { useState } from 'react'
 import AuthModal from './AuthModal'
 
+import { useRouter } from 'next/navigation'
+
 export default function LandingPage() {
   const [showAuthModal, setShowAuthModal] = useState(false)
+  const router = useRouter()
 
   const features = [
     {
@@ -48,7 +51,7 @@ export default function LandingPage() {
       description: 'Готовые шаблоны для переписки с родителями'
     },
     {
-      icon: 'fas fa-envelope',
+      icon: 'fas fa-gamepad',
       title: 'Создание интерактивных игр',
       description: 'Готовые шаблоны игр для уроков'
     }
@@ -63,7 +66,7 @@ export default function LandingPage() {
 
   const handleAuthSuccess = () => {
     setShowAuthModal(false)
-    window.location.reload()
+    router.push('/dashboard')
   }
 
   return (

@@ -25,10 +25,13 @@ export interface GenerationStatus {
 export function useGenerations() {
   const [isGenerating, setIsGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [activeGenerationId, setActiveGenerationId] = useState<string | null>(null)
+  const [inputParams, setInputParams] = useState<Record<string, any>>({})
 
   const generate = useCallback(async (request: GenerationRequest): Promise<string | null> => {
     setIsGenerating(true)
     setError(null)
+    setInputParams(request.params)
 
     try {
       const user = getCurrentUser()
@@ -63,6 +66,7 @@ export function useGenerations() {
       }
 
       const requestId = response.data.requestId
+      setActiveGenerationId(requestId)
 
       // Кэшируем как pending
       cacheGeneration({
@@ -77,9 +81,12 @@ export function useGenerations() {
 
       return requestId
     } catch (err: any) {
-      const errorMessage = err.response?.data?.error || err.message || 'Ошибка генерации'
-      setError(errorMessage)
-      return null
+      // NestJS usually puts the descriptive string in `message`, and `error` is just "Bad Request"
+      const responseData = err.response?.data
+      const errorMessage = responseData?.message || responseData?.error || err.message || 'Ошибка генерации'
+      const finalError = Array.isArray(errorMessage) ? errorMessage[0] : errorMessage
+      setError(finalError)
+      throw new Error(finalError) // Throw so generateAndWait can catch it explicitly
     } finally {
       setIsGenerating(false)
     }
@@ -160,7 +167,9 @@ export function useGenerations() {
     pollStatus,
     generateAndWait,
     isGenerating,
-    error
+    error,
+    activeGenerationId,
+    inputParams
   }
 }
 

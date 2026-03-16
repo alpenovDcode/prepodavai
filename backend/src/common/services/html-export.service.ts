@@ -5,14 +5,33 @@ import * as puppeteer from 'puppeteer';
 export class HtmlExportService implements OnModuleDestroy {
   private browserPromise: Promise<puppeteer.Browser> | null = null;
 
+  private getChromePath(): string | undefined {
+    // On Apple Silicon, Puppeteer's bundled x64 Chrome runs via Rosetta → timeout
+    // Use the system-installed arm64 Chrome instead
+    if (process.platform === 'darwin') {
+      const paths = [
+        '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+        '/Applications/Chromium.app/Contents/MacOS/Chromium',
+        '/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary',
+      ];
+      const fs = require('fs');
+      for (const p of paths) {
+        if (fs.existsSync(p)) return p;
+      }
+    }
+    return undefined; // use puppeteer's bundled Chrome on Linux/Windows
+  }
+
   private async getBrowser() {
     if (!this.browserPromise) {
+      const executablePath = this.getChromePath();
       this.browserPromise = puppeteer.launch({
         headless: true,
+        executablePath,
         args: [
           '--no-sandbox',
           '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage', // Critical for Docker
+          '--disable-dev-shm-usage',
           '--disable-gpu',
         ],
       });

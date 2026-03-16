@@ -32,7 +32,7 @@ export class ReplicateCallbackController {
 
             if (status === 'succeeded' && output) {
                 // Find generation request by prediction ID
-                const generationRequest = await this.webhooksService['prisma'].generationRequest.findFirst({
+                const generationRequest = await (this.webhooksService['prisma'].generationRequest as any).findFirst({
                     where: {
                         metadata: {
                             path: ['replicatePredictionId'],
@@ -110,7 +110,7 @@ export class ReplicateCallbackController {
                 return { success: true, message: 'Callback processed successfully' };
             } else if (status === 'failed' || error) {
                 // Find generation request by prediction ID
-                const generationRequest = await this.webhooksService['prisma'].generationRequest.findFirst({
+                const generationRequest = await (this.webhooksService['prisma'].generationRequest as any).findFirst({
                     where: {
                         metadata: {
                             path: ['replicatePredictionId'],

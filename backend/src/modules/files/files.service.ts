@@ -25,7 +25,9 @@ export class FilesService {
     '.pptx',
     '.html',
   ];
-  private readonly maxFileSize = 100 * 1024 * 1024; // 100MB
+  private get maxFileSize(): number {
+    return this.configService.get<number>('MAX_VIDEO_SIZE_MB', 2000) * 1024 * 1024;
+  }
 
   constructor(private configService: ConfigService) {
     // Создаем директорию для загрузки файлов (используем абсолютный путь)

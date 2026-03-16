@@ -22,10 +22,7 @@ export type OperationType =
   | 'gigachat_translation'
   | 'gigachat_embeddings'
   | 'gigachat_tokens_count'
-  | 'game_generation'
-  | 'lesson_preparation'
-  | 'video_analysis'
-  | 'sales_advisor';
+  | 'game_generation';
 
 @Injectable()
 export class SubscriptionsService {
@@ -84,16 +81,12 @@ export class SubscriptionsService {
     ];
 
     for (const planData of plans) {
-      const existing = await this.prisma.subscriptionPlan.findUnique({
+      await this.prisma.subscriptionPlan.upsert({
         where: { planKey: planData.planKey },
+        update: planData,
+        create: planData,
       });
-
-      if (!existing) {
-        await this.prisma.subscriptionPlan.create({
-          data: planData,
-        });
-        console.log(`✅ Subscription plan created: ${planData.planKey}`);
-      }
+      console.log(`✅ Subscription plan initialized: ${planData.planKey}`);
     }
   }
 
@@ -249,40 +242,15 @@ export class SubscriptionsService {
         description: 'Создание образовательной игры',
         isActive: true,
       },
-      {
-        operationType: 'lesson_preparation',
-        operationName: 'Подготовка к уроку',
-        creditCost: 5,
-        description: 'Создание материалов для урока (WOW-урок)',
-        isActive: true,
-      },
-      {
-        operationType: 'video_analysis',
-        operationName: 'Анализ видео',
-        creditCost: 15,
-        description: 'Анализ видео (Sales/Methodist)',
-        isActive: true,
-      },
-      {
-        operationType: 'sales_advisor',
-        operationName: 'ИИ-продажник',
-        creditCost: 10,
-        description: 'Анализ диалога с клиентом и рекомендации',
-        isActive: true,
-      },
     ];
 
     for (const costData of costs) {
-      const existing = await this.prisma.creditCost.findUnique({
+      await this.prisma.creditCost.upsert({
         where: { operationType: costData.operationType },
+        update: costData,
+        create: costData,
       });
-
-      if (!existing) {
-        await this.prisma.creditCost.create({
-          data: costData,
-        });
-        console.log(`✅ Credit cost created: ${costData.operationType}`);
-      }
+      console.log(`✅ Credit cost initialized: ${costData.operationType}`);
     }
   }
 
@@ -397,7 +365,7 @@ export class SubscriptionsService {
       };
     }
 
-    return { success: true };
+    return { success: true, transaction: debit.transaction };
   }
 
   /**

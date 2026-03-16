@@ -1,0 +1,140 @@
+'use client'
+
+import { useState } from 'react'
+import { MessageCircle, RefreshCw, Loader2, Maximize2 } from 'lucide-react'
+import { useGenerations } from '@/lib/hooks/useGenerations'
+import RichTextEditor from '@/components/workspace/RichTextEditor'
+import GenerationCostBadge from '@/components/workspace/GenerationCostBadge'
+
+export default function FeedbackGenerator() {
+    const [taskType, setTaskType] = useState('')
+    const [studentWork, setStudentWork] = useState('')
+    const [level, setLevel] = useState('')
+    const [localContent, setLocalContent] = useState('<p>Введите текст работы ученика и тип задания для получения подробного фидбека.</p>')
+
+    const { generateAndWait, isGenerating } = useGenerations()
+
+    const generate = async () => {
+        if (!studentWork || !taskType) return;
+
+        try {
+            setLocalContent('<p>Генерируем фидбек...</p>')
+            const params = {
+                taskType,
+                studentWork,
+                level
+            }
+
+            const status = await generateAndWait({ type: 'feedback', params })
+            const resultData = status.result?.content || status.result
+
+            let finalHtml = resultData
+            if (typeof finalHtml === 'string' && !finalHtml.includes('<p>')) {
+                finalHtml = `<div style="white-space: pre-wrap;">${finalHtml}</div>`
+            }
+
+            setLocalContent(finalHtml || '<p>Не удалось сгенерировать контент.</p>')
+
+        } catch (e: any) {
+            console.error('Generation failed:', e)
+            setLocalContent(`<p class="text-red-500">Ошибка при генерации фидбека: ${e.message}</p>`)
+        }
+    }
+
+    return (
+        <div className="flex w-full h-full bg-[#F9FAFB]">
+            {/* Configurator Sidebar */}
+            <div className="w-[320px] bg-white border-r border-gray-200 flex flex-col h-full flex-shrink-0 z-10 shadow-[4px_0_24px_rgba(0,0,0,0.02)]">
+                <div className="p-5 border-b border-gray-100 flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center text-orange-600">
+                        <MessageCircle className="w-5 h-5" />
+                    </div>
+                    <div>
+                        <div className="flex items-center gap-2">
+                            <h2 className="font-bold text-lg">Фидбек на работу</h2>
+                            <GenerationCostBadge operationType="feedback" />
+                        </div>
+                        <p className="text-xs text-gray-500 font-medium">WORKSPACE V2</p>
+                    </div>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-5 scrollbar-thin scrollbar-thumb-gray-200">
+                    <div className="space-y-6">
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-2">Тип задания</label>
+                            <input
+                                type="text"
+                                value={taskType}
+                                onChange={e => setTaskType(e.target.value)}
+                                placeholder="эссе, решение задачи..."
+                                className="block w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-gray-900 placeholder-gray-400"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-2">Текст работы</label>
+                            <textarea
+                                value={studentWork}
+                                onChange={e => setStudentWork(e.target.value)}
+                                placeholder="Вставьте ответ ученика..."
+                                rows={8}
+                                className="block w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 resize-none text-gray-900 placeholder-gray-400"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-2">Класс (необязательно)</label>
+                            <select
+                                value={level}
+                                onChange={e => setLevel(e.target.value)}
+                                className="block w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-gray-900 placeholder-gray-400"
+                            >
+                                <option value="">—</option>
+                                {Array.from({ length: 11 }, (_, i) => (
+                                    <option key={i + 1} value={String(i + 1)}>{i + 1} класс</option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="p-5 border-t border-gray-100 bg-white">
+                    <button
+                        onClick={generate}
+                        disabled={isGenerating || !studentWork.trim() || !taskType.trim()}
+                        className="w-full relative group overflow-hidden rounded-xl bg-gradient-to-r from-orange-400 to-red-500 p-px font-semibold shadow-md active:scale-[0.98] transition-all disabled:opacity-50"
+                    >
+                        <div className="relative flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-orange-400 to-red-500 rounded-[11px] text-white">
+                            {isGenerating ? <Loader2 className="w-5 h-5 animate-spin" /> : <RefreshCw className="w-5 h-5" />}
+                            <span>{isGenerating ? 'В процессе...' : 'Сгенерировать'}</span>
+                        </div>
+                    </button>
+                </div>
+            </div>
+
+            {/* Editor Area */}
+            <div className="flex-1 flex flex-col min-w-0 bg-[#F9FAFB] relative px-4 py-4 md:px-8 md:py-8 overflow-hidden h-full">
+                <div className="flex flex-col h-full bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+                    <div className="h-14 border-b border-gray-100 px-4 flex items-center justify-between bg-white flex-shrink-0">
+                        <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold tracking-wide text-gray-500">РЕЗУЛЬТАТ АДАПТАЦИИ</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <button className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded-lg transition-colors">
+                                <Maximize2 className="w-4 h-4" />
+                            </button>
+                        </div>
+                    </div>
+                    <div className="flex-1 overflow-hidden relative bg-white">
+                        <div className="absolute inset-0">
+                            <RichTextEditor
+                                content={localContent}
+                                onChange={setLocalContent}
+                            />
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    )
+}

@@ -41,10 +41,24 @@ export class WebhooksService {
         (content.trim().startsWith('{') || content.trim().startsWith('['))
       ) {
         try {
-          content = JSON.parse(content);
+          const parsed = JSON.parse(content);
+          // n8n может вернуть ошибку в виде JSON, например {"detail":"list index out of range"}
+          if (parsed.detail || parsed.error || parsed.errorMessage) {
+            const errorMsg = parsed.detail || parsed.error || parsed.errorMessage || 'Unknown parsed error';
+            await this.generationHelpers.failGeneration(generationRequestId, errorMsg);
+            return { success: false, error: errorMsg };
+          }
+          content = parsed;
         } catch (e) {
           // Оставляем как строку
         }
+      }
+
+      // Если контент оказался объектом ошибки даже без парсинга
+      if (typeof content === 'object' && content !== null && (content.detail || content.error || content.errorMessage)) {
+        const errorMsg = content.detail || content.error || content.errorMessage || 'Unknown error object';
+        await this.generationHelpers.failGeneration(generationRequestId, errorMsg);
+        return { success: false, error: errorMsg };
       }
 
       const outputData = {
@@ -334,6 +348,14 @@ export class WebhooksService {
       ) {
         try {
           parsedContent = JSON.parse(mainContent);
+
+          // Проверяем, не является ли это JSON-объектом ошибки от n8n
+          if (parsedContent && typeof parsedContent === 'object' && (parsedContent.detail || parsedContent.error || parsedContent.errorMessage)) {
+            const errorMsg = parsedContent.detail || parsedContent.error || parsedContent.errorMessage || 'Unknown parsed error';
+            await this.generationHelpers.failGeneration(generationRequestId, errorMsg);
+            return { success: false, error: errorMsg };
+          }
+
           // Если распарсилось, обновляем в payload
           if (payload.content) payload.content = parsedContent;
           else if (payload.text) payload.text = parsedContent;
@@ -341,6 +363,13 @@ export class WebhooksService {
         } catch (e) {
           // Игнорируем ошибки парсинга, оставляем как строку
         }
+      }
+
+      // Если основной контент — это объект с ошибкой
+      if (typeof parsedContent === 'object' && parsedContent !== null && (parsedContent.detail || parsedContent.error || parsedContent.errorMessage)) {
+        const errorMsg = parsedContent.detail || parsedContent.error || parsedContent.errorMessage || 'Unknown error object';
+        await this.generationHelpers.failGeneration(generationRequestId, errorMsg);
+        return { success: false, error: errorMsg };
       }
 
       const outputData = {

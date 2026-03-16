@@ -23,6 +23,11 @@ export class AuthController {
     return this.authService.login(body.username, body.pass);
   }
 
+  @Post('student-login')
+  async studentLogin(@Body() body: { accessCode: string }) {
+    return this.authService.studentLogin(body.accessCode);
+  }
+
   @Post('phone/send-code')
   @Throttle({ default: { limit: 3, ttl: 60000 } }) // Even stricter for SMS sending
   async sendPhoneVerificationCode(@Body() body: { phone: string }) {

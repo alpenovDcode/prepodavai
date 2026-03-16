@@ -82,6 +82,12 @@ export default function Home() {
     return <LandingPage />
   }
 
+  // Если пользователь авторизован и не в Telegram, редиректим в дашборд
+  if (!isTelegram && isAuthenticated) {
+    router.push('/dashboard')
+    return null
+  }
+
   return <WebAppIndex />
 }
 

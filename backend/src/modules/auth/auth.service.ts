@@ -7,10 +7,13 @@ import { SmscService } from '../smsc/smsc.service';
 import * as crypto from 'crypto';
 import * as bcrypt from 'bcryptjs';
 
+import { StudentsService } from '../students/students.service';
+
 @Injectable()
 export class AuthService {
   constructor(
     private usersService: UsersService,
+    private studentsService: StudentsService,
     private jwtService: JwtService,
     private configService: ConfigService,
     private prisma: PrismaService,
@@ -183,16 +186,46 @@ export class AuthService {
   /**
    * Генерация JWT токена
    */
-  private generateJwtToken(userId: string): string {
-    const payload = { sub: userId };
+  private generateJwtToken(userId: string, role: string = 'user'): string {
+    const payload = { sub: userId, role };
     return this.jwtService.sign(payload);
   }
 
   /**
    * Валидация JWT токена (для стратегии)
    */
-  async validateUser(userId: string) {
-    return this.usersService.findById(userId);
+  async validateUser(payload: any) {
+    if (payload.role === 'student') {
+      // We can't use getStudent because it requires teacherId for check
+      // We need a method to find student by ID without teacher check, or just check existence
+      // Let's use prisma directly or add a method to StudentsService
+      return this.studentsService.findById(payload.sub);
+    }
+    return this.usersService.findById(payload.sub);
+  }
+
+  /**
+   * Авторизация студента по коду доступа
+   */
+  async studentLogin(accessCode: string) {
+    const student = await this.studentsService.findByAccessCode(accessCode);
+
+    if (!student) {
+      throw new UnauthorizedException('Invalid access code');
+    }
+
+    // Генерируем JWT токен
+    const token = this.generateJwtToken(student.id, 'student');
+
+    return {
+      success: true,
+      token,
+      user: {
+        id: student.id,
+        name: student.name,
+        role: 'student',
+      },
+    };
   }
 
   /**

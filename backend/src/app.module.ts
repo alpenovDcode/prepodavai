@@ -13,6 +13,10 @@ import { PrismaModule } from './common/prisma/prisma.module';
 // Modules
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
+import { ClassesModule } from './modules/classes/classes.module';
+import { StudentsModule } from './modules/students/students.module';
+import { AssignmentsModule } from './modules/assignments/assignments.module';
+import { SubmissionsModule } from './modules/submissions/submissions.module';
 import { GenerationsModule } from './modules/generations/generations.module';
 import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
 import { TelegramModule } from './modules/telegram/telegram.module';
@@ -25,6 +29,9 @@ import { GammaModule } from './modules/gamma/gamma.module';
 import { AiAssistantModule } from './modules/ai-assistant/ai-assistant.module';
 import { HtmlExportService } from './common/services/html-export.service';
 import { GamesModule } from './modules/games/games.module';
+import { ReplicateModule } from './modules/replicate/replicate.module';
+import { LessonsModule } from './modules/lessons/lessons.module';
+import { AnalyticsModule } from './modules/analytics/analytics.module';
 
 @Module({
   imports: [
@@ -66,6 +73,10 @@ import { GamesModule } from './modules/games/games.module';
     // Feature Modules
     AuthModule,
     UsersModule,
+    ClassesModule,
+    StudentsModule,
+    AssignmentsModule,
+    SubmissionsModule,
     GenerationsModule,
     SubscriptionsModule,
     TelegramModule,
@@ -76,7 +87,10 @@ import { GamesModule } from './modules/games/games.module';
     GigachatModule,
     GammaModule,
     AiAssistantModule,
+    ReplicateModule,
+    LessonsModule,
     GamesModule,
+    AnalyticsModule,
   ],
   controllers: [AppController],
   providers: [

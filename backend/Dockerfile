@@ -64,6 +64,7 @@ RUN apt-get update && apt-get install -y \
     libnss3 libx11-xcb1 libxcomposite1 libxcursor1 libxdamage1 libxfixes3 \
     libxi6 libxrandr2 libxrender1 libxss1 libxtst6 wget \
     fonts-noto fonts-noto-cjk fonts-ipafont-gothic fonts-wqy-zenhei fonts-kacst fonts-freefont-ttf fonts-thai-tlwg fonts-indic \
+    chromium \
     && rm -rf /var/lib/apt/lists/*
 
 RUN groupadd --system --gid 1001 nodejs
@@ -76,9 +77,8 @@ COPY --from=builder --chown=nestjs:nodejs /app/prisma ./prisma
 COPY --from=builder --chown=nestjs:nodejs /app/src/templates ./src/templates
 COPY --from=builder --chown=nestjs:nodejs /app/scripts ./scripts
 
-ENV PUPPETEER_CACHE_DIR=/home/nestjs/.cache/puppeteer
-RUN mkdir -p $PUPPETEER_CACHE_DIR && chown -R nestjs:nodejs /home/nestjs
-RUN PUPPETEER_CACHE_DIR=$PUPPETEER_CACHE_DIR npx puppeteer browsers install chrome
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
 # Create uploads directory with correct permissions
 RUN mkdir -p /app/uploads && chown -R nestjs:nodejs /app/uploads

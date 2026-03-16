@@ -99,6 +99,12 @@ export class TelegramService {
       return { success: false, message: 'No chatId available' };
     }
 
+    // Skip for dummy test user
+    if (appUser.chatId === '123456789') {
+      console.log('[Telegram] Skipping send for test user (dummy chatId)');
+      return { success: true, message: 'Skipped for test user' };
+    }
+
     try {
       // Отправляем в зависимости от типа генерации
       if (generationType === 'image' || generationType === 'photosession') {

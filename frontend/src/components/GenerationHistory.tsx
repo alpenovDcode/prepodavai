@@ -199,10 +199,12 @@ export default function GenerationHistory() {
   const loadGenerations = async (currentOffset: number = offset) => {
     try {
       setLoading(true)
-
+      
+      // Если это первая загрузка - показываем данные из кэша
       if (currentOffset === 0) {
         const user = getCurrentUser()
         const userHash = user.userHash
+        
         if (userHash) {
           const cachedGenerations = getUserGenerations(userHash)
           if (cachedGenerations.length > 0) {
@@ -211,13 +213,15 @@ export default function GenerationHistory() {
           }
         }
       }
-
+      
+      // Загружаем с сервера для синхронизации
       const response = await apiClient.get('/generate/history', {
         params: { limit, offset: currentOffset }
       })
 
       if (response.data.success) {
         const serverGenerations = response.data.generations || []
+        
         if (currentOffset === 0) {
           setGenerations(serverGenerations)
         } else {
@@ -242,6 +246,7 @@ export default function GenerationHistory() {
       const response = await apiClient.get('/generate/history', {
         params: { limit, offset: newOffset }
       })
+      
       if (response.data.success) {
         const serverGenerations = response.data.generations || []
         setGenerations(prev => {
@@ -343,6 +348,7 @@ export default function GenerationHistory() {
       if (imageUrl) {
         const response = await fetch(imageUrl)
         if (!response.ok) throw new Error('Failed to fetch')
+        
         const blob = await response.blob()
         const blobUrl = window.URL.createObjectURL(blob)
         const a = document.createElement('a')
@@ -387,11 +393,17 @@ export default function GenerationHistory() {
       // Fallback: download as HTML
       const typeLabel = getTypeLabel(gen.type)
       const filename = `${typeLabel}_${gen.id}`.replace(/[^a-zA-Zа-яА-Я0-9]/g, '_')
+      
       let htmlContent = ''
-      if (content && typeof content === 'string') {
-        htmlContent = looksLikeHtml(content) ? content : `<p>${String(content).replace(/\n/g, '<br>')}</p>`
-      } else if (content) {
-        htmlContent = `<pre>${JSON.stringify(content, null, 2)}</pre>`
+      
+      if (gen.result?.content && typeof gen.result.content === 'string') {
+        if (/<[a-z][\s\S]*>/i.test(gen.result.content)) {
+          htmlContent = gen.result.content
+        } else {
+          htmlContent = `<p>${gen.result.content.replace(/\n/g, '<br>')}</p>`
+        }
+      } else if (gen.result) {
+        htmlContent = `<pre>${JSON.stringify(gen.result, null, 2)}</pre>`
       }
 
       const fullHtml = `<!DOCTYPE html>
@@ -422,361 +434,26 @@ export default function GenerationHistory() {
     }
   }
 
+  const getDisplayContent = (content: any): string => {
+    if (!content) return ''
+    
+    if (typeof content === 'string' && (content.trim().startsWith('<!DOCTYPE') || content.trim().startsWith('<html'))) {
+      const parser = new DOMParser()
+      const doc = parser.parseFromString(content, 'text/html')
+      const textContent = doc.body?.textContent || doc.documentElement?.textContent || content
+      return textContent.trim().replace(/\n\s*\n/g, '\n\n')
+    }
+    
+    if (typeof content === 'object') {
+      return JSON.stringify(content, null, 2)
+    }
+    
+    return String(content)
+  }
+
   const goBack = () => {
-    if (selectedGeneration) {
-      setSelectedGeneration(null)
-    } else {
-      router.push('/')
-    }
+    router.push('/')
   }
-
-  // ─── Render Human-Readable Params ────────────────────────────────
-
-  const renderParams = (params: any) => {
-    if (!params) return null
-    const entries = Object.entries(params).filter(
-      ([key, value]) => !hiddenParams.includes(key) && value !== null && value !== undefined && value !== ''
-    )
-    if (entries.length === 0) return null
-
-    return (
-      <div className="space-y-1">
-        {entries.map(([key, value]) => {
-          // Skip q1-q13 fields (unpacking questionnaire)
-          if (/^q\d+$/.test(key)) return null
-          const label = paramLabels[key] || key
-          const displayValue = typeof value === 'object' ? JSON.stringify(value) : String(value)
-          return (
-            <div key={key} className="flex items-start gap-2 text-sm">
-              <span className="text-gray-500 font-medium whitespace-nowrap">{label}:</span>
-              <span className="text-gray-900 break-words">{displayValue}</span>
-            </div>
-          )
-        })}
-      </div>
-    )
-  }
-
-  // ─── Programmatic download helper ────────────────────────────────
-
-  const downloadFile = async (url: string, filename: string) => {
-    try {
-      const downloadUrl = url.includes('?') ? `${url}&download=1` : `${url}?download=1`
-      const response = await fetch(downloadUrl)
-      if (!response.ok) throw new Error('Download failed')
-      const blob = await response.blob()
-      const blobUrl = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = blobUrl
-      a.download = filename
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(blobUrl)
-    } catch (err: any) {
-      console.error('Download failed, opening in new tab:', err)
-      window.open(url, '_blank')
-    }
-  }
-
-  // ─── Render Result ───────────────────────────────────────────────
-
-  const renderResult = (gen: CachedGeneration) => {
-    if (gen.status !== 'completed' || !gen.result) return null
-
-    // 1. Structured (lessonPreparation with sections)
-    if (isStructuredType(gen)) {
-      return (
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {gen.result.sections.map((section: any, index: number) => (
-              <div key={index} className="p-4 rounded-xl border border-[#D8E6FF] bg-gray-50 flex flex-col justify-between">
-                <div>
-                  <h4 className="font-semibold text-gray-900 mb-1">{section.title}</h4>
-                  <p className="text-xs text-gray-500 mb-3">Нажмите, чтобы открыть или распечатать</p>
-                </div>
-                <div className="flex gap-2">
-                  {section.fileType === 'pptx' ? (
-                    <button
-                      onClick={() => downloadFile(section.fileUrl, `${section.title || 'presentation'}.pptx`)}
-                      className="flex-1 py-2 px-3 bg-[#FF7E58] text-white rounded-lg text-sm font-medium hover:shadow-lg transition active:scale-95 flex items-center justify-center gap-2"
-                    >
-                      <i className="fas fa-download"></i>
-                      <span>Скачать PPTX</span>
-                    </button>
-                  ) : (
-                    <>
-                      <button
-                        onClick={() => {
-                          const blob = new Blob([section.content], { type: 'text/html;charset=utf-8' })
-                          const url = URL.createObjectURL(blob)
-                          window.open(url, '_blank')
-                        }}
-                        className="flex-1 py-2 px-3 bg-white border border-[#FF7E58] text-[#FF7E58] rounded-lg text-sm font-medium hover:bg-[#FF7E58] hover:text-white transition-colors shadow-sm flex items-center justify-center gap-2"
-                      >
-                        <i className="fas fa-external-link-alt"></i>
-                        <span>Открыть</span>
-                      </button>
-                      <button
-                        onClick={() => {
-                          const printContent = `<html><head><title>${section.title}</title><style>body { font-family: sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; } img { max-width: 100%; } @media print { body { -webkit-print-color-adjust: exact; } }</style></head><body>${section.content}<script>window.onload = function() { window.print(); }<\/script></body></html>`
-                          const blob = new Blob([printContent], { type: 'text/html;charset=utf-8' })
-                          const url = URL.createObjectURL(blob)
-                          window.open(url, '_blank')
-                        }}
-                        className="flex-1 py-2 px-3 bg-[#FF7E58] text-white rounded-lg text-sm font-medium hover:shadow-lg transition active:scale-95 flex items-center justify-center gap-2"
-                      >
-                        <i className="fas fa-file-pdf"></i>
-                        <span>Скачать PDF</span>
-                      </button>
-                    </>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )
-    }
-
-    // 2. Image
-    if (isImageType(gen)) {
-      const imgUrl = getImageUrl(gen)
-      if (imgUrl) {
-        return (
-          <div className="space-y-3">
-            <img
-              src={imgUrl}
-              className="w-full rounded-xl border border-[#D8E6FF] shadow-lg"
-              alt="Generated image"
-            />
-            <a
-              href={imgUrl}
-              download
-              className="inline-flex items-center gap-2 px-4 py-2 bg-[#FF7E58] text-white rounded-lg text-sm font-medium hover:shadow-lg transition active:scale-95"
-            >
-              <i className="fas fa-download"></i>
-              <span>Скачать изображение</span>
-            </a>
-          </div>
-        )
-      }
-    }
-
-    // 3. Audio
-    if (isAudioType(gen)) {
-      const audioUrl = (gen.result as any).audioUrl
-      return (
-        <div className="space-y-3">
-          <audio
-            controls
-            src={audioUrl}
-            className="w-full rounded-xl border border-[#D8E6FF] bg-white"
-          >
-            Ваш браузер не поддерживает воспроизведение аудио.
-          </audio>
-          <a
-            href={audioUrl}
-            download="gigachat-audio.mp3"
-            className="inline-flex items-center gap-2 px-4 py-2 bg-[#FF7E58] text-white rounded-lg text-sm font-medium hover:shadow-lg transition active:scale-95"
-          >
-            <i className="fas fa-download"></i>
-            <span>Скачать аудио</span>
-          </a>
-        </div>
-      )
-    }
-
-    // 4. Presentation
-    if (isPresentationType(gen)) {
-      const res = gen.result as any
-      const fileUrl = res?.exportUrl || res?.pdfUrl || res?.pptxUrl || res?.content?.exportUrl || res?.content?.pdfUrl || res?.content?.pptxUrl
-      const isPptx = fileUrl?.toLowerCase().includes('.pptx') || fileUrl?.toLowerCase().includes('pptx')
-      const formatLabel = isPptx ? 'PPTX' : 'PDF'
-      const message = res?.inputText || res?.message || res?.content?.message || ''
-      return (
-        <div className="space-y-3">
-          <div className="p-4 rounded-xl bg-gradient-to-r from-[#D8E6FF] to-[#D8E6FF]/50 border border-[#D8E6FF]">
-            <i className="fas fa-file-powerpoint text-[#FF7E58] text-2xl mb-2"></i>
-            <p className="text-sm text-black mb-3">
-              {message ? `Презентация: ${message}` : 'Ваша презентация готова!'}
-            </p>
-            {fileUrl && (
-              <button
-                onClick={() => downloadFile(fileUrl, `presentation.${isPptx ? 'pptx' : 'pdf'}`)}
-                className="w-full px-4 py-2 bg-[#FF7E58] text-white rounded-lg text-sm font-medium hover:shadow-lg transition active:scale-95 flex items-center justify-center gap-2"
-              >
-                <i className="fas fa-download"></i>
-                <span>Скачать презентацию ({formatLabel})</span>
-              </button>
-            )}
-          </div>
-        </div>
-      )
-    }
-
-    // 5. Game
-    if (isGameType(gen)) {
-      const res = gen.result as any
-      return (
-        <div className="space-y-3">
-          <div className="p-4 rounded-xl bg-gradient-to-r from-[#D8E6FF] to-[#D8E6FF]/50 border border-[#D8E6FF]">
-            <i className="fas fa-gamepad text-[#FF7E58] text-2xl mb-2"></i>
-            <p className="text-sm text-black mb-3">
-              Игра создана! Вы можете открыть её в браузере или скачать файл.
-            </p>
-            <div className="flex flex-col gap-2">
-              {res.url && (
-                <a
-                  href={res.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="w-full px-4 py-2 bg-[#FF7E58] text-white rounded-lg text-sm font-medium hover:shadow-lg transition active:scale-95 flex items-center justify-center gap-2"
-                >
-                  <i className="fas fa-play"></i>
-                  <span>Играть онлайн</span>
-                </a>
-              )}
-              {res.downloadUrl && (
-                <a
-                  href={res.downloadUrl}
-                  download
-                  className="w-full px-4 py-2 bg-white border border-[#FF7E58] text-[#FF7E58] rounded-lg text-sm font-medium hover:bg-orange-50 transition active:scale-95 flex items-center justify-center gap-2"
-                >
-                  <i className="fas fa-download"></i>
-                  <span>Скачать HTML файл</span>
-                </a>
-              )}
-            </div>
-          </div>
-        </div>
-      )
-    }
-
-    // 6. Text / HTML content (worksheet, quiz, vocabulary, lessonPlan, content, feedback, message, transcription, gigachat)
-    const content = getResultContent(gen)
-    if (content) {
-      if (typeof content === 'string') {
-        const processed = stripCodeFences(content)
-        if (looksLikeHtml(processed)) {
-          return <FullHtmlPreview html={processed} />
-        }
-        // Plain text
-        return (
-          <div
-            className="prose prose-sm max-w-none text-black bg-white rounded-xl p-4"
-            dangerouslySetInnerHTML={{ __html: processed.replace(/\n/g, '<br>') }}
-          />
-        )
-      }
-
-      // Quiz object
-      if (content.quiz) {
-        return (
-          <div className="bg-gray-50 rounded-xl p-4">
-            <h4 className="font-semibold text-gray-900 mb-2">{content.quiz.title}</h4>
-            <p className="text-sm text-gray-600">{content.quiz.questions?.length || 0} вопросов</p>
-          </div>
-        )
-      }
-
-      // Object result — try to render as JSON prettily
-      if (typeof content === 'object') {
-        return (
-          <pre className="bg-gray-50 rounded-xl p-4 text-sm text-gray-900 overflow-auto whitespace-pre-wrap font-mono">
-            {JSON.stringify(content, null, 2)}
-          </pre>
-        )
-      }
-    }
-
-    return null
-  }
-
-  // ─── Detail View ─────────────────────────────────────────────────
-
-  if (selectedGeneration) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-        {/* Detail Header */}
-        <div className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-10">
-          <div className="px-4 py-3 flex items-center space-x-3">
-            <button
-              onClick={goBack}
-              className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-gray-100"
-            >
-              <i className="fas fa-arrow-left text-gray-700"></i>
-            </button>
-            <div className="flex-1 min-w-0">
-              <h1 className="text-lg font-bold text-gray-900 truncate">{getTypeLabel(selectedGeneration.type)}</h1>
-              <p className="text-xs text-gray-500">{formatDate(selectedGeneration.createdAt)}</p>
-            </div>
-            <span className={`text-xs px-2 py-1 rounded ${getStatusBadgeClass(selectedGeneration.status)}`}>
-              {getStatusLabel(selectedGeneration.status)}
-            </span>
-          </div>
-        </div>
-
-        {/* Detail Content */}
-        <div className="p-4 pb-24 max-w-4xl mx-auto">
-          {/* Params */}
-          {selectedGeneration.params && (() => {
-            const rendered = renderParams(selectedGeneration.params)
-            if (!rendered) return null
-            return (
-              <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 mb-4">
-                <h3 className="text-sm font-semibold text-gray-700 mb-3">
-                  <i className="fas fa-sliders-h mr-2 text-[#FF7E58]"></i>Параметры
-                </h3>
-                {rendered}
-              </div>
-            )
-          })()}
-
-          {/* Result */}
-          {selectedGeneration.status === 'completed' && selectedGeneration.result && (
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 mb-4">
-              <h3 className="text-sm font-semibold text-gray-700 mb-3">
-                <i className="fas fa-check-circle mr-2 text-green-500"></i>Результат
-              </h3>
-              {renderResult(selectedGeneration)}
-            </div>
-          )}
-
-          {/* Error */}
-          {selectedGeneration.status === 'failed' && selectedGeneration.error && (
-            <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-4">
-              <p className="text-sm text-red-800">
-                <i className="fas fa-exclamation-circle mr-2"></i>{selectedGeneration.error}
-              </p>
-            </div>
-          )}
-
-          {/* Actions */}
-          <div className="flex gap-2">
-            {selectedGeneration.status === 'completed' && (
-              <button
-                onClick={downloadGeneration}
-                disabled={isDownloading}
-                className="flex-1 py-3 bg-[#FF7E58] text-white rounded-xl font-medium disabled:opacity-50 flex items-center justify-center gap-2 hover:shadow-lg transition active:scale-95"
-              >
-                <i className={`fas ${isDownloading ? 'fa-spinner fa-spin' : 'fa-download'}`}></i>
-                {isDownloading ? 'Скачивание...' : 'Скачать'}
-              </button>
-            )}
-            <button
-              onClick={deleteGeneration}
-              className="flex-1 py-3 bg-red-50 text-red-600 rounded-xl font-medium hover:bg-red-100 transition active:scale-95 flex items-center justify-center gap-2"
-            >
-              <i className="fas fa-trash"></i>Удалить
-            </button>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  // ─── List View ───────────────────────────────────────────────────
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
@@ -832,17 +509,9 @@ export default function GenerationHistory() {
                     <p className="text-xs text-gray-600 line-clamp-2">{getGenerationTitle(gen)}</p>
                     <p className="text-xs text-gray-400 mt-2">{formatDate(gen.createdAt)}</p>
                   </div>
-                  {/* Thumbnail for image types */}
-                  {gen.status === 'completed' && isImageType(gen) && getImageUrl(gen) && (
-                    <div className="ml-3 w-14 h-14 rounded-lg overflow-hidden flex-shrink-0 border border-gray-200">
-                      <img src={getImageUrl(gen)!} alt="" className="w-full h-full object-cover" />
-                    </div>
-                  )}
-                  {!(gen.status === 'completed' && isImageType(gen) && getImageUrl(gen)) && (
-                    <div className="ml-2">
-                      <i className="fas fa-chevron-right text-gray-400"></i>
-                    </div>
-                  )}
+                  <div className="ml-2">
+                    <i className="fas fa-chevron-right text-gray-400"></i>
+                  </div>
                 </div>
               </div>
             ))}
@@ -862,6 +531,129 @@ export default function GenerationHistory() {
           </div>
         )}
       </div>
+
+      {/* Detail Modal */}
+      {selectedGeneration && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-end z-50"
+          onClick={() => setSelectedGeneration(null)}
+        >
+          <div 
+            className="bg-white rounded-t-3xl w-full max-h-[90vh] overflow-y-auto p-6 animate-slide-up"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button 
+              onClick={() => setSelectedGeneration(null)}
+              className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100"
+            >
+              <i className="fas fa-times text-gray-700"></i>
+            </button>
+
+            <h3 className="text-lg font-bold text-gray-900 mb-4">{getTypeLabel(selectedGeneration.type)}</h3>
+
+            <div className="space-y-4">
+              {/* Status */}
+              <div>
+                <p className="text-xs text-gray-500 mb-1">Статус</p>
+                <span className={`text-sm px-3 py-1 rounded inline-block ${getStatusBadgeClass(selectedGeneration.status)}`}>
+                  {getStatusLabel(selectedGeneration.status)}
+                </span>
+              </div>
+
+              {/* Date */}
+              <div>
+                <p className="text-xs text-gray-500 mb-1">Дата</p>
+                <p className="text-sm text-gray-900">{formatDate(selectedGeneration.createdAt)}</p>
+              </div>
+
+              {/* Params */}
+              {selectedGeneration.params && (
+                <div>
+                  <p className="text-xs text-gray-500 mb-2">Параметры</p>
+                  <div className="bg-gray-50 rounded-lg p-3 text-xs text-gray-900 font-mono overflow-auto max-h-32">
+                    {JSON.stringify(selectedGeneration.params, null, 2)}
+                  </div>
+                </div>
+              )}
+
+              {/* Image Result */}
+              {selectedGeneration.status === 'completed' && selectedGeneration.result && 
+               (selectedGeneration.type === 'image' || selectedGeneration.type === 'photosession' || 
+                (selectedGeneration.result as any)?.imageUrl) && (
+                <ImageResultDisplay
+                  imageUrl={(selectedGeneration.result as any)?.imageUrl || (selectedGeneration.result as any)?.imageUrls?.[0]}
+                  title={selectedGeneration.params?.prompt as string}
+                  metadata={{ style: selectedGeneration.params?.style as string }}
+                  showDebug={false}
+                />
+              )}
+
+              {/* Audio Result */}
+              {selectedGeneration.status === 'completed' && (selectedGeneration.result as any)?.audioUrl && (
+                <div>
+                  <p className="text-xs text-gray-500 mb-2">Аудио</p>
+                  <audio
+                    controls
+                    src={(selectedGeneration.result as any).audioUrl}
+                    className="w-full rounded-lg border border-gray-200"
+                  >
+                    Ваш браузер не поддерживает воспроизведение аудио.
+                  </audio>
+                </div>
+              )}
+
+              {/* Text Result */}
+              {selectedGeneration.status === 'completed' && selectedGeneration.result && 
+               !((selectedGeneration.result as any)?.imageUrl) && (
+                <div>
+                  <p className="text-xs text-gray-500 mb-2">Результат</p>
+                  {(selectedGeneration.result as any)?.content ? (
+                    <div className="bg-gray-50 rounded-lg p-3 text-sm text-gray-900 max-h-48 overflow-auto whitespace-pre-wrap">
+                      {getDisplayContent((selectedGeneration.result as any).content)}
+                    </div>
+                  ) : (selectedGeneration.result as any)?.quiz ? (
+                    <div className="bg-gray-50 rounded-lg p-3 text-sm text-gray-900">
+                      <p className="font-semibold mb-2">{(selectedGeneration.result as any).quiz.title}</p>
+                      <p className="text-xs">{(selectedGeneration.result as any).quiz.questions?.length || 0} вопросов</p>
+                    </div>
+                  ) : (
+                    <div className="text-sm text-gray-900">
+                      {JSON.stringify(selectedGeneration.result).substring(0, 200)}...
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Error */}
+              {selectedGeneration.status === 'failed' && selectedGeneration.error && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                  <p className="text-sm text-red-800">{selectedGeneration.error}</p>
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="mt-6 pt-4 border-t border-gray-200 space-y-2">
+                {selectedGeneration.status === 'completed' && (
+                  <button 
+                    onClick={downloadGeneration}
+                    disabled={isDownloading}
+                    className="w-full py-3 bg-blue-50 text-blue-600 rounded-xl font-medium disabled:opacity-50"
+                  >
+                    <i className={`fas ${isDownloading ? 'fa-spinner fa-spin' : 'fa-download'} mr-2`}></i>
+                    {isDownloading ? 'Скачивание...' : 'Скачать'}
+                  </button>
+                )}
+                <button 
+                  onClick={deleteGeneration}
+                  className="w-full py-3 bg-red-50 text-red-600 rounded-xl font-medium"
+                >
+                  <i className="fas fa-trash mr-2"></i>Удалить
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

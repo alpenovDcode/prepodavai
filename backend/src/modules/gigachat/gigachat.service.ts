@@ -590,8 +590,9 @@ export class GigachatService {
     return response.data;
   }
 
-  private async requestRaw<T>(config: AxiosRequestConfig, retry = true): Promise<AxiosResponse<T>> {
+  private async requestRaw<T>(config: AxiosRequestConfig, retry = true, attempt = 0): Promise<AxiosResponse<T>> {
     const token = await this.ensureAccessToken();
+    const MAX_NETWORK_RETRIES = 3;
 
     try {
       const response = await this.http.request<T>({
@@ -605,10 +606,21 @@ export class GigachatService {
       return response;
     } catch (error: any) {
       if (axios.isAxiosError(error)) {
+        // Retry on 401 with refreshed token
         if (error.response?.status === 401 && retry) {
           this.logger.warn('Got 401, refreshing token and retrying');
           await this.ensureAccessToken(true);
-          return this.requestRaw<T>(config, false);
+          return this.requestRaw<T>(config, false, attempt);
+        }
+
+        // Retry on transient network errors
+        const networkErrorCodes = ['ECONNRESET', 'ECONNABORTED', 'ETIMEDOUT', 'ENOTFOUND', 'ECONNREFUSED'];
+        const isNetworkError = !error.response && networkErrorCodes.includes(error.code);
+        if (isNetworkError && attempt < MAX_NETWORK_RETRIES) {
+          const delay = Math.pow(2, attempt) * 1000; // 1s, 2s, 4s
+          this.logger.warn(`Network error ${error.code} on attempt ${attempt + 1}/${MAX_NETWORK_RETRIES + 1}, retrying in ${delay}ms...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          return this.requestRaw<T>(config, retry, attempt + 1);
         }
 
         // Логируем детали ошибки

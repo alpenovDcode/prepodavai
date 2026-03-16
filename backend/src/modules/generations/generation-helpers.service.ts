@@ -17,8 +17,9 @@ export class GenerationHelpersService {
     generationType: string;
     inputParams: any;
     model: string;
+    lessonId?: string;
   }) {
-    const { userId, generationType, inputParams, model } = params;
+    const { userId, generationType, inputParams, model, lessonId } = params;
 
     // Создаем запись в старой таблице (для совместимости)
     const generationRequest = await this.prisma.generationRequest.create({
@@ -41,7 +42,8 @@ export class GenerationHelpersService {
         model,
         generationRequestId: generationRequest.id,
         sentToTelegram: false,
-      },
+        lessonId,
+      } as any,
     });
 
     return {
@@ -53,7 +55,7 @@ export class GenerationHelpersService {
   /**
    * Завершить генерацию успешно
    */
-  async completeGeneration(generationRequestId: string, outputData: any) {
+  async completeGeneration(generationRequestId: string, outputData: any, options?: { tokensUsed?: number, creditCost?: number }) {
     console.log(`[GenerationHelpers] Completing generation ${generationRequestId}, output data length: ${JSON.stringify(outputData).length}`);
 
     // Обновляем старую таблицу
@@ -72,12 +74,22 @@ export class GenerationHelpersService {
     });
 
     if (userGeneration) {
+      const updateData: any = {
+        status: 'completed',
+        outputData,
+      };
+
+      if (options?.tokensUsed !== undefined) {
+        updateData.tokensUsed = options.tokensUsed;
+      }
+
+      if (options?.creditCost !== undefined) {
+        updateData.creditCost = options.creditCost;
+      }
+
       await this.prisma.userGeneration.update({
         where: { id: userGeneration.id },
-        data: {
-          status: 'completed',
-          outputData,
-        },
+        data: updateData,
       });
       console.log(`[GenerationHelpers] Updated userGeneration table for ${generationRequestId}`);
 

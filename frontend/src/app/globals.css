@@ -3,46 +3,31 @@
 @tailwind utilities;
 
 :root {
-  --tg-theme-bg-color: #ffffff;
-  --tg-theme-text-color: #000000;
-  --tg-theme-hint-color: #999999;
-  --tg-theme-link-color: #3B82F6;
-  --tg-theme-button-color: #3B82F6;
+  --tg-theme-bg-color: #F9FAFB;
+  --tg-theme-text-color: #1F2937;
+  --tg-theme-hint-color: #9CA3AF;
+  --tg-theme-link-color: #7C3AED;
+  --tg-theme-button-color: #7C3AED;
   --tg-theme-button-text-color: #ffffff;
-  --tg-theme-secondary-bg-color: #f4f4f5;
+  --tg-theme-secondary-bg-color: #F3F4F6;
   --tg-theme-bg-gradient-from: #ffffff;
-  --tg-theme-bg-gradient-to: #f9fafb;
+  --tg-theme-bg-gradient-to: #F9FAFB;
   --tg-theme-card-bg: #ffffff;
-  --tg-theme-border-light: #e5e7eb;
-  --tg-theme-border-color: #d1d5db;
+  --tg-theme-border-light: #F3F4F6;
+  --tg-theme-border-color: #E5E7EB;
   --tg-theme-text-primary: #111827;
-  --tg-theme-text-secondary: #6b7280;
-  --tg-theme-text-muted: #9ca3af;
-  --tg-theme-accent-bg: #dbeafe;
-  --tg-theme-accent-color: #1e40af;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --tg-theme-bg-color: #1f2937;
-    --tg-theme-text-color: #ffffff;
-    --tg-theme-hint-color: #9ca3af;
-    --tg-theme-secondary-bg-color: #374151;
-    --tg-theme-bg-gradient-from: #1f2937;
-    --tg-theme-bg-gradient-to: #111827;
-    --tg-theme-card-bg: #1f2937;
-    --tg-theme-border-light: #374151;
-    --tg-theme-border-color: #4b5563;
-    --tg-theme-text-primary: #ffffff;
-    --tg-theme-text-secondary: #d1d5db;
-    --tg-theme-text-muted: #9ca3af;
-  }
+  --tg-theme-text-secondary: #6B7280;
+  --tg-theme-text-muted: #9CA3AF;
+  --tg-theme-accent-bg: #FFF7ED;
+  --tg-theme-accent-color: #FF7E58;
+  --sidebar-width: 240px;
 }
 
 body {
-  color: var(--tg-theme-text-color);
+  color: #1F2937;
   background: var(--tg-theme-bg-color);
 }
+
 
 /* Animations */
 @keyframes fade-in {
@@ -50,6 +35,7 @@ body {
     opacity: 0;
     transform: translateY(10px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -61,6 +47,7 @@ body {
     opacity: 0;
     transform: translateY(20px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -96,6 +83,16 @@ body {
   color: #000000;
 }
 
+.formatted-content,
+.worksheet-content {
+  line-height: 1.7;
+  color: #000000 !important;
+}
+
+.worksheet-content * {
+  color: #000000 !important;
+}
+
 .formatted-content ul,
 .formatted-content ol {
   padding-left: 0;
@@ -119,3 +116,135 @@ body {
   color: #000000;
 }
 
+/* Dashboard Sidebar */
+.sidebar {
+  width: var(--sidebar-width);
+  height: 100vh;
+  position: fixed;
+  left: 0;
+  top: 0;
+  background: white;
+  border-right: none;
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.02);
+  overflow-y: auto;
+  overflow-y: auto;
+  transition: transform 0.3s ease;
+  color: #1F2937;
+}
+
+.sidebar-hidden {
+  transform: translateX(-100%);
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  margin: 4px 12px;
+  border-radius: 12px;
+  color: #111827;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.nav-item:hover {
+  background: var(--tg-theme-accent-bg);
+  color: var(--tg-theme-button-color);
+}
+
+.nav-item.active {
+  background: var(--tg-theme-accent-bg);
+  color: var(--tg-theme-button-color);
+  font-weight: 600;
+}
+
+/* Progress bars */
+.progress-bar {
+  height: 8px;
+  border-radius: 9999px;
+  overflow: hidden;
+  background: var(--tg-theme-secondary-bg-color);
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: 9999px;
+  transition: width 0.3s ease;
+}
+
+/* Dashboard cards */
+.dashboard-card {
+  background: white;
+  border-radius: 24px;
+  padding: 24px;
+  border: none;
+  box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s ease;
+  color: #1F2937;
+}
+
+.dashboard-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.08);
+}
+
+/* Icon circles */
+.icon-circle {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .sidebar {
+    transform: translateX(-100%);
+  }
+
+  .sidebar.mobile-open {
+    transform: translateX(0);
+  }
+}
+/* Force dark text on form elements and rich text editor across Workspace V2 */
+.prose {
+  color: #111827 !important;
+}
+
+.prose p, .prose h1, .prose h2, .prose h3, .prose h4, .prose li, .prose strong, .prose b {
+  color: #111827 !important;
+}
+
+.prose > div {
+  color: #111827 !important;
+}
+
+/* Force dark text for Tailwind inputs inside workspace if they somehow map to white */
+input[type="text"], input[type="number"], input[type="email"], input[type="password"], textarea, select {
+  color: #111827 !important;
+}
+input::placeholder, textarea::placeholder {
+  color: #9CA3AF !important;
+}
+
+/* Global override for AI generator inputs */
+.sidebar input, 
+.sidebar textarea, 
+.sidebar select {
+  color: #111827 !important;
+}
+
+.sidebar input::placeholder, 
+.sidebar textarea::placeholder {
+  color: #9CA3AF !important;
+}
+
+/* Force dark text on RichTextEditor */
+.prose,
+.prose * {
+  color: #111827 !important;
+}

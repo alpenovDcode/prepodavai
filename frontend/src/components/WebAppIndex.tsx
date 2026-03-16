@@ -5,12 +5,31 @@ import { useRouter } from 'next/navigation'
 import InputComposer from './InputComposer'
 import AiAssistantChat from './AiAssistantChat'
 import GenerationProgress from './GenerationProgress'
+import {
+  Wand2,
+  Layout,
+  MessageSquare,
+  Image as ImageIcon,
+  FileText,
+  Mic,
+  Send,
+  Loader2,
+  CheckCircle2,
+  AlertCircle,
+  Download,
+  Users
+} from 'lucide-react'
 import { useGenerations } from '@/lib/hooks/useGenerations'
 import { useSubscription } from '@/lib/hooks/useSubscription'
 import { getCurrentUser } from '@/lib/utils/userIdentity'
-import { apiClient } from '@/lib/api/client' // Используется в initUser для проверки подписки
+import { apiClient } from '@/lib/api/client'
+import AssignMaterialModal from './AssignMaterialModal' // Используется в initUser для проверки подписки
 
-export default function WebAppIndex() {
+interface WebAppIndexProps {
+  embedded?: boolean
+}
+
+export default function WebAppIndex({ embedded = false }: WebAppIndexProps) {
   const router = useRouter()
   const [currentFunctionId, setCurrentFunctionId] = useState('worksheet')
   const [topLevelTab, setTopLevelTab] = useState<'wow' | 'all'>('wow') // По умолчанию "Вау-урок"
@@ -19,14 +38,17 @@ export default function WebAppIndex() {
   const [isExporting, setIsExporting] = useState(false)
   const [statusMessage, setStatusMessage] = useState('')
   const [statusOk, setStatusOk] = useState(false)
+  const [showAssignModal, setShowAssignModal] = useState(false)
+  const [currentLessonId, setCurrentLessonId] = useState<string | null>(null)
+  const [isAssigning, setIsAssigning] = useState(false)
   const [attempts, setAttempts] = useState(0)
   const [maxAttempts] = useState(60)
   const [generationResult, setGenerationResult] = useState<any>(null)
   const [userHash, setUserHash] = useState<string | null>(null)
   const [userSource, setUserSource] = useState<'web' | 'telegram' | null>(null)
 
-  const { generateAndWait, isGenerating: isGenGenerating } = useGenerations()
-  const { subscription, totalCredits, loading: subscriptionLoading } = useSubscription({ enabled: !!userHash })
+  const { generateAndWait, isGenerating: isGenGenerating, activeGenerationId, inputParams } = useGenerations()
+  const { subscription, totalCredits, loading: subscriptionLoading } = useSubscription()
   const resultContainerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -278,11 +300,11 @@ export default function WebAppIndex() {
         content = `<pre style="font-family: monospace; white-space: pre-wrap; word-wrap: break-word;">${jsonStr.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre>`
       } else if (typeof content === 'string') {
         if (!isHtmlString(content)) {
-          content = `<div style="font-family: Arial, sans-serif; line-height: 1.6; padding: 20px; white-space: pre-wrap; word-wrap: break-word;">${content.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>`
+          content = `<div style="font-family: Arial, sans-serif; line-height: 1.6; padding: 20px; white-space: pre-wrap; word-wrap: break-word;">${content.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div`
         }
       } else {
         content = String(content)
-        content = `<div style="font-family: Arial, sans-serif; line-height: 1.6; padding: 20px; white-space: pre-wrap; word-wrap: break-word;">${content.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>`
+        content = `<div style="font-family: Arial, sans-serif; line-height: 1.6; padding: 20px; white-space: pre-wrap; word-wrap: break-word;">${content.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div`
       }
 
       const fullHtml = `<!DOCTYPE html>
@@ -510,69 +532,100 @@ export default function WebAppIndex() {
     }
   }
 
-  return (
-    <div className="min-h-screen bg-white">
-      {/* Header */}
-      <div className="sticky top-0 z-20 backdrop-blur-lg bg-white/90 border-b border-[#D8E6FF] shadow-sm">
-        <div className="px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-14 h-14 flex-shrink-0 rounded-xl overflow-hidden shadow">
-              <img
-                src="https://fs.cdn-chatium.io/thumbnail/image_gc_AmbUAlw8Yq.1024x1024.png/s/128x"
-                alt="prepodavAI"
-                className="w-full h-full object-cover"
-              />
-            </div>
-            <div className="flex-shrink-0">
-              <h1 className="text-lg font-bold text-black">prepodavAI</h1>
-              <p className="text-xs text-black/70">Ваш умный помощник</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            {!subscriptionLoading && (
-              <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#FF7E58] text-white text-xs shadow">
-                <i className="fas fa-coins"></i>
-                <span className="font-semibold">{totalCredits}</span>
-                <span className="opacity-90">кред.</span>
-              </div>
-            )}
-            <button
-              onClick={openHistory}
-              className="w-9 h-9 rounded-xl bg-[#D8E6FF] border border-[#D8E6FF] hover:bg-[#FF7E58] hover:border-[#FF7E58] transition active:scale-95"
-            >
-              <i className="fas fa-history text-[#FF7E58]"></i>
-            </button>
-            {showLogoutButton && (
-              <button
-                onClick={logout}
-                className="w-9 h-9 rounded-xl bg-[#D8E6FF] border border-[#D8E6FF] hover:bg-red-50 hover:border-red-300 transition active:scale-95"
-              >
-                <i className="fas fa-sign-out-alt text-red-500"></i>
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
+  const handleAssignClick = async () => {
+    if (!generationResult || !activeGenerationId) return
 
-      {/* Hero gradient */}
-      <div className="relative">
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-[#D8E6FF]/30 via-[#FF7E58]/10 to-transparent"></div>
-        <div className="px-4 pt-6 pb-2 max-w-5xl mx-auto">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-2xl sm:text-3xl font-extrabold bg-gradient-to-r from-[#FF7E58] to-[#FF7E58] bg-clip-text text-transparent">
-                Создавайте учебные материалы быстрее
-              </h2>
-              <p className="text-sm text-black/70 mt-1">Рабочие листы, тесты, словари и планы уроков в один клик</p>
-            </div>
-            {!subscriptionLoading && (
-              <div className="sm:hidden ml-3 px-3 py-1.5 rounded-full bg-[#FF7E58] text-white text-xs shadow">
-                <i className="fas fa-coins mr-1"></i>{totalCredits}
+    setIsAssigning(true)
+    try {
+      // 1. Create a lesson
+      const lessonRes = await apiClient.post('/lessons', {
+        topic: inputParams.topic || 'AI Generation',
+      })
+      const lessonId = lessonRes.data.id
+
+      // 2. Link generation to lesson
+      await apiClient.post(`/generate/${activeGenerationId}/link-lesson`, {
+        lessonId: lessonId
+      })
+
+      // 3. Open assign modal
+      setCurrentLessonId(lessonId)
+      setShowAssignModal(true)
+    } catch (error) {
+      console.error('Failed to prepare assignment:', error)
+      alert('Ошибка при подготовке к выдаче')
+    } finally {
+      setIsAssigning(false)
+    }
+  }
+
+  return (
+    <div className={`min-h-screen bg-gray-50 ${embedded ? '' : 'pt-20'}`}>
+      {/* Header - hide if embedded */}
+      {!embedded && (
+        <div className="sticky top-0 z-20 backdrop-blur-lg bg-white/90 border-b border-[#D8E6FF] shadow-sm">
+          <div className="px-4 py-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-14 h-14 flex-shrink-0 rounded-xl overflow-hidden shadow">
+                <img
+                  src="https://fs.cdn-chatium.io/thumbnail/image_gc_AmbUAlw8Yq.1024x1024.png/s/128x"
+                  alt="prepodavAI"
+                  className="w-full h-full object-cover"
+                />
               </div>
-            )}
+              <div className="flex-shrink-0">
+                <h1 className="text-lg font-bold text-black">prepodavAI</h1>
+                <p className="text-xs text-black/70">Ваш умный помощник</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {!subscriptionLoading && (
+                <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#FF7E58] text-white text-xs shadow">
+                  <i className="fas fa-coins"></i>
+                  <span className="font-semibold">{totalCredits}</span>
+                  <span className="opacity-90">кред.</span>
+                </div>
+              )}
+              <button
+                onClick={openHistory}
+                className="w-9 h-9 rounded-xl bg-[#D8E6FF] border border-[#D8E6FF] hover:bg-[#FF7E58] hover:border-[#FF7E58] transition active:scale-95"
+              >
+                <i className="fas fa-history text-[#FF7E58]"></i>
+              </button>
+              {showLogoutButton && (
+                <button
+                  onClick={logout}
+                  className="w-9 h-9 rounded-xl bg-[#D8E6FF] border border-[#D8E6FF] hover:bg-red-50 hover:border-red-300 transition active:scale-95"
+                >
+                  <i className="fas fa-sign-out-alt text-red-500"></i>
+                </button>
+              )}
+            </div>
           </div>
         </div>
-      </div>
+      )}
+
+      {/* Hero gradient - hide if embedded */}
+      {!embedded && (
+        <div className="relative">
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-[#D8E6FF]/30 via-[#FF7E58]/10 to-transparent"></div>
+          <div className="px-4 pt-6 pb-2 max-w-5xl mx-auto">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-2xl sm:text-3xl font-extrabold bg-gradient-to-r from-[#FF7E58] to-[#FF7E58] bg-clip-text text-transparent">
+                  Создавайте учебные материалы быстрее
+                </h2>
+                <p className="text-sm text-black/70 mt-1">Рабочие листы, тесты, словари и планы уроков в один клик</p>
+              </div>
+              {!subscriptionLoading && (
+                <div className="sm:hidden ml-3 px-3 py-1.5 rounded-full bg-[#FF7E58] text-white text-xs shadow">
+                  <i className="fas fa-coins mr-1"></i>{totalCredits}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Main card with composer */}
       <div className="p-4">
@@ -648,13 +701,23 @@ export default function WebAppIndex() {
                   </div>
                   <div className="flex gap-2">
                     {isTextResult && (
-                      <button
-                        onClick={downloadTextResult}
-                        disabled={isExporting}
-                        className="px-3 py-2 bg-[#FF7E58] text-white rounded-lg text-xs font-medium hover:shadow-lg transition active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
-                      >
-                        <i className="fas fa-download mr-1"></i>Скачать
-                      </button>
+                      <>
+                        <button
+                          onClick={handleAssignClick}
+                          disabled={isAssigning}
+                          className="px-3 py-2 bg-primary-600 text-white rounded-lg text-xs font-medium hover:bg-primary-700 transition active:scale-95 disabled:opacity-50 flex items-center gap-2"
+                        >
+                          <Users className="w-3 h-3" />
+                          {isAssigning ? '...' : 'Выдать'}
+                        </button>
+                        <button
+                          onClick={downloadTextResult}
+                          disabled={isExporting}
+                          className="px-3 py-2 bg-[#FF7E58] text-white rounded-lg text-xs font-medium hover:shadow-lg transition active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
+                        >
+                          <i className="fas fa-download mr-1"></i>Скачать
+                        </button>
+                      </>
                     )}
                     <button
                       onClick={clearResult}
@@ -860,6 +923,28 @@ export default function WebAppIndex() {
                           <i className="fas fa-download"></i>
                           <span>Скачать HTML файл</span>
                         </a>
+                        <button
+                          onClick={handleAssignClick}
+                          disabled={isAssigning}
+                          className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition flex items-center gap-2 disabled:opacity-50"
+                        >
+                          <Users className="w-4 h-4" />
+                          {isAssigning ? 'Подготовка...' : 'Выдать'}
+                        </button>
+                        <button
+                          onClick={() => {
+                            const blob = new Blob([generationResult], { type: 'text/html' });
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = 'worksheet.html';
+                            a.click();
+                          }}
+                          className="px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition flex items-center gap-2"
+                        >
+                          <Download className="w-4 h-4" />
+                          Скачать HTML
+                        </button>
                       </div>
                       <div className="mt-3 text-xs text-black/60">
                         <p>💡 Ссылку &quot;Играть онлайн&quot; можно отправить ученикам.</p>
@@ -896,6 +981,14 @@ export default function WebAppIndex() {
           </div>
         </div>
       </div>
+      {/* Assign Modal */}
+      {showAssignModal && currentLessonId && (
+        <AssignMaterialModal
+          isOpen={showAssignModal}
+          onClose={() => setShowAssignModal(false)}
+          lessonId={currentLessonId}
+        />
+      )}
     </div >
   )
 }

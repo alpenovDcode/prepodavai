@@ -33,8 +33,10 @@ model AppUser {
   // Связи
   subscription          UserSubscription?
   generations           UserGeneration[]
+  lessons               Lesson[]
   creditTransactions    CreditTransaction[]
   systemLogs            SystemLog[]
+  classes               Class[]
 
   @@index([telegramId])
   @@index([userHash])
@@ -161,18 +163,43 @@ model UserGeneration {
   generationRequestId String   @unique
   sentToTelegram      Boolean  @default(false)
   telegramSentAt      DateTime?
+  tokensUsed          Int?     // Количество потраченных токенов
+  creditCost          Int?     // Итоговая стоимость кредитов
+  lessonId            String?
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
   // Связи
   user                AppUser  @relation(fields: [userId], references: [id])
   generationRequest   GenerationRequest @relation(fields: [generationRequestId], references: [id])
+  lesson              Lesson?  @relation(fields: [lessonId], references: [id])
 
   @@index([userId])
   @@index([status])
   @@index([generationType])
   @@index([generationRequestId])
+  @@index([lessonId])
   @@map("user_generations")
+}
+
+// Уроки (группировка генераций)
+model Lesson {
+  id          String   @id @default(uuid())
+  userId      String
+  title       String   // Обычно совпадает с темой
+  topic       String
+  grade       String?
+  duration    Int?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Связи
+  user        AppUser  @relation(fields: [userId], references: [id])
+  generations UserGeneration[]
+  assignments Assignment[]
+  
+  @@index([userId])
+  @@map("lessons")
 }
 
 // Системные логи
@@ -252,4 +279,84 @@ model VerificationCode {
   @@index([phone])
   @@index([code])
   @@map("verification_codes")
+}
+
+// Классы (Группы учеников)
+model Class {
+  id          String    @id @default(uuid())
+  teacherId   String
+  name        String
+  description String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  teacher     AppUser   @relation(fields: [teacherId], references: [id])
+  students    Student[]
+  assignments Assignment[]
+
+  @@index([teacherId])
+  @@map("classes")
+}
+
+// Ученики
+model Student {
+  id          String    @id @default(uuid())
+  classId     String
+  name        String
+  email       String?
+  accessCode  String?   @unique // Для простого входа
+  avatar      String?
+  notes       String?   // AI характеристика или заметки учителя
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  class       Class     @relation(fields: [classId], references: [id], onDelete: Cascade)
+  assignments Assignment[]
+  submissions Submission[]
+
+  @@index([classId])
+  @@map("students")
+}
+
+// Назначения (Задания)
+model Assignment {
+  id          String    @id @default(uuid())
+  classId     String?
+  studentId   String?
+  lessonId    String
+  status      String    @default("assigned") // assigned, submitted, graded
+  dueDate     DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  class       Class?    @relation(fields: [classId], references: [id])
+  student     Student?  @relation(fields: [studentId], references: [id])
+  lesson      Lesson    @relation(fields: [lessonId], references: [id])
+  submissions Submission[]
+
+  @@index([classId])
+  @@index([studentId])
+  @@index([lessonId])
+  @@map("assignments")
+}
+
+// Решения (Ответы учеников)
+model Submission {
+  id           String    @id @default(uuid())
+  assignmentId String
+  studentId    String
+  content      String?   // Текст или URL
+  attachments  Json?     // Файлы
+  grade        Int?
+  feedback     String?   // AI или комментарий учителя
+  status       String    @default("submitted") // submitted, graded
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  assignment   Assignment @relation(fields: [assignmentId], references: [id])
+  student      Student    @relation(fields: [studentId], references: [id])
+
+  @@index([assignmentId])
+  @@index([studentId])
+  @@map("submissions")
 }

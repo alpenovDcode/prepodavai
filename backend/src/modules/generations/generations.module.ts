@@ -15,12 +15,12 @@ import { GammaModule } from '../gamma/gamma.module';
 import { HtmlPostprocessorService } from '../../common/services/html-postprocessor.service';
 import { HtmlExportService } from '../../common/services/html-export.service';
 import { FilesModule } from '../files/files.module';
+import { ReplicateModule } from '../replicate/replicate.module';
+import { LessonsModule } from '../lessons/lessons.module';
 import { TelegramModule } from '../telegram/telegram.module';
 import { AssemblyAiService } from '../integrations/assemblyai.service';
 import { VideoAnalysisProcessor } from './processors/video-analysis.processor';
 import { SalesAdvisorProcessor } from './processors/sales-advisor.processor';
-
-
 @Module({
   imports: [
     // Queue for generations
@@ -52,6 +52,8 @@ import { SalesAdvisorProcessor } from './processors/sales-advisor.processor';
     forwardRef(() => GigachatModule),
     GammaModule,
     FilesModule,
+    ReplicateModule,
+    LessonsModule,
   ],
   controllers: [GenerationsController],
   providers: [

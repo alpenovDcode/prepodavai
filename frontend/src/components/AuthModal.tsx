@@ -18,6 +18,7 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
   const [debugCode, setDebugCode] = useState('')
   const [attemptsLeft, setAttemptsLeft] = useState<number | null>(null)
   const [resendTimer, setResendTimer] = useState(0)
+  const [loginMode, setLoginMode] = useState<'phone' | 'apikey'>('phone')
 
   const [form, setForm] = useState({
     name: '',
@@ -29,7 +30,16 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
   })
 
   useEffect(() => {
-    // URL params handling removed - only Telegram login now
+    const urlParams = new URLSearchParams(window.location.search)
+    const tab = urlParams.get('tab')
+    
+    if (tab === 'telegram') {
+      setIsLogin(true)
+      setLoginMode('apikey')
+    } else if (tab === 'phone') {
+      setIsLogin(true)
+      setLoginMode('phone')
+    }
   }, [])
 
   useEffect(() => {
@@ -77,25 +87,39 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
         phone: form.phone.trim(),
         code: verificationCode
       })
-
+      
       if (response.data.success) {
-        const userData = {
-          name: response.data.user.firstName || form.name,
-          phone: response.data.user.phone,
-          userHash: response.data.userHash,
-          isAuthenticated: true,
-          loginTime: new Date().toISOString()
+        const registerResponse = await apiClient.post('/auth/register', {
+          phone: form.phone.trim(),
+          firstName: form.name.trim(),
+          email: form.email.trim() || undefined,
+          password: form.password || undefined,
+          verificationId: verificationId
+        })
+        
+        if (registerResponse.data.success) {
+          const userData = {
+            name: form.name,
+            phone: form.phone,
+            email: form.email || '',
+            userHash: registerResponse.data.userHash,
+            isAuthenticated: true,
+            loginTime: new Date().toISOString()
+          }
+          
+          localStorage.setItem('prepodavai_user', JSON.stringify(userData))
+          localStorage.setItem('prepodavai_authenticated', 'true')
+          if (registerResponse.data.token) {
+            localStorage.setItem('prepodavai_token', registerResponse.data.token)
+          }
+          
+          onSuccess()
+        } else {
+          setErrorMessage(registerResponse.data.error || 'Ошибка регистрации')
         }
-
-        localStorage.setItem('prepodavai_user', JSON.stringify(userData))
-        localStorage.setItem('prepodavai_authenticated', 'true')
-        if (response.data.token) {
-          localStorage.setItem('prepodavai_token', response.data.token)
-        }
-
-        onSuccess()
       } else {
         setErrorMessage(response.data.error || 'Неверный код')
+        setAttemptsLeft(response.data.attemptsLeft !== undefined ? response.data.attemptsLeft : null)
       }
     } catch (error: any) {
       console.error('Verification error:', error)
@@ -136,7 +160,7 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
       }
     } catch (error: any) {
       console.error('Login error:', error)
-      setErrorMessage(error.response?.data?.error || 'Ошибка входа')
+      setErrorMessage(error.response?.data?.error || error.message || 'Ошибка входа')
     } finally {
       setLoading(false)
     }
@@ -175,7 +199,7 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
       }
     } catch (error: any) {
       console.error('Login with API key error:', error)
-      setErrorMessage(error.response?.data?.error || 'Ошибка входа')
+      setErrorMessage(error.response?.data?.error || error.message || 'Ошибка входа')
     } finally {
       setLoading(false)
     }
@@ -227,8 +251,8 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
           </span>
         </h2>
         <p className="text-center text-gray-900 mb-8">
-          {isLogin
-            ? 'Введите данные из Telegram бота'
+          {isLogin 
+            ? (loginMode === 'phone' ? 'Введите телефон и пароль' : 'Введите данные из Telegram')
             : (step === 1 ? 'Создайте новый аккаунт' : 'Введите код из SMS')
           }
         </p>
@@ -394,6 +418,87 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
 
         {/* Login Form: Username + API Key from Telegram */}
         {isLogin && (
+          <div className="flex gap-2 mb-6">
+            <button
+              type="button"
+              onClick={() => { setLoginMode('phone'); setErrorMessage(''); }}
+              className={`flex-1 py-3 rounded-xl font-medium transition-all ${
+                loginMode === 'phone'
+                  ? 'bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-lg'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              <i className="fas fa-phone mr-2"></i>
+              Телефон
+            </button>
+            <button
+              type="button"
+              onClick={() => { setLoginMode('apikey'); setErrorMessage(''); }}
+              className={`flex-1 py-3 rounded-xl font-medium transition-all ${
+                loginMode === 'apikey'
+                  ? 'bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-lg'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              <i className="fab fa-telegram mr-2"></i>
+              Telegram
+            </button>
+          </div>
+        )}
+
+        {/* Login Form: Phone + Password */}
+        {isLogin && loginMode === 'phone' && (
+          <form onSubmit={(e) => { e.preventDefault(); handleLoginWithPassword(); }} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                <i className="fas fa-phone text-orange-500 mr-2"></i>
+                Номер телефона
+              </label>
+              <input 
+                value={form.phone}
+                onChange={(e) => setForm(prev => ({ ...prev, phone: e.target.value }))}
+                type="tel"
+                required
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none transition-colors text-gray-900 placeholder:text-gray-400"
+                placeholder="+7 900 123 45 67"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                <i className="fas fa-lock text-orange-500 mr-2"></i>
+                Пароль
+              </label>
+              <input 
+                value={form.password}
+                onChange={(e) => setForm(prev => ({ ...prev, password: e.target.value }))}
+                type="password"
+                required
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none transition-colors text-gray-900 placeholder:text-gray-400"
+                placeholder="••••••••"
+              />
+            </div>
+
+            {errorMessage && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">
+                <i className="fas fa-exclamation-circle mr-2"></i>
+                {errorMessage}
+              </div>
+            )}
+
+            <button 
+              type="submit"
+              disabled={loading}
+              className="w-full py-4 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300 hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              <i className={`fas ${loading ? 'fa-spinner fa-spin' : 'fa-sign-in-alt'}`}></i>
+              {loading ? 'Вход...' : 'Войти'}
+            </button>
+          </form>
+        )}
+
+        {/* Login Form: Username + API Key */}
+        {isLogin && loginMode === 'apikey' && (
           <form onSubmit={(e) => { e.preventDefault(); handleLoginWithApiKey(); }} className="space-y-4">
             <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl text-blue-800 text-sm mb-4">
               <i className="fab fa-telegram text-blue-500 mr-2"></i>
@@ -450,19 +555,12 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
 
         {/* Toggle */}
         <div className="mt-6 text-center">
-          {isLogin ? (
-            <div className="p-3 bg-gray-50 rounded-xl text-sm text-gray-500">
-              <i className="fas fa-info-circle mr-2"></i>
-              Регистрация временно закрыта
-            </div>
-          ) : (
-            <button
-              onClick={toggleMode}
-              className="text-orange-600 hover:text-orange-700 font-medium"
-            >
-              Уже есть аккаунт? Войдите
-            </button>
-          )}
+          <button 
+            onClick={toggleMode}
+            className="text-orange-600 hover:text-orange-700 font-medium"
+          >
+            {isLogin ? 'Нет аккаунта? Зарегистрируйтесь' : 'Уже есть аккаунт? Войдите'}
+          </button>
         </div>
       </div>
     </div>
