@@ -61,7 +61,7 @@ function SlideThumbnail({ slide, index, isActive, onClick }: {
                 srcDoc={buildSlideSrcDoc(slide)}
                 className="w-full h-full border-0 pointer-events-none"
                 style={{ transform: 'scale(0.25)', transformOrigin: 'top left', width: '400%', height: '400%' }}
-                sandbox="allow-same-origin allow-scripts"
+                sandbox="allow-same-origin allow-scripts allow-popups allow-modals"
                 title={`Slide ${index + 1}`}
             />
             <div className="absolute bottom-1 left-2 text-[9px] font-bold text-white/80 bg-black/30 rounded px-1">
@@ -744,7 +744,7 @@ ${css}
                                             key={activeSlide.id}
                                             srcDoc={buildSlideSrcDoc(activeSlide)}
                                             className="w-full h-full border-0"
-                                            sandbox="allow-same-origin allow-scripts allow-modals"
+                                            sandbox="allow-same-origin allow-scripts allow-popups allow-modals"
                                             title={`Slide ${activeSlideIndex + 1}`}
                                         />
                                     </div>

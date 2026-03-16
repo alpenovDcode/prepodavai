@@ -407,7 +407,7 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
                                             key={htmlSlideIndex}
                                             srcDoc={buildEditSrc(htmlSlides[htmlSlideIndex])}
                                             className="w-full h-full border-none rounded-xl"
-                                            sandbox="allow-same-origin allow-scripts"
+                                            sandbox="allow-same-origin allow-scripts allow-modals"
                                         />
                                     </div>
                                 </div>

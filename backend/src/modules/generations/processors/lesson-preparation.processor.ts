@@ -241,7 +241,7 @@ ${interests ? `- Интересы аудитории (Интегрируй их 
 Стиль текста: Дерзкий, живой, емкий (Gen Z friendly, без академической скуки).
 `;
 
-        const prediction = await this.runReplicatePrediction('anthropic/claude-3.7-sonnet', {
+        const prediction = await this.runReplicatePrediction('google/gemini-3-flash', {
             prompt: prompt,
             max_tokens: 3000,
             system_prompt: "Output JSON ONLY.",
@@ -563,13 +563,17 @@ ${interests ? `- Интересы аудитории (Интегрируй их 
 
     private getTypeLabel(type: string): string {
         const map: Record<string, string> = {
+            'lesson-plan': 'План урока',
             lessonPlan: 'План урока',
             worksheet: 'Рабочий лист',
-            presentation: 'Структура презентации',
+            presentation: 'Презентация',
             quest: 'Сценарий квеста',
             visuals: 'Тематические изображения',
             quiz: 'Тест',
+            vocabulary: 'Словарь',
+            'content-adaptation': 'Адаптация контента',
             content: 'Учебный материал',
+            message: 'Сообщение родителям/ученикам',
             unpacking: 'Распаковка и Продуктовая линейка'
         };
         return map[type] || type;
@@ -730,7 +734,7 @@ ${interests ? `- Интересы аудитории (Интегрируй их 
 
         if (specialized) {
             this.logger.log(`Using specialized prompt for ${targetType}`);
-            const prediction = await this.runReplicatePrediction('anthropic/claude-3.7-sonnet', {
+            const prediction = await this.runReplicatePrediction('google/gemini-3-flash', {
                 prompt: specialized.userPrompt,
                 max_tokens: 5000,
                 system_prompt: specialized.systemPrompt,
@@ -802,7 +806,7 @@ Make it immersive. Make it detailed. Make it beautiful.
 --------
 `;
 
-        const prediction = await this.runReplicatePrediction('anthropic/claude-3.7-sonnet', {
+        const prediction = await this.runReplicatePrediction('google/gemini-3-flash', {
             prompt: prompt,
             max_tokens: 3000,
             system_prompt: "You are a creative educational genius. You create content STRICTLY IN RUSSIAN.",

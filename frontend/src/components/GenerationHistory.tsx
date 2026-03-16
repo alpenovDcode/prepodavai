@@ -172,7 +172,7 @@ function FullHtmlPreview({ html }: { html: string }) {
       ref={iframeRef}
       srcDoc={finalHtml}
       className="w-full border-0 rounded-xl bg-white"
-      sandbox="allow-scripts allow-same-origin"
+      sandbox="allow-scripts allow-same-origin allow-popups allow-modals"
       style={{ minHeight: 300 }}
     />
   )

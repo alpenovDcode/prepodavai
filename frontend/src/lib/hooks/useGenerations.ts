@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useCallback } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '../api/client'
 import { cacheGeneration, getCachedGeneration, CachedGeneration } from '../utils/generationsCache'
 import { getCurrentUser } from '../utils/userIdentity'
@@ -14,6 +15,7 @@ export interface GenerationResponse {
   success: boolean
   requestId?: string
   error?: string
+  remainingCredits?: number
 }
 
 export interface GenerationStatus {
@@ -23,6 +25,7 @@ export interface GenerationStatus {
 }
 
 export function useGenerations() {
+  const queryClient = useQueryClient()
   const [isGenerating, setIsGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [activeGenerationId, setActiveGenerationId] = useState<string | null>(null)
@@ -63,6 +66,17 @@ export function useGenerations() {
 
       if (!response.data.success || !response.data.requestId) {
         throw new Error(response.data.error || 'Не получен ID запроса')
+      }
+
+      // Optimistically update subscription balance
+      if (typeof response.data.remainingCredits === 'number') {
+        queryClient.setQueryData(['subscription'], (old: any) => {
+          if (!old) return old
+          return {
+            ...old,
+            creditsBalance: response.data.remainingCredits
+          }
+        })
       }
 
       const requestId = response.data.requestId
@@ -153,6 +167,38 @@ export function useGenerations() {
     })
   }, [])
 
+  const generateBundle = useCallback(async (types: string[], params: Record<string, any>) => {
+    setIsGenerating(true)
+    setError(null)
+
+    try {
+      const response = await apiClient.post<{ results: any[]; remainingCredits?: number }>('/generate/bundle', {
+        types,
+        params
+      })
+
+      // Optimistically update subscription balance
+      if (typeof response.data.remainingCredits === 'number') {
+        queryClient.setQueryData(['subscription'], (old: any) => {
+          if (!old) return old
+          return {
+            ...old,
+            creditsBalance: response.data.remainingCredits
+          }
+        })
+      }
+
+      return response.data
+    } catch (err: any) {
+      const responseData = err.response?.data
+      const errorMessage = responseData?.message || responseData?.error || err.message || 'Ошибка генерации пакета'
+      setError(errorMessage)
+      throw new Error(errorMessage)
+    } finally {
+      setIsGenerating(false)
+    }
+  }, [queryClient])
+
   const generateAndWait = useCallback(async (request: GenerationRequest, onProgress?: (result: any) => void): Promise<GenerationStatus> => {
     const requestId = await generate(request)
     if (!requestId) {
@@ -166,6 +212,7 @@ export function useGenerations() {
     generate,
     pollStatus,
     generateAndWait,
+    generateBundle,
     isGenerating,
     error,
     activeGenerationId,

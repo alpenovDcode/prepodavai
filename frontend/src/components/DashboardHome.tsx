@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { apiClient } from '@/lib/api/client'
 import { functions } from './InputComposer/config'
+import { useGenerations } from '@/lib/hooks/useGenerations'
 
 export default function DashboardHome() {
     const router = useRouter()
@@ -14,7 +15,7 @@ export default function DashboardHome() {
     // Default selected types
     const [selectedTypes, setSelectedTypes] = useState<string[]>(['presentation', 'quiz'])
     const [isModalOpen, setIsModalOpen] = useState(false)
-    const [isGenerating, setIsGenerating] = useState(false)
+    const { generateBundle, isGenerating } = useGenerations()
 
     // Extended metadata for cards (colors, descriptions)
     const typeMetadata: Record<string, { iconBg: string, iconColor: string, description: string }> = {
@@ -86,27 +87,19 @@ export default function DashboardHome() {
             return
         }
 
-        const types = selectedTypes.map(type => type === 'lessonPlan' ? 'lesson-plan' : type)
+        const types = selectedTypes.map((type: string) => type === 'lessonPlan' ? 'lesson-plan' : type)
 
-        setIsGenerating(true)
         try {
-            const response = await apiClient.post('/generate/bundle', {
-                types,
-                params: {
-                    topic: lessonTopic,
-                    grade: gradeLevel,
-                    duration: parseInt(duration),
-                }
+            await generateBundle(types, {
+                topic: lessonTopic,
+                grade: gradeLevel,
+                duration: parseInt(duration),
             })
 
-            if (response.data) {
-                router.push('/dashboard/courses')
-                return
-            }
+            router.push('/dashboard/courses')
         } catch (error) {
             console.error('Generation failed:', error)
             alert('Ошибка при запуске генерации. Пожалуйста, попробуйте снова.')
-            setIsGenerating(false)
         }
     }
 

@@ -244,15 +244,6 @@ export class GenerationsController {
     return this.generationsService.linkToLesson(id, (req.user.role === 'student' ? req.user.teacherId : req.user.id), body.lessonId);
   }
 
-  @Post('lesson-preparation')
-  @UseGuards(JwtAuthGuard)
-  async generateLessonPreparation(@Request() req, @Body() body: any) {
-    return this.generationsService.createGeneration({
-      userId: req.user.id,
-      generationType: 'lessonPreparation',
-      inputParams: body,
-    });
-  }
 
   @Post('video-analysis')
   @UseGuards(JwtAuthGuard)

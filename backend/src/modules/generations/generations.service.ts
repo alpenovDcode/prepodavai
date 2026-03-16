@@ -163,16 +163,36 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
     }
 
     // Проверяем и списываем кредиты
-    const creditCheck = await this.subscriptionsService.checkAndDebitCredits(
-      userId,
-      this.mapGenerationTypeToOperationType(generationType),
-    );
+    let creditCheck: any;
+    const operationType = this.mapGenerationTypeToOperationType(generationType);
+
+    if (generationType === 'lesson_preparation' || generationType === 'lessonPreparation') {
+      const types = inputParams.generationTypes || [];
+      let totalCost = 0;
+      for (const t of types) {
+        totalCost += await this.subscriptionsService.getOperationCost(this.mapGenerationTypeToOperationType(t as any));
+      }
+
+      creditCheck = await this.subscriptionsService.debitCredits(
+        userId,
+        operationType,
+        undefined,
+        `Вау-урок: ${types.join(', ')}`,
+        totalCost
+      );
+    } else {
+      creditCheck = await this.subscriptionsService.checkAndDebitCredits(
+        userId,
+        operationType,
+      );
+    }
 
     if (!creditCheck.success) {
       throw new BadRequestException(creditCheck.error || 'Недостаточно кредитов');
     }
 
     const deductedCost = creditCheck.transaction?.amount || 0;
+    const remainingCredits = creditCheck.transaction?.balanceAfter;
     inputParams._creditCost = deductedCost; // Pass down the cost to completion helper
 
     // Создаем записи в БД
@@ -183,6 +203,22 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
       model: model || this.getDefaultModel(generationType),
       lessonId,
     });
+
+    // Очередь для Вау-урока (lesson_preparation)
+    if (generationType === 'lesson_preparation' || generationType === 'lessonPreparation') {
+      this.logger.debug(`GenerationsService: Lesson preparation detected for request ${generationRequest.id}, adding to queue and bypassing webhook/direct generation`);
+      await this.lessonPreparationQueue.add('generate-lesson-preparation', {
+        generationRequestId: generationRequest.id,
+        ...inputParams
+      });
+
+      return {
+        success: true,
+        requestId: generationRequest.id,
+        status: 'pending',
+        remainingCredits,
+      };
+    }
 
 
     // Прямые генерации через GigaChat (минуя webhooks)
@@ -200,6 +236,7 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
         requestId: generationRequest.id,
         status: 'completed',
         result: directResult,
+        remainingCredits,
       };
     }
 
@@ -216,13 +253,19 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
       );
 
       // Отправляем запрос в webhook (n8n) асинхронно
-      await this.sendToWebhook(generationType, webhookPayload);
+      // ДОПОЛНИТЕЛЬНАЯ ПРОВЕРКА: урок не должен идти в вебхук
+      if ((generationType as any) !== 'lesson_preparation' && (generationType as any) !== 'lessonPreparation') {
+        await this.sendToWebhook(generationType, webhookPayload);
+      } else {
+        this.logger.warn(`GenerationsService: Prevented accidental webhook call for ${generationType}`);
+      }
     }
 
     return {
       success: true,
       requestId: generationRequest.id,
       status: 'pending',
+      remainingCredits,
     };
   }
 
@@ -244,6 +287,8 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
       // Продолжаем без урока, если не удалось создать
     }
 
+    let lastRemainingCredits: number | undefined;
+
     for (const type of types) {
       try {
         const result = await this.createGeneration({
@@ -253,12 +298,16 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
           lessonId, // Передаем ID урока
         });
         results.push({ type, success: true, result });
+        lastRemainingCredits = (result as any).remainingCredits;
       } catch (error) {
         results.push({ type, success: false, error: error.message });
       }
     }
 
-    return results;
+    return {
+      results,
+      remainingCredits: lastRemainingCredits,
+    };
   }
 
   /**
@@ -284,8 +333,6 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
       'sales_advisor',
       'assistant',
       'game_generation',
-      'lessonPreparation',
-      'lesson_preparation',
     ].includes(generationType);
   }
 
@@ -366,6 +413,7 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
     generationRequestId: string,
     inputParams: Record<string, any>,
     requestedModel?: string,
+    _userId?: string,
   ) {
     console.log(`[GenerationsService] Starting text generation for ${generationType}`);
     const { systemPrompt, userPrompt } = this.buildGigachatPrompt(generationType, inputParams);
@@ -1521,10 +1569,15 @@ ${subjectHints}
    * Получить URL webhook для типа генерации
    */
   private getWebhookUrl(generationType: GenerationType): string {
-    const baseUrl = this.configService.get<string>(
+    let baseUrl = this.configService.get<string>(
       'N8N_WEBHOOK_URL',
       'https://prrvauto.ru/webhook',
     );
+
+    // Удаляем завершающий слэш, если он есть, чтобы избежать двойного слэша //
+    if (baseUrl.endsWith('/')) {
+      baseUrl = baseUrl.slice(0, -1);
+    }
 
     const webhookMap: Record<GenerationType, string> = {
       worksheet: `${baseUrl}/chatgpt-hook`,
@@ -1542,12 +1595,12 @@ ${subjectHints}
       presentation: `${baseUrl}/generate-presentation`,
       transcription: `${baseUrl}/transcribe-video`,
       game_generation: `${baseUrl}/chatgpt-hook`,
-      lesson_preparation: `${baseUrl}/chatgpt-hook`,
+      lesson_preparation: '',
       unpacking: `${baseUrl}/chatgpt-hook`,
       'sales-advisor': `${baseUrl}/chatgpt-hook`,
       sales_advisor: `${baseUrl}/chatgpt-hook`,
       assistant: `${baseUrl}/chatgpt-hook`,
-      lessonPreparation: `${baseUrl}/chatgpt-hook`,
+      lessonPreparation: '',
       'video-analysis': `${baseUrl}/chatgpt-hook`,
       video_analysis: `${baseUrl}/chatgpt-hook`,
       'exam-variant': `${baseUrl}/chatgpt-hook`,

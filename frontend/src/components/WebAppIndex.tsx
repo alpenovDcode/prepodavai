@@ -499,7 +499,7 @@ export default function WebAppIndex({ embedded = false }: WebAppIndexProps) {
 
       // Отправляем запрос на генерацию через useGenerations hook
       // Это автоматически отправит запрос и начнет polling
-      const status = await generateAndWait({ type, params }, (partialResult) => {
+      const status = await generateAndWait({ type, params }, (partialResult: any) => {
         // Обновляем результат в реальном времени (для lessonPreparation)
         if (type === 'lessonPreparation') {
           setGenerationResult(partialResult)
@@ -1117,7 +1117,7 @@ function FullHtmlPreview({ html }: { html: string }) {
         srcDoc={finalHtml}
         className="w-full border-0"
         style={{ minHeight: '600px' }}
-        sandbox="allow-scripts allow-same-origin allow-popups"
+        sandbox="allow-scripts allow-same-origin allow-popups allow-modals"
       />
     </div>
   )

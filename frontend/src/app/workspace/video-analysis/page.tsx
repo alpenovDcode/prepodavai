@@ -265,7 +265,7 @@ export default function VideoAnalysisGenerator() {
                                 ref={iframeRef}
                                 srcDoc={localContent}
                                 className={`w-full h-full border-0 bg-white`}
-                                sandbox="allow-same-origin allow-scripts allow-modals"
+                                sandbox="allow-same-origin allow-scripts allow-popups allow-modals"
                                 title="Результат генерации"
                             />
                         )}

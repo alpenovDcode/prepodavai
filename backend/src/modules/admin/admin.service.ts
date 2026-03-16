@@ -47,75 +47,6 @@ export class AdminService {
     };
   }
 
-  async createUser(data: any) {
-    const { username, password, firstName, lastName, phone } = data;
-
-    if (!username) {
-      throw new BadRequestException('Username is required');
-    }
-
-    const existing = await this.prisma.appUser.findFirst({
-      where: { username }
-    });
-
-    if (existing) {
-      throw new BadRequestException('User with this username already exists');
-    }
-
-    let passwordHash = null;
-    if (password) {
-      const bcrypt = await import('bcrypt');
-      passwordHash = await bcrypt.hash(password, 10);
-    }
-
-    const apiKey = crypto.randomBytes(16).toString('hex');
-    const userHash = username;
-
-    const user = await this.prisma.appUser.create({
-      data: {
-        username,
-        userHash,
-        passwordHash,
-        firstName: firstName || '',
-        lastName: lastName || '',
-        phone: phone || null,
-        apiKey,
-        source: 'admin',
-      }
-    });
-
-    // Create starter subscription
-    const starterPlan = await this.prisma.subscriptionPlan.findUnique({
-      where: { planKey: 'starter' },
-    });
-
-    if (starterPlan) {
-      const now = new Date();
-      const endDate = new Date(now);
-      endDate.setMonth(endDate.getMonth() + 1);
-
-      await this.prisma.userSubscription.create({
-        data: {
-          userId: user.id,
-          planId: starterPlan.id,
-          status: 'active',
-          creditsBalance: starterPlan.monthlyCredits,
-          extraCredits: 0,
-          creditsUsed: 0,
-          overageCreditsUsed: 0,
-          startDate: now,
-          endDate,
-          autoRenew: true,
-        }
-      });
-    }
-
-    return {
-      success: true,
-      user,
-      message: 'User created successfully',
-    };
-  }
 
   async getUser(id: string) {
     const user = await this.prisma.appUser.findUnique({
@@ -180,7 +111,7 @@ export class AdminService {
     // Хешируем пароль, если передан
     let passwordHash = null;
     if (password) {
-      const bcrypt = require('bcryptjs');
+      const bcrypt = await import('bcryptjs');
       passwordHash = await bcrypt.hash(password, 10);
     }
 

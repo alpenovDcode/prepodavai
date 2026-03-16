@@ -377,6 +377,7 @@ export class SubscriptionsService {
     operationType: OperationType,
     generationRequestId?: string,
     description?: string,
+    customCost?: number,
   ) {
     // Используем транзакцию для атомарности операций
     return await this.prisma.$transaction(async (tx) => {
@@ -391,19 +392,22 @@ export class SubscriptionsService {
       }
 
       const plan = subscription.plan;
-      const costRecord = await tx.creditCost.findUnique({
-        where: { operationType },
-      });
+      let cost = customCost;
 
-      if (!costRecord || !costRecord.isActive) {
-        return {
-          success: false,
-          transaction: null,
-          message: `Операция ${operationType} не доступна`,
-        };
+      if (cost === undefined) {
+        const costRecord = await tx.creditCost.findUnique({
+          where: { operationType },
+        });
+
+        if (!costRecord || !costRecord.isActive) {
+          return {
+            success: false,
+            transaction: null,
+            message: `Операция ${operationType} не доступна`,
+          };
+        }
+        cost = costRecord.creditCost;
       }
-
-      const cost = costRecord.creditCost;
       const currentBalance = subscription.creditsBalance + subscription.extraCredits;
 
       // Проверяем доступность кредитов с учетом овереджа
