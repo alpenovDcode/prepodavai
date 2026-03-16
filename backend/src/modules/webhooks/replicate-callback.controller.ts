@@ -93,7 +93,7 @@ export class ReplicateCallbackController {
                     const outputData = {
                         provider: 'Replicate (Claude)',
                         mode: 'chat',
-                        model: metadata.model || 'anthropic/claude-3.7-sonnet',
+                        model: metadata.model || 'google/gemini-3-flash',
                         content: processedContent,
                         predictionId: id,
                         completedAt: new Date().toISOString(),

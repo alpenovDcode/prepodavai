@@ -151,7 +151,7 @@ Return ONLY valid JSON. No markdown wrappers (do not use \`\`\`json), no preambl
   ]
 }
 `;
-        const prediction = await this.runReplicatePrediction('anthropic/claude-3.7-sonnet', {
+        const prediction = await this.runReplicatePrediction('google/gemini-3-flash', {
             prompt: prompt,
             max_tokens: 2000,
             system_prompt: "You are a helpful assistant that outputs only JSON.",

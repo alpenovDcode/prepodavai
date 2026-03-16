@@ -106,7 +106,7 @@ describe('LessonPreparationProcessor', () => {
 
             // Setup axios mocks
             mockedAxios.post.mockImplementation((url) => {
-                if (url.includes('anthropic/claude-3.7-sonnet')) {
+                if (url.includes('google/gemini-3-flash')) {
                     return Promise.resolve(mockTextResponse);
                 }
                 if (url.includes('google/nano-banana-pro')) {

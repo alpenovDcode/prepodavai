@@ -138,7 +138,7 @@ export class SalesAdvisorProcessor extends WorkerHost {
 
             // For single image, use simple format
             if (imageUrls.length === 1) {
-                return this.runReplicatePrediction('anthropic/claude-3.7-sonnet', {
+                return this.runReplicatePrediction('google/gemini-3-flash', {
                     prompt: userPrompt,
                     system_prompt: systemPrompt,
                     max_tokens: 3000,
@@ -165,7 +165,7 @@ export class SalesAdvisorProcessor extends WorkerHost {
 
 Будь кратким, это промежуточный анализ.`;
 
-                const analysis = await this.runReplicatePrediction('anthropic/claude-3.7-sonnet', {
+                const analysis = await this.runReplicatePrediction('google/gemini-3-flash', {
                     prompt: imagePrompt,
                     system_prompt: 'Ты эксперт по анализу диалогов продаж. Анализируй скриншоты переписки.',
                     max_tokens: 1000,
@@ -189,7 +189,7 @@ ${combinedContext}
 
 ${userPrompt}`;
 
-            const finalAnalysis = await this.runReplicatePrediction('anthropic/claude-3.7-sonnet', {
+            const finalAnalysis = await this.runReplicatePrediction('google/gemini-3-flash', {
                 prompt: finalPrompt,
                 system_prompt: systemPrompt,
                 max_tokens: 3000,
