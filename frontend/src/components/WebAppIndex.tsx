@@ -78,7 +78,7 @@ export default function WebAppIndex({ embedded = false }: WebAppIndexProps) {
         }
 
         // Fallback: получаем userHash через API подписки
-        if (!userHash) {
+        if (!userHash && typeof window !== 'undefined' && localStorage.getItem('prepodavai_token')) {
           try {
             const response = await apiClient.get('/subscriptions/me')
             if (response.data.success && response.data.userHash) {

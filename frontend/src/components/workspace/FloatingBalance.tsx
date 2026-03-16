@@ -1,12 +1,26 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { Sparkles, Loader2 } from 'lucide-react'
 import { useSubscription } from '@/lib/hooks/useSubscription'
+import { usePathname } from 'next/navigation'
 
 export default function FloatingBalance() {
-    const { totalCredits, loading, error } = useSubscription()
+    const [isAuthenticated, setIsAuthenticated] = useState(false)
+    const pathname = usePathname()
 
-    if (error) return null
+    useEffect(() => {
+        const checkAuth = () => {
+            setIsAuthenticated(!!localStorage.getItem('prepodavai_token'))
+        }
+        checkAuth()
+        window.addEventListener('storage', checkAuth)
+        return () => window.removeEventListener('storage', checkAuth)
+    }, [pathname])
+
+    const { totalCredits, loading, error } = useSubscription({ enabled: isAuthenticated })
+
+    if (!isAuthenticated || error) return null
 
     const getLabel = (value: number) => {
         if (value === 0) return 'токенов'
