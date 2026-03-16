@@ -82,14 +82,29 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                     </div>
 
                     {/* User Profile */}
-                    <div className="mt-4 flex items-center gap-3 p-2 rounded-xl hover:bg-gray-50 cursor-pointer transition">
-                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white font-semibold">
-                            JD
+                    <div className="mt-4 flex items-center justify-between p-2 rounded-xl hover:bg-gray-50 transition border border-transparent hover:border-gray-100">
+                        <div className="flex items-center gap-3 min-w-0 cursor-pointer">
+                            <div className="w-10 h-10 shrink-0 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white font-semibold">
+                                JD
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <p className="text-sm font-semibold text-gray-900 truncate">Jane Doe</p>
+                                <p className="text-xs text-gray-500 truncate">jane.doe@email.com</p>
+                            </div>
                         </div>
-                        <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-gray-900 truncate">Jane Doe</p>
-                            <p className="text-xs text-gray-500 truncate">jane.doe@email.com</p>
-                        </div>
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                localStorage.removeItem('prepodavai_token');
+                                localStorage.removeItem('prepodavai_authenticated');
+                                localStorage.removeItem('prepodavai_user');
+                                window.location.href = '/';
+                            }}
+                            className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                            title="Выйти"
+                        >
+                            <i className="fas fa-sign-out-alt"></i>
+                        </button>
                     </div>
                 </div>
             </aside>
