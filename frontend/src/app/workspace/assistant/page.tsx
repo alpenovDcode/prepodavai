@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 import { MessageSquare, Send, Loader2, Bot, User, Maximize2, Sparkles } from 'lucide-react'
 import { useGenerations } from '@/lib/hooks/useGenerations'
 import GenerationCostBadge from '@/components/workspace/GenerationCostBadge'
+import DOMPurify from 'dompurify'
 
 interface ChatMessage {
     id: string;
@@ -198,7 +199,7 @@ export default function AssistantGenerator() {
                                             : 'bg-white border border-gray-100 shadow-sm text-gray-800 rounded-tl-sm'
                                         }`}>
                                         <div className="prose text-gray-900 prose-p:text-gray-900 prose-headings:text-gray-900 prose-li:text-gray-900 text-gray-900 prose-p:text-gray-900 prose-headings:text-gray-900 prose-li:text-gray-900 prose-sm max-w-none prose-p:leading-relaxed"
-                                            dangerouslySetInnerHTML={{ __html: msg.content.replace(/\n/g, '<br/>') }}
+                                            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(msg.content.replace(/\n/g, '<br/>')) }}
                                         />
                                     </div>
                                 </div>

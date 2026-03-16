@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ChevronLeft, ChevronRight, Maximize, Minimize } from 'lucide-react';
-
-// --- Types (Copied from PresentationEditor to ensure compatibility) ---
+import DOMPurify from 'dompurify';
 
 interface SlideElement {
     id: string;
@@ -111,7 +110,7 @@ const ReadOnlyText = ({ content }: { content: string }) => {
         <div
             ref={viewRef}
             className="w-full h-full p-2 cursor-default"
-            dangerouslySetInnerHTML={{ __html: renderMath(content) }}
+            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(renderMath(content)) }}
             style={{ minHeight: '100%' }}
         />
     );

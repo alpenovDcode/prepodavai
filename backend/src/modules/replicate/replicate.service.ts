@@ -7,7 +7,7 @@ export class ReplicateService {
     private readonly logger = new Logger(ReplicateService.name);
     private readonly apiToken: string;
     private readonly http: AxiosInstance;
-    private readonly defaultModel = 'openai/gpt-5-nano';
+    private readonly defaultModel = 'google/gemini-3-flash';
 
     constructor(private readonly configService: ConfigService) {
         this.apiToken = this.configService.get<string>('REPLICATE_API_TOKEN');
@@ -144,7 +144,7 @@ export class ReplicateService {
         this.logger.debug(`Creating completion with prompt: ${prompt.substring(0, 50)}...`);
 
         try {
-            // Construct the input for openai/gpt-5-nano
+            // Construct the input for google/gemini-3-flash
             // Note: The actual input schema depends on the specific model version on Replicate.
             // Assuming standard text generation input.
             const input = {

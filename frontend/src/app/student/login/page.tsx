@@ -28,7 +28,7 @@ function StudentLoginForm() {
             const { token, user } = response.data
 
             // Store token
-            localStorage.setItem('prepodavai_token', token)
+            localStorage.setItem('prepodavai_authenticated', 'true')
             localStorage.setItem('user', JSON.stringify(user))
 
             // Redirect to dashboard

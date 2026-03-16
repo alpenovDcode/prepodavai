@@ -68,7 +68,7 @@ export default function WebAppIndex({ embedded = false }: WebAppIndexProps) {
                 setUserHash(response.data.userHash)
                 setUserSource('telegram')
                 if (response.data.token) {
-                  localStorage.setItem('prepodavai_token', response.data.token)
+                  localStorage.setItem('prepodavai_authenticated', 'true')
                 }
               }
             } catch (e) {
@@ -78,7 +78,7 @@ export default function WebAppIndex({ embedded = false }: WebAppIndexProps) {
         }
 
         // Fallback: получаем userHash через API подписки
-        if (!userHash && typeof window !== 'undefined' && localStorage.getItem('prepodavai_token')) {
+        if (!userHash && typeof window !== 'undefined' && localStorage.getItem('prepodavai_authenticated')) {
           try {
             const response = await apiClient.get('/subscriptions/me')
             if (response.data.success && response.data.userHash) {
@@ -818,7 +818,7 @@ export default function WebAppIndex({ embedded = false }: WebAppIndexProps) {
                     <div
                       ref={resultHtmlRef}
                       className="formatted-content result-content prose prose-sm max-w-none text-black mathjax-wrapper"
-                      dangerouslySetInnerHTML={{ __html: renderMath(cleanedTextResult) }}
+                      dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(renderMath(cleanedTextResult)) }}
                     />
                   )
                 )}

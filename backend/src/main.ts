@@ -24,6 +24,7 @@ async function bootstrap() {
   // Ограничение размера body запросов (защита от DoS)
   app.use(require('express').json({ limit: '50mb' }));
   app.use(require('express').urlencoded({ limit: '50mb', extended: true }));
+  app.use(require('cookie-parser')());
 
   // Serve static files from uploads directory (under /api prefix to match Nginx proxying)
   app.use('/api/uploads', require('express').static(require('path').join(process.cwd(), 'uploads')));

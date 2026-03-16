@@ -26,13 +26,15 @@ export interface GenerationStatus {
 
 export function useGenerations() {
   const queryClient = useQueryClient()
-  const [isGenerating, setIsGenerating] = useState(false)
+  const [isGeneratingRequest, setIsGeneratingRequest] = useState(false)
+  const [isPolling, setIsPolling] = useState(false)
+  const isGenerating = isGeneratingRequest || isPolling
   const [error, setError] = useState<string | null>(null)
   const [activeGenerationId, setActiveGenerationId] = useState<string | null>(null)
   const [inputParams, setInputParams] = useState<Record<string, any>>({})
 
   const generate = useCallback(async (request: GenerationRequest): Promise<string | null> => {
-    setIsGenerating(true)
+    setIsGeneratingRequest(true)
     setError(null)
     setInputParams(request.params)
 
@@ -102,11 +104,12 @@ export function useGenerations() {
       setError(finalError)
       throw new Error(finalError) // Throw so generateAndWait can catch it explicitly
     } finally {
-      setIsGenerating(false)
+      setIsGeneratingRequest(false)
     }
   }, [])
 
   const pollStatus = useCallback(async (requestId: string, maxAttempts: number = 300, onProgress?: (result: any) => void): Promise<GenerationStatus> => {
+    setIsPolling(true)
     let attempts = 0
 
     return new Promise((resolve, reject) => {
@@ -141,6 +144,7 @@ export function useGenerations() {
                 updatedAt: new Date().toISOString()
               })
             }
+            setIsPolling(false)
             resolve(status)
           } else if (status.status === 'failed') {
             // Обновляем кэш
@@ -153,13 +157,16 @@ export function useGenerations() {
                 updatedAt: new Date().toISOString()
               })
             }
+            setIsPolling(false)
             reject(new Error(status.error || 'Ошибка генерации'))
           } else if (attempts < maxAttempts) {
             setTimeout(check, 1000)
           } else {
+            setIsPolling(false)
             reject(new Error('Превышено время ожидания'))
           }
         } catch (err: any) {
+          setIsPolling(false)
           reject(err)
         }
       }
@@ -168,7 +175,7 @@ export function useGenerations() {
   }, [])
 
   const generateBundle = useCallback(async (types: string[], params: Record<string, any>) => {
-    setIsGenerating(true)
+    setIsGeneratingRequest(true)
     setError(null)
 
     try {
@@ -195,7 +202,7 @@ export function useGenerations() {
       setError(errorMessage)
       throw new Error(errorMessage)
     } finally {
-      setIsGenerating(false)
+      setIsGeneratingRequest(false)
     }
   }, [queryClient])
 

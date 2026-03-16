@@ -3,6 +3,7 @@ import pptxgen from 'pptxgenjs';
 import { Save, Plus, Trash2, Download, Layout, Type, Image as ImageIcon, Loader2, Bold, Italic, Palette, Move, Maximize, MousePointer2, Upload, Table as TableIcon, Square, Circle, Minus, ArrowRight, Pi } from 'lucide-react';
 import { LOGO_BASE64 } from '@/constants/branding';
 import { apiClient } from '@/lib/api/client';
+import DOMPurify from 'dompurify';
 
 const FORMULA_PRESETS = [
     { name: 'Квадратное уравнение', latex: 'x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}' },
@@ -293,7 +294,7 @@ const FormulaInsertModal = ({ isOpen, onClose, onInsert }: { isOpen: boolean; on
                                     className="flex flex-col items-center p-4 border rounded hover:bg-blue-50 hover:border-blue-300 transition-colors text-center group max-w-full"
                                 >
                                     <span className="text-xs text-gray-500 mb-2 group-hover:text-blue-600">{preset.name}</span>
-                                    <div className="text-black w-full overflow-x-auto" dangerouslySetInnerHTML={{ __html: renderMath(`\\[${preset.latex}\\]`) }} />
+                                    <div className="text-black w-full overflow-x-auto" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(renderMath(`\\[${preset.latex}\\]`)) }} />
                                 </button>
                             ))}
                         </div>

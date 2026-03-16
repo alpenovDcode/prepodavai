@@ -135,4 +135,22 @@ export class UsersService {
 
     return user;
   }
+
+  /**
+   * Обновить профиль пользователя
+   */
+  async updateProfile(userId: string, data: any) {
+    return this.prisma.appUser.update({
+      where: { id: userId },
+      data: {
+        firstName: data.firstName,
+        lastName: data.lastName,
+        email: data.email,
+        bio: data.bio,
+        notifyNewCourse: data.notifyNewCourse,
+        notifyStudentProgress: data.notifyStudentProgress,
+        notifyWeeklyReport: data.notifyWeeklyReport,
+      },
+    });
+  }
 }

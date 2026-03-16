@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { apiClient } from '@/lib/api/client'
+import DOMPurify from 'dompurify'
 
 interface ChatMessage {
     role: 'user' | 'assistant'
@@ -172,7 +173,7 @@ export default function AiAssistantChat({ onClose }: AiAssistantChatProps) {
                             {msg.role === 'assistant' ? (
                                 <div
                                     className="text-sm formatted-markdown"
-                                    dangerouslySetInnerHTML={{ __html: formatMarkdown(msg.content) }}
+                                    dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(formatMarkdown(msg.content)) }}
                                 />
                             ) : (
                                 <p className="text-sm whitespace-pre-wrap break-words">{msg.content}</p>

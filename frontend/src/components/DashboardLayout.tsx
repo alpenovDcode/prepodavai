@@ -2,6 +2,7 @@
 
 import { useState, ReactNode } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { LOGO_BASE64 } from '@/constants/branding'
 
 interface DashboardLayoutProps {
@@ -55,17 +56,17 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 {/* Navigation */}
                 <nav className="py-4">
                     {navItems.map((item) => (
-                        <div
+                        <Link
                             key={item.id}
-                            onClick={() => {
-                                router.push(item.path)
-                                setSidebarOpen(false)
-                            }}
-                            className={`nav-item ${isActive(item.path) ? 'active' : ''}`}
+                            href={item.path}
+                            onClick={() => setSidebarOpen(false)}
+                            className={`nav-item ${isActive(item.path) ? 'active' : ''} block w-full text-left`}
                         >
-                            <i className={`${item.icon} w-5 text-center`}></i>
-                            <span>{item.label}</span>
-                        </div>
+                            <div className="flex items-center gap-3">
+                                <i className={`${item.icon} w-5 text-center`}></i>
+                                <span>{item.label}</span>
+                            </div>
+                        </Link>
                     ))}
                 </nav>
 
@@ -95,7 +96,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                         <button
                             onClick={(e) => {
                                 e.stopPropagation();
-                                localStorage.removeItem('prepodavai_token');
+                                localStorage.removeItem('prepodavai_authenticated')
                                 localStorage.removeItem('prepodavai_authenticated');
                                 localStorage.removeItem('prepodavai_user');
                                 window.location.href = '/';

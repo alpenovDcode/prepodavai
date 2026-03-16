@@ -30,7 +30,7 @@ export default function AdminLayout({
             return
         }
 
-        const token = localStorage.getItem('prepodavai_token')
+        const token = localStorage.getItem('prepodavai_authenticated')
         if (token) {
             setIsAuthenticated(true)
         } else {
@@ -39,7 +39,7 @@ export default function AdminLayout({
     }, [pathname, router])
 
     const handleLogout = () => {
-        localStorage.removeItem('prepodavai_token')
+        localStorage.removeItem('prepodavai_authenticated')
         localStorage.removeItem('prepodavai_authenticated')
         setIsAuthenticated(false)
         router.push('/admin/login')

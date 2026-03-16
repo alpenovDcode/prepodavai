@@ -11,7 +11,7 @@ export default function FloatingBalance() {
 
     useEffect(() => {
         const checkAuth = () => {
-            setIsAuthenticated(!!localStorage.getItem('prepodavai_token'))
+            setIsAuthenticated(!!localStorage.getItem('prepodavai_authenticated'))
         }
         checkAuth()
         window.addEventListener('storage', checkAuth)

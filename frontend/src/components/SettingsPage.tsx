@@ -1,23 +1,98 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { apiClient } from '@/lib/api/client'
+import { CheckCircle, AlertCircle, Loader2 } from 'lucide-react'
 
 export default function SettingsPage() {
     const [profile, setProfile] = useState({
-        fullName: 'Jane Doe',
-        email: 'jane.doe@email.com',
-        bio: 'Middle school science teacher with a passion for interactive learning.',
+        fullName: '',
+        email: '',
+        bio: '',
     })
 
     const [notifications, setNotifications] = useState({
-        newCourseContent: true,
-        studentProgress: false,
-        weeklyReport: true,
+        notifyNewCourse: true,
+        notifyStudentProgress: false,
+        notifyWeeklyReport: true,
     })
 
-    const handleSaveProfile = () => {
-        console.log('Saving profile:', profile)
-        // TODO: Implement save logic
+    const [loading, setLoading] = useState(true)
+    const [saving, setSaving] = useState(false)
+    const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
+
+    useEffect(() => {
+        const fetchProfile = async () => {
+            try {
+                const response = await apiClient.get('/users/me')
+                if (response.data.success && response.data.user) {
+                    const u = response.data.user
+                    setProfile({
+                        fullName: `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.username || '',
+                        email: u.email || '',
+                        bio: u.bio || '',
+                    })
+                    setNotifications({
+                        notifyNewCourse: u.notifyNewCourse ?? true,
+                        notifyStudentProgress: u.notifyStudentProgress ?? false,
+                        notifyWeeklyReport: u.notifyWeeklyReport ?? true,
+                    })
+                }
+            } catch (error) {
+                console.error('Failed to load profile settings:', error)
+                setStatusMessage({ type: 'error', text: 'Ошибка при загрузке профиля' })
+            } finally {
+                setLoading(false)
+            }
+        }
+        fetchProfile()
+    }, [])
+
+    const handleSaveProfile = async () => {
+        setSaving(true)
+        setStatusMessage(null)
+        try {
+            const names = profile.fullName.trim().split(' ')
+            const firstName = names[0] || ''
+            const lastName = names.slice(1).join(' ') || ''
+            
+            await apiClient.put('/users/me', {
+                firstName,
+                lastName,
+                email: profile.email,
+                bio: profile.bio,
+                notifyNewCourse: notifications.notifyNewCourse,
+                notifyStudentProgress: notifications.notifyStudentProgress,
+                notifyWeeklyReport: notifications.notifyWeeklyReport,
+            })
+            
+            // Re-sync local storage name if needed somewhere else
+            const storedUserStr = localStorage.getItem('user')
+            if (storedUserStr) {
+                try {
+                    const storedUser = JSON.parse(storedUserStr)
+                    storedUser.firstName = firstName
+                    storedUser.lastName = lastName
+                    localStorage.setItem('user', JSON.stringify(storedUser))
+                } catch (e) {}
+            }
+
+            setStatusMessage({ type: 'success', text: 'Изменения успешно сохранены' })
+            setTimeout(() => setStatusMessage(null), 3000)
+        } catch (error) {
+            console.error('Failed to save profile:', error)
+            setStatusMessage({ type: 'error', text: 'Не удалось сохранить профиль' })
+        } finally {
+            setSaving(false)
+        }
+    }
+
+    if (loading) {
+        return (
+            <div className="flex justify-center items-center min-h-[400px]">
+                <Loader2 className="w-8 h-8 text-primary-500 animate-spin" />
+            </div>
+        )
     }
 
     return (
@@ -39,9 +114,6 @@ export default function SettingsPage() {
                     <div>
                         <button className="px-4 py-2 bg-primary-600 text-white rounded-xl text-sm font-semibold hover:bg-primary-700 transition shadow-md hover:shadow-lg mb-2">
                             Изменить аватар
-                        </button>
-                        <button className="block text-sm text-red-500 hover:text-red-600 font-medium">
-                            Удалить
                         </button>
                     </div>
                 </div>
@@ -84,12 +156,22 @@ export default function SettingsPage() {
                     />
                 </div>
 
-                <button
-                    onClick={handleSaveProfile}
-                    className="px-6 py-3 bg-primary-600 text-white rounded-xl font-semibold hover:bg-primary-700 transition"
-                >
-                    Сохранить изменения
-                </button>
+                <div className="flex items-center gap-4">
+                    <button
+                        onClick={handleSaveProfile}
+                        disabled={saving}
+                        className="px-6 py-3 bg-primary-600 text-white rounded-xl font-semibold hover:bg-primary-700 transition flex items-center gap-2 disabled:opacity-50"
+                    >
+                        {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : null}
+                        {saving ? 'Сохранение...' : 'Сохранить изменения'}
+                    </button>
+                    {statusMessage && (
+                        <div className={`flex items-center gap-2 text-sm font-medium ${statusMessage.type === 'success' ? 'text-green-600' : 'text-red-600'}`}>
+                            {statusMessage.type === 'success' ? <CheckCircle size={18} /> : <AlertCircle size={18} />}
+                            {statusMessage.text}
+                        </div>
+                    )}
+                </div>
             </div>
 
             {/* Notifications Section */}
@@ -106,9 +188,9 @@ export default function SettingsPage() {
                         <label className="relative inline-flex items-center cursor-pointer">
                             <input
                                 type="checkbox"
-                                checked={notifications.newCourseContent}
+                                checked={notifications.notifyNewCourse}
                                 onChange={(e) =>
-                                    setNotifications({ ...notifications, newCourseContent: e.target.checked })
+                                    setNotifications({ ...notifications, notifyNewCourse: e.target.checked })
                                 }
                                 className="sr-only peer"
                             />
@@ -125,9 +207,9 @@ export default function SettingsPage() {
                         <label className="relative inline-flex items-center cursor-pointer">
                             <input
                                 type="checkbox"
-                                checked={notifications.studentProgress}
+                                checked={notifications.notifyStudentProgress}
                                 onChange={(e) =>
-                                    setNotifications({ ...notifications, studentProgress: e.target.checked })
+                                    setNotifications({ ...notifications, notifyStudentProgress: e.target.checked })
                                 }
                                 className="sr-only peer"
                             />
@@ -144,9 +226,9 @@ export default function SettingsPage() {
                         <label className="relative inline-flex items-center cursor-pointer">
                             <input
                                 type="checkbox"
-                                checked={notifications.weeklyReport}
+                                checked={notifications.notifyWeeklyReport}
                                 onChange={(e) =>
-                                    setNotifications({ ...notifications, weeklyReport: e.target.checked })
+                                    setNotifications({ ...notifications, notifyWeeklyReport: e.target.checked })
                                 }
                                 className="sr-only peer"
                             />

@@ -42,7 +42,7 @@ export default function AdminPage() {
       setError(errorMessage)
 
       if (error.response?.status === 401 || error.response?.status === 403) {
-        localStorage.removeItem('prepodavai_token')
+        localStorage.removeItem('prepodavai_authenticated')
         localStorage.removeItem('prepodavai_authenticated')
         setIsAuthenticated(false)
         setError('Требуется авторизация. Пожалуйста, войдите в систему.')
@@ -98,7 +98,7 @@ export default function AdminPage() {
       setError(errorMessage)
 
       if (error.response?.status === 401 || error.response?.status === 403) {
-        localStorage.removeItem('prepodavai_token')
+        localStorage.removeItem('prepodavai_authenticated')
         localStorage.removeItem('prepodavai_authenticated')
         setIsAuthenticated(false)
         setError('Требуется авторизация. Пожалуйста, войдите в систему.')
@@ -112,7 +112,7 @@ export default function AdminPage() {
 
   useEffect(() => {
     // Проверяем авторизацию
-    const token = localStorage.getItem('prepodavai_token')
+    const token = localStorage.getItem('prepodavai_authenticated')
     if (token) {
       setIsAuthenticated(true)
       loadStats()
@@ -141,7 +141,7 @@ export default function AdminPage() {
       })
 
       if (response.data.success && response.data.token) {
-        localStorage.setItem('prepodavai_token', response.data.token)
+        localStorage.setItem('prepodavai_authenticated', 'true')
         localStorage.setItem('prepodavai_authenticated', 'true')
         setIsAuthenticated(true)
         setLoading(true)
@@ -216,7 +216,7 @@ export default function AdminPage() {
       console.log('💾 Saving:', { endpoint, dataToSave })
 
       // Проверяем доступность backend
-      const token = localStorage.getItem('prepodavai_token')
+      const token = localStorage.getItem('prepodavai_authenticated')
       if (!token) {
         throw new Error('Требуется авторизация. Пожалуйста, войдите в систему.')
       }
@@ -433,7 +433,7 @@ export default function AdminPage() {
           </div>
           <button
             onClick={() => {
-              localStorage.removeItem('prepodavai_token')
+              localStorage.removeItem('prepodavai_authenticated')
               localStorage.removeItem('prepodavai_authenticated')
               setIsAuthenticated(false)
             }}

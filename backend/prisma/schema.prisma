@@ -23,6 +23,12 @@ model AppUser {
   firstName             String?
   lastName              String?
   phone                 String?
+  email                 String?
+  bio                   String?
+  avatar                String?
+  notifyNewCourse       Boolean   @default(true)
+  notifyStudentProgress Boolean   @default(false)
+  notifyWeeklyReport    Boolean   @default(true)
   phoneVerified         Boolean   @default(false)
   lastAccessAt          DateTime?
   lastTelegramAppAccess DateTime?

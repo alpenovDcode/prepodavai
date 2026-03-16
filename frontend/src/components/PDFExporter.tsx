@@ -4,6 +4,7 @@ import jsPDF from 'jspdf';
 import { Slide, SlideElement } from '@/types/presentation';
 import { renderMath } from '@/lib/utils/math';
 import { LOGO_BASE64 } from '@/constants/branding';
+import DOMPurify from 'dompurify';
 
 interface PDFExporterProps {
     slides: Slide[];
@@ -124,7 +125,7 @@ const PDFExporter: React.FC<PDFExporterProps> = ({ slides, theme, onComplete }) 
                             {el.type === 'text' && (
                                 <div
                                     className="w-full h-full"
-                                    dangerouslySetInnerHTML={{ __html: renderMath(el.content) }}
+                                    dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(renderMath(el.content)) }}
                                 />
                             )}
                             {el.type === 'image' && (

@@ -110,7 +110,7 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
           localStorage.setItem('prepodavai_user', JSON.stringify(userData))
           localStorage.setItem('prepodavai_authenticated', 'true')
           if (registerResponse.data.token) {
-            localStorage.setItem('prepodavai_token', registerResponse.data.token)
+            localStorage.setItem('prepodavai_authenticated', 'true')
           }
           
           onSuccess()
@@ -151,7 +151,7 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
         localStorage.setItem('prepodavai_user', JSON.stringify(userData))
         localStorage.setItem('prepodavai_authenticated', 'true')
         if (loginResponse.data.token) {
-          localStorage.setItem('prepodavai_token', loginResponse.data.token)
+          localStorage.setItem('prepodavai_authenticated', 'true')
         }
 
         onSuccess()
@@ -190,7 +190,7 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
         localStorage.setItem('prepodavai_user', JSON.stringify(userData))
         localStorage.setItem('prepodavai_authenticated', 'true')
         if (loginResponse.data.token) {
-          localStorage.setItem('prepodavai_token', loginResponse.data.token)
+          localStorage.setItem('prepodavai_authenticated', 'true')
         }
 
         onSuccess()

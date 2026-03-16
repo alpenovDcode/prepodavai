@@ -7,6 +7,7 @@ import PresentationEditor, { PresentationEditorRef } from './PresentationEditor'
 import PresentationPlayer from './PresentationPlayer'
 import { Save, Download, ChevronLeft, ChevronRight, ExternalLink, ArrowLeft } from 'lucide-react'
 import Image from 'next/image'
+import DOMPurify from 'dompurify'
 
 interface MaterialViewerProps {
     lessonId?: string
@@ -453,7 +454,7 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
                         <div
                             ref={contentRef}
                             className="prose max-w-4xl mx-auto worksheet-content text-black"
-                            dangerouslySetInnerHTML={{ __html: content || '' }}
+                            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(content || '') }}
                         />
                     </div>
                 )}
