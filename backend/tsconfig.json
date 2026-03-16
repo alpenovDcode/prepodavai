@@ -22,7 +22,9 @@
       "@/common/*": ["src/common/*"],
       "@/modules/*": ["src/modules/*"],
       "@/config/*": ["src/config/*"]
-    }
-  }
+    },
+    "rootDir": "src"
+  },
+  "include": ["src/**/*.ts"]
 }
 
