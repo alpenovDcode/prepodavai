@@ -1,6 +1,5 @@
 'use client'
 
-import { useEffect } from 'react'
 import useSWR from 'swr'
 import { apiClient } from '@/lib/api/client'
 import { Users, Workflow, CreditCard, Activity } from 'lucide-react'

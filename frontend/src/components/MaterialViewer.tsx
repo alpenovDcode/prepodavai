@@ -5,7 +5,8 @@ import { apiClient } from '@/lib/api/client'
 import { useRouter } from 'next/navigation'
 import PresentationEditor, { PresentationEditorRef } from './PresentationEditor'
 import PresentationPlayer from './PresentationPlayer'
-import { Save, Download, ChevronLeft, ChevronRight, ExternalLink } from 'lucide-react'
+import { Save, Download, ChevronLeft, ChevronRight, ExternalLink, ArrowLeft } from 'lucide-react'
+import Image from 'next/image'
 
 interface MaterialViewerProps {
     lessonId?: string
@@ -352,7 +353,7 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
             <div className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between shadow-sm z-10">
                 <div className="flex items-center gap-4">
                     <button onClick={() => router.back()} className="text-gray-500 hover:text-gray-700 transition">
-                        <i className="fas fa-arrow-left text-xl"></i>
+                        <ArrowLeft className="text-xl" />
                     </button>
                     <div>
                         <h1 className="text-lg font-bold text-gray-900">{lessonTitle}</h1>
@@ -438,8 +439,14 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
 
                 ) : isImageContent ? (
                     // Image viewer
-                    <div className="w-full h-full flex items-center justify-center bg-gray-900 p-8">
-                        <img src={content!} alt="AI generated" className="max-w-full max-h-full object-contain rounded-lg shadow-2xl" />
+                    <div className="w-full h-full flex items-center justify-center bg-gray-900 p-8 relative">
+                        <Image 
+                            src={content!} 
+                            alt="AI generated" 
+                            fill
+                            className="object-contain rounded-lg shadow-2xl p-8"
+                            unoptimized
+                        />
                     </div>
                 ) : (
                     <div className="w-full h-full bg-white overflow-auto p-8">

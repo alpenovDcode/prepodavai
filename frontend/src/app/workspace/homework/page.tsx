@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { apiClient } from '@/lib/api/client'
+import Image from 'next/image'
 import { 
     Users, 
     ChevronRight, 
@@ -370,11 +371,13 @@ export default function HomeworkReviewPage() {
                                             </p>
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                                 {selectedStudentStatus.submission.attachments.map((file: any, index: number) => (
-                                                    <div key={index} className="rounded-xl overflow-hidden border border-gray-200 bg-gray-50 flex items-center justify-center p-2">
-                                                        <img 
+                                                    <div key={index} className="rounded-xl overflow-hidden border border-gray-200 bg-gray-50 flex items-center justify-center p-2 relative min-h-[200px]">
+                                                        <Image 
                                                             src={file.url} 
                                                             alt={`Прикрепление ${index + 1}`} 
-                                                            className="max-w-full max-h-96 object-contain rounded-lg" 
+                                                            fill
+                                                            className="object-contain rounded-lg p-2"
+                                                            unoptimized
                                                         />
                                                     </div>
                                                 ))}

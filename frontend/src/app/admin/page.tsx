@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { apiClient } from '@/lib/api/client'
+import { AlertCircle, Edit, Trash2, X, Save } from 'lucide-react'
 
 interface Stats {
   users: { total: number; active: number }
@@ -25,68 +26,7 @@ export default function AdminPage() {
   const [loginForm, setLoginForm] = useState({ username: '', password: '' })
   const [loginLoading, setLoginLoading] = useState(false)
 
-  useEffect(() => {
-    // Проверяем авторизацию
-    const token = localStorage.getItem('prepodavai_token')
-    if (token) {
-      setIsAuthenticated(true)
-      loadStats()
-      if (activeTab !== 'stats') {
-        loadData()
-      } else {
-        setLoading(false)
-      }
-    } else {
-      setIsAuthenticated(false)
-      setLoading(false)
-    }
-  }, [activeTab, router])
-
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoginLoading(true)
-    setError(null)
-
-    try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
-      const response = await apiClient.post('/auth/login', {
-        username: loginForm.username,
-        password: loginForm.password,
-      }, {
-        timeout: 10000, // 10 секунд таймаут
-      })
-
-      if (response.data.success && response.data.token) {
-        localStorage.setItem('prepodavai_token', response.data.token)
-        localStorage.setItem('prepodavai_authenticated', 'true')
-        setIsAuthenticated(true)
-        setLoading(true)
-        loadStats()
-      } else {
-        setError('Ошибка авторизации')
-      }
-    } catch (error: any) {
-      console.error('Login error:', error)
-
-      let errorMessage = 'Ошибка входа'
-
-      if (error.code === 'ECONNREFUSED' || error.code === 'ERR_NETWORK' || error.message === 'Network Error') {
-        errorMessage = `Ошибка сети. Проверьте, что backend запущен на ${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}. Убедитесь, что backend контейнер работает.`
-      } else if (error.response?.status === 401) {
-        errorMessage = error.response?.data?.message || 'Неверный логин или пароль'
-      } else if (error.response?.data?.message) {
-        errorMessage = error.response.data.message
-      } else if (error.message) {
-        errorMessage = error.message
-      }
-
-      setError(errorMessage)
-    } finally {
-      setLoginLoading(false)
-    }
-  }
-
-  const loadStats = async () => {
+  const loadStats = useCallback(async () => {
     try {
       setError(null)
       setLoading(true)
@@ -110,9 +50,9 @@ export default function AdminPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
@@ -167,6 +107,66 @@ export default function AdminPage() {
       setData([])
     } finally {
       setLoading(false)
+    }
+  }, [activeTab])
+
+  useEffect(() => {
+    // Проверяем авторизацию
+    const token = localStorage.getItem('prepodavai_token')
+    if (token) {
+      setIsAuthenticated(true)
+      loadStats()
+      if (activeTab !== 'stats') {
+        loadData()
+      } else {
+        setLoading(false)
+      }
+    } else {
+      setIsAuthenticated(false)
+      setLoading(false)
+    }
+  }, [activeTab, loadStats, loadData])
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoginLoading(true)
+    setError(null)
+
+    try {
+      const response = await apiClient.post('/auth/login', {
+        username: loginForm.username,
+        password: loginForm.password,
+      }, {
+        timeout: 10000, // 10 секунд таймаут
+      })
+
+      if (response.data.success && response.data.token) {
+        localStorage.setItem('prepodavai_token', response.data.token)
+        localStorage.setItem('prepodavai_authenticated', 'true')
+        setIsAuthenticated(true)
+        setLoading(true)
+        loadStats()
+      } else {
+        setError('Ошибка авторизации')
+      }
+    } catch (error: any) {
+      console.error('Login error:', error)
+
+      let errorMessage = 'Ошибка входа'
+
+      if (error.code === 'ECONNREFUSED' || error.code === 'ERR_NETWORK' || error.message === 'Network Error') {
+        errorMessage = `Ошибка сети. Проверьте, что backend запущен на ${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}. Убедитесь, что backend контейнер работает.`
+      } else if (error.response?.status === 401) {
+        errorMessage = error.response?.data?.message || 'Неверный логин или пароль'
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message
+      } else if (error.message) {
+        errorMessage = error.message
+      }
+
+      setError(errorMessage)
+    } finally {
+      setLoginLoading(false)
     }
   }
 
@@ -472,7 +472,7 @@ export default function AdminPage() {
         {error && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
             <div className="flex items-center">
-              <i className="fas fa-exclamation-circle text-red-500 mr-2"></i>
+              <AlertCircle className="text-red-500 mr-2" size={18} />
               <p className="text-red-700">{error}</p>
               <button
                 onClick={() => {
@@ -660,13 +660,13 @@ export default function AdminPage() {
                               onClick={() => handleEdit(item)}
                               className="px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600"
                             >
-                              <i className="fas fa-edit"></i>
+                              <Edit size={14} />
                             </button>
                             <button
                               onClick={() => handleDelete(item.id)}
                               className="px-2 py-1 text-xs bg-red-500 text-white rounded hover:bg-red-600"
                             >
-                              <i className="fas fa-trash"></i>
+                              <Trash2 size={14} />
                             </button>
                           </div>
                         </td>
@@ -693,7 +693,7 @@ export default function AdminPage() {
                     }}
                     className="text-gray-400 hover:text-gray-600 text-2xl"
                   >
-                    <i className="fas fa-times"></i>
+                    <X size={24} />
                   </button>
                 </div>
 
@@ -706,9 +706,9 @@ export default function AdminPage() {
                 <div className="mt-6 flex gap-2">
                   <button
                     onClick={handleSave}
-                    className="flex-1 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 font-medium"
+                    className="flex-1 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 font-medium flex items-center justify-center gap-2"
                   >
-                    <i className="fas fa-save mr-2"></i>
+                    <Save size={18} />
                     Сохранить
                   </button>
                   <button
