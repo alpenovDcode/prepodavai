@@ -65,6 +65,7 @@ RUN apt-get update && apt-get install -y \
     libxi6 libxrandr2 libxrender1 libxss1 libxtst6 wget \
     fonts-noto fonts-noto-cjk fonts-ipafont-gothic fonts-wqy-zenhei fonts-kacst fonts-freefont-ttf fonts-thai-tlwg fonts-indic \
     chromium \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 RUN groupadd --system --gid 1001 nodejs
