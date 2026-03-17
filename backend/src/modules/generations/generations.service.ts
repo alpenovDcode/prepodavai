@@ -64,6 +64,7 @@ export interface GenerationRequest {
   inputParams: Record<string, any>;
   model?: string;
   lessonId?: string;
+  skipCreditDeduction?: boolean;
 }
 
 @Injectable()
@@ -144,7 +145,7 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
 
 
   async createGeneration(request: GenerationRequest) {
-    let { userId, generationType, inputParams, model, lessonId } = request;
+    let { userId, generationType, inputParams, model, lessonId, skipCreditDeduction } = request;
 
     const user = await this.prisma.appUser.findUnique({ where: { id: userId } });
     if (!user) {
@@ -163,10 +164,12 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
     }
 
     // Проверяем и списываем кредиты
-    let creditCheck: any;
+    let creditCheck: any = { success: true };
     const operationType = this.mapGenerationTypeToOperationType(generationType);
 
-    if (generationType === 'lesson_preparation' || generationType === 'lessonPreparation') {
+    if (skipCreditDeduction) {
+      this.logger.debug(`Skipping credit deduction for ${generationType} as it is part of a bundle`);
+    } else if (generationType === 'lesson_preparation' || generationType === 'lessonPreparation') {
       const types = inputParams.generationTypes || [];
       let totalCost = 0;
       for (const t of types) {
@@ -271,6 +274,28 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
 
   async createGenerationBundle(data: { userId: string; types: string[]; inputParams: Record<string, any> }) {
     const { userId, types, inputParams } = data;
+    
+    if (types.length === 0) {
+      return { results: [], remainingCredits: undefined };
+    }
+
+    // Расчет стоимости: 50 за первые 2, +5 за каждую следующую
+    const totalCost = 50 + (Math.max(0, types.length - 2) * 5);
+    
+    // Списываем кредиты за весь пакет сразу
+    const creditCheck = await this.subscriptionsService.debitCredits(
+      userId,
+      'bundle_generation' as any,
+      undefined,
+      `Пакетная генерация (${types.length} функций): ${types.join(', ')}`,
+      totalCost
+    );
+
+    if (!creditCheck.success) {
+      throw new BadRequestException(creditCheck.error || 'Недостаточно кредитов для пакета');
+    }
+
+    const remainingCredits = creditCheck.transaction?.balanceAfter;
     const results = [];
 
     // Создаем урок (Lesson) для группировки генераций
@@ -284,21 +309,18 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
       lessonId = lesson.id;
     } catch (error) {
       console.error('Failed to create lesson:', error);
-      // Продолжаем без урока, если не удалось создать
     }
-
-    let lastRemainingCredits: number | undefined;
 
     for (const type of types) {
       try {
         const result = await this.createGeneration({
           userId,
-          generationType: type as GenerationType,
+          generationType: type as any,
           inputParams,
-          lessonId, // Передаем ID урока
+          lessonId,
+          skipCreditDeduction: true, // Пропускаем списание, так как уже списали за пакет
         });
         results.push({ type, success: true, result });
-        lastRemainingCredits = (result as any).remainingCredits;
       } catch (error) {
         results.push({ type, success: false, error: error.message });
       }
@@ -306,7 +328,7 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
 
     return {
       results,
-      remainingCredits: lastRemainingCredits,
+      remainingCredits,
     };
   }
 
@@ -1948,9 +1970,9 @@ ${customPrompt ? `Дополнительно: ${customPrompt}` : ''}
       'gigachat-embeddings': 'gigachat_embeddings',
       'video-analysis': 'video_analysis',
       video_analysis: 'video_analysis',
-      'exam-variant': 'worksheet',
-      exam_variant: 'worksheet',
-      unpacking: 'lesson_plan',
+      'exam-variant': 'exam_variant',
+      exam_variant: 'exam_variant',
+      unpacking: 'unpacking',
       'sales-advisor': 'sales_advisor',
       sales_advisor: 'sales_advisor',
       assistant: 'message',

@@ -5,7 +5,7 @@ import { apiClient } from '@/lib/api/client'
 import { useRouter } from 'next/navigation'
 import PresentationEditor, { PresentationEditorRef } from './PresentationEditor'
 import PresentationPlayer from './PresentationPlayer'
-import { Save, Download, ChevronLeft, ChevronRight, ExternalLink, ArrowLeft } from 'lucide-react'
+import { Save, Download, ChevronLeft, ChevronRight, ExternalLink, ArrowLeft, Loader2 } from 'lucide-react'
 import Image from 'next/image'
 import DOMPurify from 'isomorphic-dompurify'
 
@@ -66,6 +66,195 @@ const buildEditSrc = (slide: any): string => {
     return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*,*::before,*::after{box-sizing:border-box}html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;font-family:'Segoe UI',system-ui,sans-serif}${css}</style></head><body>${html}${DRAG_SCRIPT}</body></html>`
 }
 
+const MATHJAX_SCRIPT = `<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>`
+const IFRAME_STYLES = `<style>
+  body { margin: 0; padding: 32px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, sans-serif; background: white; color: #1a1a1a; }
+  .container { max-width: 820px; margin: 0 auto; }
+</style>`
+const IFRAME_READY_SCRIPT = `<script>
+  window.addEventListener('load', function() {
+    if (window.MathJax) {
+      setTimeout(function() { window.parent.postMessage('IFRAME_READY', '*'); }, 1500);
+    } else {
+      setTimeout(function() { window.parent.postMessage('IFRAME_READY', '*'); }, 500);
+    }
+  });
+</script>`
+
+function stripCodeFences(text: string) {
+    if (typeof text !== 'string') return ''
+    let processed = text.trim()
+    if (processed.startsWith('```')) {
+        processed = processed.replace(/^```(?:html)?/i, '').replace(/```$/, '').trim()
+    }
+    return processed
+}
+
+function looksLikeFullHtmlDocument(value: any): boolean {
+    if (typeof value !== 'string') return false
+    const trimmed = value.trim()
+    return (
+        /<!DOCTYPE html/i.test(trimmed) ||
+        /<html[\s>]/i.test(trimmed) ||
+        /<head[\s>]/i.test(trimmed) ||
+        /<style[\s>]/i.test(trimmed) ||
+        /<\/?[a-z][\s\S]*>/i.test(trimmed)
+    )
+}
+
+function isHtmlString(value: any): boolean {
+    if (typeof value !== 'string') return false
+    const trimmed = value.trim()
+    return /<!DOCTYPE html/i.test(trimmed) || /<\/?[a-z][\s\S]*>/i.test(trimmed)
+}
+
+function normalizeResultPayload(value: any) {
+    if (typeof value !== 'string') {
+        return { isHtmlResult: false, htmlResult: '', cleanedTextResult: value }
+    }
+
+    let processed = stripCodeFences(value)
+
+    if (
+        (processed.startsWith('"') && processed.endsWith('"')) ||
+        (processed.startsWith("'") && processed.endsWith("'"))
+    ) {
+        processed = processed.slice(1, -1)
+    }
+
+    const isHtmlResult = looksLikeFullHtmlDocument(processed)
+
+    return {
+        isHtmlResult,
+        htmlResult: isHtmlResult ? processed : '',
+        cleanedTextResult: processed,
+    }
+}
+
+function escapeHtml(text: string) {
+    return text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
+function renderMath(text: string) {
+    if (!text) return ''
+
+    let processed = stripCodeFences(String(text))
+    const isHtml = isHtmlString(processed) || looksLikeFullHtmlDocument(processed)
+
+    if (!isHtml) {
+        processed = escapeHtml(processed)
+    }
+
+    processed = processed.replace(/\\\((.+?)\\\)/gs, (_, formula) => {
+        return `<span class="math-inline">\\(${formula}\\)</span>`
+    })
+
+    processed = processed.replace(/\$\$(.+?)\$\$/gs, (_, formula) => {
+        return `<div class="math-block">\\[${formula}\\]</div>`
+    })
+
+    processed = processed.replace(/\\\[(.+?)\\\]/gs, (_, formula) => {
+        return `<div class="math-block">\\[${formula}\\]</div>`
+    })
+
+    if (!isHtml) {
+        processed = processed.replace(/\n\n+/g, '</p><p class="my-3">')
+        processed = '<p class="my-3">' + processed + '</p>'
+        processed = processed.replace(/\n/g, '<br>')
+    }
+
+    return processed
+}
+
+function FullHtmlPreview({ html }: { html: string }) {
+    const iframeRef = useRef<HTMLIFrameElement>(null)
+    const [isLoading, setIsLoading] = useState(true)
+
+    useEffect(() => {
+        const handler = (e: MessageEvent) => {
+            if (e.data === 'IFRAME_READY') {
+                setIsLoading(false)
+            }
+        }
+        window.addEventListener('message', handler)
+        const fallbackTimer = setTimeout(() => setIsLoading(false), 5000)
+
+        return () => {
+            window.removeEventListener('message', handler)
+            clearTimeout(fallbackTimer)
+        }
+    }, [])
+
+    useEffect(() => {
+        const iframe = iframeRef.current
+        if (!iframe) return
+
+        const resize = () => {
+            const doc = iframe.contentDocument || iframe.contentWindow?.document
+            if (!doc) return
+            const height = (doc.body?.scrollHeight || doc.documentElement?.scrollHeight || 600) + 40
+            iframe.style.height = `${Math.max(height, 400)}px`
+        }
+
+        const handleLoad = () => resize()
+        iframe.addEventListener('load', handleLoad)
+        const timer = setTimeout(resize, 1200)
+
+        return () => {
+            iframe.removeEventListener('load', handleLoad)
+            clearTimeout(timer)
+        }
+    }, [html])
+
+    const hasMathJax = /mathjax/i.test(html) || /\\\\\(|\\\\\[|\$\$|\$[^$]+\$/i.test(html)
+    const hasHead = /<head[\s>]/i.test(html)
+    const hasBody = /<body[\s>]/i.test(html)
+
+    const INJECTED_HEAD = `${IFRAME_STYLES}${hasMathJax ? MATHJAX_SCRIPT : ''}`
+    const INJECTED_BODY = `${IFRAME_READY_SCRIPT}`
+
+    let finalHtml = html
+    if (hasHead) {
+        finalHtml = html.replace(/<head([^>]*)>/i, `<head$1>${INJECTED_HEAD}`)
+    } else if (hasBody) {
+        finalHtml = html.replace(/<body([^>]*)>/i, `<head>${INJECTED_HEAD}</head><body$1`)
+    } else {
+        finalHtml = `<!DOCTYPE html><html><head>${INJECTED_HEAD}</head><body><div class="container">${html}</div>${INJECTED_BODY}</body></html>`
+    }
+
+    if (hasHead || hasBody) {
+        if (/<\/body>/i.test(finalHtml)) {
+            finalHtml = finalHtml.replace(/<\/body>/i, `${INJECTED_BODY}</body>`)
+        } else {
+            finalHtml += INJECTED_BODY
+        }
+    }
+
+    return (
+        <div className="relative w-full border border-[#D8E6FF] rounded-2xl overflow-hidden bg-white min-h-[600px] flex items-center justify-center">
+            {isLoading && (
+                <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white backdrop-blur-sm">
+                    <Loader2 className="w-8 h-8 text-[#FF7E58] animate-spin mb-4" />
+                    <p className="text-gray-500 font-medium animate-pulse">Готовим документ к просмотру (шрифты, формулы, верстка)...</p>
+                </div>
+            )}
+            <iframe
+                ref={iframeRef}
+                title="HTML результат"
+                srcDoc={finalHtml}
+                className={`w-full border-0 transition-opacity duration-700 ${isLoading ? 'opacity-0' : 'opacity-100'}`}
+                style={{ minHeight: '600px' }}
+                sandbox="allow-scripts allow-same-origin allow-popups allow-modals"
+            />
+        </div>
+    )
+}
+
 export default function MaterialViewer({ lessonId, generationId, type, content: directContent, isEditable }: MaterialViewerProps) {
     const [content, setContent] = useState<string | null>(null)
     const [loading, setLoading] = useState(!!(lessonId && generationId) && !directContent)
@@ -74,6 +263,8 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
     const [generationType, setGenerationType] = useState<string>(type || '')
     const [htmlSlideIndex, setHtmlSlideIndex] = useState(0)
     const [htmlSlides, setHtmlSlides] = useState<any[]>([])
+    const [isHtmlResult, setIsHtmlResult] = useState(false)
+    const [cleanedTextResult, setCleanedTextResult] = useState('')
     const router = useRouter()
     const editorRef = useRef<PresentationEditorRef>(null)
     const contentRef = useRef<HTMLDivElement>(null)
@@ -136,8 +327,10 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
                     contentString = directContent.content || JSON.stringify(directContent);
                 }
 
-                const { html } = extractHtmlPayload(contentString);
-                setContent(html);
+                const { htmlResult, isHtmlResult: isHtml, cleanedTextResult: cleaned } = normalizeResultPayload(contentString);
+                setContent(isHtml ? htmlResult : cleaned);
+                setIsHtmlResult(isHtml);
+                setCleanedTextResult(cleaned);
             }
             setLoading(false);
             return;
@@ -178,9 +371,11 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
                         // If it was object (from generation.outputData directly), stringify it
                         setContent(typeof generation.outputData === 'object' ? JSON.stringify(generation.outputData) : generation.outputData);
                     } else {
-                        // Process the content (remove markdown, quotes, etc.) for text generations
-                        const { html } = extractHtmlPayload(rawContent);
-                        setContent(html);
+                        // Process the content using the same logic as WebAppIndex
+                        const { htmlResult, isHtmlResult: isHtml, cleanedTextResult: cleaned } = normalizeResultPayload(rawContent);
+                        setContent(isHtml ? htmlResult : cleaned);
+                        setIsHtmlResult(isHtml);
+                        setCleanedTextResult(cleaned);
                     }
                 }
             } catch (err) {
@@ -450,12 +645,16 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
                         />
                     </div>
                 ) : (
-                    <div className="w-full h-full bg-white overflow-auto p-8">
-                        <div
-                            ref={contentRef}
-                            className="prose max-w-4xl mx-auto worksheet-content text-black"
-                            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(content || '') }}
-                        />
+                    <div className="w-full h-full bg-white overflow-auto p-4 md:p-8">
+                        {isHtmlResult ? (
+                            <FullHtmlPreview html={content || ''} />
+                        ) : (
+                            <div
+                                ref={contentRef}
+                                className="formatted-content result-content prose max-w-4xl mx-auto worksheet-content text-black"
+                                dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(renderMath(content || '')) }}
+                            />
+                        )}
                     </div>
                 )}
             </div>

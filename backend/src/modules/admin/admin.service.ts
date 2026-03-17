@@ -11,8 +11,21 @@ export class AdminService {
   ) { }
 
   // ========== USERS ==========
-  async getUsers(limit = 50, offset = 0) {
+  async getUsers(limit = 50, offset = 0, search?: string) {
+    const where: any = {};
+    if (search) {
+      where.OR = [
+        { id: { contains: search, mode: 'insensitive' } },
+        { username: { contains: search, mode: 'insensitive' } },
+        { firstName: { contains: search, mode: 'insensitive' } },
+        { lastName: { contains: search, mode: 'insensitive' } },
+        { email: { contains: search, mode: 'insensitive' } },
+        { phone: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
     const users = await this.prisma.appUser.findMany({
+      where,
       take: limit,
       skip: offset,
       orderBy: { createdAt: 'desc' },
@@ -32,11 +45,11 @@ export class AdminService {
         createdAt: true,
         updatedAt: true,
         subscription: true,
-        passwordHash: true, // Включаем для проверки наличия пароля
+        passwordHash: true,
       },
     });
 
-    const total = await this.prisma.appUser.count();
+    const total = await this.prisma.appUser.count({ where });
 
     return {
       success: true,

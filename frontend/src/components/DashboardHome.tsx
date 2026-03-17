@@ -137,25 +137,37 @@ export default function DashboardHome() {
                 <div className="flex items-center justify-between mb-2">
                     <div>
                         <h1 className="text-3xl font-bold text-gray-900">Главная</h1>
-                        <p className="text-gray-600 mt-1">С возвращением! Давайте создадим что-то удивительное!</p>
+                        <p className="text-gray-600 mt-1 max-w-2xl">
+                            Добро пожаловать в экосистему «Прорыв»! Профессиональный инструмент для учителей, который ускорит подготовку к урокам, поможет структурировать учебные материалы и эффективно отслеживать прогресс ваших учеников.
+                        </p>
                     </div>
-                    <button
-                        onClick={handleGenerate}
-                        disabled={isGenerating}
-                        className={`px-6 py-3 bg-primary-600 text-white rounded-xl font-semibold hover:bg-primary-700 transition flex items-center gap-2 shadow-lg hover:shadow-xl ${isGenerating ? 'opacity-75 cursor-not-allowed' : ''}`}
-                    >
-                        {isGenerating ? (
-                            <>
-                                <i className="fas fa-spinner fa-spin"></i>
-                                Создаем...
-                            </>
-                        ) : (
-                            <>
-                                <i className="fas fa-plus-circle"></i>
-                                Создать
-                            </>
+                    <div className="flex flex-col items-end gap-2">
+                        <button
+                            onClick={handleGenerate}
+                            disabled={isGenerating}
+                            className={`px-6 py-3 bg-primary-600 text-white rounded-xl font-semibold hover:bg-primary-700 transition flex items-center gap-2 shadow-lg hover:shadow-xl ${isGenerating ? 'opacity-75 cursor-not-allowed' : ''}`}
+                        >
+                            {isGenerating ? (
+                                <>
+                                    <i className="fas fa-spinner fa-spin"></i>
+                                    Создаем...
+                                </>
+                            ) : (
+                                <>
+                                    <i className="fas fa-plus-circle"></i>
+                                    Создать
+                                </>
+                            )}
+                        </button>
+                        {selectedTypes.length > 0 && !isGenerating && (
+                            <div className="text-xs font-medium text-gray-500 bg-gray-100 px-3 py-1 rounded-full flex items-center gap-1.5">
+                                <i className="fas fa-coins text-yellow-600"></i>
+                                {selectedTypes.length <= 2 
+                                    ? '50 кредитов' 
+                                    : `${50 + (selectedTypes.length - 2) * 5} кредитов`}
+                            </div>
                         )}
-                    </button>
+                    </div>
                 </div>
             </div>
 
@@ -323,8 +335,10 @@ export default function DashboardHome() {
 
                         <div className="p-6 overflow-y-auto custom-scrollbar">
                             <div className="grid sm:grid-cols-2 gap-4">
-                                {functions.map((func) => {
-                                    const isSelected = selectedTypes.includes(func.id)
+                                {functions
+                                    .filter(f => ['worksheet', 'quiz', 'vocabulary', 'lessonPlan', 'presentation', 'game'].includes(f.id))
+                                    .map((func) => {
+                                        const isSelected = selectedTypes.includes(func.id)
                                     const meta = typeMetadata[func.id] || { iconBg: 'bg-gray-100', iconColor: 'text-gray-600' }
 
                                     return (

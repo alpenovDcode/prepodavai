@@ -5,11 +5,19 @@ import useSWR from 'swr'
 import { apiClient } from '@/lib/api/client'
 import { Search, Plus, Edit2, Trash2, X, ShieldAlert, Key } from 'lucide-react'
 
-const fetcher = (url: string) => apiClient.get(url).then(res => res.data.users)
+const fetcher = ([url, page, limit, search]: [string, number, number, string]) => 
+    apiClient.get(url, { params: { limit, offset: (page - 1) * limit, search } }).then(res => res.data)
 
 export default function AdminUsersPage() {
-    const { data: users, error, isLoading, mutate } = useSWR<any[]>('/admin/users', fetcher)
+    const [page, setPage] = useState(1)
+    const [limit] = useState(10)
     const [searchQuery, setSearchQuery] = useState('')
+    
+    const { data, error, isLoading, mutate } = useSWR<any>(['/admin/users', page, limit, searchQuery], fetcher)
+    const users = data?.users || []
+    const total = data?.total || 0
+    const totalPages = Math.ceil(total / limit)
+
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
     const [isEditModalOpen, setIsEditModalOpen] = useState(false)
     const [selectedUser, setSelectedUser] = useState<any>(null)
@@ -25,13 +33,6 @@ export default function AdminUsersPage() {
     })
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [formError, setFormError] = useState('')
-
-    const filteredUsers = users?.filter(u =>
-        u.username?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        u.firstName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        u.lastName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        u.id?.toLowerCase().includes(searchQuery.toLowerCase())
-    ) || []
 
     const handleCreateSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -110,31 +111,39 @@ export default function AdminUsersPage() {
                     onClick={() => setIsCreateModalOpen(true)}
                     className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
                 >
-                    <Plus className="w-5 h-5" />
+                    < Plus className="w-5 h-5" />
                     <span>Добавить пользователя</span>
                 </button>
             </div>
 
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                <div className="p-4 border-b border-gray-100 flex items-center gap-2">
-                    <Search className="w-5 h-5 text-gray-400" />
-                    <input 
-                        type="text" 
-                        placeholder="Поиск по имени, юзернейму или ID..."
-                        className="flex-1 bg-transparent border-none outline-none text-sm focus:ring-0"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                    />
+                <div className="p-4 border-b border-gray-100 flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
+                    <div className="flex-1 flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-xl border border-gray-100 focus-within:ring-2 focus-within:ring-blue-500 transition-all">
+                        <Search className="w-5 h-5 text-gray-400" />
+                        <input 
+                            type="text" 
+                            placeholder="Поиск по имени, логину, тел или ID..."
+                            className="flex-1 bg-transparent border-none outline-none text-sm focus:ring-0"
+                            value={searchQuery}
+                            onChange={(e) => {
+                                setSearchQuery(e.target.value)
+                                setPage(1) // Reset to first page on search
+                            }}
+                        />
+                    </div>
                 </div>
                 
                 {isLoading ? (
-                    <div className="p-8 text-center text-gray-500">Загрузка...</div>
-                ) : filteredUsers.length === 0 ? (
-                    <div className="p-8 text-center text-gray-500">Пользователи не найдены</div>
+                    <div className="p-12 text-center text-gray-500 flex flex-col items-center gap-3">
+                        <div className="w-8 h-8 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin"></div>
+                        <span>Загрузка пользователей...</span>
+                    </div>
+                ) : users.length === 0 ? (
+                    <div className="p-12 text-center text-gray-500">Пользователи не найдены</div>
                 ) : (
                     <div className="overflow-x-auto">
                         <table className="w-full text-left text-sm text-gray-500">
-                            <thead className="bg-gray-50 text-xs text-gray-700 uppercase">
+                            <thead className="bg-gray-50 text-xs text-gray-700 uppercase font-bold tracking-wider">
                                 <tr>
                                     <th className="px-6 py-4">ID / Логин / Пароль</th>
                                     <th className="px-6 py-4">Имя & Тел</th>
@@ -144,54 +153,56 @@ export default function AdminUsersPage() {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100">
-                                {filteredUsers.map(user => (
-                                    <tr key={user.id} className="hover:bg-gray-50 transition">
+                                {users.map((user: any) => (
+                                    <tr key={user.id} className="hover:bg-gray-50 transition border-b border-gray-50 last:border-0">
                                         <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="font-medium text-gray-900">{user.username || 'Без юзернейма'}</div>
+                                            <div className="font-bold text-gray-900">{user.username || 'Без юзернейма'}</div>
                                             <div className="font-mono text-xs text-gray-400 mt-1" title={user.id}>ID: <span className="font-semibold text-gray-500">{user.id.substring(0, 8)}...</span></div>
-                                            <div className="text-xs mt-1 font-medium">
-                                                {user.hasPassword ? <span className="text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">Пароль задан</span> : <span className="text-amber-600 bg-amber-50 px-2 py-0.5 rounded">Пароля нет</span>}
+                                            <div className="text-xs mt-1.5 font-medium">
+                                                {user.hasPassword ? <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">Пароль задан</span> : <span className="text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-100">Пароля нет</span>}
                                             </div>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="text-gray-900">{user.firstName} {user.lastName}</div>
+                                            <div className="text-gray-900 font-semibold">{user.firstName} {user.lastName}</div>
                                             <div className="text-gray-400 text-xs mt-1">{user.phone || 'Нет телефона'}</div>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="flex flex-col gap-1.5 justify-center">
+                                            <div className="flex flex-col gap-2 justify-center">
                                                 <div className="flex items-center gap-1.5" title="API Key">
-                                                    <Key className="w-3.5 h-3.5 text-blue-500" />
-                                                    <span className="font-mono text-xs text-gray-600 bg-gray-100 px-1.5 py-0.5 rounded">{user.apiKey || 'Нет ключа'}</span>
+                                                    <div className="w-6 h-6 rounded-md bg-blue-50 flex items-center justify-center">
+                                                        <Key className="w-3.5 h-3.5 text-blue-600" />
+                                                    </div>
+                                                    <span className="font-mono text-xs text-gray-600 bg-gray-50 border border-gray-100 px-2 py-0.5 rounded">{user.apiKey || 'Нет ключа'}</span>
                                                     {user.apiKey && (
                                                         <button 
                                                             onClick={() => {
                                                                 navigator.clipboard.writeText(user.apiKey);
                                                                 alert('API ключ скопирован');
                                                             }}
-                                                            className="text-[10px] text-blue-600 hover:text-blue-800 font-medium underline"
+                                                            className="text-[10px] text-blue-600 hover:text-blue-800 font-bold uppercase tracking-tight hover:underline underline-offset-2 transition-all"
                                                         >
                                                             Copy
                                                         </button>
                                                     )}
                                                 </div>
-                                                <div className="text-xs font-medium pl-0.5" title="Количество токенов">
-                                                    <span className="text-gray-500">Токены: </span>
-                                                    <span className="text-indigo-600 font-bold">{user.subscription?.creditsBalance ?? '—'}</span>
+                                                <div className="text-xs font-bold pl-0.5 flex items-center gap-2">
+                                                    <span className="text-gray-400 uppercase tracking-widest text-[9px]">Баланс: </span>
+                                                    <span className="text-indigo-600 bg-indigo-50 px-2.5 py-0.5 rounded-lg border border-indigo-100 tabular-nums">{user.subscription?.creditsBalance ?? '—'}</span>
                                                 </div>
                                             </div>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="text-gray-700">
-                                                {user.lastAccessAt ? new Date(user.lastAccessAt).toLocaleString() : 'Никогда'}
+                                            <div className="text-gray-700 font-medium">
+                                                {user.lastAccessAt ? new Date(user.lastAccessAt).toLocaleString() : <span className="text-gray-300 italic">Никогда</span>}
                                             </div>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-right">
-                                            <div className="flex justify-end gap-2 text-gray-400">
-                                                <button onClick={() => openEditModal(user)} className="hover:text-blue-600 p-1 transition-colors" title="Редактировать">
-                                                    <Edit2 className="w-5 h-5" />
+                                            <div className="flex justify-end gap-1.5 text-gray-400">
+                                                <button onClick={() => openEditModal(user)} className="hover:text-blue-600 hover:bg-blue-50 p-2 rounded-xl transition-all" title="Редактировать">
+                                                    <Edit2 className="w-4.5 h-4.5" />
                                                 </button>
-                                                <button onClick={() => handleDelete(user.id, user.username)} className="hover:text-red-600 p-1 transition-colors" title="Удалить">
-                                                    <Trash2 className="w-5 h-5" />
+                                                <button onClick={() => handleDelete(user.id, user.username)} className="hover:text-red-600 hover:bg-red-50 p-2 rounded-xl transition-all" title="Удалить">
+                                                    <Trash2 className="w-4.5 h-4.5" />
                                                 </button>
                                             </div>
                                         </td>
@@ -199,6 +210,48 @@ export default function AdminUsersPage() {
                                 ))}
                             </tbody>
                         </table>
+                    </div>
+                )}
+                
+                {/* Pagination Controls */}
+                {!isLoading && totalPages > 1 && (
+                    <div className="p-4 border-t border-gray-50 flex items-center justify-between bg-white">
+                        <div className="text-xs text-gray-500 font-medium uppercase tracking-wider">
+                            Показано {users.length} из {total} пользователей
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                            <button 
+                                onClick={() => setPage(p => Math.max(1, p - 1))}
+                                disabled={page === 1}
+                                className="px-3 py-1.5 text-xs font-bold text-gray-600 hover:bg-gray-100 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed transition-all border border-gray-100"
+                            >
+                                Назад
+                            </button>
+                            
+                            <div className="flex items-center gap-1 mx-2">
+                                {[...Array(totalPages)].map((_, i) => (
+                                    <button
+                                        key={i}
+                                        onClick={() => setPage(i + 1)}
+                                        className={`w-8 h-8 flex items-center justify-center text-xs font-bold rounded-lg transition-all ${
+                                            page === i + 1 
+                                            ? 'bg-blue-600 text-white shadow-md' 
+                                            : 'text-gray-500 hover:bg-gray-100'
+                                        }`}
+                                    >
+                                        {i + 1}
+                                    </button>
+                                ))}
+                            </div>
+
+                            <button 
+                                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                                disabled={page === totalPages}
+                                className="px-3 py-1.5 text-xs font-bold text-gray-600 hover:bg-gray-100 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed transition-all border border-gray-100"
+                            >
+                                Вперед
+                            </button>
+                        </div>
                     </div>
                 )}
             </div>

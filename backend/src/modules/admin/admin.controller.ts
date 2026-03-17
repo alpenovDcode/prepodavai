@@ -25,8 +25,16 @@ export class AdminController {
 
   // ========== USERS ==========
   @Get('users')
-  async getUsers(@Query('limit') limit?: string, @Query('offset') offset?: string) {
-    return this.adminService.getUsers(limit ? parseInt(limit) : 50, offset ? parseInt(offset) : 0);
+  async getUsers(
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+    @Query('search') search?: string,
+  ) {
+    return this.adminService.getUsers(
+      limit ? parseInt(limit) : 50,
+      offset ? parseInt(offset) : 0,
+      search,
+    );
   }
 
   @Post('users')

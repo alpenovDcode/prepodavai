@@ -73,17 +73,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                     ))}
                 </nav>
 
-                {/* Upgrade Card */}
-                <div className="absolute bottom-0 left-0 right-0 p-4">
-                    <div className="bg-gradient-to-br from-primary-50 to-primary-100 rounded-2xl p-4 border border-primary-200">
-                        <h3 className="font-bold text-primary-900 mb-1">PRO Подписка</h3>
-                        <p className="text-xs text-primary-700 mb-3">
-                            Откройте все функции и создавайте без ограничений.
-                        </p>
-                        <button className="w-full py-2 bg-primary-600 text-white rounded-xl text-sm font-semibold hover:bg-primary-700 transition">
-                            Улучшить
-                        </button>
-                    </div>
+                <div className="absolute bottom-4 left-0 right-0 px-4">
 
                     {/* User Profile */}
                     <div 
