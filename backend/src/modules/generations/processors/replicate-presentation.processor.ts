@@ -1,5 +1,5 @@
 import { Processor, WorkerHost, OnWorkerEvent, InjectQueue } from '@nestjs/bullmq';
-import { Logger } from '@nestjs/common';
+import { Logger, BadRequestException } from '@nestjs/common';
 import { Job, Queue } from 'bullmq';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
@@ -10,20 +10,19 @@ import { FilesService } from '../../files/files.service';
 
 export interface ReplicatePresentationJobData {
     generationRequestId: string;
-    inputText: string;
-    numCards: number;
+    topic: string;
+    duration?: string;
+    style?: string;
+    targetAudience?: string;
+    numCards?: number;
 }
 
 interface Slide {
-    title: string;
-    content: string;
-    imagePrompt: string;
-    imageUrl?: string;
-}
-
-interface PresentationStructure {
-    title: string;
-    slides: Slide[];
+    id: string;
+    html: string;
+    css: string;
+    js: string;
+    imagePrompt?: string;
 }
 
 @Processor('replicate-presentation')
@@ -47,36 +46,37 @@ export class ReplicatePresentationProcessor extends WorkerHost {
     }
 
     async process(job: Job<ReplicatePresentationJobData>): Promise<void> {
-        const { generationRequestId, inputText, numCards } = job.data;
-        this.logger.log(`Processing Replicate presentation generation for request ${generationRequestId}`);
+        const { generationRequestId, topic, duration, style, targetAudience, numCards = 7 } = job.data;
+        this.logger.log(`Processing Replicate presentation generation for request ${generationRequestId}: topic="${topic}"`);
 
         try {
-            // 1. Generate text content
-            const presentationData = await this.generatePresentationContent(inputText, numCards);
-            this.logger.log(`Generated presentation structure: ${JSON.stringify(presentationData, null, 2)}`);
+            // 1. Generate text content (slides JSON)
+            const slides = await this.generatePresentationSlides(topic, { duration, style, targetAudience, numCards });
+            this.logger.log(`Generated ${slides.length} slides for request ${generationRequestId}`);
 
-            // 2. Generate images for each slide
-            const slidesWithImages = await Promise.all(
-                presentationData.slides.map(async (slide) => {
-                    if (slide.imagePrompt) {
-                        try {
-                            const imageUrl = await this.generateImage(slide.imagePrompt);
-                            return { ...slide, imageUrl };
-                        } catch (imgError: any) {
-                            this.logger.error(`Failed to generate image for slide "${slide.title}": ${imgError.message}`);
-                            return { ...slide, imageUrl: null };
-                        }
+            // 2. Generate images for each slide (sequential to avoid rate limits)
+            for (let i = 0; i < slides.length; i++) {
+                const slide = slides[i];
+                if (this.replicateToken && slide.imagePrompt && slide.html.includes('IMAGE_PLACEHOLDER')) {
+                    try {
+                        this.logger.log(`Generating image for slide ${i + 1}/${slides.length}...`);
+                        const imageUrl = await this.generateImage(slide.imagePrompt);
+                        slide.html = slide.html.replace('IMAGE_PLACEHOLDER', imageUrl);
+                    } catch (imgError: any) {
+                        this.logger.error(`Failed to generate image for slide ${i + 1}: ${imgError.message}`);
+                        slide.html = slide.html.replace('IMAGE_PLACEHOLDER', `https://picsum.photos/800/450?sig=${Math.random()}`);
                     }
-                    return slide;
-                })
-            );
+                } else {
+                    slide.html = slide.html.replace('IMAGE_PLACEHOLDER', `https://picsum.photos/800/450?sig=${Math.random()}`);
+                }
+            }
 
-            const finalPresentation = {
-                ...presentationData,
-                slides: slidesWithImages,
+            const finalResult = {
+                provider: this.replicateToken ? 'Replicate' : 'GigaChat',
+                mode: 'presentation',
+                slides: slides,
+                completedAt: new Date().toISOString(),
             };
-
-            this.logger.log(`Final presentation data: ${JSON.stringify(finalPresentation, null, 2)}`);
 
             // 3. Generate PDF
             let pdfUrl: string | undefined;
@@ -84,27 +84,23 @@ export class ReplicatePresentationProcessor extends WorkerHost {
 
             try {
                 this.logger.log(`Generating PDF for request ${generationRequestId}`);
-                const html = this.generatePresentationHtml(finalPresentation);
-                const pdfBuffer = await this.htmlExportService.htmlToPdf(html);
+                const pdfHtml = `<html><body style="background:#0f172a; color:white; padding:40px;">${slides.map(s => s.html).join('<div style="page-break-after:always;"></div>')}</body></html>`;
+                const pdfBuffer = await this.htmlExportService.htmlToPdf(pdfHtml);
 
                 const fileData = await this.filesService.saveBuffer(pdfBuffer, 'presentation.pdf');
                 pdfUrl = fileData.url;
-                exportUrl = fileData.url; // Use same URL for export
+                exportUrl = fileData.url;
                 this.logger.log(`PDF generated and saved: ${pdfUrl}`);
             } catch (pdfError: any) {
                 this.logger.error(`Failed to generate PDF: ${pdfError.message}`, pdfError.stack);
-                // Continue without PDF if it fails
             }
 
             // 4. Save result and complete generation
             const outputData = {
-                provider: 'Replicate',
-                mode: 'presentation',
-                presentation: finalPresentation,
+                ...finalResult,
                 pdfUrl,
                 exportUrl,
-                inputText,
-                completedAt: new Date().toISOString(),
+                topic,
             };
 
             await this.generationHelpers.completeGeneration(generationRequestId, outputData);
@@ -120,41 +116,45 @@ export class ReplicatePresentationProcessor extends WorkerHost {
         }
     }
 
-    private async generatePresentationContent(inputText: string, numCards: number): Promise<PresentationStructure> {
+    private async generatePresentationSlides(topic: string, params: any): Promise<Slide[]> {
+        const numCards = params.numCards || 7;
+        const grade = params.targetAudience || 'General Audience';
+        const duration = params.duration || '15';
+        const style = params.style || 'modern';
+
         const prompt = `
-You are a WORLD-CLASS STORYTELLER and MASTER PRESENTATION DESIGNER (think TED Talks & Apple Keynotes).
-Your mission is to transform the following raw text/topic into a breathtaking, "WOW-effect" presentation structure.
+      Ты — топовый методист и Senior Frontend-разработчик. Создай презентацию на языке: Русский.
+      Тема: "${topic}". Целевая аудитория: ${grade}. Длительность: ${duration} мин. Стиль: ${style}.
 
-INPUT TOPIC/TEXT: "${inputText}"
-EXACT SLIDE COUNT: ${numCards}
+      ТРЕБОВАНИЯ К ФОРМАТУ (КРИТИЧНО):
+      Верни СТРОГО валидный JSON-массив объектов. Никакого лишнего текста до или после.
+      Каждый объект должен иметь поля:
+      - "html": Строка с HTML-версткой слайда.
+      - "imagePrompt": Детальный английский промпт для генерации фонового/тематического изображения (high-quality, professional).
 
-STRICT DESIGN & STORYTELLING RULES:
-1.  **KILL THE WALL OF TEXT (Minimalism):** DO NOT write long, boring paragraphs for the slide content. Audiences hate reading blocks of text. The "content" field must contain punchy, highly engaging, bite-sized insights. Use short bullet points, bold statements, or powerful one-liners that a viewer can read in 5 seconds.
-2.  **THE NARRATIVE ARC:** Structure the ${numCards} slides as a compelling story. 
-    - Slide 1: The Hook (A provocative statement or question).
-    - Middle Slides: The Meat (Fascinating facts, core concepts, broken down beautifully).
-    - Final Slide: The Mic-Drop (A powerful conclusion, quote, or call-to-action).
-3.  **CINEMATIC VISUALS:** The "imagePrompt" must be a masterpiece prompt for an advanced AI image generator (like Midjourney v6). It MUST include: a specific art style (e.g., hyper-realistic 3D render, high-end editorial photography, abstract minimalist geometry), dramatic lighting, and EXACTLY the phrase: "clean negative space on one side for typography readability".
-4.  **PRECISION:** You must generate EXACTLY ${numCards} slides. Plan the pacing accordingly.
+      ТРЕБОВАНИЯ К ВЕРСТКЕ:
+      1. Используй ТОЛЬКО инлайн-стили (атрибут style="...").
+      2. ЗАПРЕЩЕНО использовать классы (class) и тег <style>.
+      3. Слайд должен иметь:
+         - Темный фон (например, #0f172a или #1e293b).
+         - Размер: width: 100vw; height: 100vh; overflow: hidden; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 40px; box-sizing: border-box; font-family: sans-serif;
+      4. Вставь тег <img src="IMAGE_PLACEHOLDER" style="max-width: 80%; max-height: 50%; border-radius: 12px; margin-top: 20px; object-fit: cover;"> там, где нужно изображение.
 
-OUTPUT FORMAT:
-Return ONLY valid JSON. No markdown wrappers (do not use \`\`\`json), no preamble, no explanations. 
+      Пример структуры:
+      [
+        {
+          "html": "<div style=\"background: #0f172a; color: white; ...\"><h1 style=\"...\">Заголовок</h1><p style=\"...\">Текст</p><img src=\"IMAGE_PLACEHOLDER\" style=\"...\"></div>",
+          "imagePrompt": "A futuristic classroom with AI holograms, cinematic lighting, 8k"
+        }
+      ]
 
-{
-  "title": "An Epic, Attention-Grabbing Main Title",
-  "slides": [
-    {
-      "title": "Punchy Slide Title (max 5-6 words)",
-      "content": "Engaging, bite-sized content. Bullet points or 2-3 short, powerful sentences. Make it sound brilliant and inspiring.",
-      "imagePrompt": "Detailed AI image prompt in English. Include: main subject, style, cinematic lighting, ultra-detailed, 8k, and 'clean negative space for text'."
-    }
-  ]
-}
-`;
+      Сгенерируй ровно ${numCards} слайдов.
+    `;
+
         const prediction = await this.runReplicatePrediction('google/gemini-3-flash', {
             prompt: prompt,
-            max_tokens: 2000,
-            system_prompt: "You are a helpful assistant that outputs only JSON.",
+            max_tokens: 4000,
+            system_prompt: "You are a helpful assistant that outputs only valid JSON array of slides.",
         });
 
         let rawOutput = "";
@@ -167,13 +167,19 @@ Return ONLY valid JSON. No markdown wrappers (do not use \`\`\`json), no preambl
         rawOutput = rawOutput.replace(/```json/g, '').replace(/```/g, '').trim();
 
         try {
-            return JSON.parse(rawOutput) as PresentationStructure;
+            const parsed = JSON.parse(rawOutput) as any[];
+            return parsed.map(item => ({
+                id: 'slide_' + Math.random().toString(36).substring(2, 11),
+                html: item.html || '',
+                css: '',
+                js: '',
+                imagePrompt: item.imagePrompt || ''
+            }));
         } catch (e) {
-            this.logger.error(`Failed to parse Claude output: ${rawOutput}`);
+            this.logger.error(`Failed to parse AI output: ${rawOutput}`);
             throw new Error("Failed to parse generated presentation JSON");
         }
     }
-
 
     private async generateImage(imagePrompt: string): Promise<string> {
         const prediction = await this.runReplicatePrediction('bytedance/seedream-4', {
@@ -190,7 +196,6 @@ Return ONLY valid JSON. No markdown wrappers (do not use \`\`\`json), no preambl
 
         throw new Error("No image URL in output");
     }
-
 
     private async runReplicatePrediction(model: string, input: any): Promise<any> {
         let attempts = 0;
@@ -219,7 +224,6 @@ Return ONLY valid JSON. No markdown wrappers (do not use \`\`\`json), no preambl
                 }
 
                 if (prediction.status === 'failed' || prediction.status === 'canceled') {
-                    // Check if it's a temporary unavailable error
                     if (prediction.error && prediction.error.includes('E004')) {
                         throw new Error(`Replicate temporary error (E004): ${prediction.error}`);
                     }
@@ -230,13 +234,9 @@ Return ONLY valid JSON. No markdown wrappers (do not use \`\`\`json), no preambl
             } catch (error: any) {
                 attempts++;
                 this.logger.warn(`runReplicatePrediction attempt ${attempts} failed: ${error.message}`);
-
-                // If it's the last attempt or a non-retryable error, throw it
                 if (attempts >= maxAttempts) {
                     throw error;
                 }
-
-                // Exponential backoff: 2s, 4s, 8s
                 await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempts) * 1000));
             }
         }
@@ -266,141 +266,6 @@ Return ONLY valid JSON. No markdown wrappers (do not use \`\`\`json), no preambl
             }
         }
         throw new Error("Prediction timed out");
-    }
-
-    private generatePresentationHtml(data: PresentationStructure): string {
-        const slidesHtml = data.slides.map((slide, index) => {
-            const imageUrl = slide.imageUrl ? `<div class="image-container"><img src="${slide.imageUrl}" alt="Slide Image" crossorigin="anonymous"></div>` : '';
-            // Convert newline-separated bullet points to HTML list if possible, or just preserve newlines
-            const contentHtml = slide.content.split('\n').map(line => `<p>${line}</p>`).join('');
-
-            return `
-            <div class="slide">
-                <div class="slide-content">
-                    <h2>${slide.title}</h2>
-                    <div class="text-content">
-                        ${contentHtml}
-                    </div>
-                    ${imageUrl}
-                </div>
-                <div class="page-number">${index + 1} / ${data.slides.length}</div>
-            </div>
-            `;
-        }).join('');
-
-        return `
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="UTF-8">
-            <style>
-                @page {
-                    size: A4 landscape;
-                    margin: 0;
-                }
-                body {
-                    margin: 0;
-                    font-family: 'Segoe UI', opt, Arial, sans-serif;
-                    background: #f0f0f0;
-                }
-                .slide {
-                    width: 297mm;
-                    height: 210mm;
-                    page-break-after: always;
-                    background: white;
-                    position: relative;
-                    overflow: hidden;
-                    display: flex;
-                    flex-direction: column;
-                    justify-content: center;
-                    padding: 40px;
-                    box-sizing: border-box;
-                }
-                .slide-content {
-                    height: 100%;
-                    display: flex;
-                    flex-direction: column;
-                }
-                h1 {
-                    font-size: 48px;
-                    color: #333;
-                    text-align: center;
-                    margin-bottom: 40px;
-                }
-                h2 {
-                    font-size: 36px;
-                    color: #2c3e50;
-                    margin-top: 0;
-                    margin-bottom: 30px;
-                    border-bottom: 2px solid #3498db;
-                    padding-bottom: 10px;
-                }
-                .text-content {
-                    font-size: 24px;
-                    color: #555;
-                    line-height: 1.5;
-                    flex: 1;
-                }
-                .image-container {
-                    margin-top: 20px;
-                    height: 400px;
-                    display: flex;
-                    justify-content: center;
-                    align-items: center;
-                    background: #f9f9f9;
-                    border-radius: 8px;
-                    overflow: hidden;
-                }
-                img {
-                    max-width: 100%;
-                    max-height: 100%;
-                    object-fit: contain;
-                }
-                .page-number {
-                    position: absolute;
-                    bottom: 20px;
-                    right: 20px;
-                    font-size: 14px;
-                    color: #999;
-                }
-                /* Title Slide Style */
-                .slide:first-child {
-                    background: linear-gradient(135deg, #3498db, #2c3e50);
-                    color: white;
-                    align-items: center;
-                    text-align: center;
-                }
-                .slide:first-child h2 {
-                    border: none;
-                    color: white;
-                    font-size: 56px;
-                    margin-bottom: 20px;
-                }
-                .slide:first-child .text-content {
-                    color: #ecf0f1;
-                    font-size: 28px;
-                    flex: 0;
-                }
-                .slide:first-child .image-container {
-                    display: none; /* Hide image on title slide generally, or verify if we want it */
-                } 
-                /* Override image display for first slide if we want */
-            </style>
-        </head>
-        <body>
-            <!-- Title Slide (Optional, constructed from main title) -->
-            <div class="slide">
-                <div class="slide-content" style="justify-content: center; align-items: center;">
-                    <h2>${data.title}</h2>
-                    <div class="text-content">
-                        ${data.slides.length} Slides
-                    </div>
-                </div>
-            </div>
-            ${slidesHtml}
-        </body>
-        </html>
-        `;
     }
 
     @OnWorkerEvent('completed')

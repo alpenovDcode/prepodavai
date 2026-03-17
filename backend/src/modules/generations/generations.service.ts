@@ -372,8 +372,7 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
 
       // Презентации через Replicate
       if (generationType === 'presentation') {
-        const { topic } = inputParams;
-        return await this.generatePresentationJson(topic, { ...inputParams, generationRequestId });
+        return await this.generatePresentationViaReplicate(generationRequestId, inputParams);
       }
 
       // Текстовые генерации
@@ -780,25 +779,27 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
   }
 
   /**
-   * Универсальная генерация презентаций через Replicate (JSON)
+   * Универсальная генерация презентаций через Replicate (JSON) - Асинхронно через очередь
    */
   private async generatePresentationViaReplicate(
     generationRequestId: string,
     inputParams: Record<string, any>,
   ) {
-    this.logger.log(`[GenerationsService] Starting Replicate presentation generation for request ${generationRequestId}`);
+    this.logger.log(`[GenerationsService] Enqueuing Replicate presentation generation for request ${generationRequestId}`);
 
-    const { topic, numCards } = inputParams;
-    const inputText = topic; // Replicate API expects 'inputText'
+    const { topic, duration, style, targetAudience, numCards } = inputParams;
 
-    if (!inputText) {
-      throw new BadRequestException('No prompt provided for presentation generation');
+    if (!topic) {
+      throw new BadRequestException('No topic provided for presentation generation');
     }
 
-    await this.replicatePresentationQueue.add('generate-presentation', {
+    await this.replicatePresentationQueue.add('generate', {
       generationRequestId,
-      inputText,
-      numCards,
+      topic,
+      duration,
+      style,
+      targetAudience,
+      numCards: numCards || 7
     });
 
     this.logger.log(`Enqueued Replicate presentation job for ${generationRequestId}`);
@@ -808,127 +809,8 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
       mode: 'presentation',
       status: 'pending',
       requestId: generationRequestId,
-      createdAd: new Date().toISOString(),
+      createdAt: new Date().toISOString(),
     };
-  }
-
-  private async generatePresentationJson(topic: string, params: any): Promise<any> {
-    const generationRequestId = params.generationRequestId;
-    const grade = params.grade || 'General Audience';
-    const numCards = params.numCards || 7;
-
-    this.logger.log(`[GenerationsService] Starting JSON-based presentation generation for "${topic}" (${numCards} slides)`);
-
-    const prompt = `
-      Ты — топовый методист и Senior Frontend-разработчик. Создай презентацию на языке: Русский.
-      Тема: "${topic}". Целевая аудитория: ${grade}.
-
-      ТРЕБОВАНИЯ К ФОРМАТУ (КРИТИЧНО):
-      Верни СТРОГО валидный JSON-массив объектов. Никакого лишнего текста до или после.
-      Каждый объект должен иметь поля:
-      - "html": Строка с HTML-версткой слайда.
-      - "imagePrompt": Детальный английский промпт для генерации фонового/тематического изображения (high-quality, professional).
-
-      ТРЕБОВАНИЯ К ВЕРСТКЕ:
-      1. Используй ТОЛЬКО инлайн-стили (атрибут style="...").
-      2. ЗАПРЕЩЕНО использовать классы (class) и тег <style>.
-      3. Слайд должен иметь:
-         - Темный фон (например, #0f172a или #1e293b).
-         - Размер: width: 100vw; height: 100vh; overflow: hidden; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 40px; box-sizing: border-box; font-family: sans-serif;
-      4. Вставь тег <img src="IMAGE_PLACEHOLDER" style="max-width: 80%; max-height: 50%; border-radius: 12px; margin-top: 20px; object-fit: cover;"> там, где нужно изображение.
-
-      Пример структуры:
-      [
-        {
-          "html": "<div style=\\"background: #0f172a; color: white; ...\\"><h1 style=\\"...\\">Заголовок</h1><p style=\\"...\\">Текст</p><img src=\\"IMAGE_PLACEHOLDER\\" style=\\"...\\"></div>",
-          "imagePrompt": "A futuristic classroom with AI holograms, cinematic lighting, 8k"
-        }
-      ]
-
-      Сгенерируй ровно ${numCards} слайдов.
-    `;
-
-    try {
-      let rawText: string;
-      const hasReplicate = !!this.configService.get<string>('REPLICATE_API_TOKEN');
-
-      if (hasReplicate) {
-        this.logger.log(`[GenerationsService] Requesting content from Gemini 3 Flash via Replicate`);
-        rawText = await this.replicateService.createCompletion(prompt, "You are a helpful assistant that outputs only JSON array.");
-      } else {
-        this.logger.log('[GenerationsService] Using GigaChat fallback');
-        const response = await this.gigachatService.createChatCompletion({
-          messages: [{ role: 'user', content: prompt }],
-          temperature: 0.7,
-        }) as any;
-        rawText = response?.choices?.[0]?.message?.content || '';
-      }
-
-      // Очистка от Markdown-блоков
-      const cleanJson = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
-      
-      let parsedSlides: any[];
-      try {
-        parsedSlides = JSON.parse(cleanJson);
-      } catch (e) {
-        this.logger.error("Failed to parse JSON. Raw output: " + rawText);
-        throw new Error("Нейросеть вернула неккоректный JSON. Попробуйте еще раз.");
-      }
-
-      const slides = [];
-      let slideIndex = 1;
-
-      for (const item of parsedSlides) {
-        const slideId = 'slide_' + Math.random().toString(36).substring(2, 11);
-        const slide = {
-          id: slideId,
-          html: item.html || '',
-          css: '', // CSS теперь инлайновый
-          js: '',
-          imagePrompt: item.imagePrompt || null
-        };
-
-        // Последовательная генерация изображений (Защита от Rate Limits)
-        if (hasReplicate && slide.imagePrompt && slide.html.includes('IMAGE_PLACEHOLDER')) {
-          try {
-            this.logger.log(`[GenerationsService] Generating image for slide ${slideIndex}/${parsedSlides.length}...`);
-            const imageUrl = await this.replicateService.createImage(slide.imagePrompt, 'bytedance/seedream-4', '16:9');
-            slide.html = slide.html.replace('IMAGE_PLACEHOLDER', imageUrl);
-          } catch (err) {
-            this.logger.error(`Failed to generate image for slide ${slideIndex}: ${err.message}`);
-            slide.html = slide.html.replace('IMAGE_PLACEHOLDER', `https://picsum.photos/800/450?sig=${Math.random()}`);
-          }
-        } else {
-          // Фолбэк на Picsum (Unsplash мертв)
-          slide.html = slide.html.replace('IMAGE_PLACEHOLDER', `https://picsum.photos/800/450?sig=${Math.random()}`);
-        }
-
-        slides.push(slide);
-        slideIndex++;
-      }
-
-      const normalizedResult = {
-        provider: hasReplicate ? 'Replicate' : 'GigaChat',
-        mode: 'presentation',
-        slides: slides,
-        completedAt: new Date().toISOString(),
-      };
-
-      if (generationRequestId) {
-        this.logger.log(`[GenerationsService] Saving presentation result to database for request ${generationRequestId}`);
-        await this.generationHelpers.completeGeneration(generationRequestId, normalizedResult);
-      }
-
-      this.logger.log(`[GenerationsService] Generation presentation completed successfully`);
-      return slides;
-
-    } catch (error: any) {
-      this.logger.error('Error in generatePresentationJson:', error);
-      if (generationRequestId) {
-        await this.generationHelpers.failGeneration(generationRequestId, error.message);
-      }
-      throw new BadRequestException('Failed to generate presentation: ' + error.message);
-    }
   }
 
   private buildGigachatPrompt(generationType: GenerationType, inputParams: Record<string, any>) {
