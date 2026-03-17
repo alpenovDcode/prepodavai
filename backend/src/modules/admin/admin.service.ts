@@ -32,7 +32,7 @@ export class AdminService {
         createdAt: true,
         updatedAt: true,
         subscription: true,
-        // Исключаем чувствительные поля: passwordHash
+        passwordHash: true, // Включаем для проверки наличия пароля
       },
     });
 
@@ -40,7 +40,13 @@ export class AdminService {
 
     return {
       success: true,
-      users,
+      users: users.map(user => {
+        const { passwordHash, ...rest } = user;
+        return {
+          ...rest,
+          hasPassword: !!passwordHash
+        };
+      }),
       total,
       limit,
       offset,
@@ -93,7 +99,7 @@ export class AdminService {
   }
 
   async createUser(data: any) {
-    const { username, password, firstName, lastName, phone } = data;
+    const { username, password, firstName, lastName, phone, creditsBalance } = data;
 
     if (!username) {
       throw new BadRequestException('Username is required');
@@ -133,7 +139,7 @@ export class AdminService {
       },
     });
 
-    // Создаем подписку по умолчанию Starter (100 кредитов)
+    // Создаем подписку по умолчанию Starter
     const starterPlan = await this.prisma.subscriptionPlan.findUnique({
       where: { planKey: 'starter' },
     });
@@ -143,12 +149,15 @@ export class AdminService {
       const endDate = new Date(now);
       endDate.setMonth(endDate.getMonth() + 1);
 
+      // Используем переданный баланс или 100 по умолчанию
+      const numCredits = creditsBalance !== undefined ? parseInt(creditsBalance) : 100;
+
       await this.prisma.userSubscription.create({
         data: {
           userId: user.id,
           planId: starterPlan.id,
           status: 'active',
-          creditsBalance: 100, // Явно 100 кредитов как просил пользователь
+          creditsBalance: isNaN(numCredits) ? 100 : numCredits,
           extraCredits: 0,
           creditsUsed: 0,
           overageCreditsUsed: 0,
@@ -181,15 +190,17 @@ export class AdminService {
       generations,
       creditTransactions,
       systemLogs,
-      passwordHash, // Запрещаем обновление passwordHash через admin API
+      passwordHash, // Запрещаем прямое обновление passwordHash через admin API
       apiKey, // Запрещаем обновление apiKey через admin API
+      password, // Извлекаем пароль для хеширования
+      creditsBalance, // Извлекаем баланс токенов для обновления подписки
       ...updateData
     } = data;
 
     // Очищаем пустые строки и null значения для опциональных полей
     Object.keys(updateData).forEach((key) => {
       if (updateData[key] === '' || updateData[key] === null) {
-        if (['phone', 'lastName', 'passwordHash'].includes(key)) {
+        if (['phone', 'lastName'].includes(key)) {
           updateData[key] = null;
         } else {
           delete updateData[key];
@@ -197,6 +208,13 @@ export class AdminService {
       }
     });
 
+    // Хешируем новый пароль, если он передан
+    if (password) {
+      const bcrypt = await import('bcryptjs');
+      (updateData as any).passwordHash = await bcrypt.hash(password, 10);
+    }
+
+    // Обновляем пользователя
     const user = await this.prisma.appUser.update({
       where: { id },
       data: updateData,
@@ -204,6 +222,18 @@ export class AdminService {
         subscription: true,
       },
     });
+
+    // Если передан creditsBalance, обновляем подписку пользователя
+    if (creditsBalance !== undefined) {
+      const numCredits = parseInt(creditsBalance);
+      if (!isNaN(numCredits) && user.subscription) {
+        await this.prisma.userSubscription.update({
+          where: { id: user.subscription.id },
+          data: { creditsBalance: numCredits },
+        });
+        user.subscription.creditsBalance = numCredits;
+      }
+    }
 
     return {
       success: true,

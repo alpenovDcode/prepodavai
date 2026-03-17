@@ -24,6 +24,8 @@ export type OperationType =
   | 'gigachat_tokens_count'
   | 'game_generation'
   | 'exam_variant'
+  | 'video_analysis'
+  | 'sales_advisor'
   | 'unpacking';
 
 @Injectable()
@@ -271,6 +273,23 @@ export class SubscriptionsService {
         creditCost: 20,
         description: 'Распаковка экспертности',
         isActive: true,
+        isUnderMaintenance: false,
+      },
+      {
+        operationType: 'video_analysis',
+        operationName: 'Анализ видео',
+        creditCost: 15,
+        description: 'Анализ видео через AI',
+        isActive: true,
+        isUnderMaintenance: false,
+      },
+      {
+        operationType: 'sales_advisor',
+        operationName: 'ИИ-продажник',
+        creditCost: 10,
+        description: 'ИИ-продажник для анализа продаж',
+        isActive: true,
+        isUnderMaintenance: false,
       },
     ];
 
@@ -622,6 +641,7 @@ export class SubscriptionsService {
         operationName: c.operationName,
         creditCost: c.creditCost,
         description: c.description,
+        isUnderMaintenance: c.isUnderMaintenance,
       })),
     };
   }

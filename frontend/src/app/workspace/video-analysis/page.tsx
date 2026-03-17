@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Video, RefreshCw, Loader2, Maximize2, UploadCloud, Copy, Download, Edit3, Eye } from 'lucide-react'
 import { useGenerations } from '@/lib/hooks/useGenerations'
+import { useServiceCosts } from '@/lib/hooks/useServiceCosts'
 import RichTextEditor from '@/components/workspace/RichTextEditor'
 import GenerationCostBadge from '@/components/workspace/GenerationCostBadge'
 
@@ -140,6 +141,9 @@ export default function VideoAnalysisGenerator() {
         }
     }
 
+    const { costs } = useServiceCosts()
+    const isUnderMaintenance = costs?.find(c => c.operationType === 'video_analysis')?.isUnderMaintenance || false
+
     return (
         <div className="flex w-full h-full bg-[#F9FAFB]">
             {/* Configurator Sidebar */}
@@ -159,11 +163,19 @@ export default function VideoAnalysisGenerator() {
 
                 <div className="flex-1 overflow-y-auto p-5 scrollbar-thin scrollbar-thumb-gray-200">
                     <div className="space-y-6">
+                        {isUnderMaintenance && (
+                            <div className="p-4 bg-yellow-50 border border-yellow-100 rounded-xl">
+                                <p className="text-xs text-yellow-800 font-medium leading-relaxed">
+                                    <span className="font-bold block mb-1">Технические работы</span>
+                                    Данный инструмент временно недоступен. Мы уже работаем над его восстановлением.
+                                </p>
+                            </div>
+                        )}
                         <div>
                             <label className="block text-sm font-bold text-gray-700 mb-2">Видео (mp4, mov)</label>
 
                             <div className="mt-2 text-center">
-                                <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-indigo-100 border-dashed rounded-xl cursor-pointer bg-indigo-50/50 hover:bg-indigo-50 transition-colors">
+                                <label className={`flex flex-col items-center justify-center w-full h-32 border-2 border-indigo-100 border-dashed rounded-xl cursor-pointer bg-indigo-50/50 hover:bg-indigo-50 transition-colors ${isUnderMaintenance && 'opacity-50 pointer-events-none'}`}>
                                     <div className="flex flex-col items-center justify-center pt-5 pb-6">
                                         {isUploading ? (
                                             <Loader2 className="w-8 h-8 text-indigo-500 animate-spin mb-2" />
@@ -174,7 +186,7 @@ export default function VideoAnalysisGenerator() {
                                             {fileName || "Нажмите для загрузки или перетащите файл"}
                                         </p>
                                     </div>
-                                    <input type="file" className="hidden" accept="video/*" onChange={handleFileChange} disabled={isUploading} />
+                                    <input type="file" className="hidden" accept="video/*" onChange={handleFileChange} disabled={isUploading || isUnderMaintenance} />
                                 </label>
                             </div>
                         </div>
@@ -184,7 +196,8 @@ export default function VideoAnalysisGenerator() {
                             <select
                                 value={analysisType}
                                 onChange={e => setAnalysisType(e.target.value)}
-                                className="block w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 placeholder-gray-400"
+                                disabled={isUnderMaintenance}
+                                className="block w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 placeholder-gray-400 disabled:opacity-50"
                             >
                                 {types.map(opt => (
                                     <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -197,12 +210,12 @@ export default function VideoAnalysisGenerator() {
                 <div className="p-5 border-t border-gray-100 bg-white">
                     <button
                         onClick={generate}
-                        disabled={isGenerating || isUploading || !videoHash}
-                        className="w-full relative group overflow-hidden rounded-xl bg-gradient-to-r from-indigo-500 to-blue-600 p-px font-semibold shadow-md active:scale-[0.98] transition-all disabled:opacity-50"
+                        disabled={isGenerating || isUploading || !videoHash || isUnderMaintenance}
+                        className={`w-full relative group overflow-hidden rounded-xl bg-gradient-to-r font-semibold shadow-md active:scale-[0.98] transition-all disabled:opacity-50 ${isUnderMaintenance ? 'from-gray-400 to-gray-500' : 'from-indigo-500 to-blue-600 p-px'}`}
                     >
-                        <div className="relative flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-indigo-500 to-blue-600 rounded-[11px] text-white">
-                            {isGenerating ? <Loader2 className="w-5 h-5 animate-spin" /> : <RefreshCw className="w-5 h-5" />}
-                            <span>{isGenerating ? 'В процессе...' : 'Анализировать'}</span>
+                        <div className={`relative flex items-center justify-center gap-2 px-4 py-3 rounded-[11px] text-white ${isUnderMaintenance ? 'bg-gray-400' : 'bg-gradient-to-r from-indigo-500 to-blue-600'}`}>
+                            {isGenerating ? <Loader2 className="w-5 h-5 animate-spin" /> : isUnderMaintenance ? <i className="fas fa-wrench" /> : <RefreshCw className="w-5 h-5" />}
+                            <span>{isGenerating ? 'В процессе...' : isUnderMaintenance ? 'Тех. работы' : 'Анализировать'}</span>
                         </div>
                     </button>
                 </div>

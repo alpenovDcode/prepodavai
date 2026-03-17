@@ -9,11 +9,22 @@ interface GenerationCostBadgeProps {
 }
 
 export default function GenerationCostBadge({ operationType, className = '' }: GenerationCostBadgeProps) {
-    const { getCost, isLoading } = useServiceCosts()
-    const cost = getCost(operationType)
+    const { costs, isLoading } = useServiceCosts()
+    const costConfig = costs?.find(c => c.operationType === operationType)
+    const cost = costConfig ? costConfig.creditCost : null
+    const isUnderMaintenance = costConfig ? costConfig.isUnderMaintenance : false
 
     if (isLoading || cost === null) {
         return null
+    }
+
+    if (isUnderMaintenance) {
+        return (
+            <div className={`flex items-center gap-1.5 px-2.5 py-1 bg-yellow-50 text-yellow-700 rounded-lg border border-yellow-200 text-xs font-bold uppercase tracking-wider animate-pulse shadow-sm ${className}`}>
+                <i className="fas fa-wrench text-[10px]"></i>
+                <span>Тех. работы</span>
+            </div>
+        )
     }
 
     const getLabel = (value: number) => {

@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import useSWR from 'swr'
 import { apiClient } from '@/lib/api/client'
-import { Search, Plus, Edit2, Trash2, X, ShieldAlert } from 'lucide-react'
+import { Search, Plus, Edit2, Trash2, X, ShieldAlert, Key } from 'lucide-react'
 
 const fetcher = (url: string) => apiClient.get(url).then(res => res.data.users)
 
@@ -20,7 +20,8 @@ export default function AdminUsersPage() {
         password: '',
         firstName: '',
         lastName: '',
-        phone: ''
+        phone: '',
+        creditsBalance: ''
     })
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [formError, setFormError] = useState('')
@@ -40,7 +41,7 @@ export default function AdminUsersPage() {
         try {
             await apiClient.post('/admin/users', formData)
             setIsCreateModalOpen(false)
-            setFormData({ username: '', password: '', firstName: '', lastName: '', phone: '' })
+            setFormData({ username: '', password: '', firstName: '', lastName: '', phone: '', creditsBalance: '' })
             mutate() // Refresh data
         } catch (err: any) {
             setFormError(err.response?.data?.message || 'Ошибка создания пользователя')
@@ -67,7 +68,8 @@ export default function AdminUsersPage() {
             password: '', // Password is not returned from API
             firstName: user.firstName || '',
             lastName: user.lastName || '',
-            phone: user.phone || ''
+            phone: user.phone || '',
+            creditsBalance: user.subscription?.creditsBalance?.toString() || '0'
         })
         setIsEditModalOpen(true)
     }
@@ -81,6 +83,9 @@ export default function AdminUsersPage() {
             const dataToUpdate = { ...formData }
             if (!dataToUpdate.password) {
                 delete (dataToUpdate as any).password // Don't send empty password
+            }
+            if (dataToUpdate.creditsBalance === '') {
+                delete (dataToUpdate as any).creditsBalance
             }
             
             await apiClient.put(`/admin/users/${selectedUser.id}`, dataToUpdate)
@@ -131,9 +136,9 @@ export default function AdminUsersPage() {
                         <table className="w-full text-left text-sm text-gray-500">
                             <thead className="bg-gray-50 text-xs text-gray-700 uppercase">
                                 <tr>
-                                    <th className="px-6 py-4">ID / Username</th>
+                                    <th className="px-6 py-4">ID / Логин / Пароль</th>
                                     <th className="px-6 py-4">Имя & Тел</th>
-                                    <th className="px-6 py-4">Источник</th>
+                                    <th className="px-6 py-4">Ключи доступа / Баланс</th>
                                     <th className="px-6 py-4">Последний вход</th>
                                     <th className="px-6 py-4 text-right">Действия</th>
                                 </tr>
@@ -143,28 +148,49 @@ export default function AdminUsersPage() {
                                     <tr key={user.id} className="hover:bg-gray-50 transition">
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <div className="font-medium text-gray-900">{user.username || 'Без юзернейма'}</div>
-                                            <div className="font-mono text-xs text-gray-400 mt-1">{user.id.substring(0, 8)}...</div>
+                                            <div className="font-mono text-xs text-gray-400 mt-1" title={user.id}>ID: <span className="font-semibold text-gray-500">{user.id.substring(0, 8)}...</span></div>
+                                            <div className="text-xs mt-1 font-medium">
+                                                {user.hasPassword ? <span className="text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">Пароль задан</span> : <span className="text-amber-600 bg-amber-50 px-2 py-0.5 rounded">Пароля нет</span>}
+                                            </div>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <div className="text-gray-900">{user.firstName} {user.lastName}</div>
                                             <div className="text-gray-400 text-xs mt-1">{user.phone || 'Нет телефона'}</div>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
-                                            <span className="px-2 py-1 bg-gray-100 rounded text-xs">
-                                                {user.source}
-                                            </span>
+                                            <div className="flex flex-col gap-1.5 justify-center">
+                                                <div className="flex items-center gap-1.5" title="API Key">
+                                                    <Key className="w-3.5 h-3.5 text-blue-500" />
+                                                    <span className="font-mono text-xs text-gray-600 bg-gray-100 px-1.5 py-0.5 rounded">{user.apiKey || 'Нет ключа'}</span>
+                                                    {user.apiKey && (
+                                                        <button 
+                                                            onClick={() => {
+                                                                navigator.clipboard.writeText(user.apiKey);
+                                                                alert('API ключ скопирован');
+                                                            }}
+                                                            className="text-[10px] text-blue-600 hover:text-blue-800 font-medium underline"
+                                                        >
+                                                            Copy
+                                                        </button>
+                                                    )}
+                                                </div>
+                                                <div className="text-xs font-medium pl-0.5" title="Количество токенов">
+                                                    <span className="text-gray-500">Токены: </span>
+                                                    <span className="text-indigo-600 font-bold">{user.subscription?.creditsBalance ?? '—'}</span>
+                                                </div>
+                                            </div>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <div className="text-gray-700">
-                                                {user.lastAccessAt ? new Date(user.lastAccessAt).toLocaleDateString() : 'Никогда'}
+                                                {user.lastAccessAt ? new Date(user.lastAccessAt).toLocaleString() : 'Никогда'}
                                             </div>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-right">
                                             <div className="flex justify-end gap-2 text-gray-400">
-                                                <button onClick={() => openEditModal(user)} className="hover:text-blue-600 p-1">
+                                                <button onClick={() => openEditModal(user)} className="hover:text-blue-600 p-1 transition-colors" title="Редактировать">
                                                     <Edit2 className="w-5 h-5" />
                                                 </button>
-                                                <button onClick={() => handleDelete(user.id, user.username)} className="hover:text-red-600 p-1">
+                                                <button onClick={() => handleDelete(user.id, user.username)} className="hover:text-red-600 p-1 transition-colors" title="Удалить">
                                                     <Trash2 className="w-5 h-5" />
                                                 </button>
                                             </div>
@@ -197,27 +223,31 @@ export default function AdminUsersPage() {
                             )}
                             
                             <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Username *</label>
+                                <div className="col-span-2 sm:col-span-1">
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Username / Логин *</label>
                                     <input required type="text" value={formData.username} onChange={e => setFormData({...formData, username: e.target.value})} className="w-full border-gray-300 rounded-lg p-2 border focus:ring-2 focus:ring-blue-500 focus:outline-none" />
                                 </div>
-                                <div>
+                                <div className="col-span-2 sm:col-span-1">
                                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Password {isEditModalOpen && <span className="text-xs text-gray-400 font-normal">(оставьте пустым чтобы не менять)</span>}
+                                        Пароль {isEditModalOpen && <span className="text-xs text-gray-400 font-normal">(пусто=не менять)</span>}
                                     </label>
                                     <input required={isCreateModalOpen} type="text" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} className="w-full border-gray-300 rounded-lg p-2 border focus:ring-2 focus:ring-blue-500 focus:outline-none" />
                                 </div>
-                                <div>
+                                <div className="col-span-2 sm:col-span-1">
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Имя</label>
                                     <input type="text" value={formData.firstName} onChange={e => setFormData({...formData, firstName: e.target.value})} className="w-full border-gray-300 rounded-lg p-2 border focus:ring-2 focus:ring-blue-500 focus:outline-none" />
                                 </div>
-                                <div>
+                                <div className="col-span-2 sm:col-span-1">
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Фамилия</label>
                                     <input type="text" value={formData.lastName} onChange={e => setFormData({...formData, lastName: e.target.value})} className="w-full border-gray-300 rounded-lg p-2 border focus:ring-2 focus:ring-blue-500 focus:outline-none" />
                                 </div>
-                                <div className="col-span-2">
+                                <div className="col-span-2 sm:col-span-1">
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Телефон</label>
                                     <input type="text" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} placeholder="+7 999 000 00 00" className="w-full border-gray-300 rounded-lg p-2 border focus:ring-2 focus:ring-blue-500 focus:outline-none" />
+                                </div>
+                                <div className="col-span-2 sm:col-span-1">
+                                    <label className="block text-sm font-medium text-indigo-700 mb-1 font-semibold">Баланс токенов</label>
+                                    <input type="number" placeholder="100" value={formData.creditsBalance} onChange={e => setFormData({...formData, creditsBalance: e.target.value})} className="w-full border-indigo-200 bg-indigo-50/50 rounded-lg p-2 border focus:ring-2 focus:ring-indigo-500 focus:outline-none" />
                                 </div>
                             </div>
                             

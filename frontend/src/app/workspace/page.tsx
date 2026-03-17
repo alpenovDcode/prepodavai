@@ -36,7 +36,11 @@ export default function WorkspaceHub() {
         'presentation': 'presentation',
         'assistant': 'assistant',
         'image': 'image_generation',
-        'transcription': 'transcription'
+        'transcription': 'transcription',
+        'video-analysis': 'video_analysis',
+        'sales-advisor': 'sales_advisor',
+        'exam': 'exam_variant',
+        'unpacking': 'unpacking'
     }
 
     const tools = [
@@ -74,7 +78,25 @@ export default function WorkspaceHub() {
             icon: PenTool,
             color: 'bg-yellow-50 text-yellow-600',
             path: '/workspace/worksheet',
-            cost: 2
+            cost: 3
+        },
+        {
+            id: 'video-analysis',
+            title: 'Анализ Видео',
+            description: 'Анализируйте видеоуроки, выделяйте ключевые моменты и получайте рекомендации.',
+            icon: Video,
+            color: 'bg-indigo-50 text-indigo-600',
+            path: '/workspace/video-analysis',
+            cost: 15
+        },
+        {
+            id: 'exam',
+            title: 'Варианты ОГЭ/ЕГЭ',
+            description: 'Генерируйте полноценные тренировочные варианты экзаменов по спецификациям ФИПИ.',
+            icon: Sparkles,
+            color: 'bg-orange-50 text-orange-600',
+            path: '/workspace/exam',
+            cost: 20
         },
         {
             id: 'presentation',

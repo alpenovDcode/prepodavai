@@ -10,6 +10,7 @@ export interface CreditCost {
     operationName: string
     creditCost: number
     description: string
+    isUnderMaintenance: boolean
 }
 
 export function useServiceCosts() {
