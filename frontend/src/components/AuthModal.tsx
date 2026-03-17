@@ -18,7 +18,7 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
   const [debugCode, setDebugCode] = useState('')
   const [attemptsLeft, setAttemptsLeft] = useState<number | null>(null)
   const [resendTimer, setResendTimer] = useState(0)
-  const [loginMode, setLoginMode] = useState<'phone' | 'apikey'>('phone')
+  const [loginMode, setLoginMode] = useState<'phone' | 'apikey'>('apikey')
 
   const [form, setForm] = useState({
     name: '',
@@ -30,16 +30,9 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
   })
 
   useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search)
-    const tab = urlParams.get('tab')
-    
-    if (tab === 'telegram') {
-      setIsLogin(true)
-      setLoginMode('apikey')
-    } else if (tab === 'phone') {
-      setIsLogin(true)
-      setLoginMode('phone')
-    }
+    // Always default to Telegram auth
+    setIsLogin(true)
+    setLoginMode('apikey')
   }, [])
 
   useEffect(() => {
@@ -252,7 +245,7 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
         </h2>
         <p className="text-center text-gray-900 mb-8">
           {isLogin 
-            ? (loginMode === 'phone' ? 'Введите телефон и пароль' : 'Введите данные из Telegram')
+            ? 'Введите данные из Telegram'
             : (step === 1 ? 'Создайте новый аккаунт' : 'Введите код из SMS')
           }
         </p>
@@ -417,7 +410,7 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
         )}
 
         {/* Login Form: Username + API Key from Telegram */}
-        {isLogin && (
+        {isLogin && false && (
           <div className="flex gap-2 mb-6">
             <button
               type="button"
@@ -554,6 +547,7 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
         )}
 
         {/* Toggle */}
+        {false && (
         <div className="mt-6 text-center">
           <button 
             onClick={toggleMode}
@@ -562,6 +556,7 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
             {isLogin ? 'Нет аккаунта? Зарегистрируйтесь' : 'Уже есть аккаунт? Войдите'}
           </button>
         </div>
+        )}
       </div>
     </div>
   )

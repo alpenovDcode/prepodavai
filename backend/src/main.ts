@@ -21,9 +21,9 @@ async function bootstrap() {
     );
   }
 
-  // Ограничение размера body запросов (защита от DoS)
-  app.use(require('express').json({ limit: '50mb' }));
-  app.use(require('express').urlencoded({ limit: '50mb', extended: true }));
+  // Ограничение размера body запросов (защита от DoS) - Увеличено до 2GB для загрузки видео
+  app.use(require('express').json({ limit: '2gb' }));
+  app.use(require('express').urlencoded({ limit: '2gb', extended: true }));
   app.use(require('cookie-parser')());
 
   // Serve static files from uploads directory (under /api prefix to match Nginx proxying)

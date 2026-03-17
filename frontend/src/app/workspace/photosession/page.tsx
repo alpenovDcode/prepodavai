@@ -78,9 +78,17 @@ export default function PhotosessionGenerator() {
         setIsUploading(true)
 
         try {
-            // Simulated upload delay
-            await new Promise(resolve => setTimeout(resolve, 800))
-            setImageHash('simulated_hash_' + Date.now())
+            const formData = new FormData()
+            formData.append('file', file)
+
+            const { apiClient } = await import('@/lib/api/client')
+            const response = await apiClient.post('/files/upload', formData)
+
+            if (response.data?.success) {
+                setImageHash(response.data.hash || response.data.url)
+            } else {
+                throw new Error('Upload failed on server')
+            }
         } catch (error) {
             console.error('Upload failed', error)
             setErrorMsg('Ошибка загрузки фотографии')
