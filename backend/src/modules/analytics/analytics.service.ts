@@ -157,4 +157,33 @@ export class AnalyticsService {
       topStudents,
     };
   }
+
+  async getQuickStats(userId: string) {
+    // 1. Total Generations (User Specific)
+    const generationsCount = await this.prisma.userGeneration.count({
+      where: { userId, status: 'completed' },
+    });
+
+    // 2. Global Generations (to make the counter feel "real-time")
+    const globalGenerationsCount = await this.prisma.userGeneration.count({
+      where: { status: 'completed' },
+    });
+
+    // 3. Total Credits Spent
+    const creditResult = await this.prisma.userGeneration.aggregate({
+      where: { userId, status: 'completed' },
+      _sum: { creditCost: true },
+    });
+    const totalCreditsSpent = creditResult._sum.creditCost || 0;
+
+    // 4. Fixed count as requested: "сколько функций есть 17"
+    const toolsCount = 17;
+
+    return {
+      materialsCount: toolsCount,
+      generationsCount,
+      globalGenerationsCount,
+      totalCreditsSpent,
+    };
+  }
 }

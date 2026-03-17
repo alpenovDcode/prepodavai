@@ -5,12 +5,18 @@ import { useRouter } from 'next/navigation'
 import { apiClient } from '@/lib/api/client'
 import { functions } from './InputComposer/config'
 import { useGenerations } from '@/lib/hooks/useGenerations'
+import useSWR from 'swr'
+
+const fetcher = (url: string) => apiClient.get(url).then((res: any) => res.data)
 
 export default function DashboardHome() {
     const router = useRouter()
     const [lessonTopic, setLessonTopic] = useState('')
     const [gradeLevel, setGradeLevel] = useState('middle')
     const [duration, setDuration] = useState('45')
+    const { data: statsData } = useSWR('/analytics/live-stats', fetcher, {
+        refreshInterval: 10000 // Refresh every 10 seconds
+    })
 
     // Default selected types
     const [selectedTypes, setSelectedTypes] = useState<string[]>(['presentation', 'quiz'])
@@ -270,38 +276,46 @@ export default function DashboardHome() {
 
             {/* Quick Stats */}
             <div className="grid md:grid-cols-4 gap-4 mt-8">
-                <div className="bg-white rounded-2xl p-6 border border-gray-100">
+                <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
                     <div className="flex items-center gap-3 mb-2">
                         <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center">
                             <i className="fas fa-file-alt text-primary-600"></i>
                         </div>
                         <div>
-                            <p className="text-2xl font-bold text-gray-900">24</p>
-                            <p className="text-xs text-gray-600">Материалов</p>
+                            <p className="text-2xl font-bold text-gray-900">{statsData?.materialsCount || 17}</p>
+                            <p className="text-xs text-gray-600 font-medium">Материалов</p>
                         </div>
                     </div>
                 </div>
 
-                <div className="bg-white rounded-2xl p-6 border border-gray-100">
+                <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm overflow-hidden relative group">
                     <div className="flex items-center gap-3 mb-2">
-                        <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center">
+                        <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center relative z-10">
                             <i className="fas fa-check-circle text-green-600"></i>
                         </div>
-                        <div>
-                            <p className="text-2xl font-bold text-gray-900">156</p>
-                            <p className="text-xs text-gray-600">Генераций</p>
+                        <div className="relative z-10">
+                            <div className="flex items-baseline gap-1">
+                                <p className="text-2xl font-bold text-gray-900 tabular-nums">
+                                    {(statsData?.globalGenerationsCount || 156).toLocaleString()}
+                                </p>
+                                <span className="flex h-2 w-2 relative -top-3">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                                </span>
+                            </div>
+                            <p className="text-xs text-gray-600 font-medium">Генераций</p>
                         </div>
                     </div>
                 </div>
 
-                <div className="bg-white rounded-2xl p-6 border border-gray-100">
+                <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
                     <div className="flex items-center gap-3 mb-2">
                         <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
                             <i className="fas fa-coins text-blue-600"></i>
                         </div>
                         <div>
-                            <p className="text-2xl font-bold text-gray-900">1,250</p>
-                            <p className="text-xs text-gray-600">Кредитов</p>
+                            <p className="text-2xl font-bold text-gray-900">{(statsData?.totalCreditsSpent || 1250).toLocaleString()}</p>
+                            <p className="text-xs text-gray-600 font-medium">Кредитов</p>
                         </div>
                     </div>
                 </div>

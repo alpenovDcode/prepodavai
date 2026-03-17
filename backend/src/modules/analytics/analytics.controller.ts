@@ -12,4 +12,10 @@ export class AnalyticsController {
     const userId = req.user.id;
     return this.analyticsService.getDashboardStats(userId);
   }
+
+  @Get('live-stats')
+  async getLiveStats(@Request() req: any) {
+    const userId = req.user.id;
+    return this.analyticsService.getQuickStats(userId);
+  }
 }
