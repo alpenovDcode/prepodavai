@@ -40,7 +40,7 @@ export class GigachatGenerationsService {
 
     if (!creditCheck.success) {
       this.logger.warn(`Insufficient credits: userId=${userId}, operationType=${operationType}`);
-      throw new BadRequestException(creditCheck.error || 'Недостаточно кредитов');
+      throw new BadRequestException(creditCheck.message || 'Недостаточно кредитов');
     }
 
     const model = dto.model || this.gigachatService.getDefaultModel(dto.mode);

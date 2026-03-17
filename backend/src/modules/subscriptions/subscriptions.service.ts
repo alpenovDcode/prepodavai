@@ -418,7 +418,7 @@ export class SubscriptionsService {
     if (!check.available) {
       return {
         success: false,
-        error: check.message || 'Недостаточно кредитов',
+        message: check.message || 'Недостаточно кредитов',
       };
     }
 
@@ -427,7 +427,7 @@ export class SubscriptionsService {
     if (!debit.success) {
       return {
         success: false,
-        error: debit.message || 'Ошибка списания кредитов',
+        message: debit.message || 'Ошибка списания кредитов',
       };
     }
 

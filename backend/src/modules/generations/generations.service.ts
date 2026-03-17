@@ -191,7 +191,7 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
     }
 
     if (!creditCheck.success) {
-      throw new BadRequestException(creditCheck.error || 'Недостаточно кредитов');
+      throw new BadRequestException(creditCheck.message || 'Недостаточно кредитов');
     }
 
     const deductedCost = creditCheck.transaction?.amount || 0;
@@ -292,7 +292,7 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
     );
 
     if (!creditCheck.success) {
-      throw new BadRequestException(creditCheck.error || 'Недостаточно кредитов для пакета');
+      throw new BadRequestException(creditCheck.message || 'Недостаточно кредитов для пакета');
     }
 
     const remainingCredits = creditCheck.transaction?.balanceAfter;
