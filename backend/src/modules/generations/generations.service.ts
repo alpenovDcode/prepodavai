@@ -670,9 +670,22 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
     }
   }
 
-  /**
-   * Универсальная генерация текста через Replicate (HTML документ)
-   */
+  // ============================================================
+// ФАЙЛ: generations_service.ts
+// ИСПРАВЛЕНИЕ: метод generateTextViaReplicate (строки ~676–737)
+// ============================================================
+// 
+// БЫЛО (строки 689–693):
+// ────────────────────────────────────────────────────────
+//   const response = await this.replicateService.createCompletion(
+//       `${systemPrompt}\n\n${userPrompt}`,
+//       model,    // ← БАГ: model попадает в параметр systemPrompt!
+//   );
+// ────────────────────────────────────────────────────────
+//
+// СТАЛО:
+// ────────────────────────────────────────────────────────
+
   private async generateTextViaReplicate(
     generationType: GenerationType,
     generationRequestId: string,
@@ -682,14 +695,25 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
     this.logger.log(`[GenerationsService] Starting text generation via Replicate for ${generationType}`);
     const { systemPrompt, userPrompt } = this.buildGigachatPrompt(generationType, inputParams);
     const model = requestedModel || 'google/gemini-3-flash';
+    
+    // Для КИМ (exam-variant) нужно больше токенов — полный HTML с SVG-графиками
+    const maxTokens = (generationType === 'exam-variant' || generationType === 'exam_variant')
+      ? 32000
+      : 16384;
+
     this.logger.log(
-      `[GenerationsService] Using Replicate model: ${model}, prompt length: ${systemPrompt.length + userPrompt.length}`,
+      `[GenerationsService] Using Replicate model: ${model}, prompt length: ${systemPrompt.length + userPrompt.length}, max_tokens: ${maxTokens}`,
     );
 
     try {
+      // FIX: передаём model как второй аргумент, max_tokens через options
+      // Gemini Flash не поддерживает отдельный system_prompt — склеиваем в один prompt
+      const combinedPrompt = `${systemPrompt}\n\n${userPrompt}`;
+      
       const response = await this.replicateService.createCompletion(
-        `${systemPrompt}\n\n${userPrompt}`,
+        combinedPrompt,
         model,
+        { max_tokens: maxTokens, temperature: 0.7 },
       );
 
       const content = response;
@@ -701,9 +725,7 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
         throw new BadRequestException('Replicate вернул пустой результат');
       }
 
-      // Postprocess HTML to ensure MathJax is included if formulas are present
       this.logger.log(`[GenerationsService] Starting HTML postprocessing for ${generationType}`);
-      // Replace logo placeholder with actual base64 image
       const contentWithLogo = content.replace(/LOGO_PLACEHOLDER/g, LOGO_BASE64);
       const processedContent = this.htmlPostprocessor.ensureMathJaxScript(contentWithLogo);
       this.logger.log(

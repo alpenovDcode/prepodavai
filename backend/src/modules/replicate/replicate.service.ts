@@ -21,14 +21,14 @@ export class ReplicateService {
             headers: {
                 Authorization: `Bearer ${this.apiToken}`,
                 'Content-Type': 'application/json',
-                'Prefer': 'wait', // Wait for prediction to finish
+                'Prefer': 'wait',
             },
-            timeout: 180000, // 180s timeout for large prompts
+            timeout: 180000,
         });
     }
 
     /**
-     * Generate streaming text via Replicate using google/gemini-3-flash.
+     * Generate streaming text via Replicate.
      */
     async createTextStreamCompletion(systemPrompt: string, userPrompt: string, model: string = 'google/gemini-3-flash'): Promise<string> {
         if (!this.apiToken) {
@@ -39,14 +39,13 @@ export class ReplicateService {
         this.logger.debug(`Creating ${model} streaming completion, prompt length: ${fullPrompt.length}`);
 
         try {
-            // Start prediction with stream: true
             const response = await axios.post(
                 `https://api.replicate.com/v1/models/${model}/predictions`,
                 {
                     stream: true,
                     input: {
                         prompt: fullPrompt,
-                        max_tokens: 8192,
+                        max_tokens: 16384,
                         temperature: 0.7,
                     },
                 },
@@ -71,7 +70,6 @@ export class ReplicateService {
                 throw new Error('No stream URL returned from Replicate');
             }
 
-            // Connect to stream URL and parse SSE
             this.logger.debug(`Connecting to stream URL: ${streamUrl}`);
             const streamResponse = await axios.get(streamUrl, {
                 headers: {
@@ -115,7 +113,7 @@ export class ReplicateService {
 
                 streamResponse.data.on('end', () => {
                     if (isRejected) return;
-                    this.logger.debug(`Stream ended randomly or naturally. Collected ${fullText.length} chars.`);
+                    this.logger.debug(`Stream ended. Collected ${fullText.length} chars.`);
                     if (fullText.trim() === '' || fullText.includes('Provider returned error')) {
                         reject(new Error('Stream ended without valid data'));
                     } else {
@@ -136,52 +134,60 @@ export class ReplicateService {
         }
     }
 
-    async createCompletion(prompt: string, systemPrompt?: string) {
+    /**
+     * Generate text completion via Replicate (synchronous, with Prefer: wait).
+     * 
+     * @param prompt - The user/combined prompt text
+     * @param model - The model to use (e.g. 'google/gemini-3-flash')
+     * @param options - Optional overrides for max_tokens, temperature
+     */
+    async createCompletion(
+        prompt: string,
+        model?: string,
+        options?: { max_tokens?: number; temperature?: number },
+    ): Promise<string> {
         if (!this.apiToken) {
             throw new Error('REPLICATE_API_TOKEN is not configured');
         }
 
-        this.logger.debug(`Creating completion with prompt: ${prompt.substring(0, 50)}...`);
+        const targetModel = model || this.defaultModel;
+        const maxTokens = options?.max_tokens ?? 16384;
+        const temperature = options?.temperature ?? 0.7;
+
+        this.logger.debug(
+            `Creating completion with model: ${targetModel}, prompt length: ${prompt.length}, max_tokens: ${maxTokens}`,
+        );
 
         try {
-            // Construct the input for google/gemini-3-flash
-            // Note: The actual input schema depends on the specific model version on Replicate.
-            // Assuming standard text generation input.
-            const input = {
-                prompt: prompt,
-                system_prompt: systemPrompt || "You are a helpful AI assistant.",
-                max_tokens: 2048,
-                temperature: 0.7,
+            // Gemini Flash on Replicate does NOT support a separate system_prompt field.
+            // Everything goes into `prompt`. The caller is responsible for combining
+            // system + user prompts before passing them here.
+            const input: Record<string, any> = {
+                prompt,
+                max_tokens: maxTokens,
+                temperature,
             };
 
-            const response = await this.http.post(`/models/${this.defaultModel}/predictions`, {
+            const response = await this.http.post(`/models/${targetModel}/predictions`, {
                 input,
             });
 
             this.logger.debug('Replicate response received');
 
-            // Replicate returns the prediction object. 
-            // If 'Prefer: wait' is used, it might return the completed prediction.
-            // Otherwise, we might need to poll. 
-            // For this implementation, we assume 'Prefer: wait' works or we handle the response.
-
             const prediction = response.data;
 
             if (prediction.status === 'succeeded' && prediction.output) {
-                // Output is usually an array of strings or a single string depending on the model
-                const text = Array.isArray(prediction.output) ? prediction.output.join('') : prediction.output;
+                const text = Array.isArray(prediction.output)
+                    ? prediction.output.join('')
+                    : prediction.output;
                 return text;
             } else if (prediction.status === 'starting' || prediction.status === 'processing') {
-                // If it didn't finish in time (despite Prefer: wait), we might need to poll.
-                // For simplicity in this first pass, we'll log a warning. 
-                // A more robust implementation would poll `prediction.urls.get`.
-                this.logger.warn(`Prediction status is ${prediction.status}. Polling might be required.`);
+                this.logger.warn(`Prediction status is ${prediction.status}. Polling...`);
                 return this.pollPrediction(prediction.urls.get);
             } else {
                 this.logger.error(`Prediction failed or invalid status: ${prediction.status}`);
                 throw new Error(`Replicate prediction failed: ${prediction.error || prediction.status}`);
             }
-
         } catch (error) {
             this.logger.error(`Replicate API error: ${error.message}`, error.response?.data);
             throw error;
@@ -201,7 +207,6 @@ export class ReplicateService {
                 aspect_ratio: aspect_ratio,
             };
 
-            // Standard params for Flux
             if (model.includes('flux')) {
                 input.num_outputs = 1;
                 input.output_format = 'jpg';
@@ -223,7 +228,6 @@ export class ReplicateService {
             } else {
                 throw new Error(`Replicate image prediction failed: ${prediction.error || prediction.status || 'Failed to generate image'}`);
             }
-
         } catch (error) {
             this.logger.error(`Replicate API error (image) for ${model}: ${error.message}`, error.response?.data);
             throw error;
@@ -232,16 +236,13 @@ export class ReplicateService {
 
     private extractOutput(output: any): string {
         const out = Array.isArray(output) ? output[0] : output;
-        // FileOutput objects have a .url property, plain strings are URLs directly
         return (typeof out === 'object' && out !== null && 'url' in out) ? (out as any).url : out;
     }
-
 
     private async pollPrediction(url: string, maxAttempts = 30, interval = 1000): Promise<string> {
         for (let i = 0; i < maxAttempts; i++) {
             await new Promise(resolve => setTimeout(resolve, interval));
             try {
-                // We need to use a separate axios call because the URL is absolute
                 const response = await axios.get(url, {
                     headers: {
                         Authorization: `Bearer ${this.apiToken}`,
@@ -255,7 +256,6 @@ export class ReplicateService {
                 } else if (prediction.status === 'failed' || prediction.status === 'canceled') {
                     throw new Error(`Prediction ${prediction.status}: ${prediction.error}`);
                 }
-                // If still processing/starting, continue loop
             } catch (error) {
                 this.logger.error(`Polling error: ${error.message}`);
                 throw error;
