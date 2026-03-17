@@ -40,7 +40,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
             {/* Sidebar */}
             <aside
-                className={`sidebar ${sidebarOpen ? 'mobile-open' : 'sidebar-hidden'} md:translate-x-0 z-50`}
+                className={`sidebar ${sidebarOpen ? 'mobile-open' : 'sidebar-hidden'} md:translate-x-0 z-50 flex flex-col`}
             >
                 {/* Logo */}
                 <div className="p-6">
@@ -57,7 +57,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 </div>
 
                 {/* Navigation */}
-                <nav className="py-4">
+                <nav className="py-4 flex-1 overflow-y-auto">
                     {navItems.map((item) => (
                         <Link
                             key={item.id}
@@ -73,11 +73,11 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                     ))}
                 </nav>
 
-                <div className="absolute bottom-4 left-0 right-0 px-4">
-
+                {/* Bottom Section: Profile */}
+                <div className="p-4 border-t border-gray-100">
                     {/* User Profile */}
                     <div 
-                        className="mt-4 flex items-center justify-between p-2 rounded-xl hover:bg-gray-50 transition border border-transparent hover:border-gray-100 cursor-pointer"
+                        className="flex items-center justify-between p-2 rounded-xl hover:bg-gray-50 transition border border-transparent hover:border-gray-100 cursor-pointer"
                         onClick={() => router.push('/dashboard/settings')}
                     >
                         <div className="flex items-center gap-3 min-w-0">
@@ -106,7 +106,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             </aside>
 
             {/* Main Content */}
-            <div className="md:ml-[240px] min-h-screen">
+            <div className="md:ml-[260px] min-h-screen">
                 {/* Mobile Header */}
                 <div className="md:hidden sticky top-0 z-30 bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
                     <button

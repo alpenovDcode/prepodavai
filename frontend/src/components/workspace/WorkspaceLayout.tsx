@@ -126,8 +126,6 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
                     </nav>
                 </div>
 
-                {/* Spacer */}
-                <div className="flex-1" />
 
                 {/* User Profile Hook (Mock for now, should connect to real user context) */}
                 <div className="p-4 border-t border-gray-100">
