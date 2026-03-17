@@ -606,10 +606,10 @@ export class AdminService {
     };
   }
 
-  async updateCreditCost(operationType: string, creditCost: number) {
+  async updateCreditCost(operationType: string, data: { creditCost?: number; isUnderMaintenance?: boolean }) {
     const cost = await this.prisma.creditCost.update({
       where: { operationType },
-      data: { creditCost },
+      data,
     });
 
     return {

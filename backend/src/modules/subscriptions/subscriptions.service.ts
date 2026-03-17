@@ -22,7 +22,9 @@ export type OperationType =
   | 'gigachat_translation'
   | 'gigachat_embeddings'
   | 'gigachat_tokens_count'
-  | 'game_generation';
+  | 'game_generation'
+  | 'exam_variant'
+  | 'unpacking';
 
 @Injectable()
 export class SubscriptionsService {
@@ -97,115 +99,11 @@ export class SubscriptionsService {
     const costs = [
       {
         operationType: 'text_generation',
-        operationName: 'Генерация текста (короткая)',
-        creditCost: 1,
-        description: 'Короткие текстовые генерации',
-        isActive: true,
-      },
-      {
-        operationType: 'worksheet',
-        operationName: 'Рабочий лист',
-        creditCost: 2,
-        description: 'Создание рабочих листов',
-        isActive: true,
-      },
-      {
-        operationType: 'quiz',
-        operationName: 'Тест',
-        creditCost: 2,
-        description: 'Создание тестов',
-        isActive: true,
-      },
-      {
-        operationType: 'vocabulary',
-        operationName: 'Словарь',
-        creditCost: 2,
-        description: 'Создание словарей',
-        isActive: true,
-      },
-      {
-        operationType: 'lesson_plan',
-        operationName: 'План урока',
+        operationName: 'Генерация текста',
         creditCost: 3,
-        description: 'Создание планов уроков',
+        description: 'Стандартная генерация текста',
         isActive: true,
-      },
-      {
-        operationType: 'feedback',
-        operationName: 'Обратная связь',
-        creditCost: 2,
-        description: 'Генерация обратной связи',
-        isActive: true,
-      },
-      {
-        operationType: 'content_adaptation',
-        operationName: 'Адаптация контента',
-        creditCost: 3,
-        description: 'Адаптация учебного контента',
-        isActive: true,
-      },
-      {
-        operationType: 'message',
-        operationName: 'Сообщение родителям',
-        creditCost: 1,
-        description: 'Генерация сообщений',
-        isActive: true,
-      },
-      {
-        operationType: 'gigachat_text',
-        operationName: 'GigaChat текст',
-        creditCost: 3,
-        description: 'Прямые текстовые запросы к GigaChat',
-        isActive: true,
-      },
-      {
-        operationType: 'gigachat_image',
-        operationName: 'GigaChat изображение',
-        creditCost: 6,
-        description: 'Генерация изображений через GigaChat',
-        isActive: true,
-      },
-      {
-        operationType: 'gigachat_audio',
-        operationName: 'GigaChat аудио (общий)',
-        creditCost: 4,
-        description: 'Голосовые функции GigaChat (Legacy)',
-        isActive: false,
-      },
-      {
-        operationType: 'gigachat_tts',
-        operationName: 'GigaChat синтез речи',
-        creditCost: 5,
-        description: 'Синтез речи из текста (TTS)',
-        isActive: true,
-      },
-      {
-        operationType: 'gigachat_stt',
-        operationName: 'GigaChat транскрибация',
-        creditCost: 5,
-        description: 'Распознавание речи (STT)',
-        isActive: true,
-      },
-      {
-        operationType: 'gigachat_translation',
-        operationName: 'GigaChat аудио перевод',
-        creditCost: 7,
-        description: 'Перевод аудио файлов',
-        isActive: true,
-      },
-      {
-        operationType: 'gigachat_embeddings',
-        operationName: 'GigaChat эмбеддинги',
-        creditCost: 2,
-        description: 'Получение эмбеддингов через GigaChat',
-        isActive: true,
-      },
-      {
-        operationType: 'gigachat_tokens_count',
-        operationName: 'GigaChat подсчет токенов',
-        creditCost: 0,
-        description: 'Подсчет токенов (бесплатно)',
-        isActive: true,
+        isUnderMaintenance: false,
       },
       {
         operationType: 'image_generation',
@@ -213,6 +111,7 @@ export class SubscriptionsService {
         creditCost: 5,
         description: 'Создание изображений через AI',
         isActive: true,
+        isUnderMaintenance: false,
       },
       {
         operationType: 'photosession',
@@ -220,6 +119,7 @@ export class SubscriptionsService {
         creditCost: 10,
         description: 'AI фотосессия',
         isActive: true,
+        isUnderMaintenance: false,
       },
       {
         operationType: 'presentation',
@@ -227,6 +127,7 @@ export class SubscriptionsService {
         creditCost: 8,
         description: 'Создание презентаций',
         isActive: true,
+        isUnderMaintenance: false,
       },
       {
         operationType: 'transcription',
@@ -234,6 +135,119 @@ export class SubscriptionsService {
         creditCost: 15,
         description: 'Транскрибация видео через Whisper',
         isActive: true,
+        isUnderMaintenance: false,
+      },
+      {
+        operationType: 'worksheet',
+        operationName: 'Рабочий лист',
+        creditCost: 3,
+        description: 'Создание рабочих листов',
+        isActive: true,
+        isUnderMaintenance: false,
+      },
+      {
+        operationType: 'quiz',
+        operationName: 'Тест',
+        creditCost: 3,
+        description: 'Создание тестов (викторин)',
+        isActive: true,
+        isUnderMaintenance: false,
+      },
+      {
+        operationType: 'vocabulary',
+        operationName: 'Словарь',
+        creditCost: 2,
+        description: 'Создание словарей',
+        isActive: true,
+        isUnderMaintenance: false,
+      },
+      {
+        operationType: 'lesson_plan',
+        operationName: 'План урока',
+        creditCost: 3,
+        description: 'Создание планов уроков',
+        isActive: true,
+        isUnderMaintenance: false,
+      },
+      {
+        operationType: 'feedback',
+        operationName: 'Обратная связь',
+        creditCost: 2,
+        description: 'Генерация обратной связи',
+        isActive: true,
+        isUnderMaintenance: false,
+      },
+      {
+        operationType: 'content_adaptation',
+        operationName: 'Адаптация контента',
+        creditCost: 3,
+        description: 'Адаптация учебного контента',
+        isActive: true,
+        isUnderMaintenance: false,
+      },
+      {
+        operationType: 'message',
+        operationName: 'Сообщение родителям',
+        creditCost: 1,
+        description: 'Генерация сообщений',
+        isActive: true,
+        isUnderMaintenance: false,
+      },
+      {
+        operationType: 'gigachat_text',
+        operationName: 'GigaChat текст',
+        creditCost: 3,
+        description: 'Прямые текстовые запросы к GigaChat',
+        isActive: true,
+        isUnderMaintenance: false,
+      },
+      {
+        operationType: 'gigachat_image',
+        operationName: 'GigaChat изображение',
+        creditCost: 6,
+        description: 'Генерация изображений через GigaChat',
+        isActive: true,
+        isUnderMaintenance: false,
+      },
+      {
+        operationType: 'gigachat_tts',
+        operationName: 'GigaChat синтез речи',
+        creditCost: 5,
+        description: 'Синтез речи из текста (TTS)',
+        isActive: true,
+        isUnderMaintenance: false,
+      },
+      {
+        operationType: 'gigachat_stt',
+        operationName: 'GigaChat транскрибация',
+        creditCost: 5,
+        description: 'Распознавание речи (STT)',
+        isActive: true,
+        isUnderMaintenance: false,
+      },
+      {
+        operationType: 'gigachat_translation',
+        operationName: 'GigaChat аудио перевод',
+        creditCost: 7,
+        description: 'Перевод аудио файлов',
+        isActive: true,
+        isUnderMaintenance: false,
+      },
+      {
+        operationType: 'gigachat_embeddings',
+        operationName: 'GigaChat эмбеддинги',
+        creditCost: 2,
+        description: 'Получение эмбеддингов через GigaChat',
+        isActive: true,
+        isUnderMaintenance: false,
+      },
+      {
+        operationType: 'gigachat_tokens_count',
+        operationName: 'GigaChat подсчет токенов',
+        creditCost: 0,
+        description: 'Подсчет токенов (бесплатно)',
+        isActive: true,
+        isUnderMaintenance: false,
       },
       {
         operationType: 'game_generation',
@@ -241,18 +255,35 @@ export class SubscriptionsService {
         creditCost: 15,
         description: 'Создание образовательной игры',
         isActive: true,
+        isUnderMaintenance: false,
+      },
+      {
+        operationType: 'exam_variant',
+        operationName: 'Вариант ОГЭ/ЕГЭ',
+        creditCost: 20,
+        description: 'Генерация варианта ОГЭ/ЕГЭ',
+        isActive: true,
+        isUnderMaintenance: false,
+      },
+      {
+        operationType: 'unpacking',
+        operationName: 'Распаковка экспертности',
+        creditCost: 20,
+        description: 'Распаковка экспертности',
+        isActive: true,
       },
     ];
 
     for (const costData of costs) {
       await this.prisma.creditCost.upsert({
-        where: { operationType: costData.operationType },
+        where: { operationType: costData.operationType as any },
         update: costData,
         create: costData,
       });
-      console.log(`✅ Credit cost initialized: ${costData.operationType}`);
+      console.log("✅ Credit cost initialized: " + costData.operationType);
     }
   }
+
 
   /**
    * Получить или создать подписку для пользователя
@@ -325,8 +356,24 @@ export class SubscriptionsService {
   async checkCreditsAvailable(userId: string, operationType: OperationType) {
     const subscription = await this.getOrCreateUserSubscription(userId);
     const plan = subscription.plan;
-    const cost = await this.getOperationCost(operationType);
+    
+    // Получаем полную инфу о стоимости и статусе обслуживания
+    const costConfig = await this.prisma.creditCost.findUnique({
+      where: { operationType: operationType as any }
+    });
 
+    if (costConfig?.isUnderMaintenance) {
+      return { 
+        available: false, 
+        subscription, 
+        plan, 
+        cost: costConfig.creditCost, 
+        message: 'Функция временно недоступна (технические работы)',
+        isUnderMaintenance: true
+      };
+    }
+
+    const cost = costConfig?.creditCost ?? 1;
     const totalAvailable = subscription.creditsBalance + subscription.extraCredits;
     const available =
       totalAvailable >= cost || (plan.allowOverage && subscription.creditsBalance >= 0);
@@ -336,7 +383,7 @@ export class SubscriptionsService {
       message = `Недостаточно кредитов. Требуется: ${cost}, доступно: ${totalAvailable}`;
     }
 
-    return { available, subscription, plan, cost, message };
+    return { available, subscription, plan, cost, message, isUnderMaintenance: false };
   }
 
   /**

@@ -1,10 +1,43 @@
 'use client'
-
+ 
+import { useState, useEffect } from 'react'
 import { BookOpen, HelpCircle, Gamepad2, PenTool, MessageSquare, Presentation, Image as ImageIcon, Video, Sparkles } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+import { apiClient } from '@/lib/api/client'
 
 export default function WorkspaceHub() {
     const router = useRouter()
+
+    const [maintenanceStatus, setMaintenanceStatus] = useState<Record<string, boolean>>({})
+
+    useEffect(() => {
+        const loadStatus = async () => {
+            try {
+                const response = await apiClient.get('/subscriptions/costs')
+                if (response.data.success) {
+                    const maintMap: Record<string, boolean> = {}
+                    response.data.costs.forEach((c: any) => {
+                        maintMap[c.operationType] = c.isUnderMaintenance || false
+                    })
+                    setMaintenanceStatus(maintMap)
+                }
+            } catch (e) {
+                // ignore
+            }
+        }
+        loadStatus()
+    }, [])
+
+    const opMap: Record<string, string> = {
+        'lesson-planner': 'lesson_plan',
+        'quiz': 'quiz',
+        'games': 'game_generation',
+        'worksheet': 'worksheet',
+        'presentation': 'presentation',
+        'assistant': 'assistant',
+        'image': 'image_generation',
+        'transcription': 'transcription'
+    }
 
     const tools = [
         {
@@ -91,17 +124,25 @@ export default function WorkspaceHub() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {tools.map((tool) => {
                     const Icon = tool.icon
+                    const isMaint = maintenanceStatus[opMap[tool.id]]
                     return (
                         <div
                             key={tool.id}
-                            onClick={() => router.push(tool.path)}
-                            className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm hover:shadow-md hover:border-primary-100 transition-all cursor-pointer group flex flex-col h-full relative"
+                            onClick={() => !isMaint && router.push(tool.path)}
+                            className={`bg-white rounded-2xl p-6 border border-gray-100 shadow-sm hover:shadow-md hover:border-primary-100 transition-all group flex flex-col h-full relative ${isMaint ? 'cursor-not-allowed grayscale-[0.5] opacity-80' : 'cursor-pointer'}`}
                         >
-                            <div className="absolute top-6 right-6 flex items-center gap-1.5 text-xs font-semibold bg-gray-50 text-gray-500 px-2.5 py-1 rounded-lg border border-gray-100">
-                                <Sparkles className="w-3.5 h-3.5 text-purple-500" />
-                                {tool.cost} {tool.cost === 1 ? 'токен' : (tool.cost >= 2 && tool.cost <= 4) ? 'токена' : 'токенов'}
-                            </div>
-                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-4 ${tool.color} group-hover:scale-110 transition-transform`}>
+                            {isMaint ? (
+                                <div className="absolute top-6 right-6 flex items-center gap-1.5 text-[10px] font-bold bg-yellow-100 text-yellow-700 px-2 py-1 rounded-lg border border-yellow-200 uppercase tracking-wider animate-pulse">
+                                    <i className="fas fa-wrench text-[9px]"></i>
+                                    Тех. работы
+                                </div>
+                            ) : (
+                                <div className="absolute top-6 right-6 flex items-center gap-1.5 text-xs font-semibold bg-gray-50 text-gray-500 px-2.5 py-1 rounded-lg border border-gray-100">
+                                    <Sparkles className="w-3.5 h-3.5 text-purple-500" />
+                                    {tool.cost} {tool.cost === 1 ? 'токен' : (tool.cost >= 2 && tool.cost <= 4) ? 'токена' : 'токенов'}
+                                </div>
+                            )}
+                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-4 ${tool.color} ${!isMaint && 'group-hover:scale-110'} transition-transform`}>
                                 <Icon className="w-6 h-6" />
                             </div>
                             <h3 className="text-lg font-bold mb-2 pr-12">{tool.title}</h3>
@@ -109,8 +150,8 @@ export default function WorkspaceHub() {
                                 {tool.description}
                             </p>
 
-                            <div className="mt-4 flex items-center text-sm font-medium text-primary-600 opacity-0 group-hover:opacity-100 transition-opacity transform translate-y-2 group-hover:translate-y-0">
-                                <span>Начать создание</span>
+                            <div className={`mt-4 flex items-center text-sm font-medium ${isMaint ? 'text-yellow-600' : 'text-primary-600 opacity-0 group-hover:opacity-100 transition-opacity transform translate-y-2 group-hover:translate-y-0'}`}>
+                                <span>{isMaint ? 'Временно недоступно' : 'Начать создание'}</span>
                                 <Sparkles className="w-4 h-4 ml-1.5" />
                             </div>
                         </div>

@@ -29,6 +29,7 @@ export default function InputComposer({
   const [canScrollRight, setCanScrollRight] = useState(false)
   const [isUploadingFile, setIsUploadingFile] = useState(false)
   const [currentCost, setCurrentCost] = useState<number | null>(null)
+  const [maintenanceStatus, setMaintenanceStatus] = useState<Record<string, boolean>>({})
   const scrollWrapRef = useRef<HTMLDivElement>(null)
   const gigachatModelsLoadedRef = useRef(false)
   const [gigachatModels, setGigachatModels] = useState<Record<'chat' | 'image' | 'audio' | 'embeddings', FieldOption[]>>({
@@ -43,6 +44,43 @@ export default function InputComposer({
     (window as any).Telegram?.WebApp?.initDataUnsafe?.user !== undefined
 
   const template = templates[currentFunction]
+  
+  // Mapping of UI functionId to DB operationType
+  const opMap: Record<string, string | Record<string, string>> = {
+    worksheet: 'worksheet',
+    quiz: 'quiz',
+    vocabulary: 'vocabulary',
+    lessonPlan: 'lesson_plan',
+    content: 'content_adaptation',
+    feedback: 'feedback',
+    presentation: 'presentation',
+    image: 'image_generation',
+    photosession: 'photosession',
+    transcription: 'transcription',
+    message: 'message',
+    gigachat: {
+      chat: 'gigachat_text',
+      image: 'gigachat_image',
+      embeddings: 'gigachat_embeddings',
+      audio_speech: 'gigachat_audio',
+      audio_transcription: 'gigachat_audio',
+      audio_translation: 'gigachat_audio'
+    },
+    game: 'game_generation',
+    lessonPreparation: 'lesson_preparation',
+    videoAnalysis: 'video_analysis',
+    salesAdvisor: 'sales_advisor',
+    assistant: 'assistant'
+  }
+  const opEntry = opMap[currentFunction]
+  let currentOp: string | null = null
+  if (typeof opEntry === 'string') {
+    currentOp = opEntry
+  } else if (opEntry && typeof opEntry === 'object') {
+    currentOp = opEntry[localValues.mode || 'chat'] || null
+  }
+  const isUnderMaintenance = currentOp ? maintenanceStatus[currentOp] : false
+
   const activeFields = getActiveFields(currentFunction, localValues)
   const resolvedFields = activeFields.map(field => {
     if (currentFunction === 'gigachat' && field.key === 'model') {
@@ -89,9 +127,12 @@ export default function InputComposer({
         const response = await apiClient.get('/subscriptions/costs')
         if (response.data.success) {
           const costsMap: Record<string, number> = {}
+          const maintMap: Record<string, boolean> = {}
           response.data.costs.forEach((c: any) => {
             costsMap[c.operationType] = c.creditCost
+            maintMap[c.operationType] = c.isUnderMaintenance || false
           })
+          setMaintenanceStatus(maintMap)
           const opMap: Record<string, string | Record<string, string>> = {
             worksheet: 'worksheet',
             quiz: 'quiz',
@@ -510,19 +551,21 @@ export default function InputComposer({
       {/* Sentence composer */}
       {currentFunction !== 'aiAssistant' && (
         <div className="rounded-2xl border border-gray-200 bg-white p-4 sm:p-5 shadow-sm">
-          {currentFunction === 'transcription' && (
-            <div className="mb-4 p-4 rounded-xl bg-gradient-to-r from-yellow-50 to-orange-50 border-2 border-yellow-300">
+          {isUnderMaintenance && (
+            <div className="mb-4 p-4 rounded-xl bg-gradient-to-r from-yellow-50 to-orange-50 border-2 border-yellow-300 shadow-sm animate-pulse">
               <div className="flex items-center space-x-3">
-                <i className="fas fa-tools text-yellow-600 text-2xl"></i>
+                <div className="w-10 h-10 rounded-full bg-yellow-100 flex items-center justify-center text-yellow-600">
+                    <i className="fas fa-wrench text-lg"></i>
+                </div>
                 <div>
-                  <p className="text-base font-semibold text-yellow-800 mb-1">Ведутся технические работы</p>
-                  <p className="text-sm text-yellow-700">Функция транскрибации временно недоступна.</p>
+                  <p className="text-base font-bold text-yellow-800">Технические работы</p>
+                  <p className="text-sm text-yellow-700">Функция временно оптимизируется. Пожалуйста, загляните чуть позже!</p>
                 </div>
               </div>
             </div>
           )}
 
-          <div className={`text-lg sm:text-xl leading-8 sm:leading-9 text-gray-900 flex flex-wrap ${currentFunction === 'transcription' ? 'opacity-50 pointer-events-none' : ''}`}>
+          <div className={`text-lg sm:text-xl leading-8 sm:leading-9 text-gray-900 flex flex-wrap ${isUnderMaintenance ? 'opacity-50 pointer-events-none' : ''}`}>
             {template.segments.map((segment, idx) => (
               <span key={idx}>
                 {segment.type === 'text' ? (
@@ -550,7 +593,7 @@ export default function InputComposer({
           )}
 
           {/* Inline editors */}
-          <div className={`mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 ${currentFunction === 'transcription' ? 'opacity-50 pointer-events-none' : ''}`}>
+          <div className={`mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 ${isUnderMaintenance ? 'opacity-50 pointer-events-none' : ''}`}>
             {resolvedFields.map(field => (
               <div key={field.key}>
                 <label className="block text-[10px] uppercase tracking-wide text-gray-500 mb-1">
@@ -579,11 +622,11 @@ export default function InputComposer({
                 </div>
               )}
             </div>
-            {currentFunction === 'transcription' ? (
+            {isUnderMaintenance ? (
               <div className="w-full sm:w-auto">
-                <div className="px-5 py-2 rounded-full bg-gradient-to-r from-yellow-500 to-orange-500 text-white font-semibold shadow-md text-center">
-                  <i className="fas fa-tools mr-2"></i>
-                  Ведутся технические работы
+                <div className="px-5 py-2 rounded-full bg-gradient-to-r from-yellow-500 to-orange-400 text-white font-semibold shadow-md text-center flex items-center justify-center gap-2">
+                  <i className="fas fa-clock"></i>
+                  Тех. работы
                 </div>
               </div>
             ) : (

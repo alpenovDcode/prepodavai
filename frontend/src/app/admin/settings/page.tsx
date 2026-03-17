@@ -90,6 +90,25 @@ export default function AdminSettingsPage() {
                             </div>
 
                             <div className="flex items-center gap-4">
+                                <div className="flex items-center gap-2 mr-4">
+                                    <label className="text-xs text-gray-400 cursor-pointer flex items-center gap-1">
+                                        <input 
+                                            type="checkbox" 
+                                            checked={cost.isUnderMaintenance}
+                                            onChange={async (e) => {
+                                                try {
+                                                    await apiClient.put(`/admin/costs/${cost.operationType}`, { isUnderMaintenance: e.target.checked })
+                                                    mutate()
+                                                } catch (err) {
+                                                    alert('Ошибка при переключении режима обслуживания')
+                                                }
+                                            }}
+                                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                        />
+                                        Тех. работы
+                                    </label>
+                                </div>
+
                                 {editingId === cost.operationType ? (
                                     <div className="flex items-center gap-2">
                                         <div className="relative">

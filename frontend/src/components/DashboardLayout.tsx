@@ -3,6 +3,7 @@
 import { useState, ReactNode } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { useUser } from '@/lib/hooks/useUser'
 import { LOGO_BASE64 } from '@/constants/branding'
 
 interface DashboardLayoutProps {
@@ -22,6 +23,8 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         { id: 'analytics', label: 'Аналитика', icon: 'fas fa-chart-bar', path: '/dashboard/analytics' },
         { id: 'settings', label: 'Настройки', icon: 'fas fa-cog', path: '/dashboard/settings' },
     ]
+
+    const { fullName, user, initials } = useUser()
 
     const isActive = (path: string) => pathname === path
 
@@ -83,20 +86,22 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                     </div>
 
                     {/* User Profile */}
-                    <div className="mt-4 flex items-center justify-between p-2 rounded-xl hover:bg-gray-50 transition border border-transparent hover:border-gray-100">
-                        <div className="flex items-center gap-3 min-w-0 cursor-pointer">
+                    <div 
+                        className="mt-4 flex items-center justify-between p-2 rounded-xl hover:bg-gray-50 transition border border-transparent hover:border-gray-100 cursor-pointer"
+                        onClick={() => router.push('/dashboard/settings')}
+                    >
+                        <div className="flex items-center gap-3 min-w-0">
                             <div className="w-10 h-10 shrink-0 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white font-semibold">
-                                JD
+                                {initials}
                             </div>
                             <div className="flex-1 min-w-0">
-                                <p className="text-sm font-semibold text-gray-900 truncate">Jane Doe</p>
-                                <p className="text-xs text-gray-500 truncate">jane.doe@email.com</p>
+                                <p className="text-sm font-semibold text-gray-900 truncate">{fullName}</p>
+                                <p className="text-xs text-gray-500 truncate">{user?.email || (user?.username ? `@${user.username}` : '')}</p>
                             </div>
                         </div>
                         <button
                             onClick={(e) => {
                                 e.stopPropagation();
-                                localStorage.removeItem('prepodavai_authenticated')
                                 localStorage.removeItem('prepodavai_authenticated');
                                 localStorage.removeItem('prepodavai_user');
                                 window.location.href = '/';

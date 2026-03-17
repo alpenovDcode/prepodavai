@@ -136,8 +136,8 @@ export class AdminController {
   @Put('costs/:operationType')
   async updateCreditCost(
     @Param('operationType') operationType: string,
-    @Body('creditCost') creditCost: number,
+    @Body() body: { creditCost?: number; isUnderMaintenance?: boolean },
   ) {
-    return this.adminService.updateCreditCost(operationType, creditCost);
+    return this.adminService.updateCreditCost(operationType, body);
   }
 }
