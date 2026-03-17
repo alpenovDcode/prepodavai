@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 import { MessageSquare, Send, Loader2, Bot, User, Maximize2, Sparkles } from 'lucide-react'
 import { useGenerations } from '@/lib/hooks/useGenerations'
 import GenerationCostBadge from '@/components/workspace/GenerationCostBadge'
-import DOMPurify from 'dompurify'
+import DOMPurify from 'isomorphic-dompurify'
 
 interface ChatMessage {
     id: string;

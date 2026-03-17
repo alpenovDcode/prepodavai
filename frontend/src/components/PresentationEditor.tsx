@@ -3,7 +3,7 @@ import pptxgen from 'pptxgenjs';
 import { Save, Plus, Trash2, Download, Layout, Type, Image as ImageIcon, Loader2, Bold, Italic, Palette, Move, Maximize, MousePointer2, Upload, Table as TableIcon, Square, Circle, Minus, ArrowRight, Pi } from 'lucide-react';
 import { LOGO_BASE64 } from '@/constants/branding';
 import { apiClient } from '@/lib/api/client';
-import DOMPurify from 'dompurify';
+import DOMPurify from 'isomorphic-dompurify';
 
 const FORMULA_PRESETS = [
     { name: 'Квадратное уравнение', latex: 'x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}' },

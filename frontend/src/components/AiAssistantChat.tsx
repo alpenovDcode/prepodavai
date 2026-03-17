@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { apiClient } from '@/lib/api/client'
-import DOMPurify from 'dompurify'
+import DOMPurify from 'isomorphic-dompurify'
 
 interface ChatMessage {
     role: 'user' | 'assistant'

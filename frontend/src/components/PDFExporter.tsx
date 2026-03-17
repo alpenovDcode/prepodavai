@@ -4,7 +4,7 @@ import jsPDF from 'jspdf';
 import { Slide, SlideElement } from '@/types/presentation';
 import { renderMath } from '@/lib/utils/math';
 import { LOGO_BASE64 } from '@/constants/branding';
-import DOMPurify from 'dompurify';
+import DOMPurify from 'isomorphic-dompurify';
 
 interface PDFExporterProps {
     slides: Slide[];

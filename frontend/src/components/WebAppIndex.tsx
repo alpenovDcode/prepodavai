@@ -24,7 +24,7 @@ import { useSubscription } from '@/lib/hooks/useSubscription'
 import { getCurrentUser } from '@/lib/utils/userIdentity'
 import { apiClient } from '@/lib/api/client'
 import AssignMaterialModal from './AssignMaterialModal' // Используется в initUser для проверки подписки
-import DOMPurify from 'dompurify'
+import DOMPurify from 'isomorphic-dompurify'
 
 interface WebAppIndexProps {
   embedded?: boolean

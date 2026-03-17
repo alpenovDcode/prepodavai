@@ -7,7 +7,7 @@ import PresentationEditor, { PresentationEditorRef } from './PresentationEditor'
 import PresentationPlayer from './PresentationPlayer'
 import { Save, Download, ChevronLeft, ChevronRight, ExternalLink, ArrowLeft } from 'lucide-react'
 import Image from 'next/image'
-import DOMPurify from 'dompurify'
+import DOMPurify from 'isomorphic-dompurify'
 
 interface MaterialViewerProps {
     lessonId?: string

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { apiClient } from '@/lib/api/client'
 import Image from 'next/image'
-import DOMPurify from 'dompurify'
+import DOMPurify from 'isomorphic-dompurify'
 import { 
     Users, 
     ChevronRight, 
