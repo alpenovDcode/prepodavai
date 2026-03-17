@@ -66,7 +66,8 @@ export default function VideoAnalysisGenerator() {
             const status = await generateAndWait({ type: 'video-analysis', params })
             const resultData = status.result?.content || status.result
 
-            let finalHtml = resultData
+            let finalHtml = typeof resultData === 'string' ? resultData : (resultData?.html || resultData?.text || JSON.stringify(resultData, null, 2))
+            
             if (typeof finalHtml === 'string' && !finalHtml.includes('<p>')) {
                 finalHtml = `<div style="white-space: pre-wrap; font-family: sans-serif; padding: 20px;">${finalHtml}</div>`
             }

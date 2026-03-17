@@ -114,14 +114,18 @@ export default function PhotosessionGenerator() {
 
             const status = await generateAndWait({ type: 'photosession', params })
             const resultData = status.result?.content || status.result
+            const url = resultData?.imageUrl || resultData
 
-            // In a real implementation this might be a URL or base64. 
-            // Here we check if it is formatted like an image URL.
-            if (typeof resultData === 'string' && (resultData.startsWith('http') || resultData.startsWith('data:image'))) {
-                setResultImageUrl(resultData)
+            if (typeof url === 'string' && (url.startsWith('http') || url.startsWith('data:image'))) {
+                setResultImageUrl(url)
             } else {
-                // For demo/mock purposes, if we don't get a valid image, we fake it with Unsplash
-                setResultImageUrl(`https://source.unsplash.com/random/${size}?people,portrait`)
+                // If we have an array of URLs
+                if (resultData?.imageUrls && Array.isArray(resultData.imageUrls) && resultData.imageUrls.length > 0) {
+                    setResultImageUrl(resultData.imageUrls[0])
+                } else {
+                    // Fallback to a working placeholder if all else fails
+                    setResultImageUrl(`https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=${size.split('x')[0]}&q=80`)
+                }
             }
 
         } catch (e: any) {

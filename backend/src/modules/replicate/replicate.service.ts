@@ -188,24 +188,27 @@ export class ReplicateService {
         }
     }
 
-    async createImage(prompt: string) {
+    async createImage(prompt: string, model: string = 'black-forest-labs/flux-schnell', aspect_ratio: string = '16:9') {
         if (!this.apiToken) {
             throw new Error('REPLICATE_API_TOKEN is not configured');
         }
 
-        this.logger.debug(`Creating image with prompt: ${prompt.substring(0, 50)}...`);
+        this.logger.debug(`Creating image with model ${model}, prompt: ${prompt.substring(0, 50)}...`);
 
         try {
-            const input = {
+            const input: any = {
                 prompt: prompt,
-                num_outputs: 1,
-                output_format: 'jpg',
-                output_quality: 80,
-                aspect_ratio: '16:9',
+                aspect_ratio: aspect_ratio,
             };
 
-            // flux-schnell: fast, high-quality, free tier on Replicate
-            const response = await this.http.post(`/models/black-forest-labs/flux-schnell/predictions`, {
+            // Standard params for Flux
+            if (model.includes('flux')) {
+                input.num_outputs = 1;
+                input.output_format = 'jpg';
+                input.output_quality = 80;
+            }
+
+            const response = await this.http.post(`/models/${model}/predictions`, {
                 input,
             });
 
@@ -213,9 +216,7 @@ export class ReplicateService {
             this.logger.debug(`Image prediction status: ${prediction.status}`);
 
             if (prediction.status === 'succeeded' && prediction.output) {
-                const out = Array.isArray(prediction.output) ? prediction.output[0] : prediction.output;
-                // FileOutput objects have a .url property, plain strings are URLs directly
-                return (typeof out === 'object' && out !== null && 'url' in out) ? (out as any).url : out;
+                return this.extractOutput(prediction.output);
             } else if (prediction.status === 'starting' || prediction.status === 'processing') {
                 this.logger.warn(`Image prediction status is ${prediction.status}. Polling...`);
                 return this.pollPrediction(prediction.urls.get);
@@ -224,9 +225,15 @@ export class ReplicateService {
             }
 
         } catch (error) {
-            this.logger.error(`Replicate API error (image): ${error.message}`, error.response?.data);
+            this.logger.error(`Replicate API error (image) for ${model}: ${error.message}`, error.response?.data);
             throw error;
         }
+    }
+
+    private extractOutput(output: any): string {
+        const out = Array.isArray(output) ? output[0] : output;
+        // FileOutput objects have a .url property, plain strings are URLs directly
+        return (typeof out === 'object' && out !== null && 'url' in out) ? (out as any).url : out;
     }
 
 
@@ -244,7 +251,7 @@ export class ReplicateService {
 
                 const prediction = response.data;
                 if (prediction.status === 'succeeded') {
-                    return Array.isArray(prediction.output) ? prediction.output.join('') : prediction.output;
+                    return this.extractOutput(prediction.output);
                 } else if (prediction.status === 'failed' || prediction.status === 'canceled') {
                     throw new Error(`Prediction ${prediction.status}: ${prediction.error}`);
                 }

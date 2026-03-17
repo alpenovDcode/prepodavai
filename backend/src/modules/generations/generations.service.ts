@@ -333,6 +333,7 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
       'sales_advisor',
       'assistant',
       'game_generation',
+      'presentation',
     ].includes(generationType);
   }
 
@@ -367,6 +368,12 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
           requestedModel,
           userId,
         );
+      }
+
+      // Презентации через Replicate
+      if (generationType === 'presentation') {
+        const { topic } = inputParams;
+        return await this.generatePresentationJson(topic, { ...inputParams, generationRequestId });
       }
 
       // Текстовые генерации
@@ -806,97 +813,121 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
   }
 
   private async generatePresentationJson(topic: string, params: any): Promise<any> {
+    const generationRequestId = params.generationRequestId;
     const grade = params.grade || 'General Audience';
+    const numCards = params.numCards || 7;
 
-    // Промпт переписан для генерации HTML/CSS/JS
+    this.logger.log(`[GenerationsService] Starting JSON-based presentation generation for "${topic}" (${numCards} slides)`);
+
     const prompt = `
-      Ты — топовый методист, эксперт по сторителлингу и Senior Frontend - разработчик.Твоя задача — создать безупречную веб - презентацию СТРОГО по теме: "${topic}".
-Целевая аудитория: ${grade}.
-      Язык: Русский.
+      Ты — топовый методист и Senior Frontend-разработчик. Создай презентацию на языке: Русский.
+      Тема: "${topic}". Целевая аудитория: ${grade}.
 
-Ключевые требования:
-      1. ** Контент строго по теме каждого слайда:** Каждое предложение должно нести конкретный факт, цифру или определение, напрямую связанное с заголовком именно этого слайда.Никаких общих фраз вроде «Это интересная тема».Структура: Введение(крючок) -> Теория -> Разбор / Примеры -> Вывод.
-2. ** Дизайн(HTML / CSS):** Для каждого слайда — HTML разметку и красивый CSS(стили только для этого слайда).Используй градиенты, тени, Flexbox / Grid.Цвета должны быть контрастными и красивыми.
-3. ** Визуальные элементы кодом(ОЧЕНЬ ВАЖНО):** Если тема позволяет — рисуй схемы, диаграммы, графики, орбиты, молекулы, клетки, временные оси, бар - чарты исключительно через HTML / CSS(div, border - radius, transform, gradient) или встроенный SVG.Примеры: астрономия → SVG - орбиты; статистика → CSS бар - чарт; химия → молекула из кружков; физика → векторы с border.Это делает презентацию в разы ценнее.
-4. ** Интерактив(JS):** Можешь добавить простые CSS - анимации через JS или requestAnimationFrame при желании.
-5. ** Формулы:** Используй HTML - верстку(sup / sub / span) или Unicode символы(×, ÷, ²,  ≈, π и т.д.).
+      ТРЕБОВАНИЯ К ФОРМАТУ (КРИТИЧНО):
+      Верни СТРОГО валидный JSON-массив объектов. Никакого лишнего текста до или после.
+      Каждый объект должен иметь поля:
+      - "html": Строка с HTML-версткой слайда.
+      - "imagePrompt": Детальный английский промпт для генерации фонового/тематического изображения (high-quality, professional).
 
-СТРОГИЕ ПРАВИЛА — нарушение недопустимо:
-      A. ** Текст НИКОГДА не должен вылезать за рамки слайда! ** Слайд — 100vw × 100vh.Обязательно: overflow: hidden на корневом контейнере; ограниченный размер шрифтов(max 3rem для заголовков, max 1.2rem для текста); не более 4 - 5 коротких тезисов на слайд; max - height на текстовых блоках.Если контента много — сократи текст.
-        B.Никогда не используй position: absolute без явных ограничений по размеру.
-          C.Весь текст каждого слайда строго по его заголовку — не дублируй информацию с других слайдов.
+      ТРЕБОВАНИЯ К ВЕРСТКЕ:
+      1. Используй ТОЛЬКО инлайн-стили (атрибут style="...").
+      2. ЗАПРЕЩЕНО использовать классы (class) и тег <style>.
+      3. Слайд должен иметь:
+         - Темный фон (например, #0f172a или #1e293b).
+         - Размер: width: 100vw; height: 100vh; overflow: hidden; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 40px; box-sizing: border-box; font-family: sans-serif;
+      4. Вставь тег <img src="IMAGE_PLACEHOLDER" style="max-width: 80%; max-height: 50%; border-radius: 12px; margin-top: 20px; object-fit: cover;"> там, где нужно изображение.
 
-ФОРМАТ ОТВЕТА(КРИТИЧЕСКИ ВАЖНО):
-Строгий текстовый формат, каждый слайд разделен маркерами, НЕ используй JSON.
-ОБЯЗАТЕЛЬНО соблюдай теги[HTML], [CSS], [JS]:
+      Пример структуры:
+      [
+        {
+          "html": "<div style=\\"background: #0f172a; color: white; ...\\"><h1 style=\\"...\\">Заголовок</h1><p style=\\"...\\">Текст</p><img src=\\"IMAGE_PLACEHOLDER\\" style=\\"...\\"></div>",
+          "imagePrompt": "A futuristic classroom with AI holograms, cinematic lighting, 8k"
+        }
+      ]
 
-====SLIDE START ====
-      [HTML]
-        < div class="slide-container" >
-          <h1>Главный заголовок < /h1>
-            < p > Краткий, ёмкий текст по теме.</p>
-              </div>
-              [/HTML]
-              [CSS]
-                .slide - container { background: #1A202C; color: white; display: flex; flex - direction: column; justify - content: center; align - items: center; height: 100vh; width: 100vw; font - family: 'Segoe UI', sans - serif; padding: 3rem; box - sizing: border - box; overflow: hidden; }
-h1 { font - size: 2.8rem; margin - bottom: 1rem; text - shadow: 0 4px 10px rgba(0, 0, 0, 0.5); }
-p { font - size: 1.2rem; opacity: 0.9; max - width: 80 %; text - align: center; line - height: 1.6; }
-      [/CSS]
-      [JS]
-      // Пусто, если не нужен JS
-      [/JS]
-        ====SLIDE END ====
-
-Сгенерируй от 6 до 10 уникальных слайдов с разными фонами и расстановками.Выведи только структуру слайдов, больше ничего не пиши.
-`;
+      Сгенерируй ровно ${numCards} слайдов.
+    `;
 
     try {
       let rawText: string;
       const hasReplicate = !!this.configService.get<string>('REPLICATE_API_TOKEN');
 
       if (hasReplicate) {
-        rawText = await this.replicateService.createCompletion(prompt);
+        this.logger.log(`[GenerationsService] Requesting content from Gemini 3 Flash via Replicate`);
+        rawText = await this.replicateService.createCompletion(prompt, "You are a helpful assistant that outputs only JSON array.");
       } else {
-        this.logger.log('REPLICATE_API_TOKEN not set, using GigaChat fallback for presentation');
+        this.logger.log('[GenerationsService] Using GigaChat fallback');
         const response = await this.gigachatService.createChatCompletion({
           messages: [{ role: 'user', content: prompt }],
           temperature: 0.7,
-          max_tokens: 8000,
         }) as any;
         rawText = response?.choices?.[0]?.message?.content || '';
       }
 
-      // Parse custom format
+      // Очистка от Markdown-блоков
+      const cleanJson = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+      
+      let parsedSlides: any[];
+      try {
+        parsedSlides = JSON.parse(cleanJson);
+      } catch (e) {
+        this.logger.error("Failed to parse JSON. Raw output: " + rawText);
+        throw new Error("Нейросеть вернула неккоректный JSON. Попробуйте еще раз.");
+      }
+
       const slides = [];
-      const slideBlocks = rawText.split('====SLIDE START====');
+      let slideIndex = 1;
 
-      for (const block of slideBlocks) {
-        if (!block.includes('====SLIDE END====')) continue;
+      for (const item of parsedSlides) {
+        const slideId = 'slide_' + Math.random().toString(36).substring(2, 11);
+        const slide = {
+          id: slideId,
+          html: item.html || '',
+          css: '', // CSS теперь инлайновый
+          js: '',
+          imagePrompt: item.imagePrompt || null
+        };
 
-        const htmlMatch = block.match(/\[HTML\]([\s\S]*?)\[\/HTML\]/);
-        const cssMatch = block.match(/\[CSS\]([\s\S]*?)\[\/CSS\]/);
-        const jsMatch = block.match(/\[JS\]([\s\S]*?)\[\/JS\]/i);
-
-        if (htmlMatch) {
-          slides.push({
-            id: 'slide_' + Math.random().toString(36).substring(2, 11),
-            html: htmlMatch[1].trim(),
-            css: cssMatch ? cssMatch[1].trim() : '',
-            js: jsMatch ? jsMatch[1].trim() : ''
-          });
+        // Последовательная генерация изображений (Защита от Rate Limits)
+        if (hasReplicate && slide.imagePrompt && slide.html.includes('IMAGE_PLACEHOLDER')) {
+          try {
+            this.logger.log(`[GenerationsService] Generating image for slide ${slideIndex}/${parsedSlides.length}...`);
+            const imageUrl = await this.replicateService.createImage(slide.imagePrompt, 'bytedance/seedream-4', '16:9');
+            slide.html = slide.html.replace('IMAGE_PLACEHOLDER', imageUrl);
+          } catch (err) {
+            this.logger.error(`Failed to generate image for slide ${slideIndex}: ${err.message}`);
+            slide.html = slide.html.replace('IMAGE_PLACEHOLDER', `https://picsum.photos/800/450?sig=${Math.random()}`);
+          }
+        } else {
+          // Фолбэк на Picsum (Unsplash мертв)
+          slide.html = slide.html.replace('IMAGE_PLACEHOLDER', `https://picsum.photos/800/450?sig=${Math.random()}`);
         }
+
+        slides.push(slide);
+        slideIndex++;
       }
 
-      if (slides.length === 0) {
-        this.logger.error("Parsed text: " + rawText);
-        throw new Error("Не удалось распознать формат слайдов из ответа нейросети.");
+      const normalizedResult = {
+        provider: hasReplicate ? 'Replicate' : 'GigaChat',
+        mode: 'presentation',
+        slides: slides,
+        completedAt: new Date().toISOString(),
+      };
+
+      if (generationRequestId) {
+        this.logger.log(`[GenerationsService] Saving presentation result to database for request ${generationRequestId}`);
+        await this.generationHelpers.completeGeneration(generationRequestId, normalizedResult);
       }
 
+      this.logger.log(`[GenerationsService] Generation presentation completed successfully`);
       return slides;
+
     } catch (error: any) {
-      this.logger.error('Failed to generate presentation JSON', error);
-      // Fallback or rethrow
-      throw new BadRequestException('Failed to generate presentation content: ' + error.message);
+      this.logger.error('Error in generatePresentationJson:', error);
+      if (generationRequestId) {
+        await this.generationHelpers.failGeneration(generationRequestId, error.message);
+      }
+      throw new BadRequestException('Failed to generate presentation: ' + error.message);
     }
   }
 
@@ -907,9 +938,11 @@ p { font - size: 1.2rem; opacity: 0.9; max - width: 80 %; text - align: center; 
     switch (generationType) {
       case 'worksheet':
       case 'game_generation':
+        return this.buildWorksheetPrompt(inputParams);
+
       case 'exam-variant':
       case 'exam_variant':
-        return this.buildWorksheetPrompt(inputParams);
+        return this.buildExamVariantPrompt(inputParams);
 
       case 'quiz': {
         const { subject, topic, level, questionsCount, answersCount, customPrompt } = inputParams;
