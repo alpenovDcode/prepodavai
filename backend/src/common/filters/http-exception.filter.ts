@@ -59,9 +59,11 @@ export class HttpExceptionFilter implements ExceptionFilter {
         path: request.url,
         method: request.method,
         timestamp: new Date().toISOString(),
+        // Add info about cookies for 401 debugging
+        hasCookie: !!(request.cookies && request.cookies['prepodavai_token']),
       });
     } else {
-      console.error('Error details:', exception);
+      console.error(`[${request.method}] ${request.url} - Error ${status}:`, exception);
     }
 
     // Формируем безопасный ответ

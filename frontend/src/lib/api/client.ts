@@ -20,12 +20,23 @@ apiClient.interceptors.request.use((config) => {
 })
 
 // Обработка ошибок
+let isRedirecting = false;
+
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // Токен истек или невалиден
-      window.location.href = '/'
+      console.warn('Unauthorized request to:', error.config.url);
+      
+      if (typeof window !== 'undefined') {
+        // Сначала убираем флаг — это остановит useSubscription
+        localStorage.removeItem('prepodavai_authenticated');
+        
+        // Редиректим только если ещё не на главной
+        if (window.location.pathname !== '/') {
+          window.location.href = '/';
+        }
+      }
     }
     return Promise.reject(error)
   }

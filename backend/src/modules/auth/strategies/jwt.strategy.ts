@@ -16,6 +16,12 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         if (req && req.cookies) {
           token = req.cookies['prepodavai_token'];
         }
+        
+        // Debugging 401: log if cookie is missing
+        if (!token && process.env.NODE_ENV !== 'production') {
+          console.debug(`[JwtStrategy] No cookie found in request for ${req.url}`);
+        }
+        
         return token || ExtractJwt.fromAuthHeaderAsBearerToken()(req);
       },
       ignoreExpiration: false,

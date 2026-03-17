@@ -12,6 +12,10 @@ async function bootstrap() {
   const port = configService.get<number>('PORT', 3001);
   const nodeEnv = configService.get<string>('NODE_ENV', 'development');
 
+  // Доверяем прокси (Nginx) для корректного определения протокола (https) и IP
+  const expressApp = app.getHttpAdapter().getInstance();
+  expressApp.set('trust proxy', 1);
+
   // Валидация JWT_SECRET (критично для безопасности)
   const jwtSecret = configService.get<string>('JWT_SECRET');
   if (!jwtSecret || jwtSecret.length < 32) {
