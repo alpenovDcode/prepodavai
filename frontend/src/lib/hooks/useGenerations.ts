@@ -58,10 +58,14 @@ export function useGenerations() {
         message: '/generate/message',
         gigachat: '/gigachat/generate',
         videoAnalysis: '/generate/video-analysis',
-        salesAdvisor: '/generate/sales-advisor'
+        salesAdvisor: '/generate/sales-advisor',
+        'exam-variant': '/generate/exam-variant',
       }
 
-      const endpoint = endpointMap[request.type] || '/generate/worksheet'
+      const endpoint = endpointMap[request.type];
+      if (!endpoint) {
+        throw new Error(`Unknown generation type: ${request.type}`);
+      }
 
       // Отправляем запрос на генерацию
       const response = await apiClient.post<GenerationResponse>(endpoint, request.params)
