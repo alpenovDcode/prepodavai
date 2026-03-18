@@ -34,6 +34,8 @@ export class HtmlExportService implements OnModuleDestroy {
           '--disable-setuid-sandbox',
           '--disable-dev-shm-usage',
           '--disable-gpu',
+          '--disable-crash-reporter',
+          '--disable-extensions'
         ],
       }).catch(err => {
         console.error('[HtmlExport] Failed to launch browser:', err);
