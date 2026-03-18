@@ -6,8 +6,6 @@ export class HtmlExportService implements OnModuleDestroy {
   private browserPromise: Promise<puppeteer.Browser> | null = null;
 
   private getChromePath(): string | undefined {
-    // On Apple Silicon, Puppeteer's bundled x64 Chrome runs via Rosetta → timeout
-    // Use the system-installed arm64 Chrome instead
     if (process.platform === 'darwin') {
       const paths = [
         '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
@@ -19,36 +17,48 @@ export class HtmlExportService implements OnModuleDestroy {
         if (fs.existsSync(p)) return p;
       }
     }
-    return undefined; // use puppeteer's bundled Chrome on Linux/Windows
+    // На Linux явно возвращаем путь из переменной окружения
+    if (process.platform === 'linux') {
+      return process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium';
+    }
+    return undefined;
   }
 
   private async getBrowser() {
     if (!this.browserPromise) {
       const executablePath = this.getChromePath();
-      this.browserPromise = puppeteer.launch({
-        headless: true, // Revert to true to fix typescript types
-        timeout: 60000, // 60 seconds
-        executablePath: executablePath || process.env.PUPPETEER_EXECUTABLE_PATH,
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-gpu',
+      console.log(`[HtmlExport] Using Chrome at: ${executablePath}`);
+
+      // Разные аргументы для Linux (Docker) и macOS
+      const isLinux = process.platform === 'linux';
+      const args = [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-gpu',
+        '--disable-extensions',
+        '--disable-in-process-stack-traces',
+        '--log-level=3',
+        '--disable-software-rasterizer',
+        // УБРАНЫ --no-zygote и --single-process — они конфликтуют с crashpad в Docker
+        ...(isLinux ? [
           '--disable-crash-reporter',
-          '--disable-extensions',
-          '--disable-in-process-stack-traces',
-          '--disable-logging',
-          '--disable-dev-shm-usage',
-          '--log-level=3',
-          '--no-zygote',
-          '--single-process',
-          '--disable-software-rasterizer',
-          '--crash-dumps-dir=/tmp'
-        ],
-        env: {
-          ...process.env,
-          DISABLE_CRASH_REPORTER: '1'
-        }
+          '--no-first-run',
+          '--disable-background-networking',
+          '--disable-default-apps',
+          '--disable-sync',
+          '--metrics-recording-only',
+          '--mute-audio',
+          '--no-default-browser-check',
+          '--safebrowsing-disable-auto-update',
+        ] : []),
+      ];
+
+      this.browserPromise = puppeteer.launch({
+        headless: true,
+        timeout: 60000,
+        executablePath,
+        args,
       }).catch(err => {
         console.error('[HtmlExport] Failed to launch browser:', err);
         this.browserPromise = null;
@@ -72,16 +82,12 @@ export class HtmlExportService implements OnModuleDestroy {
     }
 
     try {
-      // Используем domcontentloaded для ускорения и избежания таймаутов при загрузке внешних ресурсов
       await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 60000 });
 
-      // Пытаемся отрендерить формулы с более надежным ожиданием
       try {
-        // 1. Ждем появления объекта MathJax
         console.log('[HtmlExport] Waiting for MathJax...');
         await page.waitForFunction(() => (window as any).MathJax, { timeout: 10000 }).catch(() => null);
 
-        // 2. Запускаем рендеринг и ждем его завершения
         await page.evaluate(async () => {
           if ((window as any).MathJax && (window as any).MathJax.typesetPromise) {
             console.log('[HtmlExport] MathJax found, starting typeset');
@@ -91,7 +97,6 @@ export class HtmlExportService implements OnModuleDestroy {
           }
         });
 
-        // 3. Даем еще немного времени на перерисовку (иногда нужно для сложных формул)
         await new Promise(resolve => setTimeout(resolve, 500));
       } catch (e) {
         console.warn('[HtmlExport] MathJax rendering warning:', e);
@@ -123,4 +128,3 @@ export class HtmlExportService implements OnModuleDestroy {
     }
   }
 }
-
