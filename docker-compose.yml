@@ -84,6 +84,13 @@ services:
       REPLICATE_API_TOKEN: ${REPLICATE_API_TOKEN}
       # AssemblyAI API
       ASSEMBLYAI_API_KEY: ${ASSEMBLYAI_API_KEY}
+      # SMTP Configuration
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      SMTP_FROM: ${SMTP_FROM}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-https://prepodavai.ru}
     depends_on:
       postgres:
         condition: service_healthy
