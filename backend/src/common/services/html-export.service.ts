@@ -35,8 +35,20 @@ export class HtmlExportService implements OnModuleDestroy {
           '--disable-dev-shm-usage',
           '--disable-gpu',
           '--disable-crash-reporter',
-          '--disable-extensions'
+          '--disable-extensions',
+          '--disable-in-process-stack-traces',
+          '--disable-logging',
+          '--disable-dev-shm-usage',
+          '--log-level=3',
+          '--no-zygote',
+          '--single-process',
+          '--disable-software-rasterizer',
+          '--crash-dumps-dir=/tmp'
         ],
+        env: {
+          ...process.env,
+          DISABLE_CRASH_REPORTER: '1'
+        }
       }).catch(err => {
         console.error('[HtmlExport] Failed to launch browser:', err);
         this.browserPromise = null;
