@@ -8,6 +8,8 @@ import PresentationPlayer from './PresentationPlayer'
 import { Save, Download, ChevronLeft, ChevronRight, ExternalLink, ArrowLeft, Loader2 } from 'lucide-react'
 import Image from 'next/image'
 import DOMPurify from 'isomorphic-dompurify'
+import jsPDF from 'jspdf'
+import html2canvas from 'html2canvas'
 
 interface MaterialViewerProps {
     lessonId?: string
@@ -424,112 +426,147 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
     }
 
     const handleDownload = async () => {
+        // --- Презентация (PPTX/PDF по ссылке) --- без изменений
         if (generationType === 'presentation') {
-            // For presentations, try to download PPTX first, then PDF
-            const data = typeof content === 'string' ? JSON.parse(content) : content;
-            const downloadUrl = data?.pptxUrl || data?.pdfUrl || data?.exportUrl;
-
+            const data = typeof content === 'string' ? JSON.parse(content) : content
+            const downloadUrl = data?.pptxUrl || data?.pdfUrl || data?.exportUrl
             if (downloadUrl) {
-                window.open(downloadUrl, '_blank');
+                window.open(downloadUrl, '_blank')
             } else {
-                alert('Ссылка на скачивание не найдена');
+                alert('Ссылка на скачивание не найдена')
             }
-            return;
+            return
         }
 
+        // --- Изображение --- без изменений
         if (isImageContent && content) {
             try {
-                setIsDownloading(true);
-                const response = await fetch(content);
-                const blob = await response.blob();
-                const url = window.URL.createObjectURL(blob);
-                const link = document.createElement('a');
-                link.href = url;
-                link.download = `image-${Date.now()}.png`;
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                window.URL.revokeObjectURL(url);
+                setIsDownloading(true)
+                const response = await fetch(content)
+                const blob = await response.blob()
+                const url = window.URL.createObjectURL(blob)
+                const link = document.createElement('a')
+                link.href = url
+                link.download = `image-${Date.now()}.png`
+                document.body.appendChild(link)
+                link.click()
+                document.body.removeChild(link)
+                window.URL.revokeObjectURL(url)
             } catch (error) {
-                console.error('Error downloading image:', error);
-                window.open(content, '_blank');
+                console.error('Error downloading image:', error)
+                window.open(content, '_blank')
             } finally {
-                setIsDownloading(false);
+                setIsDownloading(false)
             }
-            return;
+            return
         }
 
         if (!content) return
 
-        setIsDownloading(true);
-        const safeName = generationType.replace(/[^a-zA-Zа-яА-Я0-9]/g, '_') || 'result';
-        const dateSuffix = new Date().toISOString().split('T')[0];
-        const filename = `${safeName}_${dateSuffix}.pdf`;
-
-        // Prepare HTML for PDF generation
-        let exportHtml = content;
-        if (!isHtmlResult) {
-            const rawHtml = contentRef.current?.innerHTML || `<p>${content.replace(/\n/g, '<br>')}</p>`;
-            exportHtml = `<!DOCTYPE html>
-<html lang="ru">
-<head>
-  <meta charset="utf-8">
-  <title>${lessonTitle || generationType}</title>
-  <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; line-height: 1.6; padding: 40px; max-width: 800px; margin: 0 auto; background: #fff; color: #000; }
-    table { width: 100%; border-collapse: collapse; margin-bottom: 1em; }
-    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-    th { background-color: #f4f4f4; }
-    .math-inline { font-family: inherit; }
-    .math-block { text-align: center; margin: 1em 0; }
-  </style>
-  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
-</head>
-<body>${rawHtml}</body>
-</html>`;
-        } else if (!/<head[\s>]/i.test(content) && !/<body[\s>]/i.test(content)) {
-            // For incomplete HTML snippets (like some variants)
-            exportHtml = `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; line-height: 1.6; padding: 40px; max-width: 800px; margin: 0 auto; background: #fff; color: #000; }
-  </style>
-  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
-</head>
-<body>${content}</body>
-</html>`;
-        }
+        setIsDownloading(true)
+        const safeName = generationType.replace(/[^a-zA-Zа-яА-Я0-9]/g, '_') || 'result'
+        const dateSuffix = new Date().toISOString().split('T')[0]
+        const filename = `${safeName}_${dateSuffix}.pdf`
 
         try {
-            const pdfResponse = await apiClient.post<Blob>(
-                '/gigachat/export/pdf',
-                { html: exportHtml, filename },
-                { responseType: 'blob' }
-            );
-            const blob = pdfResponse.data;
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = filename;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            window.URL.revokeObjectURL(url);
+            // Динамический импорт — грузится только когда нужен
+            const [{ default: jsPDF }, { default: html2canvas }] = await Promise.all([
+                import('jspdf'),
+                import('html2canvas'),
+            ])
+
+            // Создаём скрытый контейнер с HTML-контентом
+            const container = document.createElement('div')
+            container.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 794px;
+                min-height: 1123px;
+                background: white;
+                color: black;
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+                font-size: 14px;
+                line-height: 1.6;
+                padding: 40px;
+                box-sizing: border-box;
+                z-index: -9999;
+                pointer-events: none;
+            `
+
+            // Вставляем HTML-контент
+            if (isHtmlResult) {
+                // Если полный HTML — берём только body
+                const parser = new DOMParser()
+                const doc = parser.parseFromString(content, 'text/html')
+                container.innerHTML = doc.body.innerHTML
+            } else {
+                // Текстовый контент — берём из contentRef или напрямую
+                container.innerHTML = contentRef.current?.innerHTML || `<p>${content.replace(/\n/g, '<br>')}</p>`
+            }
+
+            document.body.appendChild(container)
+
+            // Даём время на рендер (MathJax и т.д.)
+            await new Promise(resolve => setTimeout(resolve, 300))
+
+            // Снимаем скриншот
+            const canvas = await html2canvas(container, {
+                scale: 2,           // высокое качество
+                useCORS: true,
+                allowTaint: true,
+                backgroundColor: '#ffffff',
+                width: 794,
+                windowWidth: 794,
+            })
+
+            document.body.removeChild(container)
+
+            // Создаём PDF формата A4
+            const pdf = new jsPDF({
+                orientation: 'portrait',
+                unit: 'mm',
+                format: 'a4',
+            })
+
+            const pageWidth = pdf.internal.pageSize.getWidth()   // 210mm
+            const pageHeight = pdf.internal.pageSize.getHeight() // 297mm
+            const imgWidth = pageWidth
+            const imgHeight = (canvas.height * pageWidth) / canvas.width
+
+            // Если контент длиннее одной страницы — разбиваем на страницы
+            let position = 0
+            let remainingHeight = imgHeight
+
+            while (remainingHeight > 0) {
+                pdf.addImage(
+                    canvas.toDataURL('image/jpeg', 0.95),
+                    'JPEG',
+                    0,
+                    position,
+                    imgWidth,
+                    imgHeight
+                )
+                remainingHeight -= pageHeight
+                position -= pageHeight
+                if (remainingHeight > 0) pdf.addPage()
+            }
+
+            pdf.save(filename)
         } catch (error) {
-            console.error('Failed to export PDF, falling back to HTML:', error);
-            const blob = new Blob([content], { type: 'text/html;charset=utf-8' });
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `${safeName}_${dateSuffix}.html`;
-            document.body.appendChild(a);
-            a.click();
-            window.URL.revokeObjectURL(url);
-            document.body.removeChild(a);
+            console.error('Failed to generate PDF:', error)
+            // Фолбэк — скачиваем как HTML
+            const blob = new Blob([content], { type: 'text/html;charset=utf-8' })
+            const url = window.URL.createObjectURL(blob)
+            const a = document.createElement('a')
+            a.href = url
+            a.download = `${safeName}_${dateSuffix}.html`
+            document.body.appendChild(a)
+            a.click()
+            window.URL.revokeObjectURL(url)
+            document.body.removeChild(a)
         } finally {
-            setIsDownloading(false);
+            setIsDownloading(false)
         }
     }
 
