@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { FilesService } from '../files/files.service';
+import { EmailService } from '../../common/services/email.service';
 import * as crypto from 'crypto';
 
 @Injectable()
@@ -8,6 +9,7 @@ export class AdminService {
   constructor(
     private prisma: PrismaService,
     private filesService: FilesService,
+    private emailService: EmailService,
   ) { }
 
   // ========== USERS ==========
@@ -179,6 +181,20 @@ export class AdminService {
           autoRenew: true,
         },
       });
+    }
+
+    // Отправляем письмо с доступами
+    try {
+      if (user.email || user.username) {
+        await this.emailService.sendWelcomeEmail(
+          user.username,
+          apiKey,
+          user.email || user.username,
+        );
+      }
+    } catch (error) {
+      console.error('[Admin] Failed to send welcome email:', error);
+      // Не прерываем процесс создания пользователя, если письмо не отправилось
     }
 
     const createdUser = await this.prisma.appUser.findUnique({
