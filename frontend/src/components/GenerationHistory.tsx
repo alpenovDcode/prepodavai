@@ -89,7 +89,7 @@ function getResultContent(gen: CachedGeneration): any {
 }
 
 function isImageType(gen: CachedGeneration): boolean {
-  if (['image', 'photosession'].includes(gen.type)) return true
+  if (['image', 'photosession', 'image_generation'].includes(gen.type)) return true
   if (gen.type?.startsWith('gigachat') && gen.params?.mode === 'image') return true
   if (getImageUrl(gen)) return true
   return false
@@ -578,7 +578,7 @@ export default function GenerationHistory() {
 
               {/* Image Result */}
               {selectedGeneration.status === 'completed' && selectedGeneration.result && 
-               (selectedGeneration.type === 'image' || selectedGeneration.type === 'photosession' || 
+               (selectedGeneration.type === 'image' || selectedGeneration.type === 'image_generation' || selectedGeneration.type === 'photosession' || 
                 (selectedGeneration.result as any)?.imageUrl) && (
                 <ImageResultDisplay
                   imageUrl={(selectedGeneration.result as any)?.imageUrl || (selectedGeneration.result as any)?.imageUrls?.[0]}

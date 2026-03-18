@@ -265,9 +265,14 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
     const [htmlSlides, setHtmlSlides] = useState<any[]>([])
     const [isHtmlResult, setIsHtmlResult] = useState(false)
     const [cleanedTextResult, setCleanedTextResult] = useState('')
+    const [isDownloading, setIsDownloading] = useState(false)
     const router = useRouter()
     const editorRef = useRef<PresentationEditorRef>(null)
     const contentRef = useRef<HTMLDivElement>(null)
+
+    // Detect image content early so handleDownload can use it
+    const isImageContent = (generationType === 'image' || generationType === 'photosession' || generationType === 'image_generation') &&
+        (content?.startsWith('data:image') || content?.startsWith('http'))
 
     // Sync htmlSlides with rendered slides when presentation data is parsed
     useEffect(() => {
@@ -418,7 +423,7 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
         return { isHtml, html: processed };
     }
 
-    const handleDownload = () => {
+    const handleDownload = async () => {
         if (generationType === 'presentation') {
             // For presentations, try to download PPTX first, then PDF
             const data = typeof content === 'string' ? JSON.parse(content) : content;
@@ -432,9 +437,32 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
             return;
         }
 
+        if (isImageContent && content) {
+            try {
+                setIsDownloading(true);
+                const response = await fetch(content);
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `image-${Date.now()}.png`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                window.URL.revokeObjectURL(url);
+            } catch (error) {
+                console.error('Error downloading image:', error);
+                window.open(content, '_blank');
+            } finally {
+                setIsDownloading(false);
+            }
+            return;
+        }
+
         if (!content) return
 
-        const blob = new Blob([content], { type: 'text/html' })
+        setIsDownloading(true);
+        const blob = new Blob([content], { type: 'text/html;charset=utf-8' })
         const url = window.URL.createObjectURL(blob)
         const a = document.createElement('a')
         a.href = url
@@ -443,6 +471,7 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
         a.click()
         window.URL.revokeObjectURL(url)
         document.body.removeChild(a)
+        setIsDownloading(false);
     }
 
     if (loading) {
@@ -482,10 +511,6 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
     // Detect new HTML/CSS slide format
     const slides: any[] = presentationData?.slides || (Array.isArray(presentationData) ? presentationData : [])
     const isHtmlSlides = slides.length > 0 && typeof slides[0]?.html === 'string'
-
-    // Detect image content
-    const isImageContent = (generationType === 'image' || generationType === 'photosession') &&
-        (content?.startsWith('data:image') || content?.startsWith('http'))
 
     const handleSave = async (updatedSlides: any[]) => {
         if (!generationId) return;
@@ -553,11 +578,11 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
                     </button>
                     <div>
                         <h1 className="text-lg font-bold text-gray-900">{lessonTitle}</h1>
-                        <p className="text-sm text-gray-500 capitalize">{generationType === 'presentation' ? 'Презентация' : generationType === 'image' ? 'Изображение' : generationType}</p>
+                        <p className="text-sm text-gray-500 capitalize">{generationType === 'presentation' ? 'Презентация' : (generationType === 'image' || generationType === 'image_generation') ? 'Изображение' : generationType}</p>
                     </div>
                 </div>
                 <div className="flex items-center gap-3">
-                    {generationType === 'presentation' && (
+                    {generationType === 'presentation' ? (
                         <>
                             <button onClick={() => editorRef.current?.save()} className="px-4 py-2 text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition font-medium flex items-center gap-2">
                                 <Save size={18} /><span>Сохранить</span>
@@ -566,6 +591,15 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
                                 <Download size={18} /><span>Скачать PDF</span>
                             </button>
                         </>
+                    ) : (
+                        <button 
+                            onClick={handleDownload} 
+                            disabled={isDownloading}
+                            className="px-4 py-2 text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition font-medium flex items-center gap-2 shadow-sm shadow-blue-600/20 active:scale-95 disabled:opacity-50"
+                        >
+                            {isDownloading ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />}
+                            <span>{isDownloading ? 'Скачивание...' : isImageContent ? 'Скачать изображение' : 'Скачать'}</span>
+                        </button>
                     )}
                 </div>
             </div>
