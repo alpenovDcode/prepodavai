@@ -63,7 +63,7 @@ export class EmailService {
         </div>
         <p style="font-size: 14px; color: #6b7280;">Пожалуйста, сохраните ваш API_KEY в надежном месте. Он потребуется вам для входа в личный кабинет.</p>
         <p style="margin-top: 30px;">
-          <a href="${appUrl}/login" style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
+          <a href="${appUrl}" style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
             Войти на платформу
           </a>
         </p>
