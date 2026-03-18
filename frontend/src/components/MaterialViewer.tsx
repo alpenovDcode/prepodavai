@@ -425,8 +425,12 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
         return { isHtml, html: processed };
     }
 
+    // Замени всю функцию handleDownload в MaterialViewer.tsx на эту версию.
+// html2canvas и jsPDF больше НЕ НУЖНЫ — можно удалить из package.json.
+// Импорты jsPDF/html2canvas тоже убери.
+
     const handleDownload = async () => {
-        // --- Презентация (PPTX/PDF по ссылке) --- без изменений
+        // --- Презентация ---
         if (generationType === 'presentation') {
             const data = typeof content === 'string' ? JSON.parse(content) : content
             const downloadUrl = data?.pptxUrl || data?.pdfUrl || data?.exportUrl
@@ -438,7 +442,7 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
             return
         }
 
-        // --- Изображение --- без изменений
+        // --- Изображение ---
         if (isImageContent && content) {
             try {
                 setIsDownloading(true)
@@ -464,132 +468,151 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
         if (!content) return
 
         setIsDownloading(true)
-        const safeName = generationType.replace(/[^a-zA-Zа-яА-Я0-9]/g, '_') || 'result'
-        const dateSuffix = new Date().toISOString().split('T')[0]
-        const filename = `${safeName}_${dateSuffix}.pdf`
 
         try {
-            // Динамический импорт — грузится только когда нужен
-            const [{ default: jsPDF }, { default: html2canvas }] = await Promise.all([
-                import('jspdf'),
-                import('html2canvas'),
-            ])
+            // Собираем финальный HTML для печати
+            const safeName = generationType.replace(/[^a-zA-Zа-яА-Я0-9]/g, '_') || 'result'
+            const title = lessonTitle || safeName
 
-            // Создаём скрытый контейнер с HTML-контентом
-            const container = document.createElement('div')
-            container.style.cssText = `
-                position: fixed;
-                top: 0;
-                left: 0;
-                width: 794px;
-                min-height: 1123px;
-                background: white;
-                color: black;
-                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
-                font-size: 14px;
-                line-height: 1.6;
-                padding: 40px;
-                box-sizing: border-box;
-                z-index: -9999;
-                pointer-events: none;
-            `
+            let printHtml: string
 
-            // Вставляем HTML-контент
             if (isHtmlResult) {
-                // Если полный HTML — берём только body
-                const parser = new DOMParser()
-                const doc = parser.parseFromString(content, 'text/html')
-                container.innerHTML = doc.body.innerHTML
+                // Контент уже полноценный HTML — просто добавляем print-стили
+                const printStyles = `
+                    <style>
+                        @media print {
+                            body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                        }
+                    </style>`
+
+                if (/<head[\s>]/i.test(content)) {
+                    printHtml = content.replace(/<\/head>/i, `${printStyles}</head>`)
+                } else {
+                    printHtml = content
+                }
             } else {
-                // Текстовый контент — берём из contentRef или напрямую
-                container.innerHTML = contentRef.current?.innerHTML || `<p>${content.replace(/\n/g, '<br>')}</p>`
+                // Текстовый/markdown контент — оборачиваем в базовый HTML
+                const rawHtml = contentRef.current?.innerHTML || `<p>${content.replace(/\n/g, '<br>')}</p>`
+                printHtml = `<!DOCTYPE html>
+    <html lang="ru">
+    <head>
+    <meta charset="utf-8">
+    <title>${title}</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+            line-height: 1.6;
+            padding: 40px;
+            max-width: 800px;
+            margin: 0 auto;
+            background: #fff;
+            color: #000;
+            font-size: 14pt;
+        }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 1em; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f4f4f4; }
+        @media print {
+            body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        }
+    </style>
+    <script>
+        window.MathJax = {
+            tex: { inlineMath: [['$','$'],['\\\\(','\\\\)']], displayMath: [['$$','$$'],['\\\\[','\\\\]']] },
+            svg: { fontCache: 'global' }
+        };
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    </head>
+    <body>${rawHtml}</body>
+    </html>`
             }
 
-            document.body.appendChild(container)
-
-            // Даём время на рендер (MathJax и т.д.)
-            await new Promise(resolve => setTimeout(resolve, 300))
-
-            // Снимаем скриншот
-            const canvas = await html2canvas(container, {
-                scale: 2,           // высокое качество
-                useCORS: true,
-                allowTaint: true,
-                backgroundColor: '#ffffff',
-                width: 794,
-                windowWidth: 794,
-            })
-
-            document.body.removeChild(container)
-
-            // Создаём PDF формата A4
-            const pdf = new jsPDF({
-                orientation: 'portrait',
-                unit: 'mm',
-                format: 'a4',
-            })
-
-            const pageWidth = pdf.internal.pageSize.getWidth()   // 210mm
-            const pageHeight = pdf.internal.pageSize.getHeight() // 297mm
-            const imgWidth = pageWidth
-            const imgHeight = (canvas.height * pageWidth) / canvas.width
-
-            // Если контент длиннее одной страницы — разбиваем на страницы
-            let position = 0
-            let remainingHeight = imgHeight
-
-            while (remainingHeight > 0) {
-                pdf.addImage(
-                    canvas.toDataURL('image/jpeg', 0.95),
-                    'JPEG',
-                    0,
-                    position,
-                    imgWidth,
-                    imgHeight
-                )
-                remainingHeight -= pageHeight
-                position -= pageHeight
-                if (remainingHeight > 0) pdf.addPage()
-            }
-
-            pdf.save(filename)
+            // Создаём скрытый iframe и печатаем из него
+            await printHtmlAsPdf(printHtml)
         } catch (error) {
-            console.error('Failed to generate PDF:', error)
-            // Фолбэк — скачиваем как HTML
-            const blob = new Blob([content], { type: 'text/html;charset=utf-8' })
-            const url = window.URL.createObjectURL(blob)
-            const a = document.createElement('a')
-            a.href = url
-            a.download = `${safeName}_${dateSuffix}.html`
-            document.body.appendChild(a)
-            a.click()
-            window.URL.revokeObjectURL(url)
-            document.body.removeChild(a)
+            console.error('Failed to print PDF:', error)
+            // Фолбэк — открываем в новой вкладке для ручной печати
+            const win = window.open('', '_blank')
+            if (win && content) {
+                win.document.write(isHtmlResult ? content : `<pre>${content}</pre>`)
+                win.document.close()
+                win.print()
+            }
         } finally {
             setIsDownloading(false)
         }
     }
 
-    if (loading) {
-        return (
-            <div className="flex justify-center items-center h-screen bg-gray-50">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
-            </div>
-        )
-    }
+    // Вспомогательная функция — вынеси её за пределы компонента (перед `export default`)
+    function printHtmlAsPdf(html: string): Promise<void> {
+        return new Promise((resolve, reject) => {
+            // Удаляем старый iframe если остался
+            const existing = document.getElementById('__print-frame__')
+            if (existing) existing.remove()
 
-    if (error) {
-        return (
-            <div className="flex flex-col justify-center items-center h-screen bg-gray-50">
-                <div className="text-red-500 text-xl font-semibold mb-4">{error}</div>
-                <button
-                    onClick={() => router.back()}
-                    className="px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition"
-                >
-                    Назад
-                </button>
-            </div>
-        )
+            const iframe = document.createElement('iframe')
+            iframe.id = '__print-frame__'
+            iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:210mm;height:297mm;border:none;'
+            document.body.appendChild(iframe)
+
+            const doc = iframe.contentDocument || iframe.contentWindow?.document
+            if (!doc) {
+                reject(new Error('Cannot access iframe document'))
+                return
+            }
+
+            doc.open()
+            doc.write(html)
+            doc.close()
+
+            // Ждём загрузки (MathJax + шрифты)
+            const onLoad = () => {
+                const win = iframe.contentWindow
+                if (!win) {
+                    reject(new Error('Cannot access iframe window'))
+                    return
+                }
+
+                const doprint = () => {
+                    try {
+                        win.focus()
+                        win.print()
+                        // Небольшая задержка перед удалением iframe
+                        setTimeout(() => {
+                            iframe.remove()
+                            resolve()
+                        }, 1000)
+                    } catch (e) {
+                        iframe.remove()
+                        reject(e)
+                    }
+                }
+
+                // Если есть MathJax — ждём его
+                const mjax = (win as any).MathJax
+                if (mjax?.typesetPromise) {
+                    // MathJax 3
+                    mjax.typesetPromise()
+                        .then(() => setTimeout(doprint, 500))
+                        .catch(() => setTimeout(doprint, 500))
+                } else if (mjax?.Hub) {
+                    // MathJax 2
+                    mjax.Hub.Queue(['Typeset', mjax.Hub], () => setTimeout(doprint, 500))
+                } else {
+                    // Нет MathJax — небольшая пауза для шрифтов/SVG
+                    setTimeout(doprint, 800)
+                }
+            }
+
+            iframe.addEventListener('load', onLoad, { once: true })
+
+            // Таймаут на случай если load не сработал
+            setTimeout(() => {
+                iframe.removeEventListener('load', onLoad)
+                onLoad()
+            }, 8000)
+        })
     }
 
 
