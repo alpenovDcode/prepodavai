@@ -58,7 +58,7 @@ export class EmailService {
         <p>Ваш аккаунт преподавателя успешно создан.</p>
         <p>Используйте следующие данные для входа на платформу:</p>
         <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
-          <p style="margin: 0 0 10px 0;"><strong>Логин (Email/Username):</strong> ${sanitizeHtml(username)}</p>
+          <p style="margin: 0 0 10px 0;"><strong>Логин:</strong> ${sanitizeHtml(username)}</p>
           <p style="margin: 0;"><strong>API_KEY:</strong> <code style="background: #e5e7eb; padding: 2px 6px; border-radius: 4px;">${sanitizeHtml(apiKey)}</code></p>
         </div>
         <p style="font-size: 14px; color: #6b7280;">Пожалуйста, сохраните ваш API_KEY в надежном месте. Он потребуется вам для входа в личный кабинет.</p>
