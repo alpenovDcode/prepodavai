@@ -462,16 +462,75 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
         if (!content) return
 
         setIsDownloading(true);
-        const blob = new Blob([content], { type: 'text/html;charset=utf-8' })
-        const url = window.URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = `${generationType}-${new Date().toISOString().split('T')[0]}.html`
-        document.body.appendChild(a)
-        a.click()
-        window.URL.revokeObjectURL(url)
-        document.body.removeChild(a)
-        setIsDownloading(false);
+        const safeName = generationType.replace(/[^a-zA-Zа-яА-Я0-9]/g, '_') || 'result';
+        const dateSuffix = new Date().toISOString().split('T')[0];
+        const filename = `${safeName}_${dateSuffix}.pdf`;
+
+        // Prepare HTML for PDF generation
+        let exportHtml = content;
+        if (!isHtmlResult) {
+            const rawHtml = contentRef.current?.innerHTML || `<p>${content.replace(/\n/g, '<br>')}</p>`;
+            exportHtml = `<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>${lessonTitle || generationType}</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; line-height: 1.6; padding: 40px; max-width: 800px; margin: 0 auto; background: #fff; color: #000; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 1em; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+    th { background-color: #f4f4f4; }
+    .math-inline { font-family: inherit; }
+    .math-block { text-align: center; margin: 1em 0; }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
+</head>
+<body>${rawHtml}</body>
+</html>`;
+        } else if (!/<head[\s>]/i.test(content) && !/<body[\s>]/i.test(content)) {
+            // For incomplete HTML snippets (like some variants)
+            exportHtml = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; line-height: 1.6; padding: 40px; max-width: 800px; margin: 0 auto; background: #fff; color: #000; }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
+</head>
+<body>${content}</body>
+</html>`;
+        }
+
+        try {
+            const pdfResponse = await apiClient.post<Blob>(
+                '/gigachat/export/pdf',
+                { html: exportHtml, filename },
+                { responseType: 'blob' }
+            );
+            const blob = pdfResponse.data;
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+        } catch (error) {
+            console.error('Failed to export PDF, falling back to HTML:', error);
+            const blob = new Blob([content], { type: 'text/html;charset=utf-8' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${safeName}_${dateSuffix}.html`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+        } finally {
+            setIsDownloading(false);
+        }
     }
 
     if (loading) {
