@@ -28,7 +28,7 @@ import { GigachatModule } from './modules/gigachat/gigachat.module';
 import { GammaModule } from './modules/gamma/gamma.module';
 import { AiAssistantModule } from './modules/ai-assistant/ai-assistant.module';
 import { HtmlExportService } from './common/services/html-export.service';
-import { EmailService } from './common/services/email.service';
+import { EmailModule } from './common/services/email.module';
 import { GamesModule } from './modules/games/games.module';
 import { ReplicateModule } from './modules/replicate/replicate.module';
 import { LessonsModule } from './modules/lessons/lessons.module';
@@ -92,6 +92,7 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
     LessonsModule,
     GamesModule,
     AnalyticsModule,
+    EmailModule,
   ],
   controllers: [AppController],
   providers: [
@@ -101,7 +102,6 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
     },
     AppService,
     HtmlExportService,
-    EmailService,
   ],
 })
 export class AppModule { }
