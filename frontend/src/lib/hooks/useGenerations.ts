@@ -53,6 +53,7 @@ export function useGenerations() {
         feedback: '/generate/feedback',
         presentation: '/generate/presentation',
         image: '/generate/image',
+        image_generation: '/generate/image',
         photosession: '/generate/photosession',
         transcription: '/generate/transcribe-video',
         message: '/generate/message',
@@ -60,6 +61,7 @@ export function useGenerations() {
         videoAnalysis: '/generate/video-analysis',
         salesAdvisor: '/generate/sales-advisor',
         'exam-variant': '/generate/exam-variant',
+        exam_variant: '/generate/exam-variant',
       }
 
       const endpoint = endpointMap[request.type];
