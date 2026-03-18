@@ -346,6 +346,7 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
       'message',
       'feedback',
       'image',
+      'image_generation',
       'photosession',
       'video-analysis',
       'exam-variant',
@@ -371,8 +372,8 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
   ) {
     try {
       // Генерация изображений
-      if (generationType === 'image' || generationType === 'photosession') {
-        return await this.generateImageViaGigachat(
+      if (generationType === 'image' || generationType === 'image_generation' || generationType === 'photosession') {
+        return await this.generateImageViaReplicate(
           generationType,
           generationRequestId,
           inputParams,
@@ -501,7 +502,7 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
   /**
    * Генерация изображений через Replicate (z-image-turbo)
    */
-  private async generateImageViaGigachat(
+  private async generateImageViaReplicate(
     generationType: GenerationType,
     generationRequestId: string,
     inputParams: Record<string, any>,
@@ -519,16 +520,19 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
     console.log(`[GenerationsService] Using model: ${model}, prompt: ${prompt}`);
 
     try {
-      // Для фотосессии используем Replicate API
-      if (generationType === 'photosession') {
-        const photoHash = inputParams.photoHash;
+      // Для генерации изображений через Replicate API
+      if (generationType === 'photosession' || generationType === 'image' || generationType === 'image_generation') {
         const promptText = inputParams.prompt;
-
-        if (!photoHash) {
-          throw new BadRequestException('No photo provided for photosession');
-        }
         const baseUrl = this.configService.get<string>('BASE_URL', 'https://api.prepodavai.ru');
-        const imageUrlInput = `${baseUrl}/api/files/${photoHash}`;
+        let imageUrlInput;
+
+        if (generationType === 'photosession') {
+          const photoHash = inputParams.photoHash;
+          if (!photoHash) {
+            throw new BadRequestException('No photo provided for photosession');
+          }
+          imageUrlInput = `${baseUrl}/api/files/${photoHash}`;
+        }
 
         // URL для обратного вызова
         const callbackUrl = `${baseUrl}/api/webhooks/replicate-callback`;
@@ -589,7 +593,7 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
           // Возвращаем pending статус
           return {
             provider: 'Replicate',
-            mode: 'photosession',
+            mode: generationType,
             status: 'pending',
             predictionId: predictionId,
             requestId: generationRequestId,
@@ -606,64 +610,8 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
         }
       }
 
-      // Для остальных типов изображений используем GigaChat напрямую
-      let messages: any[] = [];
-      if (generationType === 'image' && inputParams.prompt) {
-        messages = [
-          {
-            role: 'user',
-            content: inputParams.prompt,
-          },
-        ];
-      } else {
-        // Fallback logic if needed, but currently only image/photosession use this method
-        // and we handled photosession above.
-        // If we are here, it's a regular image generation without prompt?
-        // Or maybe we should keep the old logic for 'image' type.
-        // The old logic for 'image' was:
-        messages = [
-          {
-            role: 'user',
-            content: inputParams.prompt,
-          },
-        ];
-      }
 
-      const response = await this.gigachatService.createImage({
-        model,
-        prompt,
-        messages, // Передаем сформированные сообщения (важно для photosession)
-        function_call: 'auto',
-      });
-
-      console.log(`[GenerationsService] Image generated successfully`);
-
-      // Извлекаем URL изображения из ответа
-      const imageUrl =
-        response?.data?.[0]?.url || response?.data?.[0]?.b64_json
-          ? `data:image/jpeg;base64,${response.data[0].b64_json}`
-          : null;
-
-      if (!imageUrl) {
-        throw new BadRequestException('GigaChat вернул пустой результат изображения');
-      }
-
-      const normalizedResult = {
-        provider: 'GigaChat',
-        mode: 'image',
-        model,
-        content: imageUrl,
-        prompt: {
-          user: prompt,
-        },
-        completedAt: new Date().toISOString(),
-      };
-
-      console.log(`[GenerationsService] Saving image generation result to database`);
-      await this.generationHelpers.completeGeneration(generationRequestId, normalizedResult);
-      console.log(`[GenerationsService] Image generation ${generationType} completed successfully`);
-
-      return normalizedResult;
+      throw new BadRequestException(`Unsupported image generation type: ${generationType}`);
     } catch (error: any) {
       console.error(`[GenerationsService] Image generation failed:`, error);
       throw error;
