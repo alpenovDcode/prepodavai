@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { Loader2 } from 'lucide-react'
 import LandingPage from '@/components/LandingPage'
 import WebAppIndex from '@/components/WebAppIndex'
 
@@ -78,9 +79,13 @@ export default function Home() {
     })
   }, [])
 
-  // Показываем пустой экран во время проверки
+  // Показываем индикатор загрузки во время проверки окружения
   if (isWebApp === null) {
-    return null
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <Loader2 className="w-10 h-10 animate-spin text-purple-600" />
+      </div>
+    )
   }
 
   // Показываем лендинг только для веб-пользователей без авторизации
