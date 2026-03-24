@@ -106,12 +106,9 @@ export class MaxService {
           buttons: [
             [
               {
-                type: 'open_app',
-                text: 'Открыть Mini App',
-                // According to research, this field is web_app but server errors use webApp.
-                // Using both to be safe, and using string for IDs.
-                web_app: botUserId ? botUserId.toString() : 'current',
-                webApp: botUserId ? botUserId.toString() : 'current',
+                type: 'link',
+                text: 'Открыть Mini App (Тест)',
+                url: 'https://prepodavai.ru',
               },
             ],
           ],
