@@ -99,25 +99,19 @@ export class MaxService {
   private async sendWelcomeMessage(chatId: string, appUser: any, botUserId?: number) {
     const text = this.getWelcomeMessage(appUser);
     
-    // Changing to object format as 'Field webApp cannot be null' often indicates 
-    // that the server expects a nested message (object) rather than a primitive.
-    const webAppButton = {
-      type: 'open_app',
-      text: 'Открыть Mini App',
-      web_app: {
-        url: 'https://prepodavai.ru',
-      },
-      // Adding variations just in case
-      webApp: {
-        url: 'https://prepodavai.ru',
-      },
+    // Testing with a simple LINK button to see if the message goes through.
+    // This will help us confirm that the rest of the payload is correct.
+    const testButton = {
+      type: 'link',
+      text: 'Открыть Mini App (Тест)',
+      url: 'https://prepodavai.ru',
     };
 
     const attachments = [
       {
         type: 'inline_keyboard',
         payload: {
-          buttons: [[webAppButton]],
+          buttons: [[testButton]],
         },
       },
     ];
