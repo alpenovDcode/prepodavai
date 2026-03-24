@@ -38,7 +38,9 @@ export class MaxService {
 
       const user = message.from || message.sender;
       const text = message.text || message.content || message.body?.text;
-      const chatId = message.chat?.id || user?.user_id || user?.id;
+      
+      // CRITICAL: In MAX, the dialog ID is often found in message.recipient.chat_id
+      const chatId = message.chat?.id || message.recipient?.chat_id || user?.user_id || user?.id;
 
       let userIdForDb = user?.user_id || user?.id;
       if (!user || !chatId || !userIdForDb) {
@@ -46,12 +48,10 @@ export class MaxService {
         return;
       }
 
-      // Ensure we use the correct user id property based on the doc.
-      // MAX gives user.user_id inside message.sender
       const botUser = { ...user, id: userIdForDb };
-      const botUserId = body?.message?.recipient?.user_id;
+      const botUserId = message.recipient?.user_id;
       
-      this.logger.log(`Parsed message from ${botUser.username || botUser.id}: ${text} (Bot ID: ${botUserId})`);
+      this.logger.log(`Parsed message from ${botUser.username || botUser.id}: ${text} (Chat: ${chatId}, Bot: ${botUserId})`);
 
       if (text && text.startsWith('/start')) {
         await this.handleStartCommand(botUser, chatId, botUserId);
@@ -99,19 +99,22 @@ export class MaxService {
   private async sendWelcomeMessage(chatId: string, appUser: any, botUserId?: number) {
     const text = this.getWelcomeMessage(appUser);
     
-    // Testing with a simple LINK button to see if the message goes through.
-    // This will help us confirm that the rest of the payload is correct.
-    const testButton = {
-      type: 'link',
-      text: 'Открыть Mini App (Тест)',
-      url: 'https://prepodavai.ru',
-    };
-
     const attachments = [
       {
         type: 'inline_keyboard',
         payload: {
-          buttons: [[testButton]],
+          buttons: [
+            [
+              {
+                type: 'open_app',
+                text: 'Открыть Mini App',
+                // According to research, this field is web_app but server errors use webApp.
+                // Using both to be safe, and using string for IDs.
+                web_app: botUserId ? botUserId.toString() : 'current',
+                webApp: botUserId ? botUserId.toString() : 'current',
+              },
+            ],
+          ],
         },
       },
     ];
@@ -198,34 +201,21 @@ export class MaxService {
       return;
     }
     
+    // BACK TO BASICS: Put user_id in query string as it was the only way that parsed the body successfully.
+    // Use the provided chatId (which we'll ensure is the chat_id from the webhook).
     const baseUrl = this.apiUrl.endsWith('/') ? this.apiUrl.slice(0, -1) : this.apiUrl;
-    const url = `${baseUrl}/messages`;
+    const url = `${baseUrl}/messages?user_id=${chatId}`;
 
     try {
-      // Use chat_id if available, otherwise fallback to user_id. 
-      // Important: send as strings to satisfy Protobuf's JSON mapping for int64.
       const payload: any = {
-        recipient: {
-          chat_id: chatId.toString(),
-          chat_type: 'dialog',
-        },
-        body: {
-          text,
-        },
+        text,
       };
 
-      // If we don't have a chat_id (unlikely for a bot response), use user_id
-      if (!chatId || String(chatId) === 'undefined') {
-        payload.recipient = {
-          user_id: chatId.toString(),
-        };
-      }
-
       if (attachments && attachments.length > 0) {
-        payload.body.attachments = attachments;
+        payload.attachments = attachments;
       }
       
-      this.logger.log(`Attempting request to MAX: POST ${url} for user ${chatId}`);
+      this.logger.log(`Attempting request to MAX: POST ${url}`);
       
       const response = await axios.post(
         url,
