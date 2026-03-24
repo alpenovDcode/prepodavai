@@ -49,18 +49,19 @@ export class MaxService {
       // Ensure we use the correct user id property based on the doc.
       // MAX gives user.user_id inside message.sender
       const botUser = { ...user, id: userIdForDb };
-
-      this.logger.log(`Parsed message from ${botUser.username || botUser.id}: ${text}`);
+      const botUserId = body?.message?.recipient?.user_id;
+      
+      this.logger.log(`Parsed message from ${botUser.username || botUser.id}: ${text} (Bot ID: ${botUserId})`);
 
       if (text && text.startsWith('/start')) {
-        await this.handleStartCommand(botUser, chatId);
+        await this.handleStartCommand(botUser, chatId, botUserId);
       }
     } catch (error) {
       this.logger.error('Error handling MAX webhook:', error);
     }
   }
 
-  private async handleStartCommand(user: any, chatId: string | number) {
+  private async handleStartCommand(user: any, chatId: string | number, botUserId?: number) {
     let existingUser = await this.prisma.appUser.findUnique({
       where: { maxId: user.id.toString() },
     });
@@ -76,7 +77,7 @@ export class MaxService {
           username: user.username || existingUser.username,
         },
       });
-      await this.sendWelcomeMessage(chatId.toString(), existingUser);
+      await this.sendWelcomeMessage(chatId.toString(), existingUser, botUserId);
     } else {
       const apiKey = this.generateApiKey();
       const newUser = await this.prisma.appUser.create({
@@ -91,11 +92,11 @@ export class MaxService {
           lastAccessAt: new Date(),
         },
       });
-      await this.sendWelcomeMessage(chatId.toString(), newUser);
+      await this.sendWelcomeMessage(chatId.toString(), newUser, botUserId);
     }
   }
 
-  private async sendWelcomeMessage(chatId: string, appUser: any) {
+  private async sendWelcomeMessage(chatId: string, appUser: any, botUserId?: number) {
     const text = this.getWelcomeMessage(appUser);
     const attachments = [
       {
@@ -106,7 +107,11 @@ export class MaxService {
               {
                 type: 'open_app',
                 text: 'Открыть Mini App',
-                url: 'https://prepodavai.ru', 
+                // For open_app we need either web_app (username) or contact_id
+                // Adding both for maximum compatibility across different API versions
+                // and using camelCase as requested by the error message.
+                contact_id: botUserId,
+                webApp: botUserId, // The error specifically asked for webApp
               },
             ],
           ],
