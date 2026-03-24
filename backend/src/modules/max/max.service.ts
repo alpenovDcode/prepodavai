@@ -98,23 +98,26 @@ export class MaxService {
 
   private async sendWelcomeMessage(chatId: string, appUser: any, botUserId?: number) {
     const text = this.getWelcomeMessage(appUser);
+    
+    // Fallback button if we don't have botUserId yet (should not happen with messages)
+    const webAppButton = botUserId ? {
+      type: 'open_app',
+      text: 'Открыть Mini App',
+      // We send as STRING because protobuf-based APIs often fail to decode numbers into string fields
+      web_app: botUserId.toString(), 
+      webApp: botUserId.toString(),
+      contact_id: botUserId,
+    } : {
+      type: 'link',
+      text: 'Открыть Mini App (Web)',
+      url: 'https://prepodavai.ru',
+    };
+
     const attachments = [
       {
         type: 'inline_keyboard',
         payload: {
-          buttons: [
-            [
-              {
-                type: 'open_app',
-                text: 'Открыть Mini App',
-                // For open_app we need either web_app (username) or contact_id
-                // Adding both for maximum compatibility across different API versions
-                // and using camelCase as requested by the error message.
-                contact_id: botUserId,
-                webApp: botUserId, // The error specifically asked for webApp
-              },
-            ],
-          ],
+          buttons: [[webAppButton]],
         },
       },
     ];
