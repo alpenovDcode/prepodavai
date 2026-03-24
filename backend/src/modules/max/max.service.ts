@@ -39,8 +39,9 @@ export class MaxService {
       const user = message.from || message.sender;
       const text = message.text || message.content || message.body?.text;
       
-      // CRITICAL: In MAX, the dialog ID is often found in message.recipient.chat_id
-      const chatId = message.chat?.id || message.recipient?.chat_id || user?.user_id || user?.id;
+      // Reverting to using the user's ID as the primary chatId for the URL, 
+      // as it was the only one that didn't give 'dialog.not.found'.
+      const chatId = user?.user_id || user?.id || message.chat?.id || message.recipient?.chat_id;
 
       let userIdForDb = user?.user_id || user?.id;
       if (!user || !chatId || !userIdForDb) {
@@ -51,7 +52,7 @@ export class MaxService {
       const botUser = { ...user, id: userIdForDb };
       const botUserId = message.recipient?.user_id;
       
-      this.logger.log(`Parsed message from ${botUser.username || botUser.id}: ${text} (Chat: ${chatId}, Bot: ${botUserId})`);
+      this.logger.log(`Parsed message from ${botUser.username || botUser.id}: ${text} (Target: ${chatId}, Bot: ${botUserId})`);
 
       if (text && text.startsWith('/start')) {
         await this.handleStartCommand(botUser, chatId, botUserId);
