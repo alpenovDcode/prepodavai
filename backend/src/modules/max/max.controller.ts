@@ -1,9 +1,17 @@
-import { Controller, Post, Body, HttpCode } from '@nestjs/common';
+import { Controller, Post, Body, HttpCode, Get, Query, BadRequestException } from '@nestjs/common';
 import { MaxService } from './max.service';
 
 @Controller('webhook/max')
 export class MaxController {
   constructor(private readonly maxService: MaxService) {}
+
+  @Get('setup')
+  async setupWebhook(@Query('url') url: string) {
+    if (!url) {
+      throw new BadRequestException('URL query parameter is required. Example: ?url=https://api.prepodavai.ru/api/webhook/max');
+    }
+    return await this.maxService.subscribeWebhook(url);
+  }
 
   @Post()
   @HttpCode(200)

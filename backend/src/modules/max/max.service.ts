@@ -157,6 +157,39 @@ export class MaxService {
     await this.sendMessageWithMarkup(chatId, text);
   }
 
+  /**
+   * Регистрация вебхука в API MAX
+   */
+  async subscribeWebhook(url: string) {
+    if (!this.token) {
+      throw new Error('MAX_BOT_TOKEN is missing');
+    }
+
+    const baseUrl = this.apiUrl.endsWith('/') ? this.apiUrl.slice(0, -1) : this.apiUrl;
+    const subscriptionUrl = `${baseUrl}/subscriptions`;
+
+    const payload = {
+      url,
+      update_types: ['message_created', 'bot_started', 'message_callback'],
+    };
+
+    this.logger.log(`Registering webhook at MAX: POST ${subscriptionUrl} with URL ${url}`);
+
+    try {
+      const response = await axios.post(
+        subscriptionUrl,
+        payload,
+        { headers: { Authorization: this.token } },
+      );
+      this.logger.log(`Subscription response: ${response.status} ${JSON.stringify(response.data)}`);
+      return response.data;
+    } catch (error: any) {
+      const errorData = error?.response?.data ? JSON.stringify(error.response.data) : error.message;
+      this.logger.error(`Failed to subscribe webhook: ${errorData}`);
+      throw new Error(`Failed to subscribe: ${errorData}`);
+    }
+  }
+
   private async sendMessageWithMarkup(chatId: string, text: string, attachments?: any[]) {
     if (!this.token) {
       this.logger.error('MAX_BOT_TOKEN is not defined! Cannot send message.');
