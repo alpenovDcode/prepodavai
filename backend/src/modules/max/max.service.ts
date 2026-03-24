@@ -202,15 +202,24 @@ export class MaxService {
     const url = `${baseUrl}/messages`;
 
     try {
-      // Correcting the structure based on the webhook symmetry and typical Protobuf APIs
+      // Use chat_id if available, otherwise fallback to user_id. 
+      // Important: send as strings to satisfy Protobuf's JSON mapping for int64.
       const payload: any = {
         recipient: {
-          user_id: parseInt(chatId, 10), // Ensure it's a number
+          chat_id: chatId.toString(),
+          chat_type: 'dialog',
         },
         body: {
           text,
         },
       };
+
+      // If we don't have a chat_id (unlikely for a bot response), use user_id
+      if (!chatId || String(chatId) === 'undefined') {
+        payload.recipient = {
+          user_id: chatId.toString(),
+        };
+      }
 
       if (attachments && attachments.length > 0) {
         payload.body.attachments = attachments;
