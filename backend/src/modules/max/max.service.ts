@@ -54,7 +54,7 @@ export class MaxService {
           username: user.username || existingUser.username,
         },
       });
-      await this.sendMessage(chatId.toString(), this.getWelcomeMessage(existingUser));
+      await this.sendWelcomeMessage(chatId.toString(), existingUser);
     } else {
       const apiKey = this.generateApiKey();
       const newUser = await this.prisma.appUser.create({
@@ -63,14 +63,31 @@ export class MaxService {
           chatId: chatId.toString(),
           firstName: user.first_name || 'User',
           lastName: user.last_name || '',
-          username: user.username || `max_user_${user.id}`,
+          username: user.username || `user${user.id}`,
           source: 'max',
           apiKey,
           lastAccessAt: new Date(),
         },
       });
-      await this.sendMessage(chatId.toString(), this.getWelcomeMessage(newUser));
+      await this.sendWelcomeMessage(chatId.toString(), newUser);
     }
+  }
+
+  private async sendWelcomeMessage(chatId: string, appUser: any) {
+    const text = this.getWelcomeMessage(appUser);
+    const replyMarkup = {
+      inline_keyboard: [
+        [
+          {
+            text: 'Открыть Mini App',
+            web_app: {
+              url: 'https://prepodavai.ru', 
+            },
+          },
+        ],
+      ],
+    };
+    await this.sendMessageWithMarkup(chatId, text, replyMarkup);
   }
 
   /**
@@ -111,11 +128,19 @@ export class MaxService {
   }
 
   private async sendMessage(chatId: string, text: string) {
+    await this.sendMessageWithMarkup(chatId, text);
+  }
+
+  private async sendMessageWithMarkup(chatId: string, text: string, reply_markup?: any) {
     if (!this.token) return;
     try {
+      const payload: any = { chat_id: chatId, text };
+      if (reply_markup) {
+        payload.reply_markup = reply_markup;
+      }
       await axios.post(
         `${this.apiUrl}/messages/send`,
-        { chat_id: chatId, text },
+        payload,
         { headers: { Authorization: `Bearer ${this.token}` } },
       );
     } catch (error) {
@@ -151,6 +176,12 @@ export class MaxService {
       `🔐 API Key: ${appUser.apiKey}\n\n` +
       `⚠️ Сохраните эти данные! Они понадобятся для входа в веб-версию.\n\n` +
       `🌐 Веб-версия: https://prepodavai.ru/\n\n` +
+      `Я твой интеллектуальный помощник для:\n` +
+      `— Создания учебных материалов\n` +
+      `— Планирования уроков\n` +
+      `— Проверки работ учеников\n` +
+      `— Адаптации контента\n` +
+      `— Методической поддержки\n\n` +
       `Открой Mini App (Веб-приложение МАКС) для начала работы!`
     );
   }

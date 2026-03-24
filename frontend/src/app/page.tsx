@@ -19,7 +19,9 @@ export default function Home() {
       if (
         urlParams.has('tgWebAppPlatform') ||
         urlParams.has('tgWebAppVersion') ||
-        urlParams.has('tgWebAppData')
+        urlParams.has('tgWebAppData') ||
+        urlParams.has('max_init_data') || // Possible parameter for MAX
+        urlParams.has('auth_date') // Often present in both mini apps
       ) {
         return true
       }
@@ -32,7 +34,8 @@ export default function Home() {
           tg?.initDataUnsafe?.user ||
           tg?.initData ||
           (tg && tg.platform !== 'unknown') ||
-          max?.initData
+          (max && typeof max.ready === 'function') ||
+          (max && max.initData)
         )
       }
 

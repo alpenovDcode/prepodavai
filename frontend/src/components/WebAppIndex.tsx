@@ -74,23 +74,38 @@ export default function WebAppIndex({ embedded = false }: WebAppIndexProps) {
           } catch (e) {
             console.error('Failed to validate Telegram initData:', e)
           }
-        } else if (typeof window !== 'undefined' && (window as any).WebApp?.initData) {
+        } else if (typeof window !== 'undefined' && ((window as any).WebApp?.initData || (window as any).WebApp)) {
           // Проверяем MAX WebApp
           const max = (window as any).WebApp
-          max.ready?.()
+          max?.ready?.()
 
-          const initData = max.initData
-          try {
-            const response = await apiClient.post('/auth/max/validate-init-data', { initData })
-            if (response.data.success) {
-              setUserHash(response.data.userHash)
-              setUserSource('max')
-              if (response.data.token) {
-                localStorage.setItem('prepodavai_authenticated', 'true')
+          // Если max.initData нет напрямую в объекте WebApp, попробуем поискать в URL
+          let initData = max?.initData;
+          
+          if (!initData) {
+            // В зависимости от реализации MAX, initData может лежать в URL (window.location.search)
+            const urlParams = new URLSearchParams(window.location.search)
+            // Пытаемся достать сырой init_data, tgWebAppData, или весь query string
+            initData = urlParams.get('initData') || urlParams.get('max_init_data') || urlParams.get('tgWebAppData') || window.location.search.replace(/^\?/, '');
+          }
+
+          if (initData) {
+            try {
+              const response = await apiClient.post('/auth/max/validate-init-data', { initData })
+              if (response.data.success) {
+                setUserHash(response.data.userHash)
+                setUserSource('max')
+                if (response.data.token) {
+                  localStorage.setItem('prepodavai_authenticated', 'true')
+                }
+              } else {
+                console.warn('MAX initData validate return false success');
               }
+            } catch (e) {
+              console.error('Failed to validate MAX initData:', e)
             }
-          } catch (e) {
-            console.error('Failed to validate MAX initData:', e)
+          } else {
+             console.warn('MAX WebApp detected, but no initData found');
           }
         }
 
