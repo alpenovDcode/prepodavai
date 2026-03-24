@@ -99,18 +99,18 @@ export class MaxService {
   private async sendWelcomeMessage(chatId: string, appUser: any, botUserId?: number) {
     const text = this.getWelcomeMessage(appUser);
     
-    // Fallback button if we don't have botUserId yet (should not happen with messages)
-    const webAppButton = botUserId ? {
+    // Changing to object format as 'Field webApp cannot be null' often indicates 
+    // that the server expects a nested message (object) rather than a primitive.
+    const webAppButton = {
       type: 'open_app',
       text: 'Открыть Mini App',
-      // We send as STRING because protobuf-based APIs often fail to decode numbers into string fields
-      web_app: botUserId.toString(), 
-      webApp: botUserId.toString(),
-      contact_id: botUserId,
-    } : {
-      type: 'link',
-      text: 'Открыть Mini App (Web)',
-      url: 'https://prepodavai.ru',
+      web_app: {
+        url: 'https://prepodavai.ru',
+      },
+      // Adding variations just in case
+      webApp: {
+        url: 'https://prepodavai.ru',
+      },
     };
 
     const attachments = [
