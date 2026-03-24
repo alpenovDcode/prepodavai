@@ -61,7 +61,7 @@ services:
       SMSC_SENDER: ${SMSC_SENDER:-}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
       MAX_BOT_TOKEN: ${MAX_BOT_TOKEN}
-      MAX_API_URL: ${MAX_API_URL:-https://api.max.ru/api/v1}
+      MAX_API_URL: ${MAX_API_URL:-https://platform-api.max.ru}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       GAMMA_API_KEY: ${GAMMA_API_KEY:-}
       N8N_WEBHOOK_URL: ${N8N_WEBHOOK_URL}
@@ -139,7 +139,7 @@ services:
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
       MAX_BOT_TOKEN: ${MAX_BOT_TOKEN}
-      MAX_API_URL: ${MAX_API_URL:-https://api.max.ru/api/v1}
+      MAX_API_URL: ${MAX_API_URL:-https://platform-api.max.ru}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       GAMMA_API_KEY: ${GAMMA_API_KEY:-}
       N8N_WEBHOOK_URL: ${N8N_WEBHOOK_URL}
