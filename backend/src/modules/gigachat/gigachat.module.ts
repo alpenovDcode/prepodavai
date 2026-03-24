@@ -9,18 +9,9 @@ import { FilesModule } from '../files/files.module';
 import { HtmlExportService } from '../../common/services/html-export.service';
 
 @Module({
-    imports: [
-        ConfigModule,
-        forwardRef(() => GenerationsModule),
-        SubscriptionsModule,
-        FilesModule,
-    ],
-    controllers: [GigachatController],
-    providers: [
-        GigachatService,
-        GigachatGenerationsService,
-        HtmlExportService,
-    ],
-    exports: [GigachatService],
+  imports: [ConfigModule, forwardRef(() => GenerationsModule), SubscriptionsModule, FilesModule],
+  controllers: [GigachatController],
+  providers: [GigachatService, GigachatGenerationsService, HtmlExportService],
+  exports: [GigachatService],
 })
-export class GigachatModule { }
+export class GigachatModule {}

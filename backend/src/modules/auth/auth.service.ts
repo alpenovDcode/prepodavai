@@ -18,7 +18,7 @@ export class AuthService {
     private configService: ConfigService,
     private prisma: PrismaService,
     private smscService: SmscService,
-  ) { }
+  ) {}
 
   /**
    * Валидация Telegram initData с проверкой подписи
@@ -113,6 +113,117 @@ export class AuthService {
   }
 
   /**
+   * Валидация MAX Messenger initData с проверкой подписи
+   */
+  async validateMaxInitData(initData: string) {
+    const botToken = this.configService.get<string>('MAX_BOT_TOKEN');
+
+    if (!botToken) {
+      throw new UnauthorizedException('MAX Bot token not configured');
+    }
+
+    // Парсим initData
+    const params = new URLSearchParams(initData);
+    const hash = params.get('hash');
+
+    if (!hash) {
+      throw new UnauthorizedException('Missing hash in initData');
+    }
+
+    // Удаляем hash из параметров для проверки
+    params.delete('hash');
+
+    // Воссоздаем строку (алфавитный порядок)
+    const dataCheckString = Array.from(params.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, value]) => `${key}=${value}`)
+      .join('\n');
+
+    // Секретный ключ может вычисляться аналогично Telegram
+    const secretKey = crypto.createHmac('sha256', 'WebAppData').update(botToken).digest();
+
+    const calculatedHash = crypto
+      .createHmac('sha256', secretKey)
+      .update(dataCheckString)
+      .digest('hex');
+
+    if (calculatedHash !== hash) {
+      throw new UnauthorizedException('Invalid MAX initData signature');
+    }
+
+    const authDate = params.get('auth_date');
+    if (authDate) {
+      const authTimestamp = parseInt(authDate, 10);
+      const now = Math.floor(Date.now() / 1000);
+      const maxAge = 24 * 60 * 60; // 24 часа
+
+      if (isNaN(authTimestamp) || now - authTimestamp > maxAge) {
+        throw new UnauthorizedException('initData expired');
+      }
+    }
+
+    const userStr = params.get('user');
+    if (!userStr) {
+      throw new UnauthorizedException('No user data in initData');
+    }
+
+    let userData;
+    try {
+      userData = JSON.parse(userStr);
+    } catch (error) {
+      throw new UnauthorizedException('Invalid user data format in initData');
+    }
+
+    // Создаем/обновляем пользователя MAX
+    let appUser = await this.prisma.appUser.findUnique({
+      where: { maxId: userData.id?.toString() },
+    });
+
+    if (!appUser) {
+      // Ищем по username для возможного слияния, если нужно. Иначе создаём нового
+      appUser = await this.prisma.appUser.create({
+        data: {
+          maxId: userData.id?.toString(),
+          firstName: userData.first_name,
+          lastName: userData.last_name,
+          username: userData.username,
+          source: 'max',
+          lastMaxAppAccess: new Date(),
+          lastAccessAt: new Date(),
+        },
+      });
+    } else {
+      appUser = await this.prisma.appUser.update({
+        where: { id: appUser.id },
+        data: {
+          firstName: userData.first_name || appUser.firstName,
+          lastName: userData.last_name || appUser.lastName,
+          username: userData.username || appUser.username,
+          lastMaxAppAccess: new Date(),
+          lastAccessAt: new Date(),
+        },
+      });
+    }
+
+    // Генерируем JWT токен
+    const token = this.generateJwtToken(appUser.id);
+
+    return {
+      success: true,
+      userHash: appUser.id,
+      token,
+      user: {
+        id: appUser.id,
+        maxId: appUser.maxId,
+        username: appUser.username,
+        firstName: appUser.firstName,
+        lastName: appUser.lastName,
+        source: appUser.source,
+      },
+    };
+  }
+
+  /**
    * Авторизация через username + API key
    */
   async loginWithApiKey(username: string, apiKey: string) {
@@ -153,8 +264,6 @@ export class AuthService {
     if (!user || !user.passwordHash) {
       throw new UnauthorizedException('Неверный логин или пароль');
     }
-
-
 
     // ... (inside class)
 

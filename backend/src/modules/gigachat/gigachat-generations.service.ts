@@ -21,10 +21,12 @@ export class GigachatGenerationsService {
     private readonly generationHelpers: GenerationHelpersService,
     private readonly subscriptionsService: SubscriptionsService,
     private readonly filesService: FilesService,
-  ) { }
+  ) {}
 
   async generate(userId: string, dto: GigachatGenerationDto) {
-    this.logger.log(`Starting GigaChat generation: userId=${userId}, mode=${dto.mode}, model=${dto.model}`);
+    this.logger.log(
+      `Starting GigaChat generation: userId=${userId}, mode=${dto.mode}, model=${dto.model}`,
+    );
 
     if (dto.mode === 'image' && !dto.prompt) {
       throw new BadRequestException('Поле "prompt" обязательно для генерации изображений');
@@ -76,7 +78,8 @@ export class GigachatGenerationsService {
         error?.message || 'Ошибка интеграции с GigaChat',
       );
 
-      const errorMessage = error?.response?.data?.message ||
+      const errorMessage =
+        error?.response?.data?.message ||
         error?.response?.data?.error ||
         error?.message ||
         'Ошибка интеграции с GigaChat';

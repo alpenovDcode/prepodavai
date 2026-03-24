@@ -4,9 +4,9 @@ import { SubmissionsController } from './submissions.controller';
 import { PrismaModule } from '../../common/prisma/prisma.module';
 
 @Module({
-    imports: [PrismaModule],
-    controllers: [SubmissionsController],
-    providers: [SubmissionsService],
-    exports: [SubmissionsService],
+  imports: [PrismaModule],
+  controllers: [SubmissionsController],
+  providers: [SubmissionsService],
+  exports: [SubmissionsService],
 })
-export class SubmissionsModule { }
+export class SubmissionsModule {}

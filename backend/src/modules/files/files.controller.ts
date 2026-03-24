@@ -18,7 +18,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @Controller('files')
 export class FilesController {
-  constructor(private readonly filesService: FilesService) { }
+  constructor(private readonly filesService: FilesService) {}
 
   /**
    * Загрузить файл
@@ -98,10 +98,7 @@ export class FilesController {
    * Поддерживает ?download=1 для принудительного скачивания с правильным именем
    */
   @Get(':hash')
-  async getFile(
-    @Param('hash') hash: string,
-    @Res() res: Response,
-  ) {
+  async getFile(@Param('hash') hash: string, @Res() res: Response) {
     const file = await this.filesService.getFile(hash);
 
     if (!file) {

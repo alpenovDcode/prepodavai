@@ -15,9 +15,10 @@ datasource db {
 model AppUser {
   id                    String    @id @default(uuid())
   userHash              String?   @unique
-  source                String?   // 'web' | 'telegram'
+  source                String?   // 'web' | 'telegram' | 'max'
   telegramId            String?   @unique
-  chatId                String?   // ID чата в Telegram
+  maxId                 String?   @unique
+  chatId                String?   // ID чата в Telegram / MAX
   username              String?
   apiKey                String?   @unique
   firstName             String?
@@ -32,6 +33,7 @@ model AppUser {
   phoneVerified         Boolean   @default(false)
   lastAccessAt          DateTime?
   lastTelegramAppAccess DateTime?
+  lastMaxAppAccess      DateTime?
   passwordHash          String?
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
@@ -45,6 +47,7 @@ model AppUser {
   classes               Class[]
 
   @@index([telegramId])
+  @@index([maxId])
   @@index([userHash])
   @@index([apiKey])
   @@map("app_users")

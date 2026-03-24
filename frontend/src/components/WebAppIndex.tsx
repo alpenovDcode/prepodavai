@@ -46,7 +46,7 @@ export default function WebAppIndex({ embedded = false }: WebAppIndexProps) {
   const [maxAttempts] = useState(60)
   const [generationResult, setGenerationResult] = useState<any>(null)
   const [userHash, setUserHash] = useState<string | null>(null)
-  const [userSource, setUserSource] = useState<'web' | 'telegram' | null>(null)
+  const [userSource, setUserSource] = useState<'web' | 'telegram' | 'max' | null>(null)
 
   const { generateAndWait, isGenerating: isGenGenerating, activeGenerationId, inputParams } = useGenerations()
   const { subscription, totalCredits, loading: subscriptionLoading } = useSubscription()
@@ -56,25 +56,41 @@ export default function WebAppIndex({ embedded = false }: WebAppIndexProps) {
     const initUser = async () => {
       try {
         // Проверяем Telegram WebApp
-        if (typeof window !== 'undefined' && (window as any).Telegram?.WebApp) {
+        if (typeof window !== 'undefined' && (window as any).Telegram?.WebApp?.initData) {
           const tg = (window as any).Telegram.WebApp
-          tg.ready()
-          tg.expand()
+          tg.ready?.()
+          tg.expand?.()
 
           const initData = tg.initData
-          if (initData) {
-            try {
-              const response = await apiClient.post('/auth/validate-init-data', { initData })
-              if (response.data.success) {
-                setUserHash(response.data.userHash)
-                setUserSource('telegram')
-                if (response.data.token) {
-                  localStorage.setItem('prepodavai_authenticated', 'true')
-                }
+          try {
+            const response = await apiClient.post('/auth/validate-init-data', { initData })
+            if (response.data.success) {
+              setUserHash(response.data.userHash)
+              setUserSource('telegram')
+              if (response.data.token) {
+                localStorage.setItem('prepodavai_authenticated', 'true')
               }
-            } catch (e) {
-              console.error('Failed to validate initData:', e)
             }
+          } catch (e) {
+            console.error('Failed to validate Telegram initData:', e)
+          }
+        } else if (typeof window !== 'undefined' && (window as any).WebApp?.initData) {
+          // Проверяем MAX WebApp
+          const max = (window as any).WebApp
+          max.ready?.()
+
+          const initData = max.initData
+          try {
+            const response = await apiClient.post('/auth/max/validate-init-data', { initData })
+            if (response.data.success) {
+              setUserHash(response.data.userHash)
+              setUserSource('max')
+              if (response.data.token) {
+                localStorage.setItem('prepodavai_authenticated', 'true')
+              }
+            }
+          } catch (e) {
+            console.error('Failed to validate MAX initData:', e)
           }
         }
 
@@ -165,7 +181,8 @@ export default function WebAppIndex({ embedded = false }: WebAppIndexProps) {
   }, [generationResult, cleanedTextResult, htmlResult, isHtmlResult, isMathJaxReady]);
 
   const showLogoutButton = typeof window !== 'undefined' &&
-    !(window as any).Telegram?.WebApp?.initDataUnsafe?.user
+    !(window as any).Telegram?.WebApp?.initDataUnsafe?.user &&
+    !(window as any).WebApp?.initData
 
   const onComposerUpdate = (values: Record<string, any>) => {
     setForm(values)

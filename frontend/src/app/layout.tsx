@@ -21,6 +21,7 @@ export default function RootLayout({
       <head>
         <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" rel="stylesheet" />
         <Script src="https://telegram.org/js/telegram-web-app.js" strategy="beforeInteractive" />
+        <Script src="https://st.max.ru/js/max-web-app.js" strategy="beforeInteractive" />
         <Script id="suppress-logs" strategy="beforeInteractive">
           {`
             (function() {
@@ -32,7 +33,8 @@ export default function RootLayout({
                 const msg = args[0];
                 return typeof msg === 'string' && (
                   msg.includes('[Telegram.WebView]') || 
-                  msg.includes('Telegram WebApp')
+                  msg.includes('Telegram WebApp') ||
+                  msg.includes('Max WebApp')
                 );
               }
 

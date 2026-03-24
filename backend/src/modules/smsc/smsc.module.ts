@@ -3,8 +3,8 @@ import { SmscService } from './smsc.service';
 import { ConfigModule } from '@nestjs/config';
 
 @Module({
-    imports: [ConfigModule],
-    providers: [SmscService],
-    exports: [SmscService],
+  imports: [ConfigModule],
+  providers: [SmscService],
+  exports: [SmscService],
 })
-export class SmscModule { }
+export class SmscModule {}

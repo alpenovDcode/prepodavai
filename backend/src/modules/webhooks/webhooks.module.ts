@@ -15,5 +15,4 @@ import { HtmlPostprocessorService } from '../../common/services/html-postprocess
   controllers: [WebhooksController, PhotosessionController, ReplicateCallbackController],
   providers: [WebhooksService, WebhookAuthGuard, HtmlPostprocessorService],
 })
-export class WebhooksModule { }
-
+export class WebhooksModule {}

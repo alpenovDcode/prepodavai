@@ -36,9 +36,7 @@ export class SmscService {
         this.logger.log(`SMS sent to ${phone}, id: ${response.data.id}`);
         return true;
       } else {
-        this.logger.error(
-          `Failed to send SMS to ${phone}: ${JSON.stringify(response.data)}`,
-        );
+        this.logger.error(`Failed to send SMS to ${phone}: ${JSON.stringify(response.data)}`);
         return false;
       }
     } catch (error) {

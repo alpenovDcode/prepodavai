@@ -10,7 +10,7 @@ export class AdminService {
     private prisma: PrismaService,
     private filesService: FilesService,
     private emailService: EmailService,
-  ) { }
+  ) {}
 
   // ========== USERS ==========
   async getUsers(limit = 50, offset = 0, search?: string) {
@@ -55,11 +55,11 @@ export class AdminService {
 
     return {
       success: true,
-      users: users.map(user => {
+      users: users.map((user) => {
         const { passwordHash, ...rest } = user;
         return {
           ...rest,
-          hasPassword: !!passwordHash
+          hasPassword: !!passwordHash,
         };
       }),
       total,
@@ -67,7 +67,6 @@ export class AdminService {
       offset,
     };
   }
-
 
   async getUser(id: string) {
     const user = await this.prisma.appUser.findUnique({
@@ -665,7 +664,10 @@ export class AdminService {
     };
   }
 
-  async updateCreditCost(operationType: string, data: { creditCost?: number; isUnderMaintenance?: boolean }) {
+  async updateCreditCost(
+    operationType: string,
+    data: { creditCost?: number; isUnderMaintenance?: boolean },
+  ) {
     const cost = await this.prisma.creditCost.update({
       where: { operationType },
       data,

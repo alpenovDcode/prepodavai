@@ -3,8 +3,8 @@ import { ConfigModule } from '@nestjs/config';
 import { ReplicateService } from './replicate.service';
 
 @Module({
-    imports: [ConfigModule],
-    providers: [ReplicateService],
-    exports: [ReplicateService],
+  imports: [ConfigModule],
+  providers: [ReplicateService],
+  exports: [ReplicateService],
 })
-export class ReplicateModule { }
+export class ReplicateModule {}

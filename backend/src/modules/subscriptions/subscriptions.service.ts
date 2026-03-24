@@ -30,7 +30,7 @@ export type OperationType =
 
 @Injectable()
 export class SubscriptionsService {
-  constructor(private prisma: PrismaService) { }
+  constructor(private prisma: PrismaService) {}
 
   /**
    * Инициализация тарифных планов
@@ -299,10 +299,9 @@ export class SubscriptionsService {
         update: costData,
         create: costData,
       });
-      console.log("✅ Credit cost initialized: " + costData.operationType);
+      console.log('✅ Credit cost initialized: ' + costData.operationType);
     }
   }
-
 
   /**
    * Получить или создать подписку для пользователя
@@ -375,20 +374,20 @@ export class SubscriptionsService {
   async checkCreditsAvailable(userId: string, operationType: OperationType) {
     const subscription = await this.getOrCreateUserSubscription(userId);
     const plan = subscription.plan;
-    
+
     // Получаем полную инфу о стоимости и статусе обслуживания
     const costConfig = await this.prisma.creditCost.findUnique({
-      where: { operationType: operationType as any }
+      where: { operationType: operationType as any },
     });
 
     if (costConfig?.isUnderMaintenance) {
-      return { 
-        available: false, 
-        subscription, 
-        plan, 
-        cost: costConfig.creditCost, 
+      return {
+        available: false,
+        subscription,
+        plan,
+        cost: costConfig.creditCost,
         message: 'Функция временно недоступна (технические работы)',
-        isUnderMaintenance: true
+        isUnderMaintenance: true,
       };
     }
 

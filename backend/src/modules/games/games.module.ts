@@ -7,8 +7,8 @@ import { GigachatModule } from '../gigachat/gigachat.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 
 @Module({
-    imports: [ConfigModule, GigachatModule, SubscriptionsModule],
-    controllers: [GamesController],
-    providers: [GamesService],
+  imports: [ConfigModule, GigachatModule, SubscriptionsModule],
+  controllers: [GamesController],
+  providers: [GamesService],
 })
-export class GamesModule { }
+export class GamesModule {}

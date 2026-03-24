@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 import { GammaService } from './gamma.service';
 
 @Module({
-    providers: [GammaService],
-    exports: [GammaService],
+  providers: [GammaService],
+  exports: [GammaService],
 })
-export class GammaModule { }
+export class GammaModule {}

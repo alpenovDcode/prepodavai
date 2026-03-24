@@ -7,7 +7,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
     await this.$connect();
     console.log('✅ Prisma подключен к базе данных');
     // Debug: Log available models
-    const models = Object.keys(this).filter(key => !key.startsWith('_') && !key.startsWith('$'));
+    const models = Object.keys(this).filter((key) => !key.startsWith('_') && !key.startsWith('$'));
     console.log('Available Prisma models:', models);
   }
 

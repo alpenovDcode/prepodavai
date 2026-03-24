@@ -7,67 +7,66 @@ import { GenerationHelpersService } from '../generation-helpers.service';
 import { LOGO_BASE64 } from '../generation.constants';
 
 export interface SalesAdvisorJobData {
-    generationRequestId: string;
-    imageHashes: string[];
-    imageUrls: string[]; // Public URLs of the uploaded screenshots (up to 6)
+  generationRequestId: string;
+  imageHashes: string[];
+  imageUrls: string[]; // Public URLs of the uploaded screenshots (up to 6)
 }
 
 @Processor('sales-advisor')
 export class SalesAdvisorProcessor extends WorkerHost {
-    private readonly logger = new Logger(SalesAdvisorProcessor.name);
-    private readonly replicateToken: string;
+  private readonly logger = new Logger(SalesAdvisorProcessor.name);
+  private readonly replicateToken: string;
 
-    constructor(
-        private readonly configService: ConfigService,
-        private readonly generationHelpers: GenerationHelpersService,
-    ) {
-        super();
-        this.replicateToken = this.configService.get<string>('REPLICATE_API_TOKEN');
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly generationHelpers: GenerationHelpersService,
+  ) {
+    super();
+    this.replicateToken = this.configService.get<string>('REPLICATE_API_TOKEN');
+  }
+
+  async process(job: Job<SalesAdvisorJobData>): Promise<void> {
+    const { generationRequestId, imageUrls } = job.data;
+    const imageCount = imageUrls.length;
+    this.logger.log(
+      `Processing Sales Advisor analysis for ${generationRequestId} with ${imageCount} image(s)`,
+    );
+
+    try {
+      // 1. Update progress
+      await this.generationHelpers.updateProgress(generationRequestId, {
+        percent: 10,
+        message: `Анализ ${imageCount} скриншот(ов) диалога...`,
+      });
+
+      // 2. Analyze dialog using Claude Vision
+      const analysis = await this.analyzeDialog(imageUrls);
+
+      await this.generationHelpers.updateProgress(generationRequestId, {
+        percent: 80,
+        message: 'Формирование рекомендаций...',
+      });
+
+      // 3. Format result to HTML
+      const htmlResult = this.formatToHtml(analysis);
+
+      // 4. Complete generation
+      await this.generationHelpers.completeGeneration(generationRequestId, {
+        htmlResult,
+        sections: [{ title: 'Анализ и рекомендации', content: analysis }],
+      });
+
+      this.logger.log(`Sales Advisor analysis completed for ${generationRequestId}`);
+    } catch (error: any) {
+      this.logger.error(`Sales Advisor analysis failed: ${error.message}`, error.stack);
+      await this.generationHelpers.failGeneration(generationRequestId, error.message);
+      throw error;
     }
+  }
 
-    async process(job: Job<SalesAdvisorJobData>): Promise<void> {
-        const { generationRequestId, imageUrls } = job.data;
-        const imageCount = imageUrls.length;
-        this.logger.log(`Processing Sales Advisor analysis for ${generationRequestId} with ${imageCount} image(s)`);
-
-        try {
-            // 1. Update progress
-            await this.generationHelpers.updateProgress(generationRequestId, {
-                percent: 10,
-                message: `Анализ ${imageCount} скриншот(ов) диалога...`
-            });
-
-            // 2. Analyze dialog using Claude Vision
-            const analysis = await this.analyzeDialog(imageUrls);
-
-            await this.generationHelpers.updateProgress(generationRequestId, {
-                percent: 80,
-                message: 'Формирование рекомендаций...'
-            });
-
-            // 3. Format result to HTML
-            const htmlResult = this.formatToHtml(analysis);
-
-            // 4. Complete generation
-            await this.generationHelpers.completeGeneration(generationRequestId, {
-                htmlResult,
-                sections: [
-                    { title: 'Анализ и рекомендации', content: analysis }
-                ]
-            });
-
-            this.logger.log(`Sales Advisor analysis completed for ${generationRequestId}`);
-
-        } catch (error: any) {
-            this.logger.error(`Sales Advisor analysis failed: ${error.message}`, error.stack);
-            await this.generationHelpers.failGeneration(generationRequestId, error.message);
-            throw error;
-        }
-    }
-
-    private async analyzeDialog(imageUrls: string[]): Promise<string> {
-        const imageCount = imageUrls.length;
-        const systemPrompt = `Ты — опытный директор по продажам и эксперт по переговорам в EdTech индустрии.
+  private async analyzeDialog(imageUrls: string[]): Promise<string> {
+    const imageCount = imageUrls.length;
+    const systemPrompt = `Ты — опытный директор по продажам и эксперт по переговорам в EdTech индустрии.
 
 Твоя задача — провести профессиональный анализ диалога между менеджером и потенциальным клиентом, выявить ошибки, возражения и дать конкретные рекомендации для закрытия сделки.
 
@@ -88,9 +87,10 @@ export class SalesAdvisorProcessor extends WorkerHost {
 - Строчные: \`\\(...\\)\`. ЗАПРЕЩЕНО использовать \`$\`!
 - Блочные: \`\\[...\\]\`. ЗАПРЕЩЕНО использовать \`$$\`!`;
 
-        const userPrompt = imageCount > 1
-            ? `Проанализируй ${imageCount} скриншота диалога с клиентом (они идут в хронологическом порядке) и предоставь детальный разбор ВСЕГО диалога целиком.`
-            : `Проанализируй скриншот диалога с клиентом и предоставь детальный разбор.
+    const userPrompt =
+      imageCount > 1
+        ? `Проанализируй ${imageCount} скриншота диалога с клиентом (они идут в хронологическом порядке) и предоставь детальный разбор ВСЕГО диалога целиком.`
+        : `Проанализируй скриншот диалога с клиентом и предоставь детальный разбор.
 
 СТРУКТУРА АНАЛИЗА:
 
@@ -121,41 +121,41 @@ export class SalesAdvisorProcessor extends WorkerHost {
 - Давай готовые формулировки, а не советы "типа напиши о..."
 - Учитывай специфику EdTech (родители, ученики, преподаватели)`;
 
-        return this.runReplicatePredictionWithMultipleImages(imageUrls, userPrompt, systemPrompt);
-    }
+    return this.runReplicatePredictionWithMultipleImages(imageUrls, userPrompt, systemPrompt);
+  }
 
-    /**
-     * Run Replicate prediction with support for multiple images
-     * Analyzes images sequentially and combines results
-     */
-    private async runReplicatePredictionWithMultipleImages(
-        imageUrls: string[],
-        userPrompt: string,
-        systemPrompt: string
-    ): Promise<string> {
-        try {
-            this.logger.log(`Analyzing ${imageUrls.length} image(s) using Replicate Claude API`);
+  /**
+   * Run Replicate prediction with support for multiple images
+   * Analyzes images sequentially and combines results
+   */
+  private async runReplicatePredictionWithMultipleImages(
+    imageUrls: string[],
+    userPrompt: string,
+    systemPrompt: string,
+  ): Promise<string> {
+    try {
+      this.logger.log(`Analyzing ${imageUrls.length} image(s) using Replicate Claude API`);
 
-            // For single image, use simple format
-            if (imageUrls.length === 1) {
-                return this.runReplicatePrediction('google/gemini-3-flash', {
-                    prompt: userPrompt,
-                    system_prompt: systemPrompt,
-                    max_tokens: 3000,
-                    image: imageUrls[0],
-                });
-            }
+      // For single image, use simple format
+      if (imageUrls.length === 1) {
+        return this.runReplicatePrediction('google/gemini-3-flash', {
+          prompt: userPrompt,
+          system_prompt: systemPrompt,
+          max_tokens: 3000,
+          image: imageUrls[0],
+        });
+      }
 
-            // For multiple images, analyze each one sequentially and combine results
-            this.logger.log(`Analyzing ${imageUrls.length} images sequentially...`);
+      // For multiple images, analyze each one sequentially and combine results
+      this.logger.log(`Analyzing ${imageUrls.length} images sequentially...`);
 
-            const analyses: string[] = [];
+      const analyses: string[] = [];
 
-            for (let i = 0; i < imageUrls.length; i++) {
-                const imageNumber = i + 1;
-                this.logger.log(`Analyzing image ${imageNumber}/${imageUrls.length}`);
+      for (let i = 0; i < imageUrls.length; i++) {
+        const imageNumber = i + 1;
+        this.logger.log(`Analyzing image ${imageNumber}/${imageUrls.length}`);
 
-                const imagePrompt = `Это скриншот ${imageNumber} из ${imageUrls.length} (в хронологическом порядке).
+        const imagePrompt = `Это скриншот ${imageNumber} из ${imageUrls.length} (в хронологическом порядке).
                 
 Проанализируй ТОЛЬКО этот скриншот и опиши:
 1. Что происходит на этом этапе диалога
@@ -165,22 +165,22 @@ export class SalesAdvisorProcessor extends WorkerHost {
 
 Будь кратким, это промежуточный анализ.`;
 
-                const analysis = await this.runReplicatePrediction('google/gemini-3-flash', {
-                    prompt: imagePrompt,
-                    system_prompt: 'Ты эксперт по анализу диалогов продаж. Анализируй скриншоты переписки.',
-                    max_tokens: 1000,
-                    image: imageUrls[i],
-                });
+        const analysis = await this.runReplicatePrediction('google/gemini-3-flash', {
+          prompt: imagePrompt,
+          system_prompt: 'Ты эксперт по анализу диалогов продаж. Анализируй скриншоты переписки.',
+          max_tokens: 1000,
+          image: imageUrls[i],
+        });
 
-                analyses.push(`### Скриншот ${imageNumber}/${imageUrls.length}\n\n${analysis}`);
-            }
+        analyses.push(`### Скриншот ${imageNumber}/${imageUrls.length}\n\n${analysis}`);
+      }
 
-            // Now combine all analyses into final comprehensive analysis
-            this.logger.log(`Combining ${analyses.length} analyses into final report`);
+      // Now combine all analyses into final comprehensive analysis
+      this.logger.log(`Combining ${analyses.length} analyses into final report`);
 
-            const combinedContext = analyses.join('\n\n---\n\n');
+      const combinedContext = analyses.join('\n\n---\n\n');
 
-            const finalPrompt = `Ты получил анализ ${imageUrls.length} скриншотов диалога с клиентом (в хронологическом порядке).
+      const finalPrompt = `Ты получил анализ ${imageUrls.length} скриншотов диалога с клиентом (в хронологическом порядке).
 
 ПРОМЕЖУТОЧНЫЕ АНАЛИЗЫ:
 ${combinedContext}
@@ -189,64 +189,63 @@ ${combinedContext}
 
 ${userPrompt}`;
 
-            const finalAnalysis = await this.runReplicatePrediction('google/gemini-3-flash', {
-                prompt: finalPrompt,
-                system_prompt: systemPrompt,
-                max_tokens: 3000,
-            });
+      const finalAnalysis = await this.runReplicatePrediction('google/gemini-3-flash', {
+        prompt: finalPrompt,
+        system_prompt: systemPrompt,
+        max_tokens: 3000,
+      });
 
-            return finalAnalysis;
-        } catch (error: any) {
-            this.logger.error(`Error in runReplicatePredictionWithMultipleImages: ${error.message}`);
-            throw error;
-        }
+      return finalAnalysis;
+    } catch (error: any) {
+      this.logger.error(`Error in runReplicatePredictionWithMultipleImages: ${error.message}`);
+      throw error;
     }
+  }
 
+  private async runReplicatePrediction(model: string, input: any): Promise<string> {
+    try {
+      const response = await axios.post(
+        `https://api.replicate.com/v1/models/${model}/predictions`,
+        {
+          input: input,
+          stream: false,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${this.replicateToken}`,
+            'Content-Type': 'application/json',
+          },
+        },
+      );
 
-    private async runReplicatePrediction(model: string, input: any): Promise<string> {
-        try {
-            const response = await axios.post(
-                `https://api.replicate.com/v1/models/${model}/predictions`,
-                {
-                    input: input,
-                    stream: false
-                },
-                {
-                    headers: {
-                        'Authorization': `Bearer ${this.replicateToken}`,
-                        'Content-Type': 'application/json',
-                    }
-                }
-            );
+      let prediction = response.data;
+      const predictionId = prediction.id;
 
-            let prediction = response.data;
-            const predictionId = prediction.id;
+      // Poll for completion
+      while (['starting', 'processing'].includes(prediction.status)) {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        const statusRes = await axios.get(
+          `https://api.replicate.com/v1/predictions/${predictionId}`,
+          {
+            headers: { Authorization: `Bearer ${this.replicateToken}` },
+          },
+        );
+        prediction = statusRes.data;
+      }
 
-            // Poll for completion
-            while (['starting', 'processing'].includes(prediction.status)) {
-                await new Promise(resolve => setTimeout(resolve, 2000));
-                const statusRes = await axios.get(
-                    `https://api.replicate.com/v1/predictions/${predictionId}`,
-                    {
-                        headers: { 'Authorization': `Bearer ${this.replicateToken}` }
-                    }
-                );
-                prediction = statusRes.data;
-            }
-
-            if (prediction.status === 'succeeded') {
-                return Array.isArray(prediction.output) ? prediction.output.join('') : prediction.output;
-            } else {
-                throw new Error(`Replicate failed: ${prediction.error}`);
-            }
-        } catch (error: any) {
-            this.logger.error(`Replicate API Error: ${error.message}`);
-            throw error;
-        }
+      if (prediction.status === 'succeeded') {
+        return Array.isArray(prediction.output) ? prediction.output.join('') : prediction.output;
+      } else {
+        throw new Error(`Replicate failed: ${prediction.error}`);
+      }
+    } catch (error: any) {
+      this.logger.error(`Replicate API Error: ${error.message}`);
+      throw error;
     }
+  }
 
-    private formatToHtml(analysis: string): string {
-        return `
+  private formatToHtml(analysis: string): string {
+    return `
         <!DOCTYPE html>
         <html>
         <head>
@@ -343,5 +342,5 @@ ${userPrompt}`;
         </body>
         </html>
         `;
-    }
+  }
 }

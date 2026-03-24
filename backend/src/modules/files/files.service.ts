@@ -216,7 +216,7 @@ export class FilesService {
             createdAt: stats.birthtime,
             url: `${baseUrl}/api/files/${hash}`,
           };
-        })
+        }),
       );
 
       return fileList.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());

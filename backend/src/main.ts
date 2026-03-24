@@ -21,7 +21,7 @@ async function bootstrap() {
   if (!jwtSecret || jwtSecret.length < 32) {
     throw new Error(
       'JWT_SECRET must be set and at least 32 characters long. ' +
-      "Generate a secure secret: node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\"",
+        "Generate a secure secret: node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\"",
     );
   }
 
@@ -31,7 +31,10 @@ async function bootstrap() {
   app.use(require('cookie-parser')());
 
   // Serve static files from uploads directory (under /api prefix to match Nginx proxying)
-  app.use('/api/uploads', require('express').static(require('path').join(process.cwd(), 'uploads')));
+  app.use(
+    '/api/uploads',
+    require('express').static(require('path').join(process.cwd(), 'uploads')),
+  );
 
   // Helmet для безопасности HTTP заголовков
   // Helmet для безопасности HTTP заголовков
@@ -46,9 +49,9 @@ async function bootstrap() {
           scriptSrcAttr: ["'unsafe-inline'"],
           styleSrc: ["'self'", "'unsafe-inline'"],
           styleSrcAttr: ["'unsafe-inline'"],
-          imgSrc: ["'self'", "data:", "https:"],
-          connectSrc: ["'self'", "https:"],
-          frameSrc: ["'self'", "https:"], // For iframes if needed
+          imgSrc: ["'self'", 'data:', 'https:'],
+          connectSrc: ["'self'", 'https:'],
+          frameSrc: ["'self'", 'https:'], // For iframes if needed
         },
       },
       crossOriginEmbedderPolicy: false, // Для Telegram WebApp

@@ -6,13 +6,13 @@ import LandingPage from '@/components/LandingPage'
 import WebAppIndex from '@/components/WebAppIndex'
 
 export default function Home() {
-  const [isTelegram, setIsTelegram] = useState<boolean | null>(null)
+  const [isWebApp, setIsWebApp] = useState<boolean | null>(null)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const router = useRouter()
 
   useEffect(() => {
-    // Функция проверки Telegram окружения
-    const checkTelegram = async () => {
+    // Функция проверки WebApp окружения (Telegram или MAX)
+    const checkWebApp = async () => {
       // 1. Проверяем URL параметры (самый надежный способ)
       const urlParams = new URLSearchParams(window.location.search)
       if (
@@ -23,13 +23,15 @@ export default function Home() {
         return true
       }
 
-      // 2. Проверяем наличие Telegram WebApp SDK
+      // 2. Проверяем наличие WebApp SDK
       const checkSDK = () => {
         const tg = (window as any).Telegram?.WebApp
+        const max = (window as any).WebApp
         return !!(
           tg?.initDataUnsafe?.user ||
           tg?.initData ||
-          (tg && tg.platform !== 'unknown')
+          (tg && tg.platform !== 'unknown') ||
+          max?.initData
         )
       }
 
@@ -56,34 +58,38 @@ export default function Home() {
     }
 
     // Выполняем проверку
-    checkTelegram().then((isTg) => {
-      setIsTelegram(isTg)
+    checkWebApp().then((isApp) => {
+      setIsWebApp(isApp)
 
       // Проверяем авторизацию
       const auth = localStorage.getItem('prepodavai_authenticated') === 'true'
       setIsAuthenticated(auth)
 
       // Если Telegram Mini App, инициализируем
-      if (isTg && (window as any).Telegram?.WebApp) {
-        const webApp = (window as any).Telegram.WebApp
-        webApp.ready()
-        webApp.expand()
+      if (isApp && (window as any).Telegram?.WebApp) {
+        const tgApp = (window as any).Telegram.WebApp
+        tgApp.ready?.()
+        tgApp.expand?.()
+      } else if (isApp && (window as any).WebApp) {
+        // Инициализируем MAX Web App
+        const maxApp = (window as any).WebApp
+        maxApp.ready?.()
       }
     })
   }, [])
 
   // Показываем пустой экран во время проверки
-  if (isTelegram === null) {
+  if (isWebApp === null) {
     return null
   }
 
   // Показываем лендинг только для веб-пользователей без авторизации
-  if (!isTelegram && !isAuthenticated) {
+  if (!isWebApp && !isAuthenticated) {
     return <LandingPage />
   }
 
-  // Если пользователь авторизован и не в Telegram, редиректим в дашборд
-  if (!isTelegram && isAuthenticated) {
+  // Если пользователь авторизован и не в Telegram/MAX, редиректим в дашборд
+  if (!isWebApp && isAuthenticated) {
     router.push('/dashboard')
     return null
   }

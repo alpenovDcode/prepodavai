@@ -80,10 +80,13 @@ export class GigachatService {
     if (this.authToken) this.logger.log(`GIGACHAT_AUTH_TOKEN length: ${this.authToken.length}`);
     this.logger.log(`GIGACHAT_CLIENT_ID present: ${!!this.clientId}`);
     this.logger.log(`GIGACHAT_CLIENT_SECRET present: ${!!this.clientSecret}`);
-    if (this.clientSecret) this.logger.log(`GIGACHAT_CLIENT_SECRET length: ${this.clientSecret.length}`);
+    if (this.clientSecret)
+      this.logger.log(`GIGACHAT_CLIENT_SECRET length: ${this.clientSecret.length}`);
 
     if (this.clientSecret && this.clientSecret.length > 100) {
-      this.logger.warn('WARNING: GIGACHAT_CLIENT_SECRET appears to be a JWT token (too long). It should be a UUID (e.g. f3c5ffdc-...). Check your .env file!');
+      this.logger.warn(
+        'WARNING: GIGACHAT_CLIENT_SECRET appears to be a JWT token (too long). It should be a UUID (e.g. f3c5ffdc-...). Check your .env file!',
+      );
     }
     this.logger.log('-----------------------------');
 
@@ -212,7 +215,9 @@ export class GigachatService {
       if (!fileId) {
         this.logger.error(`Failed to extract file_id from response`);
         this.logger.error(`Full response: ${JSON.stringify(response, null, 2)}`);
-        throw new Error('Не удалось получить идентификатор изображения от GigaChat. Возможно, модель не вызвала функцию text2image. Проверьте логи для деталей.');
+        throw new Error(
+          'Не удалось получить идентификатор изображения от GigaChat. Возможно, модель не вызвала функцию text2image. Проверьте логи для деталей.',
+        );
       }
 
       this.logger.debug(`Successfully extracted file_id: ${fileId}`);
@@ -228,7 +233,9 @@ export class GigachatService {
         },
       });
 
-      this.logger.debug(`Image downloaded successfully, size: ${imageResponse.data.byteLength} bytes`);
+      this.logger.debug(
+        `Image downloaded successfully, size: ${imageResponse.data.byteLength} bytes`,
+      );
 
       return {
         data: [
@@ -264,9 +271,10 @@ export class GigachatService {
 
       if (functionCall.name === 'text2image') {
         try {
-          const args = typeof functionCall.arguments === 'string'
-            ? JSON.parse(functionCall.arguments)
-            : functionCall.arguments;
+          const args =
+            typeof functionCall.arguments === 'string'
+              ? JSON.parse(functionCall.arguments)
+              : functionCall.arguments;
 
           this.logger.debug(`Parsed function arguments: ${JSON.stringify(args)}`);
 
@@ -311,7 +319,6 @@ export class GigachatService {
     this.logger.error(`Could not extract file_id from response: ${JSON.stringify(response)}`);
     return null;
   }
-
 
   async createEmbeddings(payload: { model: string; input: string[] }) {
     this.logger.debug(`Creating embeddings for ${payload.input.length} texts`);
@@ -507,8 +514,8 @@ export class GigachatService {
         capabilities.includes('image') || id.includes('image')
           ? 'image'
           : capabilities.includes('audio') ||
-            capabilities.includes('speech') ||
-            id.includes('audio')
+              capabilities.includes('speech') ||
+              id.includes('audio')
             ? 'audio'
             : capabilities.includes('embedding') || id.includes('embed')
               ? 'embeddings'
@@ -561,7 +568,9 @@ export class GigachatService {
       authHeader = Buffer.from(`${this.clientId}:${this.clientSecret}`).toString('base64');
       this.logger.debug('Using CLIENT_ID:CLIENT_SECRET for authentication');
     } else {
-      throw new Error('GIGACHAT_AUTH_TOKEN или (GIGACHAT_CLIENT_ID и GIGACHAT_CLIENT_SECRET) должны быть настроены');
+      throw new Error(
+        'GIGACHAT_AUTH_TOKEN или (GIGACHAT_CLIENT_ID и GIGACHAT_CLIENT_SECRET) должны быть настроены',
+      );
     }
 
     const url = `${this.authUrl}/api/v2/oauth`;
@@ -590,7 +599,11 @@ export class GigachatService {
     return response.data;
   }
 
-  private async requestRaw<T>(config: AxiosRequestConfig, retry = true, attempt = 0): Promise<AxiosResponse<T>> {
+  private async requestRaw<T>(
+    config: AxiosRequestConfig,
+    retry = true,
+    attempt = 0,
+  ): Promise<AxiosResponse<T>> {
     const token = await this.ensureAccessToken();
     const MAX_NETWORK_RETRIES = 3;
 
@@ -614,12 +627,20 @@ export class GigachatService {
         }
 
         // Retry on transient network errors
-        const networkErrorCodes = ['ECONNRESET', 'ECONNABORTED', 'ETIMEDOUT', 'ENOTFOUND', 'ECONNREFUSED'];
+        const networkErrorCodes = [
+          'ECONNRESET',
+          'ECONNABORTED',
+          'ETIMEDOUT',
+          'ENOTFOUND',
+          'ECONNREFUSED',
+        ];
         const isNetworkError = !error.response && networkErrorCodes.includes(error.code);
         if (isNetworkError && attempt < MAX_NETWORK_RETRIES) {
           const delay = Math.pow(2, attempt) * 1000; // 1s, 2s, 4s
-          this.logger.warn(`Network error ${error.code} on attempt ${attempt + 1}/${MAX_NETWORK_RETRIES + 1}, retrying in ${delay}ms...`);
-          await new Promise(resolve => setTimeout(resolve, delay));
+          this.logger.warn(
+            `Network error ${error.code} on attempt ${attempt + 1}/${MAX_NETWORK_RETRIES + 1}, retrying in ${delay}ms...`,
+          );
+          await new Promise((resolve) => setTimeout(resolve, delay));
           return this.requestRaw<T>(config, retry, attempt + 1);
         }
 

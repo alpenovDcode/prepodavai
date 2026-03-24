@@ -4,7 +4,7 @@ import * as crypto from 'crypto';
 
 @Injectable()
 export class UsersService {
-  constructor(private prisma: PrismaService) { }
+  constructor(private prisma: PrismaService) {}
 
   /**
    * Генерация API ключа
@@ -113,7 +113,8 @@ export class UsersService {
    * Найти или создать пользователя по номеру телефона
    */
   async findOrCreateByPhone(phone: string) {
-    let user = await this.prisma.appUser.findFirst({ // Phone is not unique in schema, but we treat it as unique here
+    let user = await this.prisma.appUser.findFirst({
+      // Phone is not unique in schema, but we treat it as unique here
       where: { phone },
     });
 

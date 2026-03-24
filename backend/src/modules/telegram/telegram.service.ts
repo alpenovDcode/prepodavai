@@ -129,8 +129,9 @@ export class TelegramService {
     const imageUrl = result?.imageUrl;
     if (!imageUrl) return;
 
-    const messageText = `✅ Ваше изображение готово!${result?.prompt ? `\n\n📝 Промпт: ${result.prompt}` : ''
-      }${result?.style ? `\n🎨 Стиль: ${result.style}` : ''}`;
+    const messageText = `✅ Ваше изображение готово!${
+      result?.prompt ? `\n\n📝 Промпт: ${result.prompt}` : ''
+    }${result?.style ? `\n🎨 Стиль: ${result.style}` : ''}`;
 
     try {
       let photo: string | InputFile = imageUrl;
@@ -144,7 +145,10 @@ export class TelegramService {
         }
       }
       // Если это внешний URL (например, от Replicate), скачиваем его
-      else if (typeof imageUrl === 'string' && (imageUrl.startsWith('http://') || imageUrl.startsWith('https://'))) {
+      else if (
+        typeof imageUrl === 'string' &&
+        (imageUrl.startsWith('http://') || imageUrl.startsWith('https://'))
+      ) {
         try {
           const axios = (await import('axios')).default;
           const response = await axios.get(imageUrl, { responseType: 'arraybuffer' });
@@ -162,7 +166,10 @@ export class TelegramService {
       });
     } catch (error) {
       console.error('Error sending photo to Telegram:', error);
-      await this.bot.api.sendMessage(chatId, `⚠️ Не удалось отправить изображение в Telegram, но оно доступно в истории.\n\n${messageText}`);
+      await this.bot.api.sendMessage(
+        chatId,
+        `⚠️ Не удалось отправить изображение в Telegram, но оно доступно в истории.\n\n${messageText}`,
+      );
     }
   }
 
@@ -175,15 +182,17 @@ export class TelegramService {
     if (!exportUrl) {
       // Check if we have raw presentation data (Replicate)
       if (result.presentation) {
-        const message = `✅ Ваша презентация готова!${result.inputText ? `\n\n📌 Тема: ${result.inputText}` : ''
-          }\n\n🌐 Просмотр доступен в веб-версии: https://prrv.pro`;
+        const message = `✅ Ваша презентация готова!${
+          result.inputText ? `\n\n📌 Тема: ${result.inputText}` : ''
+        }\n\n🌐 Просмотр доступен в веб-версии: https://prrv.pro`;
         await this.bot.api.sendMessage(chatId, message);
         return;
       }
 
       // Если нет файла для скачивания, отправляем только ссылку на Gamma
-      const message = `✅ Ваша презентация готова!${result.inputText ? `\n\n📌 Тема: ${result.inputText}` : ''
-        }${result.gammaUrl ? `\n\n🔗 [Открыть в Gamma](${result.gammaUrl})` : ''}`;
+      const message = `✅ Ваша презентация готова!${
+        result.inputText ? `\n\n📌 Тема: ${result.inputText}` : ''
+      }${result.gammaUrl ? `\n\n🔗 [Открыть в Gamma](${result.gammaUrl})` : ''}`;
 
       await this.bot.api.sendMessage(chatId, message, { parse_mode: 'Markdown' });
       return;
@@ -191,7 +200,8 @@ export class TelegramService {
 
     try {
       // Определяем тип файла по URL
-      const isPptx = exportUrl.toLowerCase().includes('.pptx') || exportUrl.toLowerCase().includes('pptx');
+      const isPptx =
+        exportUrl.toLowerCase().includes('.pptx') || exportUrl.toLowerCase().includes('pptx');
       const fileExtension = isPptx ? 'pptx' : 'pdf';
       const fileType = isPptx ? 'PPTX' : 'PDF';
       const filename = `presentation_${Date.now()}.${fileExtension}`;
@@ -203,16 +213,19 @@ export class TelegramService {
 
       // Отправляем файл в Telegram
       await this.bot.api.sendDocument(chatId, new InputFile(fileBuffer, filename), {
-        caption: `✅ Ваша презентация готова (${fileType})!${result.inputText ? `\n\n📌 Тема: ${result.inputText}` : ''
-          }${result.gammaUrl ? `\n\n🔗 [Открыть в Gamma](${result.gammaUrl})` : ''}`,
+        caption: `✅ Ваша презентация готова (${fileType})!${
+          result.inputText ? `\n\n📌 Тема: ${result.inputText}` : ''
+        }${result.gammaUrl ? `\n\n🔗 [Открыть в Gamma](${result.gammaUrl})` : ''}`,
         parse_mode: 'Markdown',
       });
     } catch (error) {
       console.error('Error downloading/sending presentation file:', error);
       // Fallback: отправляем только ссылку
-      const message = `✅ Ваша презентация готова!${result.inputText ? `\n\n📌 Тема: ${result.inputText}` : ''
-        }${result.gammaUrl ? `\n\n🔗 [Открыть в Gamma](${result.gammaUrl})` : ''
-        }${exportUrl ? `\n\n📥 [Скачать файл](${exportUrl})` : ''}`;
+      const message = `✅ Ваша презентация готова!${
+        result.inputText ? `\n\n📌 Тема: ${result.inputText}` : ''
+      }${
+        result.gammaUrl ? `\n\n🔗 [Открыть в Gamma](${result.gammaUrl})` : ''
+      }${exportUrl ? `\n\n📥 [Скачать файл](${exportUrl})` : ''}`;
 
       await this.bot.api.sendMessage(chatId, message, { parse_mode: 'Markdown' });
     }
@@ -248,14 +261,18 @@ export class TelegramService {
 
     // Если PDF не сгенерировался, отправляем текстовое сообщение (но не HTML файл)
     const fallbackText =
-      text.length > 3000 ? text.substring(0, 2900) + '\n\n... (полный текст слишком длинный).' : text;
+      text.length > 3000
+        ? text.substring(0, 2900) + '\n\n... (полный текст слишком длинный).'
+        : text;
     await this.bot.api.sendMessage(chatId, fallbackText);
   }
 
   private looksLikeHtml(value: string) {
     if (!value) return false;
     const trimmed = value.trim();
-    return /<!DOCTYPE html/i.test(trimmed) || /<html[\s>]/i.test(trimmed) || /<body[\s>]/i.test(trimmed);
+    return (
+      /<!DOCTYPE html/i.test(trimmed) || /<html[\s>]/i.test(trimmed) || /<body[\s>]/i.test(trimmed)
+    );
   }
 
   private extractHtmlPayload(value: string): { isHtml: boolean; html: string } {
@@ -267,7 +284,10 @@ export class TelegramService {
 
     // Убираем markdown-блоки ```html ... ```
     if (processed.startsWith('```')) {
-      processed = processed.replace(/^```(?:html)?/i, '').replace(/```$/, '').trim();
+      processed = processed
+        .replace(/^```(?:html)?/i, '')
+        .replace(/```$/, '')
+        .trim();
     }
 
     // Иногда ответ окружён кавычками / JSON-строками
@@ -319,7 +339,6 @@ export class TelegramService {
 </body>
 </html>`;
   }
-
 
   /**
    * Генерация API ключа

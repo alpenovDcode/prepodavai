@@ -70,29 +70,39 @@ export class AnalyticsService {
       },
     });
 
-    const colors = ['bg-primary-600', 'bg-green-500', 'bg-yellow-500', 'bg-red-500', 'bg-purple-500', 'bg-blue-500'];
-    const courseEngagement = classes.map((cls, idx) => {
-      const studentCount = cls._count.students;
-      const assignmentsCount = cls.assignments.length;
-      
-      let engagement = 0;
-      if (studentCount > 0 && assignmentsCount > 0) {
-        let totalPossibleSubmissions = studentCount * assignmentsCount;
-        let actualSubmissions = 0;
-        cls.assignments.forEach(a => {
-            actualSubmissions += a._count.submissions;
-        });
-        engagement = Math.round((actualSubmissions / totalPossibleSubmissions) * 100);
-      } else if (studentCount > 0 && assignmentsCount === 0) {
-        engagement = 0; // No assignments yet
-      }
+    const colors = [
+      'bg-primary-600',
+      'bg-green-500',
+      'bg-yellow-500',
+      'bg-red-500',
+      'bg-purple-500',
+      'bg-blue-500',
+    ];
+    const courseEngagement = classes
+      .map((cls, idx) => {
+        const studentCount = cls._count.students;
+        const assignmentsCount = cls.assignments.length;
 
-      return {
-        name: cls.name,
-        engagement: engagement > 100 ? 100 : engagement,
-        color: colors[idx % colors.length],
-      };
-    }).sort((a, b) => b.engagement - a.engagement).slice(0, 4); // Top 4 for UI
+        let engagement = 0;
+        if (studentCount > 0 && assignmentsCount > 0) {
+          const totalPossibleSubmissions = studentCount * assignmentsCount;
+          let actualSubmissions = 0;
+          cls.assignments.forEach((a) => {
+            actualSubmissions += a._count.submissions;
+          });
+          engagement = Math.round((actualSubmissions / totalPossibleSubmissions) * 100);
+        } else if (studentCount > 0 && assignmentsCount === 0) {
+          engagement = 0; // No assignments yet
+        }
+
+        return {
+          name: cls.name,
+          engagement: engagement > 100 ? 100 : engagement,
+          color: colors[idx % colors.length],
+        };
+      })
+      .sort((a, b) => b.engagement - a.engagement)
+      .slice(0, 4); // Top 4 for UI
 
     // 6. Top Students
     // Retrieve students and calculate their avg grade
@@ -105,10 +115,10 @@ export class AnalyticsService {
       include: {
         submissions: true,
         class: {
-             include: {
-                 assignments: true
-             }
-        }
+          include: {
+            assignments: true,
+          },
+        },
       },
     });
 
@@ -119,14 +129,15 @@ export class AnalyticsService {
         const sum = gradedSubmissions.reduce((acc, s) => acc + (s.grade || 0), 0);
         avgGrade = sum / gradedSubmissions.length;
       }
-      
+
       const scoreNum = Math.round((avgGrade / 5) * 100);
-      
+
       // Calculate completion %
       const totalClassAssignments = student.class?.assignments.length || 0;
-      const completionNum = totalClassAssignments > 0 
-        ? Math.round((student.submissions.length / totalClassAssignments) * 100)
-        : 0;
+      const completionNum =
+        totalClassAssignments > 0
+          ? Math.round((student.submissions.length / totalClassAssignments) * 100)
+          : 0;
 
       let status = 'Good';
       if (scoreNum >= 90) status = 'Отлично';
@@ -142,9 +153,7 @@ export class AnalyticsService {
       };
     });
 
-    const topStudents = studentStats
-      .sort((a, b) => b.scoreRaw - a.scoreRaw)
-      .slice(0, 5); // Return top 5
+    const topStudents = studentStats.sort((a, b) => b.scoreRaw - a.scoreRaw).slice(0, 5); // Return top 5
 
     return {
       stats: {

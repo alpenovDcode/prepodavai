@@ -20,6 +20,7 @@ import { SubmissionsModule } from './modules/submissions/submissions.module';
 import { GenerationsModule } from './modules/generations/generations.module';
 import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
 import { TelegramModule } from './modules/telegram/telegram.module';
+import { MaxModule } from './modules/max/max.module';
 import { WebhooksModule } from './modules/webhooks/webhooks.module';
 import { LogsModule } from './modules/logs/logs.module';
 import { FilesModule } from './modules/files/files.module';
@@ -81,6 +82,7 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
     GenerationsModule,
     SubscriptionsModule,
     TelegramModule,
+    MaxModule,
     WebhooksModule,
     LogsModule,
     FilesModule,
@@ -104,4 +106,4 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
     HtmlExportService,
   ],
 })
-export class AppModule { }
+export class AppModule {}

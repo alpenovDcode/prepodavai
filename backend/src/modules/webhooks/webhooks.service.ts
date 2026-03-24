@@ -7,7 +7,7 @@ export class WebhooksService {
   constructor(
     private prisma: PrismaService,
     private generationHelpers: GenerationHelpersService,
-  ) { }
+  ) {}
 
   /**
    * Обработка callback для текстовых генераций
@@ -44,7 +44,8 @@ export class WebhooksService {
           const parsed = JSON.parse(content);
           // n8n может вернуть ошибку в виде JSON, например {"detail":"list index out of range"}
           if (parsed.detail || parsed.error || parsed.errorMessage) {
-            const errorMsg = parsed.detail || parsed.error || parsed.errorMessage || 'Unknown parsed error';
+            const errorMsg =
+              parsed.detail || parsed.error || parsed.errorMessage || 'Unknown parsed error';
             await this.generationHelpers.failGeneration(generationRequestId, errorMsg);
             return { success: false, error: errorMsg };
           }
@@ -55,8 +56,13 @@ export class WebhooksService {
       }
 
       // Если контент оказался объектом ошибки даже без парсинга
-      if (typeof content === 'object' && content !== null && (content.detail || content.error || content.errorMessage)) {
-        const errorMsg = content.detail || content.error || content.errorMessage || 'Unknown error object';
+      if (
+        typeof content === 'object' &&
+        content !== null &&
+        (content.detail || content.error || content.errorMessage)
+      ) {
+        const errorMsg =
+          content.detail || content.error || content.errorMessage || 'Unknown error object';
         await this.generationHelpers.failGeneration(generationRequestId, errorMsg);
         return { success: false, error: errorMsg };
       }
@@ -153,7 +159,7 @@ export class WebhooksService {
     }
 
     // Если передан массив URL или хотя бы один URL
-    const finalImageUrls = imageUrls.length > 0 ? imageUrls : (imageUrl ? [imageUrl] : []);
+    const finalImageUrls = imageUrls.length > 0 ? imageUrls : imageUrl ? [imageUrl] : [];
 
     if (success && finalImageUrls.length > 0) {
       const outputData = {
@@ -350,8 +356,16 @@ export class WebhooksService {
           parsedContent = JSON.parse(mainContent);
 
           // Проверяем, не является ли это JSON-объектом ошибки от n8n
-          if (parsedContent && typeof parsedContent === 'object' && (parsedContent.detail || parsedContent.error || parsedContent.errorMessage)) {
-            const errorMsg = parsedContent.detail || parsedContent.error || parsedContent.errorMessage || 'Unknown parsed error';
+          if (
+            parsedContent &&
+            typeof parsedContent === 'object' &&
+            (parsedContent.detail || parsedContent.error || parsedContent.errorMessage)
+          ) {
+            const errorMsg =
+              parsedContent.detail ||
+              parsedContent.error ||
+              parsedContent.errorMessage ||
+              'Unknown parsed error';
             await this.generationHelpers.failGeneration(generationRequestId, errorMsg);
             return { success: false, error: errorMsg };
           }
@@ -366,8 +380,16 @@ export class WebhooksService {
       }
 
       // Если основной контент — это объект с ошибкой
-      if (typeof parsedContent === 'object' && parsedContent !== null && (parsedContent.detail || parsedContent.error || parsedContent.errorMessage)) {
-        const errorMsg = parsedContent.detail || parsedContent.error || parsedContent.errorMessage || 'Unknown error object';
+      if (
+        typeof parsedContent === 'object' &&
+        parsedContent !== null &&
+        (parsedContent.detail || parsedContent.error || parsedContent.errorMessage)
+      ) {
+        const errorMsg =
+          parsedContent.detail ||
+          parsedContent.error ||
+          parsedContent.errorMessage ||
+          'Unknown error object';
         await this.generationHelpers.failGeneration(generationRequestId, errorMsg);
         return { success: false, error: errorMsg };
       }

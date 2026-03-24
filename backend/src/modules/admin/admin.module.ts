@@ -11,4 +11,4 @@ import { FilesModule } from '../files/files.module';
   providers: [AdminService, AdminGuard],
   exports: [AdminService],
 })
-export class AdminModule { }
+export class AdminModule {}

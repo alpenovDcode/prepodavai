@@ -72,4 +72,4 @@ import { SalesAdvisorProcessor } from './processors/sales-advisor.processor';
   ],
   exports: [GenerationsService, GenerationQueueService, GenerationHelpersService],
 })
-export class GenerationsModule { }
+export class GenerationsModule {}

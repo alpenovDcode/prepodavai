@@ -1,4 +1,3 @@
-
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
@@ -9,56 +8,56 @@ import { AssemblyAiService } from '../../integrations/assemblyai.service';
 import { LOGO_BASE64 } from '../generation.constants';
 
 export interface VideoAnalysisJobData {
-    generationRequestId: string;
-    videoHash: string;
-    videoUrl: string; // Public URL resolved by service
-    analysisType: 'sales' | 'methodological'; // 'sales' or 'methodological'
+  generationRequestId: string;
+  videoHash: string;
+  videoUrl: string; // Public URL resolved by service
+  analysisType: 'sales' | 'methodological'; // 'sales' or 'methodological'
 }
 
 @Processor('video-analysis')
 export class VideoAnalysisProcessor extends WorkerHost {
-    private readonly logger = new Logger(VideoAnalysisProcessor.name);
-    private readonly replicateToken: string;
+  private readonly logger = new Logger(VideoAnalysisProcessor.name);
+  private readonly replicateToken: string;
 
-    constructor(
-        private readonly configService: ConfigService,
-        private readonly generationHelpers: GenerationHelpersService,
-        private readonly assemblyAiService: AssemblyAiService,
-    ) {
-        super();
-        this.replicateToken = this.configService.get<string>('REPLICATE_API_TOKEN');
-    }
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly generationHelpers: GenerationHelpersService,
+    private readonly assemblyAiService: AssemblyAiService,
+  ) {
+    super();
+    this.replicateToken = this.configService.get<string>('REPLICATE_API_TOKEN');
+  }
 
-    async process(job: Job<VideoAnalysisJobData>): Promise<void> {
-        const { generationRequestId, videoUrl, analysisType } = job.data;
-        this.logger.log(`Processing Video Analysis for ${generationRequestId} (${analysisType})`);
+  async process(job: Job<VideoAnalysisJobData>): Promise<void> {
+    const { generationRequestId, videoUrl, analysisType } = job.data;
+    this.logger.log(`Processing Video Analysis for ${generationRequestId} (${analysisType})`);
 
-        try {
-            // 1. Transcribe Video
-            this.logger.log(`Starting transcription for ${videoUrl}`);
-            await this.generationHelpers.updateProgress(generationRequestId, {
-                percent: 10,
-                message: 'Транскрибация видео...'
-            });
+    try {
+      // 1. Transcribe Video
+      this.logger.log(`Starting transcription for ${videoUrl}`);
+      await this.generationHelpers.updateProgress(generationRequestId, {
+        percent: 10,
+        message: 'Транскрибация видео...',
+      });
 
-            const transcript = await this.assemblyAiService.transcribeFile(videoUrl);
-            this.logger.log(`Transcription completed. Length: ${transcript.length}`);
+      const transcript = await this.assemblyAiService.transcribeFile(videoUrl);
+      this.logger.log(`Transcription completed. Length: ${transcript.length}`);
 
-            await this.generationHelpers.updateProgress(generationRequestId, {
-                percent: 40,
-                message: 'Анализ текста...'
-            });
+      await this.generationHelpers.updateProgress(generationRequestId, {
+        percent: 40,
+        message: 'Анализ текста...',
+      });
 
-            // 2. Generate Analysis via Replicate
-            const analysis = await this.generateAnalysis(transcript, analysisType);
+      // 2. Generate Analysis via Replicate
+      const analysis = await this.generateAnalysis(transcript, analysisType);
 
-            // 3. Format Result
-            // We verify if analysis already contains the logo wrapper or if we need to wrap it.
-            // The prompt now asks for full HTML, but we wrap it for safety regarding the "Video Analysis" header managed by the backend logic if needed.
-            // However, the prompt asks to return ONLY HTML.
+      // 3. Format Result
+      // We verify if analysis already contains the logo wrapper or if we need to wrap it.
+      // The prompt now asks for full HTML, but we wrap it for safety regarding the "Video Analysis" header managed by the backend logic if needed.
+      // However, the prompt asks to return ONLY HTML.
 
-            // Construct the final HTML with logos
-            const htmlResult = `
+      // Construct the final HTML with logos
+      const htmlResult = `
                 <div class="video-analysis-result" style="font-family: sans-serif; max-width: 800px; margin: 0 auto;">
                     <div style="text-align: center; margin-bottom: 20px;">
                         <img src="${LOGO_BASE64}" alt="Logo" style="max-height: 80px;" />
@@ -81,28 +80,31 @@ export class VideoAnalysisProcessor extends WorkerHost {
                 </div>
             `;
 
-            // 4. Complete
-            await this.generationHelpers.completeGeneration(generationRequestId, {
-                htmlResult,
-                sections: [
-                    { title: 'Анализ', content: analysis },
-                    { title: 'Транскрипция', content: transcript }
-                ]
-            });
-
-        } catch (error: any) {
-            this.logger.error(`Video Analysis failed: ${error.message}`, error.stack);
-            await this.generationHelpers.failGeneration(generationRequestId, error.message);
-            throw error;
-        }
+      // 4. Complete
+      await this.generationHelpers.completeGeneration(generationRequestId, {
+        htmlResult,
+        sections: [
+          { title: 'Анализ', content: analysis },
+          { title: 'Транскрипция', content: transcript },
+        ],
+      });
+    } catch (error: any) {
+      this.logger.error(`Video Analysis failed: ${error.message}`, error.stack);
+      await this.generationHelpers.failGeneration(generationRequestId, error.message);
+      throw error;
     }
+  }
 
-    private async generateAnalysis(transcript: string, type: 'sales' | 'methodological'): Promise<string> {
-        const systemPrompt = type === 'sales'
-            ? "Ты — профессиональный эксперт по продажам в EdTech и аудиту вебинаров. Твоя задача — провести глубокий, критический и конструктивный разбор предоставленного текста видео-урока. Ты не просто пересказываешь, а анализируешь эффективность каждого этапа продажи. Твой тон — экспертный, вдохновляющий, но требовательный. ТВОЯ ЦЕЛЬ: Помочь эксперту кратно увеличить конверсию в продажу."
-            : "Ты — методический директор ведущей EdTech-платформы. Твоя задача — провести глубокий педагогический аудит урока. Ты оцениваешь не только контент, но и то, как он доносится (методология, психология, вовлечение). Твой тон — конструктивный, поддерживающий, академически точный.";
+  private async generateAnalysis(
+    transcript: string,
+    type: 'sales' | 'methodological',
+  ): Promise<string> {
+    const systemPrompt =
+      type === 'sales'
+        ? 'Ты — профессиональный эксперт по продажам в EdTech и аудиту вебинаров. Твоя задача — провести глубокий, критический и конструктивный разбор предоставленного текста видео-урока. Ты не просто пересказываешь, а анализируешь эффективность каждого этапа продажи. Твой тон — экспертный, вдохновляющий, но требовательный. ТВОЯ ЦЕЛЬ: Помочь эксперту кратно увеличить конверсию в продажу.'
+        : 'Ты — методический директор ведущей EdTech-платформы. Твоя задача — провести глубокий педагогический аудит урока. Ты оцениваешь не только контент, но и то, как он доносится (методология, психология, вовлечение). Твой тон — конструктивный, поддерживающий, академически точный.';
 
-        const userPrompt = `
+    const userPrompt = `
 ПРОАНАЛИЗИРУЙ СЛЕДУЮЩУЮ ТРАНСКРИПЦИЮ ВИДЕО-УРОКА.
 
 ---
@@ -119,7 +121,9 @@ export class VideoAnalysisProcessor extends WorkerHost {
     *   3 ключевых плюса и 3 точки роста.
 
 2.  **🔎 ДЕТАЛЬНЫЙ РАЗБОР ПО БЛОКАМ**
-    ${type === 'sales' ? `
+    ${
+      type === 'sales'
+        ? `
     *   **🔥 Крючок и Обещание (Hook):**
         *   Есть ли захват внимания в первые 30 секунд?
         *   Озвучен ли "Big Promise" (Главное обещание результата)?
@@ -134,7 +138,8 @@ export class VideoAnalysisProcessor extends WorkerHost {
     *   **🎁 Оффер и Призыв (CTA):**
         *   Насколько конкретен призыв к действию?
         *   Есть ли дедлайн/дефицит?
-    ` : `
+    `
+        : `
     *   **🧭 Структура и Целеполагание:**
         *   Есть ли четкое введение и обозначение целей урока?
         *   Логичны ли переходы между частями?
@@ -148,7 +153,8 @@ export class VideoAnalysisProcessor extends WorkerHost {
     *   **🏁 Закрепление и Рефлексия:**
         *   Было ли подведение итогов?
         *   Понятен ли следующий шаг для ученика?
-    `}
+    `
+    }
 
 3.  **💡 ПРАКТИЧЕСКИЕ РЕКОМЕНДАЦИИ (Action Plan)**
     *   Напиши 3-5 конкретных советов: "Что изменить прямо сейчас, чтобы стало лучше".
@@ -169,53 +175,53 @@ export class VideoAnalysisProcessor extends WorkerHost {
 ${transcript.substring(0, 30000)}
 `;
 
-        return this.runReplicatePrediction('google/gemini-3-flash', {
-            system_prompt: systemPrompt,
-            prompt: userPrompt,
-            max_tokens: 3000
-        });
+    return this.runReplicatePrediction('google/gemini-3-flash', {
+      system_prompt: systemPrompt,
+      prompt: userPrompt,
+      max_tokens: 3000,
+    });
+  }
+
+  private async runReplicatePrediction(version: string, input: any): Promise<string> {
+    // Re-using logic similar to LessonPreparationProcessor
+    // Ideally this should be in a shared service, but for now copying is safer than refactoring the massive service
+    try {
+      const response = await axios.post(
+        `https://api.replicate.com/v1/models/${version}/predictions`,
+        {
+          input: input,
+          stream: false,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${this.replicateToken}`,
+            'Content-Type': 'application/json',
+          },
+        },
+      );
+
+      let prediction = response.data;
+      const predictionId = prediction.id;
+
+      while (['starting', 'processing'].includes(prediction.status)) {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        const statusRes = await axios.get(
+          `https://api.replicate.com/v1/predictions/${predictionId}`,
+          {
+            headers: { Authorization: `Bearer ${this.replicateToken}` },
+          },
+        );
+        prediction = statusRes.data;
+      }
+
+      if (prediction.status === 'succeeded') {
+        return Array.isArray(prediction.output) ? prediction.output.join('') : prediction.output;
+      } else {
+        throw new Error(`Replicate failed: ${prediction.error}`);
+      }
+    } catch (error: any) {
+      this.logger.error(`Replicate API Error: ${error.message}`);
+      throw error;
     }
-
-    private async runReplicatePrediction(version: string, input: any): Promise<string> {
-        // Re-using logic similar to LessonPreparationProcessor
-        // Ideally this should be in a shared service, but for now copying is safer than refactoring the massive service
-        try {
-            const response = await axios.post(
-                `https://api.replicate.com/v1/models/${version}/predictions`,
-                {
-                    input: input,
-                    stream: false
-                },
-                {
-                    headers: {
-                        'Authorization': `Bearer ${this.replicateToken}`,
-                        'Content-Type': 'application/json',
-                    }
-                }
-            );
-
-            let prediction = response.data;
-            const predictionId = prediction.id;
-
-            while (['starting', 'processing'].includes(prediction.status)) {
-                await new Promise(resolve => setTimeout(resolve, 2000));
-                const statusRes = await axios.get(
-                    `https://api.replicate.com/v1/predictions/${predictionId}`,
-                    {
-                        headers: { 'Authorization': `Bearer ${this.replicateToken}` }
-                    }
-                );
-                prediction = statusRes.data;
-            }
-
-            if (prediction.status === 'succeeded') {
-                return Array.isArray(prediction.output) ? prediction.output.join('') : prediction.output;
-            } else {
-                throw new Error(`Replicate failed: ${prediction.error}`);
-            }
-        } catch (error: any) {
-            this.logger.error(`Replicate API Error: ${error.message}`);
-            throw error;
-        }
-    }
+  }
 }

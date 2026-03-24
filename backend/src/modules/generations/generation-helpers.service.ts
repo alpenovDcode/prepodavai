@@ -7,7 +7,7 @@ export class GenerationHelpersService {
   constructor(
     private prisma: PrismaService,
     private generationQueue: GenerationQueueService,
-  ) { }
+  ) {}
 
   /**
    * Создать запись генерации в обеих таблицах
@@ -55,8 +55,14 @@ export class GenerationHelpersService {
   /**
    * Завершить генерацию успешно
    */
-  async completeGeneration(generationRequestId: string, outputData: any, options?: { tokensUsed?: number, creditCost?: number }) {
-    console.log(`[GenerationHelpers] Completing generation ${generationRequestId}, output data length: ${JSON.stringify(outputData).length}`);
+  async completeGeneration(
+    generationRequestId: string,
+    outputData: any,
+    options?: { tokensUsed?: number; creditCost?: number },
+  ) {
+    console.log(
+      `[GenerationHelpers] Completing generation ${generationRequestId}, output data length: ${JSON.stringify(outputData).length}`,
+    );
 
     // Обновляем старую таблицу
     await this.prisma.generationRequest.update({

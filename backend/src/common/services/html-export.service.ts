@@ -41,29 +41,33 @@ export class HtmlExportService implements OnModuleDestroy {
         '--log-level=3',
         '--disable-software-rasterizer',
         // УБРАНЫ --no-zygote и --single-process — они конфликтуют с crashpad в Docker
-        ...(isLinux ? [
-          '--disable-crash-reporter',
-          '--no-first-run',
-          '--disable-background-networking',
-          '--disable-default-apps',
-          '--disable-sync',
-          '--metrics-recording-only',
-          '--mute-audio',
-          '--no-default-browser-check',
-          '--safebrowsing-disable-auto-update',
-        ] : []),
+        ...(isLinux
+          ? [
+              '--disable-crash-reporter',
+              '--no-first-run',
+              '--disable-background-networking',
+              '--disable-default-apps',
+              '--disable-sync',
+              '--metrics-recording-only',
+              '--mute-audio',
+              '--no-default-browser-check',
+              '--safebrowsing-disable-auto-update',
+            ]
+          : []),
       ];
 
-      this.browserPromise = puppeteer.launch({
-        headless: true,
-        timeout: 60000,
-        executablePath,
-        args,
-      }).catch(err => {
-        console.error('[HtmlExport] Failed to launch browser:', err);
-        this.browserPromise = null;
-        throw err;
-      });
+      this.browserPromise = puppeteer
+        .launch({
+          headless: true,
+          timeout: 60000,
+          executablePath,
+          args,
+        })
+        .catch((err) => {
+          console.error('[HtmlExport] Failed to launch browser:', err);
+          this.browserPromise = null;
+          throw err;
+        });
     }
     return this.browserPromise;
   }
@@ -86,7 +90,9 @@ export class HtmlExportService implements OnModuleDestroy {
 
       try {
         console.log('[HtmlExport] Waiting for MathJax...');
-        await page.waitForFunction(() => (window as any).MathJax, { timeout: 10000 }).catch(() => null);
+        await page
+          .waitForFunction(() => (window as any).MathJax, { timeout: 10000 })
+          .catch(() => null);
 
         await page.evaluate(async () => {
           if ((window as any).MathJax && (window as any).MathJax.typesetPromise) {
@@ -97,7 +103,7 @@ export class HtmlExportService implements OnModuleDestroy {
           }
         });
 
-        await new Promise(resolve => setTimeout(resolve, 500));
+        await new Promise((resolve) => setTimeout(resolve, 500));
       } catch (e) {
         console.warn('[HtmlExport] MathJax rendering warning:', e);
       }
@@ -115,7 +121,7 @@ export class HtmlExportService implements OnModuleDestroy {
       throw renderError;
     } finally {
       if (page) {
-        await page.close().catch(e => console.error('[HtmlExport] Error closing page:', e));
+        await page.close().catch((e) => console.error('[HtmlExport] Error closing page:', e));
       }
     }
   }

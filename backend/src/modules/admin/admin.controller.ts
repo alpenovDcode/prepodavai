@@ -21,7 +21,7 @@ import { AdminGuard } from './guards/admin.guard';
 @Controller('admin')
 @UseGuards(JwtAuthGuard, AdminGuard)
 export class AdminController {
-  constructor(private readonly adminService: AdminService) { }
+  constructor(private readonly adminService: AdminService) {}
 
   // ========== USERS ==========
   @Get('users')

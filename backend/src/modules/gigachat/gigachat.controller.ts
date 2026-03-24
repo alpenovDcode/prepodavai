@@ -26,13 +26,15 @@ export class GigachatController {
     private readonly gigachatGenerationsService: GigachatGenerationsService,
     private readonly gigachatService: GigachatService,
     private readonly htmlExportService: HtmlExportService,
-  ) { }
+  ) {}
 
   @Post('generate')
   @UseGuards(JwtAuthGuard)
   async generate(@Request() req, @Body() dto: GigachatGenerationDto) {
     try {
-      this.logger.log(`GigaChat generation request: mode=${dto.mode}, model=${dto.model}, userId=${req.user.id}`);
+      this.logger.log(
+        `GigaChat generation request: mode=${dto.mode}, model=${dto.model}, userId=${req.user.id}`,
+      );
       this.logger.debug(`Request body: ${JSON.stringify(dto, null, 2)}`);
       return await this.gigachatGenerationsService.generate(req.user.id, dto);
     } catch (error: any) {
@@ -52,7 +54,10 @@ export class GigachatController {
 
   @Post('files/upload')
   @UseGuards(JwtAuthGuard)
-  async uploadFile(@Request() req, @Body() body: { file: string; filename: string; purpose?: string }) {
+  async uploadFile(
+    @Request() req,
+    @Body() body: { file: string; filename: string; purpose?: string },
+  ) {
     try {
       // Decode base64 file
       const fileBuffer = Buffer.from(body.file, 'base64');
@@ -87,5 +92,4 @@ export class GigachatController {
     res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}"`);
     res.send(pdfBuffer);
   }
-
 }

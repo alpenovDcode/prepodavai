@@ -11,11 +11,7 @@ import {
   ValidateIf,
 } from 'class-validator';
 
-export type GigachatMode =
-  | 'chat'
-  | 'image'
-  | 'embeddings'
-  | 'tokens_count';
+export type GigachatMode = 'chat' | 'image' | 'embeddings' | 'tokens_count';
 
 export class GigachatGenerationDto {
   @IsIn(['chat', 'image', 'embeddings', 'tokens_count'])

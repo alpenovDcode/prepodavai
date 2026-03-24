@@ -31,16 +31,17 @@ export class EmailService {
     }
 
     try {
-      const from = this.configService.get<string>('SMTP_FROM') || 
-                   `"PrepodavAI" <${this.configService.get<string>('SMTP_USER')}>`;
-      
+      const from =
+        this.configService.get<string>('SMTP_FROM') ||
+        `"PrepodavAI" <${this.configService.get<string>('SMTP_USER')}>`;
+
       const info = await this.transporter.sendMail({
         from,
         to,
         subject,
         html,
       });
-      
+
       this.logger.log(`Email sent: ${info.messageId}`);
       return info;
     } catch (error) {
@@ -51,7 +52,7 @@ export class EmailService {
 
   async sendWelcomeEmail(username: string, apiKey: string, email: string) {
     const appUrl = this.configService.get<string>('NEXT_PUBLIC_APP_URL', 'https://prepodavai.ru');
-    
+
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #1a1a1a;">
         <h2 style="color: #2563eb;">Добро пожаловать в PrepodavAI!</h2>
