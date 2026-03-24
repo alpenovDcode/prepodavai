@@ -23,15 +23,32 @@ export class MaxService {
    */
   async handleWebhook(body: any) {
     try {
-      const message = body?.message || body?.event?.message;
-      if (!message) return;
+      // Ищем текст сообщения и идентификаторы в разных форматах,
+      // так как payload MAX может отличаться от Telegram.
+      const message = body?.message || body?.event?.message || body?.payload?.message;
+      if (!message) {
+        this.logger.warn('No message object found in MAX webhook payload');
+        return;
+      }
 
-      const user = message.from;
-      const text = message.text;
-      const chatId = message.chat?.id || user.id;
+      const user = message.from || message.sender;
+      const text = message.text || message.content || message.body?.text;
+      const chatId = message.chat?.id || user?.user_id || user?.id;
+
+      let userIdForDb = user?.user_id || user?.id;
+      if (!user || !chatId || !userIdForDb) {
+        this.logger.warn('Could not extract user or chatId from MAX payload');
+        return;
+      }
+
+      // Ensure we use the correct user id property based on the doc.
+      // MAX gives user.user_id inside message.sender
+      const botUser = { ...user, id: userIdForDb };
+
+      this.logger.log(`Parsed message from ${botUser.username || botUser.id}: ${text}`);
 
       if (text && text.startsWith('/start')) {
-        await this.handleStartCommand(user, chatId);
+        await this.handleStartCommand(botUser, chatId);
       }
     } catch (error) {
       this.logger.error('Error handling MAX webhook:', error);
@@ -75,19 +92,23 @@ export class MaxService {
 
   private async sendWelcomeMessage(chatId: string, appUser: any) {
     const text = this.getWelcomeMessage(appUser);
-    const replyMarkup = {
-      inline_keyboard: [
-        [
-          {
-            text: 'Открыть Mini App',
-            web_app: {
-              url: 'https://prepodavai.ru', 
-            },
-          },
-        ],
-      ],
-    };
-    await this.sendMessageWithMarkup(chatId, text, replyMarkup);
+    const attachments = [
+      {
+        type: 'inline_keyboard',
+        payload: {
+          buttons: [
+            [
+              {
+                type: 'open_app',
+                text: 'Открыть Mini App',
+                url: 'https://prepodavai.ru', 
+              },
+            ],
+          ],
+        },
+      },
+    ];
+    await this.sendMessageWithMarkup(chatId, text, attachments);
   }
 
   /**
@@ -131,20 +152,33 @@ export class MaxService {
     await this.sendMessageWithMarkup(chatId, text);
   }
 
-  private async sendMessageWithMarkup(chatId: string, text: string, reply_markup?: any) {
-    if (!this.token) return;
+  private async sendMessageWithMarkup(chatId: string, text: string, attachments?: any[]) {
+    if (!this.token) {
+      this.logger.error('MAX_BOT_TOKEN is not defined! Cannot send message.');
+      return;
+    }
+    
+    // MAX API puts user_id in the URL query string
+    const url = `${this.apiUrl}/messages?user_id=${chatId}`;
     try {
-      const payload: any = { chat_id: chatId, text };
-      if (reply_markup) {
-        payload.reply_markup = reply_markup;
+      const payload: any = { text };
+      if (attachments && attachments.length > 0) {
+        payload.attachments = attachments;
       }
-      await axios.post(
-        `${this.apiUrl}/messages/send`,
+      
+      this.logger.log(`Sending to MAX API (${url}): payload=${JSON.stringify(payload)}`);
+      
+      const response = await axios.post(
+        url,
         payload,
-        { headers: { Authorization: `Bearer ${this.token}` } },
+        { headers: { Authorization: this.token } },
       );
-    } catch (error) {
-      this.logger.error('Failed to send text message to MAX', error);
+      this.logger.log(`MAX API response: ${response.status} ${JSON.stringify(response.data)}`);
+    } catch (error: any) {
+      this.logger.error(
+        'Failed to send text message to MAX: ' + 
+        (error?.response?.data ? JSON.stringify(error.response.data) : error.message)
+      );
     }
   }
 
