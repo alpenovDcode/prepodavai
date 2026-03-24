@@ -15,7 +15,12 @@ export class MaxService {
     private prisma: PrismaService,
   ) {
     this.token = this.configService.get<string>('MAX_BOT_TOKEN');
-    this.apiUrl = this.configService.get<string>('MAX_API_URL') || 'https://api.max.ru/api/v1';
+    this.apiUrl = this.configService.get<string>('MAX_API_URL') || 'https://platform-api.max.ru';
+    
+    this.logger.log(`MaxService initialized with API URL: ${this.apiUrl}`);
+    if (!this.token) {
+      this.logger.error('MAX_BOT_TOKEN is missing in configuration!');
+    }
   }
 
   /**
@@ -159,14 +164,15 @@ export class MaxService {
     }
     
     // MAX API puts user_id in the URL query string
-    const url = `${this.apiUrl}/messages?user_id=${chatId}`;
+    const baseUrl = this.apiUrl.endsWith('/') ? this.apiUrl.slice(0, -1) : this.apiUrl;
+    const url = `${baseUrl}/messages?user_id=${chatId}`;
     try {
       const payload: any = { text };
       if (attachments && attachments.length > 0) {
         payload.attachments = attachments;
       }
       
-      this.logger.log(`Sending to MAX API (${url}): payload=${JSON.stringify(payload)}`);
+      this.logger.log(`Attempting request to MAX: POST ${url}`);
       
       const response = await axios.post(
         url,
