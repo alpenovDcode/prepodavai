@@ -198,16 +198,25 @@ export class MaxService {
       return;
     }
     
-    // MAX API puts user_id in the URL query string
     const baseUrl = this.apiUrl.endsWith('/') ? this.apiUrl.slice(0, -1) : this.apiUrl;
-    const url = `${baseUrl}/messages?user_id=${chatId}`;
+    const url = `${baseUrl}/messages`;
+
     try {
-      const payload: any = { text };
+      // Correcting the structure based on the webhook symmetry and typical Protobuf APIs
+      const payload: any = {
+        recipient: {
+          user_id: parseInt(chatId, 10), // Ensure it's a number
+        },
+        body: {
+          text,
+        },
+      };
+
       if (attachments && attachments.length > 0) {
-        payload.attachments = attachments;
+        payload.body.attachments = attachments;
       }
       
-      this.logger.log(`Attempting request to MAX: POST ${url}`);
+      this.logger.log(`Attempting request to MAX: POST ${url} for user ${chatId}`);
       
       const response = await axios.post(
         url,
