@@ -40,25 +40,16 @@ export default function ImageResultDisplay({
 
     setIsDownloading(true)
 
-
     try {
-      const response = await fetch(imageUrl)
-      if (!response.ok) {
-        throw new Error('Failed to fetch image')
-      }
-
-      const blob = await response.blob()
-      const blobUrl = window.URL.createObjectURL(blob)
-
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
+      const proxyUrl = `${apiUrl}/api/files/download-proxy?url=${encodeURIComponent(imageUrl)}`;
+      
       const a = document.createElement('a')
-      a.href = blobUrl
-      a.download = `generated-image-${Date.now()}.png`
+      a.href = proxyUrl
+      a.download = '' // Let the server decide the filename via Content-Disposition
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)
-
-      window.URL.revokeObjectURL(blobUrl)
-
     } catch (err) {
       console.error('❌ Download failed:', err)
       window.open(imageUrl, '_blank')

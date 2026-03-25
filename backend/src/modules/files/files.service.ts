@@ -290,4 +290,35 @@ export class FilesService {
 
     return mimeTypes[extension.toLowerCase()] || 'application/octet-stream';
   }
+
+  /**
+   * Скачать внешний файл (прокси)
+   */
+  async downloadExternal(url: string): Promise<{ buffer: Buffer; mimeType: string; originalName: string }> {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch external file: ${response.statusText}`);
+      }
+
+      const arrayBuffer = await response.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      const mimeType = response.headers.get('content-type') || 'application/octet-stream';
+      
+      // Пытаемся достать имя из URL или заголовков
+      let originalName = 'downloaded_file';
+      const contentDisposition = response.headers.get('content-disposition');
+      if (contentDisposition && contentDisposition.includes('filename=')) {
+        originalName = contentDisposition.split('filename=')[1].replace(/["']/g, '');
+      } else {
+        const urlParts = new URL(url).pathname.split('/');
+        originalName = urlParts[urlParts.length - 1] || originalName;
+      }
+
+      return { buffer, mimeType, originalName };
+    } catch (error) {
+      console.error('Failed to download external file:', error);
+      throw new BadRequestException('Не удалось скачать файл по ссылке');
+    }
+  }
 }

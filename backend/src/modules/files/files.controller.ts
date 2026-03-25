@@ -146,4 +146,26 @@ export class FilesController {
       message: deleted ? 'Файл удален' : 'Файл не найден',
     };
   }
+
+  /**
+   * Прокси для скачивания внешних файлов (решает проблему CORS)
+   */
+  @Get('download-proxy')
+  async proxyDownload(@Res() res: Response) {
+    const url = (res.req as any)?.query?.url;
+    if (!url) {
+      throw new BadRequestException('URL не предоставлен');
+    }
+
+    try {
+      const { buffer, mimeType, originalName } = await this.filesService.downloadExternal(url);
+      
+      res.setHeader('Content-Type', mimeType);
+      res.setHeader('Content-Disposition', `attachment; filename="${originalName}"`);
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      return res.send(buffer);
+    } catch (err) {
+      return res.status(400).json({ success: false, error: err.message });
+    }
+  }
 }
