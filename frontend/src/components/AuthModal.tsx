@@ -247,7 +247,7 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
         </h2>
         <p className="text-center text-gray-900 mb-8">
           {isLogin 
-            ? 'Введите данные из Telegram'
+            ? 'Введите данные из письма'
             : (step === 1 ? 'Создайте новый аккаунт' : 'Введите код из SMS')
           }
         </p>
@@ -496,14 +496,14 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
         {isLogin && loginMode === 'apikey' && (
           <form onSubmit={(e) => { e.preventDefault(); handleLoginWithApiKey(); }} className="space-y-4">
             <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl text-blue-800 text-sm mb-4">
-              <i className="fab fa-telegram text-blue-500 mr-2"></i>
-              Получить эти данные можно в Telegram боте, отправив команду <code className="font-mono bg-blue-100 px-2 py-1 rounded">/start</code>
+              <i className="fas fa-info-circle text-blue-500 mr-2"></i>
+              Если возникли сложности с авторизацией, напишите куратору или менеджеру, который за вами привязан
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 <i className="fas fa-user text-orange-500 mr-2"></i>
-                Username из Telegram
+                Почта
               </label>
               <input
                 value={form.username}
