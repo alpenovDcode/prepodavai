@@ -94,6 +94,8 @@ async function bootstrap() {
   app.enableCors({
     origin: origins,
     credentials: true,
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'X-Requested-With'],
+    exposedHeaders: ['Set-Cookie'], // For better cookie visibility if needed
   });
 
   // Префикс для API
