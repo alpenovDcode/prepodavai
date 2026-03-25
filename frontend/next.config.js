@@ -4,6 +4,7 @@ const nextConfig = {
   output: 'standalone', // Для Docker
   experimental: {
     externalDir: true,
+    optimizePackageImports: ['lucide-react', '@tiptap/core', '@tiptap/react', 'jspdf', 'html2canvas', 'pptxgenjs'],
   },
   env: {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001',

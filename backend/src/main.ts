@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import helmet from 'helmet';
+import * as compression from 'compression';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 
@@ -29,6 +30,7 @@ async function bootstrap() {
   app.use(require('express').json({ limit: '2gb' }));
   app.use(require('express').urlencoded({ limit: '2gb', extended: true }));
   app.use(require('cookie-parser')());
+  app.use(compression());
 
   // Serve static files from uploads directory (under /api prefix to match Nginx proxying)
   app.use(

@@ -48,6 +48,7 @@ model AppUser {
 
   @@index([telegramId])
   @@index([maxId])
+  @@index([chatId])
   @@index([userHash])
   @@index([apiKey])
   @@map("app_users")
