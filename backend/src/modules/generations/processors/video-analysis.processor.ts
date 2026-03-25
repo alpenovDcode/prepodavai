@@ -34,15 +34,23 @@ export class VideoAnalysisProcessor extends WorkerHost {
     const { generationRequestId, videoUrl, videoHash, analysisType } = job.data;
     this.logger.log(`Processing Video Analysis for ${generationRequestId} (${analysisType})`);
 
+    let finalVideoUrl = videoUrl;
+
     try {
+      // 0. Resolve Yandex.Disk link if needed
+      if (finalVideoUrl && (finalVideoUrl.includes('disk.yandex.ru') || finalVideoUrl.includes('yadi.sk'))) {
+        this.logger.log(`Resolving Yandex.Disk link: ${finalVideoUrl}`);
+        finalVideoUrl = await this.resolveYandexDiskLink(finalVideoUrl);
+      }
+
       // 1. Transcribe Video
-      this.logger.log(`Starting transcription for ${videoUrl}`);
+      this.logger.log(`Starting transcription for ${finalVideoUrl}`);
       await this.generationHelpers.updateProgress(generationRequestId, {
         percent: 10,
         message: 'Транскрибация видео...',
       });
 
-      const transcript = await this.assemblyAiService.transcribeFile(videoUrl);
+      const transcript = await this.assemblyAiService.transcribeFile(finalVideoUrl);
       this.logger.log(`Transcription completed. Length: ${transcript.length}`);
 
       await this.generationHelpers.updateProgress(generationRequestId, {
@@ -216,6 +224,22 @@ ${transcript.substring(0, 30000)}
     } catch (error: any) {
       this.logger.error(`Replicate API Error: ${error.message}`);
       throw error;
+    }
+  }
+
+  private async resolveYandexDiskLink(url: string): Promise<string> {
+    try {
+      const apiUrl = `https://cloud-api.yandex.net/v1/disk/public/resources/download?public_key=${encodeURIComponent(
+        url,
+      )}`;
+      const response = await axios.get(apiUrl);
+      if (response.data && response.data.href) {
+        return response.data.href;
+      }
+      throw new Error('Yandex.Disk API did not return a download link');
+    } catch (error: any) {
+      this.logger.error(`Failed to resolve Yandex.Disk link: ${error.message}`);
+      throw new Error(`Не удалось получить прямую ссылку на видео с Яндекс.Диска. Убедитесь, что ссылка публичная.`);
     }
   }
 }

@@ -131,6 +131,8 @@ export class FilesController {
     // Явно разрешаем кросс-доменные запросы для файлов
     res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
     res.setHeader('Access-Control-Allow-Origin', '*');
+    // Дополнительная защита от XSS для скачиваемых файлов
+    res.setHeader('Content-Security-Policy', "default-src 'none'; img-src *; media-src *; style-src 'unsafe-inline';");
     return res.send(file.buffer);
   }
 
@@ -151,6 +153,7 @@ export class FilesController {
    * Прокси для скачивания внешних файлов (решает проблему CORS)
    */
   @Get('download-proxy')
+  @UseGuards(JwtAuthGuard)
   async proxyDownload(@Res() res: Response) {
     const url = (res.req as any)?.query?.url;
     if (!url) {

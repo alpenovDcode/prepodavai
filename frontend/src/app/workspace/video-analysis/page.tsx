@@ -10,6 +10,7 @@ import GenerationCostBadge from '@/components/workspace/GenerationCostBadge'
 export default function VideoAnalysisGenerator() {
     const [analysisType, setAnalysisType] = useState('sales')
     const [videoHash, setVideoHash] = useState('')
+    const [videoUrl, setVideoUrl] = useState('')
     const [fileName, setFileName] = useState('')
     const [localContent, setLocalContent] = useState('<p>Загрузите видео или укажите ссылку и выберите тип анализа.</p>')
     const [isUploading, setIsUploading] = useState(false)
@@ -53,14 +54,14 @@ export default function VideoAnalysisGenerator() {
     }
 
     const generate = async () => {
-        if (!videoHash) return;
+        if (!videoHash && !videoUrl) return;
 
         try {
             setLocalContent('<p>Анализируем видеофайл...</p><p>Пожалуйста, подождите, это может занять несколько минут.</p>')
             setEditMode(false)
 
             const params = {
-                fileUrl: videoHash,
+                fileUrl: videoHash || videoUrl,
                 analysisType
             }
 
@@ -175,7 +176,7 @@ export default function VideoAnalysisGenerator() {
                             <label className="block text-sm font-bold text-gray-700 mb-2">Видео (mp4, mov)</label>
 
                             <div className="mt-2 text-center">
-                                <label className={`flex flex-col items-center justify-center w-full h-32 border-2 border-indigo-100 border-dashed rounded-xl cursor-pointer bg-indigo-50/50 hover:bg-indigo-50 transition-colors ${isUnderMaintenance && 'opacity-50 pointer-events-none'}`}>
+                                <label className={`flex flex-col items-center justify-center w-full h-32 border-2 border-indigo-100 border-dashed rounded-xl cursor-pointer bg-indigo-50/50 hover:bg-indigo-50 transition-colors ${(isUnderMaintenance || !!videoUrl) && 'opacity-50 pointer-events-none'}`}>
                                     <div className="flex flex-col items-center justify-center pt-5 pb-6">
                                         {isUploading ? (
                                             <Loader2 className="w-8 h-8 text-indigo-500 animate-spin mb-2" />
@@ -183,11 +184,40 @@ export default function VideoAnalysisGenerator() {
                                             <UploadCloud className="w-8 h-8 text-indigo-500 mb-2" />
                                         )}
                                         <p className="text-xs text-center px-4 font-medium text-gray-500">
-                                            {fileName || "Нажмите для загрузки или перетащите файл"}
+                                            {fileName || (videoUrl ? "Выбрана ссылка" : "Нажмите для загрузки или перетащите файл")}
                                         </p>
                                     </div>
-                                    <input type="file" className="hidden" accept="video/*" onChange={handleFileChange} disabled={isUploading || isUnderMaintenance} />
+                                    <input type="file" className="hidden" accept="video/*" onChange={handleFileChange} disabled={isUploading || isUnderMaintenance || !!videoUrl} />
                                 </label>
+                            </div>
+
+                            <div className="relative my-4">
+                                <div className="absolute inset-0 flex items-center">
+                                    <span className="w-full border-t border-gray-100"></span>
+                                </div>
+                                <div className="relative flex justify-center text-xs uppercase">
+                                    <span className="bg-white px-2 text-gray-400 font-bold">ИЛИ ССЫЛКА</span>
+                                </div>
+                            </div>
+
+                            <div className="space-y-2">
+                                <input
+                                    type="text"
+                                    placeholder="Ссылка на Яндекс.Диск или MP4"
+                                    value={videoUrl}
+                                    onChange={(e) => {
+                                        setVideoUrl(e.target.value);
+                                        if (e.target.value) {
+                                            setVideoHash('');
+                                            setFileName('');
+                                        }
+                                    }}
+                                    disabled={isUnderMaintenance || isUploading}
+                                    className="block w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 placeholder-gray-400 disabled:opacity-50"
+                                />
+                                <p className="text-[10px] text-gray-400 px-1 font-medium italic">
+                                    * Вставьте публичную ссылку на видео
+                                </p>
                             </div>
                         </div>
 
@@ -210,7 +240,7 @@ export default function VideoAnalysisGenerator() {
                 <div className="p-5 border-t border-gray-100 bg-white">
                     <button
                         onClick={generate}
-                        disabled={isGenerating || isUploading || !videoHash || isUnderMaintenance}
+                        disabled={isGenerating || isUploading || (!videoHash && !videoUrl) || isUnderMaintenance}
                         className={`w-full relative group overflow-hidden rounded-xl bg-gradient-to-r font-semibold shadow-md active:scale-[0.98] transition-all disabled:opacity-50 ${isUnderMaintenance ? 'from-gray-400 to-gray-500' : 'from-indigo-500 to-blue-600 p-px'}`}
                     >
                         <div className={`relative flex items-center justify-center gap-2 px-4 py-3 rounded-[11px] text-white ${isUnderMaintenance ? 'bg-gray-400' : 'bg-gradient-to-r from-indigo-500 to-blue-600'}`}>

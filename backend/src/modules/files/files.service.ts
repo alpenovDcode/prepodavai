@@ -23,7 +23,7 @@ export class FilesService {
     '.m4a',
     '.aac',
     '.pptx',
-    '.html',
+    // '.html', // Removed for security (XSS risk)
   ];
   private get maxFileSize(): number {
     return this.configService.get<number>('MAX_VIDEO_SIZE_MB', 2000) * 1024 * 1024;
@@ -295,7 +295,18 @@ export class FilesService {
    * Скачать внешний файл (прокси)
    */
   async downloadExternal(url: string): Promise<{ buffer: Buffer; mimeType: string; originalName: string }> {
+    // Basic SSRF protection: block local/private IPs
     try {
+      const parsedUrl = new URL(url);
+      const isInternal = ['localhost', '127.0.0.1', '0.0.0.0'].includes(parsedUrl.hostname) || 
+                         parsedUrl.hostname.startsWith('192.168.') || 
+                         parsedUrl.hostname.startsWith('10.') || 
+                         parsedUrl.hostname.startsWith('172.');
+      
+      if (isInternal) {
+        throw new Error('Access to internal URLs is forbidden');
+      }
+
       const response = await fetch(url);
       if (!response.ok) {
         throw new Error(`Failed to fetch external file: ${response.statusText}`);
