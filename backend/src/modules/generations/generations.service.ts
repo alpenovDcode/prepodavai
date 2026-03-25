@@ -230,7 +230,8 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
       );
 
       // Resolve videoUrl if it's a relative path or local file reference
-      let videoUrl = inputParams.fileUrl || inputParams.videoUrl;
+      const originalVideoPath = inputParams.fileUrl || inputParams.videoUrl;
+      let videoUrl = originalVideoPath;
       if (videoUrl && !videoUrl.startsWith('http')) {
         const baseUrl = this.configService.get<string>('BASE_URL', 'https://api.prepodavai.ru');
         videoUrl = `${baseUrl}/api/files/${videoUrl}`;
@@ -239,6 +240,7 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
       await this.videoAnalysisQueue.add('video-analysis', {
         generationRequestId: generationRequest.id,
         videoUrl: videoUrl,
+        videoHash: originalVideoPath, // Keep hash for deletion
         analysisType: inputParams.analysisType || 'methodological',
       });
 

@@ -5,6 +5,7 @@ import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 import { GenerationHelpersService } from '../generation-helpers.service';
 import { AssemblyAiService } from '../../integrations/assemblyai.service';
+import { FilesService } from '../../files/files.service';
 import { LOGO_BASE64 } from '../generation.constants';
 
 export interface VideoAnalysisJobData {
@@ -23,13 +24,14 @@ export class VideoAnalysisProcessor extends WorkerHost {
     private readonly configService: ConfigService,
     private readonly generationHelpers: GenerationHelpersService,
     private readonly assemblyAiService: AssemblyAiService,
+    private readonly filesService: FilesService,
   ) {
     super();
     this.replicateToken = this.configService.get<string>('REPLICATE_API_TOKEN');
   }
 
   async process(job: Job<VideoAnalysisJobData>): Promise<void> {
-    const { generationRequestId, videoUrl, analysisType } = job.data;
+    const { generationRequestId, videoUrl, videoHash, analysisType } = job.data;
     this.logger.log(`Processing Video Analysis for ${generationRequestId} (${analysisType})`);
 
     try {
@@ -52,11 +54,6 @@ export class VideoAnalysisProcessor extends WorkerHost {
       const analysis = await this.generateAnalysis(transcript, analysisType);
 
       // 3. Format Result
-      // We verify if analysis already contains the logo wrapper or if we need to wrap it.
-      // The prompt now asks for full HTML, but we wrap it for safety regarding the "Video Analysis" header managed by the backend logic if needed.
-      // However, the prompt asks to return ONLY HTML.
-
-      // Construct the final HTML with logos
       const htmlResult = `
                 <div class="video-analysis-result" style="font-family: sans-serif; max-width: 800px; margin: 0 auto;">
                     <div style="text-align: center; margin-bottom: 20px;">
@@ -85,9 +82,19 @@ export class VideoAnalysisProcessor extends WorkerHost {
         htmlResult,
         sections: [
           { title: 'Анализ', content: analysis },
-          { title: 'Транскрипция', content: transcript },
+          { title: 'Транскрибация', content: transcript },
         ],
       });
+
+      // 5. Cleanup - Delete video from server after successful analysis
+      if (videoHash && !videoHash.startsWith('http')) {
+        this.logger.log(`Cleaning up video file: ${videoHash}`);
+        try {
+          await this.filesService.deleteFile(videoHash);
+        } catch (cleanupError) {
+          this.logger.warn(`Failed to delete video file ${videoHash}: ${cleanupError.message}`);
+        }
+      }
     } catch (error: any) {
       this.logger.error(`Video Analysis failed: ${error.message}`, error.stack);
       await this.generationHelpers.failGeneration(generationRequestId, error.message);

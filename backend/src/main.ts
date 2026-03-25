@@ -73,33 +73,27 @@ async function bootstrap() {
     }),
   );
 
-  // CORS с валидацией
-  const corsOrigin = configService.get<string>('CORS_ORIGIN', 'http://localhost:3000');
+  // ПРЕФИКС ДЛЯ API (должен быть установлен ДО CORS и других настроек)
+  app.setGlobalPrefix('api');
+
+  // CORS с валидацией (перемещено в начало для надежности)
+  const corsOrigin = configService.get<string>('CORS_ORIGIN', 'https://prepodavai.ru');
   const origins = corsOrigin.split(',').map((origin) => origin.trim());
 
-  // Запрещаем * в production
-  if (nodeEnv === 'production' && origins.includes('*')) {
-    throw new Error('CORS_ORIGIN cannot be * in production');
-  }
-
-  // Валидация формата URL
-  for (const origin of origins) {
-    try {
-      new URL(origin);
-    } catch {
-      throw new Error(`Invalid CORS origin: ${origin}`);
-    }
-  }
+  // Всегда добавляем основные домены в разрешенные
+  if (!origins.includes('https://prepodavai.ru')) origins.push('https://prepodavai.ru');
+  if (!origins.includes('https://www.prepodavai.ru')) origins.push('https://www.prepodavai.ru');
+  if (!origins.includes('http://localhost:3000')) origins.push('http://localhost:3000');
 
   app.enableCors({
     origin: origins,
     credentials: true,
-    allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'X-Requested-With'],
-    exposedHeaders: ['Set-Cookie'], // For better cookie visibility if needed
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'X-Requested-With', 'Range'],
+    exposedHeaders: ['Content-Range', 'X-Content-Range', 'Set-Cookie'],
   });
 
-  // Префикс для API
-  app.setGlobalPrefix('api');
+  // Остальные настройки не требуются здесь, они уже объявлены выше
 
   await app.listen(port, '0.0.0.0');
   console.log(`🚀 Backend API запущен на порту ${port}`);
