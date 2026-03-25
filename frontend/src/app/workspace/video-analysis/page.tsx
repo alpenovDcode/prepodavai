@@ -20,7 +20,7 @@ export default function VideoAnalysisGenerator() {
     const { generateAndWait, isGenerating } = useGenerations()
 
     const types = [
-        { value: 'sales', label: 'Анализ продаж' },
+        { value: 'sales', label: 'Пробный урок' },
         { value: 'methodological', label: 'Методический анализ' }
     ]
 

@@ -66,6 +66,7 @@ export default function PhotosessionGenerator() {
     const [isUploading, setIsUploading] = useState(false)
     const [resultImageUrl, setResultImageUrl] = useState<string | null>(null)
     const [errorMsg, setErrorMsg] = useState('')
+    const [isDownloading, setIsDownloading] = useState(false)
 
     const { generateAndWait, isGenerating } = useGenerations()
 
@@ -131,6 +132,34 @@ export default function PhotosessionGenerator() {
         } catch (e: any) {
             console.error('Generation failed:', e)
             setErrorMsg(`Ошибка при создании фотосессии: ${e.message}`)
+        }
+    }
+
+    const handleDownload = async () => {
+        if (!resultImageUrl) return;
+        try {
+            setIsDownloading(true);
+            const response = await fetch(resultImageUrl);
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `photosession-${Date.now()}.png`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            window.URL.revokeObjectURL(url);
+        } catch (error) {
+            console.error('Error downloading image:', error);
+            const link = document.createElement('a');
+            link.href = resultImageUrl;
+            link.download = `photosession-${Date.now()}.png`;
+            link.target = '_blank';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        } finally {
+            setIsDownloading(false);
         }
     }
 
@@ -278,9 +307,13 @@ export default function PhotosessionGenerator() {
                         </div>
                         <div className="flex items-center gap-2">
                             {resultImageUrl && (
-                                <button className="p-2 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors flex items-center gap-1.5 text-sm font-medium">
-                                    <Download className="w-4 h-4" />
-                                    <span>Скачать</span>
+                                <button 
+                                    onClick={handleDownload}
+                                    disabled={isDownloading}
+                                    className="p-2 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors flex items-center gap-1.5 text-sm font-medium disabled:opacity-50"
+                                >
+                                    {isDownloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                                    <span>{isDownloading ? 'Скачивание...' : 'Скачать'}</span>
                                 </button>
                             )}
                             <button className="p-2 ml-1 text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded-lg transition-colors">

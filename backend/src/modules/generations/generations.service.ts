@@ -223,6 +223,33 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
       };
     }
 
+    // Очередь для Анализа видео
+    if (generationType === 'video-analysis') {
+      this.logger.debug(
+        `GenerationsService: Video analysis detected for request ${generationRequest.id}, adding to BullMQ queue`,
+      );
+
+      // Resolve videoUrl if it's a relative path or local file reference
+      let videoUrl = inputParams.fileUrl || inputParams.videoUrl;
+      if (videoUrl && !videoUrl.startsWith('http')) {
+        const baseUrl = this.configService.get<string>('BASE_URL', 'https://api.prepodavai.ru');
+        videoUrl = `${baseUrl}/api/files/${videoUrl}`;
+      }
+
+      await this.videoAnalysisQueue.add('video-analysis', {
+        generationRequestId: generationRequest.id,
+        videoUrl: videoUrl,
+        analysisType: inputParams.analysisType || 'methodological',
+      });
+
+      return {
+        success: true,
+        requestId: generationRequest.id,
+        status: 'pending',
+        remainingCredits,
+      };
+    }
+
     // Прямые генерации через GigaChat (минуя webhooks)
     if (this.shouldUseDirectGigachatGeneration(generationType)) {
       const directResult = await this.handleDirectGigachatGeneration(
@@ -356,7 +383,6 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
       'image',
       'image_generation',
       'photosession',
-      'video-analysis',
       'exam-variant',
       'exam_variant',
       'unpacking',
