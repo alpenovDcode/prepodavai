@@ -24,7 +24,17 @@ export default function AdminLogin() {
             })
 
             if (response.data.success) {
-                localStorage.setItem('prepodavai_authenticated', 'true')
+                const user = response.data.user;
+                const userData = {
+                    name: user?.firstName || user?.username || 'Admin',
+                    username: user?.username,
+                    userHash: response.data.userHash || user?.id || `adm_${Date.now()}`,
+                    role: 'admin',
+                    isAuthenticated: true,
+                    loginTime: new Date().toISOString()
+                }
+                
+                localStorage.setItem('prepodavai_user', JSON.stringify(userData))
                 localStorage.setItem('prepodavai_authenticated', 'true')
                 router.push('/admin/dashboard')
             }

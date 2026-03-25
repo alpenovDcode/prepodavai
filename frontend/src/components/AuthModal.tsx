@@ -95,7 +95,7 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
             name: form.name,
             phone: form.phone,
             email: form.email || '',
-            userHash: registerResponse.data.userHash,
+            userHash: registerResponse.data.userHash || `u_${Date.now()}`,
             isAuthenticated: true,
             loginTime: new Date().toISOString()
           }
@@ -133,10 +133,11 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
       })
 
       if (loginResponse.data.success) {
+        const user = loginResponse.data.user;
         const userData = {
-          name: loginResponse.data.user.firstName,
-          phone: loginResponse.data.user.phone,
-          userHash: loginResponse.data.userHash,
+          name: user?.firstName || 'Пользователь',
+          phone: user?.phone || form.phone.trim(),
+          userHash: loginResponse.data.userHash || user?.id || `u_${Date.now()}`,
           isAuthenticated: true,
           loginTime: new Date().toISOString()
         }
@@ -170,12 +171,13 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
       })
 
       if (loginResponse.data.success) {
+        const user = loginResponse.data.user;
         const userData = {
-          name: loginResponse.data.user.firstName || loginResponse.data.user.username,
-          username: loginResponse.data.user.username,
-          phone: loginResponse.data.user.phone || '',
-          telegramId: loginResponse.data.user.telegramId,
-          userHash: loginResponse.data.userHash,
+          name: user?.firstName || user?.username || 'Пользователь',
+          username: user?.username,
+          phone: user?.phone || '',
+          telegramId: user?.telegramId,
+          userHash: loginResponse.data.userHash || user?.id || `u_${Date.now()}`,
           isAuthenticated: true,
           loginTime: new Date().toISOString()
         }

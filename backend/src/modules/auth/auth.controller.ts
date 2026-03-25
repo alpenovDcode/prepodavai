@@ -16,15 +16,18 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   private setTokenCookie(res: Response, token: string, req: any) {
-    const isProd = process.env.NODE_ENV === 'production';
+    const host = req.get('host') || '';
+    const isPrepodavaiDomain = host.endsWith('prepodavai.ru');
+    // Consider it production environment if it's on prepodavai.ru domain or NODE_ENV is production
+    const isProduction = process.env.NODE_ENV === 'production' || isPrepodavaiDomain;
 
     res.cookie('prepodavai_token', token, {
       httpOnly: true,
-      secure: isProd, // HTTPS only в проде
-      sameSite: 'lax', // lax достаточно для поддоменов
+      secure: isProduction || req.secure || req.header('x-forwarded-proto') === 'https',
+      sameSite: 'lax',
       maxAge: 30 * 24 * 60 * 60 * 1000,
       path: '/',
-      domain: isProd ? '.prepodavai.ru' : undefined, // Общий домен для куки
+      domain: isProduction ? '.prepodavai.ru' : undefined,
     });
   }
 

@@ -18,28 +18,31 @@ export function useUser() {
     queryKey: ['user-me'],
     queryFn: async () => {
       const response = await apiClient.get<{ success: boolean; user?: UserProfile }>('/users/me')
-      if (!response.data.success || !response.data.user) {
+      if (!response.data || !response.data.success || !response.data.user) {
         throw new Error('Failed to fetch user profile')
       }
       return response.data.user
     },
     staleTime: 1000 * 60 * 10, // 10 minutes
-    retry: 1,
+    retry: 0, // Не ретраим при 401, так как это скорее всего сессия
+    enabled: typeof window !== 'undefined' && !!localStorage.getItem('prepodavai_authenticated'),
   })
 
-  const fullName = data 
-    ? (`${data.firstName || ''} ${data.lastName || ''}`.trim() || data.username || 'Неизвестный')
-    : 'Неизвестный'
+  const fullName = isLoading 
+    ? 'Загрузка...' 
+    : (data ? (`${data.firstName || ''} ${data.lastName || ''}`.trim() || data.username || 'Пользователь') : 'Гость')
 
-  const initials = data
-    ? (data.firstName && data.lastName 
-        ? `${data.firstName[0]}${data.lastName[0]}`.toUpperCase()
-        : data.firstName 
-          ? data.firstName[0].toUpperCase()
-          : data.username 
-            ? data.username[0].toUpperCase()
-            : 'U')
-    : 'U'
+  const initials = isLoading
+    ? '...'
+    : (data
+        ? (data.firstName && data.lastName 
+            ? `${data.firstName[0]}${data.lastName[0]}`.toUpperCase()
+            : data.firstName 
+              ? data.firstName[0].toUpperCase()
+              : data.username 
+                ? data.username[0].toUpperCase()
+                : 'U')
+        : 'G')
 
   return {
     user: data || null,

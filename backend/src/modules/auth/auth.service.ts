@@ -282,6 +282,7 @@ export class AuthService {
     return {
       success: true,
       token,
+      userHash: user.id,
       user: {
         id: user.id,
         username: user.username,
@@ -329,6 +330,7 @@ export class AuthService {
     return {
       success: true,
       token,
+      userHash: student.id,
       user: {
         id: student.id,
         name: student.name,
@@ -408,6 +410,7 @@ export class AuthService {
     return {
       success: true,
       token,
+      userHash: user.id,
       user: {
         id: user.id,
         phone: user.phone,

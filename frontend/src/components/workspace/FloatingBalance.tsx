@@ -18,9 +18,9 @@ export default function FloatingBalance() {
         return () => window.removeEventListener('storage', checkAuth)
     }, [pathname])
 
-    const { totalCredits, loading, error } = useSubscription({ enabled: isAuthenticated })
-
-    if (!isAuthenticated || error) return null
+    const { totalCredits, loading, error } = useSubscription({ enabled: isAuthenticated && !pathname.startsWith('/admin') })
+    
+    if (!isAuthenticated || error || pathname.startsWith('/admin')) return null
 
     const getLabel = (value: number) => {
         if (value === 0) return 'токенов'
