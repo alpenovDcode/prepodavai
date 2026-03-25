@@ -36,6 +36,9 @@ export default function AdminLogin() {
                 
                 localStorage.setItem('prepodavai_user', JSON.stringify(userData))
                 localStorage.setItem('prepodavai_authenticated', 'true')
+                if (response.data.token) {
+                    localStorage.setItem('prepodavai_token', response.data.token)
+                }
                 router.push('/admin/dashboard')
             }
         } catch (err: any) {

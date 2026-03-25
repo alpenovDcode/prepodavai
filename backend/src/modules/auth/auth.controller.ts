@@ -24,11 +24,15 @@ export class AuthController {
     res.cookie('prepodavai_token', token, {
       httpOnly: true,
       secure: isProduction || req.secure || req.header('x-forwarded-proto') === 'https',
-      sameSite: 'lax',
+      sameSite: 'none', // Changed from 'lax' for better cross-subdomain support
       maxAge: 30 * 24 * 60 * 60 * 1000,
       path: '/',
       domain: isProduction ? '.prepodavai.ru' : undefined,
     });
+
+    if (!isProduction) {
+      console.debug(`[AuthController] Cookie set. Prod: ${isProduction}, Host: ${host}`);
+    }
   }
 
   @Post('logout')

@@ -12,7 +12,15 @@ export const apiClient = axios.create({
 
 // Добавляем токен в запросы
 apiClient.interceptors.request.use((config) => {
-  // Для FormData не устанавливаем Content-Type, браузер сам установит с boundary
+  // Добавляем токен из localStorage как fallback для кук
+  if (typeof window !== 'undefined') {
+    const token = localStorage.getItem('prepodavai_token');
+    if (token) {
+      config.headers['Authorization'] = `Bearer ${token}`;
+    }
+  }
+
+  // Для FormData не устанавливаем Content-Type
   if (config.data instanceof FormData) {
     delete config.headers['Content-Type']
   }
@@ -34,6 +42,7 @@ apiClient.interceptors.response.use(
         // Сначала убираем флаги
         localStorage.removeItem('prepodavai_authenticated');
         localStorage.removeItem('prepodavai_user');
+        localStorage.removeItem('prepodavai_token');
         
         // Редиректим только если:
         // 1. Мы не на главной
