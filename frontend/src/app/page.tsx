@@ -1,59 +1,65 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2 } from 'lucide-react'
-import LandingPage from '@/components/LandingPage'
-import WebAppIndex from '@/components/WebAppIndex'
+import dynamic from 'next/dynamic'
+
+// Lazy load heavy LandingPage
+const LandingPage = dynamic(() => import('@/components/LandingPage'), {
+  loading: () => (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <Loader2 className="w-10 h-10 animate-spin text-purple-600" />
+    </div>
+  )
+})
 
 export default function Home() {
   const [isWebApp, setIsWebApp] = useState<boolean | null>(null)
-  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
   const router = useRouter()
 
+  // 1. Immediate Auth Check
   useEffect(() => {
-    // Функция проверки WebApp окружения (Telegram или MAX)
+    const auth = typeof window !== 'undefined' && localStorage.getItem('prepodavai_authenticated') === 'true'
+    setIsAuthenticated(auth)
+    
+    // Если мы уже авторизованы, не ждем Mini App SDK и редиректим сразу
+    if (auth) {
+      router.push('/dashboard')
+    }
+  }, [router])
+
+  // 2. WebApp Check (только если не авторизованы или для инициализации SDK)
+  useEffect(() => {
     const checkWebApp = async () => {
-      // 1. Проверяем URL параметры (самый надежный способ)
+      // 1. Быстрая проверка параметров URL
       const urlParams = new URLSearchParams(window.location.search)
       if (
-        urlParams.has('tgWebAppPlatform') ||
-        urlParams.has('tgWebAppVersion') ||
-        urlParams.has('tgWebAppData') ||
-        urlParams.has('max_init_data') || // Possible parameter for MAX
-        urlParams.has('auth_date') // Often present in both mini apps
+        urlParams.has('tgWebAppPlatform') || 
+        urlParams.has('max_init_data') || 
+        urlParams.has('tgWebAppData')
       ) {
         return true
       }
 
-      // 2. Проверяем наличие WebApp SDK
+      // 2. Проверка SDK с коротким ожиданием
       const checkSDK = () => {
         const tg = (window as any).Telegram?.WebApp
         const max = (window as any).WebApp
-        return !!(
-          tg?.initDataUnsafe?.user ||
-          tg?.initData ||
-          (tg && tg.platform !== 'unknown') ||
-          (max && typeof max.ready === 'function') ||
-          (max && max.initData)
-        )
+        return !!(tg?.initData || max?.initData)
       }
 
-      // Если SDK уже загружен, используем его
-      if (checkSDK()) {
-        return true
-      }
+      if (checkSDK()) return true
 
-      // 3. Ждем загрузки SDK (максимум 500ms)
       return new Promise<boolean>((resolve) => {
         let attempts = 0
-        const maxAttempts = 10
         const interval = setInterval(() => {
           attempts++
           if (checkSDK()) {
             clearInterval(interval)
             resolve(true)
-          } else if (attempts >= maxAttempts) {
+          } else if (attempts >= 5) { // Уменьшаем до 250ms
             clearInterval(interval)
             resolve(false)
           }
@@ -61,29 +67,20 @@ export default function Home() {
       })
     }
 
-    // Выполняем проверку
     checkWebApp().then((isApp) => {
       setIsWebApp(isApp)
-
-      // Проверяем авторизацию
-      const auth = localStorage.getItem('prepodavai_authenticated') === 'true'
-      setIsAuthenticated(auth)
-
-      // Если Telegram Mini App, инициализируем
-      if (isApp && (window as any).Telegram?.WebApp) {
-        const tgApp = (window as any).Telegram.WebApp
-        tgApp.ready?.()
-        tgApp.expand?.()
-      } else if (isApp && (window as any).WebApp) {
-        // Инициализируем MAX Web App
-        const maxApp = (window as any).WebApp
-        maxApp.ready?.()
+      if (isApp) {
+        // Инициализируем SDK если нужно
+        const tg = (window as any).Telegram?.WebApp
+        const max = (window as any).WebApp
+        tg?.ready?.()
+        max?.ready?.()
       }
     })
   }, [])
 
-  // Показываем индикатор загрузки во время проверки окружения
-  if (isWebApp === null) {
+  // Если мы авторизованы, показываем лоадер пока идет редирект
+  if (isAuthenticated === true) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <Loader2 className="w-10 h-10 animate-spin text-purple-600" />
@@ -91,9 +88,8 @@ export default function Home() {
     )
   }
 
-  // Если пользователь авторизован, всегда редиректим в дашборд (и в вебе, и в Mini Apps)
-  if (isAuthenticated) {
-    router.push('/dashboard')
+  // Если идет проверка окружения
+  if (isWebApp === null || isAuthenticated === null) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <Loader2 className="w-10 h-10 animate-spin text-purple-600" />
@@ -101,7 +97,7 @@ export default function Home() {
     )
   }
 
-  // Для неавторизованных пользователей показываем лендинг
+  // Показываем лендинг только для гостей
   return <LandingPage />
 }
 

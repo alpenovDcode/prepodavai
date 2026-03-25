@@ -20,8 +20,8 @@ export default function RootLayout({
     <html lang="ru">
       <head>
         <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" rel="stylesheet" />
-        <Script src="https://telegram.org/js/telegram-web-app.js" strategy="beforeInteractive" />
-        <Script src="https://st.max.ru/js/max-web-app.js" strategy="beforeInteractive" />
+        <Script src="https://telegram.org/js/telegram-web-app.js" strategy="afterInteractive" />
+        <Script src="https://st.max.ru/js/max-web-app.js" strategy="afterInteractive" />
         <Script id="suppress-logs" strategy="beforeInteractive">
           {`
             (function() {
