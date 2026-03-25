@@ -28,6 +28,24 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
     const isActive = (path: string) => pathname === path
 
+    // Проверка, находимся ли мы в Mini App
+    const isMiniApp = typeof window !== 'undefined' && (
+      (window as any).Telegram?.WebApp?.initData || 
+      (window as any).WebApp?.initData ||
+      new URLSearchParams(window.location.search).has('tgWebAppData') ||
+      new URLSearchParams(window.location.search).has('max_init_data')
+    )
+
+    if (isMiniApp) {
+        return (
+            <div className="min-h-screen bg-[#F9FAFB]">
+                <main className="p-4">
+                    {children}
+                </main>
+            </div>
+        )
+    }
+
     return (
         <div className="min-h-screen bg-[#F9FAFB]">
             {/* Mobile overlay */}

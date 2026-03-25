@@ -91,17 +91,17 @@ export default function Home() {
     )
   }
 
-  // Показываем лендинг только для веб-пользователей без авторизации
-  if (!isWebApp && !isAuthenticated) {
-    return <LandingPage />
-  }
-
-  // Если пользователь авторизован и не в Telegram/MAX, редиректим в дашборд
-  if (!isWebApp && isAuthenticated) {
+  // Если пользователь авторизован, всегда редиректим в дашборд (и в вебе, и в Mini Apps)
+  if (isAuthenticated) {
     router.push('/dashboard')
-    return null
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <Loader2 className="w-10 h-10 animate-spin text-purple-600" />
+      </div>
+    )
   }
 
-  return <WebAppIndex />
+  // Для неавторизованных пользователей показываем лендинг
+  return <LandingPage />
 }
 
