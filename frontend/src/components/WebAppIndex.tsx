@@ -302,48 +302,71 @@ export default function WebAppIndex({ embedded = false }: WebAppIndexProps) {
     setIsExporting(true)
     try {
       const typeLabel = getGenerationTypeLabel(currentFunctionId)
+
+      // Auto-print script injected into the opened window
+      const autoPrintScript = `<script>
+        window.onload = function() {
+          var mjax = window.MathJax;
+          var doPrint = function() { setTimeout(function() { window.print(); }, 300); };
+          if (mjax && mjax.typesetPromise) {
+            mjax.typesetPromise().then(doPrint).catch(doPrint);
+          } else if (mjax && mjax.Hub) {
+            mjax.Hub.Queue(['Typeset', mjax.Hub], doPrint);
+          } else {
+            setTimeout(doPrint, 800);
+          }
+        };
+      <\/script>`
+
       let htmlToExport = ''
 
       if (isStructuredResult && generationResult.sections?.[activeSectionIndex]) {
-        // Structured (lesson prep, wow-lesson, etc.)
         const section = generationResult.sections[activeSectionIndex]
         if (section.fileType === 'pptx') {
           const link = document.createElement('a')
           link.href = section.fileUrl
           link.download = `presentation_${activeSectionIndex}.pptx`
-          document.body.appendChild(link)
-          link.click()
-          document.body.removeChild(link)
+          document.body.appendChild(link); link.click(); document.body.removeChild(link)
           return
         }
         htmlToExport = `<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8"><title>${section.title || typeLabel}</title>
 <style>body{font-family:Arial,sans-serif;line-height:1.6;padding:40px;max-width:800px;margin:0 auto;background:#fff;color:#000;font-size:14pt}h1{color:#FF7E58;border-bottom:2px solid #D8E6FF;padding-bottom:10px;margin-bottom:20px}table{width:100%;border-collapse:collapse;margin-bottom:1em}th,td{border:1px solid #ddd;padding:8px}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style>
-</head><body><h1>${section.title || typeLabel}</h1><div>${section.content}</div><p style="margin-top:40px;font-size:10px;color:#a0aec0;border-top:1px solid #edf2f7">Сгенерировано PrepodavAI</p></body></html>`
+${autoPrintScript}</head>
+<body><h1>${section.title || typeLabel}</h1><div>${section.content}</div>
+<p style="margin-top:40px;font-size:10px;color:#a0aec0;border-top:1px solid #edf2f7">Сгенерировано PrepodavAI</p></body></html>`
+
       } else if (isHtmlResult && htmlResult) {
-        // Full HTML (worksheet, quiz, OGE, etc.)
         const printStyles = `<style>@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style>`
-        htmlToExport = /\<head[\s>]/i.test(htmlResult)
-          ? htmlResult.replace(/<\/head>/i, `${printStyles}</head>`)
-          : htmlResult
+        if (/<\/head>/i.test(htmlResult)) {
+          htmlToExport = htmlResult.replace(/<\/head>/i, `${printStyles}${autoPrintScript}</head>`)
+        } else if (/<head[\s>]/i.test(htmlResult)) {
+          htmlToExport = htmlResult.replace(/<head([^>]*)>/i, `<head$1>${printStyles}${autoPrintScript}`)
+        } else {
+          htmlToExport = `<!DOCTYPE html><html><head>${printStyles}${autoPrintScript}</head><body>${htmlResult}</body></html>`
+        }
       } else {
-        // Plain text / JSON / any other
         const raw = textResultPayload || generationResult
-        let content = ''
+        let bodyContent = ''
         if (typeof raw === 'object') {
           const json = JSON.stringify(raw, null, 2)
-          content = `<pre style="font-family:monospace;white-space:pre-wrap;word-wrap:break-word">${json.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</pre>`
+          bodyContent = `<pre style="font-family:monospace;white-space:pre-wrap;word-wrap:break-word">${json.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</pre>`
         } else {
           const str = String(raw || '')
-          content = isHtmlString(str)
-            ? str
-            : `<div style="white-space:pre-wrap;word-wrap:break-word">${str.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>`
+          bodyContent = isHtmlString(str) ? str : `<div style="white-space:pre-wrap;word-wrap:break-word">${str.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>`
         }
         htmlToExport = `<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8"><title>${typeLabel}</title>
 <style>body{font-family:Arial,sans-serif;line-height:1.6;padding:40px;max-width:800px;margin:0 auto;background:#fff;color:#000;font-size:14pt}table{width:100%;border-collapse:collapse;margin-bottom:1em}th,td{border:1px solid #ddd;padding:8px}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style>
-</head><body>${content}</body></html>`
+${autoPrintScript}</head><body>${bodyContent}</body></html>`
       }
 
-      await printHtmlAsPdf(htmlToExport)
+      const win = window.open('', '_blank')
+      if (!win) {
+        alert('Браузер заблокировал всплывающее окно. Разрешите всплывающие окна для этого сайта.')
+        return
+      }
+      win.document.open()
+      win.document.write(htmlToExport)
+      win.document.close()
     } catch (err: any) {
       console.error('Download error:', err)
       alert('Ошибка при экспорте: ' + (err.message || 'Неизвестная ошибка'))
@@ -352,148 +375,43 @@ export default function WebAppIndex({ embedded = false }: WebAppIndexProps) {
     }
   }
 
-  const printHtmlAsPdf = (html: string): Promise<void> => {
-    return new Promise((resolve, reject) => {
-      const existing = document.getElementById('__print-frame-webapp__')
-      if (existing) existing.remove()
-
-      const iframe = document.createElement('iframe')
-      iframe.id = '__print-frame-webapp__'
-      iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:210mm;height:297mm;border:none;'
-      document.body.appendChild(iframe)
-
-      const doc = iframe.contentDocument || iframe.contentWindow?.document
-      if (!doc) { reject(new Error('Cannot access iframe document')); return }
-
-      doc.open()
-      doc.write(html)
-      doc.close()
-
-      const onLoad = () => {
-        const win = iframe.contentWindow
-        if (!win) { reject(new Error('Cannot access iframe window')); return }
-
-        const doprint = () => {
-          try {
-            win.focus()
-            win.print()
-            setTimeout(() => { iframe.remove(); resolve() }, 1000)
-          } catch (e) { iframe.remove(); reject(e) }
-        }
-
-        const mjax = (win as any).MathJax
-        if (mjax?.typesetPromise) {
-          mjax.typesetPromise().then(() => setTimeout(doprint, 500)).catch(() => setTimeout(doprint, 500))
-        } else {
-          setTimeout(doprint, 800)
-        }
-      }
-
-      iframe.addEventListener('load', onLoad, { once: true })
-      setTimeout(() => { iframe.removeEventListener('load', onLoad); onLoad() }, 8000)
-    })
-  }
-
   const downloadTextResult = async () => {
     if (!generationResult) return
-
     setIsExporting(true)
     try {
       const typeLabel = getGenerationTypeLabel(currentFunctionId)
-
-      // Build HTML to print
-      let htmlToExport: string
-
+      const autoPrint = `<script>window.onload=function(){setTimeout(function(){window.print()},800)}<\/script>`
+      let html = ''
       if (isHtmlResult && htmlResult) {
-        // Add print styles to existing HTML
-        const printStyles = `<style>@media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }</style>`
-        if (/\<head[\s>]/i.test(htmlResult)) {
-          htmlToExport = htmlResult.replace(/<\/head>/i, `${printStyles}</head>`)
-        } else {
-          htmlToExport = htmlResult
-        }
+        html = /<\/head>/i.test(htmlResult) ? htmlResult.replace(/<\/head>/i, `${autoPrint}</head>`) : htmlResult
       } else {
-        // Wrap plain text in styled HTML
-        let content = textResultPayload || ''
-        if (typeof content === 'object') {
-          const jsonStr = JSON.stringify(content, null, 2)
-          content = `<pre style="font-family: monospace; white-space: pre-wrap; word-wrap: break-word;">${jsonStr.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre>`
-        } else if (typeof content === 'string' && !isHtmlString(content)) {
-          content = `<div style="font-family: Arial, sans-serif; line-height: 1.6; padding: 20px; white-space: pre-wrap; word-wrap: break-word;">${content.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>`
-        }
-
-        htmlToExport = `<!DOCTYPE html>
-<html lang="ru">
-<head>
-  <meta charset="utf-8">
-  <title>${typeLabel}</title>
-  <style>
-    body { font-family: Arial, sans-serif; line-height: 1.6; padding: 40px; max-width: 800px; margin: 0 auto; background: #fff; color: #000; font-size: 14pt; }
-    table { width: 100%; border-collapse: collapse; margin-bottom: 1em; }
-    th, td { border: 1px solid #ddd; padding: 8px; }
-    @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
-  </style>
-</head>
-<body>${content}</body>
-</html>`
+        let body = textResultPayload || ''
+        if (typeof body === 'object') body = `<pre>${JSON.stringify(body,null,2)}</pre>`
+        else if (typeof body === 'string' && !isHtmlString(body)) body = `<div style="white-space:pre-wrap">${body}</div>`
+        html = `<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8"><title>${typeLabel}</title><style>body{font-family:Arial,sans-serif;line-height:1.6;padding:40px;max-width:800px;margin:0 auto;font-size:14pt}@media print{body{-webkit-print-color-adjust:exact}}</style>${autoPrint}</head><body>${body}</body></html>`
       }
-
-      await printHtmlAsPdf(htmlToExport)
-    } catch (error: any) {
-      console.error('Download error:', error)
-      alert('Ошибка при экспорте PDF: ' + (error.message || 'Неизвестная ошибка'))
-    } finally {
-      setIsExporting(false)
-    }
+      const win = window.open('', '_blank')
+      if (!win) { alert('Разрешите всплывающие окна для этого сайта'); return }
+      win.document.open(); win.document.write(html); win.document.close()
+    } catch (e: any) { alert('Ошибка: ' + e.message) } finally { setIsExporting(false) }
   }
 
   const downloadStructuredPdf = async () => {
-    if (!generationResult?.sections || !generationResult.sections[activeSectionIndex]) return
-
+    if (!generationResult?.sections?.[activeSectionIndex] || isExporting) return
     const section = generationResult.sections[activeSectionIndex]
-
     if (section.fileType === 'pptx') {
-      const link = document.createElement('a')
-      link.href = section.fileUrl
-      link.download = `presentation_${activeSectionIndex}.pptx`
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      return
+      const link = document.createElement('a'); link.href = section.fileUrl; link.download = `presentation_${activeSectionIndex}.pptx`
+      document.body.appendChild(link); link.click(); document.body.removeChild(link); return
     }
-
-    if (isExporting) return
     setIsExporting(true)
-
     try {
       const title = section.title || 'Материал'
-      const htmlToExport = `<!DOCTYPE html>
-<html lang="ru">
-<head>
-  <meta charset="utf-8">
-  <title>${title}</title>
-  <style>
-    body { font-family: Arial, sans-serif; line-height: 1.6; padding: 40px; max-width: 800px; margin: 0 auto; background: #fff; color: #000; font-size: 14pt; }
-    h1 { color: #FF7E58; border-bottom: 2px solid #D8E6FF; padding-bottom: 10px; margin-bottom: 20px; }
-    table { width: 100%; border-collapse: collapse; margin-bottom: 1em; }
-    th, td { border: 1px solid #ddd; padding: 8px; }
-    @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
-  </style>
-</head>
-<body>
-  <h1>${title}</h1>
-  <div style="line-height: 1.6;">${section.content}</div>
-  <p style="margin-top: 40px; font-size: 10px; color: #a0aec0; border-top: 1px solid #edf2f7;">Сгенерировано PrepodavAI</p>
-</body>
-</html>`
-
-      await printHtmlAsPdf(htmlToExport)
-    } catch (e: any) {
-      console.error('Failed to export structured PDF:', e)
-      alert('Ошибка при экспорте PDF: ' + (e.message || 'Неизвестная ошибка'))
-    } finally {
-      setIsExporting(false)
-    }
+      const autoPrint = `<script>window.onload=function(){setTimeout(function(){window.print()},800)}<\/script>`
+      const html = `<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8"><title>${title}</title><style>body{font-family:Arial,sans-serif;line-height:1.6;padding:40px;max-width:800px;margin:0 auto;font-size:14pt}h1{color:#FF7E58}@media print{body{-webkit-print-color-adjust:exact}}</style>${autoPrint}</head><body><h1>${title}</h1><div>${section.content}</div><p style="margin-top:40px;font-size:10px;color:#a0aec0">Сгенерировано PrepodavAI</p></body></html>`
+      const win = window.open('', '_blank')
+      if (!win) { alert('Разрешите всплывающие окна для этого сайта'); return }
+      win.document.open(); win.document.write(html); win.document.close()
+    } catch (e: any) { alert('Ошибка: ' + e.message) } finally { setIsExporting(false) }
   }
 
 
