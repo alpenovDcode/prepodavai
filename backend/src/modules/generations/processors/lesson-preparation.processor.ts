@@ -54,7 +54,8 @@ export class LessonPreparationProcessor extends WorkerHost {
       const previousContext: string[] = [];
 
       // Iterate through each requested type and generate content
-      for (const type of generationTypes) {
+      const typesToProcess = Array.isArray(generationTypes) ? generationTypes : [];
+      for (const type of typesToProcess) {
         this.logger.log(`Generating section: ${type}`);
 
         // SPECIAL HANDLER FOR PRESENTATION
