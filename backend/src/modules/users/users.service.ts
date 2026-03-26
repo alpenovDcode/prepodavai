@@ -148,6 +148,7 @@ export class UsersService {
         lastName: data.lastName,
         email: data.email,
         bio: data.bio,
+        avatar: data.avatar,
         notifyNewCourse: data.notifyNewCourse,
         notifyStudentProgress: data.notifyStudentProgress,
         notifyWeeklyReport: data.notifyWeeklyReport,

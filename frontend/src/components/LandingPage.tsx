@@ -23,7 +23,7 @@ export default function LandingPage() {
   useEffect(() => {
     const t = setInterval(() => setCurrentTestimonial((p) => (p + 1) % testimonials.length), 5000);
     return () => clearInterval(t);
-  }, []);
+  }, [testimonials.length]);
 
   const features = [
     { title: "Конструктор материалов", desc: "Рабочие листы, тесты и упражнения", preview: (
@@ -291,7 +291,7 @@ export default function LandingPage() {
                   <div style={{ width: 38, height: 38, borderRadius: "50%", background: "#fff7ed", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>{t.avatar}</div>
                   <div><p style={{ fontWeight: 700, fontSize: 13, margin: 0 }}>{t.name}</p><p style={{ fontSize: 11, color: "#999", margin: 0 }}>{t.role}</p></div>
                 </div>
-                <p style={{ fontSize: 13, color: "#555", lineHeight: 1.6 }}>"{t.text}"</p>
+                <p style={{ fontSize: 13, color: "#555", lineHeight: 1.6 }}>&quot;{t.text}&quot;</p>
               </div>
             ))}
           </div>

@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useUser } from '@/lib/hooks/useUser'
 import { LOGO_BASE64 } from '@/constants/branding'
+import { apiClient } from '@/lib/api/client'
 
 interface DashboardLayoutProps {
     children: ReactNode
@@ -99,8 +100,14 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                         onClick={() => router.push('/dashboard/settings')}
                     >
                         <div className="flex items-center gap-3 min-w-0">
-                            <div className="w-10 h-10 shrink-0 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white font-semibold">
-                                {initials}
+                            <div className="w-10 h-10 shrink-0 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white font-semibold overflow-hidden">
+                                {user?.avatar ? (
+                                    <img 
+                                        src={`${apiClient.defaults.baseURL}/files/${user.avatar}`} 
+                                        alt="Avatar" 
+                                        className="w-full h-full object-cover"
+                                    />
+                                ) : initials}
                             </div>
                             <div className="flex-1 min-w-0">
                                 <p className="text-sm font-semibold text-gray-900 truncate">{fullName}</p>
