@@ -72,6 +72,7 @@ export class FilesController {
           '.ogg',
           '.m4a',
           '.aac',
+          '.html',
         ];
         if (!allowedExtensions.includes(ext)) {
           return cb(new BadRequestException(`Invalid file extension: ${ext}`), false);
@@ -119,6 +120,7 @@ export class FilesController {
       'audio/wav': '.wav',
       'audio/ogg': '.ogg',
       'application/vnd.openxmlformats-officedocument.presentationml.presentation': '.pptx',
+      'text/html': '.html',
     };
     const ext = extMap[file.mimeType] || '';
     const filename = `${hash}${ext}`;

@@ -240,7 +240,6 @@ export default function LandingPage() {
       {/* BENEFITS */}
       <section style={{ padding: "72px 24px", background: "white" }}>
         <div style={{ maxWidth: 900, margin: "0 auto", textAlign: "center" }}>
-          <p style={{ color: "#f97316", fontWeight: 700, fontSize: 12, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 6 }}>BUILT FOR LEARNING</p>
           <h2 style={{ fontSize: 32, fontWeight: 900, marginBottom: 48 }}>Создано для обучения</h2>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 24 }}>
             {[

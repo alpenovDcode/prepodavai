@@ -45,6 +45,7 @@ export default function WebAppIndex({ embedded = false }: WebAppIndexProps) {
   const [attempts, setAttempts] = useState(0)
   const [maxAttempts] = useState(60)
   const [generationResult, setGenerationResult] = useState<any>(null)
+  const [activeSectionIndex, setActiveSectionIndex] = useState(0)
   const [userHash, setUserHash] = useState<string | null>(null)
   const [userSource, setUserSource] = useState<'web' | 'telegram' | 'max' | null>(null)
 
@@ -218,6 +219,7 @@ export default function WebAppIndex({ embedded = false }: WebAppIndexProps) {
       setCurrentFunctionId(prev => prev === 'lessonPreparation' ? 'worksheet' : prev)
     }
     setGenerationResult(null)
+    setActiveSectionIndex(0)
     setStatusMessage('')
   }, [topLevelTab])
 
@@ -278,6 +280,7 @@ export default function WebAppIndex({ embedded = false }: WebAppIndexProps) {
 
   const clearResult = () => {
     setGenerationResult(null)
+    setActiveSectionIndex(0)
     setStatusMessage('')
   }
 
@@ -298,6 +301,7 @@ export default function WebAppIndex({ embedded = false }: WebAppIndexProps) {
 
     setIsExporting(true)
     try {
+      // 1. If it's HTML result (GigaChat mode="chat" or "image")
       if (isHtmlResult && htmlResult) {
         const typeLabel = getGenerationTypeLabel(currentFunctionId)
         const safeName = typeLabel.replace(/[^a-zA-Zа-яА-Я0-9]/g, '_') || 'result'
@@ -320,14 +324,11 @@ export default function WebAppIndex({ embedded = false }: WebAppIndexProps) {
         link.click()
         document.body.removeChild(link)
         URL.revokeObjectURL(url)
-        setIsExporting(false)
         return
       }
 
+      // 2. Otherwise handle as regular text/html result
       let content = textResultPayload || ''
-      let mime = 'text/html'
-      let extension = 'html'
-
       if (typeof content === 'object') {
         const jsonStr = JSON.stringify(content, null, 2)
         content = `<pre style="font-family: monospace; white-space: pre-wrap; word-wrap: break-word;">${jsonStr.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre>`
@@ -347,15 +348,7 @@ export default function WebAppIndex({ embedded = false }: WebAppIndexProps) {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${getGenerationTypeLabel(currentFunctionId)}</title>
   <style>
-    body { 
-      font-family: Arial, sans-serif; 
-      line-height: 1.6; 
-      padding: 20px; 
-      max-width: 800px; 
-      margin: 0 auto; 
-      background: #ffffff;
-      color: #000000;
-    }
+    body { font-family: Arial, sans-serif; line-height: 1.6; padding: 20px; max-width: 800px; margin: 0 auto; background: #ffffff; color: #000000; }
   </style>
 </head>
 <body>
@@ -382,6 +375,59 @@ export default function WebAppIndex({ embedded = false }: WebAppIndexProps) {
       if ((window as any).Telegram?.WebApp) {
         (window as any).Telegram.WebApp.showAlert('Ошибка при скачивании: ' + error.message)
       }
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
+  const downloadStructuredPdf = async () => {
+    if (!generationResult?.sections || !generationResult.sections[activeSectionIndex]) return
+
+    const section = generationResult.sections[activeSectionIndex]
+    
+    if (section.fileType === 'pptx') {
+      const link = document.createElement('a')
+      link.href = section.fileUrl
+      link.download = `presentation_${activeSectionIndex}.pptx`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      return
+    }
+
+    setIsExporting(true)
+    try {
+      const typeLabel = section.title || 'Материал'
+      const safeName = typeLabel.replace(/[^a-zA-Zа-яА-Я0-9]/g, '_') || 'result'
+      const dateSuffix = new Date().toISOString().split('T')[0]
+      const filename = `${safeName}_${dateSuffix}.pdf`
+
+      const styledHtml = `
+        <div style="font-family: sans-serif; padding: 20px;">
+          <h1 style="color: #FF7E58; border-bottom: 2px solid #D8E6FF; padding-bottom: 10px; margin-bottom: 20px;">${section.title}</h1>
+          <div style="line-height: 1.6; color: #2d3748;">
+            ${section.content}
+          </div>
+          <p style="margin-top: 40px; font-size: 10px; color: #a0aec0; border-top: 1px solid #edf2f7; pt: 10px;">Сгенерировано PrepodavAI</p>
+        </div>
+      `
+
+      const response = await apiClient.post<Blob>(
+        '/gigachat/export/pdf',
+        { html: styledHtml, filename },
+        { responseType: 'blob' }
+      )
+
+      const blob = response.data
+      const url = URL.createObjectURL(blob)
+      const link = document.body.appendChild(document.createElement('a'))
+      link.href = url
+      link.download = filename
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      console.error('Failed to export structured PDF:', e)
     } finally {
       setIsExporting(false)
     }
@@ -536,6 +582,10 @@ export default function WebAppIndex({ embedded = false }: WebAppIndexProps) {
         // Обновляем результат в реальном времени (для lessonPreparation)
         if (type === 'lessonPreparation') {
           setGenerationResult(partialResult)
+          // Если это первая генерация секций, убедимся что индекс 0
+          if (partialResult?.sections?.length > 0 && activeSectionIndex === -1) {
+             setActiveSectionIndex(0)
+          }
         }
       })
 
@@ -723,22 +773,65 @@ export default function WebAppIndex({ embedded = false }: WebAppIndexProps) {
             >
               <div className="p-4 sm:p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-[#FF7E58] flex items-center justify-center">
-                      <i className="fas fa-check text-white"></i>
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-bold text-black">Результат генерации</h3>
-                      <p className="text-xs text-black/70">{getGenerationTypeLabel(currentFunctionId)}</p>
-                    </div>
+                  <div className="flex items-center gap-2">
+                    {isStructuredResult ? (
+                      <>
+                        <div className="px-3 py-1.5 rounded-lg bg-[#FFF2F6] text-[#FF2A5F] text-[10px] font-bold tracking-widest uppercase">
+                          ВАУ-УРОК
+                        </div>
+                        <div className="px-3 py-1.5 rounded-lg bg-[#F1F5F9] text-[#475569] text-[10px] font-bold tracking-widest uppercase">
+                          {generationResult.sections.length} ЭЛЕМЕНТОВ
+                        </div>
+                      </>
+                    ) : (
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-[#FF7E58] flex items-center justify-center">
+                          <i className="fas fa-check text-white"></i>
+                        </div>
+                        <div>
+                          <h3 className="text-lg font-bold text-black">Результат генерации</h3>
+                          <p className="text-xs text-black/70">{getGenerationTypeLabel(currentFunctionId)}</p>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                  <div className="flex gap-2">
-                    {isTextResult && (
+                  <div className="flex items-center gap-3">
+                    {/* Copy and Refresh Icons */}
+                    <div className="flex items-center gap-1">
+                      <button 
+                        onClick={() => {
+                          const text = isStructuredResult 
+                            ? generationResult.sections[activeSectionIndex].content.replace(/<[^>]*>/g, '') 
+                            : String(generationResult.content || generationResult)
+                          navigator.clipboard.writeText(text)
+                        }}
+                        className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-gray-600 transition"
+                      >
+                        <i className="far fa-copy text-lg"></i>
+                      </button>
+                      <button 
+                        onClick={() => generateMaterial()}
+                        className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-gray-600 transition"
+                      >
+                        <i className="fas fa-sync-alt text-lg"></i>
+                      </button>
+                    </div>
+
+                    {isStructuredResult ? (
+                      <button
+                        onClick={downloadStructuredPdf}
+                        disabled={isExporting}
+                        className="h-10 px-4 bg-[#FF2A5F] text-white rounded-xl text-xs font-bold hover:shadow-lg transition active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
+                      >
+                        {isExporting ? <Loader2 className="w-3 h-3 animate-spin" /> : <i className="fas fa-download"></i>}
+                        Экспорт PDF
+                      </button>
+                    ) : isTextResult && (
                       <>
                         <button
                           onClick={handleAssignClick}
                           disabled={isAssigning}
-                          className="px-3 py-2 bg-primary-600 text-white rounded-lg text-xs font-medium hover:bg-primary-700 transition active:scale-95 disabled:opacity-50 flex items-center gap-2"
+                          className="h-10 px-4 bg-primary-600 text-white rounded-xl text-xs font-bold hover:bg-primary-700 transition active:scale-95 disabled:opacity-50 flex items-center gap-2"
                         >
                           <Users className="w-3 h-3" />
                           {isAssigning ? '...' : 'Выдать'}
@@ -746,17 +839,19 @@ export default function WebAppIndex({ embedded = false }: WebAppIndexProps) {
                         <button
                           onClick={downloadTextResult}
                           disabled={isExporting}
-                          className="px-3 py-2 bg-[#FF7E58] text-white rounded-lg text-xs font-medium hover:shadow-lg transition active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
+                          className="h-10 px-4 bg-[#FF7E58] text-white rounded-xl text-xs font-bold hover:shadow-lg transition active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
                         >
-                          <i className="fas fa-download mr-1"></i>Скачать
+                          {isExporting ? <Loader2 className="w-3 h-3 animate-spin" /> : <i className="fas fa-download"></i>}
+                          Экспорт PDF
                         </button>
                       </>
                     )}
                     <button
                       onClick={clearResult}
-                      className="px-3 py-2 bg-[#D8E6FF] border border-[#D8E6FF] text-red-500 rounded-lg text-xs font-medium hover:bg-red-50 transition active:scale-95"
+                      className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-red-500 transition"
+                      title="Закрыть"
                     >
-                      <i className="fas fa-times mr-1"></i>Закрыть
+                      <i className="fas fa-times text-lg"></i>
                     </button>
                   </div>
                 </div>
@@ -764,82 +859,67 @@ export default function WebAppIndex({ embedded = false }: WebAppIndexProps) {
                 {/* Structured Result (Lesson Preparation) */}
                 {isStructuredResult && (
                   <div className="space-y-4">
-                    {/* Warning about data persistence */}
-                    <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 flex items-start gap-3">
-                      <i className="fas fa-exclamation-triangle text-amber-500 mt-0.5"></i>
-                      <div className="text-sm text-amber-900">
-                        <p className="font-semibold mb-1">Важно: Сохраните результаты!</p>
-                        <p>Эти материалы доступны только сейчас. Если вы обновите страницу или закроете вкладку, они исчезнут навсегда. Пожалуйста, скачайте их прямо сейчас.</p>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Tabs for sections */}
+                    <div className="flex border-b border-[#D8E6FF] overflow-x-auto no-scrollbar">
                       {generationResult.sections.map((section: any, index: number) => (
-                        <div key={index} className="p-4 rounded-xl border border-[#D8E6FF] bg-gray-50 flex flex-col justify-between">
-                          <div>
-                            <h4 className="font-semibold text-gray-900 mb-1">{section.title}</h4>
-                            <p className="text-xs text-gray-500 mb-3">Нажмите, чтобы открыть или распечатать</p>
-                          </div>
-                          <div className="flex gap-2">
-                            {section.fileType === 'pptx' ? (
-                              <a
-                                href={section.fileUrl}
-                                target="_blank"
-                                className="flex-1 py-2 px-3 bg-[#FF7E58] text-white rounded-lg text-sm font-medium hover:shadow-lg transition active:scale-95 flex items-center justify-center gap-2"
-                              >
-                                <i className="fas fa-download"></i>
-                                <span>Скачать презентацию (PPTX)</span>
-                              </a>
-                            ) : (
-                              <>
-                                <button
-                                  onClick={() => {
-                                    const blob = new Blob([section.content], { type: 'text/html;charset=utf-8' });
-                                    const url = URL.createObjectURL(blob);
-                                    window.open(url, '_blank');
-                                  }}
-                                  className="flex-1 py-2 px-3 bg-white border border-[#FF7E58] text-[#FF7E58] rounded-lg text-sm font-medium hover:bg-[#FF7E58] hover:text-white transition-colors shadow-sm flex items-center justify-center gap-2"
-                                >
-                                  <i className="fas fa-external-link-alt"></i>
-                                  <span>Открыть</span>
-                                </button>
-                                <button
-                                  onClick={() => {
-                                    const printContent = `
-                                      <html>
-                                        <head>
-                                          <title>${section.title}</title>
-                                          <style>
-                                            body { font-family: sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
-                                            img { max-width: 100%; }
-                                            @media print {
-                                              body { -webkit-print-color-adjust: exact; }
-                                            }
-                                          </style>
-                                        </head>
-                                        <body>
-                                          ${section.content}
-                                          <script>
-                                            window.onload = function() { window.print(); }
-                                          </script>
-                                        </body>
-                                      </html>
-                                    `;
-                                    const blob = new Blob([printContent], { type: 'text/html;charset=utf-8' });
-                                    const url = URL.createObjectURL(blob);
-                                    const win = window.open(url, '_blank');
-                                  }}
-                                  className="flex-1 py-2 px-3 bg-[#FF7E58] text-white rounded-lg text-sm font-medium hover:shadow-lg transition active:scale-95 flex items-center justify-center gap-2"
-                                >
-                                  <i className="fas fa-file-pdf"></i>
-                                  <span>Скачать PDF</span>
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        </div>
+                        <button
+                          key={index}
+                          onClick={() => setActiveSectionIndex(index)}
+                          className={`px-4 py-3 text-sm font-bold whitespace-nowrap border-b-2 transition-all ${
+                            activeSectionIndex === index
+                              ? 'border-[#FF7E58] text-[#FF7E58]'
+                              : 'border-transparent text-gray-400 hover:text-gray-600'
+                          }`}
+                        >
+                          {section.title.toUpperCase()}
+                        </button>
                       ))}
                     </div>
+
+                    {/* Active Section Content */}
+                    {generationResult.sections[activeSectionIndex] && (
+                      <div className="animate-fade-in">
+                        {/* Warning about data persistence */}
+                        <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 flex items-start gap-3 mb-4">
+                          <i className="fas fa-exclamation-triangle text-amber-500 mt-0.5"></i>
+                          <div className="text-sm text-amber-900">
+                            <p className="font-semibold mb-1">Важно: Сохраните результаты!</p>
+                            <p>Этот материал («{generationResult.sections[activeSectionIndex].title}») доступен только сейчас. Если вы обновите страницу, он исчезнет.</p>
+                          </div>
+                        </div>
+
+                        <div className="p-1 rounded-xl border border-[#D8E6FF] bg-gray-50">
+                           <div className="bg-white rounded-lg p-4 min-h-[400px]">
+                              {generationResult.sections[activeSectionIndex].fileType === 'pptx' ? (
+                                <div className="flex flex-col items-center justify-center py-12 text-center">
+                                   <div className="w-20 h-20 rounded-2xl bg-orange-100 flex items-center justify-center mb-4 text-[#FF7E58]">
+                                      <i className="fas fa-file-powerpoint text-4xl"></i>
+                                   </div>
+                                   <h4 className="text-xl font-bold mb-2">{generationResult.sections[activeSectionIndex].title}</h4>
+                                   <p className="text-gray-500 mb-6 max-w-md">Презентация готова к скачиванию. Вы можете открыть её для просмотра или скачать файл PPTX.</p>
+                                   <div className="flex gap-3">
+                                      <a
+                                        href={generationResult.sections[activeSectionIndex].fileUrl}
+                                        target="_blank"
+                                        className="py-3 px-6 bg-[#FF7E58] text-white rounded-xl font-bold hover:shadow-lg transition active:scale-95 flex items-center gap-2"
+                                      >
+                                        <i className="fas fa-download"></i>
+                                        Скачать PPTX
+                                      </a>
+                                   </div>
+                                </div>
+                              ) : (
+                                <div 
+                                  className="prose prose-sm max-w-none preview-content"
+                                  dangerouslySetInnerHTML={{ 
+                                    __html: DOMPurify.sanitize(generationResult.sections[activeSectionIndex].content) 
+                                  }}
+                                />
+                              )}
+                           </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 
