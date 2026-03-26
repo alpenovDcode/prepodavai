@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { apiClient } from '@/lib/api/client'
 import AssignMaterialModal from './AssignMaterialModal'
 import { useRouter } from 'next/navigation'
+import { getGenerationTypeLabel, getGenerationTypeIcon } from '@/lib/utils/translations'
 
 interface Generation {
     id: string
@@ -170,18 +171,11 @@ export default function CourseDetailPage({ id }: CourseDetailPageProps) {
                                         generation.status === 'failed' ? 'bg-red-100 text-red-600' :
                                             'bg-blue-100 text-blue-600'
                                         }`}>
-                                        <i className={`fas ${generation.generationType === 'plan' ? 'fa-list-ol' :
-                                            generation.generationType === 'presentation' ? 'fa-file-powerpoint' :
-                                                generation.generationType === 'quiz' ? 'fa-question-circle' :
-                                                    'fa-file-alt'
-                                            }`}></i>
+                                        <i className={`fas ${getGenerationTypeIcon(generation.generationType)}`}></i>
                                     </div>
                                     <div>
                                         <h4 className="font-medium text-gray-900 hover:text-primary-600 transition">
-                                            {generation.generationType === 'plan' ? 'План урока' :
-                                                generation.generationType === 'presentation' ? 'Презентация' :
-                                                    generation.generationType === 'quiz' ? 'Тест/Викторина' :
-                                                        generation.generationType}
+                                            {getGenerationTypeLabel(generation.generationType)}
                                         </h4>
                                         <p className="text-sm text-gray-500">
                                             {new Date(generation.createdAt).toLocaleString('ru-RU')}

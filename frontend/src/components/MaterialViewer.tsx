@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { apiClient } from '@/lib/api/client'
 import { useRouter } from 'next/navigation'
+import { getGenerationTypeLabel } from '@/lib/utils/translations'
 import PresentationEditor, { PresentationEditorRef } from './PresentationEditor'
 import PresentationPlayer from './PresentationPlayer'
 import { Save, Download, ChevronLeft, ChevronRight, ExternalLink, ArrowLeft, Loader2 } from 'lucide-react'
@@ -111,11 +112,18 @@ function isHtmlString(value: any): boolean {
 }
 
 function normalizeResultPayload(value: any) {
-    if (typeof value !== 'string') {
-        return { isHtmlResult: false, htmlResult: '', cleanedTextResult: value }
+    let processed = value;
+
+    if (typeof value === 'object' && value !== null) {
+        // Try common result keys in our structured outputs
+        processed = value.htmlResult || value.content || value.result || JSON.stringify(value);
     }
 
-    let processed = stripCodeFences(value)
+    if (typeof processed !== 'string') {
+        return { isHtmlResult: false, htmlResult: '', cleanedTextResult: String(processed) }
+    }
+
+    processed = stripCodeFences(processed)
 
     if (
         (processed.startsWith('"') && processed.endsWith('"')) ||
@@ -325,16 +333,7 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
             if (type === 'presentation') {
                 setContent(typeof directContent === 'object' ? JSON.stringify(directContent) : directContent);
             } else {
-                // Ensure directContent is a string before calling extractHtmlPayload
-                let contentString = '';
-                if (typeof directContent === 'string') {
-                    contentString = directContent;
-                } else if (typeof directContent === 'object') {
-                    // If it has a 'content' property (common in our JSON structure), use that, otherwise stringify
-                    contentString = directContent.content || JSON.stringify(directContent);
-                }
-
-                const { htmlResult, isHtmlResult: isHtml, cleanedTextResult: cleaned } = normalizeResultPayload(contentString);
+                const { htmlResult, isHtmlResult: isHtml, cleanedTextResult: cleaned } = normalizeResultPayload(directContent);
                 setContent(isHtml ? htmlResult : cleaned);
                 setIsHtmlResult(isHtml);
                 setCleanedTextResult(cleaned);
@@ -362,24 +361,10 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
                 } else {
                     setGenerationType(generation.generationType)
 
-                    // Extract content from the normalized result object
-                    let rawContent = '';
-                    if (typeof generation.outputData === 'string') {
-                        rawContent = generation.outputData;
-                    } else if (generation.outputData?.content) {
-                        rawContent = generation.outputData.content;
-                    } else {
-                        rawContent = JSON.stringify(generation.outputData, null, 2);
-                    }
-
                     if (generation.generationType === 'presentation') {
-                        // For presentation, we need the full JSON object to get URLs
-                        // If it was stringified, keep it as string, we'll parse it in render
-                        // If it was object (from generation.outputData directly), stringify it
                         setContent(typeof generation.outputData === 'object' ? JSON.stringify(generation.outputData) : generation.outputData);
                     } else {
-                        // Process the content using the same logic as WebAppIndex
-                        const { htmlResult, isHtmlResult: isHtml, cleanedTextResult: cleaned } = normalizeResultPayload(rawContent);
+                        const { htmlResult, isHtmlResult: isHtml, cleanedTextResult: cleaned } = normalizeResultPayload(generation.outputData);
                         setContent(isHtml ? htmlResult : cleaned);
                         setIsHtmlResult(isHtml);
                         setCleanedTextResult(cleaned);
@@ -697,7 +682,7 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
                     </button>
                     <div>
                         <h1 className="text-lg font-bold text-gray-900">{lessonTitle}</h1>
-                        <p className="text-sm text-gray-500 capitalize">{generationType === 'presentation' ? 'Презентация' : (generationType === 'image' || generationType === 'image_generation') ? 'Изображение' : generationType}</p>
+                        <p className="text-sm text-gray-500 capitalize">{getGenerationTypeLabel(generationType)}</p>
                     </div>
                 </div>
                 <div className="flex items-center gap-3">

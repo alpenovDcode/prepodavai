@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
+import { getGenerationTypeLabel } from '@/lib/utils/translations'
 import ImageResultDisplay from './ImageResultDisplay'
 import { apiClient } from '@/lib/api/client'
 import { getUserGenerations, removeCachedGeneration, CachedGeneration } from '@/lib/utils/generationsCache'
@@ -9,32 +10,7 @@ import { getCurrentUser } from '@/lib/utils/userIdentity'
 
 // ─── Labels & Helpers ────────────────────────────────────────────────
 
-const typeLabels: Record<string, string> = {
-  'image': '🎨 Изображение',
-  'photosession': '📸 ИИ Фотосессия',
-  'worksheet': '📄 Рабочий лист',
-  'quiz': '❓ Тест',
-  'vocabulary': '📚 Словарь',
-  'lessonPlan': '📋 План урока',
-  'lesson-plan': '📋 План урока',
-  'lessonPreparation': '🎓 Вау-урок',
-  'content': '🔄 Адаптация контента',
-  'content-adaptation': '🔄 Адаптация контента',
-  'feedback': '💬 Обратная связь',
-  'presentation': '📊 Презентация',
-  'transcription': '🎬 Транскрипция видео',
-  'videoAnalysis': '🎬 Анализ видео',
-  'salesAdvisor': '💼 Продажник',
-  'message': '✉️ Сообщение',
-  'game': '🎮 Мини-игра',
-  'unpacking': '📦 Распаковка',
-  'gigachat-chat': '🧠 GigaChat (текст)',
-  'gigachat-image': '🧠 GigaChat (изображение)',
-  'gigachat-embeddings': '🧠 GigaChat (эмбеддинги)',
-  'gigachat-audio-speech': '🧠 GigaChat (TTS)',
-  'gigachat-audio-transcription': '🧠 GigaChat (STT)',
-  'gigachat-audio-translation': '🧠 GigaChat (перевод аудио)'
-}
+// ─── Labels & Helpers ────────────────────────────────────────────────
 
 const paramLabels: Record<string, string> = {
   subject: 'Предмет',
@@ -84,7 +60,10 @@ function stripCodeFences(text: string) {
 
 function getResultContent(gen: CachedGeneration): any {
   if (!gen.result) return null
-  if (gen.result.content) return gen.result.content
+  const r = gen.result as any
+  if (r.htmlResult) return r.htmlResult
+  if (r.content) return r.content
+  if (r.result) return r.result
   return gen.result
 }
 
@@ -263,7 +242,7 @@ export default function GenerationHistory() {
     }
   }
 
-  const getTypeLabel = (type: string) => typeLabels[type] || type
+  const getTypeLabel = (type: string) => getGenerationTypeLabel(type)
 
   const getStatusLabel = (status: string) => {
     const labels: Record<string, string> = {
@@ -395,15 +374,17 @@ export default function GenerationHistory() {
       const filename = `${typeLabel}_${gen.id}`.replace(/[^a-zA-Zа-яА-Я0-9]/g, '_')
       
       let htmlContent = ''
+      const res = gen.result as any
+      const rawContent = res.htmlResult || res.content || res.result || res
       
-      if (gen.result?.content && typeof gen.result.content === 'string') {
-        if (/<[a-z][\s\S]*>/i.test(gen.result.content)) {
-          htmlContent = gen.result.content
+      if (typeof rawContent === 'string') {
+        if (/<[a-z][\s\S]*>/i.test(rawContent)) {
+          htmlContent = rawContent
         } else {
-          htmlContent = `<p>${gen.result.content.replace(/\n/g, '<br>')}</p>`
+          htmlContent = `<p>${rawContent.replace(/\n/g, '<br>')}</p>`
         }
-      } else if (gen.result) {
-        htmlContent = `<pre>${JSON.stringify(gen.result, null, 2)}</pre>`
+      } else {
+        htmlContent = `<pre>${JSON.stringify(rawContent, null, 2)}</pre>`
       }
 
       const fullHtml = `<!DOCTYPE html>
@@ -437,18 +418,19 @@ export default function GenerationHistory() {
   const getDisplayContent = (content: any): string => {
     if (!content) return ''
     
-    if (typeof content === 'string' && (content.trim().startsWith('<!DOCTYPE') || content.trim().startsWith('<html'))) {
+    let processed = content
+    if (typeof content === 'object') {
+        processed = content.htmlResult || content.content || content.result || JSON.stringify(content)
+    }
+
+    if (typeof processed === 'string' && (processed.trim().startsWith('<!DOCTYPE') || processed.trim().startsWith('<html') || processed.trim().startsWith('<div'))) {
       const parser = new DOMParser()
-      const doc = parser.parseFromString(content, 'text/html')
-      const textContent = doc.body?.textContent || doc.documentElement?.textContent || content
+      const doc = parser.parseFromString(processed, 'text/html')
+      const textContent = doc.body?.textContent || doc.documentElement?.textContent || processed
       return textContent.trim().replace(/\n\s*\n/g, '\n\n')
     }
     
-    if (typeof content === 'object') {
-      return JSON.stringify(content, null, 2)
-    }
-    
-    return String(content)
+    return String(processed)
   }
 
   const goBack = () => {
