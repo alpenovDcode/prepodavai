@@ -381,17 +381,36 @@ export default function WebAppIndex({ embedded = false }: WebAppIndexProps) {
   }
 
   const downloadStructuredPdf = async () => {
-    if (!generationResult?.sections || !generationResult.sections[activeSectionIndex]) return
+    console.log('downloadStructuredPdf triggered', { 
+      hasSections: !!generationResult?.sections, 
+      activeSectionIndex, 
+      isExporting 
+    })
+    
+    if (!generationResult?.sections || !generationResult.sections[activeSectionIndex]) {
+      console.error('No section to export')
+      return
+    }
 
     const section = generationResult.sections[activeSectionIndex]
+    console.log('Exporting section:', section.title, 'type:', section.fileType)
     
     if (section.fileType === 'pptx') {
-      const link = document.createElement('a')
-      link.href = section.fileUrl
-      link.download = `presentation_${activeSectionIndex}.pptx`
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
+      try {
+        const link = document.createElement('a')
+        link.href = section.fileUrl
+        link.download = `presentation_${activeSectionIndex}.pptx`
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+      } catch (err) {
+        console.error('PPTX download failed:', err)
+      }
+      return
+    }
+
+    if (isExporting) {
+      console.warn('Export already in progress')
       return
     }
 
@@ -401,6 +420,8 @@ export default function WebAppIndex({ embedded = false }: WebAppIndexProps) {
       const safeName = typeLabel.replace(/[^a-zA-Zа-яА-Я0-9]/g, '_') || 'result'
       const dateSuffix = new Date().toISOString().split('T')[0]
       const filename = `${safeName}_${dateSuffix}.pdf`
+
+      console.log('Requesting PDF generation for:', filename)
 
       const styledHtml = `
         <div style="font-family: sans-serif; padding: 20px;">
@@ -412,22 +433,29 @@ export default function WebAppIndex({ embedded = false }: WebAppIndexProps) {
         </div>
       `
 
-      const response = await apiClient.post<Blob>(
+      const response = await apiClient.post(
         '/gigachat/export/pdf',
         { html: styledHtml, filename },
         { responseType: 'blob' }
       )
 
-      const blob = response.data
+      console.log('Received PDF response, size:', response.data.size)
+
+      const blob = new Blob([response.data], { type: 'application/pdf' })
       const url = URL.createObjectURL(blob)
       const link = document.body.appendChild(document.createElement('a'))
       link.href = url
       link.download = filename
       link.click()
       document.body.removeChild(link)
-      URL.revokeObjectURL(url)
-    } catch (e) {
+      setTimeout(() => URL.revokeObjectURL(url), 100)
+    } catch (e: any) {
       console.error('Failed to export structured PDF:', e)
+      if ((window as any).Telegram?.WebApp) {
+        (window as any).Telegram.WebApp.showAlert('Ошибка при экспорте PDF: ' + (e.message || 'Неизвестная ошибка'))
+      } else {
+        alert('Ошибка при экспорте PDF: ' + (e.message || 'Неизвестная ошибка'))
+      }
     } finally {
       setIsExporting(false)
     }
@@ -772,48 +800,79 @@ export default function WebAppIndex({ embedded = false }: WebAppIndexProps) {
               className="mt-4 rounded-3xl border border-[#D8E6FF] bg-white shadow-md overflow-hidden animate-fade-in"
             >
               <div className="p-4 sm:p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
-                    {isStructuredResult ? (
-                      <>
-                        <div className="px-3 py-1.5 rounded-lg bg-[#FFF2F6] text-[#FF2A5F] text-[10px] font-bold tracking-widest uppercase">
-                          ВАУ-УРОК
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                  <div className="flex items-center gap-3 overflow-x-auto no-scrollbar pb-1">
+                    <div className="px-3 py-1.5 rounded-lg bg-[#FFF2F6] text-[#FF2A5F] text-[10px] font-bold tracking-widest uppercase shrink-0">
+                      ВАУ-УРОК
+                    </div>
+                    
+                    {isStructuredResult && (
+                      <div className="flex items-center bg-[#F1F5F9] rounded-lg px-1.5 py-1 gap-1 sm:gap-2 shrink-0">
+                        <button 
+                          onClick={() => setActiveSectionIndex(prev => Math.max(0, prev - 1))}
+                          disabled={activeSectionIndex === 0}
+                          className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-900 disabled:opacity-20 transition"
+                        >
+                          <i className="fas fa-chevron-left text-[10px]"></i>
+                        </button>
+                        <div className="text-[10px] sm:text-[11px] font-bold text-[#475569] uppercase whitespace-nowrap px-1">
+                          {activeSectionIndex + 1} ИЗ {generationResult.sections.length}: {generationResult.sections[activeSectionIndex].title}
                         </div>
-                        <div className="px-3 py-1.5 rounded-lg bg-[#F1F5F9] text-[#475569] text-[10px] font-bold tracking-widest uppercase">
-                          {generationResult.sections.length} ЭЛЕМЕНТОВ
+                        <button 
+                          onClick={() => setActiveSectionIndex(prev => Math.min(generationResult.sections.length - 1, prev + 1))}
+                          disabled={activeSectionIndex === generationResult.sections.length - 1}
+                          className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-900 disabled:opacity-20 transition"
+                        >
+                          <i className="fas fa-chevron-right text-[10px]"></i>
+                        </button>
+                      </div>
+                    )}
+
+                    {!isStructuredResult && (
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-lg bg-[#FF7E58] flex items-center justify-center shrink-0">
+                          <i className="fas fa-check text-white text-xs"></i>
                         </div>
-                      </>
-                    ) : (
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-[#FF7E58] flex items-center justify-center">
-                          <i className="fas fa-check text-white"></i>
-                        </div>
-                        <div>
-                          <h3 className="text-lg font-bold text-black">Результат генерации</h3>
-                          <p className="text-xs text-black/70">{getGenerationTypeLabel(currentFunctionId)}</p>
+                        <div className="shrink-0">
+                          <h3 className="text-sm font-bold text-black leading-tight">Результат</h3>
+                          <p className="text-[10px] text-black/50">{getGenerationTypeLabel(currentFunctionId)}</p>
                         </div>
                       </div>
                     )}
                   </div>
-                  <div className="flex items-center gap-3">
-                    {/* Copy and Refresh Icons */}
-                    <div className="flex items-center gap-1">
+
+                  <div className="flex items-center gap-2 sm:gap-3">
+                    <button
+                      onClick={clearResult}
+                      className="h-10 px-3 sm:px-4 bg-white border border-gray-200 text-gray-600 rounded-xl text-xs font-bold hover:bg-gray-50 transition flex items-center gap-2 whitespace-nowrap"
+                    >
+                      <i className="fas fa-edit"></i>
+                      <span className="hidden sm:inline">Редактировать</span>
+                      <span className="sm:hidden">Изм.</span>
+                    </button>
+
+                    <div className="flex items-center gap-1 border-x border-gray-100 px-1 sm:px-2">
                       <button 
                         onClick={() => {
                           const text = isStructuredResult 
                             ? generationResult.sections[activeSectionIndex].content.replace(/<[^>]*>/g, '') 
                             : String(generationResult.content || generationResult)
                           navigator.clipboard.writeText(text)
+                          if ((window as any).Telegram?.WebApp) {
+                            (window as any).Telegram.WebApp.HapticFeedback?.notificationOccurred('success')
+                          }
                         }}
-                        className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-gray-600 transition"
+                        className="w-9 h-9 flex items-center justify-center text-gray-400 hover:text-gray-600 transition"
+                        title="Копировать"
                       >
-                        <i className="far fa-copy text-lg"></i>
+                        <i className="far fa-copy text-base"></i>
                       </button>
                       <button 
                         onClick={() => generateMaterial()}
-                        className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-gray-600 transition"
+                        className="w-9 h-9 flex items-center justify-center text-gray-400 hover:text-gray-600 transition"
+                        title="Перегенерировать"
                       >
-                        <i className="fas fa-sync-alt text-lg"></i>
+                        <i className="fas fa-sync-alt text-base"></i>
                       </button>
                     </div>
 
@@ -821,34 +880,35 @@ export default function WebAppIndex({ embedded = false }: WebAppIndexProps) {
                       <button
                         onClick={downloadStructuredPdf}
                         disabled={isExporting}
-                        className="h-10 px-4 bg-[#FF2A5F] text-white rounded-xl text-xs font-bold hover:shadow-lg transition active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
+                        className="h-10 px-4 bg-[#FF2A5F] text-white rounded-xl text-xs font-bold hover:shadow-lg transition active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2 whitespace-nowrap shadow-sm"
                       >
-                        {isExporting ? <Loader2 className="w-3 h-3 animate-spin" /> : <i className="fas fa-download"></i>}
+                        {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <i className="fas fa-download"></i>}
                         Экспорт PDF
                       </button>
                     ) : isTextResult && (
-                      <>
+                      <div className="flex items-center gap-2">
                         <button
                           onClick={handleAssignClick}
                           disabled={isAssigning}
-                          className="h-10 px-4 bg-primary-600 text-white rounded-xl text-xs font-bold hover:bg-primary-700 transition active:scale-95 disabled:opacity-50 flex items-center gap-2"
+                          className="h-10 px-3 bg-[#EEF2FF] text-[#4F46E5] rounded-xl text-xs font-bold hover:bg-[#E0E7FF] transition disabled:opacity-50 flex items-center gap-2 whitespace-nowrap"
                         >
-                          <Users className="w-3 h-3" />
-                          {isAssigning ? '...' : 'Выдать'}
+                          <Users className="w-4 h-4" />
+                          <span>Выдать</span>
                         </button>
                         <button
                           onClick={downloadTextResult}
                           disabled={isExporting}
-                          className="h-10 px-4 bg-[#FF7E58] text-white rounded-xl text-xs font-bold hover:shadow-lg transition active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
+                          className="h-10 px-4 bg-[#FF7E58] text-white rounded-xl text-xs font-bold hover:shadow-lg transition active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2 whitespace-nowrap shadow-sm"
                         >
-                          {isExporting ? <Loader2 className="w-3 h-3 animate-spin" /> : <i className="fas fa-download"></i>}
-                          Экспорт PDF
+                          {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <i className="fas fa-download"></i>}
+                          PDF
                         </button>
-                      </>
+                      </div>
                     )}
+                    
                     <button
                       onClick={clearResult}
-                      className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-red-500 transition"
+                      className="w-9 h-9 flex items-center justify-center text-gray-300 hover:text-red-500 transition"
                       title="Закрыть"
                     >
                       <i className="fas fa-times text-lg"></i>

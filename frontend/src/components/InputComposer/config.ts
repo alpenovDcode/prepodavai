@@ -298,7 +298,7 @@ export const templates: Record<string, FunctionTemplate> = {
         key: 'generationTypes',
         label: 'ЧТО СГЕНЕРИРОВАТЬ',
         type: 'multiselect',
-        defaultValue: ['lessonPlan', 'worksheet', 'visuals', 'quiz'],
+        defaultValue: [],
         options: [
           { value: 'lessonPlan', label: 'План урока' },
           { value: 'worksheet', label: 'Рабочий лист' },
