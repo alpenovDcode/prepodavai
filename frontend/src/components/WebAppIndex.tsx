@@ -861,10 +861,10 @@ export default function WebAppIndex({ embedded = false }: WebAppIndexProps) {
                       <button
                         onClick={downloadStructuredPdf}
                         disabled={isExporting}
-                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition font-medium text-xs flex items-center gap-2 whitespace-nowrap shadow-sm shadow-blue-600/20 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="px-4 py-2 text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition font-medium flex items-center gap-2 shadow-sm shadow-blue-600/20 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <i className="fas fa-download"></i>}
-                        Скачать PDF
+                        {isExporting ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />}
+                        <span>{isExporting ? 'Скачивание...' : 'Скачать PDF'}</span>
                       </button>
                     ) : isTextResult && (
                       <div className="flex items-center gap-2">
@@ -879,10 +879,10 @@ export default function WebAppIndex({ embedded = false }: WebAppIndexProps) {
                         <button
                           onClick={downloadTextResult}
                           disabled={isExporting}
-                          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition font-medium text-xs flex items-center gap-2 whitespace-nowrap shadow-sm shadow-blue-600/20 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="px-4 py-2 text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition font-medium flex items-center gap-2 shadow-sm shadow-blue-600/20 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <i className="fas fa-download"></i>}
-                          Скачать PDF
+                          {isExporting ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />}
+                          <span>{isExporting ? 'Скачивание...' : 'Скачать PDF'}</span>
                         </button>
                       </div>
                     )}
