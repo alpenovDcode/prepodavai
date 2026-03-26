@@ -1001,7 +1001,7 @@ export default function WebAppIndex({ embedded = false }: WebAppIndexProps) {
                                 <div 
                                   className="prose prose-sm max-w-none preview-content"
                                   dangerouslySetInnerHTML={{ 
-                                    __html: DOMPurify.sanitize(generationResult.sections[activeSectionIndex].content) 
+                                    __html: DOMPurify.sanitize(generationResult.sections[activeSectionIndex].content, { allowVulnerableTags: true } as any) 
                                   }}
                                 />
                               )}
@@ -1020,7 +1020,7 @@ export default function WebAppIndex({ embedded = false }: WebAppIndexProps) {
                     <div
                       ref={resultHtmlRef}
                       className="formatted-content result-content prose prose-sm max-w-none text-black mathjax-wrapper"
-                      dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(renderMath(cleanedTextResult)) }}
+                      dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(renderMath(cleanedTextResult), { allowVulnerableTags: true } as any) }}
                     />
                   )
                 )}
