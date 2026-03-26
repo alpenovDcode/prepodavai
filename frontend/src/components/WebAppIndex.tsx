@@ -296,7 +296,62 @@ export default function WebAppIndex({ embedded = false }: WebAppIndexProps) {
     }
   }
 
-  // Print PDF via hidden iframe (same as MaterialViewer)
+  // Universal download — works for any result type
+  const downloadAnyResult = async () => {
+    if (!generationResult || isExporting) return
+    setIsExporting(true)
+    try {
+      const typeLabel = getGenerationTypeLabel(currentFunctionId)
+      let htmlToExport = ''
+
+      if (isStructuredResult && generationResult.sections?.[activeSectionIndex]) {
+        // Structured (lesson prep, wow-lesson, etc.)
+        const section = generationResult.sections[activeSectionIndex]
+        if (section.fileType === 'pptx') {
+          const link = document.createElement('a')
+          link.href = section.fileUrl
+          link.download = `presentation_${activeSectionIndex}.pptx`
+          document.body.appendChild(link)
+          link.click()
+          document.body.removeChild(link)
+          return
+        }
+        htmlToExport = `<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8"><title>${section.title || typeLabel}</title>
+<style>body{font-family:Arial,sans-serif;line-height:1.6;padding:40px;max-width:800px;margin:0 auto;background:#fff;color:#000;font-size:14pt}h1{color:#FF7E58;border-bottom:2px solid #D8E6FF;padding-bottom:10px;margin-bottom:20px}table{width:100%;border-collapse:collapse;margin-bottom:1em}th,td{border:1px solid #ddd;padding:8px}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style>
+</head><body><h1>${section.title || typeLabel}</h1><div>${section.content}</div><p style="margin-top:40px;font-size:10px;color:#a0aec0;border-top:1px solid #edf2f7">Сгенерировано PrepodavAI</p></body></html>`
+      } else if (isHtmlResult && htmlResult) {
+        // Full HTML (worksheet, quiz, OGE, etc.)
+        const printStyles = `<style>@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style>`
+        htmlToExport = /\<head[\s>]/i.test(htmlResult)
+          ? htmlResult.replace(/<\/head>/i, `${printStyles}</head>`)
+          : htmlResult
+      } else {
+        // Plain text / JSON / any other
+        const raw = textResultPayload || generationResult
+        let content = ''
+        if (typeof raw === 'object') {
+          const json = JSON.stringify(raw, null, 2)
+          content = `<pre style="font-family:monospace;white-space:pre-wrap;word-wrap:break-word">${json.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</pre>`
+        } else {
+          const str = String(raw || '')
+          content = isHtmlString(str)
+            ? str
+            : `<div style="white-space:pre-wrap;word-wrap:break-word">${str.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>`
+        }
+        htmlToExport = `<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8"><title>${typeLabel}</title>
+<style>body{font-family:Arial,sans-serif;line-height:1.6;padding:40px;max-width:800px;margin:0 auto;background:#fff;color:#000;font-size:14pt}table{width:100%;border-collapse:collapse;margin-bottom:1em}th,td{border:1px solid #ddd;padding:8px}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style>
+</head><body>${content}</body></html>`
+      }
+
+      await printHtmlAsPdf(htmlToExport)
+    } catch (err: any) {
+      console.error('Download error:', err)
+      alert('Ошибка при экспорте: ' + (err.message || 'Неизвестная ошибка'))
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
   const printHtmlAsPdf = (html: string): Promise<void> => {
     return new Promise((resolve, reject) => {
       const existing = document.getElementById('__print-frame-webapp__')
@@ -857,32 +912,25 @@ export default function WebAppIndex({ embedded = false }: WebAppIndexProps) {
                       </button>
                     </div>
 
-                    {isStructuredResult ? (
-                      <button
-                        onClick={downloadStructuredPdf}
-                        disabled={isExporting}
-                        className="px-4 py-2 text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition font-medium flex items-center gap-2 shadow-sm shadow-blue-600/20 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {isExporting ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />}
-                        <span>{isExporting ? 'Скачивание...' : 'Скачать PDF'}</span>
-                      </button>
-                    ) : isTextResult && (
+                    {!isImageResult && !isAudioResult && !isGameResult && !isPresentationResult && generationResult && (
                       <div className="flex items-center gap-2">
+                        {isTextResult && (
+                          <button
+                            onClick={handleAssignClick}
+                            disabled={isAssigning}
+                            className="h-10 px-3 bg-[#EEF2FF] text-[#4F46E5] rounded-xl text-xs font-bold hover:bg-[#E0E7FF] transition disabled:opacity-50 flex items-center gap-2 whitespace-nowrap"
+                          >
+                            <Users className="w-4 h-4" />
+                            <span>Выдать</span>
+                          </button>
+                        )}
                         <button
-                          onClick={handleAssignClick}
-                          disabled={isAssigning}
-                          className="h-10 px-3 bg-[#EEF2FF] text-[#4F46E5] rounded-xl text-xs font-bold hover:bg-[#E0E7FF] transition disabled:opacity-50 flex items-center gap-2 whitespace-nowrap"
-                        >
-                          <Users className="w-4 h-4" />
-                          <span>Выдать</span>
-                        </button>
-                        <button
-                          onClick={downloadTextResult}
+                          onClick={downloadAnyResult}
                           disabled={isExporting}
                           className="px-4 py-2 text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition font-medium flex items-center gap-2 shadow-sm shadow-blue-600/20 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           {isExporting ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />}
-                          <span>{isExporting ? 'Скачивание...' : 'Скачать PDF'}</span>
+                          <span>{isExporting ? 'Скачивание...' : 'Скачать'}</span>
                         </button>
                       </div>
                     )}

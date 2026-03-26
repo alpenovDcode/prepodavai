@@ -205,10 +205,14 @@ function FullHtmlPreview({ html }: { html: string }) {
         if (!iframe) return
 
         const resize = () => {
-            const doc = iframe.contentDocument || iframe.contentWindow?.document
-            if (!doc) return
-            const height = (doc.body?.scrollHeight || doc.documentElement?.scrollHeight || 600) + 40
-            iframe.style.height = `${Math.max(height, 400)}px`
+            try {
+                const doc = iframe.contentDocument || iframe.contentWindow?.document
+                if (!doc) return
+                const height = (doc.body?.scrollHeight || doc.documentElement?.scrollHeight || 600) + 40
+                iframe.style.height = `${Math.max(height, 400)}px`
+            } catch {
+                iframe.style.height = '800px'
+            }
         }
 
         const handleLoad = () => resize()
@@ -259,7 +263,7 @@ function FullHtmlPreview({ html }: { html: string }) {
                 srcDoc={finalHtml}
                 className={`w-full border-0 transition-opacity duration-700 ${isLoading ? 'opacity-0' : 'opacity-100'}`}
                 style={{ minHeight: '600px' }}
-                sandbox="allow-scripts allow-popups allow-modals"
+                sandbox="allow-scripts allow-same-origin allow-popups allow-modals"
             />
         </div>
     )
