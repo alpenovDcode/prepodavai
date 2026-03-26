@@ -8,8 +8,47 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-
   const configService = app.get(ConfigService);
+
+  // ПРЕФИКС ДЛЯ API (устанавливаем сразу)
+  app.setGlobalPrefix('api');
+
+  // CORS с валидацией (перемещено в самое начало для надежности)
+  const corsOrigin = configService.get<string>('CORS_ORIGIN', '');
+  const origins = corsOrigin ? corsOrigin.split(',').map((o) => o.trim()) : [];
+
+  // Всегда добавляем основные домены в разрешенные для продакшена
+  const prodOrigins = [
+    'https://prepodavai.ru',
+    'https://www.prepodavai.ru',
+    'https://api.prepodavai.ru',
+    'https://max.prepodavai.ru',
+  ];
+
+  prodOrigins.forEach((origin) => {
+    if (!origins.includes(origin)) origins.push(origin);
+  });
+
+  // Локальные окружения
+  if (!origins.includes('http://localhost:3000')) origins.push('http://localhost:3000');
+  if (!origins.includes('http://localhost:3001')) origins.push('http://localhost:3001');
+
+  app.enableCors({
+    origin: origins,
+    credentials: true,
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'Accept',
+      'X-Requested-With',
+      'X-HTTP-Method-Override',
+      'Range',
+    ],
+    exposedHeaders: ['Content-Range', 'X-Content-Range', 'Set-Cookie'],
+    optionsSuccessStatus: 204, // Важно для корректной обработки preflight OPTIONS
+  });
+
   const port = configService.get<number>('PORT', 3001);
   const nodeEnv = configService.get<string>('NODE_ENV', 'development');
 
@@ -39,21 +78,18 @@ async function bootstrap() {
   );
 
   // Helmet для безопасности HTTP заголовков
-  // Helmet для безопасности HTTP заголовков
   app.use(
     helmet({
       contentSecurityPolicy: {
         directives: {
           defaultSrc: ["'self'"],
-          // Removed 'unsafe-eval' to improve security. If frontend breaks (e.g. some obscure library), revert this.
-          // Added 'unsafe-inline' for styles because many UI libraries need it.
           scriptSrc: ["'self'", "'unsafe-inline'"],
           scriptSrcAttr: ["'unsafe-inline'"],
           styleSrc: ["'self'", "'unsafe-inline'"],
           styleSrcAttr: ["'unsafe-inline'"],
           imgSrc: ["'self'", 'data:', 'https:'],
-          connectSrc: ["'self'", 'https:'],
-          frameSrc: ["'self'", 'https:'], // For iframes if needed
+          connectSrc: ["'self'", 'https:', 'https://api.prepodavai.ru'],
+          frameSrc: ["'self'", 'https:'],
         },
       },
       crossOriginEmbedderPolicy: false, // Для Telegram WebApp
@@ -68,32 +104,10 @@ async function bootstrap() {
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
-      forbidNonWhitelisted: false, // Разрешаем дополнительные поля (например, userHash от фронтенда)
+      forbidNonWhitelisted: false,
       transform: true,
     }),
   );
-
-  // ПРЕФИКС ДЛЯ API (должен быть установлен ДО CORS и других настроек)
-  app.setGlobalPrefix('api');
-
-  // CORS с валидацией (перемещено в начало для надежности)
-  const corsOrigin = configService.get<string>('CORS_ORIGIN', 'https://prepodavai.ru');
-  const origins = corsOrigin.split(',').map((origin) => origin.trim());
-
-  // Всегда добавляем основные домены в разрешенные
-  if (!origins.includes('https://prepodavai.ru')) origins.push('https://prepodavai.ru');
-  if (!origins.includes('https://www.prepodavai.ru')) origins.push('https://www.prepodavai.ru');
-  if (!origins.includes('http://localhost:3000')) origins.push('http://localhost:3000');
-
-  app.enableCors({
-    origin: origins,
-    credentials: true,
-    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
-    allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'X-Requested-With', 'Range'],
-    exposedHeaders: ['Content-Range', 'X-Content-Range', 'Set-Cookie'],
-  });
-
-  // Остальные настройки не требуются здесь, они уже объявлены выше
 
   await app.listen(port, '0.0.0.0');
   console.log(`🚀 Backend API запущен на порту ${port}`);
