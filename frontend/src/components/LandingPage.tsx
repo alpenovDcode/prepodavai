@@ -236,15 +236,6 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* TRUST BAR */}
-      <section style={{ padding: "16px 24px", borderTop: "1px solid #f0f0f0", borderBottom: "1px solid #f0f0f0", background: "white" }}>
-        <div style={{ maxWidth: 800, margin: "0 auto", display: "flex", justifyContent: "center", gap: 40, flexWrap: "wrap", opacity: 0.3 }}>
-          {["Московский университет","Школа 21","Яндекс.Образование","ВШЭ"].map((n, i) => (
-            <span key={i} style={{ fontSize: 13, fontWeight: 700, color: "#1a1a1a", whiteSpace: "nowrap" }}>{n}</span>
-          ))}
-        </div>
-      </section>
-
       {/* BENEFITS */}
       <section style={{ padding: "72px 24px", background: "white" }}>
         <div style={{ maxWidth: 900, margin: "0 auto", textAlign: "center" }}>
