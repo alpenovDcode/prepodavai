@@ -1264,10 +1264,15 @@ function FullHtmlPreview({ html }: { html: string }) {
     if (!iframe) return
 
     const resize = () => {
-      const doc = iframe.contentDocument || iframe.contentWindow?.document
-      if (!doc) return
-      const height = (doc.body?.scrollHeight || doc.documentElement?.scrollHeight || 600) + 40
-      iframe.style.height = `${Math.max(height, 400)}px`
+      try {
+        const doc = iframe.contentDocument || iframe.contentWindow?.document
+        if (!doc) return
+        const height = (doc.body?.scrollHeight || doc.documentElement?.scrollHeight || 600) + 40
+        iframe.style.height = `${Math.max(height, 400)}px`
+      } catch {
+        // Cross-origin access blocked — use fallback height
+        iframe.style.height = '800px'
+      }
     }
 
     const handleLoad = () => resize()
