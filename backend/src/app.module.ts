@@ -1,8 +1,9 @@
 import { Module } from '@nestjs/common';
-import { APP_GUARD } from '@nestjs/core';
+import { BullModule } from '@nestjs/bullmq';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
-import { BullModule } from '@nestjs/bullmq';
+import { XssInterceptor } from './common/interceptors/xss.interceptor';
 
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -101,6 +102,10 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: XssInterceptor,
     },
     AppService,
     HtmlExportService,

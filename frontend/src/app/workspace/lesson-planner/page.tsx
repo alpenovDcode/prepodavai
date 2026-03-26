@@ -358,7 +358,7 @@ export default function LessonPlanner() {
                                 ref={iframeRef}
                                 srcDoc={htmlContent}
                                 className={`w-full h-full border-0 ${editMode ? 'cursor-text' : ''}`}
-                                sandbox="allow-same-origin allow-scripts allow-popups allow-modals"
+                                sandbox="allow-scripts allow-popups allow-modals"
                                 title="План урока"
                             />
                         )}

@@ -19,6 +19,7 @@ export interface VideoAnalysisJobData {
 export class VideoAnalysisProcessor extends WorkerHost {
   private readonly logger = new Logger(VideoAnalysisProcessor.name);
   private readonly replicateToken: string;
+  private readonly yandexToken: string;
 
   constructor(
     private readonly configService: ConfigService,
@@ -28,6 +29,7 @@ export class VideoAnalysisProcessor extends WorkerHost {
   ) {
     super();
     this.replicateToken = this.configService.get<string>('REPLICATE_API_TOKEN');
+    this.yandexToken = this.configService.get<string>('YANDEX_OAUTH_TOKEN');
   }
 
   async process(job: Job<VideoAnalysisJobData>): Promise<void> {
@@ -232,14 +234,20 @@ ${transcript.substring(0, 30000)}
       const apiUrl = `https://cloud-api.yandex.net/v1/disk/public/resources/download?public_key=${encodeURIComponent(
         url,
       )}`;
-      const response = await axios.get(apiUrl);
+      const headers = this.yandexToken
+        ? { Authorization: `OAuth ${this.yandexToken}` }
+        : {};
+
+      const response = await axios.get(apiUrl, { headers });
       if (response.data && response.data.href) {
         return response.data.href;
       }
       throw new Error('Yandex.Disk API did not return a download link');
     } catch (error: any) {
       this.logger.error(`Failed to resolve Yandex.Disk link: ${error.message}`);
-      throw new Error(`Не удалось получить прямую ссылку на видео с Яндекс.Диска. Убедитесь, что ссылка публичная.`);
+      throw new Error(
+        `Не удалось получить прямую ссылку на видео с Яндекс.Диска. Убедитесь, что ссылка публичная или проверьте OAuth токен.`,
+      );
     }
   }
 }

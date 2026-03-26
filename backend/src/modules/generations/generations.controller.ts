@@ -257,30 +257,4 @@ export class GenerationsController {
       body.lessonId,
     );
   }
-
-  @Post('video-analysis')
-  @UseGuards(JwtAuthGuard)
-  async analyzeVideo(@Request() req, @Body() body: any) {
-    return this.generationsService.createGeneration({
-      userId: req.user.id,
-      generationType: 'video-analysis',
-      inputParams: body,
-    });
-  }
-
-  @Post('sales-advisor')
-  @UseGuards(JwtAuthGuard)
-  async analyzeSalesDialog(@Request() req, @Body() body: any) {
-    try {
-      const result = await this.generationsService.createGeneration({
-        userId: req.user.id,
-        generationType: 'sales-advisor',
-        inputParams: body,
-      });
-
-      return result;
-    } catch (error) {
-      throw error;
-    }
-  }
 }

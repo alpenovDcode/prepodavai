@@ -61,7 +61,7 @@ function SlideThumbnail({ slide, index, isActive, onClick }: {
                 srcDoc={buildSlideSrcDoc(slide)}
                 className="w-full h-full border-0 pointer-events-none"
                 style={{ transform: 'scale(0.25)', transformOrigin: 'top left', width: '400%', height: '400%' }}
-                sandbox="allow-same-origin allow-scripts allow-popups allow-modals"
+                sandbox="allow-popups allow-modals"
                 title={`Slide ${index + 1}`}
             />
             <div className="absolute bottom-1 left-2 text-[9px] font-bold text-white/80 bg-black/30 rounded px-1">
@@ -471,7 +471,7 @@ ${css}
             const W = 1280, H = 720
             const frame = document.createElement('iframe')
             frame.style.cssText = `position:fixed;left:-9999px;top:0;width:${W}px;height:${H}px;border:none;pointer-events:none;z-index:-1`
-            frame.setAttribute('sandbox', 'allow-same-origin')  // no allow-scripts: JS not needed for visual capture
+            frame.setAttribute('sandbox', 'allow-modals')  // no allow-scripts: JS not needed for visual capture
             frame.srcdoc = buildCaptureSrcDoc(slide)
             document.body.appendChild(frame)
             const cleanup = () => { try { document.body.removeChild(frame) } catch (_) { } }
@@ -744,7 +744,7 @@ ${css}
                                             key={activeSlide.id}
                                             srcDoc={buildSlideSrcDoc(activeSlide)}
                                             className="w-full h-full border-0"
-                                            sandbox="allow-same-origin allow-scripts allow-popups allow-modals"
+                                            sandbox="allow-scripts allow-popups allow-modals"
                                             title={`Slide ${activeSlideIndex + 1}`}
                                         />
                                     </div>

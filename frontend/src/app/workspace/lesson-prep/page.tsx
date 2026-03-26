@@ -332,7 +332,7 @@ export default function LessonPrepGenerator() {
                                 ref={iframeRef}
                                 srcDoc={localContent}
                                 className="w-full h-full border-0"
-                                sandbox="allow-same-origin allow-scripts allow-popups allow-modals"
+                                sandbox="allow-scripts allow-popups allow-modals"
                                 title="Вау-урок"
                             />
                         )}

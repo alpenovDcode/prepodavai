@@ -9,11 +9,8 @@ import GenerationCostBadge from '@/components/workspace/GenerationCostBadge'
 
 export default function VideoAnalysisGenerator() {
     const [analysisType, setAnalysisType] = useState('sales')
-    const [videoHash, setVideoHash] = useState('')
     const [videoUrl, setVideoUrl] = useState('')
-    const [fileName, setFileName] = useState('')
-    const [localContent, setLocalContent] = useState('<p>Загрузите видео или укажите ссылку и выберите тип анализа.</p>')
-    const [isUploading, setIsUploading] = useState(false)
+    const [localContent, setLocalContent] = useState('<p>Укажите ссылку на видео и выберите тип анализа.</p>')
     const [editMode, setEditMode] = useState(false)
     const [copied, setCopied] = useState(false)
     const iframeRef = useRef<HTMLIFrameElement>(null)
@@ -25,43 +22,16 @@ export default function VideoAnalysisGenerator() {
         { value: 'methodological', label: 'Методический анализ' }
     ]
 
-    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0]
-        if (!file) return
-
-        setFileName(file.name)
-        setIsUploading(true)
-
-        try {
-            const formData = new FormData()
-            formData.append('file', file)
-
-            const { apiClient } = await import('@/lib/api/client')
-            const response = await apiClient.post('/files/upload', formData)
-
-            if (response.data?.success) {
-                // Return either the full URL or the hash for backend
-                setVideoHash(response.data.url || response.data.hash)
-            } else {
-                throw new Error('Upload failed on server')
-            }
-        } catch (error) {
-            console.error('Upload failed', error)
-            setFileName('Ошибка загрузки')
-        } finally {
-            setIsUploading(false)
-        }
-    }
 
     const generate = async () => {
-        if (!videoHash && !videoUrl) return;
+        if (!videoUrl) return;
 
         try {
             setLocalContent('<p>Анализируем видеофайл...</p><p>Пожалуйста, подождите, это может занять несколько минут.</p>')
             setEditMode(false)
 
             const params = {
-                fileUrl: videoHash || videoUrl,
+                fileUrl: videoUrl,
                 analysisType
             }
 
@@ -173,32 +143,7 @@ export default function VideoAnalysisGenerator() {
                             </div>
                         )}
                         <div>
-                            <label className="block text-sm font-bold text-gray-700 mb-2">Видео (mp4, mov)</label>
-
-                            <div className="mt-2 text-center">
-                                <label className={`flex flex-col items-center justify-center w-full h-32 border-2 border-indigo-100 border-dashed rounded-xl cursor-pointer bg-indigo-50/50 hover:bg-indigo-50 transition-colors ${(isUnderMaintenance || !!videoUrl) && 'opacity-50 pointer-events-none'}`}>
-                                    <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                                        {isUploading ? (
-                                            <Loader2 className="w-8 h-8 text-indigo-500 animate-spin mb-2" />
-                                        ) : (
-                                            <UploadCloud className="w-8 h-8 text-indigo-500 mb-2" />
-                                        )}
-                                        <p className="text-xs text-center px-4 font-medium text-gray-500">
-                                            {fileName || (videoUrl ? "Выбрана ссылка" : "Нажмите для загрузки или перетащите файл")}
-                                        </p>
-                                    </div>
-                                    <input type="file" className="hidden" accept="video/*" onChange={handleFileChange} disabled={isUploading || isUnderMaintenance || !!videoUrl} />
-                                </label>
-                            </div>
-
-                            <div className="relative my-4">
-                                <div className="absolute inset-0 flex items-center">
-                                    <span className="w-full border-t border-gray-100"></span>
-                                </div>
-                                <div className="relative flex justify-center text-xs uppercase">
-                                    <span className="bg-white px-2 text-gray-400 font-bold">ИЛИ ССЫЛКА</span>
-                                </div>
-                            </div>
+                            <label className="block text-sm font-bold text-gray-700 mb-2">Видео (Яндекс.Диск или MP4)</label>
 
                             <div className="space-y-2">
                                 <input
@@ -207,12 +152,8 @@ export default function VideoAnalysisGenerator() {
                                     value={videoUrl}
                                     onChange={(e) => {
                                         setVideoUrl(e.target.value);
-                                        if (e.target.value) {
-                                            setVideoHash('');
-                                            setFileName('');
-                                        }
                                     }}
-                                    disabled={isUnderMaintenance || isUploading}
+                                    disabled={isUnderMaintenance}
                                     className="block w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 placeholder-gray-400 disabled:opacity-50"
                                 />
                                 <p className="text-[10px] text-gray-400 px-1 font-medium italic">
@@ -240,7 +181,7 @@ export default function VideoAnalysisGenerator() {
                 <div className="p-5 border-t border-gray-100 bg-white">
                     <button
                         onClick={generate}
-                        disabled={isGenerating || isUploading || (!videoHash && !videoUrl) || isUnderMaintenance}
+                        disabled={isGenerating || !videoUrl || isUnderMaintenance}
                         className={`w-full relative group overflow-hidden rounded-xl bg-gradient-to-r font-semibold shadow-md active:scale-[0.98] transition-all disabled:opacity-50 ${isUnderMaintenance ? 'from-gray-400 to-gray-500' : 'from-indigo-500 to-blue-600 p-px'}`}
                     >
                         <div className={`relative flex items-center justify-center gap-2 px-4 py-3 rounded-[11px] text-white ${isUnderMaintenance ? 'bg-gray-400' : 'bg-gradient-to-r from-indigo-500 to-blue-600'}`}>
@@ -259,7 +200,7 @@ export default function VideoAnalysisGenerator() {
                             <span className="text-xs font-bold tracking-wide text-gray-500">ОТЧЕТ ОБ АНАЛИЗЕ</span>
                         </div>
                         <div className="flex items-center gap-2">
-                            {localContent && !localContent.includes('Загрузите видео') && !localContent.includes('Анализируем видеофайл') && (
+                            {localContent && !localContent.includes('Укажите ссылку') && !localContent.includes('Анализируем видеофайл') && (
                                 <button
                                     onClick={toggleEditMode}
                                     className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${editMode
@@ -273,7 +214,7 @@ export default function VideoAnalysisGenerator() {
                             )}
                             <button
                                 onClick={handleCopy}
-                                disabled={!localContent || isGenerating || localContent.includes('Загрузите видео')}
+                                disabled={!localContent || isGenerating || localContent.includes('Укажите ссылку')}
                                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-gray-100 hover:bg-gray-200 rounded-lg transition-all disabled:opacity-40"
                             >
                                 <Copy className="w-3.5 h-3.5" />
@@ -281,7 +222,7 @@ export default function VideoAnalysisGenerator() {
                             </button>
                             <button
                                 onClick={handleDownloadPdf}
-                                disabled={!localContent || isGenerating || localContent.includes('Загрузите видео')}
+                                disabled={!localContent || isGenerating || localContent.includes('Укажите ссылку')}
                                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg transition-all disabled:opacity-40 ml-1"
                             >
                                 <Download className="w-3.5 h-3.5" />
@@ -309,7 +250,7 @@ export default function VideoAnalysisGenerator() {
                                 ref={iframeRef}
                                 srcDoc={localContent}
                                 className={`w-full h-full border-0 bg-white`}
-                                sandbox="allow-same-origin allow-scripts allow-popups allow-modals"
+                                sandbox="allow-scripts allow-popups allow-modals"
                                 title="Результат генерации"
                             />
                         )}

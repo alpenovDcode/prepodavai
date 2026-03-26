@@ -251,7 +251,7 @@ function FullHtmlPreview({ html }: { html: string }) {
                 srcDoc={finalHtml}
                 className={`w-full border-0 transition-opacity duration-700 ${isLoading ? 'opacity-0' : 'opacity-100'}`}
                 style={{ minHeight: '600px' }}
-                sandbox="allow-scripts allow-same-origin allow-popups allow-modals"
+                sandbox="allow-scripts allow-popups allow-modals"
             />
         </div>
     )
@@ -757,7 +757,7 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
                                             key={htmlSlideIndex}
                                             srcDoc={buildEditSrc(htmlSlides[htmlSlideIndex])}
                                             className="w-full h-full border-none rounded-xl"
-                                            sandbox="allow-same-origin allow-scripts allow-modals"
+                                            sandbox="allow-scripts allow-modals"
                                         />
                                     </div>
                                 </div>
