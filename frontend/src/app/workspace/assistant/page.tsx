@@ -198,7 +198,11 @@ export default function AssistantGenerator() {
                                             ? 'bg-indigo-600 text-white rounded-tr-sm'
                                             : 'bg-white border border-gray-100 shadow-sm text-gray-800 rounded-tl-sm'
                                         }`}>
-                                        <div className="prose text-gray-900 prose-p:text-gray-900 prose-headings:text-gray-900 prose-li:text-gray-900 text-gray-900 prose-p:text-gray-900 prose-headings:text-gray-900 prose-li:text-gray-900 prose-sm max-w-none prose-p:leading-relaxed"
+                                        <div className={`prose prose-sm max-w-none prose-p:leading-relaxed ${
+                                            msg.role === 'user' 
+                                                ? 'prose-invert text-white prose-p:text-white prose-headings:text-white prose-li:text-white' 
+                                                : 'text-gray-900 prose-p:text-gray-900 prose-headings:text-gray-900 prose-li:text-gray-900'
+                                        }`}
                                             dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(msg.content.replace(/\n/g, '<br/>')) }}
                                         />
                                     </div>

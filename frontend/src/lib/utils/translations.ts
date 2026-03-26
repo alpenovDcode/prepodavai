@@ -30,6 +30,7 @@ export const generationTypeLabels: Record<string, string> = {
   'gigachat-audio-speech': '🧠 GigaChat (TTS)',
   'gigachat-audio-transcription': '🧠 GigaChat (STT)',
   'gigachat-audio-translation': '🧠 GigaChat (перевод аудио)',
+  'assistant': '🤖 ИИ-ассистент',
 };
 
 export const getGenerationTypeLabel = (type: string | undefined | null): string => {
@@ -50,6 +51,8 @@ export const getGenerationTypeIcon = (type: string | undefined | null): string =
   if (normalized === 'photosession' || normalized.includes('image')) return 'fa-camera';
   if (normalized.includes('exam')) return 'fa-graduation-cap';
   if (normalized === 'worksheet') return 'fa-file-pdf';
+  
+  if (normalized === 'assistant') return 'fa-robot';
   
   return 'fa-file-alt';
 };

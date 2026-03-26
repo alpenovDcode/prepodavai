@@ -724,7 +724,7 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
       );
 
       const normalizedResult = {
-        provider: 'Replicate',
+        provider: model.toLowerCase().includes('gemini') ? 'Google Gemini' : 'Replicate',
         mode: 'chat',
         model,
         content: processedContent,
@@ -1169,8 +1169,7 @@ ${inputParams.customPrompt ? `Дополнительно: ${inputParams.customPr
         break;
       }
 
-      case 'message':
-      case 'assistant': {
+      case 'message': {
         const { formData, customPrompt } = inputParams;
         systemPrompt = `Ты — Эксперт по коммуникациям и Senior Frontend разработчик.
 ЗАДАЧА:
@@ -1195,6 +1194,31 @@ ${this.SHARED_MATHJAX_RULES}
         userPrompt = `Создай сообщение для родителей.
           Данные: ${JSON.stringify(formData || {})}
 ${customPrompt ? `Дополнительно: ${customPrompt}` : ''} `;
+        break;
+      }
+
+      case 'assistant': {
+        const { prompt: userMsg, systemPrompt: persona } = inputParams;
+        let assistantRole = 'универсальный помощник преподавателя';
+        let additionalInstructions = '';
+
+        if (persona === 'methodologist') {
+          assistantRole = 'опытный методист';
+          additionalInstructions = 'Твоя специализация — проектирование образовательных программ, планов уроков и педагогических стратегий. Давай глубокие, методически обоснованные советы.';
+        } else if (persona === 'psychologist') {
+          assistantRole = 'детский психолог';
+          additionalInstructions = 'Твоя специализация — возрастная психология, мотивация учеников и решение конфликтных ситуаций. Будь эмпатичным и давай научно обоснованные рекомендации по работе с детьми.';
+        } else if (persona === 'copywriter') {
+          assistantRole = 'копирайтер для соцсетей';
+          additionalInstructions = 'Твоя специализация — создание вовлекающего контента для образовательных блогов. Пиши ярко, структурировано и используй подходящие эмодзи.';
+        }
+
+        systemPrompt = `Ты — ${assistantRole}. ${additionalInstructions}
+Отвечай на вопросы пользователя профессионально, четко и структурировано.
+Используй HTML-теги для оформления (<b>, <i>, <ul>, <li>, <p>, <h3>). НЕ используй Markdown (никаких # или *).
+Твой ответ будет отображаться внутри чата, поэтому не используй теги <html> или <body>. Только фрагменты текста с HTML-оформлением.`;
+        
+        userPrompt = userMsg || 'Привет! Расскажи, чем ты можешь мне помочь?';
         break;
       }
 
@@ -3304,7 +3328,7 @@ ${customPrompt ? `Дополнительно: ${customPrompt}` : ''}
       unpacking: 'GigaChat-2-Max',
       'sales-advisor': 'GigaChat-2-Max',
       sales_advisor: 'GigaChat-2-Max',
-      assistant: 'GigaChat-2-Max',
+      assistant: 'google/gemini-3-flash',
       'gigachat-chat': 'GigaChat',
       'gigachat-image': 'GigaChat-2-Max',
       'gigachat-embeddings': 'GigaChat-Embedding',

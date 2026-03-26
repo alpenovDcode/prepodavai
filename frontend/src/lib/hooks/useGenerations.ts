@@ -63,6 +63,7 @@ export function useGenerations() {
         salesAdvisor: '/generate/sales-advisor',
         'exam-variant': '/generate/exam-variant',
         exam_variant: '/generate/exam-variant',
+        assistant: '/generate/assistant',
       }
 
       const endpoint = endpointMap[request.type];
