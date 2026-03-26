@@ -301,52 +301,38 @@ export default function WebAppIndex({ embedded = false }: WebAppIndexProps) {
 
     setIsExporting(true)
     try {
-      // 1. If it's HTML result (GigaChat mode="chat" or "image")
+      const typeLabel = getGenerationTypeLabel(currentFunctionId)
+      const safeName = typeLabel.replace(/[^a-zA-Zа-яА-Я0-9]/g, '_') || 'result'
+      const dateSuffix = new Date().toISOString().split('T')[0]
+      const filename = `${safeName}_${dateSuffix}.pdf`
+
+      // Determine the HTML content to export
+      let htmlToExport: string
+
       if (isHtmlResult && htmlResult) {
-        const typeLabel = getGenerationTypeLabel(currentFunctionId)
-        const safeName = typeLabel.replace(/[^a-zA-Zа-яА-Я0-9]/g, '_') || 'result'
-        const dateSuffix = new Date().toISOString().split('T')[0]
-        const filename = `${safeName}_${dateSuffix}.pdf`
-
-        const response = await apiClient.post<Blob>(
-          '/gigachat/export/pdf',
-          { html: htmlResult, filename },
-          { responseType: 'blob' }
-        )
-
-        const blob = response.data
-        const url = URL.createObjectURL(blob)
-        const link = document.createElement('a')
-        link.href = url
-        link.download = filename
-        link.setAttribute('type', 'application/pdf')
-        document.body.appendChild(link)
-        link.click()
-        document.body.removeChild(link)
-        URL.revokeObjectURL(url)
-        return
-      }
-
-      // 2. Otherwise handle as regular text/html result
-      let content = textResultPayload || ''
-      if (typeof content === 'object') {
-        const jsonStr = JSON.stringify(content, null, 2)
-        content = `<pre style="font-family: monospace; white-space: pre-wrap; word-wrap: break-word;">${jsonStr.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre>`
-      } else if (typeof content === 'string') {
-        if (!isHtmlString(content)) {
-          content = `<div style="font-family: Arial, sans-serif; line-height: 1.6; padding: 20px; white-space: pre-wrap; word-wrap: break-word;">${content.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div`
-        }
+        // Full HTML result (worksheet, quiz, etc.)
+        htmlToExport = htmlResult
       } else {
-        content = String(content)
-        content = `<div style="font-family: Arial, sans-serif; line-height: 1.6; padding: 20px; white-space: pre-wrap; word-wrap: break-word;">${content.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div`
-      }
+        // Plain text or object result — wrap in styled HTML
+        let content = textResultPayload || ''
+        if (typeof content === 'object') {
+          const jsonStr = JSON.stringify(content, null, 2)
+          content = `<pre style="font-family: monospace; white-space: pre-wrap; word-wrap: break-word;">${jsonStr.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre>`
+        } else if (typeof content === 'string') {
+          if (!isHtmlString(content)) {
+            content = `<div style="font-family: Arial, sans-serif; line-height: 1.6; padding: 20px; white-space: pre-wrap; word-wrap: break-word;">${content.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>`
+          }
+        } else {
+          content = String(content)
+          content = `<div style="font-family: Arial, sans-serif; line-height: 1.6; padding: 20px; white-space: pre-wrap; word-wrap: break-word;">${content.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>`
+        }
 
-      const fullHtml = `<!DOCTYPE html>
+        htmlToExport = `<!DOCTYPE html>
 <html lang="ru">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${getGenerationTypeLabel(currentFunctionId)}</title>
+  <title>${typeLabel}</title>
   <style>
     body { font-family: Arial, sans-serif; line-height: 1.6; padding: 20px; max-width: 800px; margin: 0 auto; background: #ffffff; color: #000000; }
   </style>
@@ -355,25 +341,31 @@ export default function WebAppIndex({ embedded = false }: WebAppIndexProps) {
   ${content}
 </body>
 </html>`
+      }
 
-      const typeLabel = getGenerationTypeLabel(currentFunctionId)
-      const safeName = typeLabel.replace(/[^a-zA-Zа-яА-Я0-9]/g, '_') || 'result'
-      const dateSuffix = new Date().toISOString().split('T')[0]
+      // Always use backend PDF export endpoint
+      const response = await apiClient.post(
+        '/gigachat/export/pdf',
+        { html: htmlToExport, filename },
+        { responseType: 'blob' }
+      )
 
-      const blob = new Blob([fullHtml], { type: 'text/html;charset=utf-8' })
+      const blob = new Blob([response.data], { type: 'application/pdf' })
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
-      link.download = `${safeName}_${dateSuffix}.html`
-      link.setAttribute('type', 'text/html')
+      link.download = filename
+      link.setAttribute('type', 'application/pdf')
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
-      URL.revokeObjectURL(url)
+      setTimeout(() => URL.revokeObjectURL(url), 100)
     } catch (error: any) {
       console.error('Download error:', error)
       if ((window as any).Telegram?.WebApp) {
         (window as any).Telegram.WebApp.showAlert('Ошибка при скачивании: ' + error.message)
+      } else {
+        alert('Ошибка при экспорте PDF: ' + (error.message || 'Неизвестная ошибка'))
       }
     } finally {
       setIsExporting(false)
