@@ -296,34 +296,74 @@ export default function WebAppIndex({ embedded = false }: WebAppIndexProps) {
     }
   }
 
+  // Print PDF via hidden iframe (same as MaterialViewer)
+  const printHtmlAsPdf = (html: string): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      const existing = document.getElementById('__print-frame-webapp__')
+      if (existing) existing.remove()
+
+      const iframe = document.createElement('iframe')
+      iframe.id = '__print-frame-webapp__'
+      iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:210mm;height:297mm;border:none;'
+      document.body.appendChild(iframe)
+
+      const doc = iframe.contentDocument || iframe.contentWindow?.document
+      if (!doc) { reject(new Error('Cannot access iframe document')); return }
+
+      doc.open()
+      doc.write(html)
+      doc.close()
+
+      const onLoad = () => {
+        const win = iframe.contentWindow
+        if (!win) { reject(new Error('Cannot access iframe window')); return }
+
+        const doprint = () => {
+          try {
+            win.focus()
+            win.print()
+            setTimeout(() => { iframe.remove(); resolve() }, 1000)
+          } catch (e) { iframe.remove(); reject(e) }
+        }
+
+        const mjax = (win as any).MathJax
+        if (mjax?.typesetPromise) {
+          mjax.typesetPromise().then(() => setTimeout(doprint, 500)).catch(() => setTimeout(doprint, 500))
+        } else {
+          setTimeout(doprint, 800)
+        }
+      }
+
+      iframe.addEventListener('load', onLoad, { once: true })
+      setTimeout(() => { iframe.removeEventListener('load', onLoad); onLoad() }, 8000)
+    })
+  }
+
   const downloadTextResult = async () => {
     if (!generationResult) return
 
     setIsExporting(true)
     try {
       const typeLabel = getGenerationTypeLabel(currentFunctionId)
-      const safeName = typeLabel.replace(/[^a-zA-Zа-яА-Я0-9]/g, '_') || 'result'
-      const dateSuffix = new Date().toISOString().split('T')[0]
-      const filename = `${safeName}_${dateSuffix}.pdf`
 
-      // Determine the HTML content to export
+      // Build HTML to print
       let htmlToExport: string
 
       if (isHtmlResult && htmlResult) {
-        // Full HTML result (worksheet, quiz, etc.)
-        htmlToExport = htmlResult
+        // Add print styles to existing HTML
+        const printStyles = `<style>@media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }</style>`
+        if (/\<head[\s>]/i.test(htmlResult)) {
+          htmlToExport = htmlResult.replace(/<\/head>/i, `${printStyles}</head>`)
+        } else {
+          htmlToExport = htmlResult
+        }
       } else {
-        // Plain text or object result — wrap in styled HTML
+        // Wrap plain text in styled HTML
         let content = textResultPayload || ''
         if (typeof content === 'object') {
           const jsonStr = JSON.stringify(content, null, 2)
           content = `<pre style="font-family: monospace; white-space: pre-wrap; word-wrap: break-word;">${jsonStr.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre>`
-        } else if (typeof content === 'string') {
-          if (!isHtmlString(content)) {
-            content = `<div style="font-family: Arial, sans-serif; line-height: 1.6; padding: 20px; white-space: pre-wrap; word-wrap: break-word;">${content.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>`
-          }
-        } else {
-          content = String(content)
+        } else if (typeof content === 'string' && !isHtmlString(content)) {
           content = `<div style="font-family: Arial, sans-serif; line-height: 1.6; padding: 20px; white-space: pre-wrap; word-wrap: break-word;">${content.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>`
         }
 
@@ -331,127 +371,76 @@ export default function WebAppIndex({ embedded = false }: WebAppIndexProps) {
 <html lang="ru">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${typeLabel}</title>
   <style>
-    body { font-family: Arial, sans-serif; line-height: 1.6; padding: 20px; max-width: 800px; margin: 0 auto; background: #ffffff; color: #000000; }
+    body { font-family: Arial, sans-serif; line-height: 1.6; padding: 40px; max-width: 800px; margin: 0 auto; background: #fff; color: #000; font-size: 14pt; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 1em; }
+    th, td { border: 1px solid #ddd; padding: 8px; }
+    @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
   </style>
 </head>
-<body>
-  ${content}
-</body>
+<body>${content}</body>
 </html>`
       }
 
-      // Always use backend PDF export endpoint
-      const response = await apiClient.post(
-        '/gigachat/export/pdf',
-        { html: htmlToExport, filename },
-        { responseType: 'blob' }
-      )
-
-      const blob = new Blob([response.data], { type: 'application/pdf' })
-      const url = URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = filename
-      link.setAttribute('type', 'application/pdf')
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      setTimeout(() => URL.revokeObjectURL(url), 100)
+      await printHtmlAsPdf(htmlToExport)
     } catch (error: any) {
       console.error('Download error:', error)
-      if ((window as any).Telegram?.WebApp) {
-        (window as any).Telegram.WebApp.showAlert('Ошибка при скачивании: ' + error.message)
-      } else {
-        alert('Ошибка при экспорте PDF: ' + (error.message || 'Неизвестная ошибка'))
-      }
+      alert('Ошибка при экспорте PDF: ' + (error.message || 'Неизвестная ошибка'))
     } finally {
       setIsExporting(false)
     }
   }
 
   const downloadStructuredPdf = async () => {
-    console.log('downloadStructuredPdf triggered', { 
-      hasSections: !!generationResult?.sections, 
-      activeSectionIndex, 
-      isExporting 
-    })
-    
-    if (!generationResult?.sections || !generationResult.sections[activeSectionIndex]) {
-      console.error('No section to export')
-      return
-    }
+    if (!generationResult?.sections || !generationResult.sections[activeSectionIndex]) return
 
     const section = generationResult.sections[activeSectionIndex]
-    console.log('Exporting section:', section.title, 'type:', section.fileType)
-    
+
     if (section.fileType === 'pptx') {
-      try {
-        const link = document.createElement('a')
-        link.href = section.fileUrl
-        link.download = `presentation_${activeSectionIndex}.pptx`
-        document.body.appendChild(link)
-        link.click()
-        document.body.removeChild(link)
-      } catch (err) {
-        console.error('PPTX download failed:', err)
-      }
-      return
-    }
-
-    if (isExporting) {
-      console.warn('Export already in progress')
-      return
-    }
-
-    setIsExporting(true)
-    try {
-      const typeLabel = section.title || 'Материал'
-      const safeName = typeLabel.replace(/[^a-zA-Zа-яА-Я0-9]/g, '_') || 'result'
-      const dateSuffix = new Date().toISOString().split('T')[0]
-      const filename = `${safeName}_${dateSuffix}.pdf`
-
-      console.log('Requesting PDF generation for:', filename)
-
-      const styledHtml = `
-        <div style="font-family: sans-serif; padding: 20px;">
-          <h1 style="color: #FF7E58; border-bottom: 2px solid #D8E6FF; padding-bottom: 10px; margin-bottom: 20px;">${section.title}</h1>
-          <div style="line-height: 1.6; color: #2d3748;">
-            ${section.content}
-          </div>
-          <p style="margin-top: 40px; font-size: 10px; color: #a0aec0; border-top: 1px solid #edf2f7; pt: 10px;">Сгенерировано PrepodavAI</p>
-        </div>
-      `
-
-      const response = await apiClient.post(
-        '/gigachat/export/pdf',
-        { html: styledHtml, filename },
-        { responseType: 'blob' }
-      )
-
-      console.log('Received PDF response, size:', response.data.size)
-
-      const blob = new Blob([response.data], { type: 'application/pdf' })
-      const url = URL.createObjectURL(blob)
-      const link = document.body.appendChild(document.createElement('a'))
-      link.href = url
-      link.download = filename
+      const link = document.createElement('a')
+      link.href = section.fileUrl
+      link.download = `presentation_${activeSectionIndex}.pptx`
+      document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
-      setTimeout(() => URL.revokeObjectURL(url), 100)
+      return
+    }
+
+    if (isExporting) return
+    setIsExporting(true)
+
+    try {
+      const title = section.title || 'Материал'
+      const htmlToExport = `<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>${title}</title>
+  <style>
+    body { font-family: Arial, sans-serif; line-height: 1.6; padding: 40px; max-width: 800px; margin: 0 auto; background: #fff; color: #000; font-size: 14pt; }
+    h1 { color: #FF7E58; border-bottom: 2px solid #D8E6FF; padding-bottom: 10px; margin-bottom: 20px; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 1em; }
+    th, td { border: 1px solid #ddd; padding: 8px; }
+    @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+  </style>
+</head>
+<body>
+  <h1>${title}</h1>
+  <div style="line-height: 1.6;">${section.content}</div>
+  <p style="margin-top: 40px; font-size: 10px; color: #a0aec0; border-top: 1px solid #edf2f7;">Сгенерировано PrepodavAI</p>
+</body>
+</html>`
+
+      await printHtmlAsPdf(htmlToExport)
     } catch (e: any) {
       console.error('Failed to export structured PDF:', e)
-      if ((window as any).Telegram?.WebApp) {
-        (window as any).Telegram.WebApp.showAlert('Ошибка при экспорте PDF: ' + (e.message || 'Неизвестная ошибка'))
-      } else {
-        alert('Ошибка при экспорте PDF: ' + (e.message || 'Неизвестная ошибка'))
-      }
+      alert('Ошибка при экспорте PDF: ' + (e.message || 'Неизвестная ошибка'))
     } finally {
       setIsExporting(false)
     }
   }
+
 
   const generateMaterial = async () => {
     if (!userHash) {
@@ -872,10 +861,10 @@ export default function WebAppIndex({ embedded = false }: WebAppIndexProps) {
                       <button
                         onClick={downloadStructuredPdf}
                         disabled={isExporting}
-                        className="h-10 px-4 bg-[#FF2A5F] text-white rounded-xl text-xs font-bold hover:shadow-lg transition active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2 whitespace-nowrap shadow-sm"
+                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition font-medium text-xs flex items-center gap-2 whitespace-nowrap shadow-sm shadow-blue-600/20 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <i className="fas fa-download"></i>}
-                        Экспорт PDF
+                        Скачать PDF
                       </button>
                     ) : isTextResult && (
                       <div className="flex items-center gap-2">
@@ -890,10 +879,10 @@ export default function WebAppIndex({ embedded = false }: WebAppIndexProps) {
                         <button
                           onClick={downloadTextResult}
                           disabled={isExporting}
-                          className="h-10 px-4 bg-[#FF7E58] text-white rounded-xl text-xs font-bold hover:shadow-lg transition active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2 whitespace-nowrap shadow-sm"
+                          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition font-medium text-xs flex items-center gap-2 whitespace-nowrap shadow-sm shadow-blue-600/20 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <i className="fas fa-download"></i>}
-                          PDF
+                          Скачать PDF
                         </button>
                       </div>
                     )}
