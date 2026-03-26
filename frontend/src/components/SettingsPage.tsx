@@ -106,13 +106,12 @@ export default function SettingsPage() {
             })
             
             // Re-sync local storage name if needed somewhere else
-            const storedUserStr = localStorage.getItem('user')
+            const storedUserStr = localStorage.getItem('prepodavai_user')
             if (storedUserStr) {
                 try {
                     const storedUser = JSON.parse(storedUserStr)
-                    storedUser.firstName = firstName
-                    storedUser.lastName = lastName
-                    localStorage.setItem('user', JSON.stringify(storedUser))
+                    storedUser.name = `${firstName} ${lastName}`.trim() || storedUser.name
+                    localStorage.setItem('prepodavai_user', JSON.stringify(storedUser))
                 } catch (e) {}
             }
 

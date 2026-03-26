@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from 'react'
 import AuthModal from './AuthModal'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 
 export default function LandingPage() {
   const [showAuth, setShowAuth] = useState(false);
@@ -356,10 +357,10 @@ export default function LandingPage() {
         <div style={{ maxWidth: 1200, margin: "0 auto", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, fontSize: 13, color: "#bbb" }}>
           <span>© 2025 prepodav<span style={{ color: "#fdba74" }}>AI</span> — ИИ-помощник для репетиторов</span>
           <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-            <span style={{ cursor: "pointer" }}>Оферта</span>
-            <span style={{ cursor: "pointer" }}>Условия</span>
-            <span style={{ cursor: "pointer" }}>Конфиденциальность</span>
-            <span style={{ cursor: "pointer" }}>Обработка ПД</span>
+            <Link href="/legal/offer" style={{ cursor: "pointer", color: "inherit", textDecoration: "none" }}>Оферта</Link>
+            <Link href="/legal/terms" style={{ cursor: "pointer", color: "inherit", textDecoration: "none" }}>Условия</Link>
+            <Link href="/legal/privacy" style={{ cursor: "pointer", color: "inherit", textDecoration: "none" }}>Конфиденциальность</Link>
+            <Link href="/legal/consent/processing" style={{ cursor: "pointer", color: "inherit", textDecoration: "none" }}>Обработка ПД</Link>
           </div>
         </div>
       </footer>
