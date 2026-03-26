@@ -53,6 +53,7 @@ services:
       dockerfile: Dockerfile
     environment:
       NODE_ENV: production
+      NODE_OPTIONS: "--max-old-space-size=1536"
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
       JWT_SECRET: ${JWT_SECRET}
@@ -112,7 +113,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1G
+          memory: 5G
     logging:
       driver: "json-file"
       options:
