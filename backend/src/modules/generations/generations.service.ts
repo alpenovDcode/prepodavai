@@ -3417,6 +3417,7 @@ ${customPrompt ? `Дополнительно: ${customPrompt}` : ''}
             });
 
             const data = response.data;
+            this.logger.log(`Polza.ai status response for ${polzaTaskId}: ${JSON.stringify(data)}`);
             if (data.status === 'completed' || data.status === 'succeeded') {
               this.logger.log(`Polza.ai task ${polzaTaskId} completed, updating record via polling`);
               

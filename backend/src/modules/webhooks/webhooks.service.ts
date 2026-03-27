@@ -1,9 +1,11 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { GenerationHelpersService } from '../generations/generation-helpers.service';
 
 @Injectable()
 export class WebhooksService {
+  private readonly logger = new Logger(WebhooksService.name);
+
   constructor(
     private prisma: PrismaService,
     private generationHelpers: GenerationHelpersService,
@@ -134,6 +136,7 @@ export class WebhooksService {
    */
   async handlePhotosessionCallback(body: any) {
     const bodyData = Array.isArray(body) ? body[0] : body;
+    this.logger.log(`Received Polza.ai photosession callback: ${JSON.stringify(bodyData)}`);
 
     const generationRequestId =
       bodyData?.generationRequestId || bodyData?.requestId || bodyData?.id;
