@@ -138,9 +138,14 @@ export class WebhooksService {
     const generationRequestId =
       bodyData?.generationRequestId || bodyData?.requestId || bodyData?.id;
     const success = bodyData?.success !== undefined ? bodyData.success : (bodyData?.status === 'completed' || bodyData?.status === 'succeeded');
-    const polzaImages = bodyData?.result?.images || [];
+    
+    // По результатам документации GET /v1/media/{id}
+    const polzaDataUrl = bodyData?.data?.url;
+    const polzaDataUrls = Array.isArray(bodyData?.data?.urls) ? bodyData.data.urls : (polzaDataUrl ? [polzaDataUrl] : []);
+    const polzaImages = bodyData?.result?.images || polzaDataUrls;
+    
     const imageUrls = bodyData?.imageUrls || bodyData?.image_urls || polzaImages;
-    const imageUrl = bodyData?.imageUrl || bodyData?.image_url; // Fallback для одного изображения
+    const imageUrl = bodyData?.imageUrl || bodyData?.image_url; 
     const error = bodyData?.error || bodyData?.errorMessage || bodyData?.status_description;
     const prompt = bodyData?.prompt;
     const style = bodyData?.style;
