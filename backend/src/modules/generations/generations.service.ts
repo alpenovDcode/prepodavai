@@ -3402,9 +3402,69 @@ ${customPrompt ? `Дополнительно: ${customPrompt}` : ''}
       throw new NotFoundException('Доступ запрещен');
     }
 
-    // Формируем правильный формат ответа для frontend
-    const status: 'pending' | 'completed' | 'failed' = generation.status as any;
+    // Если запрос всё еще в статусе pending и это Polza.ai - пробуем обновить статус принудительно (polling)
+    if (generation.status === 'pending') {
+      const metadata = (generation.metadata as any) || {};
+      const polzaTaskId = metadata.polzaTaskId;
 
+      if (polzaTaskId) {
+        const polzaKey = this.configService.get<string>('POLZA_AI_API_KEY');
+        if (polzaKey) {
+          try {
+            this.logger.log(`Polling Polza.ai status for task: ${polzaTaskId}`);
+            const response = await axios.get(`https://polza.ai/api/v1/media/${polzaTaskId}`, {
+              headers: { Authorization: `Bearer ${polzaKey}` },
+            });
+
+            const data = response.data;
+            if (data.status === 'completed' || data.status === 'succeeded') {
+              this.logger.log(`Polza.ai task ${polzaTaskId} completed, updating record via polling`);
+              
+              const polzaDataUrl = data.data?.url;
+              const polzaDataUrls = Array.isArray(data.data?.urls) ? data.data.urls : (polzaDataUrl ? [polzaDataUrl] : []);
+              const imageUrls = polzaDataUrls;
+
+              if (imageUrls.length > 0) {
+                const outputData = {
+                  imageUrls: imageUrls,
+                  imageUrl: imageUrls[0],
+                  type: 'photosession',
+                  completedAt: new Date().toISOString(),
+                };
+
+                await this.generationHelpers.completeGeneration(requestId, outputData);
+
+                // Перезагружаем запись
+                const updatedGeneration = await this.prisma.generationRequest.findUnique({
+                  where: { id: requestId },
+                  include: { userGeneration: true },
+                });
+                
+                return this.formatGenerationStatus(updatedGeneration);
+              }
+            } else if (data.status === 'failed') {
+              const errorMsg = data.status_description || data.error?.message || 'Generation failed';
+              await this.generationHelpers.failGeneration(requestId, errorMsg);
+              
+              // Перезагружаем
+              const updatedGeneration = await this.prisma.generationRequest.findUnique({
+                where: { id: requestId },
+                include: { userGeneration: true },
+              });
+              return this.formatGenerationStatus(updatedGeneration);
+            }
+          } catch (error) {
+            this.logger.error(`Failed to poll Polza.ai status: ${error.message}`);
+          }
+        }
+      }
+    }
+
+    return this.formatGenerationStatus(generation);
+  }
+
+  private formatGenerationStatus(generation: any) {
+    const status: 'pending' | 'completed' | 'failed' = generation.status as any;
     return {
       success: true,
       requestId: generation.id,
@@ -3413,8 +3473,8 @@ ${customPrompt ? `Дополнительно: ${customPrompt}` : ''}
         result: generation.result,
         error: generation.error,
       },
-      result: generation.result, // Для обратной совместимости
-      error: generation.error, // Для обратной совместимости
+      result: generation.result,
+      error: generation.error,
       createdAt: generation.createdAt,
       updatedAt: generation.updatedAt,
     };
