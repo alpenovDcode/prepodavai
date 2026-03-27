@@ -137,10 +137,11 @@ export class WebhooksService {
 
     const generationRequestId =
       bodyData?.generationRequestId || bodyData?.requestId || bodyData?.id;
-    const success = bodyData?.success;
-    const imageUrls = bodyData?.imageUrls || bodyData?.image_urls || [];
+    const success = bodyData?.success !== undefined ? bodyData.success : (bodyData?.status === 'completed' || bodyData?.status === 'succeeded');
+    const polzaImages = bodyData?.result?.images || [];
+    const imageUrls = bodyData?.imageUrls || bodyData?.image_urls || polzaImages;
     const imageUrl = bodyData?.imageUrl || bodyData?.image_url; // Fallback для одного изображения
-    const error = bodyData?.error || bodyData?.errorMessage;
+    const error = bodyData?.error || bodyData?.errorMessage || bodyData?.status_description;
     const prompt = bodyData?.prompt;
     const style = bodyData?.style;
     const photoUrl = bodyData?.photoUrl || bodyData?.photo_url; // Исходное фото

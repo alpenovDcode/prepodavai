@@ -578,15 +578,23 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
             this.logger.log(`Sending photosession request to Polza.ai API: ${imageUrlInput}`);
 
             try {
+              const callbackUrl = `${baseUrl}/api/webhooks/photosession-callback`;
+              
               const response = await axios.post(
                 'https://polza.ai/api/v1/media',
                 {
                   model: 'google/gemini-3-pro-image-preview',
                   input: {
                     prompt: promptText,
-                    aspect_ratio: '1:1', // Default or map from input
+                    aspect_ratio: '1:1',
                     image_resolution: '4K',
-                    images: [imageUrlInput],
+                    images: [
+                      {
+                        type: 'url',
+                        data: imageUrlInput,
+                      },
+                    ],
+                    callBackUrl: callbackUrl,
                   },
                   async: true,
                 },
