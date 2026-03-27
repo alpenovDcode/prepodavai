@@ -3422,7 +3422,8 @@ ${customPrompt ? `Дополнительно: ${customPrompt}` : ''}
               
               const polzaDataUrl = data.data?.url;
               const polzaDataUrls = Array.isArray(data.data?.urls) ? data.data.urls : (polzaDataUrl ? [polzaDataUrl] : []);
-              const imageUrls = polzaDataUrls;
+              const polzaImages = data.result?.images || polzaDataUrls;
+              const imageUrls = polzaImages;
 
               if (imageUrls.length > 0) {
                 const outputData = {

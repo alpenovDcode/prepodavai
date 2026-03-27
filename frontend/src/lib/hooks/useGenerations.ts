@@ -168,7 +168,7 @@ export function useGenerations() {
             setIsPolling(false)
             reject(new Error(status.error || 'Ошибка генерации'))
           } else if (attempts < maxAttempts) {
-            setTimeout(check, 1000)
+            setTimeout(check, 5000)
           } else {
             setIsPolling(false)
             reject(new Error('Превышено время ожидания'))
