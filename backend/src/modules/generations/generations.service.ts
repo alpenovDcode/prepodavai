@@ -561,24 +561,73 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
 
     try {
       // Для генерации изображений через Replicate API
-      if (
-        generationType === 'photosession' ||
-        generationType === 'image' ||
-        generationType === 'image_generation'
-      ) {
-        const promptText = inputParams.prompt;
-        const baseUrl = this.configService.get<string>('BASE_URL', 'https://api.prepodavai.ru');
-        let imageUrlInput;
-
         if (generationType === 'photosession') {
+          const promptText = inputParams.prompt;
           const photoHash = inputParams.photoHash;
           if (!photoHash) {
             throw new BadRequestException('No photo provided for photosession');
           }
-          imageUrlInput = `${baseUrl}/api/files/${photoHash}`;
+
+          const baseUrl = this.configService.get<string>('BASE_URL', 'https://api.prepodavai.ru');
+          const polzaKey = this.configService.get<string>('POLZA_AI_API_KEY');
+          const imageUrlInput = `${baseUrl}/api/files/${photoHash}`;
+
+          if (!polzaKey) {
+            this.logger.warn('POLZA_AI_API_KEY not configured, falling back to Replicate (if possible) or error.');
+          } else {
+            this.logger.log(`Sending photosession request to Polza.ai API: ${imageUrlInput}`);
+
+            try {
+              const response = await axios.post(
+                'https://polza.ai/api/v1/media',
+                {
+                  model: 'google/gemini-3-pro-image-preview',
+                  input: {
+                    prompt: promptText,
+                    aspect_ratio: '1:1', // Default or map from input
+                    image_resolution: '4K',
+                    images: [imageUrlInput],
+                  },
+                  async: true,
+                },
+                {
+                  headers: {
+                    Authorization: `Bearer ${polzaKey}`,
+                    'Content-Type': 'application/json',
+                  },
+                },
+              );
+
+              const taskId = response.data.id || response.data.task_id;
+              this.logger.log(`Polza.ai photosession task created: ${taskId}`);
+
+              // Сохраняем task ID в metadata генерации
+              await this.prisma.generationRequest.update({
+                where: { id: generationRequestId },
+                data: {
+                  metadata: {
+                    polzaTaskId: taskId,
+                  },
+                },
+              });
+
+              return {
+                provider: 'Polza.ai',
+                mode: generationType,
+                status: 'pending',
+                taskId: taskId,
+                requestId: generationRequestId,
+                completedAt: new Date().toISOString(),
+              };
+            } catch (error: any) {
+              this.logger.error(`Failed to send Polza.ai request: ${error.message}`);
+              throw new BadRequestException(`Failed to start Polza.ai photosession: ${error.message}`);
+            }
+          }
         }
 
-        // URL для обратного вызова
+        // URL для обратного вызова (для Replicate)
+        const baseUrl = this.configService.get<string>('BASE_URL', 'https://api.prepodavai.ru');
         const callbackUrl = `${baseUrl}/api/webhooks/replicate-callback`;
 
         // Replicate API token
@@ -587,27 +636,19 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
           throw new BadRequestException('REPLICATE_API_TOKEN not configured');
         }
 
-        this.logger.log(`Sending photosession request to Replicate API: ${imageUrlInput}`);
+        this.logger.log(`Sending image generation request to Replicate API`);
 
         try {
-          const axios = (await import('axios')).default;
-
           const input: any = {
-            prompt: promptText,
-            aspect_ratio: imageUrlInput ? 'match_input_image' : '4:3',
+            prompt: inputParams.prompt,
+            aspect_ratio: '4:3',
           };
-
-          if (imageUrlInput) {
-            input.image_input = [imageUrlInput];
-          }
 
           const requestBody = {
             input: input,
             webhook: callbackUrl,
             webhook_events_filter: ['completed'],
           };
-
-          this.logger.log(`Replicate request body: ${JSON.stringify(requestBody, null, 2)}`);
 
           // Отправляем запрос на Replicate API
           const response = await axios.post(
@@ -624,7 +665,6 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
           const predictionId = response.data.id;
           this.logger.log(`Replicate prediction created: ${predictionId}`);
 
-          // Сохраняем prediction ID в metadata генерации
           await this.prisma.generationRequest.update({
             where: { id: generationRequestId },
             data: {
@@ -634,7 +674,6 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
             },
           });
 
-          // Возвращаем pending статус
           return {
             provider: 'Replicate',
             mode: generationType,
@@ -645,14 +684,8 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
           };
         } catch (error: any) {
           this.logger.error(`Failed to send Replicate request: ${error.message}`);
-          if (error.response) {
-            this.logger.error(
-              `Replicate error response: ${JSON.stringify(error.response.data, null, 2)}`,
-            );
-          }
-          throw new BadRequestException(`Failed to start photosession: ${error.message}`);
+          throw new BadRequestException(`Failed to start image generation: ${error.message}`);
         }
-      }
 
       throw new BadRequestException(`Unsupported image generation type: ${generationType}`);
     } catch (error: any) {

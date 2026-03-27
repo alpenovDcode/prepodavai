@@ -150,9 +150,21 @@ export class WebhooksService {
       throw new NotFoundException('Missing generationRequestId');
     }
 
-    const generationRequest = await this.prisma.generationRequest.findUnique({
+    let generationRequest = await this.prisma.generationRequest.findUnique({
       where: { id: generationRequestId },
     });
+
+    // Если не нашли по ID, пробуем найти по polzaTaskId в метаданных
+    if (!generationRequest) {
+      generationRequest = await this.prisma.generationRequest.findFirst({
+        where: {
+          metadata: {
+            path: ['polzaTaskId'],
+            equals: generationRequestId, // bodyData.id might be the task ID
+          },
+        },
+      });
+    }
 
     if (!generationRequest) {
       throw new NotFoundException('Generation request not found');
