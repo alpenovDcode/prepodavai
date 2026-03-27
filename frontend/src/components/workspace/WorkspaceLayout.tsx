@@ -3,6 +3,8 @@
 import { ReactNode } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { useServiceCosts } from '@/lib/hooks/useServiceCosts'
+import { useUser } from '@/lib/hooks/useUser'
+import { useSubscription } from '@/lib/hooks/useSubscription'
 import { LOGO_BASE64 } from '@/constants/branding'
 import { BookOpen, HelpCircle, Gamepad2, Settings, ArrowLeft, PenTool, LayoutTemplate, MessageSquare, FileEdit, MessageCircle, Sparkles, PackageOpen, Video, LineChart, Camera, Image as ImageIcon, FileAudio, MonitorPlay, ClipboardCheck, GraduationCap } from 'lucide-react'
 
@@ -13,6 +15,8 @@ interface WorkspaceLayoutProps {
 export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
     const pathname = usePathname()
     const router = useRouter()
+    const { user, fullName, initials, loading: userLoading } = useUser()
+    const { subscription, loading: subLoading } = useSubscription()
 
     const tools = [
         { id: 'hub', label: 'Главная панель', icon: LayoutTemplate, path: '/workspace' },
@@ -127,15 +131,30 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
                 </div>
 
 
-                {/* User Profile Hook (Mock for now, should connect to real user context) */}
+                {/* User Profile */}
                 <div className="p-4 border-t border-gray-100">
-                    <div className="flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-gray-50 cursor-pointer transition">
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-400 to-indigo-600 flex items-center justify-center text-white font-semibold text-xs shrink-0">
-                            U
-                        </div>
+                    <div 
+                        onClick={() => router.push('/dashboard/profile')}
+                        className="flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-gray-50 cursor-pointer transition"
+                    >
+                        {user?.avatar ? (
+                            <img 
+                                src={user.avatar} 
+                                alt={fullName} 
+                                className="w-8 h-8 rounded-full object-cover shrink-0 border border-gray-100" 
+                            />
+                        ) : (
+                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-400 to-indigo-600 flex items-center justify-center text-white font-semibold text-xs shrink-0">
+                                {initials}
+                            </div>
+                        )}
                         <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-gray-900 truncate">Преподаватель</p>
-                            <p className="text-xs text-gray-500 truncate">Pro План</p>
+                            <p className="text-sm font-semibold text-gray-900 truncate">
+                                {userLoading ? 'Загрузка...' : fullName}
+                            </p>
+                            <p className="text-xs text-gray-500 truncate">
+                                {subLoading ? '...' : (subscription?.planName || 'Базовый План')}
+                            </p>
                         </div>
                         <Settings className="w-4 h-4 text-gray-400 shrink-0" />
                     </div>
