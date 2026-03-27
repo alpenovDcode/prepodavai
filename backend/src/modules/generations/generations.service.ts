@@ -556,7 +556,10 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
       throw new BadRequestException('Prompt is required for image generation');
     }
 
-    const model = requestedModel || this.gigachatService.getDefaultModel('image');
+    let model = requestedModel || this.gigachatService.getDefaultModel('image');
+    if (generationType === 'photosession') {
+      model = 'google/gemini-3-pro-image-preview';
+    }
     console.log(`[GenerationsService] Using model: ${model}, prompt: ${prompt}`);
 
     try {
@@ -578,16 +581,18 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
             this.logger.log(`Sending photosession request to Polza.ai API: ${imageUrlInput}`);
 
             try {
-              const callbackUrl = `${baseUrl}/api/webhooks/photosession-callback`;
+              const callbackUrl = `${baseUrl}/api/generate-photosession`;
               
               const response = await axios.post(
                 'https://polza.ai/api/v1/media',
                 {
-                  model: 'google/gemini-3-pro-image-preview',
+                  model: model,
                   input: {
                     prompt: promptText,
                     aspect_ratio: '1:1',
                     image_resolution: '4K',
+                    quality: 'high',
+                    isEnhance: true,
                     images: [
                       {
                         type: 'url',
