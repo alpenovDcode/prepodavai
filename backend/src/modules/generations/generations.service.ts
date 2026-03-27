@@ -3413,20 +3413,24 @@ ${customPrompt ? `Дополнительно: ${customPrompt}` : ''}
           try {
             this.logger.log(`Polling Polza.ai status for task: ${polzaTaskId}`);
             const response = await axios.get(`https://polza.ai/api/v1/media/${polzaTaskId}`, {
-              headers: { Authorization: `Bearer ${polzaKey}` },
+              headers: { 'X-Api-Key': polzaKey },
             });
 
             const data = response.data;
             this.logger.log(`Polza.ai status response for ${polzaTaskId}: ${JSON.stringify(data)}`);
             if (data.status === 'completed' || data.status === 'succeeded') {
-              this.logger.log(`Polza.ai task ${polzaTaskId} completed, updating record via polling`);
-              
               const polzaDataUrl = data.data?.url;
-              const polzaDataUrls = Array.isArray(data.data?.urls) ? data.data.urls : (polzaDataUrl ? [polzaDataUrl] : []);
+              const polzaDataUrls = Array.isArray(data.data) 
+                ? data.data.map((item: any) => item.url || (typeof item === 'string' ? item : null)).filter(Boolean)
+                : (polzaDataUrl ? [polzaDataUrl] : []);
+              
               const polzaImages = data.result?.images || polzaDataUrls;
               const imageUrls = polzaImages;
+              
+              this.logger.log(`Polza.ai task ${polzaTaskId} reported as completed. Extracted ${imageUrls.length} images.`);
 
               if (imageUrls.length > 0) {
+                this.logger.log(`Updating record ${requestId} via polling...`);
                 const outputData = {
                   imageUrls: imageUrls,
                   imageUrl: imageUrls[0],
@@ -3435,15 +3439,19 @@ ${customPrompt ? `Дополнительно: ${customPrompt}` : ''}
                 };
 
                 await this.generationHelpers.completeGeneration(requestId, outputData);
-
-                // Перезагружаем запись
-                const updatedGeneration = await this.prisma.generationRequest.findUnique({
-                  where: { id: requestId },
-                  include: { userGeneration: true },
-                });
-                
-                return this.formatGenerationStatus(updatedGeneration);
+              } else {
+                // Если статус готов, но картинок нет - это ошибка, прерываем полинг
+                this.logger.error(`Polza.ai task ${polzaTaskId} is completed but NO images were found. Failing generation.`);
+                await this.generationHelpers.failGeneration(requestId, 'Результат генерации не содержит изображений');
               }
+
+              // Перезагружаем запись в любом случае, чтобы вернуть актуальный статус (completed или failed)
+              const updatedGeneration = await this.prisma.generationRequest.findUnique({
+                where: { id: requestId },
+                include: { userGeneration: true },
+              });
+              
+              return this.formatGenerationStatus(updatedGeneration);
             } else if (data.status === 'failed') {
               const errorMsg = data.status_description || data.error?.message || 'Generation failed';
               await this.generationHelpers.failGeneration(requestId, errorMsg);

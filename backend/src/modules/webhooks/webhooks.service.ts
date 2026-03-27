@@ -144,7 +144,10 @@ export class WebhooksService {
     
     // По результатам документации GET /v1/media/{id}
     const polzaDataUrl = bodyData?.data?.url;
-    const polzaDataUrls = Array.isArray(bodyData?.data?.urls) ? bodyData.data.urls : (polzaDataUrl ? [polzaDataUrl] : []);
+    const polzaDataUrls = Array.isArray(bodyData?.data)
+      ? bodyData.data.map((item: any) => item.url || (typeof item === 'string' ? item : null)).filter(Boolean)
+      : (polzaDataUrl ? [polzaDataUrl] : []);
+    
     const polzaImages = bodyData?.result?.images || polzaDataUrls;
     
     const imageUrls = bodyData?.imageUrls || bodyData?.image_urls || polzaImages;
