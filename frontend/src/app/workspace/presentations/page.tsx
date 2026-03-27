@@ -117,7 +117,7 @@ function PresentationGeneratorContent() {
         } catch (e) {
             console.error('Failed to load slides from sessionStorage:', e)
         }
-    }, [])
+    }, [searchParams])
 
     // Listen for HTML updates from injected iframe scripts (drag-drop, etc.)
     useEffect(() => {
@@ -323,7 +323,7 @@ function PresentationGeneratorContent() {
         return () => {
             iframe.removeEventListener('load', activate)
         }
-    }, [editMode, isEditorMode, activeSlideIndex])
+    }, [editMode, isEditorMode, activeSlideIndex, enableEditing])
 
     // ---- Toolbar commands (direct DOM) ----
     const execCmd = (cmd: string) => {

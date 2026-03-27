@@ -9,6 +9,7 @@ import {
   BadRequestException,
   Res,
   UseGuards,
+  Request,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
@@ -72,7 +73,6 @@ export class FilesController {
           '.ogg',
           '.m4a',
           '.aac',
-          '.html',
         ];
         if (!allowedExtensions.includes(ext)) {
           return cb(new BadRequestException(`Invalid file extension: ${ext}`), false);
@@ -82,12 +82,13 @@ export class FilesController {
       },
     }),
   )
-  async uploadFile(@UploadedFile() file: Express.Multer.File) {
+  async uploadFile(@UploadedFile() file: Express.Multer.File, @Request() req: any) {
     if (!file) {
       throw new BadRequestException('Файл не предоставлен');
     }
 
-    const result = await this.filesService.saveFile(file);
+    const userId = req.user.id;
+    const result = await this.filesService.saveFile(file, userId);
     return {
       success: true,
       ...result,
@@ -120,7 +121,6 @@ export class FilesController {
       'audio/wav': '.wav',
       'audio/ogg': '.ogg',
       'application/vnd.openxmlformats-officedocument.presentationml.presentation': '.pptx',
-      'text/html': '.html',
     };
     const ext = extMap[file.mimeType] || '';
     const filename = `${hash}${ext}`;
@@ -143,8 +143,9 @@ export class FilesController {
    */
   @Delete(':hash')
   @UseGuards(JwtAuthGuard)
-  async deleteFile(@Param('hash') hash: string) {
-    const deleted = await this.filesService.deleteFile(hash);
+  async deleteFile(@Param('hash') hash: string, @Request() req: any) {
+    const userId = req.user.id;
+    const deleted = await this.filesService.deleteFile(hash, userId);
     return {
       success: deleted,
       message: deleted ? 'Файл удален' : 'Файл не найден',

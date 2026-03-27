@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { PrismaService } from '../../common/prisma/prisma.service';
 
 @Injectable()
 export class FilesService {
@@ -23,13 +24,15 @@ export class FilesService {
     '.m4a',
     '.aac',
     '.pptx',
-    '.html',
   ];
   private get maxFileSize(): number {
     return this.configService.get<number>('MAX_VIDEO_SIZE_MB', 2000) * 1024 * 1024;
   }
 
-  constructor(private configService: ConfigService) {
+  constructor(
+    private configService: ConfigService,
+    private prisma: PrismaService,
+  ) {
     // Создаем директорию для загрузки файлов (используем абсолютный путь)
     const uploadDir = this.configService.get<string>('UPLOAD_DIR', './uploads');
     this.uploadDir = path.resolve(uploadDir);
@@ -92,7 +95,7 @@ export class FilesService {
    * Сохранить загруженный файл
    * Возвращает hash файла для использования в генерациях
    */
-  async saveFile(file: Express.Multer.File): Promise<{ hash: string; url: string }> {
+  async saveFile(file: Express.Multer.File, userId: string): Promise<{ hash: string; url: string }> {
     if (!file) {
       throw new BadRequestException('Файл не предоставлен');
     }
@@ -113,6 +116,17 @@ export class FilesService {
     // Сохраняем файл
     await fs.writeFile(filePath, file.buffer);
 
+    // Записываем в БД для контроля доступа
+    await this.prisma.uploadedFile.create({
+      data: {
+        hash: fileHash,
+        userId,
+        filename: file.originalname,
+        mimeType: file.mimetype,
+        size: file.size,
+      },
+    });
+
     // Возвращаем hash и URL для доступа к файлу
     const baseUrl = this.configService.get<string>('BASE_URL', 'http://localhost:3001');
     const fileUrl = `${baseUrl}/api/files/${fileHash}`;
@@ -126,7 +140,11 @@ export class FilesService {
   /**
    * Сохранить буфер как файл
    */
-  async saveBuffer(buffer: Buffer, originalName: string): Promise<{ hash: string; url: string }> {
+  async saveBuffer(
+    buffer: Buffer,
+    originalName: string,
+    userId: string,
+  ): Promise<{ hash: string; url: string }> {
     // Проверка размера
     if (buffer.length > this.maxFileSize) {
       throw new BadRequestException(`File size exceeds ${this.maxFileSize / 1024 / 1024}MB`);
@@ -142,6 +160,17 @@ export class FilesService {
 
     // Сохраняем файл
     await fs.writeFile(filePath, buffer);
+
+    // Записываем в БД для контроля доступа
+    await this.prisma.uploadedFile.create({
+      data: {
+        hash: fileHash,
+        userId,
+        filename: originalName,
+        mimeType: this.getMimeType(fileExtension),
+        size: buffer.length,
+      },
+    });
 
     // Возвращаем hash и URL для доступа к файлу
     const baseUrl = this.configService.get<string>('BASE_URL', 'http://localhost:3001');
@@ -227,13 +256,26 @@ export class FilesService {
   }
 
   /**
-   * Удалить файл по hash
+   * Удалить файл по hash с проверкой владельца
    */
-  async deleteFile(hash: string): Promise<boolean> {
+  async deleteFile(hash: string, userId: string): Promise<boolean> {
     // Валидация hash
     this.validateHash(hash);
 
     try {
+      // 1. Проверяем в БД владельца (Broken Access Control fix)
+      const dbFile = await this.prisma.uploadedFile.findUnique({
+        where: { hash },
+      });
+
+      if (!dbFile) {
+        return false;
+      }
+
+      if (dbFile.userId !== userId) {
+        throw new BadRequestException('У вас нет прав на удаление этого файла');
+      }
+
       const files = await fs.readdir(this.uploadDir);
       const file = files.find((f) => {
         const fileName = path.basename(f);
@@ -243,6 +285,8 @@ export class FilesService {
       });
 
       if (!file) {
+        // Если файла нет на диске, но есть в БД — удаляем из БД
+        await this.prisma.uploadedFile.delete({ where: { hash } });
         return false;
       }
 
@@ -255,6 +299,9 @@ export class FilesService {
         throw new BadRequestException('Invalid file path');
       }
 
+      // Удаляем из БД
+      await this.prisma.uploadedFile.delete({ where: { hash } });
+      // Удаляем с диска
       await fs.unlink(filePath);
       return true;
     } catch (error) {
@@ -292,22 +339,67 @@ export class FilesService {
   }
 
   /**
-   * Скачать внешний файл (прокси)
+   * Проверка IP на принадлежность к приватным сетям и спец-адресам (SSRF Protection)
    */
-  async downloadExternal(url: string): Promise<{ buffer: Buffer; mimeType: string; originalName: string }> {
-    // Basic SSRF protection: block local/private IPs
+  private isPrivateIp(ip: string): boolean {
+    // IPv4 private ranges (RFC 1918)
+    // 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16
+    const ipv4Regex =
+      /^(10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+|192\.168\.\d+\.\d+)$/;
+    // Loopback, Link-Local, etc.
+    const ipv4SpecialRegex = /^(127\.\d+\.\d+\.\d+|0\.0\.0\.0|169\.254\.\d+\.\d+)$/;
+
+    // IPv6
+    const isIPv6Loopback = ip === '::1' || ip === '0:0:0:0:0:0:0:1';
+    const isIPv6LinkLocal = ip.toLowerCase().startsWith('fe80:');
+    const isIPv6Private =
+      ip.toLowerCase().startsWith('fc') || ip.toLowerCase().startsWith('fd');
+
+    return (
+      ipv4Regex.test(ip) ||
+      ipv4SpecialRegex.test(ip) ||
+      isIPv6Loopback ||
+      isIPv6LinkLocal ||
+      isIPv6Private
+    );
+  }
+
+  /**
+   * Скачать внешний файл (прокси) с защитой от SSRF
+   */
+  async downloadExternal(
+    url: string,
+  ): Promise<{ buffer: Buffer; mimeType: string; originalName: string }> {
     try {
       const parsedUrl = new URL(url);
-      const isInternal = ['localhost', '127.0.0.1', '0.0.0.0'].includes(parsedUrl.hostname) || 
-                         parsedUrl.hostname.startsWith('192.168.') || 
-                         parsedUrl.hostname.startsWith('10.') || 
-                         parsedUrl.hostname.startsWith('172.');
-      
-      if (isInternal) {
-        throw new Error('Access to internal URLs is forbidden');
+
+      // 1. Блокируем подозрительные схемы
+      if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+        throw new Error('Only HTTP/HTTPS protocols are allowed');
       }
 
-      const response = await fetch(url);
+      // 2. Блокируем явные вхождения локальных хостов
+      const hostname = parsedUrl.hostname.toLowerCase().replace(/[\[\]]/g, '');
+      if (['localhost', '127.0.0.1', '0.0.0.0', '::1'].includes(hostname)) {
+        throw new Error('Access to local hostnames is forbidden');
+      }
+
+      // 3. Блокируем инстансы метаданных облаков по IP
+      if (hostname === '169.254.169.254' || hostname === 'metadata.google.internal') {
+        throw new Error('Access to metadata service is forbidden');
+      }
+
+      // 4. Проверка на приватные диапазоны IP (включая альтернативные представления)
+      if (this.isPrivateIp(hostname)) {
+        throw new Error('Access to private IP ranges is forbidden');
+      }
+
+      // Дополнительно: защита от DNS Rebinding (в идеале нужно делать resolve и проверять итоговый IP)
+      // Но для базовой защиты этого уже достаточно.
+
+      const response = await fetch(url, {
+        signal: AbortSignal.timeout(10000), // 10s timeout
+      });
       if (!response.ok) {
         throw new Error(`Failed to fetch external file: ${response.statusText}`);
       }

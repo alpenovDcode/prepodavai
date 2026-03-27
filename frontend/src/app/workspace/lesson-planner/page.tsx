@@ -80,9 +80,9 @@ export default function LessonPlanner() {
 
     const exportPDF = () => {
         const autoPrint = `<script>window.onload=function(){setTimeout(function(){window.print()},600)}<\/script>`
-        const html = /<\/head>/i.test(localContent)
-            ? localContent.replace(/<\/head>/i, `${autoPrint}</head>`)
-            : `<!DOCTYPE html><html><head><meta charset="utf-8">${autoPrint}</head><body>${localContent}</body></html>`
+        const html = /<\/head>/i.test(htmlContent)
+            ? htmlContent.replace(/<\/head>/i, `${autoPrint}</head>`)
+            : `<!DOCTYPE html><html><head><meta charset="utf-8">${autoPrint}</head><body>${htmlContent}</body></html>`
         const win = window.open('', '_blank')
         if (!win) { alert('Разрешите всплывающие окна для этого сайта'); return }
         win.document.open(); win.document.write(html); win.document.close()

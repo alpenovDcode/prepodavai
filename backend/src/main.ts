@@ -65,9 +65,10 @@ async function bootstrap() {
     );
   }
 
-  // Ограничение размера body запросов (защита от DoS) - Увеличено до 2GB для загрузки видео
-  app.use(require('express').json({ limit: '2gb' }));
-  app.use(require('express').urlencoded({ limit: '2gb', extended: true }));
+  // Ограничение размера body запросов (защита от DoS) - Глобальный лимит 10MB
+  // (2GB для видео загружается через Multer в FilesController)
+  app.use(require('express').json({ limit: '10mb' }));
+  app.use(require('express').urlencoded({ limit: '10mb', extended: true }));
   app.use(require('cookie-parser')());
   app.use(compression());
 

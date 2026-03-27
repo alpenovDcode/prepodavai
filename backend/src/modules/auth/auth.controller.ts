@@ -45,6 +45,7 @@ export class AuthController {
   }
 
   @Post('validate-init-data')
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   async validateInitData(
     @Body() body: ValidateInitDataDto,
     @Res({ passthrough: true }) res: Response,
@@ -58,6 +59,7 @@ export class AuthController {
   }
 
   @Post('max/validate-init-data')
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   async validateMaxInitData(
     @Body() body: ValidateInitDataDto,
     @Res({ passthrough: true }) res: Response,

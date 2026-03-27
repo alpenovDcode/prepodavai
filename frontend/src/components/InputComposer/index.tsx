@@ -103,6 +103,66 @@ export default function InputComposer({
     return field
   })
 
+  const selectFunction = useCallback((id: string) => {
+    const fields = templates[id]?.fields || []
+    const defaultValues: Record<string, any> = {}
+
+    const specialDefaults: Record<string, Record<string, any>> = {
+      presentation: {
+        numCards: 10,
+        exportAs: 'pdf',
+        textAmount: 'detailed',
+        language: 'ru',
+        imageSource: 'aiGenerated',
+        themeName: '',
+        tone: '',
+        audience: ''
+      },
+      gigachat: {
+        mode: 'chat',
+        model: 'GigaChat',
+        systemPrompt: '',
+        userPrompt: '',
+        temperature: 0.8,
+        topP: 0.9,
+        maxTokens: 1024,
+        prompt: '',
+        size: '1024x1024',
+        quality: 'high',
+        inputText: '',
+        voice: 'BYS',
+        audioFormat: 'mp3',
+        audioSpeed: 1,
+        language: 'ru',
+        targetLanguage: 'en'
+      }
+    }
+
+    fields.forEach(field => {
+      if (specialDefaults[id] && specialDefaults[id][field.key] !== undefined) {
+        defaultValues[field.key] = specialDefaults[id][field.key]
+      } else if (field.defaultValue !== undefined) {
+        defaultValues[field.key] = field.defaultValue
+      } else if (field.type === 'file') {
+        defaultValues[field.key] = null
+        defaultValues[field.key + 'Preview'] = null
+      } else if (field.type === 'select' && field.options && field.options.length > 0) {
+        const firstNonEmptyOption = field.options.find(opt => opt.value !== '') || field.options[0]
+        defaultValues[field.key] = firstNonEmptyOption ? firstNonEmptyOption.value : field.options[0].value
+      } else if (field.type === 'multiselect') {
+        defaultValues[field.key] = []
+      } else if (field.type === 'number') {
+        defaultValues[field.key] = field.min !== undefined ? field.min : 0
+      } else {
+        defaultValues[field.key] = ''
+      }
+    })
+
+    setLocalValues(defaultValues)
+    setCurrentFunction(id)
+    onFunctionChange(id)
+  }, [onFunctionChange])
+
   // Обновляем localValues при изменении values извне
   useEffect(() => {
     setLocalValues(values || {})
@@ -113,12 +173,12 @@ export default function InputComposer({
     if (currentFunction !== functionId) {
       selectFunction(functionId)
     }
-  }, [functionId])
+  }, [functionId, currentFunction, selectFunction])
 
   // Уведомляем родителя об изменении значений
   useEffect(() => {
     onValuesChange(localValues)
-  }, [localValues])
+  }, [localValues, onValuesChange])
 
   // Загружаем стоимость операции
   useEffect(() => {
@@ -241,66 +301,6 @@ export default function InputComposer({
     gigachatModelsLoadedRef.current = true
     loadGigachatModels()
   }, [currentFunction, loadGigachatModels])
-
-  function selectFunction(id: string) {
-    const fields = templates[id]?.fields || []
-    const defaultValues: Record<string, any> = {}
-
-    const specialDefaults: Record<string, Record<string, any>> = {
-      presentation: {
-        numCards: 10,
-        exportAs: 'pdf',
-        textAmount: 'detailed',
-        language: 'ru',
-        imageSource: 'aiGenerated',
-        themeName: '',
-        tone: '',
-        audience: ''
-      },
-      gigachat: {
-        mode: 'chat',
-        model: 'GigaChat',
-        systemPrompt: '',
-        userPrompt: '',
-        temperature: 0.8,
-        topP: 0.9,
-        maxTokens: 1024,
-        prompt: '',
-        size: '1024x1024',
-        quality: 'high',
-        inputText: '',
-        voice: 'BYS',
-        audioFormat: 'mp3',
-        audioSpeed: 1,
-        language: 'ru',
-        targetLanguage: 'en'
-      }
-    }
-
-    fields.forEach(field => {
-      if (specialDefaults[id] && specialDefaults[id][field.key] !== undefined) {
-        defaultValues[field.key] = specialDefaults[id][field.key]
-      } else if (field.defaultValue !== undefined) {
-        defaultValues[field.key] = field.defaultValue
-      } else if (field.type === 'file') {
-        defaultValues[field.key] = null
-        defaultValues[field.key + 'Preview'] = null
-      } else if (field.type === 'select' && field.options && field.options.length > 0) {
-        const firstNonEmptyOption = field.options.find(opt => opt.value !== '') || field.options[0]
-        defaultValues[field.key] = firstNonEmptyOption ? firstNonEmptyOption.value : field.options[0].value
-      } else if (field.type === 'multiselect') {
-        defaultValues[field.key] = []
-      } else if (field.type === 'number') {
-        defaultValues[field.key] = field.min !== undefined ? field.min : 0
-      } else {
-        defaultValues[field.key] = ''
-      }
-    })
-
-    setLocalValues(defaultValues)
-    setCurrentFunction(id)
-    onFunctionChange(id)
-  }
 
   function displayValue(key: string, placeholder: string): string {
     const v = localValues[key]

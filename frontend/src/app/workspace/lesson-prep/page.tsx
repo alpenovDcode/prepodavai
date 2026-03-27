@@ -35,7 +35,7 @@ export default function LessonPrepGenerator() {
         if (!results.length) return null;
         const typeValue = results[currentIndex].type;
         return allGenTypes.find(t => t.value === typeValue)?.label || typeValue;
-    }, [results, currentIndex]);
+    }, [results, currentIndex, allGenTypes]);
 
     const generate = async () => {
         if (!subject || !topic || generationTypes.length === 0) return;
@@ -107,7 +107,7 @@ export default function LessonPrepGenerator() {
                 return updated;
             });
         }
-    }, [localContent, editMode, currentIndex]);
+    }, [localContent, editMode, currentIndex, results.length]);
 
     const toggleType = (value: string) => {
         setGenerationTypes(prev =>

@@ -45,6 +45,7 @@ model AppUser {
   creditTransactions    CreditTransaction[]
   systemLogs            SystemLog[]
   classes               Class[]
+  uploadedFiles         UploadedFile[]
 
   @@index([telegramId])
   @@index([maxId])
@@ -370,4 +371,20 @@ model Submission {
   @@index([assignmentId])
   @@index([studentId])
   @@map("submissions")
+}
+
+// Загруженные файлы
+model UploadedFile {
+  id        String   @id @default(uuid())
+  hash      String   @unique
+  userId    String
+  filename  String
+  mimeType  String
+  size      Int
+  createdAt DateTime @default(now())
+  user      AppUser  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([hash])
+  @@map("uploaded_files")
 }

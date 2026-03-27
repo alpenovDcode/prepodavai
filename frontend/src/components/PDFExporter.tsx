@@ -86,7 +86,7 @@ const PDFExporter: React.FC<PDFExporterProps> = ({ slides, theme, onComplete }) 
         };
 
         generatePDF();
-    }, []);
+    }, [slides, theme, onComplete, isProcessing]);
 
     return (
         <div
