@@ -3413,7 +3413,7 @@ ${customPrompt ? `Дополнительно: ${customPrompt}` : ''}
           try {
             this.logger.log(`Polling Polza.ai status for task: ${polzaTaskId}`);
             const response = await axios.get(`https://polza.ai/api/v1/media/${polzaTaskId}`, {
-              headers: { 'X-Api-Key': polzaKey },
+              headers: { Authorization: `Bearer ${polzaKey}` },
             });
 
             const data = response.data;
