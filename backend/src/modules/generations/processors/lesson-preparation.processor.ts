@@ -48,6 +48,13 @@ export class LessonPreparationProcessor extends WorkerHost {
       job.data;
     this.logger.log(`Processing Lesson Preparation for request ${generationRequestId}`);
 
+    // Fetch userId to comply with FilesService security requirements
+    const generation = await this.prisma.userGeneration.findUnique({
+      where: { generationRequestId },
+      select: { userId: true },
+    });
+    const userId = generation?.userId;
+
     try {
       const sections: { title: string; content: string; fileUrl?: string; fileType?: string }[] =
         [];
@@ -66,6 +73,7 @@ export class LessonPreparationProcessor extends WorkerHost {
             level || '',
             interests,
             previousContext.join('\n\n'),
+            userId,
           );
 
           const typeLabel = this.getTypeLabel(type);
@@ -206,6 +214,7 @@ export class LessonPreparationProcessor extends WorkerHost {
     level: string,
     interests: string | undefined,
     context: string,
+    userId?: string,
   ): Promise<{ pptxUrl: string; htmlUrl: string }> {
     // 1. Get structured JSON content from AI
     const prompt = `
@@ -514,12 +523,16 @@ ${interests ? `- Интересы аудитории (Интегрируй их 
     const buffer = await pres.write({ outputType: 'nodebuffer' });
 
     // Use FilesService to save the file properly (handles paths, hashing, and URL generation)
-    const savedPptx = await this.filesService.saveBuffer(buffer as Buffer, fileName);
+    const savedPptx = await this.filesService.saveBuffer(buffer as Buffer, fileName, userId);
 
     // 5. Generate and Save HTML View
     const htmlContent = this.generateHtmlPresentation(slidesData, presImages, accentColor);
     const htmlFileName = `presentation_${Date.now()}.html`;
-    const savedHtml = await this.filesService.saveBuffer(Buffer.from(htmlContent), htmlFileName);
+    const savedHtml = await this.filesService.saveBuffer(
+      Buffer.from(htmlContent),
+      htmlFileName,
+      userId,
+    );
 
     this.logger.log(`Presentation package saved: PPTX=${savedPptx.url}, HTML=${savedHtml.url}`);
     return {

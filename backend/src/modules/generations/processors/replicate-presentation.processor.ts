@@ -53,6 +53,13 @@ export class ReplicatePresentationProcessor extends WorkerHost {
       `Processing Replicate presentation generation for request ${generationRequestId}: topic="${topic}"`,
     );
 
+    // Fetch userId to comply with FilesService security requirements
+    const generation = await this.prisma.userGeneration.findUnique({
+      where: { generationRequestId },
+      select: { userId: true },
+    });
+    const userId = generation?.userId;
+
     try {
       // 1. Generate text content (slides JSON)
       const slides = await this.generatePresentationSlides(topic, {
@@ -102,7 +109,7 @@ export class ReplicatePresentationProcessor extends WorkerHost {
         const pdfHtml = `<html><body style="background:#0f172a; color:white; padding:40px;">${slides.map((s) => s.html).join('<div style="page-break-after:always;"></div>')}</body></html>`;
         const pdfBuffer = await this.htmlExportService.htmlToPdf(pdfHtml);
 
-        const fileData = await this.filesService.saveBuffer(pdfBuffer, 'presentation.pdf');
+        const fileData = await this.filesService.saveBuffer(pdfBuffer, 'presentation.pdf', userId);
         pdfUrl = fileData.url;
         exportUrl = fileData.url;
         this.logger.log(`PDF generated and saved: ${pdfUrl}`);

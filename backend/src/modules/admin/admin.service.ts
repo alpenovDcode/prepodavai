@@ -553,7 +553,7 @@ export class AdminService {
   }
 
   async deleteFile(hash: string) {
-    const result = await this.filesService.deleteFile(hash);
+    const result = await this.filesService.deleteFile(hash, undefined, true);
     if (!result) {
       throw new NotFoundException('File not found');
     }

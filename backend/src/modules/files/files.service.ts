@@ -258,7 +258,11 @@ export class FilesService {
   /**
    * Удалить файл по hash с проверкой владельца
    */
-  async deleteFile(hash: string, userId: string): Promise<boolean> {
+  async deleteFile(
+    hash: string,
+    userId?: string,
+    skipOwnershipCheck = false,
+  ): Promise<boolean> {
     // Валидация hash
     this.validateHash(hash);
 
@@ -272,8 +276,13 @@ export class FilesService {
         return false;
       }
 
-      if (dbFile.userId !== userId) {
-        throw new BadRequestException('У вас нет прав на удаление этого файла');
+      if (!skipOwnershipCheck) {
+        if (!userId) {
+          throw new BadRequestException('userId is required for ownership check');
+        }
+        if (dbFile.userId !== userId) {
+          throw new BadRequestException('У вас нет прав на удаление этого файла');
+        }
       }
 
       const files = await fs.readdir(this.uploadDir);

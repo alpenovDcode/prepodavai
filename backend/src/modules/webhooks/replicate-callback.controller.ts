@@ -59,7 +59,7 @@ export class ReplicateCallbackController {
           const localUrls: string[] = [];
           for (const url of replicateUrls) {
             try {
-              const saved = await this.downloadAndSaveImage(url);
+              const saved = await this.downloadAndSaveImage(url, generationRequest.userId);
               localUrls.push(saved);
               this.logger.log(`Saved image locally: ${saved}`);
             } catch (err: any) {
@@ -152,7 +152,7 @@ export class ReplicateCallbackController {
    * Downloads an image from a URL and saves it locally via FilesService.
    * Returns the permanent local URL.
    */
-  private async downloadAndSaveImage(imageUrl: string): Promise<string> {
+  private async downloadAndSaveImage(imageUrl: string, userId?: string): Promise<string> {
     const axios = (await import('axios')).default;
 
     const response = await axios.get(imageUrl, {
@@ -170,7 +170,7 @@ export class ReplicateCallbackController {
     else if (contentType.includes('gif')) ext = '.gif';
 
     const filename = `replicate-${Date.now()}${ext}`;
-    const saved = await this.filesService.saveBuffer(buffer, filename);
+    const saved = await this.filesService.saveBuffer(buffer, filename, userId);
 
     return saved.url;
   }

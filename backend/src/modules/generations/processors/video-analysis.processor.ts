@@ -7,6 +7,7 @@ import { GenerationHelpersService } from '../generation-helpers.service';
 import { AssemblyAiService } from '../../integrations/assemblyai.service';
 import { FilesService } from '../../files/files.service';
 import { LOGO_BASE64 } from '../generation.constants';
+import { PrismaService } from '../../../common/prisma/prisma.service';
 
 export interface VideoAnalysisJobData {
   generationRequestId: string;
@@ -26,6 +27,7 @@ export class VideoAnalysisProcessor extends WorkerHost {
     private readonly generationHelpers: GenerationHelpersService,
     private readonly assemblyAiService: AssemblyAiService,
     private readonly filesService: FilesService,
+    private readonly prisma: PrismaService,
   ) {
     super();
     this.replicateToken = this.configService.get<string>('REPLICATE_API_TOKEN');
@@ -35,6 +37,13 @@ export class VideoAnalysisProcessor extends WorkerHost {
   async process(job: Job<VideoAnalysisJobData>): Promise<void> {
     const { generationRequestId, videoUrl, videoHash, analysisType } = job.data;
     this.logger.log(`Processing Video Analysis for ${generationRequestId} (${analysisType})`);
+
+    // Fetch userId to comply with FilesService security requirements
+    const generation = await this.prisma.userGeneration.findUnique({
+      where: { generationRequestId },
+      select: { userId: true },
+    });
+    const userId = generation?.userId;
 
     let finalVideoUrl = videoUrl;
 
@@ -225,8 +234,8 @@ export class VideoAnalysisProcessor extends WorkerHost {
       if (videoHash && !videoHash.startsWith('http')) {
         this.logger.log(`Cleaning up video file: ${videoHash}`);
         try {
-          await this.filesService.deleteFile(videoHash);
-        } catch (cleanupError) {
+          await this.filesService.deleteFile(videoHash, userId);
+        } catch (cleanupError: any) {
           this.logger.warn(`Failed to delete video file ${videoHash}: ${cleanupError.message}`);
         }
       }
