@@ -28,15 +28,22 @@ export class StudentsService {
 
     const passwordHash = await bcrypt.hash(data.password, 10);
 
-    return this.prisma.student.create({
+    // Create student without passwordHash first (Prisma client may be stale)
+    const student = await this.prisma.student.create({
       data: {
         classId: data.classId,
         name: data.name,
         email: data.email,
         avatar: this.getInitials(data.name),
-        passwordHash,
-      } as any,
+      },
     });
+
+    // Write passwordHash via raw SQL to bypass stale Prisma client type validation
+    await this.prisma.$executeRaw`
+      UPDATE students SET "passwordHash" = ${passwordHash} WHERE id = ${student.id}
+    `;
+
+    return student;
   }
 
   async getStudents(userId: string, classId?: string) {
@@ -97,14 +104,20 @@ export class StudentsService {
     }
 
     const updateData: any = { name: data.name, email: data.email, notes: data.notes };
-    if (data.password) {
-      updateData.passwordHash = await bcrypt.hash(data.password, 10);
-    }
 
-    return this.prisma.student.update({
+    await this.prisma.student.update({
       where: { id: studentId },
       data: updateData,
     });
+
+    if (data.password) {
+      const passwordHash = await bcrypt.hash(data.password, 10);
+      await this.prisma.$executeRaw`
+        UPDATE students SET "passwordHash" = ${passwordHash} WHERE id = ${studentId}
+      `;
+    }
+
+    return this.prisma.student.findUnique({ where: { id: studentId } });
   }
 
   async deleteStudent(userId: string, studentId: string) {
@@ -123,15 +136,19 @@ export class StudentsService {
   }
 
   async findByEmailAndPassword(email: string, password: string) {
-    const student = await this.prisma.student.findFirst({
-      where: { email },
+    // Read passwordHash via raw SQL to bypass stale Prisma client
+    const rows = await this.prisma.$queryRaw<{ id: string; passwordHash: string | null }[]>`
+      SELECT id, "passwordHash" FROM students WHERE email = ${email} LIMIT 1
+    `;
+    if (!rows.length || !rows[0].passwordHash) return null;
+
+    const valid = await bcrypt.compare(password, rows[0].passwordHash);
+    if (!valid) return null;
+
+    return this.prisma.student.findUnique({
+      where: { id: rows[0].id },
       include: { class: true },
     });
-    if (!student) return null;
-    const hash = (student as any).passwordHash;
-    if (!hash) return null;
-    const valid = await bcrypt.compare(password, hash);
-    return valid ? student : null;
   }
 
   async findByAccessCode(accessCode: string) {
