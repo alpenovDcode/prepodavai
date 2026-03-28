@@ -53,6 +53,16 @@ export default function StudentDashboard() {
                     apiClient.get('/students/me'),
                 ])
 
+                // If session expired (cookie gone), both will be 401 — redirect to login
+                const isUnauthorized = (r: PromiseSettledResult<any>) =>
+                    r.status === 'rejected' && r.reason?.response?.status === 401
+
+                if (isUnauthorized(assignmentsRes) || isUnauthorized(profileRes)) {
+                    localStorage.removeItem('user')
+                    router.push('/student/login')
+                    return
+                }
+
                 if (assignmentsRes.status === 'fulfilled') {
                     setAssignments(assignmentsRes.value.data)
                 }

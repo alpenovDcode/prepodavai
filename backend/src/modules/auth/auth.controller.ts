@@ -114,6 +114,20 @@ export class AuthController {
     return result;
   }
 
+  @Post('student-login-email')
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  async studentLoginWithEmail(
+    @Body() body: { email: string; password: string },
+    @Res({ passthrough: true }) res: Response,
+    @Request() req: any,
+  ) {
+    const result = await this.authService.studentLoginWithEmail(body.email, body.password);
+    if (result && result.token) {
+      this.setTokenCookie(res, result.token, req);
+    }
+    return result;
+  }
+
   @Post('phone/send-code')
   @Throttle({ default: { limit: 3, ttl: 60000 } }) // Even stricter for SMS sending
   async sendPhoneVerificationCode(@Body() body: SendPhoneCodeDto) {

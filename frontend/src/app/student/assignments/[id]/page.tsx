@@ -124,7 +124,12 @@ export default function StudentAssignmentPage({ params }: { params: { id: string
           setExpandedItems([r.data.lesson.generations[0].id])
         }
       })
-      .catch(() => {})
+      .catch((err: any) => {
+        if (err?.response?.status === 401) {
+          localStorage.removeItem('user')
+          router.push('/student/login')
+        }
+      })
       .finally(() => setLoading(false))
   }, [params.id, router])
 

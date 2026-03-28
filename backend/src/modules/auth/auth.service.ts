@@ -320,7 +320,7 @@ export class AuthService {
   }
 
   /**
-   * Авторизация студента по коду доступа
+   * Авторизация студента по коду доступа (устаревший метод)
    */
   async studentLogin(accessCode: string) {
     const student = await this.studentsService.findByAccessCode(accessCode);
@@ -329,13 +329,35 @@ export class AuthService {
       throw new UnauthorizedException('Invalid access code');
     }
 
-    // Генерируем JWT токен
     const token = this.generateJwtToken(student.id, 'student');
 
     return {
       success: true,
       token,
       userHash: student.id,
+      user: {
+        id: student.id,
+        name: student.name,
+        role: 'student',
+      },
+    };
+  }
+
+  /**
+   * Авторизация студента по email и паролю
+   */
+  async studentLoginWithEmail(email: string, password: string) {
+    const student = await this.studentsService.findByEmailAndPassword(email, password);
+
+    if (!student) {
+      throw new UnauthorizedException('Неверный email или пароль');
+    }
+
+    const token = this.generateJwtToken(student.id, 'student');
+
+    return {
+      success: true,
+      token,
       user: {
         id: student.id,
         name: student.name,

@@ -24,7 +24,7 @@ export class StudentsController {
   }
 
   @Post()
-  create(@Request() req, @Body() body: { classId: string; name: string; email?: string }) {
+  create(@Request() req, @Body() body: { classId: string; name: string; email: string; password: string }) {
     return this.studentsService.createStudent(req.user.id, body);
   }
 

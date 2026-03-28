@@ -46,7 +46,12 @@ export default function StudentGradesPage() {
             try {
                 const response = await apiClient.get('/submissions/my')
                 setSubmissions(response.data)
-            } catch (error) {
+            } catch (error: any) {
+                if (error?.response?.status === 401) {
+                    localStorage.removeItem('user')
+                    router.push('/student/login')
+                    return
+                }
                 console.error('Failed to fetch submissions:', error)
             } finally {
                 setLoading(false)

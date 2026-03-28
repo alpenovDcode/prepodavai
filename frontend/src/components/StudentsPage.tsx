@@ -42,6 +42,7 @@ export default function StudentsPage() {
     const [newClassName, setNewClassName] = useState('')
     const [newStudentName, setNewStudentName] = useState('')
     const [newStudentEmail, setNewStudentEmail] = useState('')
+    const [newStudentPassword, setNewStudentPassword] = useState('')
     const [selectedClassId, setSelectedClassId] = useState('')
 
     const fetchData = async () => {
@@ -79,22 +80,24 @@ export default function StudentsPage() {
     const handleCreateStudent = async (e: React.FormEvent) => {
         e.preventDefault()
         if (!selectedClassId) {
-            alert('Please select a class')
+            alert('Выберите класс')
             return
         }
         try {
             await apiClient.post('/students', {
                 name: newStudentName,
                 email: newStudentEmail,
+                password: newStudentPassword,
                 classId: selectedClassId
             })
             setNewStudentName('')
             setNewStudentEmail('')
+            setNewStudentPassword('')
             setSelectedClassId('')
             setShowAddStudentModal(false)
             fetchData()
-        } catch (error) {
-            alert('Failed to create student')
+        } catch (error: any) {
+            alert(error?.response?.data?.message || 'Ошибка при создании ученика')
         }
     }
 
@@ -194,7 +197,7 @@ export default function StudentsPage() {
                                     <tr className="border-b border-gray-50">
                                         <th className="text-left py-4 px-4 text-sm font-semibold text-gray-700">Имя ученика</th>
                                         <th className="text-left py-4 px-4 text-sm font-semibold text-gray-700">Класс</th>
-                                        <th className="text-left py-4 px-4 text-sm font-semibold text-gray-700">Код доступа</th>
+                                        <th className="text-left py-4 px-4 text-sm font-semibold text-gray-700">Email</th>
                                         <th className="text-right py-4 px-4 text-sm font-semibold text-gray-700">Действия</th>
                                     </tr>
                                 </thead>
@@ -206,10 +209,7 @@ export default function StudentsPage() {
                                                     <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center text-primary-700 font-bold text-sm">
                                                         {student.avatar || student.name.charAt(0)}
                                                     </div>
-                                                    <div>
-                                                        <p className="font-semibold text-gray-900">{student.name}</p>
-                                                        <p className="text-sm text-gray-500">{student.email}</p>
-                                                    </div>
+                                                    <p className="font-semibold text-gray-900">{student.name}</p>
                                                 </div>
                                             </td>
                                             <td className="py-4 px-4">
@@ -217,16 +217,14 @@ export default function StudentsPage() {
                                                     {student.class.name}
                                                 </span>
                                             </td>
-                                            <td className="py-4 px-4">
-                                                <code className="bg-gray-100 px-2 py-1 rounded text-sm font-mono text-gray-600">
-                                                    {student.accessCode}
-                                                </code>
+                                            <td className="py-4 px-4 text-sm text-gray-500">
+                                                {student.email || <span className="text-gray-300 italic">не указан</span>}
                                             </td>
                                             <td className="py-4 px-4">
                                                 <div className="flex items-center justify-end gap-2">
                                                     <button
                                                         onClick={() => {
-                                                            const link = `${window.location.origin}/student/login?code=${student.accessCode}`
+                                                            const link = `${window.location.origin}/student/login`
                                                             navigator.clipboard.writeText(link)
                                                             alert('Ссылка для входа скопирована!')
                                                         }}
@@ -370,7 +368,7 @@ export default function StudentsPage() {
                             </div>
                             <div className="mb-4">
                                 <label className="block text-sm font-semibold text-gray-700 mb-2">
-                                    Email (необязательно)
+                                    Email
                                 </label>
                                 <input
                                     type="email"
@@ -378,7 +376,23 @@ export default function StudentsPage() {
                                     onChange={(e) => setNewStudentEmail(e.target.value)}
                                     placeholder="ivan@example.com"
                                     className="w-full px-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-primary-500 focus:bg-white transition text-gray-900"
+                                    required
                                 />
+                            </div>
+                            <div className="mb-4">
+                                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                    Пароль
+                                </label>
+                                <input
+                                    type="password"
+                                    value={newStudentPassword}
+                                    onChange={(e) => setNewStudentPassword(e.target.value)}
+                                    placeholder="Придумайте пароль для ученика"
+                                    className="w-full px-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-primary-500 focus:bg-white transition text-gray-900"
+                                    required
+                                    minLength={6}
+                                />
+                                <p className="text-xs text-gray-400 mt-1">Минимум 6 символов. Сообщите ученику этот пароль.</p>
                             </div>
                             <div className="mb-6">
                                 <label className="block text-sm font-semibold text-gray-700 mb-2">

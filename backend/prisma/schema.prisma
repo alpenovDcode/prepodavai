@@ -312,15 +312,16 @@ model Class {
 
 // Ученики
 model Student {
-  id          String    @id @default(uuid())
-  classId     String
-  name        String
-  email       String?
-  accessCode  String?   @unique // Для простого входа
-  avatar      String?
-  notes       String?   // AI характеристика или заметки учителя
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id           String    @id @default(uuid())
+  classId      String
+  name         String
+  email        String?
+  passwordHash String?   // Хэш пароля для входа по email+паролю
+  accessCode   String?   @unique // Устаревший метод входа (по коду)
+  avatar       String?
+  notes        String?   // AI характеристика или заметки учителя
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   class       Class     @relation(fields: [classId], references: [id], onDelete: Cascade)
   assignments Assignment[]

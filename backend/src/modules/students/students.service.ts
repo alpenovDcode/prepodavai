@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { ClassesService } from '../classes/classes.service';
 
@@ -9,19 +10,32 @@ export class StudentsService {
     private classesService: ClassesService,
   ) {}
 
-  async createStudent(userId: string, data: { classId: string; name: string; email?: string }) {
+  async createStudent(
+    userId: string,
+    data: { classId: string; name: string; email: string; password: string },
+  ) {
+    if (!data.email) throw new BadRequestException('Email обязателен');
+    if (!data.password) throw new BadRequestException('Пароль обязателен');
+
     // Verify class ownership
     await this.classesService.getClass(userId, data.classId);
 
-    // Generate simple access code (e.g. 6 digits)
-    const accessCode = Math.floor(100000 + Math.random() * 900000).toString();
+    // Check email uniqueness within teacher's students
+    const existing = await this.prisma.student.findFirst({
+      where: { email: data.email, class: { teacherId: userId } },
+    });
+    if (existing) throw new BadRequestException('Ученик с таким email уже существует в вашем классе');
+
+    const passwordHash = await bcrypt.hash(data.password, 10);
 
     return this.prisma.student.create({
       data: {
-        ...data,
-        accessCode,
+        classId: data.classId,
+        name: data.name,
+        email: data.email,
         avatar: this.getInitials(data.name),
-      },
+        passwordHash,
+      } as any,
     });
   }
 
@@ -71,7 +85,7 @@ export class StudentsService {
   async updateStudent(
     userId: string,
     studentId: string,
-    data: { name?: string; email?: string; notes?: string },
+    data: { name?: string; email?: string; notes?: string; password?: string },
   ) {
     const student = await this.prisma.student.findUnique({
       where: { id: studentId },
@@ -82,9 +96,14 @@ export class StudentsService {
       throw new NotFoundException('Student not found');
     }
 
+    const updateData: any = { name: data.name, email: data.email, notes: data.notes };
+    if (data.password) {
+      updateData.passwordHash = await bcrypt.hash(data.password, 10);
+    }
+
     return this.prisma.student.update({
       where: { id: studentId },
-      data,
+      data: updateData,
     });
   }
 
@@ -101,6 +120,18 @@ export class StudentsService {
     return this.prisma.student.delete({
       where: { id: studentId },
     });
+  }
+
+  async findByEmailAndPassword(email: string, password: string) {
+    const student = await this.prisma.student.findFirst({
+      where: { email },
+      include: { class: true },
+    });
+    if (!student) return null;
+    const hash = (student as any).passwordHash;
+    if (!hash) return null;
+    const valid = await bcrypt.compare(password, hash);
+    return valid ? student : null;
   }
 
   async findByAccessCode(accessCode: string) {
