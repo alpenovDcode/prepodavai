@@ -276,8 +276,13 @@ export class AuthService {
     // Обновляем lastAccessAt
     await this.usersService.updateLastAccess(user.id);
 
-    // Генерируем JWT токен
-    const token = this.generateJwtToken(user.id);
+    // Определяем роль пользователя на основе ADMIN_USER_IDS
+    const adminUserIds = (this.configService.get<string>('ADMIN_USER_IDS', '') || '')
+      .split(',').map(id => id.trim()).filter(Boolean);
+    const role = adminUserIds.includes(user.id) ? 'admin' : 'user';
+
+    // Генерируем JWT токен с реальной ролью
+    const token = this.generateJwtToken(user.id, role);
 
     return {
       success: true,
@@ -288,7 +293,7 @@ export class AuthService {
         username: user.username,
         firstName: user.firstName,
         lastName: user.lastName,
-        role: 'admin', // Временно хардкодим роль, так как это админский вход
+        role,
       },
     };
   }
@@ -344,7 +349,7 @@ export class AuthService {
    */
   async sendPhoneVerificationCode(phone: string) {
     // 1. Генерируем код
-    const code = Math.floor(1000 + Math.random() * 9000).toString(); // 4 цифры
+    const code = crypto.randomInt(1000, 10000).toString(); // 4 цифры, криптобезопасный генератор
 
     // 2. Сохраняем в БД (или обновляем)
     // Удаляем старые коды для этого телефона

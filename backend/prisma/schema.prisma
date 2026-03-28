@@ -359,6 +359,7 @@ model Submission {
   studentId    String
   content      String?   // Текст или URL
   attachments  Json?     // Файлы
+  formData     Json?     // Интерактивные ответы из HTML-задания { [generationId]: { fieldId: value } }
   grade        Int?
   feedback     String?   // AI или комментарий учителя
   status       String    @default("submitted") // submitted, graded
@@ -371,6 +372,23 @@ model Submission {
   @@index([assignmentId])
   @@index([studentId])
   @@map("submissions")
+}
+
+// Уведомления
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String   // ID получателя (AppUser.id для учителя, Student.id для ученика)
+  userType  String   // 'teacher' | 'student'
+  type      String   // 'submission_received' | 'submission_graded'
+  title     String
+  message   String
+  isRead    Boolean  @default(false)
+  metadata  Json?    // { assignmentId, submissionId, studentName, grade }
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([userType, userId])
+  @@map("notifications")
 }
 
 // Загруженные файлы

@@ -84,8 +84,8 @@ async function bootstrap() {
       contentSecurityPolicy: {
         directives: {
           defaultSrc: ["'self'"],
-          scriptSrc: ["'self'", "'unsafe-inline'"],
-          scriptSrcAttr: ["'unsafe-inline'"],
+          scriptSrc: ["'self'"],
+          scriptSrcAttr: [],
           styleSrc: ["'self'", "'unsafe-inline'"],
           styleSrcAttr: ["'unsafe-inline'"],
           imgSrc: ["'self'", 'data:', 'https:'],

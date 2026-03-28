@@ -4,19 +4,21 @@ import { useState, useEffect } from 'react'
 import { apiClient } from '@/lib/api/client'
 import Image from 'next/image'
 import DOMPurify from 'isomorphic-dompurify'
-import { 
-    Users, 
-    ChevronRight, 
-    CheckCircle, 
-    XCircle, 
-    Clock, 
+import {
+    Users,
+    ChevronRight,
+    CheckCircle,
+    XCircle,
+    Clock,
     ChevronLeft,
     ScrollText,
-    Star,
-    Send,
     Loader2,
-    Paperclip
+    Paperclip,
+    BarChart2,
+    Sparkles,
+    Download
 } from 'lucide-react'
+import InteractiveHtmlViewer, { extractHtmlFromOutput } from '@/components/InteractiveHtmlViewer'
 
 // Layout has 3 views: 
 // 1. Classes List
@@ -56,6 +58,7 @@ interface StudentStatus {
         feedback: string | null
         content: string | null
         attachments?: any[]
+        formData?: Record<string, Record<string, any>> | null
         status: string
         createdAt: string
     } | null
@@ -68,11 +71,14 @@ interface AssignmentDetails {
         dueDate: string | null
         title?: string
         content?: string | null
+        generations?: Array<{ id: string; type: string; outputData: any }>
     }
     studentStatuses: StudentStatus[]
     totalStudents: number
     submittedCount: number
     gradedCount: number
+    notSubmittedCount: number
+    avgGrade: number | null
 }
 
 export default function HomeworkReviewPage() {
@@ -91,6 +97,7 @@ export default function HomeworkReviewPage() {
     const [gradeInput, setGradeInput] = useState<number | ''>('')
     const [feedbackInput, setFeedbackInput] = useState('')
     const [submittingGrade, setSubmittingGrade] = useState(false)
+    const [generatingFeedback, setGeneratingFeedback] = useState(false)
 
     // Initial load classes
     useEffect(() => {
@@ -182,6 +189,42 @@ export default function HomeworkReviewPage() {
         } finally {
             setSubmittingGrade(false)
         }
+    }
+
+    const handleGenerateAiFeedback = async () => {
+        if (!selectedStudentStatus?.submission) return
+        setGeneratingFeedback(true)
+        try {
+            const res = await apiClient.post(`/submissions/${selectedStudentStatus.submission.id}/ai-feedback`)
+            setFeedbackInput((res.data?.feedback || '').trim())
+        } catch (error) {
+            console.error('Failed to generate AI feedback', error)
+            alert('Ошибка при генерации комментария')
+        } finally {
+            setGeneratingFeedback(false)
+        }
+    }
+
+    const handleExportCsv = () => {
+        if (!assignmentDetails || !selectedAssignment) return
+        const rows = [
+            ['Ученик', 'Статус', 'Оценка', 'Дата сдачи', 'Комментарий учителя'],
+            ...assignmentDetails.studentStatuses.map(s => [
+                s.student.name,
+                s.status === 'graded' ? 'Оценено' : s.status === 'submitted' ? 'Сдано' : 'Не сдано',
+                s.submission?.grade ?? '',
+                s.submission ? new Date(s.submission.createdAt).toLocaleDateString('ru-RU') : '',
+                s.submission?.feedback ?? '',
+            ])
+        ]
+        const csv = rows.map(r => r.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n')
+        const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `${selectedAssignment.lesson.title}.csv`
+        a.click()
+        URL.revokeObjectURL(url)
     }
 
     // --- RENDER HELPERS ---
@@ -301,16 +344,48 @@ export default function HomeworkReviewPage() {
                 {/* Left Panel: Student List */}
                 <div className="w-full md:w-1/3 flex flex-col bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
                     <div className="p-4 border-b border-gray-100">
-                        <button 
-                            onClick={handleBackToAssignments}
-                            className="flex items-center gap-2 text-gray-500 hover:text-gray-900 mb-4 transition-colors font-medium text-sm"
-                        >
-                            <ChevronLeft size={16} /> Назад
-                        </button>
+                        <div className="flex items-center justify-between mb-4">
+                            <button
+                                onClick={handleBackToAssignments}
+                                className="flex items-center gap-2 text-gray-500 hover:text-gray-900 transition-colors font-medium text-sm"
+                            >
+                                <ChevronLeft size={16} /> Назад
+                            </button>
+                            <button
+                                onClick={handleExportCsv}
+                                className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-gray-800 bg-gray-50 hover:bg-gray-100 border border-gray-200 px-2.5 py-1.5 rounded-lg transition-colors"
+                                title="Скачать оценки в CSV"
+                            >
+                                <Download size={13} /> CSV
+                            </button>
+                        </div>
                         <h2 className="font-bold text-gray-900">{selectedAssignment?.lesson.title}</h2>
-                        <div className="flex items-center gap-2 mt-2 text-xs">
+                        <div className="flex items-center gap-2 mt-2 text-xs flex-wrap">
                             <span className="bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded-full font-semibold">Ждут: {assignmentDetails.submittedCount - assignmentDetails.gradedCount}</span>
                             <span className="bg-green-100 text-green-800 px-2 py-0.5 rounded-full font-semibold">Оценено: {assignmentDetails.gradedCount}</span>
+                            <span className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full font-semibold">Не сдали: {assignmentDetails.notSubmittedCount}</span>
+                        </div>
+                        {/* Analytics block */}
+                        <div className="mt-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
+                            <div className="flex items-center gap-1.5 mb-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                <BarChart2 size={12} /> Статистика
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 text-center">
+                                <div>
+                                    <p className="text-lg font-black text-gray-900">
+                                        {assignmentDetails.totalStudents > 0
+                                            ? Math.round((assignmentDetails.submittedCount / assignmentDetails.totalStudents) * 100)
+                                            : 0}%
+                                    </p>
+                                    <p className="text-[10px] text-gray-400 leading-tight">Сдали</p>
+                                </div>
+                                <div>
+                                    <p className={`text-lg font-black ${assignmentDetails.avgGrade ? (assignmentDetails.avgGrade >= 4 ? 'text-green-600' : assignmentDetails.avgGrade >= 3 ? 'text-yellow-600' : 'text-red-500') : 'text-gray-400'}`}>
+                                        {assignmentDetails.avgGrade ?? '—'}
+                                    </p>
+                                    <p className="text-[10px] text-gray-400 leading-tight">Средний балл</p>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     <div className="flex-1 overflow-y-auto p-2">
@@ -357,35 +432,71 @@ export default function HomeworkReviewPage() {
                             </div>
 
                             <div className="p-6 border-b border-gray-100 bg-gray-50 flex-1">
-                                <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-2">
+                                <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4 flex items-center gap-2">
                                     <Users size={16} /> Ответ ученика
                                 </h3>
-                                <div className="bg-white p-5 rounded-xl border border-gray-200 text-gray-800 text-base leading-relaxed min-h-[150px]">
-                                    <div className="whitespace-pre-wrap mb-4">
-                                        {selectedStudentStatus.submission?.content || 'Пустой ответ'}
-                                    </div>
-                                    
-                                    {selectedStudentStatus.submission?.attachments && selectedStudentStatus.submission.attachments.length > 0 && (
-                                        <div className="mt-4 pt-4 border-t border-gray-100">
-                                            <p className="text-sm font-semibold text-gray-500 mb-3 flex items-center gap-2">
-                                                <Paperclip size={14} /> Прикрепленные файлы:
-                                            </p>
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                {selectedStudentStatus.submission.attachments.map((file: any, index: number) => (
-                                                    <div key={index} className="rounded-xl overflow-hidden border border-gray-200 bg-gray-50 flex items-center justify-center p-2 relative min-h-[200px]">
-                                                        <Image 
-                                                            src={file.url} 
-                                                            alt={`Прикрепление ${index + 1}`} 
-                                                            fill
-                                                            className="object-contain rounded-lg p-2"
-                                                            unoptimized
-                                                        />
-                                                    </div>
+
+                                {/* Interactive HTML generations filled by student */}
+                                {(() => {
+                                    const generations = assignmentDetails.assignment.generations || []
+                                    const formData = selectedStudentStatus.submission?.formData || {}
+                                    const interactiveBlocks = generations
+                                        .map(gen => ({ gen, html: extractHtmlFromOutput(gen.outputData), prefill: formData[gen.id] }))
+                                        .filter(item => item.html && item.prefill && Object.keys(item.prefill).length > 0)
+
+                                    if (interactiveBlocks.length > 0) {
+                                        return (
+                                            <div className="space-y-4 mb-4">
+                                                {interactiveBlocks.map(({ gen, html, prefill }) => (
+                                                    <InteractiveHtmlViewer
+                                                        key={gen.id}
+                                                        html={html!}
+                                                        generationId={gen.id}
+                                                        readOnly
+                                                        prefillData={prefill}
+                                                    />
                                                 ))}
                                             </div>
+                                        )
+                                    }
+                                    return null
+                                })()}
+
+                                {/* Text answer */}
+                                {(selectedStudentStatus.submission?.content || !assignmentDetails.assignment.generations?.some(gen => {
+                                    const formData = selectedStudentStatus.submission?.formData || {}
+                                    const html = extractHtmlFromOutput(gen.outputData)
+                                    return html && formData[gen.id] && Object.keys(formData[gen.id]).length > 0
+                                })) && (
+                                    <div className="bg-white p-5 rounded-xl border border-gray-200 text-gray-800 text-base leading-relaxed min-h-[100px]">
+                                        <div className="whitespace-pre-wrap">
+                                            {selectedStudentStatus.submission?.content || 'Пустой ответ'}
                                         </div>
-                                    )}
-                                </div>
+                                    </div>
+                                )}
+
+                                {/* Attachments */}
+                                {selectedStudentStatus.submission?.attachments && selectedStudentStatus.submission.attachments.length > 0 && (
+                                    <div className="mt-4">
+                                        <p className="text-sm font-semibold text-gray-500 mb-3 flex items-center gap-2">
+                                            <Paperclip size={14} /> Прикрепленные файлы:
+                                        </p>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            {selectedStudentStatus.submission.attachments.map((file: any, index: number) => (
+                                                <div key={index} className="rounded-xl overflow-hidden border border-gray-200 bg-gray-50 flex items-center justify-center p-2 relative min-h-[200px]">
+                                                    <Image
+                                                        src={file.url}
+                                                        alt={`Прикрепление ${index + 1}`}
+                                                        fill
+                                                        className="object-contain rounded-lg p-2"
+                                                        unoptimized
+                                                    />
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
                                 <p className="text-xs text-gray-400 mt-3 flex items-baseline gap-1">
                                     <Clock size={12} /> Отправлено: {new Date(selectedStudentStatus.submission!.createdAt).toLocaleString('ru-RU')}
                                 </p>
@@ -410,7 +521,19 @@ export default function HomeworkReviewPage() {
                                 </div>
 
                                 <div className="mb-6 flex-1">
-                                    <label className="block text-sm font-semibold text-gray-700 mb-2">Комментарий к работе (необязательно)</label>
+                                    <div className="flex items-center justify-between mb-2">
+                                        <label className="text-sm font-semibold text-gray-700">Комментарий к работе (необязательно)</label>
+                                        <button
+                                            onClick={handleGenerateAiFeedback}
+                                            disabled={generatingFeedback || !selectedStudentStatus?.submission}
+                                            className="flex items-center gap-1.5 text-xs font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            {generatingFeedback
+                                                ? <><Loader2 size={12} className="animate-spin" /> Генерирую...</>
+                                                : <><Sparkles size={12} /> AI комментарий</>
+                                            }
+                                        </button>
+                                    </div>
                                     <textarea
                                         value={feedbackInput}
                                         onChange={(e) => setFeedbackInput(e.target.value)}

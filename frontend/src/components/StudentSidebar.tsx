@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { LayoutDashboard, BookOpen, GraduationCap, MessageSquare, Settings, HelpCircle, LogOut } from 'lucide-react'
+import NotificationBell from './NotificationBell'
 
 interface StudentUser {
     id: string
@@ -43,10 +44,13 @@ export default function StudentSidebar({ user, onLogout }: StudentSidebarProps) 
                     <div className="w-12 h-12 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 font-bold text-lg flex-shrink-0">
                         {initials}
                     </div>
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                         <h3 className="font-bold text-gray-900 text-sm truncate">{user?.name || 'Ученик'}</h3>
                         <p className="text-xs text-gray-500">{user?.className || 'Загрузка...'}</p>
                     </div>
+                    {user?.id && (
+                        <NotificationBell userType="student" studentId={user.id} />
+                    )}
                 </div>
             </div>
 

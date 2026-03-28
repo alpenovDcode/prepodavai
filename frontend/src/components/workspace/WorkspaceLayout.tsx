@@ -7,6 +7,7 @@ import { useUser } from '@/lib/hooks/useUser'
 import { useSubscription } from '@/lib/hooks/useSubscription'
 import { LOGO_BASE64 } from '@/constants/branding'
 import { BookOpen, HelpCircle, Gamepad2, Settings, ArrowLeft, PenTool, LayoutTemplate, MessageSquare, FileEdit, MessageCircle, Sparkles, PackageOpen, Video, LineChart, Camera, Image as ImageIcon, FileAudio, MonitorPlay, ClipboardCheck, GraduationCap } from 'lucide-react'
+import NotificationBell from '@/components/NotificationBell'
 
 interface WorkspaceLayoutProps {
     children: ReactNode
@@ -133,7 +134,10 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
 
                 {/* User Profile */}
                 <div className="p-4 border-t border-gray-100">
-                    <div 
+                    <div className="flex items-center justify-between mb-2 px-2">
+                        <NotificationBell userType="teacher" />
+                    </div>
+                    <div
                         onClick={() => router.push('/dashboard/profile')}
                         className="flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-gray-50 cursor-pointer transition"
                     >

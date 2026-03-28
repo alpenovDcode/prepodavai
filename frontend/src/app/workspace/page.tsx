@@ -1,14 +1,20 @@
 'use client'
  
 import { useState, useEffect } from 'react'
-import { BookOpen, HelpCircle, Gamepad2, PenTool, MessageSquare, Presentation, Image as ImageIcon, Video, Sparkles } from 'lucide-react'
+import { BookOpen, HelpCircle, Gamepad2, PenTool, MessageSquare, Presentation, Image as ImageIcon, Video, Sparkles, ClipboardList, ChevronRight } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { apiClient } from '@/lib/api/client'
+
+interface DashboardData {
+    totalPending: number
+    byClass: Array<{ classId: string; className: string; pending: number }>
+}
 
 export default function WorkspaceHub() {
     const router = useRouter()
 
     const [maintenanceStatus, setMaintenanceStatus] = useState<Record<string, boolean>>({})
+    const [dashboard, setDashboard] = useState<DashboardData | null>(null)
 
     useEffect(() => {
         const loadStatus = async () => {
@@ -25,7 +31,16 @@ export default function WorkspaceHub() {
                 // ignore
             }
         }
+        const loadDashboard = async () => {
+            try {
+                const res = await apiClient.get('/submissions/teacher-dashboard')
+                setDashboard(res.data)
+            } catch (e) {
+                // ignore — not a teacher or no classes yet
+            }
+        }
         loadStatus()
+        loadDashboard()
     }, [])
 
     const opMap: Record<string, string> = {
@@ -142,6 +157,28 @@ export default function WorkspaceHub() {
                 <h1 className="text-3xl font-bold mb-2">Workspace Hub</h1>
                 <p className="text-gray-500 text-lg">Выберите инструмент, чтобы начать создание учебных материалов.</p>
             </div>
+
+            {dashboard && dashboard.totalPending > 0 && (
+                <div
+                    onClick={() => router.push('/workspace/homework')}
+                    className="mb-8 flex items-center justify-between gap-4 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-2xl px-6 py-4 cursor-pointer hover:shadow-md transition-shadow group"
+                >
+                    <div className="flex items-center gap-4">
+                        <div className="w-11 h-11 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0">
+                            <ClipboardList className="w-5 h-5 text-amber-600" />
+                        </div>
+                        <div>
+                            <p className="font-bold text-gray-900">
+                                {dashboard.totalPending} {dashboard.totalPending === 1 ? 'работа ждёт' : dashboard.totalPending < 5 ? 'работы ждут' : 'работ ждут'} проверки
+                            </p>
+                            <p className="text-sm text-gray-500">
+                                {dashboard.byClass.map(c => `${c.className}: ${c.pending}`).join(' · ')}
+                            </p>
+                        </div>
+                    </div>
+                    <ChevronRight className="w-5 h-5 text-amber-400 group-hover:translate-x-1 transition-transform flex-shrink-0" />
+                </div>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {tools.map((tool) => {

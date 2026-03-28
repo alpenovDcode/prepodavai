@@ -116,7 +116,7 @@ function normalizeResultPayload(value: any) {
 
     if (typeof value === 'object' && value !== null) {
         // Try common result keys in our structured outputs
-        processed = value.htmlResult || value.content || value.result || JSON.stringify(value);
+        processed = value.imageUrl || value.imageUrls?.[0] || value.htmlResult || value.content || value.result || JSON.stringify(value);
     }
 
     if (typeof processed !== 'string') {

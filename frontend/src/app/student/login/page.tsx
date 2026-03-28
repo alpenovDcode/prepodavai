@@ -25,11 +25,11 @@ function StudentLoginForm() {
 
         try {
             const response = await apiClient.post('/auth/student-login', { accessCode })
-            const { token, user } = response.data
+            const { user } = response.data
 
-            // Store token
-            localStorage.setItem('prepodavai_authenticated', 'true')
-            localStorage.setItem('user', JSON.stringify(user))
+            // Храним только минимально необходимые данные (без чувствительных полей)
+            const { id, name, role } = user
+            localStorage.setItem('user', JSON.stringify({ id, name, role }))
 
             // Redirect to dashboard
             router.push('/student/dashboard')

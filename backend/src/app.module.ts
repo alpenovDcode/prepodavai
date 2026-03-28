@@ -35,6 +35,7 @@ import { GamesModule } from './modules/games/games.module';
 import { ReplicateModule } from './modules/replicate/replicate.module';
 import { LessonsModule } from './modules/lessons/lessons.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 
 @Module({
   imports: [
@@ -96,6 +97,7 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
     GamesModule,
     AnalyticsModule,
     EmailModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [

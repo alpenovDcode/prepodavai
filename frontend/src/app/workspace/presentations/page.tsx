@@ -122,6 +122,7 @@ function PresentationGeneratorContent() {
     // Listen for HTML updates from injected iframe scripts (drag-drop, etc.)
     useEffect(() => {
         const handleMessage = (e: MessageEvent) => {
+            if (e.origin !== window.location.origin) return
             if (e.data?.type === 'slide-html') {
                 setSlides(prev => prev.map((s, i) =>
                     i === activeSlideIndex ? { ...s, html: e.data.html } : s
@@ -142,6 +143,7 @@ function PresentationGeneratorContent() {
     // --- Inject drag script directly INTO iframe (runs in iframe's JS context with capture:true) ---
     const injectDragScript = useCallback((doc: Document) => {
         if (doc.getElementById('__drag-script__')) return
+        const parentOrigin = window.location.origin
         const s = doc.createElement('script')
         s.id = '__drag-script__'
         s.textContent = `
@@ -204,7 +206,7 @@ function PresentationGeneratorContent() {
                     // Prevent click from focusing the element immediately after draging
                     e.preventDefault();
                     e.stopPropagation();
-                    window.parent.postMessage({ type: 'slide-html', html: document.body.innerHTML }, '*');
+                    window.parent.postMessage({ type: 'slide-html', html: document.body.innerHTML }, '${parentOrigin}');
                 }
                 active = null;
                 isDragging = false;

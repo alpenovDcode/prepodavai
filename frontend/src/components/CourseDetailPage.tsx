@@ -167,11 +167,19 @@ export default function CourseDetailPage({ id }: CourseDetailPageProps) {
                         >
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-4">
-                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${generation.status === 'completed' ? 'bg-green-100 text-green-600' :
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center overflow-hidden ${generation.status === 'completed' ? 'bg-green-100 text-green-600' :
                                         generation.status === 'failed' ? 'bg-red-100 text-red-600' :
                                             'bg-blue-100 text-blue-600'
                                         }`}>
-                                        <i className={`fas ${getGenerationTypeIcon(generation.generationType)}`}></i>
+                                        {generation.status === 'completed' && (generation.generationType === 'photosession' || generation.generationType === 'image' || generation.generationType === 'image_generation') ? (
+                                            <img 
+                                                src={(generation as any).result?.imageUrl || (generation as any).result?.imageUrls?.[0] || (generation as any).outputData?.imageUrl || (generation as any).outputData?.imageUrls?.[0]} 
+                                                alt=""
+                                                className="w-full h-full object-cover"
+                                            />
+                                        ) : (
+                                            <i className={`fas ${getGenerationTypeIcon(generation.generationType)}`}></i>
+                                        )}
                                     </div>
                                     <div>
                                         <h4 className="font-medium text-gray-900 hover:text-primary-600 transition">

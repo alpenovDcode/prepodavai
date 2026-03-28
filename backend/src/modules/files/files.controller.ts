@@ -132,7 +132,7 @@ export class FilesController {
     res.setHeader('Content-Disposition', `${disposition}; filename="${filename}"`);
     // Явно разрешаем кросс-доменные запросы для файлов
     res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
-    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Origin', process.env.FRONTEND_URL || 'https://prepodavai.ru');
     // Дополнительная защита от XSS для скачиваемых файлов
     res.setHeader('Content-Security-Policy', "default-src 'none'; img-src *; media-src *; style-src 'unsafe-inline';");
     return res.send(file.buffer);
@@ -163,12 +163,30 @@ export class FilesController {
       throw new BadRequestException('URL не предоставлен');
     }
 
+    // Защита от SSRF: разрешаем только доверенные домены
+    const ALLOWED_PROXY_DOMAINS = [
+      'storage.googleapis.com',
+      'files.prepodavai.ru',
+      's3.amazonaws.com',
+      'gamma.app',
+      'cdn.gamma.app',
+    ];
+    let parsedUrl: URL;
+    try {
+      parsedUrl = new URL(url);
+    } catch {
+      throw new BadRequestException('Неверный URL');
+    }
+    if (!ALLOWED_PROXY_DOMAINS.some(d => parsedUrl.hostname === d || parsedUrl.hostname.endsWith('.' + d))) {
+      throw new BadRequestException('Домен не разрешён для проксирования');
+    }
+
     try {
       const { buffer, mimeType, originalName } = await this.filesService.downloadExternal(url);
-      
+
       res.setHeader('Content-Type', mimeType);
       res.setHeader('Content-Disposition', `attachment; filename="${originalName}"`);
-      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Origin', process.env.FRONTEND_URL || 'https://prepodavai.ru');
       return res.send(buffer);
     } catch (err) {
       return res.status(400).json({ success: false, error: err.message });

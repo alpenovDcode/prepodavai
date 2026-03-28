@@ -24,19 +24,11 @@ export class AdminGuard implements CanActivate {
       .map((id) => id.trim())
       .filter((id) => id.length > 0);
 
-    // Если список пуст, разрешаем доступ только в development
+    // Если список пуст — доступ запрещён всегда, независимо от окружения
     if (adminUserIds.length === 0) {
-      const nodeEnv = this.configService.get<string>('NODE_ENV', 'development');
-      if (nodeEnv === 'production') {
-        throw new ForbiddenException(
-          'Admin access is restricted. Set ADMIN_USER_IDS in environment variables.',
-        );
-      }
-      // В development разрешаем доступ всем авторизованным пользователям
-      console.warn(
-        '⚠️ Admin endpoints are accessible to all authenticated users in development mode',
+      throw new ForbiddenException(
+        'Admin access is restricted. Set ADMIN_USER_IDS in environment variables.',
       );
-      return true;
     }
 
     // Проверяем, является ли пользователь администратором

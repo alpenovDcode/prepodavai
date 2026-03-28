@@ -57,7 +57,6 @@ export default function StudentGradesPage() {
     }, [router])
 
     const handleLogout = () => {
-        localStorage.removeItem('prepodavai_authenticated')
         localStorage.removeItem('user')
         router.push('/student/login')
     }

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useMemo } from 'react'
+import DOMPurify from 'isomorphic-dompurify'
 import { Sparkles, RefreshCw, Loader2, Maximize2, Download, Copy, Eye, Edit3, HelpCircle, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useGenerations } from '@/lib/hooks/useGenerations'
 import RichTextEditor from '@/components/workspace/RichTextEditor'
@@ -119,7 +120,7 @@ export default function LessonPrepGenerator() {
 
     const handleCopy = () => {
         const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = localContent;
+        tempDiv.innerHTML = DOMPurify.sanitize(localContent);
         navigator.clipboard.writeText(tempDiv.innerText || tempDiv.textContent || '');
     }
 
@@ -129,9 +130,10 @@ export default function LessonPrepGenerator() {
 
     const exportPDF = () => {
         const autoPrint = `<script>window.onload=function(){setTimeout(function(){window.print()},600)}<\/script>`
-        const html = /<\/head>/i.test(localContent)
-            ? localContent.replace(/<\/head>/i, `${autoPrint}</head>`)
-            : `<!DOCTYPE html><html><head><meta charset="utf-8">${autoPrint}</head><body>${localContent}</body></html>`
+        const safeContent = DOMPurify.sanitize(localContent, { FORCE_BODY: true })
+        const html = /<\/head>/i.test(safeContent)
+            ? safeContent.replace(/<\/head>/i, `${autoPrint}</head>`)
+            : `<!DOCTYPE html><html><head><meta charset="utf-8">${autoPrint}</head><body>${safeContent}</body></html>`
         const win = window.open('', '_blank')
         if (!win) { alert('Разрешите всплывающие окна для этого сайта'); return }
         win.document.open(); win.document.write(html); win.document.close()
