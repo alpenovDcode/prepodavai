@@ -99,29 +99,21 @@ export class MaxService {
 
   private async sendWelcomeMessage(chatId: string, appUser: any, botUserId?: number) {
     const text = this.getWelcomeMessage(appUser);
-    const botUsername = this.configService.get<string>('MAX_BOT_USERNAME');
-
-    // open_app button opens the Mini App with initData injected by MAX platform.
-    // Requires MAX_BOT_USERNAME to be set (the bot's @username without @).
     const webAppUrl = this.configService.get<string>('WEB_APP_URL') || 'https://prepodavai.ru';
-    const button = botUsername
-      ? {
-          type: 'open_app',
-          text: '🚀 Открыть PrepodavAI',
-          app_id: botUsername,
-          web_app: { url: `${webAppUrl}/dashboard` },
-        }
-      : {
-          type: 'link',
-          text: '🌐 Открыть PrepodavAI',
-          url: `${webAppUrl}/dashboard`,
-        };
 
+    // MAX автоматически добавляет кнопку "Открыть" (mini app) из настроек бота.
+    // Дополнительно отправляем link-кнопку для явного перехода.
     const attachments = [
       {
         type: 'inline_keyboard',
         payload: {
-          buttons: [[button]],
+          buttons: [[
+            {
+              type: 'link',
+              text: '🚀 Открыть PrepodavAI',
+              url: `${webAppUrl}/dashboard`,
+            },
+          ]],
         },
       },
     ];
