@@ -402,12 +402,13 @@ export class SubmissionsService {
       let text = '';
       if (typeof output === 'string') {
         text = output;
-      } else if (output.html) {
-        text = String(output.html).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-      } else if (output.content) {
-        text = typeof output.content === 'string' ? output.content : JSON.stringify(output.content);
-      } else if (output.text) {
-        text = String(output.text);
+      } else {
+        // Try all known outputData fields
+        const raw = output.content || output.htmlResult || output.html || output.text || '';
+        if (typeof raw === 'string' && raw.trim()) {
+          // Strip HTML tags to get plain text for prompt
+          text = raw.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+        }
       }
       if (text) {
         taskContent += `\n[${gen.generationType}]:\n${text}\n`;
