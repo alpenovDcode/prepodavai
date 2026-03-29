@@ -21,8 +21,19 @@ export default function LessonPrepGenerator() {
 
     const [results, setResults] = useState<Array<{ type: string; content: string }>>([])
     const [currentIndex, setCurrentIndex] = useState(0)
+    const [activeTab, setActiveTab] = useState<'config' | 'preview'>('config')
+    const [isMobile, setIsMobile] = useState(false)
 
     const { generateAndWait, isGenerating } = useGenerations()
+
+    useEffect(() => {
+        const checkMobile = () => {
+            setIsMobile(window.innerWidth < 768)
+        }
+        checkMobile()
+        window.addEventListener('resize', checkMobile)
+        return () => window.removeEventListener('resize', checkMobile)
+    }, [])
 
     const allGenTypes = [
         { value: 'lesson-plan', label: 'План урока' },
@@ -44,6 +55,7 @@ export default function LessonPrepGenerator() {
         setResults([]);
         setCurrentIndex(0);
         setLocalContent('<p>Генерируем материалы для вау-урока...</p>');
+        if (isMobile) setActiveTab('preview')
 
         try {
             const params = {
@@ -157,9 +169,30 @@ export default function LessonPrepGenerator() {
     }, [editMode, localContent, isGenerating]);
 
     return (
-        <div className="flex w-full h-full bg-[#F9FAFB]">
+        <div className="flex flex-col md:flex-row w-full h-full bg-[#F9FAFB] overflow-hidden">
+            {/* Mobile Tab Switcher */}
+            {isMobile && (
+                <div className="flex p-2 bg-white border-b border-gray-100 gap-2 flex-shrink-0">
+                    <button
+                        onClick={() => setActiveTab('config')}
+                        className={`flex-1 py-2 text-sm font-bold rounded-xl transition-all ${activeTab === 'config' ? 'bg-pink-600 text-white shadow-md' : 'text-gray-500 bg-gray-50'}`}
+                    >
+                        Настройка
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('preview')}
+                        className={`flex-1 py-2 text-sm font-bold rounded-xl transition-all ${activeTab === 'preview' ? 'bg-pink-600 text-white shadow-md' : 'text-gray-500 bg-gray-50'}`}
+                    >
+                        Урок
+                    </button>
+                </div>
+            )}
+
             {/* Configurator Sidebar */}
-            <div className="w-[320px] bg-white border-r border-gray-200 flex flex-col h-full flex-shrink-0 z-10 shadow-[4px_0_24px_rgba(0,0,0,0.02)]">
+            <div className={`
+                ${isMobile && activeTab !== 'config' ? 'hidden' : 'flex'}
+                w-full md:w-[320px] bg-white border-r border-gray-200 flex-col h-full flex-shrink-0 z-10 shadow-[4px_0_24px_rgba(0,0,0,0.02)]
+            `}>
                 <div className="p-5 border-b border-gray-100 flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-pink-50 flex items-center justify-center text-pink-600">
                         <Sparkles className="w-5 h-5" />
@@ -182,7 +215,7 @@ export default function LessonPrepGenerator() {
                                 value={subject}
                                 onChange={e => setSubject(e.target.value)}
                                 placeholder="Математика"
-                                className="block w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-pink-500 focus:border-pink-500 text-gray-900 placeholder-gray-400"
+                                className="block w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-pink-500 transition-all text-gray-900 placeholder-gray-400"
                             />
                         </div>
 
@@ -193,7 +226,7 @@ export default function LessonPrepGenerator() {
                                 value={topic}
                                 onChange={e => setTopic(e.target.value)}
                                 placeholder="Дроби"
-                                className="block w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-pink-500 focus:border-pink-500 text-gray-900 placeholder-gray-400"
+                                className="block w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-pink-500 transition-all text-gray-900 placeholder-gray-400"
                             />
                         </div>
 
@@ -202,7 +235,7 @@ export default function LessonPrepGenerator() {
                             <select
                                 value={level}
                                 onChange={e => setLevel(e.target.value)}
-                                className="block w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-pink-500 focus:border-pink-500 text-gray-900 placeholder-gray-400"
+                                className="block w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-pink-500 transition-all text-gray-900"
                             >
                                 {Array.from({ length: 11 }, (_, i) => (
                                     <option key={i + 1} value={String(i + 1)}>{i + 1} класс</option>
@@ -217,22 +250,22 @@ export default function LessonPrepGenerator() {
                                 onChange={e => setInterests(e.target.value)}
                                 placeholder="Minecraft, Roblox, футбол (для персонализации)..."
                                 rows={3}
-                                className="block w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-pink-500 focus:border-pink-500 resize-none text-gray-900 placeholder-gray-400"
+                                className="block w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-pink-500 transition-all resize-none text-gray-900 placeholder-gray-400"
                             />
                         </div>
 
                         <div>
                             <label className="block text-sm font-bold text-gray-700 mb-2">Что сгенерировать</label>
-                            <div className="space-y-2 mt-2">
+                            <div className="grid grid-cols-1 md:grid-cols-1 gap-2 mt-2">
                                 {allGenTypes.map(type => (
-                                    <label key={type.value} className="flex items-center gap-2 cursor-pointer">
+                                    <label key={type.value} className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 border border-gray-100 cursor-pointer hover:bg-gray-100 transition-all">
                                         <input
                                             type="checkbox"
                                             checked={generationTypes.includes(type.value)}
                                             onChange={() => toggleType(type.value)}
-                                            className="rounded text-pink-500 focus:ring-pink-500 border-gray-300"
+                                            className="w-5 h-5 rounded-md text-pink-500 focus:ring-pink-500 border-gray-200"
                                         />
-                                        <span className="text-sm text-gray-600">{type.label}</span>
+                                        <span className="text-sm font-medium text-gray-700">{type.label}</span>
                                     </label>
                                 ))}
                             </div>
@@ -244,9 +277,9 @@ export default function LessonPrepGenerator() {
                     <button
                         onClick={generate}
                         disabled={isGenerating || !subject || !topic}
-                        className="w-full relative group overflow-hidden rounded-xl bg-gradient-to-r from-pink-500 to-rose-600 p-px font-semibold shadow-md active:scale-[0.98] transition-all disabled:opacity-50"
+                        className="w-full relative group overflow-hidden rounded-xl bg-gradient-to-r from-pink-500 to-rose-600 p-px font-bold shadow-lg active:scale-[0.98] transition-all disabled:opacity-50"
                     >
-                        <div className="relative flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-pink-500 to-rose-600 rounded-[11px] text-white">
+                        <div className="relative flex items-center justify-center gap-2 px-4 py-3.5 bg-gradient-to-r from-pink-500 to-rose-600 rounded-[11px] text-white">
                             {isGenerating ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
                             <span>{isGenerating ? 'В процессе...' : 'Создать Вау-урок'}</span>
                         </div>
@@ -255,30 +288,32 @@ export default function LessonPrepGenerator() {
             </div>
 
             {/* Editor Area */}
-            <div className="flex-1 flex flex-col min-w-0 bg-[#F9FAFB] relative px-4 py-4 md:px-8 md:py-8 overflow-hidden h-full">
+            <div className={`
+                ${isMobile && activeTab !== 'preview' ? 'hidden' : 'flex'}
+                flex-1 flex-col min-w-0 bg-[#F9FAFB] relative px-4 py-4 md:px-8 md:py-8 overflow-hidden h-full
+            `}>
                 <div className="flex flex-col h-full bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-                    <div className="h-14 border-b border-gray-100 px-4 flex items-center justify-between bg-white flex-shrink-0">
-                        <div className="flex items-center gap-2">
-                            <span className="px-2.5 py-1 bg-pink-50 text-pink-700 rounded-md text-xs font-bold tracking-wide">ВАУ-УРОК</span>
-                            <span className="text-gray-300">•</span>
-                            <div className="flex items-center gap-2 bg-gray-50 px-2 py-1 rounded-lg border border-gray-100">
+                    <div className="h-14 md:h-16 border-b border-gray-100 px-3 md:px-5 flex items-center justify-between bg-white flex-shrink-0 overflow-x-auto">
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                            <span className="hidden xs:inline px-2 py-1 bg-pink-50 text-pink-700 rounded-md text-[10px] font-bold tracking-tight">ВАУ-УРОК</span>
+                            <div className="flex items-center gap-1.5 bg-gray-50 px-2 py-1.5 rounded-xl border border-gray-100">
                                 {results.length > 1 && (
                                     <button
                                         onClick={prevResult}
                                         disabled={currentIndex === 0}
-                                        className="p-1 text-gray-400 hover:text-pink-600 disabled:opacity-30 disabled:hover:text-gray-400 transition-colors"
+                                        className="p-1 text-gray-400 hover:text-pink-600 disabled:opacity-30 transition-colors"
                                     >
                                         <ChevronLeft className="w-3.5 h-3.5" />
                                     </button>
                                 )}
-                                <span className="text-[10px] md:text-xs font-bold text-gray-600 uppercase tracking-tight">
-                                    {results.length > 0 ? `${currentIndex + 1} ИЗ ${results.length}: ${currentResultType}` : `${generationTypes.length} ЭЛЕМЕНТОВ`}
+                                <span className="text-[10px] font-bold text-gray-600 uppercase tracking-tighter whitespace-nowrap">
+                                    {results.length > 0 ? `${currentIndex + 1}/${results.length}: ${currentResultType}` : `${generationTypes.length} ЭЛЕМ.`}
                                 </span>
                                 {results.length > 1 && (
                                     <button
                                         onClick={nextResult}
                                         disabled={currentIndex === results.length - 1}
-                                        className="p-1 text-gray-400 hover:text-pink-600 disabled:opacity-30 disabled:hover:text-gray-400 transition-colors"
+                                        className="p-1 text-gray-400 hover:text-pink-600 disabled:opacity-30 transition-colors"
                                     >
                                         <ChevronRight className="w-3.5 h-3.5" />
                                     </button>
@@ -286,48 +321,60 @@ export default function LessonPrepGenerator() {
                             </div>
                         </div>
 
-                        <div className="flex items-center gap-2">
-                            {localContent && localContent !== '<p>Заполните параметры для создания комплексного вау-урока с учетом интересов ученика.</p>' && localContent !== '<p>Генерируем материалы для вау-урока...</p>' && (
+                        <div className="flex items-center gap-1.5 md:gap-2 ml-2">
+                            {localContent && !localContent.includes('Заполните параметры') && !localContent.includes('Генерируем материалы') && (
                                 <button
                                     onClick={toggleEditMode}
-                                    className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${editMode
+                                    className={`flex items-center gap-1.5 px-3 py-2 text-[11px] font-bold rounded-lg transition-all ${editMode
                                         ? 'bg-pink-100 text-pink-700 hover:bg-pink-200'
                                         : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                                         }`}
                                 >
                                     {editMode ? <Eye className="w-3.5 h-3.5" /> : <Edit3 className="w-3.5 h-3.5" />}
-                                    {editMode ? 'Просмотр' : 'Редактировать'}
+                                    <span className="hidden sm:inline">{editMode ? 'Просмотр' : 'Редактировать'}</span>
                                 </button>
                             )}
-                            <button onClick={handleCopy} className="p-2 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors" title="Скопировать">
+                            <button onClick={handleCopy} className="p-2 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors" title="Копировать">
                                 <Copy className="w-4 h-4" />
-                            </button>
-                            <button onClick={generate} className="p-2 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors" title="Перегенерировать">
-                                <RefreshCw className="w-4 h-4" />
                             </button>
                             <button
                                 onClick={exportPDF}
-                                disabled={isExporting}
-                                className="flex items-center gap-2 px-4 py-2 bg-pink-600 hover:bg-pink-700 text-white text-sm font-semibold rounded-lg shadow-sm transition-colors ml-2"
+                                className="flex items-center gap-1.5 px-3 py-2 bg-pink-50 hover:bg-pink-100 text-pink-700 text-[11px] font-bold rounded-lg transition-all shadow-sm"
                             >
-                                {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                                Экспорт PDF
+                                <Download className="w-3.5 h-3.5" />
+                                <span className="hidden sm:inline">PDF</span>
                             </button>
                         </div>
                     </div>
 
                     <div className="flex-1 overflow-hidden relative bg-white">
                         {isGenerating ? (
-                            <div className="flex flex-col items-center justify-center h-full gap-4 text-gray-500">
-                                <Loader2 className="w-10 h-10 animate-spin text-pink-500" />
-                                <p className="font-medium">Генерируем Вау-урок...</p>
-                                <p className="text-sm text-gray-400">Это может занять 30–60 секунд</p>
+                            <div className="flex flex-col items-center justify-center h-full gap-4 text-gray-500 p-6 text-center">
+                                <Loader2 className="w-12 h-12 animate-spin text-pink-500" />
+                                <div className="space-y-1">
+                                    <p className="font-bold text-gray-900">Создаем Вау-урок...</p>
+                                    <p className="text-sm text-gray-400">Это может занять около минуты.</p>
+                                </div>
                             </div>
-                        ) : !localContent || localContent === '<p>Заполните параметры для создания комплексного вау-урока с учетом интересов ученика.</p>' ? (
-                            <div className="flex flex-col items-center justify-center h-full gap-3 text-gray-400">
-                                <HelpCircle className="w-12 h-12 text-gray-200" />
-                                <p className="font-medium text-gray-500">Введите тему и нажмите «Создать Вау-урок»</p>
-                                <p className="text-sm">Готовые материалы появятся здесь</p>
+                        ) : !localContent || localContent.includes('Заполните параметры') ? (
+                            <div className="flex flex-col items-center justify-center h-full text-center p-6 gap-4">
+                                <div className="w-20 h-20 rounded-3xl bg-pink-50 flex items-center justify-center">
+                                    <Sparkles className="w-10 h-10 text-pink-200" />
+                                </div>
+                                <div className="space-y-1">
+                                    <h3 className="text-lg font-bold text-gray-700">Готовый урок появится здесь</h3>
+                                    <p className="text-sm text-gray-400 max-w-[320px]">
+                                        Введите тему и нажмите кнопку Создать Вау-урок.
+                                    </p>
+                                </div>
+                                {isMobile && (
+                                    <button 
+                                        onClick={() => setActiveTab('config')}
+                                        className="mt-2 px-6 py-2 bg-pink-600 text-white rounded-xl font-bold text-sm shadow-md active:scale-95 transition-all"
+                                    >
+                                        Настроить урок
+                                    </button>
+                                )}
                             </div>
                         ) : editMode ? (
                             <RichTextEditor
@@ -346,8 +393,8 @@ export default function LessonPrepGenerator() {
                         )}
                     </div>
                     {editMode && (
-                        <div className="h-9 bg-pink-50 border-t border-pink-100 flex items-center justify-center">
-                            <span className="text-xs text-pink-700 font-medium">✏️ Режим редактирования — кликните на текст чтобы изменить</span>
+                        <div className="h-8 bg-pink-50 border-t border-pink-100 flex items-center justify-center px-4">
+                            <span className="text-[10px] text-pink-700 font-bold uppercase tracking-tight">✏️ РЕЖИМ РЕДАКТИРОВАНИЯ</span>
                         </div>
                     )}
                 </div>

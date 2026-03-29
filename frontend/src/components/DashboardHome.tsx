@@ -234,30 +234,27 @@ export default function DashboardHome() {
             </div>
 
             {/* Generation Types */}
-            <div className="grid md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-6">
                 {selectedTypes.map((typeId) => {
                     const data = getCardData(typeId)
                     return (
                         <div
                             key={typeId}
-                            className="dashboard-card relative group"
+                            className="dashboard-card relative group !p-4 md:!p-6"
                         >
-                            <div className="flex items-start justify-between mb-4">
-                                <div className={`icon-circle ${data.iconBg}`}>
-                                    <i className={`${data.icon} ${data.iconColor}`}></i>
+                            <div className="flex items-start justify-between mb-3">
+                                <div className={`icon-circle ${data.iconBg} !w-9 !h-9 md:!w-11 md:!h-11`}>
+                                    <i className={`${data.icon} ${data.iconColor} text-sm md:text-base`}></i>
                                 </div>
-
-                                {/* Remove Button */}
                                 <button
                                     onClick={() => toggleType(typeId)}
-                                    className="text-gray-400 hover:text-red-500 transition-colors"
+                                    className="text-gray-300 hover:text-red-500 transition-colors p-1"
                                 >
-                                    <i className="fas fa-times"></i>
+                                    <i className="fas fa-times text-xs"></i>
                                 </button>
                             </div>
-
-                            <h3 className="text-lg font-bold text-gray-900 mb-2">{data.title}</h3>
-                            <p className="text-sm text-gray-600">{data.description}</p>
+                            <h3 className="text-sm md:text-lg font-bold text-gray-900 mb-1 leading-tight">{data.title}</h3>
+                            <p className="text-xs md:text-sm text-gray-600 hidden md:block">{data.description}</p>
                         </div>
                     )
                 })}
@@ -265,69 +262,69 @@ export default function DashboardHome() {
                 {/* Add Button Card */}
                 <button
                     onClick={() => setIsModalOpen(true)}
-                    className="dashboard-card border-2 border-dashed border-gray-300 flex flex-col items-center justify-center min-h-[200px] hover:border-primary-500 hover:bg-primary-50 transition-all group cursor-pointer"
+                    className="dashboard-card !p-4 md:!p-6 border-2 border-dashed border-gray-300 flex flex-col items-center justify-center min-h-[120px] md:min-h-[200px] hover:border-primary-500 hover:bg-primary-50 transition-all group cursor-pointer"
                 >
-                    <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-4 group-hover:bg-primary-100 transition-colors">
-                        <i className="fas fa-plus text-2xl text-gray-400 group-hover:text-primary-600"></i>
+                    <div className="w-10 h-10 md:w-16 md:h-16 rounded-full bg-gray-100 flex items-center justify-center mb-2 md:mb-4 group-hover:bg-primary-100 transition-colors">
+                        <i className="fas fa-plus text-lg md:text-2xl text-gray-400 group-hover:text-primary-600"></i>
                     </div>
-                    <span className="font-semibold text-gray-500 group-hover:text-primary-600">Добавить генерацию</span>
+                    <span className="text-xs md:text-sm font-semibold text-gray-500 group-hover:text-primary-600">Добавить</span>
                 </button>
             </div>
 
             {/* Quick Stats */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8">
-                <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
-                    <div className="flex items-center gap-3 mb-2">
-                        <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center">
-                            <i className="fas fa-file-alt text-primary-600"></i>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mt-6 md:mt-8">
+                <div className="bg-white rounded-2xl p-4 md:p-6 border border-gray-100 shadow-sm">
+                    <div className="flex items-center gap-2 md:gap-3">
+                        <div className="w-9 h-9 md:w-10 md:h-10 rounded-xl bg-purple-100 flex items-center justify-center flex-shrink-0">
+                            <i className="fas fa-file-alt text-primary-600 text-sm"></i>
                         </div>
                         <div>
-                            <p className="text-2xl font-bold text-gray-900">{statsData?.materialsCount || 17}</p>
-                            <p className="text-xs text-gray-600 font-medium">Материалов</p>
+                            <p className="text-xl md:text-2xl font-bold text-gray-900">{statsData?.materialsCount || 17}</p>
+                            <p className="text-[11px] md:text-xs text-gray-600 font-medium">Материалов</p>
                         </div>
                     </div>
                 </div>
 
-                <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm overflow-hidden relative group">
-                    <div className="flex items-center gap-3 mb-2">
-                        <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center relative z-10">
-                            <i className="fas fa-check-circle text-green-600"></i>
+                <div className="bg-white rounded-2xl p-4 md:p-6 border border-gray-100 shadow-sm overflow-hidden relative">
+                    <div className="flex items-center gap-2 md:gap-3">
+                        <div className="w-9 h-9 md:w-10 md:h-10 rounded-xl bg-green-100 flex items-center justify-center flex-shrink-0">
+                            <i className="fas fa-check-circle text-green-600 text-sm"></i>
                         </div>
-                        <div className="relative z-10">
+                        <div>
                             <div className="flex items-baseline gap-1">
-                                <p className="text-2xl font-bold text-gray-900 tabular-nums">
+                                <p className="text-xl md:text-2xl font-bold text-gray-900 tabular-nums">
                                     {(statsData?.globalGenerationsCount || 156).toLocaleString()}
                                 </p>
-                                <span className="flex h-2 w-2 relative -top-3">
+                                <span className="flex h-2 w-2 relative -top-2">
                                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
                                     <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
                                 </span>
                             </div>
-                            <p className="text-xs text-gray-600 font-medium">Генераций</p>
+                            <p className="text-[11px] md:text-xs text-gray-600 font-medium">Генераций</p>
                         </div>
                     </div>
                 </div>
 
-                <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
-                    <div className="flex items-center gap-3 mb-2">
-                        <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
-                            <i className="fas fa-coins text-blue-600"></i>
+                <div className="bg-white rounded-2xl p-4 md:p-6 border border-gray-100 shadow-sm">
+                    <div className="flex items-center gap-2 md:gap-3">
+                        <div className="w-9 h-9 md:w-10 md:h-10 rounded-xl bg-blue-100 flex items-center justify-center flex-shrink-0">
+                            <i className="fas fa-coins text-blue-600 text-sm"></i>
                         </div>
                         <div>
-                            <p className="text-2xl font-bold text-gray-900">{(statsData?.totalCreditsSpent || 1250).toLocaleString()}</p>
-                            <p className="text-xs text-gray-600 font-medium">Кредитов</p>
+                            <p className="text-xl md:text-2xl font-bold text-gray-900">{(statsData?.totalCreditsSpent || 1250).toLocaleString()}</p>
+                            <p className="text-[11px] md:text-xs text-gray-600 font-medium">Кредитов</p>
                         </div>
                     </div>
                 </div>
 
-                <div className="bg-white rounded-2xl p-6 border border-gray-100">
-                    <div className="flex items-center gap-3 mb-2">
-                        <div className="w-10 h-10 rounded-xl bg-orange-100 flex items-center justify-center">
-                            <i className="fas fa-clock text-orange-600"></i>
+                <div className="bg-white rounded-2xl p-4 md:p-6 border border-gray-100">
+                    <div className="flex items-center gap-2 md:gap-3">
+                        <div className="w-9 h-9 md:w-10 md:h-10 rounded-xl bg-orange-100 flex items-center justify-center flex-shrink-0">
+                            <i className="fas fa-clock text-orange-600 text-sm"></i>
                         </div>
                         <div>
-                            <p className="text-2xl font-bold text-gray-900">48h</p>
-                            <p className="text-xs text-gray-600">Сэкономлено</p>
+                            <p className="text-xl md:text-2xl font-bold text-gray-900">48h</p>
+                            <p className="text-[11px] md:text-xs text-gray-600">Сэкономлено</p>
                         </div>
                     </div>
                 </div>

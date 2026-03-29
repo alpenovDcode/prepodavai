@@ -83,7 +83,8 @@ function PresentationGeneratorContent() {
     const [activeSlideIndex, setActiveSlideIndex] = useState(0)
     const [isEditorMode, setIsEditorMode] = useState(false)
     const [editMode, setEditMode] = useState(false)
-    // Local loading covers the FULL generate+poll cycle (hook's isGenerating resets too early)
+    const [activeTab, setActiveTab] = useState<'config' | 'preview'>('config')
+    const [isMobile, setIsMobile] = useState(false)
     const [isLoading, setIsLoading] = useState(false)
     const [isExporting, setIsExporting] = useState(false)
     const [showDownloadMenu, setShowDownloadMenu] = useState(false)
@@ -98,6 +99,15 @@ function PresentationGeneratorContent() {
     const fileInputRef = useRef<HTMLInputElement>(null)
     const { generateAndWait, isGenerating } = useGenerations()
     const searchParams = useSearchParams()
+    
+    useEffect(() => {
+        const checkMobile = () => {
+            setIsMobile(window.innerWidth < 768)
+        }
+        checkMobile()
+        window.addEventListener('resize', checkMobile)
+        return () => window.removeEventListener('resize', checkMobile)
+    }, [])
 
     // Load slides from sessionStorage when redirected from MaterialViewer
     useEffect(() => {
@@ -573,6 +583,7 @@ ${css}
             setIsEditorMode(false)
             setSlides([])
             setEditMode(false)
+            if (isMobile) setActiveTab('preview')
 
             const params = { topic, duration, style, targetAudience }
             const status = await generateAndWait({ type: 'presentation', params })
@@ -624,48 +635,52 @@ ${css}
     if (isEditorMode) {
         const activeSlide = slides[activeSlideIndex]
         return (
-            <div className="flex flex-col w-full h-full bg-[#F9FAFB]">
+            <div className="flex flex-col w-full h-full bg-[#F9FAFB] overflow-hidden">
                 {/* Header */}
-                <div className="h-14 bg-white border-b border-gray-200 flex items-center justify-between px-5 flex-shrink-0 shadow-sm">
-                    <div className="flex items-center gap-3">
-                        <button onClick={() => { disableEditing(); setIsEditorMode(false); setEditMode(false); }} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+                <div className="h-14 md:h-16 bg-white border-b border-gray-200 flex items-center justify-between px-3 md:px-5 flex-shrink-0 shadow-sm">
+                    <div className="flex items-center gap-2 md:gap-3 overflow-hidden">
+                        <button onClick={() => { disableEditing(); setIsEditorMode(false); setEditMode(false); }} className="p-2 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0">
                             <ArrowLeft className="w-5 h-5 text-gray-600" />
                         </button>
-                        <div>
-                            <h1 className="font-bold text-sm text-gray-900 leading-tight">{topic || 'Презентация'}</h1>
-                            <p className="text-xs text-gray-400">{slides.length} слайдов</p>
+                        <div className="overflow-hidden">
+                            <h1 className="font-bold text-xs md:text-sm text-gray-900 leading-tight truncate">{topic || 'Презентация'}</h1>
+                            <p className="text-[10px] md:text-xs text-gray-400">{slides.length} слайдов</p>
                         </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                        <button
-                            onClick={() => setEditMode(m => !m)}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${editMode ? 'bg-indigo-500 text-white hover:bg-indigo-600' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
-                        >
-                            {editMode ? <><Eye className="w-3.5 h-3.5" /> Просмотр</> : <><Edit3 className="w-3.5 h-3.5" /> Редактировать</>}
-                        </button>
+                    <div className="flex items-center gap-1 md:gap-2">
+                        {!isMobile && (
+                            <button
+                                onClick={() => setEditMode(m => !m)}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${editMode ? 'bg-indigo-500 text-white hover:bg-indigo-600' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                            >
+                                {editMode ? <><Eye className="w-3.5 h-3.5" /> Просмотр</> : <><Edit3 className="w-3.5 h-3.5" /> Редактировать</>}
+                            </button>
+                        )}
                         {/* Download dropdown */}
                         <div className="relative">
                             <button
                                 onClick={() => setShowDownloadMenu(m => !m)}
                                 disabled={isExporting}
-                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-colors disabled:opacity-50"
+                                className="flex items-center gap-1.5 px-2 md:px-3 py-1.5 text-xs font-semibold bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-colors disabled:opacity-50"
                             >
                                 {isExporting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
-                                {isExporting ? 'Экспорт...' : 'Скачать ▾'}
+                                <span className="hidden xs:inline">{isExporting ? 'Экспорт...' : 'Скачать ▾'}</span>
+                                {isMobile && !isExporting && <span>▾</span>}
                             </button>
                             {showDownloadMenu && !isExporting && (
                                 <div className="absolute right-0 top-9 z-50 bg-white border border-gray-200 rounded-xl shadow-xl py-1.5 min-w-[160px]" onMouseLeave={() => setShowDownloadMenu(false)}>
                                     <button onClick={downloadPDF} className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-orange-50 hover:text-orange-700 transition-colors">
-                                        <Download className="w-4 h-4" /> Скачать PDF
+                                        <Download className="w-4 h-4" /> PDF
                                     </button>
                                     <button onClick={downloadPPTX} className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-700 transition-colors">
-                                        <Download className="w-4 h-4" /> Скачать PPTX
+                                        <Download className="w-4 h-4" /> PPTX
                                     </button>
                                 </div>
                             )}
                         </div>
-                        <button onClick={generate} disabled={isLoading} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors disabled:opacity-40">
-                            {isLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />} Регенерировать
+                        <button onClick={generate} disabled={isLoading} className="flex items-center gap-1.5 px-2 md:px-3 py-1.5 text-xs font-semibold bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors disabled:opacity-40">
+                            {isLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />} 
+                            <span className="hidden md:inline">Регенерировать</span>
                         </button>
                     </div>
                 </div>
@@ -682,24 +697,32 @@ ${css}
                 )}
 
 
-                <div className="flex flex-1 overflow-hidden">
-                    {/* Sidebar */}
-                    <div className="w-[200px] bg-white border-r border-gray-200 flex flex-col h-full flex-shrink-0">
-                        <div className="p-3 border-b border-gray-100 flex items-center justify-between">
-                            <span className="font-bold text-xs text-gray-500 uppercase tracking-wider">SLIDES</span>
+                <div className={`flex flex-1 ${isMobile ? 'flex-col' : 'flex-row'} overflow-hidden`}>
+                    {/* Sidebar / Thumbnails */}
+                    <div className={`
+                        ${isMobile ? 'order-2 w-full h-[120px] border-t' : 'w-[200px] h-full border-r'}
+                        bg-white border-gray-200 flex flex-col flex-shrink-0
+                    `}>
+                        <div className="p-3 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
+                            <span className="font-bold text-[10px] md:text-xs text-gray-500 uppercase tracking-wider">Слайды</span>
                             <button onClick={handleAddSlide} className="p-1 hover:bg-blue-50 text-blue-600 rounded transition-colors">
                                 <Plus className="w-4 h-4" />
                             </button>
                         </div>
-                        <div className="flex-1 overflow-y-auto p-3 space-y-3 scrollbar-thin scrollbar-thumb-gray-200">
+                        <div className={`
+                            flex-1 overflow-auto p-3 space-y-3 scrollbar-thin scrollbar-thumb-gray-200
+                            ${isMobile ? 'flex flex-row space-y-0 space-x-3 items-center overflow-x-auto overflow-y-hidden py-2' : ''}
+                        `}>
                             {slides.map((slide, index) => (
-                                <SlideThumbnail key={slide.id} slide={slide} index={index} isActive={activeSlideIndex === index} onClick={() => switchSlide(index)} />
+                                <div key={slide.id} className={isMobile ? 'min-w-[140px] w-[140px] flex-shrink-0' : 'w-full'}>
+                                    <SlideThumbnail slide={slide} index={index} isActive={activeSlideIndex === index} onClick={() => switchSlide(index)} />
+                                </div>
                             ))}
                         </div>
                     </div>
 
-                    {/* Canvas */}
-                    <div className="flex-1 flex flex-col bg-gray-100 h-full overflow-hidden">
+                    {/* Canvas Area */}
+                    <div className="flex-1 flex flex-col bg-gray-100 h-full overflow-hidden order-1">
                         {editMode && (
                             <div className="bg-white border-b border-gray-200 px-4 py-2 flex items-center gap-1 flex-shrink-0 flex-wrap">
                                 {/* Formatting */}
@@ -733,14 +756,13 @@ ${css}
                             </div>
                         )}
 
-                        <div className="flex-1 overflow-auto p-6 flex items-center justify-center">
+                        <div className="flex-1 overflow-auto p-2 md:p-6 flex items-center justify-center">
                             {activeSlide && (
-                                <div className="w-full max-w-[960px] flex flex-col gap-4">
+                                <div className="w-full max-w-[960px] flex flex-col gap-3 md:gap-4">
                                     <div
-                                        className={`w-full rounded-2xl overflow-hidden border-2 transition-all ${editMode ? 'border-indigo-400 shadow-lg shadow-indigo-100' : 'border-gray-200 shadow-xl'}`}
+                                        className={`w-full rounded-xl md:rounded-2xl overflow-hidden border-2 transition-all ${editMode ? 'border-indigo-400 shadow-lg shadow-indigo-100' : 'border-gray-200 shadow-xl'}`}
                                         style={{ aspectRatio: '16/9' }}
                                     >
-                                        {/* Single iframe, no key flipping — we manipulate DOM directly */}
                                         <iframe
                                             ref={canvasIframeRef}
                                             key={activeSlide.id}
@@ -750,10 +772,10 @@ ${css}
                                             title={`Slide ${activeSlideIndex + 1}`}
                                         />
                                     </div>
-                                    <div className="flex items-center justify-center gap-4">
-                                        <button onClick={() => switchSlide(Math.max(0, activeSlideIndex - 1))} disabled={activeSlideIndex === 0} className="px-4 py-2 text-sm bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40 transition-colors font-medium">← Назад</button>
-                                        <span className="text-sm text-gray-500 font-medium">{activeSlideIndex + 1} / {slides.length}</span>
-                                        <button onClick={() => switchSlide(Math.min(slides.length - 1, activeSlideIndex + 1))} disabled={activeSlideIndex === slides.length - 1} className="px-4 py-2 text-sm bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40 transition-colors font-medium">Вперёд →</button>
+                                    <div className="flex items-center justify-center gap-3 md:gap-4">
+                                        <button onClick={() => switchSlide(Math.max(0, activeSlideIndex - 1))} disabled={activeSlideIndex === 0} className="px-3 md:px-4 py-1.5 md:py-2 text-xs md:text-sm bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40 transition-colors font-medium">← Назад</button>
+                                        <span className="text-xs md:text-m text-gray-500 font-medium">{activeSlideIndex + 1} / {slides.length}</span>
+                                        <button onClick={() => switchSlide(Math.min(slides.length - 1, activeSlideIndex + 1))} disabled={activeSlideIndex === slides.length - 1} className="px-3 md:px-4 py-1.5 md:py-2 text-xs md:text-sm bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40 transition-colors font-medium">Вперёд →</button>
                                     </div>
                                 </div>
                             )}
@@ -794,8 +816,30 @@ ${css}
     }
     // --- Configurator ---
     return (
-        <div className="flex w-full h-full bg-[#F9FAFB]">
-            <div className="w-[320px] bg-white border-r border-gray-200 flex flex-col h-full flex-shrink-0 z-10 shadow-[4px_0_24px_rgba(0,0,0,0.02)]">
+        <div className="flex flex-col md:flex-row w-full h-full bg-[#F9FAFB] overflow-hidden">
+            {/* Mobile Tab Switcher */}
+            {isMobile && (
+                <div className="flex p-2 bg-white border-b border-gray-100 gap-2 flex-shrink-0">
+                    <button
+                        onClick={() => setActiveTab('config')}
+                        className={`flex-1 py-2 text-sm font-bold rounded-xl transition-all ${activeTab === 'config' ? 'bg-purple-500 text-white shadow-md' : 'text-gray-500 bg-gray-50'}`}
+                    >
+                        Настройка
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('preview')}
+                        className={`flex-1 py-2 text-sm font-bold rounded-xl transition-all ${activeTab === 'preview' ? 'bg-purple-500 text-white shadow-md' : 'text-gray-500 bg-gray-50'}`}
+                    >
+                        Результат
+                    </button>
+                </div>
+            )}
+
+            {/* Configurator Sidebar */}
+            <div className={`
+                ${isMobile && activeTab !== 'config' ? 'hidden' : 'flex'}
+                w-full md:w-[320px] bg-white border-r border-gray-200 flex-col h-full flex-shrink-0 z-10 shadow-[4px_0_24px_rgba(0,0,0,0.02)]
+            `}>
                 <div className="p-5 border-b border-gray-100 flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center text-purple-600">
                         <MonitorPlay className="w-5 h-5" />
@@ -805,61 +849,101 @@ ${css}
                             <h2 className="font-bold text-lg">Презентации</h2>
                             <GenerationCostBadge operationType="presentation" />
                         </div>
-                        <p className="text-xs text-gray-500 font-medium">WORKSPACE V2</p>
+                        <p className="text-xs text-gray-500 font-medium tracking-tight">WORKSPACE V2</p>
                     </div>
                 </div>
+
                 <div className="flex-1 overflow-y-auto p-5 scrollbar-thin scrollbar-thumb-gray-200">
                     <div className="space-y-6">
                         <div>
-                            <label className="block text-sm font-bold text-gray-700 mb-2">Тема презентации</label>
-                            <textarea value={topic} onChange={e => setTopic(e.target.value)} placeholder="Строение Солнечной системы, планеты земной группы..." rows={4} className="block w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-purple-500 resize-none text-gray-900 placeholder-gray-400" />
+                            <label className="block text-sm font-bold text-gray-700 mb-2 font-display">Тема презентации</label>
+                            <textarea 
+                                value={topic} 
+                                onChange={e => setTopic(e.target.value)} 
+                                placeholder="Строение Солнечной системы..." 
+                                rows={isMobile ? 6 : 4} 
+                                className="block w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-purple-500 focus:bg-white transition-all text-gray-900 placeholder-gray-400 resize-none" 
+                            />
                         </div>
                         <div>
-                            <label className="block text-sm font-bold text-gray-700 mb-2">Целевая аудитория</label>
-                            <select value={targetAudience} onChange={e => setTargetAudience(e.target.value)} className="block w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-purple-500 text-gray-900">
+                            <label className="block text-sm font-bold text-gray-700 mb-2 font-display">Целевая аудитория</label>
+                            <select 
+                                value={targetAudience} 
+                                onChange={e => setTargetAudience(e.target.value)} 
+                                className="block w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-purple-500 focus:bg-white transition-all text-gray-900"
+                            >
                                 {audiences.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                             </select>
                         </div>
                         <div>
-                            <label className="block text-sm font-bold text-gray-700 mb-2">Длительность</label>
-                            <select value={duration} onChange={e => setDuration(e.target.value)} className="block w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-purple-500 text-gray-900">
+                            <label className="block text-sm font-bold text-gray-700 mb-2 font-display">Длительность</label>
+                            <select 
+                                value={duration} 
+                                onChange={e => setDuration(e.target.value)} 
+                                className="block w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-purple-500 focus:bg-white transition-all text-gray-900"
+                            >
                                 {durations.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                             </select>
                         </div>
                         <div>
-                            <label className="block text-sm font-bold text-gray-700 mb-2">Стиль дизайна</label>
-                            <select value={style} onChange={e => setStyle(e.target.value)} className="block w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-purple-500 text-gray-900">
+                            <label className="block text-sm font-bold text-gray-700 mb-2 font-display">Стиль дизайна</label>
+                            <select 
+                                value={style} 
+                                onChange={e => setStyle(e.target.value)} 
+                                className="block w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-purple-500 focus:bg-white transition-all text-gray-900"
+                            >
                                 {styles.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                             </select>
                         </div>
                     </div>
                 </div>
+
                 <div className="p-5 border-t border-gray-100 bg-white">
-                    <button onClick={generate} disabled={isLoading || !topic.trim()} className="w-full relative group overflow-hidden rounded-xl bg-gradient-to-r from-purple-500 to-indigo-600 p-px font-semibold shadow-md active:scale-[0.98] transition-all disabled:opacity-50">
-                        <div className="relative flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-purple-500 to-indigo-600 rounded-[11px] text-white">
+                    <button 
+                        onClick={generate} 
+                        disabled={isLoading || !topic.trim()} 
+                        className="w-full relative group overflow-hidden rounded-xl bg-gradient-to-r from-purple-500 to-indigo-600 p-px font-bold shadow-lg active:scale-[0.98] transition-all disabled:opacity-50 disabled:shadow-none"
+                    >
+                        <div className="absolute inset-0 bg-white/20 group-hover:bg-transparent transition-all"></div>
+                        <div className="relative flex items-center justify-center gap-2 px-4 py-3.5 bg-gradient-to-r from-purple-500 to-indigo-600 rounded-[11px] text-white">
                             {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <RefreshCw className="w-5 h-5" />}
                             <span>{isLoading ? 'Создаём...' : 'Создать презентацию'}</span>
                         </div>
                     </button>
-                    {errorMsg && <p className="mt-3 text-xs text-center text-red-500 font-medium">{errorMsg}</p>}
+                    {errorMsg && <p className="mt-3 text-xs text-center text-red-500 font-bold">{errorMsg}</p>}
                 </div>
             </div>
-            <div className="flex-1 flex flex-col min-w-0 bg-[#F9FAFB] px-4 py-4 md:px-8 md:py-8 overflow-hidden h-full">
+
+            {/* Preview/Loading Area */}
+            <div className={`
+                ${isMobile && activeTab !== 'preview' ? 'hidden' : 'flex'}
+                flex-1 flex-col min-w-0 bg-[#F9FAFB] px-4 py-4 md:px-8 md:py-8 overflow-hidden h-full
+            `}>
                 <div className="flex flex-col h-full bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
                     <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
                         {isLoading ? (
                             <div className="flex flex-col items-center">
-                                <div className="w-20 h-20 bg-purple-100 rounded-full flex items-center justify-center mb-4">
+                                <div className="w-20 h-20 bg-purple-100 rounded-full flex items-center justify-center mb-6 shadow-sm">
                                     <MonitorPlay className="w-10 h-10 text-purple-500 animate-pulse" />
                                 </div>
-                                <p className="text-lg font-bold text-gray-800">Создаём презентацию...</p>
-                                <p className="text-sm text-gray-500 mt-2">ИИ генерирует материалы для каждого слайда</p>
+                                <h1 className="text-xl font-bold text-gray-900">Создаём презентацию...</h1>
+                                <p className="text-sm text-gray-400 mt-2 max-w-[280px]">ИИ генерирует структуру и дизайн для каждого слайда</p>
                             </div>
                         ) : (
-                            <div className="flex flex-col items-center opacity-40">
-                                <MonitorPlay className="w-16 h-16 mb-4 text-gray-400" />
-                                <h3 className="text-xl font-bold mb-2">Создание AI презентаций</h3>
-                                <p className="text-gray-500 max-w-[400px]">Введите тему и получите красивую презентацию с редактором, где можно менять текст, добавлять блоки и изображения.</p>
+                            <div className="flex flex-col items-center max-w-[400px]">
+                                <div className="w-16 h-16 rounded-2xl bg-gray-50 flex items-center justify-center mb-6">
+                                    <MonitorPlay className="w-8 h-8 text-gray-300" />
+                                </div>
+                                <h3 className="text-xl font-bold text-gray-900 mb-2">Готов к работе</h3>
+                                <p className="text-gray-400 text-sm mb-6">Введите тему и получите красивую презентацию с редактором.</p>
+                                {isMobile && (
+                                    <button 
+                                        onClick={() => setActiveTab('config')}
+                                        className="px-8 py-3 bg-indigo-600 text-white rounded-xl font-bold text-sm shadow-md active:scale-95 transition-all"
+                                    >
+                                        Начать настройку
+                                    </button>
+                                )}
                             </div>
                         )}
                     </div>
