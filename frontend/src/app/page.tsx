@@ -44,11 +44,11 @@ export default function Home() {
       
       if (hasParams) return true
 
-      // 2. Проверка SDK с коротким ожиданием
+      // 2. Проверка SDK с коротким ожиданием (initData должен содержать hash)
       const checkSDK = () => {
         const tg = (window as any).Telegram?.WebApp
         const max = (window as any).WebApp
-        return !!(tg?.initData || max?.initData)
+        return !!((tg?.initData && tg.initData.includes('hash=')) || (max?.initData && max.initData.includes('hash=')))
       }
 
       if (checkSDK()) return true
@@ -73,8 +73,11 @@ export default function Home() {
       const tg = (window as any).Telegram?.WebApp
       const max = (window as any).WebApp
       
-      let initData = tg?.initData || max?.initData
-      let endpoint = tg?.initData ? '/auth/validate-init-data' : '/auth/max/validate-init-data'
+      const hasTgData = tg?.initData && tg.initData.includes('hash=')
+      const hasMaxData = max?.initData && max.initData.includes('hash=')
+
+      let initData = hasTgData ? tg.initData : hasMaxData ? max.initData : null
+      let endpoint = hasTgData ? '/auth/validate-init-data' : '/auth/max/validate-init-data'
       
       if (!initData) {
         initData = urlParams.get('tgWebAppData') || urlParams.get('max_init_data') || urlParams.get('init_data') || urlParams.get('initData')

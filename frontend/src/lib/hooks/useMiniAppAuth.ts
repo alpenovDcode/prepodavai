@@ -26,12 +26,16 @@ export function useMiniAppAuth() {
       const max = (window as any).WebApp
       const urlParams = new URLSearchParams(window.location.search)
 
-      let initData: string | null = tg?.initData || max?.initData || null
+      // initData должен быть непустой строкой с hash внутри
+      const hasTgData = tg?.initData && tg.initData.includes('hash=')
+      const hasMaxData = max?.initData && max.initData.includes('hash=')
+
+      let initData: string | null = hasTgData ? tg.initData : hasMaxData ? max.initData : null
       let endpoint: string | null = null
 
-      if (tg?.initData) {
+      if (hasTgData) {
         endpoint = '/auth/validate-init-data'
-      } else if (max?.initData) {
+      } else if (hasMaxData) {
         endpoint = '/auth/max/validate-init-data'
       } else {
         // Fallback на URL-параметры
@@ -100,7 +104,7 @@ export function useMiniAppAuth() {
     const checkSDK = () => {
       const tg = (window as any).Telegram?.WebApp
       const max = (window as any).WebApp
-      return !!(tg?.initData || max?.initData)
+      return !!((tg?.initData && tg.initData.includes('hash=')) || (max?.initData && max.initData.includes('hash=')))
     }
 
     if (checkSDK() || isMiniAppUrl()) {
