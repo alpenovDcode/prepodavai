@@ -87,6 +87,33 @@ function getGenLabel(type: string) {
   return map[type] || 'Учебный материал'
 }
 
+// ─── Утилита: удаление ключа ответов из контента ─────────────────────────────
+
+function stripAnswerKey(content: string): string {
+  // Remove everything starting from answer key markers (both HTML and plain text)
+  // Common patterns: "Ключ ответов", "Ответы для учителя", dashed separator before answers
+  const patterns = [
+    // HTML headings with answer keys
+    /<hr[^>]*>[\s\S]*?<[^>]*>[\s\S]*?Ключ ответов[\s\S]*/i,
+    /<[^>]*>[\s\S]*?Ключ ответов[\s\S]*?<\/[^>]*>[\s\S]*/i,
+    // Dashed line separator followed by answer key
+    /[-–—]{3,}[\s\S]*?Ключ ответов[\s\S]*/i,
+    // Direct match for answer key section
+    /<[^>]*>\s*Ключ ответов[^<]*<\/[^>]*>[\s\S]*/i,
+    // Plain text answer key
+    /Ключ ответов\s*\(для учителя\)[\s\S]*/i,
+    /Ключ ответов[\s\S]*/i,
+    // Other common teacher-only sections
+    /Ответы\s*(?:для учителя|учителю)[\s\S]*/i,
+  ]
+
+  let result = content
+  for (const pattern of patterns) {
+    result = result.replace(pattern, '')
+  }
+  return result.trim()
+}
+
 // ─── Основная страница ────────────────────────────────────────────────────────
 
 export default function StudentAssignmentPage({ params }: { params: { id: string } }) {
@@ -240,8 +267,9 @@ export default function StudentAssignmentPage({ params }: { params: { id: string
       }
     }
 
-    // Для всех остальных: пытаемся извлечь HTML
-    const html = extractHtmlFromOutput(gen.outputData)
+    // Для всех остальных: пытаемся извлечь HTML и убрать ключ ответов
+    const rawHtml = extractHtmlFromOutput(gen.outputData)
+    const html = rawHtml ? stripAnswerKey(rawHtml) : null
     if (html) {
       const isSubmitted = assignment?.submissions && assignment.submissions.length > 0
       const sub = assignment?.submissions?.[0]
@@ -301,10 +329,11 @@ export default function StudentAssignmentPage({ params }: { params: { id: string
       )
     }
 
-    // Нет HTML — рендерим как текст
-    const textContent = typeof gen.outputData === 'string'
+    // Нет HTML — рендерим как текст (с удалением ключа ответов)
+    const rawText = typeof gen.outputData === 'string'
       ? gen.outputData
       : (gen.outputData?.content || gen.outputData?.text || JSON.stringify(gen.outputData))
+    const textContent = stripAnswerKey(rawText)
 
     return (
       <div className="border-t border-gray-100 p-6 text-gray-700 text-sm leading-relaxed whitespace-pre-wrap">
