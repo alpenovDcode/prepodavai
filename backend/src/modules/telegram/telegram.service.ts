@@ -39,7 +39,6 @@ export class TelegramService {
       });
 
       if (existingUser) {
-        // Пользователь уже есть - обновляем данные и показываем credentials
         existingUser = await this.prisma.appUser.update({
           where: { id: existingUser.id },
           data: {
@@ -51,10 +50,8 @@ export class TelegramService {
           },
         });
 
-        // Показываем приветствие с данными для входа
-        await ctx.reply(this.getWelcomeMessage(existingUser));
+        await this.sendWelcomeWithWebApp(ctx, existingUser);
       } else {
-        // Создаём нового пользователя
         const apiKey = this.generateApiKey();
         const newUser = await this.prisma.appUser.create({
           data: {
@@ -69,8 +66,7 @@ export class TelegramService {
           },
         });
 
-        // Показываем приветствие с данными для входа
-        await ctx.reply(this.getWelcomeMessage(newUser));
+        await this.sendWelcomeWithWebApp(ctx, newUser);
       }
     });
   }
@@ -348,23 +344,40 @@ export class TelegramService {
   }
 
   /**
+   * Отправка приветствия с кнопкой WebApp
+   */
+  private async sendWelcomeWithWebApp(ctx: Context, appUser: any) {
+    const webAppUrl = this.configService.get<string>('WEBAPP_URL', 'https://prepodavai.ru');
+
+    const message = this.getWelcomeMessage(appUser);
+
+    await ctx.reply(message, {
+      reply_markup: {
+        inline_keyboard: [
+          [
+            {
+              text: '🚀 Открыть PrepodavAI',
+              web_app: { url: `${webAppUrl}/dashboard` },
+            },
+          ],
+        ],
+      },
+    });
+  }
+
+  /**
    * Приветственное сообщение
    */
-  private getWelcomeMessage(appUser: any): string {
+  private getWelcomeMessage(_appUser?: any): string {
     return (
       `Добро пожаловать в prepodavAI 🎓\n\n` +
-      `🔑 Ваши данные для входа в веб-версию:\n\n` +
-      `👤 Username: ${appUser.username}\n` +
-      `🔐 API Key: ${appUser.apiKey}\n\n` +
-      `⚠️ Сохраните эти данные! Они понадобятся для входа в веб-версию.\n\n` +
-      `🌐 Веб-версия: http://prepodavai.ru/\n\n` +
       `Я твой интеллектуальный помощник для:\n` +
       `— Создания учебных материалов\n` +
       `— Планирования уроков\n` +
       `— Проверки работ учеников\n` +
       `— Адаптации контента\n` +
       `— Методической поддержки\n\n` +
-      `Открой Mini App для начала работы!`
+      `Нажмите кнопку ниже, чтобы начать работу!`
     );
   }
 }
