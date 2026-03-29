@@ -152,26 +152,26 @@ export default function WorkspaceHub() {
     ]
 
     return (
-        <div className="flex-1 overflow-y-auto p-8 max-w-6xl mx-auto w-full">
-            <div className="mb-10">
-                <h1 className="text-3xl font-bold mb-2">Workspace Hub</h1>
-                <p className="text-gray-500 text-lg">Выберите инструмент, чтобы начать создание учебных материалов.</p>
+        <div className="flex-1 overflow-y-auto p-4 md:p-8 max-w-6xl mx-auto w-full">
+            <div className="mb-6 md:mb-10">
+                <h1 className="text-2xl md:text-3xl font-bold mb-1">Инструменты</h1>
+                <p className="text-gray-500 text-sm md:text-lg">Выберите инструмент для создания учебных материалов.</p>
             </div>
 
             {dashboard && dashboard.totalPending > 0 && (
                 <div
                     onClick={() => router.push('/workspace/homework')}
-                    className="mb-8 flex items-center justify-between gap-4 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-2xl px-6 py-4 cursor-pointer hover:shadow-md transition-shadow group"
+                    className="mb-4 md:mb-8 flex items-center justify-between gap-3 md:gap-4 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-2xl px-4 md:px-6 py-3 md:py-4 cursor-pointer hover:shadow-md transition-shadow group"
                 >
-                    <div className="flex items-center gap-4">
-                        <div className="w-11 h-11 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0">
-                            <ClipboardList className="w-5 h-5 text-amber-600" />
+                    <div className="flex items-center gap-3 md:gap-4 min-w-0">
+                        <div className="w-9 h-9 md:w-11 md:h-11 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0">
+                            <ClipboardList className="w-4 h-4 md:w-5 md:h-5 text-amber-600" />
                         </div>
-                        <div>
-                            <p className="font-bold text-gray-900">
+                        <div className="min-w-0">
+                            <p className="font-bold text-gray-900 text-sm md:text-base">
                                 {dashboard.totalPending} {dashboard.totalPending === 1 ? 'работа ждёт' : dashboard.totalPending < 5 ? 'работы ждут' : 'работ ждут'} проверки
                             </p>
-                            <p className="text-sm text-gray-500">
+                            <p className="text-xs md:text-sm text-gray-500 truncate">
                                 {dashboard.byClass.map(c => `${c.className}: ${c.pending}`).join(' · ')}
                             </p>
                         </div>
@@ -180,7 +180,7 @@ export default function WorkspaceHub() {
                 </div>
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-6">
                 {tools.map((tool) => {
                     const Icon = tool.icon
                     const isMaint = maintenanceStatus[opMap[tool.id]]
@@ -188,28 +188,28 @@ export default function WorkspaceHub() {
                         <div
                             key={tool.id}
                             onClick={() => !isMaint && router.push(tool.path)}
-                            className={`bg-white rounded-2xl p-6 border border-gray-100 shadow-sm hover:shadow-md hover:border-primary-100 transition-all group flex flex-col h-full relative ${isMaint ? 'cursor-not-allowed grayscale-[0.5] opacity-80' : 'cursor-pointer'}`}
+                            className={`bg-white rounded-2xl p-4 md:p-6 border border-gray-100 shadow-sm hover:shadow-md hover:border-primary-100 transition-all group flex flex-col h-full relative ${isMaint ? 'cursor-not-allowed grayscale-[0.5] opacity-80' : 'cursor-pointer'}`}
                         >
                             {isMaint ? (
-                                <div className="absolute top-6 right-6 flex items-center gap-1.5 text-[10px] font-bold bg-yellow-100 text-yellow-700 px-2 py-1 rounded-lg border border-yellow-200 uppercase tracking-wider animate-pulse">
-                                    <i className="fas fa-wrench text-[9px]"></i>
-                                    Тех. работы
+                                <div className="absolute top-3 right-3 md:top-6 md:right-6 flex items-center gap-1 text-[9px] md:text-[10px] font-bold bg-yellow-100 text-yellow-700 px-1.5 md:px-2 py-0.5 md:py-1 rounded-lg border border-yellow-200 uppercase tracking-wider animate-pulse">
+                                    <i className="fas fa-wrench text-[8px] md:text-[9px]"></i>
+                                    Тех.
                                 </div>
                             ) : (
-                                <div className="absolute top-6 right-6 flex items-center gap-1.5 text-xs font-semibold bg-gray-50 text-gray-500 px-2.5 py-1 rounded-lg border border-gray-100">
-                                    <Sparkles className="w-3.5 h-3.5 text-purple-500" />
-                                    {tool.cost} {tool.cost === 1 ? 'токен' : (tool.cost >= 2 && tool.cost <= 4) ? 'токена' : 'токенов'}
+                                <div className="absolute top-3 right-3 md:top-6 md:right-6 flex items-center gap-1 text-[10px] md:text-xs font-semibold bg-gray-50 text-gray-500 px-1.5 md:px-2.5 py-0.5 md:py-1 rounded-lg border border-gray-100">
+                                    <Sparkles className="w-3 h-3 md:w-3.5 md:h-3.5 text-purple-500" />
+                                    {tool.cost}
                                 </div>
                             )}
-                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-4 ${tool.color} ${!isMaint && 'group-hover:scale-110'} transition-transform`}>
-                                <Icon className="w-6 h-6" />
+                            <div className={`w-10 h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center mb-3 md:mb-4 ${tool.color} ${!isMaint && 'group-hover:scale-110'} transition-transform`}>
+                                <Icon className="w-5 h-5 md:w-6 md:h-6" />
                             </div>
-                            <h3 className="text-lg font-bold mb-2 pr-12">{tool.title}</h3>
-                            <p className="text-sm text-gray-500 flex-1 leading-relaxed">
+                            <h3 className="text-sm md:text-lg font-bold mb-1 md:mb-2 pr-8 md:pr-12 leading-tight">{tool.title}</h3>
+                            <p className="text-xs md:text-sm text-gray-500 flex-1 leading-relaxed hidden md:block">
                                 {tool.description}
                             </p>
 
-                            <div className={`mt-4 flex items-center text-sm font-medium ${isMaint ? 'text-yellow-600' : 'text-primary-600 opacity-0 group-hover:opacity-100 transition-opacity transform translate-y-2 group-hover:translate-y-0'}`}>
+                            <div className={`mt-3 md:mt-4 hidden md:flex items-center text-sm font-medium ${isMaint ? 'text-yellow-600' : 'text-primary-600 opacity-0 group-hover:opacity-100 transition-opacity transform translate-y-2 group-hover:translate-y-0'}`}>
                                 <span>{isMaint ? 'Временно недоступно' : 'Начать создание'}</span>
                                 <Sparkles className="w-4 h-4 ml-1.5" />
                             </div>

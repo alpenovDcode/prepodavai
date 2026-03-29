@@ -139,19 +139,19 @@ export default function DashboardHome() {
     return (
         <div className="max-w-7xl mx-auto relative">
             {/* Header */}
-            <div className="mb-8">
-                <div className="flex items-center justify-between mb-2">
+            <div className="mb-6 md:mb-8">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-2">
                     <div>
-                        <h1 className="text-3xl font-bold text-gray-900">Главная</h1>
-                        <p className="text-gray-600 mt-1 max-w-2xl">
+                        <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Главная</h1>
+                        <p className="text-gray-600 mt-1 text-sm md:text-base max-w-2xl">
                             Добро пожаловать в экосистему «Прорыв»! Профессиональный инструмент для учителей, который ускорит подготовку к урокам, поможет структурировать учебные материалы и эффективно отслеживать прогресс ваших учеников.
                         </p>
                     </div>
-                    <div className="flex flex-col items-end gap-2">
+                    <div className="flex items-center md:flex-col md:items-end gap-2">
                         <button
                             onClick={handleGenerate}
                             disabled={isGenerating}
-                            className={`px-6 py-3 bg-primary-600 text-white rounded-xl font-semibold hover:bg-primary-700 transition flex items-center gap-2 shadow-lg hover:shadow-xl ${isGenerating ? 'opacity-75 cursor-not-allowed' : ''}`}
+                            className={`px-5 md:px-6 py-2.5 md:py-3 bg-primary-600 text-white rounded-xl font-semibold hover:bg-primary-700 transition flex items-center gap-2 shadow-lg hover:shadow-xl text-sm md:text-base ${isGenerating ? 'opacity-75 cursor-not-allowed' : ''}`}
                         >
                             {isGenerating ? (
                                 <>
@@ -168,8 +168,8 @@ export default function DashboardHome() {
                         {selectedTypes.length > 0 && !isGenerating && (
                             <div className="text-xs font-medium text-gray-500 bg-gray-100 px-3 py-1 rounded-full flex items-center gap-1.5">
                                 <i className="fas fa-coins text-yellow-600"></i>
-                                {selectedTypes.length <= 2 
-                                    ? '50 кредитов' 
+                                {selectedTypes.length <= 2
+                                    ? '50 кредитов'
                                     : `${50 + (selectedTypes.length - 2) * 5} кредитов`}
                             </div>
                         )}
@@ -275,7 +275,7 @@ export default function DashboardHome() {
             </div>
 
             {/* Quick Stats */}
-            <div className="grid md:grid-cols-4 gap-4 mt-8">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8">
                 <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
                     <div className="flex items-center gap-3 mb-2">
                         <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center">

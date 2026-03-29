@@ -1,12 +1,13 @@
 'use client'
 
-import { ReactNode } from 'react'
+import { ReactNode, useState, useEffect } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { useServiceCosts } from '@/lib/hooks/useServiceCosts'
 import { useUser } from '@/lib/hooks/useUser'
 import { useSubscription } from '@/lib/hooks/useSubscription'
 import { LOGO_BASE64 } from '@/constants/branding'
-import { BookOpen, HelpCircle, Gamepad2, Settings, ArrowLeft, PenTool, LayoutTemplate, MessageSquare, FileEdit, MessageCircle, Sparkles, PackageOpen, Video, LineChart, Camera, Image as ImageIcon, FileAudio, MonitorPlay, ClipboardCheck, GraduationCap } from 'lucide-react'
+import { BookOpen, HelpCircle, Gamepad2, Settings, ArrowLeft, PenTool, LayoutTemplate, MessageSquare, FileEdit, MessageCircle, Sparkles, PackageOpen, Video, LineChart, Camera, Image as ImageIcon, FileAudio, MonitorPlay, ClipboardCheck, GraduationCap, X, Menu } from 'lucide-react'
 import NotificationBell from '@/components/NotificationBell'
 
 interface WorkspaceLayoutProps {
@@ -18,6 +19,7 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
     const router = useRouter()
     const { user, fullName, initials, loading: userLoading } = useUser()
     const { subscription, loading: subLoading } = useSubscription()
+    const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
     const tools = [
         { id: 'hub', label: 'Главная панель', icon: LayoutTemplate, path: '/workspace' },
@@ -45,7 +47,7 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
 
     const opMap: Record<string, string> = {
         'lesson-planner': 'lesson_plan',
-        'lesson-prep': 'lesson_plan', // Mapping for Wow-lesson
+        'lesson-prep': 'lesson_plan',
         'quiz-generator': 'quiz',
         'games': 'game_generation',
         'worksheet': 'worksheet',
@@ -69,29 +71,209 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
         return pathname.startsWith(path)
     }
 
+    // Проверка, является ли устройство мобильным (включая Mini App)
+    const [isMobile, setIsMobile] = useState(false)
+    const [isMiniApp, setIsMiniApp] = useState(false)
+
+    useEffect(() => {
+        const checkMobile = () => {
+            const mobile = window.innerWidth < 768
+            const mini = !!(
+                (window as any).Telegram?.WebApp?.initData ||
+                (window as any).WebApp?.initData ||
+                new URLSearchParams(window.location.search).has('tgWebAppData') ||
+                new URLSearchParams(window.location.search).has('max_init_data')
+            )
+            setIsMobile(mobile)
+            setIsMiniApp(mini)
+        }
+        
+        checkMobile()
+        window.addEventListener('resize', checkMobile)
+        return () => window.removeEventListener('resize', checkMobile)
+    }, [])
+
+    // Bottom tab items for Mobile/Mini App
+    const mobileNavItems = [
+        { id: 'dashboard', label: 'Главная', icon: 'fa-solid fa-house', path: '/dashboard' },
+        { id: 'ai', label: 'ИИ', icon: 'fas fa-wand-magic-sparkles', path: '/workspace' },
+        { id: 'courses', label: 'Материалы', icon: 'fas fa-book', path: '/dashboard/courses' },
+        { id: 'students', label: 'Ученики', icon: 'fas fa-users', path: '/dashboard/students' },
+        { id: 'settings', label: 'Ещё', icon: 'fas fa-ellipsis', path: '/dashboard/settings' },
+    ]
+
+    const renderToolNav = () => (
+        <nav className="flex flex-col gap-1 pb-4">
+            {tools.map((tool) => {
+                const Icon = tool.icon
+                const active = isActive(tool.path)
+                const opType = opMap[tool.id]
+                const isUnderMaintenance = costs?.find(c => c.operationType === opType)?.isUnderMaintenance || false
+
+                return (
+                    <button
+                        key={tool.id}
+                        onClick={() => {
+                            if (!isUnderMaintenance) {
+                                router.push(tool.path)
+                                setMobileMenuOpen(false)
+                            }
+                        }}
+                        title={isUnderMaintenance ? 'Временно недоступно (тех. работы)' : ''}
+                        className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors group relative ${active
+                            ? 'bg-primary-50 text-primary-700'
+                            : isUnderMaintenance
+                                ? 'text-gray-300 cursor-not-allowed'
+                                : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                            }`}
+                    >
+                        <Icon className={`w-4 h-4 ${active ? 'text-primary-600' : isUnderMaintenance ? 'text-gray-200' : 'text-gray-400'}`} />
+                        <span className="flex-1 text-left">{tool.label}</span>
+                        {isUnderMaintenance && (
+                            <PenTool className="w-3 h-3 text-amber-400 animate-pulse" />
+                        )}
+                    </button>
+                )
+            })}
+        </nav>
+    )
+
+    // ===== MOBILE / MINI APP LAYOUT =====
+    if (isMobile || isMiniApp) {
+        return (
+            <div className="min-h-screen bg-[#F9FAFB] pb-16">
+                {/* Mobile header with menu toggle */}
+                <div className="sticky top-0 z-30 bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between shadow-sm">
+                    <button
+                        onClick={() => setMobileMenuOpen(true)}
+                        className="w-10 h-10 rounded-xl bg-gray-50 border border-gray-100 flex items-center justify-center hover:bg-gray-100 transition shadow-sm active:scale-95"
+                    >
+                        <Menu className="w-5 h-5 text-gray-700" />
+                    </button>
+                    <div className="flex items-center gap-2">
+                        {LOGO_BASE64 ? (
+                            <img src={LOGO_BASE64} alt="PrepodavAI" className="w-7 h-7 object-contain" />
+                        ) : (
+                            <LayoutTemplate className="w-5 h-5 text-primary-600" />
+                        )}
+                        <span className="font-bold text-gray-900 text-sm">ИИ Инструменты</span>
+                    </div>
+                    <div className="w-10" />
+                </div>
+
+                {/* Slide-over tools menu */}
+                {mobileMenuOpen && (
+                    <div className="fixed inset-0 z-[60]">
+                        <div 
+                            className="absolute inset-0 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200" 
+                            onClick={() => setMobileMenuOpen(false)} 
+                        />
+                        <div className="absolute left-0 top-0 bottom-0 w-[280px] bg-white flex flex-col shadow-2xl animate-in slide-in-from-left duration-300 ease-out">
+                            <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+                                <div className="flex items-center gap-2">
+                                    <LayoutTemplate className="w-5 h-5 text-primary-600" />
+                                    <span className="font-bold text-gray-900">Инструменты</span>
+                                </div>
+                                <button
+                                    onClick={() => setMobileMenuOpen(false)}
+                                    className="w-8 h-8 rounded-lg bg-white border border-gray-100 shadow-sm flex items-center justify-center active:scale-95"
+                                >
+                                    <X className="w-4 h-4 text-gray-600" />
+                                </button>
+                            </div>
+                            
+                            {/* User Context in Sidebar */}
+                            <div className="p-4 border-b border-gray-100 flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center text-primary-700 font-bold text-sm">
+                                    {initials}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                    <p className="text-sm font-bold text-gray-900 truncate">{fullName}</p>
+                                    <p className="text-[10px] text-gray-500 uppercase tracking-wider font-semibold">
+                                        {subscription?.planName || 'Базовый План'}
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="flex-1 overflow-y-auto px-1 py-1 custom-scrollbar">
+                                <div className="px-3 py-2">
+                                    {renderToolNav()}
+                                </div>
+                            </div>
+
+                            <div className="p-4 border-t border-gray-100 bg-gray-50/30">
+                                <button
+                                    onClick={() => {
+                                        router.push('/dashboard')
+                                        setMobileMenuOpen(false)
+                                    }}
+                                    className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-white border border-gray-200 rounded-xl text-sm font-semibold text-gray-700 hover:bg-gray-50 transition active:scale-[0.98]"
+                                >
+                                    <ArrowLeft className="w-4 h-4" />
+                                    <span>В панель управления</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                <main className="min-h-screen">
+                    {children}
+                </main>
+
+                {/* Bottom Tab Bar */}
+                <nav className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-gray-100 z-50 safe-area-bottom shadow-[0_-4px_12px_rgba(0,0,0,0.03)]">
+                    <div className="flex justify-around items-center h-16 px-2">
+                        {mobileNavItems.map((item) => {
+                            const active = pathname === item.path || (item.path !== '/dashboard' && pathname.startsWith(item.path))
+                            return (
+                                <Link
+                                    key={item.id}
+                                    href={item.path}
+                                    className={`flex flex-col items-center justify-center flex-1 h-full transition-all relative ${
+                                        active ? 'text-primary-600' : 'text-gray-400'
+                                    }`}
+                                >
+                                    {active && (
+                                        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-1 bg-primary-600 rounded-b-full shadow-[0_2px_4px_rgba(37,99,235,0.2)]" />
+                                    )}
+                                    <i className={`${item.icon} text-lg mb-1 ${active ? 'scale-110' : ''} transition-transform`}></i>
+                                    <span className={`text-[10px] font-bold tracking-tight ${active ? 'opacity-100' : 'opacity-70'}`}>
+                                        {item.label}
+                                    </span>
+                                </Link>
+                            )
+                        })}
+                    </div>
+                </nav>
+            </div>
+        )
+    }
+
+    // ===== DESKTOP LAYOUT =====
     return (
         <div className="flex bg-[#F9FAFB] min-h-screen h-screen overflow-hidden">
-            {/* Global AI Tools Sidebar */}
-            <aside className="w-[260px] flex-shrink-0 bg-white border-r border-gray-200 flex flex-col h-full z-20">
+            {/* Sidebar */}
+            <aside className="w-[260px] flex-shrink-0 bg-white border-r border-gray-200 flex flex-col h-full shadow-[4px_0_12px_rgba(0,0,0,0.02)]">
                 {/* Header/Brand */}
-                <div className="p-4 border-b border-gray-100 flex items-center justify-between">
+                <div className="p-5 border-b border-gray-100 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                         {LOGO_BASE64 ? (
-                            <img src={LOGO_BASE64} alt="PrepodavAI" className="w-8 h-8 object-contain rounded-md" />
+                            <img src={LOGO_BASE64} alt="PrepodavAI" className="w-9 h-9 object-contain rounded-lg" />
                         ) : (
-                            <div className="w-8 h-8 rounded-lg bg-primary-600 flex items-center justify-center">
+                            <div className="w-9 h-9 rounded-xl bg-primary-600 flex items-center justify-center shadow-lg shadow-primary-200">
                                 <span className="text-white font-bold text-sm">P</span>
                             </div>
                         )}
-                        <span className="font-bold text-gray-900">Prepodavai.ru</span>
+                        <span className="font-bold text-gray-900 tracking-tight">Prepodavai.ru</span>
                     </div>
                 </div>
 
                 {/* Back to Dashboard Button */}
-                <div className="p-3">
+                <div className="p-4">
                     <button
                         onClick={() => router.push('/dashboard')}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors border border-transparent hover:border-gray-200"
+                        className="w-full flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-gray-600 hover:text-primary-700 hover:bg-primary-50 rounded-xl transition-all border border-transparent hover:border-primary-100"
                     >
                         <ArrowLeft className="w-4 h-4" />
                         <span>Вернуться в Dashboard</span>
@@ -99,74 +281,51 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
                 </div>
 
                 {/* Tools Navigation */}
-                <div className="px-3 flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-200">
-                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 px-3 mt-4">Инструменты</p>
-                    <nav className="flex flex-col gap-1 pb-4">
-                        {tools.map((tool) => {
-                            const Icon = tool.icon
-                            const active = isActive(tool.path)
-                            const opType = opMap[tool.id]
-                            const isUnderMaintenance = costs?.find(c => c.operationType === opType)?.isUnderMaintenance || false
-
-                            return (
-                                <button
-                                    key={tool.id}
-                                    onClick={() => !isUnderMaintenance && router.push(tool.path)}
-                                    title={isUnderMaintenance ? 'Временно недоступно (тех. работы)' : ''}
-                                    className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors group relative ${active
-                                        ? 'bg-primary-50 text-primary-700'
-                                        : isUnderMaintenance 
-                                            ? 'text-gray-300 cursor-not-allowed'
-                                            : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-                                        }`}
-                                >
-                                    <Icon className={`w-4 h-4 ${active ? 'text-primary-600' : isUnderMaintenance ? 'text-gray-200' : 'text-gray-400'}`} />
-                                    <span className="flex-1 text-left">{tool.label}</span>
-                                    {isUnderMaintenance && (
-                                        <PenTool className="w-3 h-3 text-amber-400 animate-pulse" />
-                                    )}
-                                </button>
-                            )
-                        })}
-                    </nav>
+                <div className="px-4 flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-200">
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.1em] mb-3 px-3 mt-4">Инструменты</p>
+                    {renderToolNav()}
                 </div>
 
-
                 {/* User Profile */}
-                <div className="p-4 border-t border-gray-100">
-                    <div className="flex items-center justify-between mb-2 px-2">
+                <div className="p-4 border-t border-gray-100 bg-gray-50/30">
+                    <div className="flex items-center justify-between mb-4 px-2">
                         <NotificationBell userType="teacher" />
+                        <button 
+                            onClick={() => router.push('/dashboard/settings')}
+                            className="p-2 text-gray-400 hover:text-gray-600 hover:bg-white rounded-lg border border-transparent hover:border-gray-100 transition-all"
+                        >
+                            <Settings className="w-4 h-4" />
+                        </button>
                     </div>
                     <div
                         onClick={() => router.push('/dashboard/profile')}
-                        className="flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-gray-50 cursor-pointer transition"
+                        className="flex items-center gap-3 px-3 py-3 rounded-2xl bg-white border border-gray-100 shadow-sm hover:shadow-md hover:border-primary-100 cursor-pointer transition-all group"
                     >
                         {user?.avatar ? (
-                            <img 
-                                src={user.avatar} 
-                                alt={fullName} 
-                                className="w-8 h-8 rounded-full object-cover shrink-0 border border-gray-100" 
+                            <img
+                                src={user.avatar}
+                                alt={fullName}
+                                className="w-9 h-9 rounded-full object-cover shrink-0 ring-2 ring-gray-50 group-hover:ring-primary-50 transition-all"
                             />
                         ) : (
-                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-400 to-indigo-600 flex items-center justify-center text-white font-semibold text-xs shrink-0">
+                            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-500 to-indigo-600 flex items-center justify-center text-white font-bold text-xs shrink-0 shadow-md">
                                 {initials}
                             </div>
                         )}
                         <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-gray-900 truncate">
+                            <p className="text-xs font-bold text-gray-900 truncate">
                                 {userLoading ? 'Загрузка...' : fullName}
                             </p>
-                            <p className="text-xs text-gray-500 truncate">
+                            <p className="text-[10px] text-gray-500 font-medium truncate">
                                 {subLoading ? '...' : (subscription?.planName || 'Базовый План')}
                             </p>
                         </div>
-                        <Settings className="w-4 h-4 text-gray-400 shrink-0" />
                     </div>
                 </div>
             </aside>
 
             {/* Main Content Area */}
-            <main className="flex-1 flex flex-col h-full bg-[#F9FAFB] min-w-0 overflow-hidden relative">
+            <main className="flex-1 flex flex-col h-full bg-[#fcfcfc] min-w-0 overflow-hidden">
                 {children}
             </main>
         </div>
