@@ -90,27 +90,33 @@ function getGenLabel(type: string) {
 // ─── Утилита: удаление ключа ответов из контента ─────────────────────────────
 
 function stripAnswerKey(content: string): string {
-  // Remove everything starting from answer key markers (both HTML and plain text)
-  // Common patterns: "Ключ ответов", "Ответы для учителя", dashed separator before answers
-  const patterns = [
-    // HTML headings with answer keys
-    /<hr[^>]*>[\s\S]*?<[^>]*>[\s\S]*?Ключ ответов[\s\S]*/i,
-    /<[^>]*>[\s\S]*?Ключ ответов[\s\S]*?<\/[^>]*>[\s\S]*/i,
-    // Dashed line separator followed by answer key
-    /[-–—]{3,}[\s\S]*?Ключ ответов[\s\S]*/i,
-    // Direct match for answer key section
-    /<[^>]*>\s*Ключ ответов[^<]*<\/[^>]*>[\s\S]*/i,
-    // Plain text answer key
-    /Ключ ответов\s*\(для учителя\)[\s\S]*/i,
-    /Ключ ответов[\s\S]*/i,
-    // Other common teacher-only sections
-    /Ответы\s*(?:для учителя|учителю)[\s\S]*/i,
-  ]
+  // Strategy: find the teacher-answers-only section and remove it + everything after.
+  // The generated HTML uses a div with class "teacher-answers-only" for the answer key.
+  // Also handle plain-text and other HTML patterns.
 
   let result = content
-  for (const pattern of patterns) {
-    result = result.replace(pattern, '')
+
+  // 1. Remove <div class="teacher-answers-only">...</div> and everything after it
+  result = result.replace(/<div[^>]*class\s*=\s*["'][^"']*teacher-answers-only[^"']*["'][^>]*>[\s\S]*/i, '')
+
+  // 2. Remove section starting from a heading that contains "Ключ ответов"
+  //    Match: <h1-h6> or <p><strong> containing "Ключ ответов" and everything after
+  result = result.replace(/<(h[1-6]|p)\b[^>]*>[^<]*Ключ ответов[^<]*<\/\1>[\s\S]*/i, '')
+  result = result.replace(/<(h[1-6]|p)\b[^>]*>\s*<[^>]*>[^<]*Ключ ответов[^<]*<\/[^>]*>\s*<\/\1>[\s\S]*/i, '')
+
+  // 3. Handle dashed/styled separator immediately before "Ключ ответов"
+  //    e.g. <hr> or border-top style followed by answer key heading
+  result = result.replace(/<hr[^>]*>\s*<[^>]*>[^<]*Ключ ответов[\s\S]*/i, '')
+
+  // 4. Plain text: "Ключ ответов" at start of line (for non-HTML content)
+  result = result.replace(/^[\s\-–—]*Ключ ответов[^\n]*\n[\s\S]*/im, '')
+
+  // 5. Fallback: if "Ключ ответов" is still present, remove from that text onward
+  //    but only if it's not inside a question text
+  if (/Ключ ответов/i.test(result)) {
+    result = result.replace(/Ключ ответов[\s\S]*/i, '')
   }
+
   return result.trim()
 }
 

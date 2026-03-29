@@ -45,7 +45,6 @@ model AppUser {
   creditTransactions    CreditTransaction[]
   systemLogs            SystemLog[]
   classes               Class[]
-  uploadedFiles         UploadedFile[]
 
   @@index([telegramId])
   @@index([maxId])
@@ -396,12 +395,11 @@ model Notification {
 model UploadedFile {
   id        String   @id @default(uuid())
   hash      String   @unique
-  userId    String
+  userId    String   // Can be AppUser.id or Student.id
   filename  String
   mimeType  String
   size      Int
   createdAt DateTime @default(now())
-  user      AppUser  @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([hash])
