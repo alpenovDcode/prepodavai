@@ -18,8 +18,13 @@ export class AuthController {
   private setTokenCookie(res: Response, token: string, req: any) {
     const host = req.get('host') || '';
     const isPrepodavaiDomain = host.endsWith('prepodavai.ru');
-    // Consider it production environment if it's on prepodavai.ru domain or NODE_ENV is production
     const isProduction = process.env.NODE_ENV === 'production' || isPrepodavaiDomain;
+
+    // Clear any old cookies (without domain) to prevent duplicate cookies in browser
+    res.clearCookie('prepodavai_token', { path: '/' });
+    if (isProduction) {
+      res.clearCookie('prepodavai_token', { path: '/', domain: '.prepodavai.ru' });
+    }
 
     res.cookie('prepodavai_token', token, {
       httpOnly: true,

@@ -48,9 +48,14 @@ apiClient.interceptors.response.use(
         // 1. Мы не на главной
         // 2. Мы не на странице логина (обычного или админского)
         // 3. Мы не в админке (у неё своя логика редиректа в layout.tsx)
-        if (
-          pathname !== '/' && 
-          !pathname.startsWith('/login') && 
+        if (pathname.startsWith('/student')) {
+          isRedirecting = true;
+          localStorage.removeItem('user');
+          localStorage.removeItem('prepodavai_token');
+          window.location.href = '/student/login';
+        } else if (
+          pathname !== '/' &&
+          !pathname.startsWith('/login') &&
           !pathname.startsWith('/admin')
         ) {
           isRedirecting = true;
