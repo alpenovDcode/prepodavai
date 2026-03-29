@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Res, Request } from '@nestjs/common';
+import { Controller, Post, Body, Res, Request, Logger } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { Response } from 'express';
@@ -13,6 +13,8 @@ import {
 
 @Controller('auth')
 export class AuthController {
+  private readonly logger = new Logger(AuthController.name);
+
   constructor(private readonly authService: AuthService) {}
 
   private setTokenCookie(res: Response, token: string, req: any) {
@@ -70,9 +72,16 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
     @Request() req: any,
   ) {
+    const hasInitData = !!(body.initData && body.initData.length > 0);
+    this.logger.log(
+      `[MAX Mini App] Попытка открытия мини-приложения | initData: ${hasInitData ? `есть (${body.initData?.length} символов)` : 'отсутствует'} | IP: ${req.ip}`,
+    );
     const result = await this.authService.validateMaxInitData(body.initData);
     if (result && result.token) {
+      this.logger.log(`[MAX Mini App] Авторизация успешна | user: ${result.user?.username || result.user?.id}`);
       this.setTokenCookie(res, result.token, req);
+    } else {
+      this.logger.warn(`[MAX Mini App] Авторизация не удалась | initData присутствует: ${hasInitData}`);
     }
     return result;
   }
