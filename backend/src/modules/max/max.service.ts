@@ -1,7 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../common/prisma/prisma.service';
-import { AuthService } from '../auth/auth.service';
 import * as crypto from 'crypto';
 import axios from 'axios';
 
@@ -14,7 +13,6 @@ export class MaxService {
   constructor(
     private configService: ConfigService,
     private prisma: PrismaService,
-    private authService: AuthService,
   ) {
     this.token = this.configService.get<string>('MAX_BOT_TOKEN');
     this.apiUrl = this.configService.get<string>('MAX_API_URL') || 'https://platform-api.max.ru';
@@ -101,26 +99,10 @@ export class MaxService {
 
   private async sendWelcomeMessage(chatId: string, appUser: any, botUserId?: number) {
     const text = this.getWelcomeMessage(appUser);
-    const webAppUrl = this.configService.get<string>('WEB_APP_URL') || 'https://prepodavai.ru';
-
-    // Генерируем одноразовый токен для автологина в мини-апп (действует 10 минут)
-    const ott = this.authService.generateMaxOtt(appUser.id);
-
-    const attachments = [
-      {
-        type: 'inline_keyboard',
-        payload: {
-          buttons: [[
-            {
-              type: 'link',
-              text: '🚀 Открыть PrepodavAI',
-              url: `${webAppUrl}/?ott=${ott}`,
-            },
-          ]],
-        },
-      },
-    ];
-    await this.sendMessageWithMarkup(chatId, text, attachments);
+    // Не отправляем кастомные кнопки — MAX сам показывает нативную кнопку
+    // мини-приложения (иконка 4 квадрата внизу чата). При открытии через неё
+    // MAX инжектирует window.WebApp.initData для авторизации.
+    await this.sendMessageWithMarkup(chatId, text);
   }
 
   /**
