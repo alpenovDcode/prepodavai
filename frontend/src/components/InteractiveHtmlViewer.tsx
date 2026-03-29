@@ -164,14 +164,17 @@ export function extractHtmlFromOutput(outputData: any): string | null {
 
 /** Удаляет секцию с ответами из HTML для ученика */
 function stripAnswerSection(html: string): string {
-  // Паттерны заголовков секции ответов (русский и английский)
+  // Убираем блок с классом teacher-answers-only (основной метод)
+  const byClass = html.replace(/<div[^>]*class="[^"]*teacher-answers-only[^"]*"[^>]*>[\s\S]*?<\/div>/gi, '')
+  if (byClass !== html) return byClass
+
+  // Fallback: убираем по текстовым заголовкам
   const answerHeadings = [
     'Ответы для учителя',
     'Ответы для преподавателя',
     'Ключ ответов',
     'Answer Key',
     'Answers for Teacher',
-    'Teacher.s (Answer|Notes|Key)',
   ]
   const pattern = new RegExp(
     `(<(h[1-6]|p|div|section)[^>]*>\\s*(?:${answerHeadings.join('|')})[\\s\\S]*$)`,

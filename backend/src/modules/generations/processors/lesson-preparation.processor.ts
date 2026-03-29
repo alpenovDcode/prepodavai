@@ -937,6 +937,13 @@ STRUCTURE & FORMATTING:
 - **Body:** Use a mix of long-form text (story) and structured elements (tables, lists) where appropriate.
 - **Layout:** Alternate between Text and Images to create a magazine-like flow.
 
+ИНТЕРАКТИВНЫЕ ПОЛЯ (ОБЯЗАТЕЛЬНО если тип — quiz, test, worksheet, задание):
+Если создаёшь задание или тест — используй HTML <input> и <textarea> вместо ___ и пустых строк.
+- Короткий ответ: <input type="text" name="q{N}" style="border:none;border-bottom:2px solid #333;width:180px;background:transparent;font-size:inherit;" />
+- Выбор ответа: <label><input type="radio" name="q{N}" value="{x}"> вариант</label>
+- Развёрнутый ответ: <textarea name="q{N}_text" rows="3" style="width:100%;border:1px solid #ccc;padding:6px;font-family:inherit;"></textarea>
+Ответы/ключ оберни в: <div class="teacher-answers-only" style="margin-top:40px;padding-top:20px;border-top:2px dashed #999;page-break-before:always;"><h2 style="color:#cc0000;">Ответы (для учителя)</h2>...</div>
+
 OUTPUT GOAL:
 Create the content for **${typeLabel}** in Russian.
 Make it immersive. Make it detailed. Make it beautiful.

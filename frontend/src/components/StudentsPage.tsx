@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react'
 import { apiClient } from '@/lib/api/client'
 import { useRouter } from 'next/navigation'
-import HomeworkReviewPage from '@/app/workspace/homework/page'
 
 interface Class {
     id: string
@@ -26,12 +25,23 @@ interface Student {
     createdAt: string
 }
 
+interface Assignment {
+    id: string
+    createdAt: string
+    dueDate?: string
+    lesson: { title: string; topic: string }
+    class?: { name: string } | null
+    student?: { name: string } | null
+    _count: { submissions: number }
+}
+
 export default function StudentsPage() {
     const router = useRouter()
     const [activeTab, setActiveTab] = useState<'students' | 'classes' | 'assignments'>('students')
     const [searchQuery, setSearchQuery] = useState('')
     const [students, setStudents] = useState<Student[]>([])
     const [classes, setClasses] = useState<Class[]>([])
+    const [assignments, setAssignments] = useState<Assignment[]>([])
     const [loading, setLoading] = useState(true)
 
     // Modals state
@@ -48,12 +58,14 @@ export default function StudentsPage() {
     const fetchData = async () => {
         setLoading(true)
         try {
-            const [classesRes, studentsRes] = await Promise.all([
+            const [classesRes, studentsRes, assignmentsRes] = await Promise.all([
                 apiClient.get('/classes'),
-                apiClient.get('/students')
+                apiClient.get('/students'),
+                apiClient.get('/assignments'),
             ])
             setClasses(classesRes.data)
             setStudents(studentsRes.data)
+            setAssignments(assignmentsRes.data)
         } catch (error) {
             console.error('Failed to fetch data:', error)
         } finally {
@@ -303,8 +315,70 @@ export default function StudentsPage() {
                     </button>
                 </div>
             ) : (
-                <div className="-mx-8 -my-8 px-2 py-2">
-                     <HomeworkReviewPage />
+                <div className="dashboard-card overflow-hidden">
+                    <table className="w-full">
+                        <thead>
+                            <tr className="border-b border-gray-100">
+                                <th className="text-left py-4 px-4 text-sm font-semibold text-gray-700">Задание</th>
+                                <th className="text-left py-4 px-4 text-sm font-semibold text-gray-700">Ученик / Класс</th>
+                                <th className="text-left py-4 px-4 text-sm font-semibold text-gray-700">Срок сдачи</th>
+                                <th className="text-left py-4 px-4 text-sm font-semibold text-gray-700">Сдано</th>
+                                <th className="text-right py-4 px-4 text-sm font-semibold text-gray-700">Действия</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {assignments.map((a) => (
+                                <tr key={a.id} className="border-b border-gray-50 hover:bg-gray-50 transition">
+                                    <td className="py-4 px-4">
+                                        <p className="font-semibold text-gray-900">{a.lesson.title}</p>
+                                        <p className="text-sm text-gray-400">{a.lesson.topic}</p>
+                                    </td>
+                                    <td className="py-4 px-4">
+                                        {a.student ? (
+                                            <div>
+                                                <p className="font-medium text-gray-800">{a.student.name}</p>
+                                                <span className="text-xs text-gray-400">индивидуальное</span>
+                                            </div>
+                                        ) : a.class ? (
+                                            <span className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm font-medium">
+                                                {a.class.name}
+                                            </span>
+                                        ) : '—'}
+                                    </td>
+                                    <td className="py-4 px-4 text-sm text-gray-500">
+                                        {a.dueDate
+                                            ? new Date(a.dueDate).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })
+                                            : <span className="text-gray-300">не задан</span>
+                                        }
+                                    </td>
+                                    <td className="py-4 px-4">
+                                        <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
+                                            a._count.submissions > 0
+                                                ? 'bg-green-100 text-green-700'
+                                                : 'bg-yellow-100 text-yellow-700'
+                                        }`}>
+                                            {a._count.submissions > 0 ? `${a._count.submissions} работ` : 'Нет'}
+                                        </span>
+                                    </td>
+                                    <td className="py-4 px-4 text-right">
+                                        <button
+                                            onClick={() => router.push(`/workspace/homework?assignmentId=${a.id}`)}
+                                            className="text-sm text-primary-600 font-medium hover:text-primary-700"
+                                        >
+                                            Проверить →
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))}
+                            {assignments.length === 0 && (
+                                <tr>
+                                    <td colSpan={5} className="py-12 text-center text-gray-400">
+                                        Вы ещё не выдали ни одного задания
+                                    </td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
                 </div>
             )}
 
