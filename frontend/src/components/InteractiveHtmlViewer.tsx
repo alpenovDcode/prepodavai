@@ -241,6 +241,8 @@ export default function InteractiveHtmlViewer({
   // Слушаем сообщения от iframe
   useEffect(() => {
     const handler = (e: MessageEvent) => {
+      // Only accept messages from our own iframe (srcdoc has origin 'null')
+      if (iframeRef.current && e.source !== iframeRef.current.contentWindow) return
       if (e.data === 'IFRAME_READY') { setIsLoading(false); return }
       if (!e.data || typeof e.data !== 'object') return
 

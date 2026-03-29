@@ -87,9 +87,9 @@ export default function Home() {
         try {
           const response = await apiClient.post(endpoint, { initData })
           if (response.data.success) {
-            const { token, user } = response.data
+            const { user } = response.data
             localStorage.setItem('prepodavai_authenticated', 'true')
-            if (token) localStorage.setItem('prepodavai_token', token)
+            // Token is stored in httpOnly cookie by backend
             localStorage.setItem('prepodavai_user', JSON.stringify({
               name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.username || 'Пользователь',
               username: user.username,

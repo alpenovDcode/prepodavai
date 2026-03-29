@@ -176,7 +176,7 @@ const RichTextEditor = ({ content, onChange, isSelected, onBlur }: any) => {
     useLayoutEffect(() => {
         if (isSelected && editorRef.current && editorRef.current.innerHTML !== content) {
             if (document.activeElement !== editorRef.current) {
-                editorRef.current.innerHTML = content;
+                editorRef.current.innerHTML = DOMPurify.sanitize(content);
             }
         }
     }, [content, isSelected]);
@@ -186,7 +186,7 @@ const RichTextEditor = ({ content, onChange, isSelected, onBlur }: any) => {
         if (!isSelected && viewRef.current && (window as any).MathJax?.typesetPromise) {
             const el = viewRef.current;
             // Always update content, MathJax will process it
-            el.innerHTML = renderMath(content);
+            el.innerHTML = DOMPurify.sanitize(renderMath(content));
             (window as any).MathJax.typesetPromise([el]).catch((err: any) => console.error('MathJax error:', err));
         }
     }, [content, isSelected]);
@@ -234,7 +234,7 @@ const FormulaInsertModal = ({ isOpen, onClose, onInsert }: { isOpen: boolean; on
         if (isOpen && previewRef.current && (window as any).MathJax?.typesetPromise) {
             // Update preview when custom formula changes
             const previewEl = previewRef.current;
-            previewEl.innerHTML = `\\[${customFormula}\\]`;
+            previewEl.innerHTML = DOMPurify.sanitize(`\\[${customFormula}\\]`);
             (window as any).MathJax.typesetPromise([previewEl]).catch((err: any) => console.error(err));
         }
     }, [customFormula, isOpen]);

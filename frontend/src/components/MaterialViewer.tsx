@@ -55,7 +55,7 @@ const DRAG_SCRIPT = `<script>(function(){
 const buildThumbSrc = (slide: any): string => {
     const css = slide.css?.trim() || 'body{background:#1a1a2e;color:#fff;}'
     const tmp = typeof document !== 'undefined' ? document.createElement('div') : null
-    if (tmp) { tmp.innerHTML = slide.html || ''; tmp.querySelectorAll('script').forEach(s => s.remove()) }
+    if (tmp) { tmp.innerHTML = DOMPurify.sanitize(slide.html || '', { FORBID_TAGS: ['script'] }) }
     const html = tmp ? tmp.innerHTML : (slide.html || '')
     return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*,*::before,*::after{box-sizing:border-box}html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;font-family:'Segoe UI',system-ui,sans-serif}${css}</style></head><body>${html}</body></html>`
 }
@@ -64,7 +64,7 @@ const buildThumbSrc = (slide: any): string => {
 const buildEditSrc = (slide: any): string => {
     const css = slide.css?.trim() || 'body{background:#1a1a2e;color:#fff;}'
     const tmp = typeof document !== 'undefined' ? document.createElement('div') : null
-    if (tmp) { tmp.innerHTML = slide.html || ''; tmp.querySelectorAll('script, #__drag-script__').forEach(s => s.remove()) }
+    if (tmp) { tmp.innerHTML = DOMPurify.sanitize(slide.html || '', { FORBID_TAGS: ['script'] }) }
     const html = tmp ? tmp.innerHTML : (slide.html || '')
     return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*,*::before,*::after{box-sizing:border-box}html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;font-family:'Segoe UI',system-ui,sans-serif}${css}</style></head><body>${html}${DRAG_SCRIPT}</body></html>`
 }
@@ -187,6 +187,8 @@ function FullHtmlPreview({ html }: { html: string }) {
 
     useEffect(() => {
         const handler = (e: MessageEvent) => {
+            // Only accept messages from our own iframes (srcdoc iframes have origin 'null')
+            if (e.source !== iframeRef.current?.contentWindow) return
             if (e.data === 'IFRAME_READY') {
                 setIsLoading(false)
             }
@@ -302,6 +304,8 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
     // Listen for drag-position updates from iframe
     useEffect(() => {
         const onMsg = (e: MessageEvent) => {
+            // Only accept messages from embedded srcdoc iframes (origin 'null') within our window
+            if (e.origin !== 'null' && e.origin !== window.location.origin) return
             if (e.data?.type === 'slide-html') {
                 setHtmlSlides(prev => prev.map((s, i) =>
                     i === htmlSlideIndex ? { ...s, html: e.data.html } : s
@@ -572,8 +576,7 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
         const slidePages = slides.map((s: any) => {
             const css = s.css?.trim() || 'body{background:#1a1a2e;color:#fff;}'
             const tmp = document.createElement('div')
-            tmp.innerHTML = s.html || ''
-            tmp.querySelectorAll('script').forEach(el => el.remove())
+            tmp.innerHTML = DOMPurify.sanitize(s.html || '', { FORBID_TAGS: ['script'] })
             const html = tmp.innerHTML
             return `<div class="slide-page">${html}<style>*,*::before,*::after{box-sizing:border-box}html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;font-family:'Segoe UI',system-ui,sans-serif}${css}</style></div>`
         }).join('')

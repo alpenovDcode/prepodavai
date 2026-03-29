@@ -98,8 +98,10 @@ export class FilesController {
   /**
    * Получить файл по hash
    * Поддерживает ?download=1 для принудительного скачивания с правильным именем
+   * Защищено JWT — доступ только авторизованным пользователям
    */
   @Get(':hash')
+  @UseGuards(JwtAuthGuard)
   async getFile(@Param('hash') hash: string, @Res() res: Response) {
     const file = await this.filesService.getFile(hash);
 

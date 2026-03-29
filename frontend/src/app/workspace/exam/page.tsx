@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import DOMPurify from 'isomorphic-dompurify'
 import { GraduationCap, Download, Copy, RefreshCw, Loader2, Edit3, Eye } from 'lucide-react'
 import { useGenerations } from '@/lib/hooks/useGenerations'
 import RichTextEditor from '@/components/workspace/RichTextEditor'
@@ -83,7 +84,7 @@ export default function ExamGeneratorPage() {
         if (!localContent) return
         try {
             const tempDiv = document.createElement('div')
-            tempDiv.innerHTML = localContent
+            tempDiv.innerHTML = DOMPurify.sanitize(localContent)
             const textToCopy = tempDiv.innerText || tempDiv.textContent || ''
             await navigator.clipboard.writeText(textToCopy)
             setCopied(true)

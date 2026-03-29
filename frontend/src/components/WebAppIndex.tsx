@@ -1327,12 +1327,8 @@ function normalizeResultPayload(value: any) {
 
 function stripHtmlTags(html: string) {
   if (!html) return ''
-  if (typeof window === 'undefined') {
-    return html.replace(/<[^>]+>/g, ' ')
-  }
-  const div = document.createElement('div')
-  div.innerHTML = html
-  return div.textContent || div.innerText || ''
+  // Safe approach: use regex instead of innerHTML to avoid XSS
+  return html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
 }
 
 

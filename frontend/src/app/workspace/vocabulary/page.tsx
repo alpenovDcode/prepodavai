@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import DOMPurify from 'isomorphic-dompurify'
 import { BookOpen, RefreshCw, Loader2, Copy, Edit3, Eye, Download } from 'lucide-react'
 import { useGenerations } from '@/lib/hooks/useGenerations'
 import RichTextEditor from '@/components/workspace/RichTextEditor'
@@ -56,7 +57,7 @@ export default function VocabularyGenerator() {
 
     const handleCopy = () => {
         const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = localContent;
+        tempDiv.innerHTML = DOMPurify.sanitize(localContent);
         navigator.clipboard.writeText(tempDiv.innerText || tempDiv.textContent || '');
     }
 

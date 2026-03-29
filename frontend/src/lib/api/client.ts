@@ -10,15 +10,10 @@ export const apiClient = axios.create({
   },
 })
 
-// Добавляем токен в запросы
+// Request interceptor
 apiClient.interceptors.request.use((config) => {
-  // Добавляем токен из localStorage как fallback для кук
-  if (typeof window !== 'undefined') {
-    const token = localStorage.getItem('prepodavai_token');
-    if (token) {
-      config.headers['Authorization'] = `Bearer ${token}`;
-    }
-  }
+  // Auth is handled by httpOnly cookies (withCredentials: true)
+  // No need to manually inject tokens
 
   // Для FormData не устанавливаем Content-Type
   if (config.data instanceof FormData) {
@@ -42,7 +37,6 @@ apiClient.interceptors.response.use(
         // Сначала убираем флаги
         localStorage.removeItem('prepodavai_authenticated');
         localStorage.removeItem('prepodavai_user');
-        localStorage.removeItem('prepodavai_token');
         
         // Редиректим только если:
         // 1. Мы не на главной
@@ -51,8 +45,7 @@ apiClient.interceptors.response.use(
         if (pathname.startsWith('/student')) {
           isRedirecting = true;
           localStorage.removeItem('user');
-          localStorage.removeItem('prepodavai_token');
-          window.location.href = '/student/login';
+            window.location.href = '/student/login';
         } else if (
           pathname !== '/' &&
           !pathname.startsWith('/login') &&

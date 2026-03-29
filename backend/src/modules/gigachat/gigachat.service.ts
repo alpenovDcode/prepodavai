@@ -90,8 +90,12 @@ export class GigachatService {
     }
     this.logger.log('-----------------------------');
 
+    const disableTls = this.configService.get<string>('GIGACHAT_DISABLE_TLS_VERIFICATION', 'false') === 'true';
+    if (disableTls) {
+      this.logger.warn('⚠️ TLS verification is DISABLED for GigaChat API. Only use in development!');
+    }
     this.httpsAgent = new https.Agent({
-      rejectUnauthorized: false,
+      rejectUnauthorized: !disableTls,
     });
 
     this.http = axios.create({

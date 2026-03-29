@@ -4,8 +4,10 @@ import { useState, ReactNode } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useUser } from '@/lib/hooks/useUser'
+import { useMiniAppAuth } from '@/lib/hooks/useMiniAppAuth'
 import { LOGO_BASE64 } from '@/constants/branding'
 import { apiClient } from '@/lib/api/client'
+import { Loader2 } from 'lucide-react'
 
 interface DashboardLayoutProps {
     children: ReactNode
@@ -15,6 +17,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     const [sidebarOpen, setSidebarOpen] = useState(false)
     const pathname = usePathname()
     const router = useRouter()
+    const { ready: authReady, failed: authFailed } = useMiniAppAuth()
 
     const navItems = [
         { id: 'dashboard', label: 'Главная', icon: 'fa-solid fa-house', path: '/dashboard' },
@@ -31,11 +34,26 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
     // Проверка, находимся ли мы в Mini App
     const isMiniApp = typeof window !== 'undefined' && (
-      (window as any).Telegram?.WebApp?.initData || 
+      (window as any).Telegram?.WebApp?.initData ||
       (window as any).WebApp?.initData ||
       new URLSearchParams(window.location.search).has('tgWebAppData') ||
       new URLSearchParams(window.location.search).has('max_init_data')
     )
+
+    // Ожидаем авто-логин из Mini App
+    if (!authReady) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-[#F9FAFB]">
+                <Loader2 className="w-10 h-10 animate-spin text-purple-600" />
+            </div>
+        )
+    }
+
+    // Авто-логин не удался и нет сессии — редирект на главную
+    if (authFailed && typeof window !== 'undefined' && localStorage.getItem('prepodavai_authenticated') !== 'true') {
+        window.location.href = '/'
+        return null
+    }
 
     if (isMiniApp) {
         return (

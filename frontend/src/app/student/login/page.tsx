@@ -20,10 +20,7 @@ export default function StudentLoginPage() {
             const response = await apiClient.post('/auth/student-login-email', { email, password })
             const { id, name, role } = response.data.user
             localStorage.setItem('user', JSON.stringify({ id, name, role }))
-            // Save token as fallback for Bearer auth (in case cookie domain mismatch)
-            if (response.data.token) {
-                localStorage.setItem('prepodavai_token', response.data.token)
-            }
+            // Token is stored in httpOnly cookie by backend
             router.push('/student/dashboard')
         } catch {
             setError('Неверный email или пароль. Проверьте данные и попробуйте снова.')

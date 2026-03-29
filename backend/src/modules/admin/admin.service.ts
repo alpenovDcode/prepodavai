@@ -209,32 +209,23 @@ export class AdminService {
   }
 
   async updateUser(id: string, data: any) {
-    // Удаляем поля, которые нельзя обновлять напрямую
-    const {
-      id: _,
-      createdAt,
-      updatedAt,
-      subscription,
-      generations,
-      creditTransactions,
-      systemLogs,
-      passwordHash, // Запрещаем прямое обновление passwordHash через admin API
-      apiKey, // Запрещаем обновление apiKey через admin API
-      password, // Извлекаем пароль для хеширования
-      creditsBalance, // Извлекаем баланс токенов для обновления подписки
-      ...updateData
-    } = data;
-
-    // Очищаем пустые строки и null значения для опциональных полей
-    Object.keys(updateData).forEach((key) => {
-      if (updateData[key] === '' || updateData[key] === null) {
-        if (['phone', 'lastName'].includes(key)) {
-          updateData[key] = null;
-        } else {
-          delete updateData[key];
+    // Whitelist approach: only allow specific fields to be updated
+    const ALLOWED_FIELDS = ['firstName', 'lastName', 'phone', 'username', 'email', 'phoneVerified', 'source'] as const;
+    const updateData: Record<string, any> = {};
+    for (const field of ALLOWED_FIELDS) {
+      if (data[field] !== undefined) {
+        // Convert empty strings to null for optional fields
+        if ((data[field] === '' || data[field] === null) && ['phone', 'lastName'].includes(field)) {
+          updateData[field] = null;
+        } else if (data[field] !== '' && data[field] !== null) {
+          updateData[field] = data[field];
         }
       }
-    });
+    }
+
+    // Hash password separately if provided
+    const password = data.password;
+    const creditsBalance = data.creditsBalance;
 
     // Хешируем новый пароль, если он передан
     if (password) {

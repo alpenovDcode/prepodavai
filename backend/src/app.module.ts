@@ -48,8 +48,12 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
     // Rate Limiting
     ThrottlerModule.forRoot([
       {
+        ttl: 1000, // 1 second
+        limit: 10, // 10 requests per second
+      },
+      {
         ttl: 60000, // 1 minute
-        limit: 2000, // 2000 requests per minute to handle polling
+        limit: 200, // 200 requests per minute
       },
     ]),
 

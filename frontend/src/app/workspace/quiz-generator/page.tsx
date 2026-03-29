@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import DOMPurify from 'isomorphic-dompurify'
 import { HelpCircle, Download, Copy, RefreshCw, Loader2, Eye, Edit3 } from 'lucide-react'
 import RichTextEditor from '@/components/workspace/RichTextEditor'
 import { useGenerations } from '@/lib/hooks/useGenerations'
@@ -62,7 +63,7 @@ export default function QuizGenerator() {
 
     const handleCopy = () => {
         const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = localContent;
+        tempDiv.innerHTML = DOMPurify.sanitize(localContent);
         navigator.clipboard.writeText(tempDiv.innerText || tempDiv.textContent || '');
     }
 

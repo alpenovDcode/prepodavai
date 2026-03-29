@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback, Suspense } from 'react'
+import DOMPurify from 'isomorphic-dompurify'
 import { useSearchParams } from 'next/navigation'
 import {
     MonitorPlay, RefreshCw, Loader2, Download, ArrowLeft, Plus,
@@ -456,8 +457,7 @@ function PresentationGeneratorContent() {
     // Script-free srcDoc: strips ALL <script> tags so broken AI JS can't crash capture
     const buildCaptureSrcDoc = (slide: SlideData): string => {
         const tmp = document.createElement('div')
-        tmp.innerHTML = slide.html
-        tmp.querySelectorAll('script, #__drag-script__, #__edit-styles__').forEach(el => el.remove())
+        tmp.innerHTML = DOMPurify.sanitize(slide.html, { FORBID_TAGS: ['script'] })
         const cleanHtml = tmp.innerHTML
         const css = slide.css?.trim() || FALLBACK_SLIDE_CSS
         return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
