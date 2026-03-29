@@ -162,6 +162,35 @@ export function extractHtmlFromOutput(outputData: any): string | null {
   return isHtml ? raw : null
 }
 
+/** Удаляет секцию с ответами из HTML для ученика */
+function stripAnswerSection(html: string): string {
+  // Паттерны заголовков секции ответов (русский и английский)
+  const answerHeadings = [
+    'Ответы для учителя',
+    'Ответы для преподавателя',
+    'Ключ ответов',
+    'Answer Key',
+    'Answers for Teacher',
+    'Teacher.s (Answer|Notes|Key)',
+  ]
+  const pattern = new RegExp(
+    `(<(h[1-6]|p|div|section)[^>]*>\\s*(?:${answerHeadings.join('|')})[\\s\\S]*$)`,
+    'i',
+  )
+  return html.replace(pattern, '</body></html>')
+}
+
+/** Заменяет паттерны ___ на <input> поля для интерактивного заполнения */
+function convertBlanksToInputs(html: string): string {
+  let counter = 0
+  // Заменяем паттерн из 3+ подчёркиваний (или Unicode ___) на input
+  return html.replace(/_{3,}/g, () => {
+    const id = `blank_${counter++}`
+    const width = 120
+    return `<input type="text" id="${id}" name="${id}" style="border:none;border-bottom:2px solid #333;width:${width}px;outline:none;background:transparent;font-size:inherit;font-family:inherit;text-align:center;padding:0 4px;" />`
+  })
+}
+
 /** Инжектирует скрипт перед </body>, или в конец */
 function injectScript(html: string, script: string): string {
   const readySignal = `<script>window.addEventListener('load',function(){window.parent.postMessage('IFRAME_READY','*');});<\/script>`
@@ -200,7 +229,11 @@ export default function InteractiveHtmlViewer({
     ? buildReadonlyScript(prefillData)
     : INTERACTIVE_SCRIPT
 
-  const finalHtml = injectScript(html, scriptToInject)
+  // В интерактивном режиме: убираем ответы и конвертируем ___ → <input>
+  const processedHtml = !readOnly
+    ? convertBlanksToInputs(stripAnswerSection(html))
+    : html
+  const finalHtml = injectScript(processedHtml, scriptToInject)
 
   // Слушаем сообщения от iframe
   useEffect(() => {

@@ -138,6 +138,14 @@ export class AssignmentsService {
       throw new NotFoundException('Assignment not found');
     }
 
+    // Filter out teacher-only generations for students
+    const STUDENT_HIDDEN_TYPES = ['answers', 'answer-key', 'teacher-notes', 'rubric'];
+    if (!isTeacher) {
+      assignment.lesson.generations = assignment.lesson.generations.filter(
+        (g) => !STUDENT_HIDDEN_TYPES.includes(g.generationType),
+      );
+    }
+
     return assignment;
   }
 
