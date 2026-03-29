@@ -56,11 +56,40 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     }
 
     if (isMiniApp) {
+        const miniNavItems = [
+            { id: 'dashboard', label: 'Главная', icon: 'fa-solid fa-house', path: '/dashboard' },
+            { id: 'ai', label: 'ИИ', icon: 'fas fa-wand-magic-sparkles', path: '/workspace' },
+            { id: 'courses', label: 'Материалы', icon: 'fas fa-book', path: '/dashboard/courses' },
+            { id: 'students', label: 'Ученики', icon: 'fas fa-users', path: '/dashboard/students' },
+            { id: 'settings', label: 'Ещё', icon: 'fas fa-ellipsis', path: '/dashboard/settings' },
+        ]
+
         return (
-            <div className="min-h-screen bg-[#F9FAFB]">
+            <div className="min-h-screen bg-[#F9FAFB] pb-16">
                 <main className="p-4">
                     {children}
                 </main>
+
+                {/* Bottom Tab Bar */}
+                <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50 safe-area-bottom">
+                    <div className="flex justify-around items-center h-14">
+                        {miniNavItems.map((item) => {
+                            const active = pathname === item.path || (item.path !== '/dashboard' && pathname.startsWith(item.path))
+                            return (
+                                <Link
+                                    key={item.id}
+                                    href={item.path}
+                                    className={`flex flex-col items-center justify-center flex-1 h-full transition-colors ${
+                                        active ? 'text-orange-500' : 'text-gray-400'
+                                    }`}
+                                >
+                                    <i className={`${item.icon} text-lg`}></i>
+                                    <span className="text-[10px] mt-0.5 font-medium">{item.label}</span>
+                                </Link>
+                            )
+                        })}
+                    </div>
+                </nav>
             </div>
         )
     }
