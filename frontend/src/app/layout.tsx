@@ -22,6 +22,23 @@ export default function RootLayout({
         <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" rel="stylesheet" />
         <Script src="https://telegram.org/js/telegram-web-app.js" strategy="beforeInteractive" />
         <Script src="https://st.max.ru/js/max-web-app.js" strategy="beforeInteractive" />
+        <Script id="webapp-init" strategy="beforeInteractive">
+          {`
+            (function() {
+              // Вызываем ready() как можно раньше чтобы MAX не закрыл приложение
+              // MAX ждёт ready() до 15 секунд, после — закрывает мини-апп
+              function callReady() {
+                try {
+                  if (window.WebApp && typeof window.WebApp.ready === 'function') {
+                    window.WebApp.ready();
+                  }
+                } catch(e) {}
+              }
+              callReady();
+              document.addEventListener('DOMContentLoaded', callReady);
+            })();
+          `}
+        </Script>
         <Script id="suppress-logs" strategy="beforeInteractive">
           {`
             (function() {
