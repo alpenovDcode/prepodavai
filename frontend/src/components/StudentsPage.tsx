@@ -3,6 +3,9 @@
 import { useState, useEffect } from 'react'
 import { apiClient } from '@/lib/api/client'
 import { useRouter } from 'next/navigation'
+import DOMPurify from 'isomorphic-dompurify'
+import Image from 'next/image'
+import InteractiveHtmlViewer, { extractHtmlFromOutput } from '@/components/InteractiveHtmlViewer'
 
 interface Class {
     id: string
@@ -35,6 +38,36 @@ interface Assignment {
     _count: { submissions: number }
 }
 
+interface StudentStatus {
+    student: { id: string; name: string; avatar?: string }
+    submission: {
+        id: string
+        grade: number | null
+        feedback: string | null
+        content: string | null
+        attachments?: any[]
+        formData?: Record<string, Record<string, any>> | null
+        status: string
+        createdAt: string
+    } | null
+    status: 'pending' | 'submitted' | 'graded'
+}
+
+interface AssignmentDetails {
+    assignment: {
+        id: string
+        dueDate: string | null
+        content?: string | null
+        generations?: Array<{ id: string; type: string; outputData: any }>
+    }
+    studentStatuses: StudentStatus[]
+    totalStudents: number
+    submittedCount: number
+    gradedCount: number
+    notSubmittedCount: number
+    avgGrade: number | null
+}
+
 export default function StudentsPage() {
     const router = useRouter()
     const [activeTab, setActiveTab] = useState<'students' | 'classes' | 'assignments'>('students')
@@ -47,6 +80,16 @@ export default function StudentsPage() {
     // Modals state
     const [showAddClassModal, setShowAddClassModal] = useState(false)
     const [showAddStudentModal, setShowAddStudentModal] = useState(false)
+
+    // Review modal state
+    const [reviewAssignment, setReviewAssignment] = useState<Assignment | null>(null)
+    const [reviewDetails, setReviewDetails] = useState<AssignmentDetails | null>(null)
+    const [reviewLoading, setReviewLoading] = useState(false)
+    const [selectedStudent, setSelectedStudent] = useState<StudentStatus | null>(null)
+    const [gradeInput, setGradeInput] = useState<number | ''>('')
+    const [feedbackInput, setFeedbackInput] = useState('')
+    const [submittingGrade, setSubmittingGrade] = useState(false)
+    const [generatingFeedback, setGeneratingFeedback] = useState(false)
 
     // Form state
     const [newClassName, setNewClassName] = useState('')
@@ -110,6 +153,96 @@ export default function StudentsPage() {
             fetchData()
         } catch (error: any) {
             alert(error?.response?.data?.message || 'Ошибка при создании ученика')
+        }
+    }
+
+    const handleOpenReview = async (assignment: Assignment) => {
+        setReviewAssignment(assignment)
+        setReviewLoading(true)
+        setSelectedStudent(null)
+        setGradeInput('')
+        setFeedbackInput('')
+        try {
+            const res = await apiClient.get(`/submissions/assignment/${assignment.id}`)
+            setReviewDetails(res.data)
+            // Auto-select first student with a submission
+            const firstSubmitted = (res.data as AssignmentDetails).studentStatuses.find(
+                s => s.status === 'submitted' || s.status === 'graded'
+            )
+            if (firstSubmitted) {
+                setSelectedStudent(firstSubmitted)
+                setGradeInput(firstSubmitted.submission?.grade || '')
+                setFeedbackInput(firstSubmitted.submission?.feedback || '')
+            }
+        } catch (error) {
+            console.error('Failed to fetch assignment details:', error)
+            alert('Ошибка при загрузке данных задания')
+            setReviewAssignment(null)
+        } finally {
+            setReviewLoading(false)
+        }
+    }
+
+    const handleCloseReview = () => {
+        setReviewAssignment(null)
+        setReviewDetails(null)
+        setSelectedStudent(null)
+        setGradeInput('')
+        setFeedbackInput('')
+    }
+
+    const handleSelectStudent = (status: StudentStatus) => {
+        setSelectedStudent(status)
+        setGradeInput(status.submission?.grade || '')
+        setFeedbackInput(status.submission?.feedback || '')
+    }
+
+    const handleSubmitGrade = async () => {
+        if (!selectedStudent?.submission) return
+        if (gradeInput === '' || gradeInput < 1 || gradeInput > 5) {
+            alert('Оценка должна быть от 1 до 5')
+            return
+        }
+        setSubmittingGrade(true)
+        try {
+            await apiClient.patch(`/submissions/${selectedStudent.submission.id}/grade`, {
+                grade: Number(gradeInput),
+                feedback: feedbackInput
+            })
+            // Refresh details
+            if (reviewAssignment) {
+                const res = await apiClient.get(`/submissions/assignment/${reviewAssignment.id}`)
+                setReviewDetails(res.data)
+                // Update selected student
+                const updated = (res.data as AssignmentDetails).studentStatuses.find(
+                    s => s.student.id === selectedStudent.student.id
+                )
+                if (updated) {
+                    setSelectedStudent(updated)
+                    setGradeInput(updated.submission?.grade || '')
+                    setFeedbackInput(updated.submission?.feedback || '')
+                }
+            }
+            fetchData()
+        } catch (error) {
+            console.error('Failed to submit grade:', error)
+            alert('Ошибка при сохранении оценки')
+        } finally {
+            setSubmittingGrade(false)
+        }
+    }
+
+    const handleGenerateAiFeedback = async () => {
+        if (!selectedStudent?.submission) return
+        setGeneratingFeedback(true)
+        try {
+            const res = await apiClient.post(`/submissions/${selectedStudent.submission.id}/ai-feedback`)
+            setFeedbackInput((res.data?.feedback || '').trim())
+        } catch (error) {
+            console.error('Failed to generate AI feedback:', error)
+            alert('Ошибка при генерации AI комментария')
+        } finally {
+            setGeneratingFeedback(false)
         }
     }
 
@@ -362,7 +495,7 @@ export default function StudentsPage() {
                                     </td>
                                     <td className="py-4 px-4 text-right">
                                         <button
-                                            onClick={() => router.push(`/workspace/homework?assignmentId=${a.id}`)}
+                                            onClick={() => handleOpenReview(a)}
                                             className="text-sm text-primary-600 font-medium hover:text-primary-700"
                                         >
                                             Проверить →
@@ -500,6 +633,219 @@ export default function StudentsPage() {
                                 </button>
                             </div>
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Review Assignment Modal */}
+            {reviewAssignment && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 animate-fade-in">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl mx-4 max-h-[90vh] flex flex-col overflow-hidden">
+                        {/* Modal Header */}
+                        <div className="flex items-center justify-between p-6 border-b border-gray-100">
+                            <div>
+                                <h2 className="text-xl font-bold text-gray-900">{reviewAssignment.lesson.title}</h2>
+                                <p className="text-sm text-gray-500 mt-0.5">{reviewAssignment.lesson.topic}</p>
+                            </div>
+                            <button
+                                onClick={handleCloseReview}
+                                className="w-10 h-10 flex items-center justify-center rounded-xl text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition"
+                            >
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                            </button>
+                        </div>
+
+                        {reviewLoading ? (
+                            <div className="flex-1 flex items-center justify-center py-20">
+                                <div className="animate-spin w-8 h-8 border-4 border-primary-200 border-t-primary-600 rounded-full"></div>
+                            </div>
+                        ) : reviewDetails ? (
+                            <div className="flex flex-1 overflow-hidden">
+                                {/* Left: Students list */}
+                                <div className="w-64 flex-shrink-0 border-r border-gray-100 flex flex-col overflow-hidden">
+                                    <div className="p-3 border-b border-gray-100 bg-gray-50">
+                                        <div className="flex items-center gap-2 text-xs font-semibold text-gray-500">
+                                            <span className="bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded-full">Ждут: {reviewDetails.submittedCount - reviewDetails.gradedCount}</span>
+                                            <span className="bg-green-100 text-green-800 px-2 py-0.5 rounded-full">Оценено: {reviewDetails.gradedCount}</span>
+                                        </div>
+                                    </div>
+                                    <div className="flex-1 overflow-y-auto p-2">
+                                        {reviewDetails.studentStatuses.map(status => (
+                                            <button
+                                                key={status.student.id}
+                                                onClick={() => handleSelectStudent(status)}
+                                                className={`w-full text-left p-3 rounded-xl flex items-center gap-3 mb-1 transition-colors ${
+                                                    selectedStudent?.student.id === status.student.id
+                                                        ? 'bg-primary-50 border border-primary-200 ring-1 ring-primary-500'
+                                                        : 'hover:bg-gray-50 border border-transparent'
+                                                }`}
+                                            >
+                                                <div className="w-8 h-8 rounded-full bg-gray-200 flex flex-shrink-0 items-center justify-center text-gray-600 font-bold text-xs">
+                                                    {status.student.avatar || status.student.name.charAt(0)}
+                                                </div>
+                                                <div className="min-w-0 flex-1">
+                                                    <p className="font-semibold text-sm text-gray-900 truncate">{status.student.name}</p>
+                                                    <p className={`text-xs font-medium ${
+                                                        status.status === 'graded' ? 'text-green-600' :
+                                                        status.status === 'submitted' ? 'text-yellow-600' : 'text-gray-400'
+                                                    }`}>
+                                                        {status.status === 'graded' ? `Оценка: ${status.submission?.grade}` :
+                                                         status.status === 'submitted' ? 'Ожидает проверки' : 'Не сдано'}
+                                                    </p>
+                                                </div>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Right: Student work + grading */}
+                                <div className="flex-1 overflow-y-auto">
+                                    {!selectedStudent ? (
+                                        <div className="flex flex-col items-center justify-center h-full text-gray-400 p-8 text-center">
+                                            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="mb-4 opacity-50"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                                            <p className="text-lg font-bold text-gray-800 mb-1">Выберите ученика</p>
+                                            <p className="text-sm">Нажмите на ученика слева, чтобы проверить работу</p>
+                                        </div>
+                                    ) : selectedStudent.status === 'pending' ? (
+                                        <div className="flex flex-col items-center justify-center h-full text-gray-400 p-8 text-center">
+                                            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="mb-4 opacity-50"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                                            <p className="text-lg font-bold text-gray-800 mb-1">Работа не сдана</p>
+                                            <p className="text-sm">Ученик пока не отправил ответ</p>
+                                        </div>
+                                    ) : (
+                                        <div className="flex flex-col">
+                                            {/* Student's answer */}
+                                            <div className="p-6 border-b border-gray-100 bg-gray-50">
+                                                <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">Ответ ученика</h3>
+
+                                                {/* Interactive HTML forms */}
+                                                {(() => {
+                                                    const generations = reviewDetails.assignment.generations || []
+                                                    const formData = selectedStudent.submission?.formData || {}
+                                                    const interactiveBlocks = generations
+                                                        .map(gen => ({ gen, html: extractHtmlFromOutput(gen.outputData), prefill: formData[gen.id] }))
+                                                        .filter(item => item.html && item.prefill && Object.keys(item.prefill).length > 0)
+
+                                                    if (interactiveBlocks.length > 0) {
+                                                        return (
+                                                            <div className="space-y-4 mb-4">
+                                                                {interactiveBlocks.map(({ gen, html, prefill }) => (
+                                                                    <InteractiveHtmlViewer
+                                                                        key={gen.id}
+                                                                        html={html!}
+                                                                        generationId={gen.id}
+                                                                        readOnly
+                                                                        prefillData={prefill}
+                                                                    />
+                                                                ))}
+                                                            </div>
+                                                        )
+                                                    }
+                                                    return null
+                                                })()}
+
+                                                {/* Text answer */}
+                                                {(selectedStudent.submission?.content || !reviewDetails.assignment.generations?.some(gen => {
+                                                    const formData = selectedStudent.submission?.formData || {}
+                                                    const html = extractHtmlFromOutput(gen.outputData)
+                                                    return html && formData[gen.id] && Object.keys(formData[gen.id]).length > 0
+                                                })) && (
+                                                    <div className="bg-white p-4 rounded-xl border border-gray-200 text-gray-800 text-sm leading-relaxed">
+                                                        <div className="whitespace-pre-wrap">
+                                                            {selectedStudent.submission?.content || 'Пустой ответ'}
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {/* Attachments */}
+                                                {selectedStudent.submission?.attachments && selectedStudent.submission.attachments.length > 0 && (
+                                                    <div className="mt-4">
+                                                        <p className="text-sm font-semibold text-gray-500 mb-2">Прикрепленные файлы:</p>
+                                                        <div className="grid grid-cols-2 gap-3">
+                                                            {selectedStudent.submission.attachments.map((file: any, index: number) => (
+                                                                <div key={index} className="rounded-xl overflow-hidden border border-gray-200 bg-white relative min-h-[150px]">
+                                                                    <Image
+                                                                        src={file.url}
+                                                                        alt={`Файл ${index + 1}`}
+                                                                        fill
+                                                                        className="object-contain p-2"
+                                                                        unoptimized
+                                                                    />
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                <p className="text-xs text-gray-400 mt-3">
+                                                    Отправлено: {new Date(selectedStudent.submission!.createdAt).toLocaleString('ru-RU')}
+                                                </p>
+                                            </div>
+
+                                            {/* Grading section */}
+                                            <div className="p-6">
+                                                <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">Оценка и комментарий</h3>
+
+                                                <div className="mb-5">
+                                                    <label className="block text-sm font-semibold text-gray-700 mb-2">Оценка (1-5)</label>
+                                                    <div className="flex gap-2">
+                                                        {[1, 2, 3, 4, 5].map(num => (
+                                                            <button
+                                                                key={num}
+                                                                onClick={() => setGradeInput(num)}
+                                                                className={`w-11 h-11 rounded-xl font-black text-lg transition-transform active:scale-95 ${
+                                                                    gradeInput === num
+                                                                        ? 'bg-primary-600 text-white shadow-md'
+                                                                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                                                }`}
+                                                            >
+                                                                {num}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+
+                                                <div className="mb-5">
+                                                    <div className="flex items-center justify-between mb-2">
+                                                        <label className="text-sm font-semibold text-gray-700">Комментарий</label>
+                                                        <button
+                                                            onClick={handleGenerateAiFeedback}
+                                                            disabled={generatingFeedback || !selectedStudent?.submission}
+                                                            className="flex items-center gap-1.5 text-xs font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                                        >
+                                                            {generatingFeedback
+                                                                ? <><span className="animate-spin inline-block w-3 h-3 border-2 border-purple-300 border-t-purple-700 rounded-full"></span> Генерирую...</>
+                                                                : <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 3l1.912 5.813a2 2 0 0 0 1.275 1.275L21 12l-5.813 1.912a2 2 0 0 0-1.275 1.275L12 21l-1.912-5.813a2 2 0 0 0-1.275-1.275L3 12l5.813-1.912a2 2 0 0 0 1.275-1.275L12 3z"/></svg> AI проверка</>
+                                                            }
+                                                        </button>
+                                                    </div>
+                                                    <textarea
+                                                        value={feedbackInput}
+                                                        onChange={(e) => setFeedbackInput(e.target.value)}
+                                                        className="w-full h-28 px-4 py-3 bg-white border border-gray-300 rounded-xl focus:border-primary-500 focus:ring-2 focus:ring-primary-100 transition resize-none text-sm"
+                                                        placeholder="Напишите комментарий или нажмите AI проверка..."
+                                                    />
+                                                </div>
+
+                                                <div className="flex justify-end">
+                                                    <button
+                                                        onClick={handleSubmitGrade}
+                                                        disabled={submittingGrade || gradeInput === ''}
+                                                        className="flex items-center gap-2 px-6 py-3 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 transition shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                                                    >
+                                                        {submittingGrade ? (
+                                                            <><span className="animate-spin inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full"></span> Сохранение...</>
+                                                        ) : (
+                                                            <><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Сохранить оценку</>
+                                                        )}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        ) : null}
                     </div>
                 </div>
             )}
