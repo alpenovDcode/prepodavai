@@ -363,7 +363,16 @@ export class SubmissionsService {
           include: {
             class: true,
             student: { include: { class: true } },
-            lesson: { select: { title: true } },
+            lesson: {
+              select: {
+                title: true,
+                topic: true,
+                generations: {
+                  select: { id: true, generationType: true, outputData: true },
+                  orderBy: { createdAt: 'desc' as const },
+                },
+              },
+            },
           },
         },
         student: { select: { name: true } },
@@ -378,20 +387,42 @@ export class SubmissionsService {
     if (teacherIdOfClass !== teacherId) throw new ForbiddenException('Access denied');
 
     const lessonTitle = submission.assignment.lesson.title;
+    const lessonTopic = submission.assignment.lesson.topic || '';
     const studentName = submission.student?.name || 'Ученик';
     const textAnswer = submission.content || '';
     const rawFormData = (submission as any).formData;
     const formData = rawFormData ? JSON.stringify(rawFormData, null, 2) : '';
 
+    // Extract task content and answer keys from generations
+    const generations = submission.assignment.lesson.generations || [];
+    let taskContent = '';
+    for (const gen of generations) {
+      const output = gen.outputData as any;
+      if (!output) continue;
+      let text = '';
+      if (typeof output === 'string') {
+        text = output;
+      } else if (output.html) {
+        text = String(output.html).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+      } else if (output.content) {
+        text = typeof output.content === 'string' ? output.content : JSON.stringify(output.content);
+      } else if (output.text) {
+        text = String(output.text);
+      }
+      if (text) {
+        taskContent += `\n[${gen.generationType}]:\n${text}\n`;
+      }
+    }
+
     const prompt = `Ты — опытный и доброжелательный учитель, проверяющий работу ученика.
 
-Тема задания: ${lessonTitle}
+Тема задания: ${lessonTitle}${lessonTopic ? ` (${lessonTopic})` : ''}
 Ученик: ${studentName}
-
+${taskContent ? `\nСодержание задания (включая правильные ответы, если есть):\n${taskContent}` : ''}
 Ответ ученика:
 ${textAnswer || '(текстовый ответ отсутствует)'}${formData ? `\n\nЗаполненные поля задания (JSON):\n${formData}` : ''}
 
-Напиши краткий, конструктивный и поддерживающий комментарий к этой работе на русском языке (3–5 предложений). Отметь, что сделано хорошо, и, если есть ошибки или недочёты, мягко укажи на них и предложи, как улучшить. Пиши связным текстом без заголовков и маркеров.`;
+Проверь работу ученика, сравнив его ответы с правильными ответами из задания. Напиши краткий, конструктивный и поддерживающий комментарий на русском языке (3–5 предложений). Укажи количество правильных и неправильных ответов, отметь что сделано хорошо, и если есть ошибки — мягко укажи на них с пояснением правильного ответа. Пиши связным текстом без заголовков и маркеров.`;
 
     const feedback = await this.replicateService.createCompletion(prompt, 'google/gemini-3-flash', {
       max_tokens: 512,
