@@ -80,12 +80,24 @@ export default function Home() {
       let endpoint = hasTgData ? '/auth/validate-init-data' : '/auth/max/validate-init-data'
       
       if (!initData) {
-        initData = urlParams.get('tgWebAppData') || urlParams.get('max_init_data') || urlParams.get('init_data') || urlParams.get('initData')
-        if (urlParams.get('tgWebAppData')) endpoint = '/auth/validate-init-data'
-        else if (urlParams.get('max_init_data')) endpoint = '/auth/max/validate-init-data'
-        // If it's just 'initData' without platform, we might need a guess or fallback
+        const tgData = urlParams.get('tgWebAppData')
+        const maxData = urlParams.get('max_init_data')
+        const genericData = urlParams.get('init_data') || urlParams.get('initData')
+
+        if (tgData && tgData.includes('hash=')) {
+          initData = tgData
+          endpoint = '/auth/validate-init-data'
+        } else if (maxData && maxData.includes('hash=')) {
+          initData = maxData
+          endpoint = '/auth/max/validate-init-data'
+        } else if (genericData && genericData.includes('hash=')) {
+          initData = genericData
+          endpoint = urlParams.has('tgWebAppPlatform')
+            ? '/auth/validate-init-data'
+            : '/auth/max/validate-init-data'
+        }
       }
-      
+
       if (initData && endpoint) {
         try {
           const response = await apiClient.post(endpoint, { initData })

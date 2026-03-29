@@ -43,15 +43,14 @@ export function useMiniAppAuth() {
         const maxData = urlParams.get('max_init_data')
         const genericData = urlParams.get('init_data') || urlParams.get('initData')
 
-        if (tgData) {
+        if (tgData && tgData.includes('hash=')) {
           initData = tgData
           endpoint = '/auth/validate-init-data'
-        } else if (maxData) {
+        } else if (maxData && maxData.includes('hash=')) {
           initData = maxData
           endpoint = '/auth/max/validate-init-data'
-        } else if (genericData) {
+        } else if (genericData && genericData.includes('hash=')) {
           initData = genericData
-          // Определяем по платформе
           endpoint = urlParams.has('tgWebAppPlatform')
             ? '/auth/validate-init-data'
             : '/auth/max/validate-init-data'
@@ -91,40 +90,30 @@ export function useMiniAppAuth() {
       setReady(true)
     }
 
-    // Ждём SDK с короткой задержкой
-    const isMiniAppUrl = () => {
-      const urlParams = new URLSearchParams(window.location.search)
-      return urlParams.has('tgWebAppPlatform') ||
-        urlParams.has('max_init_data') ||
-        urlParams.has('tgWebAppData') ||
-        urlParams.has('init_data') ||
-        urlParams.has('initData')
-    }
-
     const checkSDK = () => {
       const tg = (window as any).Telegram?.WebApp
       const max = (window as any).WebApp
       return !!((tg?.initData && tg.initData.includes('hash=')) || (max?.initData && max.initData.includes('hash=')))
     }
 
-    if (checkSDK() || isMiniAppUrl()) {
-      // SDK уже готов или есть параметры — пробуем сразу
+    if (checkSDK()) {
+      // SDK уже готов с валидным initData — логинимся
       tryAutoLogin()
     } else {
-      // Ждём SDK максимум 250ms (5 попыток по 50ms)
+      // Ждём SDK максимум 1.5 секунды (15 попыток по 100ms)
       let attempts = 0
       const interval = setInterval(() => {
         attempts++
         if (checkSDK()) {
           clearInterval(interval)
           tryAutoLogin()
-        } else if (attempts >= 5) {
+        } else if (attempts >= 15) {
           clearInterval(interval)
-          // Не mini app — просто не авторизован
+          // SDK не загрузился или нет initData — не mini app
           setFailed(true)
           setReady(true)
         }
-      }, 50)
+      }, 100)
     }
   }, [])
 

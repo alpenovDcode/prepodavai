@@ -24,6 +24,8 @@ export class AuthService {
    * Валидация Telegram initData с проверкой подписи
    */
   async validateTelegramInitData(initData: string) {
+    console.log('[Auth:TG] validateTelegramInitData called. initData length:', initData?.length || 0, 'preview:', initData ? `"${initData.substring(0, 120)}"` : '<empty>');
+
     const botToken = this.configService.get<string>('TELEGRAM_BOT_TOKEN');
 
     if (!botToken) {
@@ -35,6 +37,7 @@ export class AuthService {
     const hash = params.get('hash');
 
     if (!hash) {
+      console.warn('[Auth:TG] Missing hash. Keys:', Array.from(params.keys()));
       throw new UnauthorizedException('Missing hash in initData');
     }
 
