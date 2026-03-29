@@ -51,7 +51,7 @@ export class ReplicateService {
           stream: true,
           input: {
             prompt: fullPrompt,
-            max_tokens: 16384,
+            max_new_tokens: 16384,
             temperature: 0.7,
           },
         },
@@ -169,7 +169,7 @@ export class ReplicateService {
       // system + user prompts before passing them here.
       const input: Record<string, any> = {
         prompt,
-        max_tokens: maxTokens,
+        max_new_tokens: maxTokens,
         temperature,
       };
 
