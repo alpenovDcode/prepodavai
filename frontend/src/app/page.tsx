@@ -100,7 +100,32 @@ export default function Home() {
     }
   }, [router])
 
-  // 2. Mini App detection + auto-login
+  // 2. OTT auto-login (MAX Mini App: ?ott=TOKEN в URL)
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search)
+    const ott = urlParams.get('ott')
+    if (!ott) return
+
+    apiClient.post('/auth/max/ott', { token: ott })
+      .then((response) => {
+        if (response.data.success) {
+          const { user } = response.data
+          localStorage.setItem('prepodavai_authenticated', 'true')
+          localStorage.setItem('prepodavai_user', JSON.stringify({
+            name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.username || 'Пользователь',
+            username: user.username,
+            userHash: user.id,
+            isAuthenticated: true,
+            loginTime: new Date().toISOString()
+          }))
+          setIsAuthenticated(true)
+          router.push('/dashboard')
+        }
+      })
+      .catch((e) => console.error('[Home] OTT login failed:', e))
+  }, [router])
+
+  // 3. Mini App detection + auto-login via initData
   useEffect(() => {
     const run = async () => {
       // Сразу вызываем ready() — MAX требует это как можно раньше

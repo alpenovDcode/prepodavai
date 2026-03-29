@@ -65,6 +65,22 @@ export class AuthController {
     return result;
   }
 
+  @Post('max/ott')
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  async loginWithMaxOtt(
+    @Body() body: { token: string },
+    @Res({ passthrough: true }) res: Response,
+    @Request() req: any,
+  ) {
+    this.logger.log(`[MAX Mini App] OTT login attempt`);
+    const result = await this.authService.validateMaxOtt(body.token);
+    if (result?.token) {
+      this.logger.log(`[MAX Mini App] OTT login success | user: ${result.user?.username}`);
+      this.setTokenCookie(res, result.token, req);
+    }
+    return result;
+  }
+
   @Post('max/validate-init-data')
   @Throttle({ default: { limit: 10, ttl: 60000 } })
   async validateMaxInitData(

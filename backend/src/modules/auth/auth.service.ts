@@ -11,6 +11,9 @@ import { StudentsService } from '../students/students.service';
 
 @Injectable()
 export class AuthService {
+  // One-time tokens для MAX mini app (userId -> { token, expiresAt })
+  private readonly ottTokens = new Map<string, { userId: string; expiresAt: number }>();
+
   constructor(
     private usersService: UsersService,
     private studentsService: StudentsService,
@@ -451,6 +454,57 @@ export class AuthService {
         firstName: user.firstName,
         lastName: user.lastName,
         username: user.username,
+      },
+    };
+  }
+
+  /**
+   * Генерация одноразового токена для MAX Mini App автологина.
+   * Вызывается при /start, вставляется в URL кнопки.
+   */
+  generateMaxOtt(userId: string): string {
+    // Чистим просроченные токены
+    const now = Date.now();
+    for (const [token, data] of this.ottTokens.entries()) {
+      if (data.expiresAt < now) this.ottTokens.delete(token);
+    }
+
+    const token = crypto.randomBytes(24).toString('hex');
+    this.ottTokens.set(token, { userId, expiresAt: now + 10 * 60 * 1000 }); // 10 минут
+    return token;
+  }
+
+  /**
+   * Валидация OTT токена и выдача JWT.
+   * Токен одноразовый — удаляется после использования.
+   */
+  async validateMaxOtt(token: string) {
+    const data = this.ottTokens.get(token);
+    if (!data || data.expiresAt < Date.now()) {
+      throw new UnauthorizedException('Invalid or expired OTT token');
+    }
+    this.ottTokens.delete(token);
+
+    const appUser = await this.prisma.appUser.findUnique({ where: { id: data.userId } });
+    if (!appUser) throw new UnauthorizedException('User not found');
+
+    await this.prisma.appUser.update({
+      where: { id: appUser.id },
+      data: { lastAccessAt: new Date() },
+    });
+
+    const jwtToken = this.generateJwtToken(appUser.id);
+    return {
+      success: true,
+      token: jwtToken,
+      userHash: appUser.id,
+      user: {
+        id: appUser.id,
+        maxId: appUser.maxId,
+        username: appUser.username,
+        firstName: appUser.firstName,
+        lastName: appUser.lastName,
+        source: appUser.source,
       },
     };
   }
