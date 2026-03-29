@@ -60,13 +60,16 @@ export class HttpExceptionFilter implements ExceptionFilter {
 
     // Логируем ошибку (без чувствительных данных)
     if (!isDevelopment) {
+      const rawMessage = exception instanceof Error ? exception.message : String(exception);
+      const rawStack = exception instanceof Error ? exception.stack?.split('\n').slice(0, 3).join(' | ') : '';
       console.error('Error:', {
         status,
         message,
+        rawMessage,
+        rawStack,
         path: request.url,
         method: request.method,
         timestamp: new Date().toISOString(),
-        // Add info about cookies for 401 debugging
         hasCookie: !!(request.cookies && request.cookies['prepodavai_token']),
       });
     } else {
