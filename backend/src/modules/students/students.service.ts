@@ -138,7 +138,7 @@ export class StudentsService {
   async findByEmailAndPassword(email: string, password: string) {
     // Read passwordHash via raw SQL to bypass stale Prisma client
     const rows = await this.prisma.$queryRaw<{ id: string; passwordHash: string | null }[]>`
-      SELECT id, "passwordHash" FROM students WHERE email = ${email} LIMIT 1
+      SELECT id, "passwordHash" FROM students WHERE email = ${email} AND "passwordHash" IS NOT NULL LIMIT 1
     `;
     if (!rows.length || !rows[0].passwordHash) return null;
 
