@@ -109,7 +109,7 @@ export class MaxService {
           type: 'open_app',
           text: '🚀 Открыть PrepodavAI',
           app_id: botUsername,
-          webApp: { url: `${webAppUrl}/dashboard` },
+          web_app: { url: `${webAppUrl}/dashboard` },
         }
       : {
           type: 'link',
