@@ -90,6 +90,7 @@ export default function StudentDashboard() {
     const handleLogout = () => {
         localStorage.removeItem('prepodavai_authenticated')
         localStorage.removeItem('user')
+        localStorage.removeItem('prepodavai_token')
         router.push('/student/login')
     }
 
