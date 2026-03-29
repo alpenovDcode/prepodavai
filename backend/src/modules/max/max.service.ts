@@ -103,16 +103,18 @@ export class MaxService {
 
     // open_app button opens the Mini App with initData injected by MAX platform.
     // Requires MAX_BOT_USERNAME to be set (the bot's @username without @).
+    const webAppUrl = this.configService.get<string>('WEB_APP_URL') || 'https://prepodavai.ru';
     const button = botUsername
       ? {
           type: 'open_app',
           text: '🚀 Открыть PrepodavAI',
           app_id: botUsername,
+          webApp: { url: `${webAppUrl}/dashboard` },
         }
       : {
           type: 'link',
           text: '🌐 Открыть PrepodavAI',
-          url: 'https://prepodavai.ru/dashboard',
+          url: `${webAppUrl}/dashboard`,
         };
 
     const attachments = [
