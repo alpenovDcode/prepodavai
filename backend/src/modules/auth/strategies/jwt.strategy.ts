@@ -33,15 +33,23 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: any) {
-    const user = await this.authService.validateUser(payload);
-    if (!user) {
-      throw new UnauthorizedException();
+    console.debug(`[JwtStrategy] validate() called, sub=${payload?.sub}, role=${payload?.role}`);
+    try {
+      const user = await this.authService.validateUser(payload);
+      if (!user) {
+        console.debug(`[JwtStrategy] validateUser returned null for sub=${payload?.sub}, role=${payload?.role}`);
+        throw new UnauthorizedException();
+      }
+      console.debug(`[JwtStrategy] validateUser OK, user.id=${user.id}`);
+      return {
+        id: user.id,
+        userId: user.id,
+        role: payload.role,
+        teacherId: payload.role === 'student' ? (user as any).class?.teacherId : undefined,
+      };
+    } catch (err) {
+      console.error(`[JwtStrategy] validate() error for sub=${payload?.sub}:`, err?.message || err);
+      throw err;
     }
-    return {
-      id: user.id,
-      userId: user.id,
-      role: payload.role,
-      teacherId: payload.role === 'student' ? (user as any).class?.teacherId : undefined,
-    };
   }
 }
