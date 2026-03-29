@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2 } from 'lucide-react'
 import dynamic from 'next/dynamic'
@@ -15,133 +15,162 @@ const LandingPage = dynamic(() => import('@/components/LandingPage'), {
   )
 })
 
+/**
+ * Читает initData из всех возможных источников:
+ * 1. window.WebApp.initData (MAX SDK)
+ * 2. window.Telegram.WebApp.initData (Telegram SDK)
+ * 3. URL hash фрагмент: #WebAppData=... (MAX передаёт сюда данные)
+ * 4. URL query params (fallback)
+ */
+function extractInitData(): { initData: string | null; endpoint: string | null } {
+  const tg = (window as any).Telegram?.WebApp
+  const max = (window as any).WebApp
+
+  // 1. Telegram SDK
+  if (tg?.initData && tg.initData.includes('hash=')) {
+    return { initData: tg.initData, endpoint: '/auth/validate-init-data' }
+  }
+
+  // 2. MAX SDK
+  if (max?.initData && max.initData.includes('hash=')) {
+    return { initData: max.initData, endpoint: '/auth/max/validate-init-data' }
+  }
+
+  // 3. MAX URL hash фрагмент: #WebAppData=...&WebAppPlatform=...
+  const hash = window.location.hash
+  if (hash && hash.includes('WebAppData=')) {
+    try {
+      const hashParams = new URLSearchParams(hash.slice(1)) // убираем #
+      const webAppData = hashParams.get('WebAppData')
+      if (webAppData) {
+        const decoded = decodeURIComponent(webAppData)
+        if (decoded.includes('hash=')) {
+          return { initData: decoded, endpoint: '/auth/max/validate-init-data' }
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  // 4. URL query params fallback
+  const urlParams = new URLSearchParams(window.location.search)
+  const tgData = urlParams.get('tgWebAppData')
+  if (tgData && tgData.includes('hash=')) {
+    return { initData: tgData, endpoint: '/auth/validate-init-data' }
+  }
+  const maxData = urlParams.get('max_init_data')
+  if (maxData && maxData.includes('hash=')) {
+    return { initData: maxData, endpoint: '/auth/max/validate-init-data' }
+  }
+
+  return { initData: null, endpoint: null }
+}
+
+/**
+ * Проверяет, открыто ли приложение внутри Telegram/MAX Mini App
+ */
+function detectMiniApp(): boolean {
+  const tg = (window as any).Telegram?.WebApp
+  const max = (window as any).WebApp
+  const hash = window.location.hash
+  const urlParams = new URLSearchParams(window.location.search)
+
+  return !!(
+    (tg?.initData) ||
+    (max?.initData) ||
+    (hash && hash.includes('WebAppData=')) ||
+    urlParams.has('tgWebAppPlatform') ||
+    urlParams.has('tgWebAppData') ||
+    urlParams.has('max_init_data')
+  )
+}
+
 export default function Home() {
   const [isWebApp, setIsWebApp] = useState<boolean | null>(null)
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
   const router = useRouter()
 
-  // 1. Immediate Auth Check
+  // 1. Немедленная проверка авторизации
   useEffect(() => {
-    const auth = typeof window !== 'undefined' && localStorage.getItem('prepodavai_authenticated') === 'true'
+    const auth = localStorage.getItem('prepodavai_authenticated') === 'true'
     setIsAuthenticated(auth)
-    
-    // Если мы уже авторизованы, не ждем Mini App SDK и редиректим сразу
     if (auth) {
       router.push('/dashboard')
     }
   }, [router])
 
-  // 2. WebApp Check (только если не авторизованы или для инициализации SDK)
+  // 2. Mini App detection + auto-login
   useEffect(() => {
-    const checkWebApp = async () => {
-      // 1. Быстрая проверка параметров URL
-      const urlParams = new URLSearchParams(window.location.search)
-      const hasParams = urlParams.has('tgWebAppPlatform') || 
-                       urlParams.has('max_init_data') || 
-                       urlParams.has('tgWebAppData') ||
-                       urlParams.has('init_data') ||
-                       urlParams.has('initData');
-      
-      if (hasParams) return true
-
-      // 2. Проверка SDK с коротким ожиданием (initData должен содержать hash)
-      const checkSDK = () => {
-        const tg = (window as any).Telegram?.WebApp
-        const max = (window as any).WebApp
-        return !!((tg?.initData && tg.initData.includes('hash=')) || (max?.initData && max.initData.includes('hash=')))
-      }
-
-      if (checkSDK()) return true
-
-      return new Promise<boolean>((resolve) => {
-        let attempts = 0
-        const interval = setInterval(() => {
-          attempts++
-          if (checkSDK()) {
-            clearInterval(interval)
-            resolve(true)
-          } else if (attempts >= 5) { 
-            clearInterval(interval)
-            resolve(false)
-          }
-        }, 50)
-      })
-    }
-
-    const performAutoLogin = async () => {
-      const urlParams = new URLSearchParams(window.location.search)
+    const run = async () => {
+      // Сразу вызываем ready() — MAX требует это как можно раньше
+      // (если не вызвать в течение 15 сек, приложение закроется)
       const tg = (window as any).Telegram?.WebApp
       const max = (window as any).WebApp
-      
-      const hasTgData = tg?.initData && tg.initData.includes('hash=')
-      const hasMaxData = max?.initData && max.initData.includes('hash=')
+      tg?.ready?.()
+      max?.ready?.()
 
-      let initData = hasTgData ? tg.initData : hasMaxData ? max.initData : null
-      let endpoint = hasTgData ? '/auth/validate-init-data' : '/auth/max/validate-init-data'
-      
-      if (!initData) {
-        const tgData = urlParams.get('tgWebAppData')
-        const maxData = urlParams.get('max_init_data')
-        const genericData = urlParams.get('init_data') || urlParams.get('initData')
+      // Проверяем, мы в mini app или нет
+      const isMiniApp = detectMiniApp()
 
-        if (tgData && tgData.includes('hash=')) {
-          initData = tgData
-          endpoint = '/auth/validate-init-data'
-        } else if (maxData && maxData.includes('hash=')) {
-          initData = maxData
-          endpoint = '/auth/max/validate-init-data'
-        } else if (genericData && genericData.includes('hash=')) {
-          initData = genericData
-          endpoint = urlParams.has('tgWebAppPlatform')
-            ? '/auth/validate-init-data'
-            : '/auth/max/validate-init-data'
-        }
+      if (!isMiniApp) {
+        // Ждём SDK немного (вдруг грузится асинхронно)
+        await new Promise<void>((resolve) => {
+          let attempts = 0
+          const interval = setInterval(() => {
+            attempts++
+            if (detectMiniApp()) {
+              clearInterval(interval)
+              resolve()
+            } else if (attempts >= 10) {
+              clearInterval(interval)
+              resolve()
+            }
+          }, 100)
+        })
       }
 
-      if (initData && endpoint) {
-        try {
-          const response = await apiClient.post(endpoint, { initData })
-          if (response.data.success) {
-            const { user } = response.data
-            localStorage.setItem('prepodavai_authenticated', 'true')
-            // Token is stored in httpOnly cookie by backend
-            localStorage.setItem('prepodavai_user', JSON.stringify({
-              name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.username || 'Пользователь',
-              username: user.username,
-              userHash: user.id,
-              isAuthenticated: true,
-              loginTime: new Date().toISOString()
-            }))
-            setIsAuthenticated(true)
-            router.push('/dashboard')
-            return true
-          }
-        } catch (e) {
-          console.error('[Home] Auto-login failed:', e)
-        }
+      const isApp = detectMiniApp()
+      setIsWebApp(isApp)
+
+      if (!isApp) return
+
+      // Повторно вызываем ready() после определения контекста
+      ;(window as any).Telegram?.WebApp?.ready?.()
+      ;(window as any).WebApp?.ready?.()
+
+      // Пробуем авто-логин
+      const { initData, endpoint } = extractInitData()
+
+      if (!initData || !endpoint) {
+        console.warn('[Home] Mini app detected but initData not found')
+        return
       }
-      return false
+
+      try {
+        const response = await apiClient.post(endpoint, { initData })
+        if (response.data.success) {
+          const { user } = response.data
+          localStorage.setItem('prepodavai_authenticated', 'true')
+          localStorage.setItem('prepodavai_user', JSON.stringify({
+            name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.username || 'Пользователь',
+            username: user.username,
+            userHash: user.id,
+            isAuthenticated: true,
+            loginTime: new Date().toISOString()
+          }))
+          setIsAuthenticated(true)
+          router.push('/dashboard')
+        }
+      } catch (e) {
+        console.error('[Home] Auto-login failed:', e)
+      }
     }
 
-    checkWebApp().then(async (isApp) => {
-      setIsWebApp(isApp)
-      if (isApp) {
-        const tg = (window as any).Telegram?.WebApp
-        const max = (window as any).WebApp
-        tg?.ready?.()
-        max?.ready?.()
-        
-        // Попытка авто-входа
-        const loggedIn = await performAutoLogin()
-        if (!loggedIn && !isAuthenticated) {
-          // Если авто-вход не удался, всё равно помечаем что мы в приложении
-          // чтобы LoadingPage или LandingPage могли подстроиться если нужно
-        }
-      }
-    })
+    run()
   }, [])
 
-  // Если мы авторизованы, показываем лоадер пока идет редирект
+  // Показываем лоадер пока авторизован и идёт редирект
   if (isAuthenticated === true) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -150,7 +179,7 @@ export default function Home() {
     )
   }
 
-  // Если идет проверка окружения
+  // Показываем лоадер пока идёт проверка окружения
   if (isWebApp === null || isAuthenticated === null) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -159,7 +188,6 @@ export default function Home() {
     )
   }
 
-  // Показываем лендинг только для гостей
+  // Гость — показываем лендинг
   return <LandingPage />
 }
-

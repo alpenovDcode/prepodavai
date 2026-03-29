@@ -39,9 +39,20 @@ export class WebhookAuthGuard implements CanActivate {
       return true;
     }
 
-    // No secret and no IP whitelist — reject in ALL environments
-    throw new UnauthorizedException(
-      'Webhook endpoints must be protected. Set WEBHOOK_SECRET or WEBHOOK_ALLOWED_IPS in environment variables.',
+    // No secret and no IP whitelist — reject in production, allow with warning in dev
+    const isProduction = this.configService.get<string>('NODE_ENV') === 'production';
+
+    if (isProduction) {
+      throw new UnauthorizedException(
+        'Webhook endpoints must be protected in production. Set WEBHOOK_SECRET or WEBHOOK_ALLOWED_IPS.',
+      );
+    }
+
+    // In development/test, allow but log a warning
+    console.warn(
+      'WARNING: Webhook endpoint accessed without protection (no WEBHOOK_SECRET or WEBHOOK_ALLOWED_IPS defined). ' +
+      'This is allowed only in non-production environments.',
     );
+    return true;
   }
 }

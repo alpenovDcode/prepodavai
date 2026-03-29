@@ -141,9 +141,9 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
     // ===== MOBILE / MINI APP LAYOUT =====
     if (isMobile || isMiniApp) {
         return (
-            <div className="min-h-screen bg-[#F9FAFB] pb-16">
+            <div className="h-screen bg-[#F9FAFB] flex flex-col overflow-hidden">
                 {/* Mobile header with menu toggle */}
-                <div className="sticky top-0 z-30 bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between shadow-sm">
+                <div className="flex-shrink-0 bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between shadow-sm z-30">
                     <button
                         onClick={() => setMobileMenuOpen(true)}
                         className="w-10 h-10 rounded-xl bg-gray-50 border border-gray-100 flex items-center justify-center hover:bg-gray-100 transition shadow-sm active:scale-95"
@@ -217,12 +217,12 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
                     </div>
                 )}
 
-                <main className="min-h-screen">
+                <main className="flex-1 overflow-hidden relative">
                     {children}
                 </main>
 
                 {/* Bottom Tab Bar */}
-                <nav className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-gray-100 z-50 safe-area-bottom shadow-[0_-4px_12px_rgba(0,0,0,0.03)]">
+                <nav className="flex-shrink-0 bg-white/95 backdrop-blur-md border-t border-gray-100 z-50 safe-area-bottom shadow-[0_-4px_12px_rgba(0,0,0,0.03)]">
                     <div className="flex justify-around items-center h-16 px-2">
                         {mobileNavItems.map((item) => {
                             const active = pathname === item.path || (item.path !== '/dashboard' && pathname.startsWith(item.path))

@@ -4,11 +4,69 @@ import { useState, useEffect } from 'react'
 import { apiClient } from '@/lib/api/client'
 
 /**
- * Хук для авто-логина из Telegram/MAX Mini App.
- * Если пользователь уже авторизован — возвращает { ready: true } мгновенно.
- * Если нет, но есть initData от SDK — выполняет авто-логин через бэкенд.
- * Если ни того ни другого — возвращает { ready: true, failed: true }.
+ * Читает initData из всех возможных источников:
+ * - window.WebApp.initData (MAX SDK)
+ * - window.Telegram.WebApp.initData (Telegram SDK)
+ * - URL hash фрагмент #WebAppData=... (MAX передаёт сюда)
+ * - URL query params (fallback)
  */
+function extractInitData(): { initData: string | null; endpoint: string | null } {
+  const tg = (window as any).Telegram?.WebApp
+  const max = (window as any).WebApp
+
+  if (tg?.initData && tg.initData.includes('hash=')) {
+    return { initData: tg.initData, endpoint: '/auth/validate-init-data' }
+  }
+
+  if (max?.initData && max.initData.includes('hash=')) {
+    return { initData: max.initData, endpoint: '/auth/max/validate-init-data' }
+  }
+
+  // MAX передаёт данные в URL-фрагменте: #WebAppData=...&WebAppPlatform=...
+  const hash = window.location.hash
+  if (hash && hash.includes('WebAppData=')) {
+    try {
+      const hashParams = new URLSearchParams(hash.slice(1))
+      const webAppData = hashParams.get('WebAppData')
+      if (webAppData) {
+        const decoded = decodeURIComponent(webAppData)
+        if (decoded.includes('hash=')) {
+          return { initData: decoded, endpoint: '/auth/max/validate-init-data' }
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  const urlParams = new URLSearchParams(window.location.search)
+  const tgData = urlParams.get('tgWebAppData')
+  if (tgData && tgData.includes('hash=')) {
+    return { initData: tgData, endpoint: '/auth/validate-init-data' }
+  }
+  const maxData = urlParams.get('max_init_data')
+  if (maxData && maxData.includes('hash=')) {
+    return { initData: maxData, endpoint: '/auth/max/validate-init-data' }
+  }
+
+  return { initData: null, endpoint: null }
+}
+
+function hasMiniAppContext(): boolean {
+  const tg = (window as any).Telegram?.WebApp
+  const max = (window as any).WebApp
+  const hash = window.location.hash
+  const urlParams = new URLSearchParams(window.location.search)
+  return !!(
+    tg?.initData ||
+    max?.initData ||
+    (hash && hash.includes('WebAppData=')) ||
+    urlParams.has('tgWebAppPlatform') ||
+    urlParams.has('tgWebAppData') ||
+    urlParams.has('max_init_data')
+  )
+}
+
 export function useMiniAppAuth() {
   const [ready, setReady] = useState(false)
   const [failed, setFailed] = useState(false)
@@ -20,52 +78,48 @@ export function useMiniAppAuth() {
       return
     }
 
-    const tryAutoLogin = async () => {
-      // Определяем SDK и initData
-      const tg = (window as any).Telegram?.WebApp
-      const max = (window as any).WebApp
-      const urlParams = new URLSearchParams(window.location.search)
+    const run = async () => {
+      // Сразу вызываем ready() — MAX требует это до показа контента
+      ;(window as any).Telegram?.WebApp?.ready?.()
+      ;(window as any).WebApp?.ready?.()
 
-      // initData должен быть непустой строкой с hash внутри
-      const hasTgData = tg?.initData && tg.initData.includes('hash=')
-      const hasMaxData = max?.initData && max.initData.includes('hash=')
-
-      let initData: string | null = hasTgData ? tg.initData : hasMaxData ? max.initData : null
-      let endpoint: string | null = null
-
-      if (hasTgData) {
-        endpoint = '/auth/validate-init-data'
-      } else if (hasMaxData) {
-        endpoint = '/auth/max/validate-init-data'
-      } else {
-        // Fallback на URL-параметры
-        const tgData = urlParams.get('tgWebAppData')
-        const maxData = urlParams.get('max_init_data')
-        const genericData = urlParams.get('init_data') || urlParams.get('initData')
-
-        if (tgData && tgData.includes('hash=')) {
-          initData = tgData
-          endpoint = '/auth/validate-init-data'
-        } else if (maxData && maxData.includes('hash=')) {
-          initData = maxData
-          endpoint = '/auth/max/validate-init-data'
-        } else if (genericData && genericData.includes('hash=')) {
-          initData = genericData
-          endpoint = urlParams.has('tgWebAppPlatform')
-            ? '/auth/validate-init-data'
-            : '/auth/max/validate-init-data'
-        }
+      // Если mini app контекст уже есть — пробуем сразу
+      if (!hasMiniAppContext()) {
+        // Ждём SDK максимум 1 секунду
+        await new Promise<void>((resolve) => {
+          let attempts = 0
+          const interval = setInterval(() => {
+            attempts++
+            if (hasMiniAppContext()) {
+              clearInterval(interval)
+              resolve()
+            } else if (attempts >= 10) {
+              clearInterval(interval)
+              resolve()
+            }
+          }, 100)
+        })
       }
 
-      if (!initData || !endpoint) {
+      if (!hasMiniAppContext()) {
+        // Не mini app — просто не авторизован
         setFailed(true)
         setReady(true)
         return
       }
 
-      // Вызываем ready() у SDK
-      tg?.ready?.()
-      max?.ready?.()
+      // Повторно вызываем ready() после того как SDK точно загружен
+      ;(window as any).Telegram?.WebApp?.ready?.()
+      ;(window as any).WebApp?.ready?.()
+
+      const { initData, endpoint } = extractInitData()
+
+      if (!initData || !endpoint) {
+        console.warn('[MiniAppAuth] Mini app detected but initData not found')
+        setFailed(true)
+        setReady(true)
+        return
+      }
 
       try {
         const response = await apiClient.post(endpoint, { initData })
@@ -90,31 +144,7 @@ export function useMiniAppAuth() {
       setReady(true)
     }
 
-    const checkSDK = () => {
-      const tg = (window as any).Telegram?.WebApp
-      const max = (window as any).WebApp
-      return !!((tg?.initData && tg.initData.includes('hash=')) || (max?.initData && max.initData.includes('hash=')))
-    }
-
-    if (checkSDK()) {
-      // SDK уже готов с валидным initData — логинимся
-      tryAutoLogin()
-    } else {
-      // Ждём SDK максимум 1.5 секунды (15 попыток по 100ms)
-      let attempts = 0
-      const interval = setInterval(() => {
-        attempts++
-        if (checkSDK()) {
-          clearInterval(interval)
-          tryAutoLogin()
-        } else if (attempts >= 15) {
-          clearInterval(interval)
-          // SDK не загрузился или нет initData — не mini app
-          setFailed(true)
-          setReady(true)
-        }
-      }, 100)
-    }
+    run()
   }, [])
 
   return { ready, failed }
