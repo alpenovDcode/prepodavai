@@ -24,16 +24,17 @@ export class AuthService {
    * Валидация Telegram initData с проверкой подписи
    */
   async validateTelegramInitData(initData: string) {
-    console.log('[Auth:TG] validateTelegramInitData called. initData length:', initData?.length || 0, 'preview:', initData ? `"${initData.substring(0, 120)}"` : '<empty>');
-
     const botToken = this.configService.get<string>('TELEGRAM_BOT_TOKEN');
 
     if (!botToken) {
       throw new UnauthorizedException('Bot token not configured');
     }
 
+    // Telegram SDK иногда передаёт &amp; вместо & (HTML-экранирование)
+    const cleanInitData = initData?.replace(/&amp;/g, '&') || '';
+
     // Парсим initData
-    const params = new URLSearchParams(initData);
+    const params = new URLSearchParams(cleanInitData);
     const hash = params.get('hash');
 
     if (!hash) {
@@ -125,8 +126,11 @@ export class AuthService {
       throw new UnauthorizedException('MAX Bot token not configured');
     }
 
+    // MAX SDK тоже может передать &amp; вместо &
+    const cleanInitData = initData?.replace(/&amp;/g, '&') || '';
+
     // Парсим initData
-    const params = new URLSearchParams(initData);
+    const params = new URLSearchParams(cleanInitData);
     const hash = params.get('hash');
 
     if (!hash) {
