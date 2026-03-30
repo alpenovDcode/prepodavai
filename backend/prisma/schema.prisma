@@ -183,7 +183,8 @@ model UserGeneration {
   // Связи
   user                AppUser  @relation(fields: [userId], references: [id])
   generationRequest   GenerationRequest @relation(fields: [generationRequestId], references: [id])
-  lesson              Lesson?  @relation(fields: [lessonId], references: [id])
+  lesson              Lesson?      @relation(fields: [lessonId], references: [id])
+  assignments         Assignment[]
 
   @@index([userId])
   @@index([status])
@@ -332,23 +333,26 @@ model Student {
 
 // Назначения (Задания)
 model Assignment {
-  id          String    @id @default(uuid())
-  classId     String?
-  studentId   String?
-  lessonId    String
-  status      String    @default("assigned") // assigned, submitted, graded
-  dueDate     DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id           String    @id @default(uuid())
+  classId      String?
+  studentId    String?
+  lessonId     String
+  generationId String?   // Optional: assign a specific generation instead of the whole lesson
+  status       String    @default("assigned") // assigned, submitted, graded
+  dueDate      DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
-  class       Class?    @relation(fields: [classId], references: [id])
-  student     Student?  @relation(fields: [studentId], references: [id])
-  lesson      Lesson    @relation(fields: [lessonId], references: [id])
-  submissions Submission[]
+  class        Class?          @relation(fields: [classId], references: [id])
+  student      Student?        @relation(fields: [studentId], references: [id])
+  lesson       Lesson          @relation(fields: [lessonId], references: [id])
+  generation   UserGeneration? @relation(fields: [generationId], references: [id])
+  submissions  Submission[]
 
   @@index([classId])
   @@index([studentId])
   @@index([lessonId])
+  @@index([generationId])
   @@map("assignments")
 }
 

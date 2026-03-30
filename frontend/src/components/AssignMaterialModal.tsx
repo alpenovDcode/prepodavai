@@ -18,10 +18,11 @@ interface AssignMaterialModalProps {
     isOpen: boolean
     onClose: () => void
     lessonId: string
+    generationId?: string
     onAssignSuccess?: () => void
 }
 
-export default function AssignMaterialModal({ isOpen, onClose, lessonId, onAssignSuccess }: AssignMaterialModalProps) {
+export default function AssignMaterialModal({ isOpen, onClose, lessonId, generationId, onAssignSuccess }: AssignMaterialModalProps) {
     const [classes, setClasses] = useState<Class[]>([])
     const [students, setStudents] = useState<Student[]>([])
     const [assignType, setAssignType] = useState<'class' | 'student'>('class')
@@ -61,7 +62,8 @@ export default function AssignMaterialModal({ isOpen, onClose, lessonId, onAssig
                 lessonId: lessonId,
                 classId: assignType === 'class' ? selectedTargetId : undefined,
                 studentId: assignType === 'student' ? selectedTargetId : undefined,
-                dueDate: dueDate ? new Date(dueDate).toISOString() : undefined
+                dueDate: dueDate ? new Date(dueDate).toISOString() : undefined,
+                generationId: generationId || undefined,
             })
             alert('Урок успешно выдан!')
             onClose()
@@ -83,7 +85,9 @@ export default function AssignMaterialModal({ isOpen, onClose, lessonId, onAssig
     return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 animate-fade-in">
             <div className="bg-white rounded-2xl p-8 max-w-md w-full shadow-2xl">
-                <h2 className="text-2xl font-bold text-gray-900 mb-6">Выдать урок</h2>
+                <h2 className="text-2xl font-bold text-gray-900 mb-6">
+                    {generationId ? 'Выдать материал' : 'Выдать урок'}
+                </h2>
                 <form onSubmit={handleAssignSubmit}>
                     <div className="mb-4">
                         <label className="block text-sm font-semibold text-gray-700 mb-2">

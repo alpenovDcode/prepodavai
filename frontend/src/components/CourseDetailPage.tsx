@@ -46,6 +46,7 @@ export default function CourseDetailPage({ id }: CourseDetailPageProps) {
 
     // Assignment Modal State
     const [showAssignModal, setShowAssignModal] = useState(false)
+    const [assignGenerationId, setAssignGenerationId] = useState<string | undefined>(undefined)
 
     useEffect(() => {
         const fetchLesson = async () => {
@@ -64,6 +65,13 @@ export default function CourseDetailPage({ id }: CourseDetailPageProps) {
     }, [id])
 
     const handleAssignClick = () => {
+        setAssignGenerationId(undefined)
+        setShowAssignModal(true)
+    }
+
+    const handleAssignGeneration = (e: React.MouseEvent, generationId: string) => {
+        e.stopPropagation()
+        setAssignGenerationId(generationId)
         setShowAssignModal(true)
     }
 
@@ -207,16 +215,26 @@ export default function CourseDetailPage({ id }: CourseDetailPageProps) {
                                     )}
 
                                     {generation.status === 'completed' && (
-                                        <button
-                                            className="p-2 text-gray-400 hover:text-primary-600 transition"
-                                            onClick={(e) => {
-                                                e.stopPropagation()
-                                                // Handle download logic here if needed, or just let the main click handle it
-                                                router.push(`/dashboard/courses/${lesson.id}/materials/${generation.id}`)
-                                            }}
-                                        >
-                                            <i className="fas fa-eye"></i>
-                                        </button>
+                                        <>
+                                            <button
+                                                className="p-2 text-gray-400 hover:text-primary-600 transition"
+                                                title="Просмотреть"
+                                                onClick={(e) => {
+                                                    e.stopPropagation()
+                                                    router.push(`/dashboard/courses/${lesson.id}/materials/${generation.id}`)
+                                                }}
+                                            >
+                                                <i className="fas fa-eye"></i>
+                                            </button>
+                                            <button
+                                                className="px-3 py-1.5 text-sm font-medium text-primary-600 border border-primary-200 hover:bg-primary-50 rounded-lg transition flex items-center gap-1.5"
+                                                title="Выдать этот материал ученику или классу"
+                                                onClick={(e) => handleAssignGeneration(e, generation.id)}
+                                            >
+                                                <i className="fas fa-paper-plane text-xs"></i>
+                                                Выдать
+                                            </button>
+                                        </>
                                     )}
                                 </div>
                             </div>
@@ -234,8 +252,9 @@ export default function CourseDetailPage({ id }: CourseDetailPageProps) {
             {lesson && (
                 <AssignMaterialModal
                     isOpen={showAssignModal}
-                    onClose={() => setShowAssignModal(false)}
+                    onClose={() => { setShowAssignModal(false); setAssignGenerationId(undefined) }}
                     lessonId={lesson.id}
+                    generationId={assignGenerationId}
                 />
             )}
         </div>

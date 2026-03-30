@@ -13,7 +13,7 @@ export class AssignmentsService {
 
   async createAssignment(
     userId: string,
-    data: { lessonId: string; classId?: string; studentId?: string; dueDate?: Date },
+    data: { lessonId: string; classId?: string; studentId?: string; dueDate?: Date; generationId?: string },
   ) {
     // Validate inputs
     if (!data.classId && !data.studentId) {
@@ -50,6 +50,7 @@ export class AssignmentsService {
         classId: data.classId,
         studentId: data.studentId,
         dueDate: data.dueDate,
+        generationId: data.generationId,
         status: 'assigned',
       },
     });
@@ -143,6 +144,14 @@ export class AssignmentsService {
     if (!isTeacher) {
       assignment.lesson.generations = assignment.lesson.generations.filter(
         (g) => !STUDENT_HIDDEN_TYPES.includes(g.generationType),
+      );
+    }
+
+    // If this assignment is for a specific generation, filter to show only that one
+    const generationId = (assignment as any).generationId as string | null;
+    if (generationId) {
+      assignment.lesson.generations = assignment.lesson.generations.filter(
+        (g) => g.id === generationId,
       );
     }
 

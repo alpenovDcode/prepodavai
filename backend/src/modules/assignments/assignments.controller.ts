@@ -10,7 +10,7 @@ export class AssignmentsController {
   @Post()
   create(
     @Request() req,
-    @Body() body: { lessonId: string; classId?: string; studentId?: string; dueDate?: string },
+    @Body() body: { lessonId: string; classId?: string; studentId?: string; dueDate?: string; generationId?: string },
   ) {
     return this.assignmentsService.createAssignment(req.user.id, {
       ...body,
