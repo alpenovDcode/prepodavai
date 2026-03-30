@@ -15,24 +15,51 @@ function computeQuizScore(html: string, formData: Record<string, any>): { correc
         const answerSection = doc.querySelector('.teacher-answers-only')
         if (!answerSection) return null
 
+        // Collect all radio groups from the full HTML to know total question count
+        const allRadios = Array.from(doc.querySelectorAll('input[type="radio"]'))
+        const radioGroups = new Set(allRadios.map(r => (r as HTMLInputElement).name).filter(Boolean))
+        if (radioGroups.size === 0) return null
+
         const answerText = answerSection.textContent || ''
-        // Parse "N. [A-D]" patterns (e.g. "1. B", "2. A")
-        const answerMap: Record<number, string> = {}
-        const pattern = /(\d+)\.\s*([A-Da-d])\b/g
-        let m: RegExpExecArray | null
-        while ((m = pattern.exec(answerText)) !== null) {
-            answerMap[parseInt(m[1])] = m[2].toUpperCase()
+
+        // Parse answer key - try multiple formats LLM might produce:
+        // "1. B", "1) B", "1: B", "1 - B", "1 — B", "1 – B", "1  B"
+        const answerMap: Record<string, string> = {}
+        const patterns = [
+            /(\d+)\s*[.)]\s*([A-Da-dА-Да-д])\b/g,   // 1. B  or  1) B
+            /(\d+)\s*[-–—]\s*([A-Da-dА-Да-д])\b/g,   // 1 - B  or  1 — B
+            /(\d+)\s*:\s*([A-Da-dА-Да-д])\b/g,        // 1: B
+        ]
+        for (const pat of patterns) {
+            let m: RegExpExecArray | null
+            pat.lastIndex = 0
+            while ((m = pat.exec(answerText)) !== null) {
+                answerMap[m[1]] = m[2].toUpperCase()
+            }
+            if (Object.keys(answerMap).length >= radioGroups.size) break
         }
         if (Object.keys(answerMap).length === 0) return null
 
+        const total = Math.max(Object.keys(answerMap).length, radioGroups.size)
         let correct = 0
-        const total = Object.keys(answerMap).length
+
         for (const [qNum, correctAnswer] of Object.entries(answerMap)) {
-            const n = parseInt(qNum)
-            const student = formData[`r__q${n}`]
-            if (student && String(student).toUpperCase() === correctAnswer) correct++
+            // Try common radio name patterns the LLM might have used
+            const candidateKeys = [
+                `r__q${qNum}`,
+                `r__question${qNum}`,
+                `r__q_${qNum}`,
+            ]
+            for (const key of candidateKeys) {
+                const student = formData[key]
+                if (student !== undefined) {
+                    if (String(student).toUpperCase() === correctAnswer) correct++
+                    break
+                }
+            }
         }
-        return { correct, total }
+
+        return { correct, total: Object.keys(answerMap).length }
     } catch {
         return null
     }
@@ -817,12 +844,23 @@ export default function StudentsPage() {
                                             <div className="p-6">
                                                 {(() => {
                                                     const generations = reviewDetails.assignment.generations || []
-                                                    const formData = selectedStudent.submission?.formData || {}
+                                                    const rawFormData = selectedStudent.submission?.formData || {}
+                                                    // formData may be keyed by generationId or be a flat dict
                                                     const scores = generations
                                                         .map(gen => {
                                                             const html = extractHtmlFromOutput(gen.outputData)
-                                                            const studentData = formData[gen.id]
-                                                            if (!html || !studentData) return null
+                                                            if (!html) return null
+                                                            // Try gen.id key first, then flat formData
+                                                            const studentData: Record<string, any> =
+                                                                (rawFormData as any)[gen.id] ||
+                                                                (typeof rawFormData === 'object' && !Object.values(rawFormData).some(v => typeof v === 'object' && v !== null)
+                                                                    ? rawFormData as Record<string, any>
+                                                                    : null)
+                                                            if (!studentData || Object.keys(studentData).length === 0) {
+                                                                console.log('[QuizScore] no studentData for gen', gen.id, 'formData keys:', Object.keys(rawFormData))
+                                                                return null
+                                                            }
+                                                            console.log('[QuizScore] studentData:', studentData)
                                                             return computeQuizScore(html, studentData)
                                                         })
                                                         .filter(Boolean) as { correct: number; total: number }[]
