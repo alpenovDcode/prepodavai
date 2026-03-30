@@ -20,22 +20,32 @@ export default function RootLayout({
     <html lang="ru">
       <head>
         <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" rel="stylesheet" />
-        <Script src="https://telegram.org/js/telegram-web-app.js" strategy="beforeInteractive" />
-        <Script src="https://st.max.ru/js/max-web-app.js" strategy="beforeInteractive" />
-        <Script id="webapp-init" strategy="beforeInteractive">
+        <Script src="https://telegram.org/js/telegram-web-app.js" strategy="afterInteractive" />
+        <Script src="https://st.max.ru/js/max-web-app.js" strategy="afterInteractive" />
+        <Script id="webapp-ready-poller" strategy="afterInteractive">
           {`
             (function() {
-              // Вызываем ready() как можно раньше чтобы MAX не закрыл приложение
-              // MAX ждёт ready() до 15 секунд, после — закрывает мини-апп
+              var called = false;
               function callReady() {
+                if (called) return;
                 try {
                   if (window.WebApp && typeof window.WebApp.ready === 'function') {
                     window.WebApp.ready();
+                    called = true;
+                  }
+                  if (window.Telegram && window.Telegram.WebApp && typeof window.Telegram.WebApp.ready === 'function') {
+                    window.Telegram.WebApp.ready();
                   }
                 } catch(e) {}
               }
+              // Пробуем сразу
               callReady();
-              document.addEventListener('DOMContentLoaded', callReady);
+              // Polling каждые 100мс пока SDK не загрузится (макс 5 сек)
+              var attempts = 0;
+              var interval = setInterval(function() {
+                callReady();
+                if (called || ++attempts >= 50) clearInterval(interval);
+              }, 100);
             })();
           `}
         </Script>
