@@ -11,7 +11,7 @@ import GenerationCostBadge from '@/components/workspace/GenerationCostBadge'
 export default function VideoAnalysisGenerator() {
     const [analysisType, setAnalysisType] = useState('sales')
     const [videoUrl, setVideoUrl] = useState('')
-    const [localContent, setLocalContent] = useState('<p>Укажите ссылку на видео и выберите тип анализа.</p>')
+    const [localContent, setLocalContent] = useState('')
     const [editMode, setEditMode] = useState(false)
     const [copied, setCopied] = useState(false)
     const iframeRef = useRef<HTMLIFrameElement>(null)
@@ -210,10 +210,10 @@ export default function VideoAnalysisGenerator() {
                 <div className="flex flex-col h-full bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
                     <div className="h-14 border-b border-gray-100 px-4 flex items-center justify-between bg-white flex-shrink-0">
                         <div className="flex items-center gap-2">
-                            <span className="text-xs font-bold tracking-wide text-gray-500">ОТЧЕТ ОБ АНАЛИЗЕ</span>
+                            <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-md text-[10px] font-bold tracking-wide uppercase">ОТЧЕТ ОБ АНАЛИЗЕ</span>
                         </div>
                         <div className="flex items-center gap-2">
-                            {localContent && !localContent.includes('Укажите ссылку') && !localContent.includes('Анализируем видеофайл') && (
+                            {localContent && !isGenerating && (
                                 <button
                                     onClick={toggleEditMode}
                                     className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${editMode
@@ -227,7 +227,7 @@ export default function VideoAnalysisGenerator() {
                             )}
                             <button
                                 onClick={handleCopy}
-                                disabled={!localContent || isGenerating || localContent.includes('Укажите ссылку')}
+                                disabled={!localContent || isGenerating}
                                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-gray-100 hover:bg-gray-200 rounded-lg transition-all disabled:opacity-40"
                             >
                                 <Copy className="w-3.5 h-3.5" />
@@ -235,7 +235,7 @@ export default function VideoAnalysisGenerator() {
                             </button>
                             <button
                                 onClick={handleDownloadPdf}
-                                disabled={!localContent || isGenerating || localContent.includes('Укажите ссылку')}
+                                disabled={!localContent || isGenerating}
                                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg transition-all disabled:opacity-40 ml-1"
                             >
                                 <Download className="w-3.5 h-3.5" />
@@ -248,10 +248,22 @@ export default function VideoAnalysisGenerator() {
                     </div>
                     <div className="flex-1 overflow-hidden relative bg-white">
                         {isGenerating ? (
-                            <div className="flex flex-col items-center justify-center h-full gap-4 text-gray-500">
-                                <Loader2 className="w-10 h-10 animate-spin text-indigo-500" />
-                                <p className="font-medium">Анализируем видео...</p>
-                                <p className="text-sm text-gray-400">Пожалуйста, подождите.</p>
+                            <div className="flex flex-col items-center justify-center h-full gap-4 text-gray-500 p-6 text-center">
+                                <Loader2 className="w-12 h-12 animate-spin text-indigo-500" />
+                                <div className="space-y-1">
+                                    <p className="font-bold text-gray-900">Анализируем видео...</p>
+                                    <p className="text-sm text-gray-400">Пожалуйста, подождите.</p>
+                                </div>
+                            </div>
+                        ) : !localContent ? (
+                            <div className="flex flex-col items-center justify-center h-full gap-4 text-gray-400 p-6 text-center">
+                                <div className="w-16 h-16 rounded-2xl bg-gray-50 flex items-center justify-center">
+                                    <Video className="w-8 h-8 text-gray-200" />
+                                </div>
+                                <div className="space-y-1">
+                                    <p className="font-bold text-gray-600">Готов к работе</p>
+                                    <p className="text-sm">Укажите ссылку на видео и нажмите «Анализировать»</p>
+                                </div>
                             </div>
                         ) : editMode ? (
                             <RichTextEditor

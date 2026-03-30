@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
-import { MessageCircle, RefreshCw, Loader2, Maximize2 } from 'lucide-react'
+import { useState, useRef, useEffect } from 'react'
+import DOMPurify from 'isomorphic-dompurify'
+import { MessageCircle, RefreshCw, Loader2, Copy, Download, Edit3, Eye } from 'lucide-react'
 import { useGenerations } from '@/lib/hooks/useGenerations'
 import RichTextEditor from '@/components/workspace/RichTextEditor'
 import GenerationCostBadge from '@/components/workspace/GenerationCostBadge'
@@ -10,7 +11,9 @@ export default function FeedbackGenerator() {
     const [taskType, setTaskType] = useState('')
     const [studentWork, setStudentWork] = useState('')
     const [level, setLevel] = useState('')
-    const [localContent, setLocalContent] = useState('<p>Введите текст работы ученика и тип задания для получения подробного фидбека.</p>')
+    const [localContent, setLocalContent] = useState('')
+    const [editMode, setEditMode] = useState(false)
+    const iframeRef = useRef<HTMLIFrameElement>(null)
 
     const { generateAndWait, isGenerating } = useGenerations()
 
@@ -18,12 +21,8 @@ export default function FeedbackGenerator() {
         if (!studentWork || !taskType) return;
 
         try {
-            setLocalContent('<p>Генерируем фидбек...</p>')
-            const params = {
-                taskType,
-                studentWork,
-                level
-            }
+            setEditMode(false)
+            const params = { taskType, studentWork, level }
 
             const status = await generateAndWait({ type: 'feedback', params })
             const resultData = status.result?.content || status.result
@@ -40,6 +39,36 @@ export default function FeedbackGenerator() {
             setLocalContent(`<p class="text-red-500">Ошибка при генерации фидбека: ${e.message}</p>`)
         }
     }
+
+    const toggleEditMode = () => setEditMode(!editMode)
+
+    const handleCopy = () => {
+        const tempDiv = document.createElement('div')
+        tempDiv.innerHTML = DOMPurify.sanitize(localContent)
+        navigator.clipboard.writeText(tempDiv.innerText || tempDiv.textContent || '')
+    }
+
+    const exportPDF = () => {
+        const autoPrint = `<script>window.onload=function(){setTimeout(function(){window.print()},600)}<\/script>`
+        const html = /<\/head>/i.test(localContent)
+            ? localContent.replace(/<\/head>/i, `${autoPrint}</head>`)
+            : `<!DOCTYPE html><html><head><meta charset="utf-8">${autoPrint}</head><body>${localContent}</body></html>`
+        const win = window.open('', '_blank')
+        if (!win) { alert('Разрешите всплывающие окна для этого сайта'); return }
+        win.document.open(); win.document.write(html); win.document.close()
+    }
+
+    useEffect(() => {
+        if (!editMode && iframeRef.current && localContent) {
+            const iframeDoc = iframeRef.current.contentDocument
+            if (iframeDoc) {
+                const handleClick = () => setEditMode(true)
+                iframeDoc.body.addEventListener('click', handleClick)
+                iframeDoc.body.style.cursor = 'text'
+                return () => { iframeDoc.body.removeEventListener('click', handleClick) }
+            }
+        }
+    }, [editMode, localContent])
 
     return (
         <div className="flex w-full h-full bg-[#F9FAFB]">
@@ -115,23 +144,68 @@ export default function FeedbackGenerator() {
             {/* Editor Area */}
             <div className="flex-1 flex flex-col min-w-0 bg-[#F9FAFB] relative px-4 py-4 md:px-8 md:py-8 overflow-hidden h-full">
                 <div className="flex flex-col h-full bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-                    <div className="h-14 border-b border-gray-100 px-4 flex items-center justify-between bg-white flex-shrink-0">
+                    <div className="h-14 md:h-16 border-b border-gray-100 px-3 md:px-5 flex items-center justify-between bg-white flex-shrink-0">
                         <div className="flex items-center gap-2">
-                            <span className="text-xs font-bold tracking-wide text-gray-500">РЕЗУЛЬТАТ АДАПТАЦИИ</span>
+                            <span className="px-2 py-0.5 bg-orange-50 text-orange-700 rounded-md text-[10px] font-bold tracking-wide uppercase">ФИДБЕК</span>
                         </div>
-                        <div className="flex items-center gap-2">
-                            <button className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded-lg transition-colors">
-                                <Maximize2 className="w-4 h-4" />
+                        <div className="flex items-center gap-1.5 md:gap-2">
+                            {localContent && (
+                                <button
+                                    onClick={toggleEditMode}
+                                    className={`flex items-center gap-1.5 px-3 py-2 text-[11px] font-bold rounded-lg transition-all flex-shrink-0 ${editMode
+                                        ? 'bg-orange-100 text-orange-700 hover:bg-orange-200'
+                                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                    }`}
+                                >
+                                    {editMode ? <Eye className="w-3.5 h-3.5" /> : <Edit3 className="w-3.5 h-3.5" />}
+                                    <span className="hidden xs:inline">{editMode ? 'Просмотр' : 'Править'}</span>
+                                </button>
+                            )}
+                            <button onClick={handleCopy} className="p-2 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0" title="Скопировать">
+                                <Copy className="w-4 h-4" />
+                            </button>
+                            <button
+                                onClick={exportPDF}
+                                className="flex items-center gap-2 px-3 md:px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white text-[11px] font-bold rounded-lg shadow-sm transition-all active:scale-[0.98] ml-1 flex-shrink-0"
+                            >
+                                <Download className="w-3.5 h-3.5" />
+                                <span>PDF</span>
                             </button>
                         </div>
                     </div>
                     <div className="flex-1 overflow-hidden relative bg-white">
-                        <div className="absolute inset-0">
+                        {isGenerating ? (
+                            <div className="flex flex-col items-center justify-center h-full gap-4 text-gray-500 p-6 text-center">
+                                <Loader2 className="w-12 h-12 animate-spin text-orange-500" />
+                                <div className="space-y-1">
+                                    <p className="font-bold text-gray-900">Генерируем фидбек...</p>
+                                    <p className="text-sm text-gray-400">Это может занять 15–30 секунд</p>
+                                </div>
+                            </div>
+                        ) : !localContent ? (
+                            <div className="flex flex-col items-center justify-center h-full gap-4 text-gray-400 p-6 text-center">
+                                <div className="w-16 h-16 rounded-2xl bg-gray-50 flex items-center justify-center">
+                                    <MessageCircle className="w-8 h-8 text-gray-200" />
+                                </div>
+                                <div className="space-y-1">
+                                    <p className="font-bold text-gray-600">Готов к работе</p>
+                                    <p className="text-sm">Введите текст работы ученика и нажмите «Сгенерировать»</p>
+                                </div>
+                            </div>
+                        ) : editMode ? (
                             <RichTextEditor
                                 content={localContent}
                                 onChange={setLocalContent}
                             />
-                        </div>
+                        ) : (
+                            <iframe
+                                ref={iframeRef}
+                                srcDoc={localContent}
+                                className="w-full h-full border-0 bg-white"
+                                title="Feedback Output"
+                                sandbox="allow-scripts allow-popups allow-modals"
+                            />
+                        )}
                     </div>
                 </div>
             </div>
