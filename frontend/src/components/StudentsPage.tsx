@@ -7,6 +7,37 @@ import DOMPurify from 'isomorphic-dompurify'
 import Image from 'next/image'
 import InteractiveHtmlViewer, { extractHtmlFromOutput } from '@/components/InteractiveHtmlViewer'
 
+/** Сравнивает ответы ученика с ключом ответов из HTML теста */
+function computeQuizScore(html: string, formData: Record<string, any>): { correct: number; total: number } | null {
+    try {
+        const parser = new DOMParser()
+        const doc = parser.parseFromString(html, 'text/html')
+        const answerSection = doc.querySelector('.teacher-answers-only')
+        if (!answerSection) return null
+
+        const answerText = answerSection.textContent || ''
+        // Parse "N. [A-D]" patterns (e.g. "1. B", "2. A")
+        const answerMap: Record<number, string> = {}
+        const pattern = /(\d+)\.\s*([A-Da-d])\b/g
+        let m: RegExpExecArray | null
+        while ((m = pattern.exec(answerText)) !== null) {
+            answerMap[parseInt(m[1])] = m[2].toUpperCase()
+        }
+        if (Object.keys(answerMap).length === 0) return null
+
+        let correct = 0
+        const total = Object.keys(answerMap).length
+        for (const [qNum, correctAnswer] of Object.entries(answerMap)) {
+            const n = parseInt(qNum)
+            const student = formData[`r__q${n}`]
+            if (student && String(student).toUpperCase() === correctAnswer) correct++
+        }
+        return { correct, total }
+    } catch {
+        return null
+    }
+}
+
 interface Class {
     id: string
     name: string
@@ -784,6 +815,32 @@ export default function StudentsPage() {
 
                                             {/* Grading section */}
                                             <div className="p-6">
+                                                {(() => {
+                                                    const generations = reviewDetails.assignment.generations || []
+                                                    const formData = selectedStudent.submission?.formData || {}
+                                                    const scores = generations
+                                                        .map(gen => {
+                                                            const html = extractHtmlFromOutput(gen.outputData)
+                                                            const studentData = formData[gen.id]
+                                                            if (!html || !studentData) return null
+                                                            return computeQuizScore(html, studentData)
+                                                        })
+                                                        .filter(Boolean) as { correct: number; total: number }[]
+                                                    if (scores.length === 0) return null
+                                                    const totalCorrect = scores.reduce((s, r) => s + r.correct, 0)
+                                                    const totalQuestions = scores.reduce((s, r) => s + r.total, 0)
+                                                    const pct = Math.round((totalCorrect / totalQuestions) * 100)
+                                                    const color = pct >= 80 ? 'bg-green-50 border-green-200 text-green-800' : pct >= 50 ? 'bg-yellow-50 border-yellow-200 text-yellow-800' : 'bg-red-50 border-red-200 text-red-800'
+                                                    return (
+                                                        <div className={`flex items-center gap-3 px-4 py-3 rounded-xl border mb-5 ${color}`}>
+                                                            <div className="text-2xl font-black">{totalCorrect}/{totalQuestions}</div>
+                                                            <div>
+                                                                <p className="text-xs font-semibold uppercase tracking-wide opacity-70">Правильных ответов</p>
+                                                                <p className="text-sm font-bold">{pct}%</p>
+                                                            </div>
+                                                        </div>
+                                                    )
+                                                })()}
                                                 <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">Оценка и комментарий</h3>
 
                                                 <div className="mb-5">
