@@ -20,6 +20,54 @@ import {
 } from 'lucide-react'
 import InteractiveHtmlViewer, { extractHtmlFromOutput } from '@/components/InteractiveHtmlViewer'
 
+/** Сравнивает ответы ученика с ключом ответов из HTML теста */
+function computeQuizScore(html: string, formData: Record<string, any>): { correct: number; total: number } | null {
+    try {
+        const parser = new DOMParser()
+        const doc = parser.parseFromString(html, 'text/html')
+        const answerSection = doc.querySelector('.teacher-answers-only')
+        if (!answerSection) return null
+
+        // Count total radio groups in the full document
+        const allRadios = Array.from(doc.querySelectorAll('input[type="radio"]'))
+        const radioGroups = Array.from(new Set(allRadios.map(r => (r as HTMLInputElement).name).filter(Boolean)))
+        if (radioGroups.length === 0) return null
+
+        const answerText = answerSection.textContent || ''
+        // Try multiple answer key formats: "1. B", "1) B", "1 - B", "1: B"
+        const answerMap: Record<string, string> = {}
+        const patterns = [
+            /(\d+)\s*[.)]\s*([A-Da-dА-Да-д])\b/g,
+            /(\d+)\s*[-–—]\s*([A-Da-dА-Да-д])\b/g,
+            /(\d+)\s*:\s*([A-Da-dА-Да-д])\b/g,
+        ]
+        for (const pat of patterns) {
+            pat.lastIndex = 0
+            let m: RegExpExecArray | null
+            while ((m = pat.exec(answerText)) !== null) {
+                answerMap[m[1]] = m[2].toUpperCase()
+            }
+            if (Object.keys(answerMap).length >= radioGroups.length) break
+        }
+        if (Object.keys(answerMap).length === 0) return null
+
+        let correct = 0
+        const total = Object.keys(answerMap).length
+        for (const [qNum, correctAnswer] of Object.entries(answerMap)) {
+            // Try radio key patterns the generated HTML might use
+            for (const key of [`r__q${qNum}`, `r__question${qNum}`, `r__q_${qNum}`]) {
+                if (formData[key] !== undefined) {
+                    if (String(formData[key]).toUpperCase() === correctAnswer) correct++
+                    break
+                }
+            }
+        }
+        return { correct, total }
+    } catch {
+        return null
+    }
+}
+
 // Layout has 3 views: 
 // 1. Classes List
 // 2. Class Assignments (when class is selected)
@@ -503,6 +551,51 @@ export default function HomeworkReviewPage() {
                             </div>
 
                             <div className="p-6">
+                                {(() => {
+                                    const generations = assignmentDetails.assignment.generations || []
+                                    const rawFormData = selectedStudentStatus.submission?.formData || {}
+                                    const scores = generations.map(gen => {
+                                        const html = extractHtmlFromOutput(gen.outputData)
+                                        if (!html) return null
+                                        const studentData: Record<string, any> =
+                                            (rawFormData as any)[gen.id] ||
+                                            (Object.values(rawFormData).every(v => typeof v !== 'object' || v === null)
+                                                ? rawFormData as Record<string, any>
+                                                : null)
+                                        if (!studentData || Object.keys(studentData).length === 0) return null
+                                        return computeQuizScore(html, studentData)
+                                    }).filter(Boolean) as { correct: number; total: number }[]
+
+                                    if (scores.length === 0) return null
+                                    const totalCorrect = scores.reduce((s, r) => s + r.correct, 0)
+                                    const totalQ = scores.reduce((s, r) => s + r.total, 0)
+                                    const pct = Math.round((totalCorrect / totalQ) * 100)
+                                    const colorClass = pct >= 80
+                                        ? 'bg-green-50 border-green-200 text-green-800'
+                                        : pct >= 50
+                                        ? 'bg-yellow-50 border-yellow-200 text-yellow-800'
+                                        : 'bg-red-50 border-red-200 text-red-800'
+                                    const wrong = totalQ - totalCorrect
+                                    return (
+                                        <div className={`flex items-center gap-4 px-5 py-4 rounded-xl border mb-5 ${colorClass}`}>
+                                            <div className="text-3xl font-black">{totalCorrect}/{totalQ}</div>
+                                            <div className="flex-1">
+                                                <p className="text-xs font-semibold uppercase tracking-wide opacity-60 mb-1">Результат теста</p>
+                                                <div className="flex items-center gap-3 text-sm font-bold">
+                                                    <span className="flex items-center gap-1">
+                                                        <CheckCircle size={14} className="text-green-600" />
+                                                        {totalCorrect} верно
+                                                    </span>
+                                                    <span className="flex items-center gap-1">
+                                                        <XCircle size={14} className="text-red-500" />
+                                                        {wrong} неверно
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <div className="text-2xl font-black opacity-80">{pct}%</div>
+                                        </div>
+                                    )
+                                })()}
                                 <h3 className="text-lg font-bold text-gray-900 mb-4">Оценка и комментарий</h3>
                                 
                                 <div className="mb-6">
