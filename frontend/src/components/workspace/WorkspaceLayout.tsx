@@ -20,6 +20,7 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
     const { user, fullName, initials, loading: userLoading } = useUser()
     const { subscription, loading: subLoading } = useSubscription()
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+    const [avatarError, setAvatarError] = useState(false)
 
     const tools = [
         { id: 'hub', label: 'Главная панель', icon: LayoutTemplate, path: '/workspace' },
@@ -298,13 +299,14 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
                         </button>
                     </div>
                     <div
-                        onClick={() => router.push('/dashboard/profile')}
+                        onClick={() => router.push('/dashboard/settings')}
                         className="flex items-center gap-3 px-3 py-3 rounded-2xl bg-white border border-gray-100 shadow-sm hover:shadow-md hover:border-primary-100 cursor-pointer transition-all group"
                     >
-                        {user?.avatar ? (
+                        {user?.avatar && !avatarError ? (
                             <img
                                 src={user.avatar}
                                 alt={fullName}
+                                onError={() => setAvatarError(true)}
                                 className="w-9 h-9 rounded-full object-cover shrink-0 ring-2 ring-gray-50 group-hover:ring-primary-50 transition-all"
                             />
                         ) : (
