@@ -574,30 +574,32 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
         container.appendChild(tmp)
 
         document.body.appendChild(container)
-        await new Promise(r => setTimeout(r, 400))
+        await new Promise(r => setTimeout(r, 150))
 
         try {
             const canvas = await html2canvas(container, {
                 width: W, height: H, scale: 1, useCORS: true, allowTaint: true,
-                windowWidth: W, windowHeight: H, logging: false, imageTimeout: 8000,
+                windowWidth: W, windowHeight: H, logging: false, imageTimeout: 5000,
             })
-            return canvas.toDataURL('image/jpeg', 0.92)
+            return canvas.toDataURL('image/jpeg', 0.88)
         } finally {
             try { document.body.removeChild(container) } catch (_) { }
         }
     }
+
+    const captureAllSlides = () => Promise.all(htmlSlides.map(s => captureSlideAsImage(s)))
 
     const downloadPDF = async () => {
         if (!htmlSlides.length) return
         setIsExporting(true)
         setShowDownloadMenu(false)
         try {
+            const images = await captureAllSlides()
             const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: [297, 167.25] })
-            for (let i = 0; i < htmlSlides.length; i++) {
+            images.forEach((imgData, i) => {
                 if (i > 0) pdf.addPage([297, 167.25], 'landscape')
-                const imgData = await captureSlideAsImage(htmlSlides[i])
                 pdf.addImage(imgData, 'JPEG', 0, 0, 297, 167.25)
-            }
+            })
             pdf.save(`${lessonTitle || 'presentation'}.pdf`)
         } catch (e) { console.error('PDF export failed', e) }
         setIsExporting(false)
@@ -608,14 +610,16 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
         setIsExporting(true)
         setShowDownloadMenu(false)
         try {
-            const PptxGenJS = (await import('pptxgenjs')).default
+            const [images, PptxGenJS] = await Promise.all([
+                captureAllSlides(),
+                import('pptxgenjs').then(m => m.default),
+            ])
             const prs = new PptxGenJS()
             prs.layout = 'LAYOUT_16x9'
-            for (const slide of htmlSlides) {
-                const imgData = await captureSlideAsImage(slide)
+            images.forEach(imgData => {
                 const prsSlide = prs.addSlide()
                 prsSlide.addImage({ data: imgData, x: 0, y: 0, w: 10, h: 5.625 })
-            }
+            })
             await prs.writeFile({ fileName: `${lessonTitle || 'presentation'}.pptx` })
         } catch (e) { console.error('PPTX export failed', e) }
         setIsExporting(false)

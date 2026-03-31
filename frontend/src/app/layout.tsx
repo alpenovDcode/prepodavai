@@ -4,7 +4,7 @@ import './globals.css'
 import { Providers } from './providers'
 import Script from 'next/script'
 
-const inter = Inter({ subsets: ['latin', 'cyrillic'] })
+const inter = Inter({ subsets: ['latin', 'cyrillic'], display: 'swap' })
 
 export const metadata: Metadata = {
   title: 'PrepodavAI - AI Tutor Copilot',
@@ -55,13 +55,19 @@ export default function RootLayout({
               const originalLog = console.log;
               const originalInfo = console.info;
               const originalWarn = console.warn;
-              
+              const originalError = console.error;
+
               function shouldSuppress(args) {
-                const msg = args[0];
-                return typeof msg === 'string' && (
-                  msg.includes('[Telegram.WebView]') || 
+                const msg = String(args[0] || '');
+                return (
+                  msg.includes('[Telegram.WebView]') ||
                   msg.includes('Telegram WebApp') ||
-                  msg.includes('Max WebApp')
+                  msg.includes('Max WebApp') ||
+                  msg.includes('[WebApp]') ||
+                  msg.includes('WebAppReady') ||
+                  msg.includes('WebApp готово к работе') ||
+                  msg.includes('max-web-app') ||
+                  msg.includes('telegram-web-app')
                 );
               }
 
@@ -71,10 +77,9 @@ export default function RootLayout({
               console.info = function(...args) {
                 if (!shouldSuppress(args)) originalInfo.apply(console, args);
               };
-              // Не подавляем warn/error, если только пользователь не попросил
-              // console.warn = function(...args) {
-              //   if (!shouldSuppress(args)) originalWarn.apply(console, args);
-              // };
+              console.warn = function(...args) {
+                if (!shouldSuppress(args)) originalWarn.apply(console, args);
+              };
             })();
           `}
         </Script>
