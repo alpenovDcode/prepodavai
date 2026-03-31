@@ -571,14 +571,13 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
             const W = 1280, H = 720
             const frame = document.createElement('iframe')
             frame.style.cssText = `position:fixed;left:-9999px;top:0;width:${W}px;height:${H}px;border:none;pointer-events:none;z-index:-1`
-            frame.setAttribute('sandbox', 'allow-same-origin')
-            frame.srcdoc = buildCaptureSrcDoc(slide)
-            document.body.appendChild(frame)
+            frame.setAttribute('sandbox', 'allow-scripts allow-same-origin')
             const cleanup = () => { try { document.body.removeChild(frame) } catch (_) { } }
             const timeout = setTimeout(() => { cleanup(); reject(new Error('Timeout')) }, 15000)
+            // Set onload BEFORE appending to DOM to avoid race condition
             frame.onload = async () => {
                 try {
-                    await new Promise(r => setTimeout(r, 400))
+                    await new Promise(r => setTimeout(r, 600))
                     const body = frame.contentDocument?.body
                     if (!body) throw new Error('No body')
                     const canvas = await h2c(body, { width: W, height: H, scale: 1, useCORS: true, allowTaint: true, windowWidth: W, windowHeight: H, logging: false, imageTimeout: 8000 })
@@ -587,6 +586,8 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
                     resolve(canvas.toDataURL('image/jpeg', 0.92))
                 } catch (e) { clearTimeout(timeout); cleanup(); reject(e) }
             }
+            frame.srcdoc = buildCaptureSrcDoc(slide)
+            document.body.appendChild(frame)
         })
     }
 
@@ -769,7 +770,7 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
                                         <iframe
                                             srcDoc={buildThumbSrc(s)}
                                             className="pointer-events-none"
-                                            sandbox="allow-scripts allow-same-origin"
+                                            sandbox="allow-scripts"
                                             style={{ transform: 'scale(0.25)', transformOrigin: 'top left', width: '400%', height: '400%', display: 'block' }}
                                         />
                                         <span className="absolute bottom-1.5 right-1.5 text-white text-[10px] font-bold bg-black/50 rounded px-1.5 py-0.5">{i + 1}</span>

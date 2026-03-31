@@ -483,14 +483,13 @@ ${css}
             const W = 1280, H = 720
             const frame = document.createElement('iframe')
             frame.style.cssText = `position:fixed;left:-9999px;top:0;width:${W}px;height:${H}px;border:none;pointer-events:none;z-index:-1`
-            frame.setAttribute('sandbox', 'allow-same-origin')  // allow-same-origin needed to access contentDocument; scripts already stripped
-            frame.srcdoc = buildCaptureSrcDoc(slide)
-            document.body.appendChild(frame)
+            frame.setAttribute('sandbox', 'allow-scripts allow-same-origin')
             const cleanup = () => { try { document.body.removeChild(frame) } catch (_) { } }
             const timeout = setTimeout(() => { cleanup(); reject(new Error('Timeout')) }, 15000)
+            // Set onload BEFORE appending to avoid race condition
             frame.onload = async () => {
                 try {
-                    await new Promise(r => setTimeout(r, 400)) // Let CSS/animations settle
+                    await new Promise(r => setTimeout(r, 600)) // Let CSS/animations settle
                     const body = frame.contentDocument?.body
                     if (!body) throw new Error('No body')
                     const canvas = await h2c(body, {
@@ -508,6 +507,8 @@ ${css}
                     resolve(canvas.toDataURL('image/jpeg', 0.92))
                 } catch (e) { clearTimeout(timeout); cleanup(); reject(e) }
             }
+            frame.srcdoc = buildCaptureSrcDoc(slide)
+            document.body.appendChild(frame)
         })
     }
 
