@@ -571,7 +571,7 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
             const W = 1280, H = 720
             const frame = document.createElement('iframe')
             frame.style.cssText = `position:fixed;left:-9999px;top:0;width:${W}px;height:${H}px;border:none;pointer-events:none;z-index:-1`
-            frame.setAttribute('sandbox', 'allow-scripts allow-same-origin')
+            frame.setAttribute('sandbox', 'allow-same-origin')
             const cleanup = () => { try { document.body.removeChild(frame) } catch (_) { } }
             const timeout = setTimeout(() => { cleanup(); reject(new Error('Timeout')) }, 15000)
             // Set onload BEFORE appending to DOM to avoid race condition
