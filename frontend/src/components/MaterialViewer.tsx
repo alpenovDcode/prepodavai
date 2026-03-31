@@ -282,6 +282,8 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
     const [isHtmlResult, setIsHtmlResult] = useState(false)
     const [cleanedTextResult, setCleanedTextResult] = useState('')
     const [isDownloading, setIsDownloading] = useState(false)
+    const [isExporting, setIsExporting] = useState(false)
+    const [showDownloadMenu, setShowDownloadMenu] = useState(false)
     const router = useRouter()
     const editorRef = useRef<PresentationEditorRef>(null)
     const contentRef = useRef<HTMLDivElement>(null)
@@ -555,6 +557,74 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
     const slides: any[] = presentationData?.slides || (Array.isArray(presentationData) ? presentationData : [])
     const isHtmlSlides = slides.length > 0 && typeof slides[0]?.html === 'string'
 
+    const buildCaptureSrcDoc = (slide: any): string => {
+        const tmp = document.createElement('div')
+        tmp.innerHTML = DOMPurify.sanitize(slide.html || '', { FORBID_TAGS: ['script'] })
+        const cleanHtml = tmp.innerHTML
+        const css = slide.css?.trim() || 'body{background:#1a1a2e;color:#fff;}'
+        return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*,*::before,*::after{box-sizing:border-box}html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;font-family:'Segoe UI',system-ui,sans-serif}${css}</style></head><body>${cleanHtml}</body></html>`
+    }
+
+    const captureSlideAsImage = (slide: any): Promise<string> => {
+        return new Promise(async (resolve, reject) => {
+            const h2c = (await import('html2canvas')).default
+            const W = 1280, H = 720
+            const frame = document.createElement('iframe')
+            frame.style.cssText = `position:fixed;left:-9999px;top:0;width:${W}px;height:${H}px;border:none;pointer-events:none;z-index:-1`
+            frame.setAttribute('sandbox', 'allow-same-origin')
+            frame.srcdoc = buildCaptureSrcDoc(slide)
+            document.body.appendChild(frame)
+            const cleanup = () => { try { document.body.removeChild(frame) } catch (_) { } }
+            const timeout = setTimeout(() => { cleanup(); reject(new Error('Timeout')) }, 15000)
+            frame.onload = async () => {
+                try {
+                    await new Promise(r => setTimeout(r, 400))
+                    const body = frame.contentDocument?.body
+                    if (!body) throw new Error('No body')
+                    const canvas = await h2c(body, { width: W, height: H, scale: 1, useCORS: true, allowTaint: true, windowWidth: W, windowHeight: H, logging: false, imageTimeout: 8000 })
+                    clearTimeout(timeout)
+                    cleanup()
+                    resolve(canvas.toDataURL('image/jpeg', 0.92))
+                } catch (e) { clearTimeout(timeout); cleanup(); reject(e) }
+            }
+        })
+    }
+
+    const downloadPDF = async () => {
+        if (!htmlSlides.length) return
+        setIsExporting(true)
+        setShowDownloadMenu(false)
+        try {
+            const { jsPDF: JsPDF } = await import('jspdf')
+            const pdf = new JsPDF({ orientation: 'landscape', unit: 'mm', format: [297, 167.25] })
+            for (let i = 0; i < htmlSlides.length; i++) {
+                if (i > 0) pdf.addPage([297, 167.25], 'landscape')
+                const imgData = await captureSlideAsImage(htmlSlides[i])
+                pdf.addImage(imgData, 'JPEG', 0, 0, 297, 167.25)
+            }
+            pdf.save(`${lessonTitle || 'presentation'}.pdf`)
+        } catch (e) { console.error('PDF export failed', e) }
+        setIsExporting(false)
+    }
+
+    const downloadPPTX = async () => {
+        if (!htmlSlides.length) return
+        setIsExporting(true)
+        setShowDownloadMenu(false)
+        try {
+            const PptxGenJS = (await import('pptxgenjs')).default
+            const prs = new PptxGenJS()
+            prs.layout = 'LAYOUT_16x9'
+            for (const slide of htmlSlides) {
+                const imgData = await captureSlideAsImage(slide)
+                const prsSlide = prs.addSlide()
+                prsSlide.addImage({ data: imgData, x: 0, y: 0, w: 10, h: 5.625 })
+            }
+            await prs.writeFile({ fileName: `${lessonTitle || 'presentation'}.pptx` })
+        } catch (e) { console.error('PPTX export failed', e) }
+        setIsExporting(false)
+    }
+
     const handleSave = async (updatedSlides: any[]) => {
         if (!generationId) return;
         try {
@@ -598,6 +668,14 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
         }
     }
 
+    // Close download menu on outside click
+    useEffect(() => {
+        if (!showDownloadMenu) return
+        const handler = () => setShowDownloadMenu(false)
+        document.addEventListener('mousedown', handler)
+        return () => document.removeEventListener('mousedown', handler)
+    }, [showDownloadMenu])
+
     // Open HTML slides in the full workspace editor (all editing tools available)
     const openInWorkspaceEditor = () => {
         if (!slides.length) return
@@ -626,12 +704,38 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
                 <div className="flex items-center gap-3">
                     {generationType === 'presentation' ? (
                         <>
-                            <button onClick={() => editorRef.current?.save()} className="px-4 py-2 text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition font-medium flex items-center gap-2">
+                            <button
+                                onClick={isHtmlSlides ? handleSaveHtmlSlides : () => editorRef.current?.save()}
+                                className="px-4 py-2 text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition font-medium flex items-center gap-2"
+                            >
                                 <Save size={18} /><span>Сохранить</span>
                             </button>
-                            <button onClick={() => editorRef.current?.export()} className="px-3 py-1.5 bg-orange-500 text-white rounded-md hover:bg-orange-600 flex items-center gap-2">
-                                <Download size={18} /><span>Скачать PDF</span>
-                            </button>
+                            {isHtmlSlides ? (
+                                <div className="relative">
+                                    <button
+                                        onClick={() => setShowDownloadMenu(v => !v)}
+                                        disabled={isExporting}
+                                        className="px-3 py-1.5 bg-orange-500 text-white rounded-md hover:bg-orange-600 flex items-center gap-2 disabled:opacity-60"
+                                    >
+                                        {isExporting ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+                                        <span>{isExporting ? 'Экспорт...' : 'Скачать'}</span>
+                                    </button>
+                                    {showDownloadMenu && (
+                                        <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-xl z-50 min-w-[150px] overflow-hidden">
+                                            <button onClick={downloadPDF} className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 flex items-center gap-2 font-medium">
+                                                <Download size={14} className="text-orange-500" /> PDF
+                                            </button>
+                                            <button onClick={downloadPPTX} className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 flex items-center gap-2 font-medium border-t border-gray-100">
+                                                <Download size={14} className="text-blue-500" /> PPTX
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            ) : (
+                                <button onClick={() => editorRef.current?.export()} className="px-3 py-1.5 bg-orange-500 text-white rounded-md hover:bg-orange-600 flex items-center gap-2">
+                                    <Download size={18} /><span>Скачать PDF</span>
+                                </button>
+                            )}
                         </>
                     ) : (
                         <button 
@@ -665,7 +769,7 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
                                         <iframe
                                             srcDoc={buildThumbSrc(s)}
                                             className="pointer-events-none"
-                                            sandbox="allow-same-origin"
+                                            sandbox="allow-scripts allow-same-origin"
                                             style={{ transform: 'scale(0.25)', transformOrigin: 'top left', width: '400%', height: '400%', display: 'block' }}
                                         />
                                         <span className="absolute bottom-1.5 right-1.5 text-white text-[10px] font-bold bg-black/50 rounded px-1.5 py-0.5">{i + 1}</span>
