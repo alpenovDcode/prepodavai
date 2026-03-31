@@ -284,6 +284,7 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
     const [isDownloading, setIsDownloading] = useState(false)
     const [isExporting, setIsExporting] = useState(false)
     const [showDownloadMenu, setShowDownloadMenu] = useState(false)
+    const downloadMenuRef = useRef<HTMLDivElement>(null)
     const router = useRouter()
     const editorRef = useRef<PresentationEditorRef>(null)
     const contentRef = useRef<HTMLDivElement>(null)
@@ -667,10 +668,13 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
         }
     }
 
-    // Close download menu on outside click
+    // Close download menu on outside click (ref-based to avoid race with button clicks)
     useEffect(() => {
         if (!showDownloadMenu) return
-        const handler = () => setShowDownloadMenu(false)
+        const handler = (e: MouseEvent) => {
+            if (downloadMenuRef.current?.contains(e.target as Node)) return
+            setShowDownloadMenu(false)
+        }
         document.addEventListener('mousedown', handler)
         return () => document.removeEventListener('mousedown', handler)
     }, [showDownloadMenu])
@@ -710,7 +714,7 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
                                 <Save size={18} /><span>Сохранить</span>
                             </button>
                             {isHtmlSlides ? (
-                                <div className="relative">
+                                <div className="relative" ref={downloadMenuRef}>
                                     <button
                                         onClick={() => setShowDownloadMenu(v => !v)}
                                         disabled={isExporting}
@@ -720,10 +724,7 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
                                         <span>{isExporting ? 'Экспорт...' : 'Скачать'}</span>
                                     </button>
                                     {showDownloadMenu && (
-                                        <div
-                                            className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-xl z-50 min-w-[150px] overflow-hidden"
-                                            onMouseDown={(e) => e.stopPropagation()}
-                                        >
+                                        <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-xl z-50 min-w-[150px] overflow-hidden">
                                             <button onClick={downloadPDF} className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 flex items-center gap-2 font-medium">
                                                 <Download size={14} className="text-orange-500" /> PDF
                                             </button>
