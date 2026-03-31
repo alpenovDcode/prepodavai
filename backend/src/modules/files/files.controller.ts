@@ -16,7 +16,9 @@ import { Response } from 'express';
 import * as path from 'path';
 import { FilesService } from './files.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { SkipThrottle } from '@nestjs/throttler';
 
+@SkipThrottle()
 @Controller('files')
 export class FilesController {
   constructor(private readonly filesService: FilesService) {}
