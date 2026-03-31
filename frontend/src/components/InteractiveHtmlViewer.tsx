@@ -233,9 +233,11 @@ export default function InteractiveHtmlViewer({
     : INTERACTIVE_SCRIPT
 
   // В интерактивном режиме: убираем ответы и конвертируем ___ → <input>
+  // В режиме просмотра: тоже конвертируем ___ → <input>, чтобы buildReadonlyScript
+  // мог найти элементы по id (blank_0, blank_1...) и заполнить ответы ученика
   const processedHtml = !readOnly
     ? convertBlanksToInputs(stripAnswerSection(html))
-    : html
+    : convertBlanksToInputs(html)
   const finalHtml = injectScript(processedHtml, scriptToInject)
 
   // Слушаем сообщения от iframe

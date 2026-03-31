@@ -5,9 +5,10 @@ import { usePathname, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useUser } from '@/lib/hooks/useUser'
 import { useMiniAppAuth } from '@/lib/hooks/useMiniAppAuth'
+import { useSubscription } from '@/lib/hooks/useSubscription'
 import { LOGO_BASE64 } from '@/constants/branding'
 import { apiClient } from '@/lib/api/client'
-import { Loader2, Menu, X, ArrowLeft, LayoutDashboard, Wand2, BookOpen, Users, BarChart, Settings as SettingsIcon } from 'lucide-react'
+import { Loader2, Menu, X, ArrowLeft, LayoutDashboard, Wand2, BookOpen, Users, BarChart, Settings as SettingsIcon, Sparkles } from 'lucide-react'
 
 interface DashboardLayoutProps {
     children: ReactNode
@@ -29,6 +30,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     ]
 
     const { fullName, user, initials } = useUser()
+    const { totalCredits, loading: balanceLoading } = useSubscription({ enabled: true })
 
     const isActive = (path: string) => {
         if (path === '/dashboard' && pathname !== '/dashboard') return false
@@ -100,7 +102,14 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                         )}
                         <span className="font-bold text-gray-900 text-sm">Панель управления</span>
                     </div>
-                    <div className="w-10"></div>
+                    <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-purple-50 border border-purple-100 rounded-full">
+                        <Sparkles className="w-3 h-3 text-purple-600 fill-purple-600 flex-shrink-0" />
+                        {balanceLoading ? (
+                            <Loader2 className="w-3 h-3 text-purple-500 animate-spin" />
+                        ) : (
+                            <span className="text-xs font-black text-purple-700 leading-none">{totalCredits}</span>
+                        )}
+                    </div>
                 </div>
 
                 {/* Sidebar drawer for mobile */}

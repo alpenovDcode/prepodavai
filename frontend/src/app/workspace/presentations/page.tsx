@@ -483,7 +483,7 @@ ${css}
             const W = 1280, H = 720
             const frame = document.createElement('iframe')
             frame.style.cssText = `position:fixed;left:-9999px;top:0;width:${W}px;height:${H}px;border:none;pointer-events:none;z-index:-1`
-            frame.setAttribute('sandbox', 'allow-modals')  // no allow-scripts: JS not needed for visual capture
+            frame.setAttribute('sandbox', 'allow-same-origin')  // allow-same-origin needed to access contentDocument; scripts already stripped
             frame.srcdoc = buildCaptureSrcDoc(slide)
             document.body.appendChild(frame)
             const cleanup = () => { try { document.body.removeChild(frame) } catch (_) { } }

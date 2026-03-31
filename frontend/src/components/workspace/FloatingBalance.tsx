@@ -18,9 +18,27 @@ export default function FloatingBalance() {
         return () => window.removeEventListener('storage', checkAuth)
     }, [pathname])
 
+    const [isMobileOrMiniApp, setIsMobileOrMiniApp] = useState(false)
+
+    useEffect(() => {
+        const check = () => {
+            const mobile = window.innerWidth < 768
+            const mini = !!(
+                (window as any).Telegram?.WebApp?.initData ||
+                (window as any).WebApp?.initData ||
+                new URLSearchParams(window.location.search).has('tgWebAppData') ||
+                new URLSearchParams(window.location.search).has('max_init_data')
+            )
+            setIsMobileOrMiniApp(mobile || mini)
+        }
+        check()
+        window.addEventListener('resize', check)
+        return () => window.removeEventListener('resize', check)
+    }, [])
+
     const { totalCredits, loading, error } = useSubscription({ enabled: isAuthenticated && !pathname.startsWith('/admin') })
-    
-    if (!isAuthenticated || error || pathname.startsWith('/admin')) return null
+
+    if (!isAuthenticated || error || pathname.startsWith('/admin') || isMobileOrMiniApp) return null
 
     const getLabel = (value: number) => {
         if (value === 0) return 'токенов'
