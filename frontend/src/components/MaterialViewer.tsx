@@ -566,8 +566,7 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
     }
 
     const captureSlideAsImage = (slide: any): Promise<string> => {
-        return new Promise(async (resolve, reject) => {
-            const h2c = (await import('html2canvas')).default
+        return new Promise((resolve, reject) => {
             const W = 1280, H = 720
             const frame = document.createElement('iframe')
             frame.style.cssText = `position:fixed;left:-9999px;top:0;width:${W}px;height:${H}px;border:none;pointer-events:none;z-index:-1`
@@ -580,7 +579,7 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
                     await new Promise(r => setTimeout(r, 600))
                     const body = frame.contentDocument?.body
                     if (!body) throw new Error('No body')
-                    const canvas = await h2c(body, { width: W, height: H, scale: 1, useCORS: true, allowTaint: true, windowWidth: W, windowHeight: H, logging: false, imageTimeout: 8000 })
+                    const canvas = await html2canvas(body, { width: W, height: H, scale: 1, useCORS: true, allowTaint: true, windowWidth: W, windowHeight: H, logging: false, imageTimeout: 8000 })
                     clearTimeout(timeout)
                     cleanup()
                     resolve(canvas.toDataURL('image/jpeg', 0.92))
@@ -596,8 +595,7 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
         setIsExporting(true)
         setShowDownloadMenu(false)
         try {
-            const { jsPDF: JsPDF } = await import('jspdf')
-            const pdf = new JsPDF({ orientation: 'landscape', unit: 'mm', format: [297, 167.25] })
+            const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: [297, 167.25] })
             for (let i = 0; i < htmlSlides.length; i++) {
                 if (i > 0) pdf.addPage([297, 167.25], 'landscape')
                 const imgData = await captureSlideAsImage(htmlSlides[i])
@@ -722,7 +720,10 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
                                         <span>{isExporting ? 'Экспорт...' : 'Скачать'}</span>
                                     </button>
                                     {showDownloadMenu && (
-                                        <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-xl z-50 min-w-[150px] overflow-hidden">
+                                        <div
+                                            className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-xl z-50 min-w-[150px] overflow-hidden"
+                                            onMouseDown={(e) => e.stopPropagation()}
+                                        >
                                             <button onClick={downloadPDF} className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 flex items-center gap-2 font-medium">
                                                 <Download size={14} className="text-orange-500" /> PDF
                                             </button>
