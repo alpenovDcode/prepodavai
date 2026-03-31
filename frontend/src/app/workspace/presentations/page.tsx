@@ -463,53 +463,34 @@ function PresentationGeneratorContent() {
         setAiImageUrl(null)
     }
 
-    // ---- Slide capture for export ----
-    // Script-free srcDoc: strips ALL <script> tags so broken AI JS can't crash capture
-    const buildCaptureSrcDoc = (slide: SlideData): string => {
+    // ---- Slide capture for export (div-based, no iframe sandbox issues) ----
+    const captureSlideAsImage = async (slide: SlideData): Promise<string> => {
+        const h2c = (await import('html2canvas')).default
+        const W = 1280, H = 720
+        const container = document.createElement('div')
+        container.style.cssText = `position:fixed;left:-${W + 100}px;top:0;width:${W}px;height:${H}px;overflow:hidden;pointer-events:none;z-index:-9999;`
+
+        const styleEl = document.createElement('style')
+        styleEl.textContent = `*,*::before,*::after{box-sizing:border-box}html,body{margin:0;padding:0}${slide.css?.trim() || FALLBACK_SLIDE_CSS}`
+        container.appendChild(styleEl)
+
         const tmp = document.createElement('div')
         tmp.innerHTML = DOMPurify.sanitize(slide.html, { FORBID_TAGS: ['script'] })
-        const cleanHtml = tmp.innerHTML
-        const css = slide.css?.trim() || FALLBACK_SLIDE_CSS
-        return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
-*, *::before, *::after { box-sizing: border-box; }
-html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; font-family: 'Segoe UI', system-ui, sans-serif; }
-${css}
-</style></head><body>${cleanHtml}</body></html>`
-    }
+        tmp.style.cssText = `width:${W}px;height:${H}px;overflow:hidden;`
+        container.appendChild(tmp)
 
-    const captureSlideAsImage = (slide: SlideData): Promise<string> => {
-        return new Promise(async (resolve, reject) => {
-            const h2c = (await import('html2canvas')).default
-            const W = 1280, H = 720
-            const frame = document.createElement('iframe')
-            frame.style.cssText = `position:fixed;left:-9999px;top:0;width:${W}px;height:${H}px;border:none;pointer-events:none;z-index:-1`
-            frame.setAttribute('sandbox', 'allow-same-origin')
-            const cleanup = () => { try { document.body.removeChild(frame) } catch (_) { } }
-            const timeout = setTimeout(() => { cleanup(); reject(new Error('Timeout')) }, 15000)
-            // Set onload BEFORE appending to avoid race condition
-            frame.onload = async () => {
-                try {
-                    await new Promise(r => setTimeout(r, 600)) // Let CSS/animations settle
-                    const body = frame.contentDocument?.body
-                    if (!body) throw new Error('No body')
-                    const canvas = await h2c(body, {
-                        width: W, height: H,
-                        scale: 1,
-                        useCORS: true,
-                        allowTaint: true,
-                        windowWidth: W,
-                        windowHeight: H,
-                        logging: false,
-                        imageTimeout: 8000,
-                    })
-                    clearTimeout(timeout)
-                    cleanup()
-                    resolve(canvas.toDataURL('image/jpeg', 0.92))
-                } catch (e) { clearTimeout(timeout); cleanup(); reject(e) }
-            }
-            frame.srcdoc = buildCaptureSrcDoc(slide)
-            document.body.appendChild(frame)
-        })
+        document.body.appendChild(container)
+        await new Promise(r => setTimeout(r, 400))
+
+        try {
+            const canvas = await h2c(container, {
+                width: W, height: H, scale: 1, useCORS: true, allowTaint: true,
+                windowWidth: W, windowHeight: H, logging: false, imageTimeout: 8000,
+            })
+            return canvas.toDataURL('image/jpeg', 0.92)
+        } finally {
+            try { document.body.removeChild(container) } catch (_) { }
+        }
     }
 
     const downloadPDF = async () => {
