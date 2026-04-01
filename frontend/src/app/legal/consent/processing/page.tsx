@@ -14,9 +14,9 @@ export default function ProcessingConsentPage() {
           Согласие на обработку персональных данных на сайте в Интернете
         </CardTitle>
       </CardHeader>
-      <CardContent className="prose prose-sm max-w-none dark:prose-invert prose-headings:text-black prose-p:text-black prose-strong:text-black prose-li:text-black prose-a:text-blue-600 text-black">
+      <CardContent className="prose prose-sm max-w-none prose-headings:text-gray-900 prose-p:text-gray-800 prose-strong:text-gray-900 prose-li:text-gray-800 prose-a:text-blue-600 text-gray-800">
         
-        <div className="mb-8 p-4 border rounded-md bg-gray-50 dark:bg-slate-900">
+        <div className="mb-8 p-4 border border-gray-200 rounded-md bg-gray-50">
           <p className="m-0"><strong>Оператор:</strong> Общество с ограниченной ответственностью “МАСТЕРСКАЯ ЗНАНИЙ”</p>
           <p className="m-0"><strong>ОГРН:</strong> 1257700218071, <strong>ИНН:</strong> 9714075294, <strong>КПП:</strong> 771401001</p>
           <p className="m-0"><strong>Адрес:</strong> 125167, Г.МОСКВА, ВН.ТЕР.Г. МУНИЦИПАЛЬНЫЙ ОКРУГ АЭРОПОРТ, ПР-КТ ЛЕНИНГРАДСКИЙ, Д. 36, СТР. 39, ПОМЕЩ. 4</p>
@@ -31,7 +31,7 @@ export default function ProcessingConsentPage() {
         <div className="overflow-x-auto">
           <table className="min-w-full border-collapse border border-gray-300 my-4">
             <thead>
-              <tr className="bg-gray-100 dark:bg-slate-800">
+              <tr className="bg-gray-100">
                 <th className="border border-gray-300 p-2">Цели</th>
                 <th className="border border-gray-300 p-2">Категории субъектов / Перечень данных</th>
                 <th className="border border-gray-300 p-2">Способы, сроки и уничтожение</th>

@@ -13,7 +13,7 @@ export default function PrivacyPage() {
         <CardTitle className="text-3xl">Политика конфиденциальности</CardTitle>
         <p className="text-sm text-muted-foreground">г. Москва, “01” февраля 2026 г.</p>
       </CardHeader>
-      <CardContent className="prose prose-sm max-w-none dark:prose-invert prose-headings:text-black prose-p:text-black prose-strong:text-black prose-li:text-black prose-a:text-blue-600 text-black">
+      <CardContent className="prose prose-sm max-w-none prose-headings:text-black prose-p:text-black prose-strong:text-black prose-li:text-black prose-a:text-blue-600 text-black">
         <p>Настоящая политика обработки персональных данных (далее – Политика конфиденциальности) разработана в соответствии с Федеральным законом от 27.07.2006 №152-ФЗ “О персональных данных” (далее – ФЗ-152) и определяет порядок обработки персональных данных и меры по обеспечению безопасности персональных данных Обществом с ограниченной ответственностью “МАСТЕРСКАЯ ЗНАНИЙ”, ОГРН: 1257700218071 (далее – Оператор).</p>
         <p>Настоящая Политика применяется ко всей информации, которую Оператор может получить о посетителях Сайтов в сети Интернет по адресам: <a href="https://prrv.tech/" target="_blank" rel="noopener noreferrer">https://prrv.tech/</a>, <a href="https://prrv.pro/" target="_blank" rel="noopener noreferrer">https://prrv.pro/</a>, включая все их поддомены (далее – Сайт).</p>
         <p>Все вопросы, связанные с обработкой персональных данных, не урегулированные настоящей Политикой, разрешаются в соответствии с действующим законодательством Российской Федерации в области персональных данных.</p>

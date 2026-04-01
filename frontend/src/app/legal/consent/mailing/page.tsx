@@ -13,7 +13,7 @@ export default function MailingConsentPage() {
         <CardTitle className="text-3xl">Согласие на получение рекламной информации</CardTitle>
         <p className="text-sm text-muted-foreground">(в том числе в форме рекламной рассылки)</p>
       </CardHeader>
-      <CardContent className="prose prose-sm max-w-none dark:prose-invert prose-headings:text-black prose-p:text-black prose-strong:text-black prose-li:text-black prose-a:text-blue-600 text-black">
+      <CardContent className="prose prose-sm max-w-none prose-headings:text-black prose-p:text-black prose-strong:text-black prose-li:text-black prose-a:text-blue-600 text-black">
         <div className="mb-8 p-4 border rounded-lg bg-gray-50 text-sm">
           <p className="font-bold mb-2">Общество с ограниченной ответственностью “МАСТЕРСКАЯ ЗНАНИЙ”</p>
           <p className="my-1">ОГРН: 1257700218071, ИНН: 9714075294, КПП: 771401001</p>

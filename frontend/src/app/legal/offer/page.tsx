@@ -15,7 +15,7 @@ export default function OfferPage() {
           на заключение договора для передачи прав на использование программы для ЭВМ «Прорыв» и оказания образовательных услуг
         </p>
       </CardHeader>
-      <CardContent className="prose prose-sm max-w-none dark:prose-invert prose-headings:text-black prose-p:text-black prose-strong:text-black prose-li:text-black prose-a:text-blue-600 text-black">
+      <CardContent className="prose prose-sm max-w-none prose-headings:text-black prose-p:text-black prose-strong:text-black prose-li:text-black prose-a:text-blue-600 text-black">
         <p className="text-right">
           Опубликовано «01» февраля 2026 г.<br />
           г. Москва
