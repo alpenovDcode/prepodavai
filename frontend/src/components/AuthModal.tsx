@@ -20,6 +20,8 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
   const [resendTimer, setResendTimer] = useState(0)
   const [loginMode, setLoginMode] = useState<'phone' | 'apikey'>('apikey')
 
+  const [privacyAccepted, setPrivacyAccepted] = useState(false)
+
   const [form, setForm] = useState({
     name: '',
     phone: '',
@@ -318,14 +320,49 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
               </div>
             )}
 
+            <label className="flex items-start gap-3 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={privacyAccepted}
+                onChange={(e) => setPrivacyAccepted(e.target.checked)}
+                className="mt-0.5 w-4 h-4 accent-orange-500 cursor-pointer flex-shrink-0"
+              />
+              <span className="text-sm text-gray-700">
+                Я соглашаюсь с{' '}
+                <a
+                  href="/legal/privacy"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-orange-600 hover:text-orange-700 underline"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  политикой конфиденциальности
+                </a>
+              </span>
+            </label>
+
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || !privacyAccepted}
               className="w-full py-4 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300 hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               <i className={`fas ${loading ? 'fa-spinner fa-spin' : 'fa-paper-plane'}`}></i>
               {loading ? 'Отправка...' : 'Отправить код'}
             </button>
+
+            <div className="text-center text-xs text-gray-500 space-y-1 pt-1">
+              <p>
+                Нажимая «Войти», вы соглашаетесь с{' '}
+                <a href="/legal/offer" target="_blank" rel="noopener noreferrer" className="text-orange-600 hover:underline">Офертой</a>
+                {' '}и{' '}
+                <a href="/legal/privacy" target="_blank" rel="noopener noreferrer" className="text-orange-600 hover:underline">Политикой конфиденциальности</a>
+              </p>
+              <p className="flex items-center justify-center gap-3">
+                <a href="/legal/consent/processing" target="_blank" rel="noopener noreferrer" className="text-orange-600 hover:underline">Согласие на обработку данных</a>
+                <span className="text-gray-300">|</span>
+                <a href="/legal/consent/mailing" target="_blank" rel="noopener noreferrer" className="text-orange-600 hover:underline">Согласие на рассылку</a>
+              </p>
+            </div>
           </form>
         )}
 
@@ -475,14 +512,49 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
               </div>
             )}
 
-            <button 
+            <label className="flex items-start gap-3 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={privacyAccepted}
+                onChange={(e) => setPrivacyAccepted(e.target.checked)}
+                className="mt-0.5 w-4 h-4 accent-orange-500 cursor-pointer flex-shrink-0"
+              />
+              <span className="text-sm text-gray-700">
+                Я соглашаюсь с{' '}
+                <a
+                  href="/legal/privacy"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-orange-600 hover:text-orange-700 underline"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  политикой конфиденциальности
+                </a>
+              </span>
+            </label>
+
+            <button
               type="submit"
-              disabled={loading}
+              disabled={loading || !privacyAccepted}
               className="w-full py-4 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300 hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               <i className={`fas ${loading ? 'fa-spinner fa-spin' : 'fa-sign-in-alt'}`}></i>
               {loading ? 'Вход...' : 'Войти'}
             </button>
+
+            <div className="text-center text-xs text-gray-500 space-y-1 pt-1">
+              <p>
+                Нажимая «Войти», вы соглашаетесь с{' '}
+                <a href="/legal/offer" target="_blank" rel="noopener noreferrer" className="text-orange-600 hover:underline">Офертой</a>
+                {' '}и{' '}
+                <a href="/legal/privacy" target="_blank" rel="noopener noreferrer" className="text-orange-600 hover:underline">Политикой конфиденциальности</a>
+              </p>
+              <p className="flex items-center justify-center gap-3">
+                <a href="/legal/consent/processing" target="_blank" rel="noopener noreferrer" className="text-orange-600 hover:underline">Согласие на обработку данных</a>
+                <span className="text-gray-300">|</span>
+                <a href="/legal/consent/mailing" target="_blank" rel="noopener noreferrer" className="text-orange-600 hover:underline">Согласие на рассылку</a>
+              </p>
+            </div>
           </form>
         )}
 
@@ -531,14 +603,49 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
               </div>
             )}
 
+            <label className="flex items-start gap-3 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={privacyAccepted}
+                onChange={(e) => setPrivacyAccepted(e.target.checked)}
+                className="mt-0.5 w-4 h-4 accent-orange-500 cursor-pointer flex-shrink-0"
+              />
+              <span className="text-sm text-gray-700">
+                Я соглашаюсь с{' '}
+                <a
+                  href="/legal/privacy"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-orange-600 hover:text-orange-700 underline"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  политикой конфиденциальности
+                </a>
+              </span>
+            </label>
+
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || !privacyAccepted}
               className="w-full py-4 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300 hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               <i className={`fas ${loading ? 'fa-spinner fa-spin' : 'fa-sign-in-alt'}`}></i>
               {loading ? 'Вход...' : 'Войти'}
             </button>
+
+            <div className="text-center text-xs text-gray-500 space-y-1 pt-1">
+              <p>
+                Нажимая «Войти», вы соглашаетесь с{' '}
+                <a href="/legal/offer" target="_blank" rel="noopener noreferrer" className="text-orange-600 hover:underline">Офертой</a>
+                {' '}и{' '}
+                <a href="/legal/privacy" target="_blank" rel="noopener noreferrer" className="text-orange-600 hover:underline">Политикой конфиденциальности</a>
+              </p>
+              <p className="flex items-center justify-center gap-3">
+                <a href="/legal/consent/processing" target="_blank" rel="noopener noreferrer" className="text-orange-600 hover:underline">Согласие на обработку данных</a>
+                <span className="text-gray-300">|</span>
+                <a href="/legal/consent/mailing" target="_blank" rel="noopener noreferrer" className="text-orange-600 hover:underline">Согласие на рассылку</a>
+              </p>
+            </div>
           </form>
         )}
 
