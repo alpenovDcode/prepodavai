@@ -592,16 +592,22 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
 
           const baseUrl = this.configService.get<string>('BASE_URL', 'https://api.prepodavai.ru');
           const polzaKey = this.configService.get<string>('POLZA_AI_API_KEY');
-          const imageUrlInput = `${baseUrl}/api/files/${photoHash}`;
 
           if (!polzaKey) {
             this.logger.warn('POLZA_AI_API_KEY not configured, falling back to Replicate (if possible) or error.');
           } else {
-            this.logger.log(`Sending photosession request to Polza.ai API: ${imageUrlInput}`);
+            // Читаем файл с диска и кодируем в base64
+            const fileData = await this.filesService.getFile(photoHash);
+            if (!fileData) {
+              throw new BadRequestException(`File not found for hash: ${photoHash}`);
+            }
+            const base64Image = `data:${fileData.mimeType};base64,${fileData.buffer.toString('base64')}`;
+
+            this.logger.log(`Sending photosession request to Polza.ai API via base64 (hash: ${photoHash})`);
 
             try {
               const callbackUrl = `${baseUrl}/api/generate-photosession`;
-              
+
               const response = await axios.post(
                 'https://polza.ai/api/v1/media',
                 {
@@ -614,8 +620,8 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
                     isEnhance: true,
                     images: [
                       {
-                        type: 'url',
-                        data: imageUrlInput,
+                        type: 'base64',
+                        data: base64Image,
                       },
                     ],
                     callBackUrl: callbackUrl,
