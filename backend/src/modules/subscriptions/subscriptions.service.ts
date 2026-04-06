@@ -31,7 +31,7 @@ export class SubscriptionsService {
     const plans = [
       {
         planKey: 'starter',
-        planName: 'Starter',
+        planName: 'Начальный',
         monthlyCredits: 100,
         price: 0,
         currency: 'RUB',
@@ -42,9 +42,9 @@ export class SubscriptionsService {
       },
       {
         planKey: 'pro',
-        planName: 'Pro',
+        planName: 'Профессиональный',
         monthlyCredits: 500,
-        price: 990,
+        price: 490,
         currency: 'RUB',
         allowOverage: true,
         overageCostPerCredit: 2,
@@ -59,9 +59,9 @@ export class SubscriptionsService {
       },
       {
         planKey: 'business',
-        planName: 'Business',
+        planName: 'Бизнес',
         monthlyCredits: 2000,
-        price: 2990,
+        price: 1990,
         currency: 'RUB',
         allowOverage: true,
         overageCostPerCredit: 1.5,

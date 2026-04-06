@@ -36,6 +36,9 @@
     "db:generate": "cd backend && npm run prisma:generate",
     "db:studio": "cd backend && npm run prisma:studio"
   },
+  "overrides": {
+    "cssstyle": "4.1.0"
+  },
   "devDependencies": {
     "concurrently": "^8.2.2"
   },
