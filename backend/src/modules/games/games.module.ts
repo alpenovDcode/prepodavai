@@ -2,12 +2,12 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { GamesController } from './games.controller';
 import { GamesService } from './games.service';
-import { GigachatModule } from '../gigachat/gigachat.module';
+import { ReplicateModule } from '../replicate/replicate.module';
 
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 
 @Module({
-  imports: [ConfigModule, GigachatModule, SubscriptionsModule],
+  imports: [ConfigModule, ReplicateModule, SubscriptionsModule],
   controllers: [GamesController],
   providers: [GamesService],
 })

@@ -57,7 +57,6 @@ export function useGenerations() {
         photosession: '/generate/photosession',
         transcription: '/generate/transcribe-video',
         message: '/generate/message',
-        gigachat: '/gigachat/generate',
         videoAnalysis: '/generate/video-analysis',
         'video-analysis': '/generate/video-analysis',
         salesAdvisor: '/generate/sales-advisor',

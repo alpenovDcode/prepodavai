@@ -1,10 +1,9 @@
-import { Inject, Injectable, forwardRef } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { Bot, Context, InputFile } from 'grammy';
 import * as crypto from 'crypto';
 import { HtmlExportService } from '../../common/services/html-export.service';
-import { GigachatService } from '../gigachat/gigachat.service';
 
 @Injectable()
 export class TelegramService {
@@ -14,8 +13,6 @@ export class TelegramService {
     private configService: ConfigService,
     private prisma: PrismaService,
     private readonly htmlExportService: HtmlExportService,
-    @Inject(forwardRef(() => GigachatService))
-    private readonly gigachatService: GigachatService,
   ) {
     const token = this.configService.get<string>('TELEGRAM_BOT_TOKEN');
     if (token) {
@@ -310,7 +307,7 @@ export class TelegramService {
 <html lang="ru">
 <head>
   <meta charset="utf-8" />
-  <title>GigaChat Result</title>
+  <title>PrepodavAI Result</title>
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, sans-serif;

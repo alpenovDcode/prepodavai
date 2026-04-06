@@ -94,7 +94,7 @@ export class ReplicatePresentationProcessor extends WorkerHost {
       }
 
       const finalResult = {
-        provider: this.replicateToken ? 'Replicate' : 'GigaChat',
+        provider: 'Replicate',
         mode: 'presentation',
         slides: slides,
         completedAt: new Date().toISOString(),

@@ -20,4 +20,16 @@ export class AiAssistantController {
       throw error;
     }
   }
+
+  @Post('student-chat')
+  @UseGuards(JwtAuthGuard)
+  async studentChat(@Request() req, @Body() dto: SendMessageDto): Promise<ChatResponseDto> {
+    try {
+      this.logger.log(`Student AI Teacher chat request from user ${req.user.id}`);
+      return await this.aiAssistantService.sendStudentMessage(dto);
+    } catch (error: any) {
+      this.logger.error(`Student chat error: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
 }

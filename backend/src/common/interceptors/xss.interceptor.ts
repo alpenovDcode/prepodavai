@@ -42,16 +42,13 @@ export class XssInterceptor implements NestInterceptor {
               'img',
               'h1',
               'h2',
-              'iframe',
-              'style',
             ]),
             allowedAttributes: {
               ...sanitizeHtml.defaults.allowedAttributes,
-              '*': ['style', 'className', 'class'],
-              iframe: ['src', 'width', 'height', 'frameborder', 'allow'],
+              '*': ['class'],
               img: ['src', 'alt', 'width', 'height'],
             },
-            allowedSchemes: ['http', 'https', 'data'],
+            allowedSchemes: ['http', 'https'],
           });
         } else {
           // Strict sanitization for other fields (no HTML allowed)

@@ -3,8 +3,6 @@ import {
   BadRequestException,
   NotFoundException,
   Logger,
-  Inject,
-  forwardRef,
 } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
@@ -15,7 +13,6 @@ import { SubscriptionsService, OperationType } from '../subscriptions/subscripti
 import axios from 'axios';
 import { AssemblyAI } from 'assemblyai';
 import { ConfigService } from '@nestjs/config';
-import { GigachatService } from '../gigachat/gigachat.service';
 import { ReplicateService } from '../replicate/replicate.service';
 import { LessonsService } from '../lessons/lessons.service';
 import { GammaService } from '../gamma/gamma.service';
@@ -53,10 +50,7 @@ export type GenerationType =
   | 'unpacking'
   | 'sales-advisor'
   | 'sales_advisor'
-  | 'assistant'
-  | 'gigachat-chat'
-  | 'gigachat-image'
-  | 'gigachat-embeddings';
+  | 'assistant';
 
 export interface GenerationRequest {
   userId: string;
@@ -146,8 +140,6 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
     private generationQueue: GenerationQueueService,
     private subscriptionsService: SubscriptionsService,
     private configService: ConfigService,
-    @Inject(forwardRef(() => GigachatService))
-    private readonly gigachatService: GigachatService,
     private readonly replicateService: ReplicateService,
     private readonly lessonsService: LessonsService,
     private readonly gammaService: GammaService,
@@ -271,7 +263,7 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
       };
     }
 
-    // Прямые генерации через GigaChat (минуя webhooks)
+    // Прямые генерации (минуя webhooks)
     if (this.shouldUseDirectGigachatGeneration(generationType)) {
       const directResult = await this.handleDirectGigachatGeneration(
         generationType,
@@ -290,10 +282,7 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
       };
     }
 
-    // GigaChat генерации обрабатываются напрямую, не через webhooks
-    const isGigachatGeneration = generationType.startsWith('gigachat-');
-
-    if (!isGigachatGeneration) {
+    {
       // Формируем правильную структуру payload для webhook
       const webhookPayload = this.buildWebhookPayload(
         generationType,
@@ -389,7 +378,7 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
   }
 
   /**
-   * Проверяем, нужно ли использовать прямую генерацию через GigaChat
+   * Проверяем, нужно ли использовать прямую генерацию
    * Временно включаем для отдельных типов
    */
   private shouldUseDirectGigachatGeneration(generationType: GenerationType): boolean {
@@ -416,7 +405,7 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
   }
 
   /**
-   * Обработка генерации напрямую через GigaChat
+   * Обработка прямой генерации
    */
   private async handleDirectGigachatGeneration(
     generationType: GenerationType,
@@ -459,43 +448,30 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
 
       // Текстовые генерации
       if (this.shouldUseDirectGigachatGeneration(generationType)) {
-        const hasReplicateToken = !!this.configService.get<string>('REPLICATE_API_TOKEN');
-        if (hasReplicateToken) {
-          return await this.generateTextViaReplicate(
-            generationType,
-            generationRequestId,
-            inputParams,
-            requestedModel,
-          );
-        } else {
-          return await this.generateTextViaGigachat(
-            generationType,
-            generationRequestId,
-            inputParams,
-            requestedModel,
-          );
-        }
+        return await this.generateTextViaReplicate(
+          generationType,
+          generationRequestId,
+          inputParams,
+          requestedModel,
+        );
       }
 
       throw new BadRequestException(
-        `Direct GigaChat generation is not configured for ${generationType}`,
+        `Direct generation is not configured for ${generationType}`,
       );
     } catch (error: any) {
       this.logger.error(
-        `Direct GigaChat generation failed for ${generationType}: ${error?.message || error}`,
+        `Direct generation failed for ${generationType}: ${error?.message || error}`,
         error?.stack,
       );
       await this.generationHelpers.failGeneration(
         generationRequestId,
-        error?.response?.data?.message || error?.message || 'Ошибка генерации через GigaChat',
+        error?.response?.data?.message || error?.message || 'Ошибка генерации',
       );
       throw error;
     }
   }
 
-  /**
-   * Универсальная генерация текста через GigaChat (HTML документ)
-   */
   private async generateVideoAnalysis(
     generationType: GenerationType,
     generationRequestId: string,
@@ -503,44 +479,26 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
     requestedModel?: string,
     _userId?: string,
   ) {
-    console.log(`[GenerationsService] Starting text generation for ${generationType}`);
+    this.logger.log(`[GenerationsService] Starting video analysis for ${generationType}`);
     const { systemPrompt, userPrompt } = this.buildGigachatPrompt(generationType, inputParams);
-    const model = requestedModel || this.gigachatService.getDefaultModel('chat');
-    console.log(
-      `[GenerationsService] Using model: ${model}, prompt length: ${systemPrompt.length + userPrompt.length}`,
-    );
+    const model = requestedModel || 'google/gemini-3-flash';
 
-    const response = (await this.gigachatService.createChatCompletion({
-      model,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
-      temperature: 0.7, // Чуть выше для креативности, но в рамках разумного
-      top_p: 0.9,
-      max_tokens: 8000, // Увеличено для больших рабочих листов с множеством заданий
-    })) as any;
+    const combinedPrompt = `${systemPrompt}\n\n${userPrompt}`;
 
-    const content = response?.choices?.[0]?.message?.content;
-    console.log(
-      `[GenerationsService] Received response from GigaChat, content length: ${content?.length || 0}`,
-    );
+    const content = await this.replicateService.createCompletion(combinedPrompt, model, {
+      max_tokens: 8000,
+      temperature: 0.7,
+    });
 
     if (!content) {
-      throw new BadRequestException('GigaChat вернул пустой результат');
+      throw new BadRequestException('Replicate вернул пустой результат');
     }
 
-    // Postprocess HTML to ensure MathJax is included if formulas are present
-    console.log(`[GenerationsService] Starting HTML postprocessing for ${generationType}`);
-    // Replace logo placeholder with actual base64 image
     const contentWithLogo = content.replace(/LOGO_PLACEHOLDER/g, LOGO_BASE64);
     const processedContent = this.htmlPostprocessor.ensureMathJaxScript(contentWithLogo);
-    console.log(
-      `[GenerationsService] HTML postprocessing complete, processed length: ${processedContent.length}`,
-    );
 
     const normalizedResult = {
-      provider: 'GigaChat-2-Max',
+      provider: 'Google Gemini',
       mode: 'chat',
       model,
       content: processedContent,
@@ -551,9 +509,8 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
       completedAt: new Date().toISOString(),
     };
 
-    console.log(`[GenerationsService] Saving generation result to database for ${generationType}`);
     await this.generationHelpers.completeGeneration(generationRequestId, normalizedResult);
-    console.log(`[GenerationsService] Generation ${generationType} completed successfully`);
+    this.logger.log(`[GenerationsService] Generation ${generationType} completed successfully`);
 
     return normalizedResult;
   }
@@ -575,7 +532,7 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
       throw new BadRequestException('Prompt is required for image generation');
     }
 
-    let model = requestedModel || this.gigachatService.getDefaultModel('image');
+    let model = requestedModel || 'google/nano-banana-pro';
     if (generationType === 'photosession') {
       model = 'google/gemini-3-pro-image-preview';
     }
@@ -820,72 +777,6 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
       );
       throw new BadRequestException(`Failed to generate content via Replicate: ${error.message}`);
     }
-  }
-
-  /**
-   * Универсальная генерация текста через GigaChat (HTML документ)
-   */
-  private async generateTextViaGigachat(
-    generationType: GenerationType,
-    generationRequestId: string,
-    inputParams: Record<string, any>,
-    requestedModel?: string,
-  ) {
-    this.logger.log(`[GenerationsService] Starting text generation for ${generationType}`);
-    const { systemPrompt, userPrompt } = this.buildGigachatPrompt(generationType, inputParams);
-    const model = requestedModel || this.gigachatService.getDefaultModel('chat');
-    this.logger.log(
-      `[GenerationsService] Using model: ${model}, prompt length: ${systemPrompt.length + userPrompt.length}`,
-    );
-
-    const response = (await this.gigachatService.createChatCompletion({
-      model,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
-      temperature: 0.7, // Чуть выше для креативности, но в рамках разумного
-      top_p: 0.9,
-      max_tokens: 8000, // Увеличено для больших рабочих листов с множеством заданий
-    })) as any;
-
-    const content = response?.choices?.[0]?.message?.content;
-    this.logger.log(
-      `[GenerationsService] Received response from GigaChat, content length: ${content?.length || 0}`,
-    );
-
-    if (!content) {
-      throw new BadRequestException('GigaChat вернул пустой результат');
-    }
-
-    // Postprocess HTML to ensure MathJax is included if formulas are present
-    this.logger.log(`[GenerationsService] Starting HTML postprocessing for ${generationType}`);
-    // Replace logo placeholder with actual base64 image
-    const contentWithLogo = content.replace(/LOGO_PLACEHOLDER/g, LOGO_BASE64);
-    const processedContent = this.htmlPostprocessor.ensureMathJaxScript(contentWithLogo);
-    this.logger.log(
-      `[GenerationsService] HTML postprocessing complete, processed length: ${processedContent.length}`,
-    );
-
-    const normalizedResult = {
-      provider: 'GigaChat-2-Max',
-      mode: 'chat',
-      model,
-      content: processedContent,
-      prompt: {
-        system: systemPrompt,
-        user: userPrompt,
-      },
-      completedAt: new Date().toISOString(),
-    };
-
-    this.logger.log(
-      `[GenerationsService] Saving generation result to database for ${generationType}`,
-    );
-    await this.generationHelpers.completeGeneration(generationRequestId, normalizedResult);
-    this.logger.log(`[GenerationsService] Generation ${generationType} completed successfully`);
-
-    return normalizedResult;
   }
 
   /**
@@ -2951,10 +2842,6 @@ SVG: НЕ требуется.
       video_analysis: `${baseUrl}/chatgpt-hook`,
       'exam-variant': `${baseUrl}/chatgpt-hook`,
       exam_variant: `${baseUrl}/chatgpt-hook`,
-      // GigaChat генерации не используют webhooks (обрабатываются напрямую)
-      'gigachat-chat': '',
-      'gigachat-image': '',
-      'gigachat-embeddings': '',
     };
 
     return webhookMap[generationType] || `${baseUrl}/chatgpt-hook`;
@@ -2991,10 +2878,6 @@ SVG: НЕ требуется.
       'sales-advisor': `${apiUrl}/api/webhooks/content-callback`,
       sales_advisor: `${apiUrl}/api/webhooks/content-callback`,
       assistant: `${apiUrl}/api/webhooks/content-callback`,
-      // GigaChat генерации не используют callbacks (обрабатываются напрямую)
-      'gigachat-chat': '',
-      'gigachat-image': '',
-      'gigachat-embeddings': '',
     };
 
     return callbackMap[generationType];
@@ -3369,9 +3252,6 @@ ${customPrompt ? `Дополнительно: ${customPrompt}` : ''}
       photosession: 'photosession',
       presentation: 'presentation',
       transcription: 'transcription',
-      'gigachat-chat': 'gigachat_text',
-      'gigachat-image': 'gigachat_image',
-      'gigachat-embeddings': 'gigachat_embeddings',
       'video-analysis': 'video_analysis',
       video_analysis: 'video_analysis',
       'exam-variant': 'exam_variant',
@@ -3402,28 +3282,25 @@ ${customPrompt ? `Дополнительно: ${customPrompt}` : ''}
       content_adaptation: 'chatgpt-webhook',
       message: 'chatgpt-webhook',
       feedback: 'chatgpt-webhook',
-      image: 'GigaChat-2-Max',
-      image_generation: 'GigaChat-2-Max',
-      photosession: 'GigaChat-2-Max',
+      image: 'google/nano-banana-pro',
+      image_generation: 'google/nano-banana-pro',
+      photosession: 'google/gemini-3-pro-image-preview',
       presentation: 'Gamma AI',
       transcription: 'Whisper AI',
-      lessonPreparation: 'GigaChat-2-Max',
-      lesson_preparation: 'GigaChat-2-Max',
-      game_generation: 'GigaChat-2-Max',
-      'video-analysis': 'GigaChat-2-Max',
-      video_analysis: 'GigaChat-2-Max',
-      'exam-variant': 'GigaChat-2-Max',
-      exam_variant: 'GigaChat-2-Max',
-      unpacking: 'GigaChat-2-Max',
-      'sales-advisor': 'GigaChat-2-Max',
-      sales_advisor: 'GigaChat-2-Max',
+      lessonPreparation: 'google/gemini-3-flash',
+      lesson_preparation: 'google/gemini-3-flash',
+      game_generation: 'google/gemini-3-flash',
+      'video-analysis': 'google/gemini-3-flash',
+      video_analysis: 'google/gemini-3-flash',
+      'exam-variant': 'google/gemini-3-flash',
+      exam_variant: 'google/gemini-3-flash',
+      unpacking: 'google/gemini-3-flash',
+      'sales-advisor': 'google/gemini-3-flash',
+      sales_advisor: 'google/gemini-3-flash',
       assistant: 'google/gemini-3-flash',
-      'gigachat-chat': 'GigaChat',
-      'gigachat-image': 'GigaChat-2-Max',
-      'gigachat-embeddings': 'GigaChat-Embedding',
     };
 
-    return modelMap[generationType] || 'GigaChat-2-Max';
+    return modelMap[generationType] || 'google/gemini-3-flash';
   }
 
   /**

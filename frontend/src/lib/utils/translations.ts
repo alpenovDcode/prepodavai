@@ -24,12 +24,6 @@ export const generationTypeLabels: Record<string, string> = {
   'game': '🎮 Мини-игра',
   'image': '🎨 Изображение',
   'image_generation': '🎨 Изображение',
-  'gigachat-chat': '🧠 GigaChat (текст)',
-  'gigachat-image': '🧠 GigaChat (изображение)',
-  'gigachat-embeddings': '🧠 GigaChat (эмбеддинги)',
-  'gigachat-audio-speech': '🧠 GigaChat (TTS)',
-  'gigachat-audio-transcription': '🧠 GigaChat (STT)',
-  'gigachat-audio-translation': '🧠 GigaChat (перевод аудио)',
   'assistant': '🤖 ИИ-ассистент',
 };
 

@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';
-import { GigachatService } from '../gigachat/gigachat.service';
+import { ReplicateService } from '../replicate/replicate.service';
 import { CreateGameDto, GameType } from './dto/create-game.dto';
 import { PrismaService } from '../../common/prisma/prisma.service';
 
@@ -16,7 +16,7 @@ export class GamesService {
   private readonly templatesDir: string;
 
   constructor(
-    private readonly gigachatService: GigachatService,
+    private readonly replicateService: ReplicateService,
     private readonly configService: ConfigService,
     private readonly prisma: PrismaService, // Added PrismaService injection
     private readonly subscriptionsService: SubscriptionsService,
@@ -126,7 +126,7 @@ export class GamesService {
             topic,
             type,
           },
-          model: 'GigaChat', // Assuming GigaChat is used
+          model: 'google/gemini-3-flash',
         },
       });
 
@@ -144,7 +144,7 @@ export class GamesService {
             topic,
             type,
           },
-          model: 'GigaChat',
+          model: 'google/gemini-3-flash',
           generationRequestId: generationRequest.id,
         },
       });
@@ -264,18 +264,14 @@ export class GamesService {
 
   private async callAi(prompt: string): Promise<any> {
     try {
-      const response = (await this.gigachatService.createChatCompletion({
-        model: this.gigachatService.getDefaultModel('chat'),
-        messages: [{ role: 'user', content: prompt }],
-        temperature: 0.7,
+      const rawContent = await this.replicateService.createCompletion(prompt, 'google/gemini-3-flash', {
         max_tokens: 5000,
-      })) as any;
-
-      let content = response.choices[0].message.content;
-      this.logger.debug(`Raw AI response length: ${content.length}`);
+        temperature: 0.7,
+      });
+      this.logger.debug(`Raw AI response length: ${rawContent.length}`);
 
       // Clean up markdown code blocks if present
-      content = content.replace(/```json\n?|\n?```/g, '').trim();
+      const content = rawContent.replace(/```json\n?|\n?```/g, '').trim();
 
       // Remove any leading/trailing text that's not JSON
       const jsonMatch = content.match(/\[[\s\S]*\]/) || content.match(/\{[\s\S]*\}/);

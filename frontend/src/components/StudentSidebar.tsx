@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, BookOpen, GraduationCap, MessageSquare, Settings, HelpCircle, LogOut } from 'lucide-react'
+import { LayoutDashboard, BookOpen, GraduationCap, MessageSquare, Settings, HelpCircle, LogOut, Bot } from 'lucide-react'
 import NotificationBell from './NotificationBell'
 
 interface StudentUser {
@@ -25,6 +25,7 @@ export default function StudentSidebar({ user, onLogout }: StudentSidebarProps) 
         { name: 'Задания', href: '/student/dashboard', icon: BookOpen },
         { name: 'Оценки', href: '/student/grades', icon: GraduationCap },
         { name: 'Сообщения', href: '/student/messages', icon: MessageSquare },
+        { name: 'ИИ Учитель', href: '/student/ai-teacher', icon: Bot },
     ]
 
     const bottomItems = [

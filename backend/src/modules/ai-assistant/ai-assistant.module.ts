@@ -1,10 +1,10 @@
 import { Module } from '@nestjs/common';
 import { AiAssistantController } from './ai-assistant.controller';
 import { AiAssistantService } from './ai-assistant.service';
-import { GigachatModule } from '../gigachat/gigachat.module';
+import { ReplicateModule } from '../replicate/replicate.module';
 
 @Module({
-  imports: [GigachatModule],
+  imports: [ReplicateModule],
   controllers: [AiAssistantController],
   providers: [AiAssistantService],
   exports: [AiAssistantService],

@@ -31,15 +31,6 @@ export default function InputComposer({
   const [currentCost, setCurrentCost] = useState<number | null>(null)
   const [maintenanceStatus, setMaintenanceStatus] = useState<Record<string, boolean>>({})
   const scrollWrapRef = useRef<HTMLDivElement>(null)
-  const gigachatModelsLoadedRef = useRef(false)
-  const [gigachatModels, setGigachatModels] = useState<Record<'chat' | 'image' | 'audio' | 'embeddings', FieldOption[]>>({
-    chat: [],
-    image: [],
-    audio: [],
-    embeddings: []
-  })
-  const [isGigachatLoading, setIsGigachatLoading] = useState(false)
-
   const isTelegramWebApp = typeof window !== 'undefined' &&
     (window as any).Telegram?.WebApp?.initDataUnsafe?.user !== undefined
 
@@ -58,14 +49,6 @@ export default function InputComposer({
     photosession: 'photosession',
     transcription: 'transcription',
     message: 'message',
-    gigachat: {
-      chat: 'gigachat_text',
-      image: 'gigachat_image',
-      embeddings: 'gigachat_embeddings',
-      audio_speech: 'gigachat_audio',
-      audio_transcription: 'gigachat_audio',
-      audio_translation: 'gigachat_audio'
-    },
     game: 'game_generation',
     lessonPreparation: 'lesson_preparation',
     videoAnalysis: 'video_analysis',
@@ -82,26 +65,7 @@ export default function InputComposer({
   const isUnderMaintenance = currentOp ? maintenanceStatus[currentOp] : false
 
   const activeFields = getActiveFields(currentFunction, localValues)
-  const resolvedFields = activeFields.map(field => {
-    if (currentFunction === 'gigachat' && field.key === 'model') {
-      const mode = localValues.mode || 'chat'
-      const bucket = mode === 'image'
-        ? 'image'
-        : mode === 'embeddings'
-          ? 'embeddings'
-          : mode.startsWith('audio')
-            ? 'audio'
-            : 'chat'
-      const bucketOptions = gigachatModels[bucket as keyof typeof gigachatModels]
-      if (bucketOptions && bucketOptions.length > 0) {
-        return {
-          ...field,
-          options: bucketOptions
-        }
-      }
-    }
-    return field
-  })
+  const resolvedFields = activeFields
 
   const selectFunction = useCallback((id: string) => {
     const fields = templates[id]?.fields || []
@@ -118,24 +82,6 @@ export default function InputComposer({
         tone: '',
         audience: ''
       },
-      gigachat: {
-        mode: 'chat',
-        model: 'GigaChat',
-        systemPrompt: '',
-        userPrompt: '',
-        temperature: 0.8,
-        topP: 0.9,
-        maxTokens: 1024,
-        prompt: '',
-        size: '1024x1024',
-        quality: 'high',
-        inputText: '',
-        voice: 'BYS',
-        audioFormat: 'mp3',
-        audioSpeed: 1,
-        language: 'ru',
-        targetLanguage: 'en'
-      }
     }
 
     fields.forEach(field => {
@@ -205,14 +151,6 @@ export default function InputComposer({
             photosession: 'photosession',
             transcription: 'transcription',
             message: 'message',
-            gigachat: {
-              chat: 'gigachat_text',
-              image: 'gigachat_image',
-              embeddings: 'gigachat_embeddings',
-              audio_speech: 'gigachat_audio',
-              audio_transcription: 'gigachat_audio',
-              audio_translation: 'gigachat_audio'
-            },
             game: 'game_generation',
             lessonPreparation: 'lesson_preparation',
             videoAnalysis: 'video_analysis',
@@ -243,42 +181,6 @@ export default function InputComposer({
     setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 1)
   }, [])
 
-  const loadGigachatModels = useCallback(async () => {
-    setIsGigachatLoading(true)
-    try {
-      const response = await apiClient.get('/gigachat/models')
-      if (response.data.success) {
-        const normalize = (items?: any[]): FieldOption[] => {
-          if (!Array.isArray(items)) return []
-          return items
-            .map((item: any) => {
-              if (typeof item === 'string') {
-                return { value: item, label: item }
-              }
-              const value = item?.id || item?.label || item?.value
-              if (!value) return null
-              return {
-                value,
-                label: item?.label || item?.display_name || value
-              }
-            })
-            .filter(Boolean) as FieldOption[]
-        }
-
-        setGigachatModels({
-          chat: normalize(response.data.models?.chat),
-          image: normalize(response.data.models?.image),
-          audio: normalize(response.data.models?.audio),
-          embeddings: normalize(response.data.models?.embeddings)
-        })
-      }
-    } catch (error) {
-      console.error('Failed to load GigaChat models:', error)
-    } finally {
-      setIsGigachatLoading(false)
-    }
-  }, [])
-
   useEffect(() => {
     updateScrollShadows()
     const el = scrollWrapRef.current
@@ -294,13 +196,6 @@ export default function InputComposer({
       el.removeEventListener('scroll', updateScrollShadows)
     }
   }, [updateScrollShadows])
-
-  useEffect(() => {
-    if (currentFunction !== 'gigachat') return
-    if (gigachatModelsLoadedRef.current) return
-    gigachatModelsLoadedRef.current = true
-    loadGigachatModels()
-  }, [currentFunction, loadGigachatModels])
 
   function displayValue(key: string, placeholder: string): string {
     const v = localValues[key]
@@ -440,7 +335,7 @@ export default function InputComposer({
       formData.append('file', file)
 
       try {
-        const uploadUrl = currentFunction === 'gigachat' ? '/gigachat/files/upload' : '/files/upload'
+        const uploadUrl = '/files/upload'
         const response = await apiClient.post(uploadUrl, formData)
 
         if (!response.data.success) {
@@ -584,13 +479,6 @@ export default function InputComposer({
               </span>
             ))}
           </div>
-
-          {currentFunction === 'gigachat' && (
-            <div className="mt-3 mb-1 flex items-center gap-2 text-xs text-gray-500">
-              <i className={`fas ${isGigachatLoading ? 'fa-spinner fa-spin' : 'fa-database'}`}></i>
-              <span>{isGigachatLoading ? 'Загружаем модели GigaChat…' : 'Модели GigaChat доступны'}</span>
-            </div>
-          )}
 
           {/* Inline editors */}
           <div className={`mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 ${isUnderMaintenance ? 'opacity-50 pointer-events-none' : ''}`}>

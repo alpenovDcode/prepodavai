@@ -38,8 +38,8 @@ export class AdminController {
   }
 
   @Post('users')
-  async createUser(@Body() body: any) {
-    return this.adminService.createUser(body);
+  async createUser(@Body() body: any, @Request() req: any) {
+    return this.adminService.createUser(body, req.user.id);
   }
 
   @Get('users/:id')
@@ -48,13 +48,13 @@ export class AdminController {
   }
 
   @Put('users/:id')
-  async updateUser(@Param('id') id: string, @Body() body: any) {
-    return this.adminService.updateUser(id, body);
+  async updateUser(@Param('id') id: string, @Body() body: any, @Request() req: any) {
+    return this.adminService.updateUser(id, body, req.user.id);
   }
 
   @Delete('users/:id')
-  async deleteUser(@Param('id') id: string) {
-    return this.adminService.deleteUser(id);
+  async deleteUser(@Param('id') id: string, @Request() req: any) {
+    return this.adminService.deleteUser(id, req.user.id);
   }
 
   // ========== GENERATIONS ==========
@@ -72,13 +72,13 @@ export class AdminController {
   }
 
   @Put('generations/:id')
-  async updateGeneration(@Param('id') id: string, @Body() body: any) {
-    return this.adminService.updateGeneration(id, body);
+  async updateGeneration(@Param('id') id: string, @Body() body: any, @Request() req: any) {
+    return this.adminService.updateGeneration(id, body, req.user.id);
   }
 
   @Delete('generations/:id')
-  async deleteGeneration(@Param('id') id: string) {
-    return this.adminService.deleteGeneration(id);
+  async deleteGeneration(@Param('id') id: string, @Request() req: any) {
+    return this.adminService.deleteGeneration(id, req.user.id);
   }
 
   // ========== SUBSCRIPTIONS ==========
@@ -96,8 +96,8 @@ export class AdminController {
   }
 
   @Put('subscriptions/:id')
-  async updateSubscription(@Param('id') id: string, @Body() body: any) {
-    return this.adminService.updateSubscription(id, body);
+  async updateSubscription(@Param('id') id: string, @Body() body: any, @Request() req: any) {
+    return this.adminService.updateSubscription(id, body, req.user.id);
   }
 
   // ========== CREDIT TRANSACTIONS ==========
@@ -116,8 +116,8 @@ export class AdminController {
   }
 
   @Delete('files/:hash')
-  async deleteFile(@Param('hash') hash: string) {
-    return this.adminService.deleteFile(hash);
+  async deleteFile(@Param('hash') hash: string, @Request() req: any) {
+    return this.adminService.deleteFile(hash, req.user.id);
   }
 
   // ========== SYSTEM LOGS ==========
@@ -145,7 +145,8 @@ export class AdminController {
   async updateCreditCost(
     @Param('operationType') operationType: string,
     @Body() body: { creditCost?: number; isUnderMaintenance?: boolean },
+    @Request() req: any,
   ) {
-    return this.adminService.updateCreditCost(operationType, body);
+    return this.adminService.updateCreditCost(operationType, body, req.user.id);
   }
 }

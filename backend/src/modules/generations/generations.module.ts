@@ -1,4 +1,4 @@
-import { Module, forwardRef } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { GenerationsController } from './generations.controller';
 import { GenerationsService } from './generations.service';
@@ -10,7 +10,6 @@ import { ReplicatePresentationProcessor } from './processors/replicate-presentat
 import { LessonPreparationProcessor } from './processors/lesson-preparation.processor';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 
-import { GigachatModule } from '../gigachat/gigachat.module';
 import { GammaModule } from '../gamma/gamma.module';
 import { HtmlPostprocessorService } from '../../common/services/html-postprocessor.service';
 import { HtmlExportService } from '../../common/services/html-export.service';
@@ -49,7 +48,6 @@ import { SalesAdvisorProcessor } from './processors/sales-advisor.processor';
     }),
     TelegramModule,
     SubscriptionsModule,
-    forwardRef(() => GigachatModule),
     GammaModule,
     FilesModule,
     ReplicateModule,

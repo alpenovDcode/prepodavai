@@ -69,7 +69,6 @@ function getResultContent(gen: CachedGeneration): any {
 
 function isImageType(gen: CachedGeneration): boolean {
   if (['image', 'photosession', 'image_generation'].includes(gen.type)) return true
-  if (gen.type?.startsWith('gigachat') && gen.params?.mode === 'image') return true
   if (getImageUrl(gen)) return true
   return false
 }
@@ -269,9 +268,6 @@ export default function GenerationHistory() {
     if (gen.params?.userPrompt) return String(gen.params.userPrompt).substring(0, 60)
     if (gen.params?.inputText) return String(gen.params.inputText).substring(0, 60)
     if (gen.params?.subject) return gen.params.subject
-    if (gen.params?.mode && gen.type?.startsWith('gigachat')) {
-      return `GigaChat • ${gen.params.mode}`
-    }
     return getTypeLabel(gen.type)
   }
 
@@ -315,7 +311,7 @@ export default function GenerationHistory() {
       if (audioUrl) {
         const a = document.createElement('a')
         a.href = audioUrl
-        a.download = `gigachat-audio-${gen.id}.mp3`
+        a.download = `audio-${gen.id}.mp3`
         document.body.appendChild(a)
         a.click()
         document.body.removeChild(a)
@@ -350,7 +346,7 @@ export default function GenerationHistory() {
           const filename = `${safeName}_${dateSuffix}.pdf`
 
           const pdfResponse = await apiClient.post<Blob>(
-            '/gigachat/export/pdf',
+            '/files/export/pdf',
             { html: content, filename },
             { responseType: 'blob' }
           )

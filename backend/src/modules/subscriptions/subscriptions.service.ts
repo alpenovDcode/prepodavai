@@ -14,14 +14,6 @@ export type OperationType =
   | 'feedback'
   | 'content_adaptation'
   | 'message'
-  | 'gigachat_text'
-  | 'gigachat_image'
-  | 'gigachat_audio'
-  | 'gigachat_tts'
-  | 'gigachat_stt'
-  | 'gigachat_translation'
-  | 'gigachat_embeddings'
-  | 'gigachat_tokens_count'
   | 'game_generation'
   | 'exam_variant'
   | 'video_analysis'
@@ -192,62 +184,6 @@ export class SubscriptionsService {
         operationName: 'Сообщение родителям',
         creditCost: 1,
         description: 'Генерация сообщений',
-        isActive: true,
-        isUnderMaintenance: false,
-      },
-      {
-        operationType: 'gigachat_text',
-        operationName: 'GigaChat текст',
-        creditCost: 3,
-        description: 'Прямые текстовые запросы к GigaChat',
-        isActive: true,
-        isUnderMaintenance: false,
-      },
-      {
-        operationType: 'gigachat_image',
-        operationName: 'GigaChat изображение',
-        creditCost: 6,
-        description: 'Генерация изображений через GigaChat',
-        isActive: true,
-        isUnderMaintenance: false,
-      },
-      {
-        operationType: 'gigachat_tts',
-        operationName: 'GigaChat синтез речи',
-        creditCost: 5,
-        description: 'Синтез речи из текста (TTS)',
-        isActive: true,
-        isUnderMaintenance: false,
-      },
-      {
-        operationType: 'gigachat_stt',
-        operationName: 'GigaChat транскрибация',
-        creditCost: 5,
-        description: 'Распознавание речи (STT)',
-        isActive: true,
-        isUnderMaintenance: false,
-      },
-      {
-        operationType: 'gigachat_translation',
-        operationName: 'GigaChat аудио перевод',
-        creditCost: 7,
-        description: 'Перевод аудио файлов',
-        isActive: true,
-        isUnderMaintenance: false,
-      },
-      {
-        operationType: 'gigachat_embeddings',
-        operationName: 'GigaChat эмбеддинги',
-        creditCost: 2,
-        description: 'Получение эмбеддингов через GigaChat',
-        isActive: true,
-        isUnderMaintenance: false,
-      },
-      {
-        operationType: 'gigachat_tokens_count',
-        operationName: 'GigaChat подсчет токенов',
-        creditCost: 0,
-        description: 'Подсчет токенов (бесплатно)',
         isActive: true,
         isUnderMaintenance: false,
       },

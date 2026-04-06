@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { FilesService } from '../files/files.service';
 import { EmailService } from '../../common/services/email.service';
+import { LogsService } from '../logs/logs.service';
 import * as crypto from 'crypto';
 
 @Injectable()
@@ -10,7 +11,22 @@ export class AdminService {
     private prisma: PrismaService,
     private filesService: FilesService,
     private emailService: EmailService,
+    private logsService: LogsService,
   ) {}
+
+  private async audit(action: string, adminId: string, details?: any) {
+    try {
+      await this.logsService.saveLog({
+        level: 'info',
+        category: 'admin_audit',
+        message: action,
+        data: { adminId, ...details },
+        userId: adminId,
+      });
+    } catch (e) {
+      console.error('[AdminAudit] Failed to save audit log:', e);
+    }
+  }
 
   // ========== USERS ==========
   async getUsers(limit = 50, offset = 0, search?: string) {
@@ -112,7 +128,7 @@ export class AdminService {
     };
   }
 
-  async createUser(data: any) {
+  async createUser(data: any, adminId?: string) {
     const { username, password, firstName, lastName, phone, creditsBalance } = data;
 
     if (!username) {
@@ -201,6 +217,8 @@ export class AdminService {
       include: { subscription: true },
     });
 
+    await this.audit('admin.user.create', adminId, { targetUserId: user.id, username });
+
     return {
       success: true,
       user: createdUser,
@@ -208,7 +226,7 @@ export class AdminService {
     };
   }
 
-  async updateUser(id: string, data: any) {
+  async updateUser(id: string, data: any, adminId?: string) {
     // Whitelist approach: only allow specific fields to be updated
     const ALLOWED_FIELDS = ['firstName', 'lastName', 'phone', 'username', 'email', 'phoneVerified', 'source'] as const;
     const updateData: Record<string, any> = {};
@@ -254,6 +272,8 @@ export class AdminService {
       }
     }
 
+    await this.audit('admin.user.update', adminId, { targetUserId: id, fields: Object.keys(updateData) });
+
     return {
       success: true,
       user,
@@ -261,7 +281,7 @@ export class AdminService {
     };
   }
 
-  async deleteUser(id: string) {
+  async deleteUser(id: string, adminId?: string) {
     // Удаляем связанные записи
     await this.prisma.creditTransaction.deleteMany({ where: { userId: id } });
     await this.prisma.userGeneration.deleteMany({ where: { userId: id } });
@@ -271,6 +291,8 @@ export class AdminService {
     const user = await this.prisma.appUser.delete({
       where: { id },
     });
+
+    await this.audit('admin.user.delete', adminId, { targetUserId: id });
 
     return {
       success: true,
@@ -341,7 +363,7 @@ export class AdminService {
     };
   }
 
-  async updateGeneration(id: string, data: any) {
+  async updateGeneration(id: string, data: any, adminId?: string) {
     const { id: _, createdAt, updatedAt, userId, user, userGeneration, ...updateData } = data;
 
     // Валидация статуса
@@ -366,6 +388,8 @@ export class AdminService {
       },
     });
 
+    await this.audit('admin.generation.update', adminId, { generationId: id });
+
     return {
       success: true,
       generation,
@@ -373,7 +397,7 @@ export class AdminService {
     };
   }
 
-  async deleteGeneration(id: string) {
+  async deleteGeneration(id: string, adminId?: string) {
     // Удаляем связанные записи
     const generation = await this.prisma.generationRequest.findUnique({
       where: { id },
@@ -393,6 +417,8 @@ export class AdminService {
     await this.prisma.generationRequest.delete({
       where: { id },
     });
+
+    await this.audit('admin.generation.delete', adminId, { generationId: id });
 
     return {
       success: true,
@@ -453,7 +479,7 @@ export class AdminService {
     };
   }
 
-  async updateSubscription(id: string, data: any) {
+  async updateSubscription(id: string, data: any, adminId?: string) {
     const { id: _, createdAt, updatedAt, user, plan, creditTransactions, ...updateData } = data;
 
     // Преобразуем userId и planId если они пришли как объекты
@@ -491,6 +517,8 @@ export class AdminService {
         plan: true,
       },
     });
+
+    await this.audit('admin.subscription.update', adminId, { subscriptionId: id });
 
     return {
       success: true,
@@ -543,11 +571,13 @@ export class AdminService {
     };
   }
 
-  async deleteFile(hash: string) {
+  async deleteFile(hash: string, adminId?: string) {
     const result = await this.filesService.deleteFile(hash, undefined, true);
     if (!result) {
       throw new NotFoundException('File not found');
     }
+    await this.audit('admin.file.delete', adminId, { fileHash: hash });
+
     return {
       success: true,
       message: 'File deleted successfully',
@@ -658,11 +688,14 @@ export class AdminService {
   async updateCreditCost(
     operationType: string,
     data: { creditCost?: number; isUnderMaintenance?: boolean },
+    adminId?: string,
   ) {
     const cost = await this.prisma.creditCost.update({
       where: { operationType },
       data,
     });
+
+    await this.audit('admin.creditCost.update', adminId, { operationType, ...data });
 
     return {
       success: true,

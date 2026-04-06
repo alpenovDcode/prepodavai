@@ -26,7 +26,6 @@ import { WebhooksModule } from './modules/webhooks/webhooks.module';
 import { LogsModule } from './modules/logs/logs.module';
 import { FilesModule } from './modules/files/files.module';
 import { AdminModule } from './modules/admin/admin.module';
-import { GigachatModule } from './modules/gigachat/gigachat.module';
 import { GammaModule } from './modules/gamma/gamma.module';
 import { AiAssistantModule } from './modules/ai-assistant/ai-assistant.module';
 import { HtmlExportService } from './common/services/html-export.service';
@@ -93,7 +92,6 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
     LogsModule,
     FilesModule,
     AdminModule,
-    GigachatModule,
     GammaModule,
     AiAssistantModule,
     ReplicateModule,

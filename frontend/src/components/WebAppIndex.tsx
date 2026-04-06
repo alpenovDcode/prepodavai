@@ -235,28 +235,22 @@ export default function WebAppIndex({ embedded = false }: WebAppIndexProps) {
     window.location.reload()
   }
 
-  const gigachatMode = currentFunctionId === 'gigachat' ? (form.mode || 'chat') : null
-
   // AI Assistant - показываем чат вместо результата
   const isAiAssistant = currentFunctionId === 'aiAssistant'
 
   const isTextResult = generationResult && (
-    ['worksheet', 'quiz', 'vocabulary', 'lessonPlan', 'lessonPreparation', 'content', 'feedback', 'message', 'transcription', 'videoAnalysis', 'salesAdvisor'].includes(currentFunctionId) ||
-    (currentFunctionId === 'gigachat' && ['chat', 'embeddings', 'audio_transcription', 'audio_translation', 'tokens_count'].includes(String(gigachatMode)))
+    ['worksheet', 'quiz', 'vocabulary', 'lessonPlan', 'lessonPreparation', 'content', 'feedback', 'message', 'transcription', 'videoAnalysis', 'salesAdvisor'].includes(currentFunctionId)
   ) && (!generationResult?.sections) // Only treat as simple text if no sections
 
 
   const isImageResult = generationResult && (
-    ['image', 'photosession'].includes(currentFunctionId) ||
-    (currentFunctionId === 'gigachat' && gigachatMode === 'image')
+    ['image', 'photosession'].includes(currentFunctionId)
   )
 
   const isPresentationResult = generationResult &&
     currentFunctionId === 'presentation'
 
-  const isAudioResult = generationResult &&
-    currentFunctionId === 'gigachat' &&
-    gigachatMode === 'audio_speech'
+  const isAudioResult = false
 
   const isGameResult = generationResult && currentFunctionId === 'game'
 
@@ -504,58 +498,6 @@ ${autoPrintScript}</head><body>${bodyContent}</body></html>`
         } finally {
           setIsGenerating(false)
         }
-      } else if (type === 'gigachat') {
-        const mode = form.mode || 'chat'
-        params = { ...params, mode, model: form.model }
-
-        if (mode === 'chat') {
-          params = {
-            ...params,
-            systemPrompt: form.systemPrompt,
-            userPrompt: form.userPrompt,
-            temperature: form.temperature,
-            topP: form.topP,
-            maxTokens: form.maxTokens
-          }
-        } else if (mode === 'image') {
-          params = {
-            ...params,
-            prompt: form.prompt,
-            negativePrompt: form.negativePrompt,
-            size: form.size,
-            quality: form.quality
-          }
-        } else if (mode === 'embeddings') {
-          params = {
-            ...params,
-            inputTexts: form.inputText ? [form.inputText] : []
-          }
-        } else if (mode === 'tokens_count') {
-          params = {
-            ...params,
-            text: form.inputText
-          }
-        } else if (mode === 'audio_speech') {
-          params = {
-            ...params,
-            inputText: form.inputText,
-            voice: form.voice,
-            audioFormat: form.audioFormat,
-            audioSpeed: form.audioSpeed
-          }
-        } else if (mode === 'audio_transcription') {
-          params = {
-            ...params,
-            audioHash: form.audioHash,
-            language: form.language
-          }
-        } else if (mode === 'audio_translation') {
-          params = {
-            ...params,
-            audioHash: form.audioHash,
-            targetLanguage: form.targetLanguage
-          }
-        }
       }
 
       // Отправляем запрос на генерацию через useGenerations hook
@@ -572,9 +514,7 @@ ${autoPrintScript}</head><body>${bodyContent}</body></html>`
       })
 
       // Сохраняем результат для отображения
-      if (type === 'gigachat') {
-        setGenerationResult(status.result || null)
-      } else if (type === 'image' || type === 'photosession') {
+      if (type === 'image' || type === 'photosession') {
         setGenerationResult(status.result?.imageUrl || status.result)
       } else if (type === 'presentation') {
         setGenerationResult(status.result?.message || status.result)
@@ -974,7 +914,7 @@ ${autoPrintScript}</head><body>${bodyContent}</body></html>`
                     </audio>
                     <a
                       href={audioDisplayUrl}
-                      download="gigachat-audio.mp3"
+                      download="audio.mp3"
                       className="inline-flex items-center gap-2 px-4 py-2 bg-[#FF7E58] text-white rounded-lg text-sm font-medium hover:shadow-lg transition active:scale-95"
                     >
                       <i className="fas fa-download"></i>
@@ -1171,7 +1111,6 @@ function getGenerationTypeLabel(type: string): string {
     photosession: 'ИИ Фотосессия',
     transcription: 'Транскрипция видео',
     message: 'Сообщение',
-    gigachat: 'GigaChat',
     aiAssistant: 'AI-ассистент',
     game: 'Мини-игра'
   }
