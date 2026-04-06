@@ -9,6 +9,7 @@ import {
   StudentLoginDto,
   SendPhoneCodeDto,
   LoginWithPhoneDto,
+  RegisterByEmailDto,
 } from './dto/auth.dto';
 
 @Controller('auth')
@@ -152,6 +153,20 @@ export class AuthController {
     @Request() req: any,
   ) {
     const result = await this.authService.studentLoginWithEmail(body.email, body.password);
+    if (result && result.token) {
+      this.setTokenCookie(res, result.token, req);
+    }
+    return result;
+  }
+
+  @Post('register-by-email')
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  async registerByEmail(
+    @Body() body: RegisterByEmailDto,
+    @Res({ passthrough: true }) res: Response,
+    @Request() req: any,
+  ) {
+    const result = await this.authService.registerByEmail(body.email, body.firstName);
     if (result && result.token) {
       this.setTokenCookie(res, result.token, req);
     }

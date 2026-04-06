@@ -138,6 +138,35 @@ export class UsersService {
   }
 
   /**
+   * Найти или создать пользователя по email
+   */
+  async findOrCreateByEmail(email: string, firstName?: string) {
+    let user = await this.prisma.appUser.findFirst({
+      where: { email },
+    });
+
+    if (!user) {
+      const apiKey = this.generateApiKey();
+      const username = email;
+      const userHash = `email_${email}`;
+
+      user = await this.prisma.appUser.create({
+        data: {
+          email,
+          username,
+          userHash,
+          apiKey,
+          firstName: firstName || '',
+          source: 'web',
+          lastAccessAt: new Date(),
+        },
+      });
+    }
+
+    return user;
+  }
+
+  /**
    * Обновить профиль пользователя
    */
   async updateProfile(userId: string, data: any) {

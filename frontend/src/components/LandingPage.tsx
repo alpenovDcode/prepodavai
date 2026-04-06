@@ -5,6 +5,7 @@ import Link from 'next/link'
 
 export default function LandingPage() {
   const [showAuth, setShowAuth] = useState(false);
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [currentTestimonial, setCurrentTestimonial] = useState(0);
   const router = useRouter()
 
@@ -150,7 +151,7 @@ export default function LandingPage() {
           </div>
           <span style={{ fontSize: 19, fontWeight: 900, letterSpacing: "-0.03em" }}>prepodav<span style={{ color: "#f97316" }}>AI</span></span>
         </div>
-        <button onClick={() => setShowAuth(true)} style={{ padding: "9px 20px", background: "#f97316", color: "white", border: "none", borderRadius: 12, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Войти</button>
+        <button onClick={() => { setAuthMode('login'); setShowAuth(true); }} style={{ padding: "9px 20px", background: "#f97316", color: "white", border: "none", borderRadius: 12, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Войти</button>
       </header>
 
       {/* HERO */}
@@ -161,7 +162,7 @@ export default function LandingPage() {
               <span style={{ background: "linear-gradient(90deg,#f97316,#f59e0b)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>Будущее</span><br />образования с ИИ
             </h1>
             <p style={{ fontSize: 17, color: "#888", marginBottom: 28, lineHeight: 1.6, maxWidth: 440 }}>Экономьте время на подготовку и повысьте его качество с помощью продвинутых ИИ-инструментов</p>
-            <button onClick={() => setShowAuth(true)} style={{ padding: "14px 32px", background: "#f97316", color: "white", border: "none", borderRadius: 16, fontSize: 16, fontWeight: 800, cursor: "pointer", boxShadow: "0 8px 24px rgba(249,115,22,0.25)" }}>Попробовать бесплатно</button>
+            <button onClick={() => { setAuthMode('register'); setShowAuth(true); }} style={{ padding: "14px 32px", background: "#f97316", color: "white", border: "none", borderRadius: 16, fontSize: 16, fontWeight: 800, cursor: "pointer", boxShadow: "0 8px 24px rgba(249,115,22,0.25)" }}>Попробовать бесплатно</button>
           </div>
 
           {/* DASHBOARD MOCKUP */}
@@ -345,7 +346,7 @@ export default function LandingPage() {
             <div style={{ position: "relative" }}>
               <h2 style={{ fontSize: 32, fontWeight: 900, marginBottom: 10 }}>Начните создавать будущее образования</h2>
               <p style={{ fontSize: 17, opacity: 0.85, marginBottom: 28 }}>Начните создавать материалы для учащихся уже сегодня</p>
-              <button onClick={() => setShowAuth(true)} style={{ padding: "14px 36px", background: "white", color: "#ea580c", border: "none", borderRadius: 16, fontSize: 17, fontWeight: 900, cursor: "pointer" }}>Начать сейчас</button>
+              <button onClick={() => { setAuthMode('register'); setShowAuth(true); }} style={{ padding: "14px 36px", background: "white", color: "#ea580c", border: "none", borderRadius: 16, fontSize: 17, fontWeight: 900, cursor: "pointer" }}>Начать сейчас</button>
             </div>
           </div>
         </div>
@@ -369,6 +370,7 @@ export default function LandingPage() {
         <AuthModal
           onClose={() => setShowAuth(false)}
           onSuccess={handleAuthSuccess}
+          initialMode={authMode}
         />
       )}
     </div>

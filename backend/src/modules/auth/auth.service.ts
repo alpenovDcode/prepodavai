@@ -8,6 +8,7 @@ import * as crypto from 'crypto';
 import * as bcrypt from 'bcryptjs';
 
 import { StudentsService } from '../students/students.service';
+import { EmailService } from '../../common/services/email.service';
 
 @Injectable()
 export class AuthService {
@@ -21,6 +22,7 @@ export class AuthService {
     private configService: ConfigService,
     private prisma: PrismaService,
     private smscService: SmscService,
+    private emailService: EmailService,
   ) {}
 
   /**
@@ -472,6 +474,42 @@ export class AuthService {
     const token = crypto.randomBytes(24).toString('hex');
     this.ottTokens.set(token, { userId, expiresAt: now + 10 * 60 * 1000 }); // 10 минут
     return token;
+  }
+
+  /**
+   * Регистрация по email: создаёт пользователя и отправляет приветственное письмо с данными для входа
+   */
+  async registerByEmail(email: string, firstName?: string) {
+    // Проверяем, есть ли уже пользователь с таким email
+    const existing = await this.prisma.appUser.findFirst({ where: { email } });
+    if (existing) {
+      throw new BadRequestException('Пользователь с таким email уже зарегистрирован');
+    }
+
+    // Создаём пользователя
+    const user = await this.usersService.findOrCreateByEmail(email, firstName);
+
+    // Отправляем приветственное письмо с данными для входа
+    await this.emailService.sendWelcomeEmail(user.username, user.apiKey, email);
+
+    // Обновляем lastAccessAt
+    await this.usersService.updateLastAccess(user.id);
+
+    // Генерируем JWT токен
+    const token = this.generateJwtToken(user.id);
+
+    return {
+      success: true,
+      token,
+      userHash: user.id,
+      user: {
+        id: user.id,
+        username: user.username,
+        firstName: user.firstName,
+        email: user.email,
+        source: user.source,
+      },
+    };
   }
 
   /**

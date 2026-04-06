@@ -6,18 +6,14 @@ import { apiClient } from '@/lib/api/client'
 interface AuthModalProps {
   onClose: () => void
   onSuccess: () => void
+  initialMode?: 'login' | 'register'
 }
 
-export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
-  const [isLogin, setIsLogin] = useState(true)
+export default function AuthModal({ onClose, onSuccess, initialMode = 'login' }: AuthModalProps) {
+  const [isLogin, setIsLogin] = useState(initialMode === 'login')
   const [loading, setLoading] = useState(false)
-  const [step, setStep] = useState(1) // 1 = form, 2 = verification code
   const [errorMessage, setErrorMessage] = useState('')
-  const [verificationCode, setVerificationCode] = useState('')
-  const [verificationId, setVerificationId] = useState('')
-  const [debugCode, setDebugCode] = useState('')
-  const [attemptsLeft, setAttemptsLeft] = useState<number | null>(null)
-  const [resendTimer, setResendTimer] = useState(0)
+  const [successMessage, setSuccessMessage] = useState('')
   const [loginMode, setLoginMode] = useState<'phone' | 'apikey'>('apikey')
 
   const [privacyAccepted, setPrivacyAccepted] = useState(false)
@@ -32,95 +28,13 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
   })
 
   useEffect(() => {
-    // Always default to Telegram auth
-    setIsLogin(true)
-    setLoginMode('apikey')
-  }, [])
-
-  useEffect(() => {
-    if (resendTimer > 0) {
-      const timer = setTimeout(() => setResendTimer(resendTimer - 1), 1000)
-      return () => clearTimeout(timer)
+    if (initialMode === 'register') {
+      setIsLogin(false)
+    } else {
+      setIsLogin(true)
+      setLoginMode('apikey')
     }
-  }, [resendTimer])
-
-  const startResendTimer = () => {
-    setResendTimer(60)
-  }
-
-  const handleSendCode = async () => {
-    setLoading(true)
-    setErrorMessage('')
-
-    try {
-      const response = await apiClient.post('/auth/phone/send-code', {
-        phone: form.phone.trim()
-      })
-
-      if (response.data.success) {
-        setVerificationId(response.data.verificationId)
-        setDebugCode(response.data.debugCode || '')
-        setStep(2)
-        startResendTimer()
-      } else {
-        setErrorMessage(response.data.error || 'Ошибка отправки кода')
-      }
-    } catch (error: any) {
-      console.error('Send code error:', error)
-      setErrorMessage(error.response?.data?.error || 'Ошибка отправки кода')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleVerifyCode = async () => {
-    setLoading(true)
-    setErrorMessage('')
-
-    try {
-      const response = await apiClient.post('/auth/phone/login', {
-        phone: form.phone.trim(),
-        code: verificationCode
-      })
-      
-      if (response.data.success) {
-        const registerResponse = await apiClient.post('/auth/register', {
-          phone: form.phone.trim(),
-          firstName: form.name.trim(),
-          email: form.email.trim() || undefined,
-          password: form.password || undefined,
-          verificationId: verificationId
-        })
-        
-        if (registerResponse.data.success) {
-          const userData = {
-            name: form.name,
-            phone: form.phone,
-            email: form.email || '',
-            userHash: registerResponse.data.userHash || `u_${Date.now()}`,
-            isAuthenticated: true,
-            loginTime: new Date().toISOString()
-          }
-          
-          localStorage.setItem('prepodavai_user', JSON.stringify(userData))
-          localStorage.setItem('prepodavai_authenticated', 'true')
-          // Token is stored in httpOnly cookie by backend
-          
-          onSuccess()
-        } else {
-          setErrorMessage(registerResponse.data.error || 'Ошибка регистрации')
-        }
-      } else {
-        setErrorMessage(response.data.error || 'Неверный код')
-        setAttemptsLeft(response.data.attemptsLeft !== undefined ? response.data.attemptsLeft : null)
-      }
-    } catch (error: any) {
-      console.error('Verification error:', error)
-      setErrorMessage(error.response?.data?.error || 'Ошибка проверки кода')
-    } finally {
-      setLoading(false)
-    }
-  }
+  }, [initialMode])
 
   const handleLoginWithPassword = async () => {
     setLoading(true)
@@ -144,7 +58,6 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
 
         localStorage.setItem('prepodavai_user', JSON.stringify(userData))
         localStorage.setItem('prepodavai_authenticated', 'true')
-        // Token is stored in httpOnly cookie by backend
 
         onSuccess()
       } else {
@@ -182,7 +95,6 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
 
         localStorage.setItem('prepodavai_user', JSON.stringify(userData))
         localStorage.setItem('prepodavai_authenticated', 'true')
-        // Token is stored in httpOnly cookie by backend
 
         onSuccess()
       } else {
@@ -196,12 +108,52 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
     }
   }
 
+  const handleRegisterByEmail = async () => {
+    setLoading(true)
+    setErrorMessage('')
+    setSuccessMessage('')
+
+    try {
+      const response = await apiClient.post('/auth/register-by-email', {
+        email: form.email.trim(),
+        firstName: form.name.trim() || undefined
+      })
+
+      if (response.data.success) {
+        const user = response.data.user
+        const userData = {
+          name: user?.firstName || form.name || 'Пользователь',
+          username: user?.username,
+          email: user?.email || form.email,
+          userHash: response.data.userHash || user?.id || `u_${Date.now()}`,
+          isAuthenticated: true,
+          loginTime: new Date().toISOString()
+        }
+
+        localStorage.setItem('prepodavai_user', JSON.stringify(userData))
+        localStorage.setItem('prepodavai_authenticated', 'true')
+
+        setSuccessMessage('Данные для входа отправлены на вашу почту!')
+
+        setTimeout(() => {
+          onSuccess()
+        }, 1500)
+      } else {
+        setErrorMessage(response.data.error || 'Ошибка регистрации')
+      }
+    } catch (error: any) {
+      console.error('Register by email error:', error)
+      setErrorMessage(error.response?.data?.message || error.response?.data?.error || 'Ошибка регистрации')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const toggleMode = () => {
     setIsLogin(!isLogin)
-    setStep(1)
     setErrorMessage('')
-    setVerificationCode('')
-    setDebugCode('')
+    setSuccessMessage('')
+    setPrivacyAccepted(false)
     setForm({
       name: '',
       phone: '',
@@ -238,19 +190,19 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
 
         <h2 className="text-3xl font-bold text-center mb-2">
           <span className="bg-gradient-to-r from-orange-600 to-orange-500 bg-clip-text text-transparent">
-            {isLogin ? 'Вход' : (step === 1 ? 'Регистрация' : 'Подтверждение')}
+            {isLogin ? 'Вход' : 'Регистрация'}
           </span>
         </h2>
         <p className="text-center text-gray-900 mb-8">
-          {isLogin 
+          {isLogin
             ? 'Введите данные из письма'
-            : (step === 1 ? 'Создайте новый аккаунт' : 'Введите код из SMS')
+            : 'Укажите email для получения данных входа'
           }
         </p>
 
-        {/* Step 1: Registration Form */}
-        {!isLogin && step === 1 && (
-          <form onSubmit={(e) => { e.preventDefault(); handleSendCode(); }} className="space-y-4">
+        {/* Email Registration Form */}
+        {!isLogin && (
+          <form onSubmit={(e) => { e.preventDefault(); handleRegisterByEmail(); }} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 <i className="fas fa-user text-orange-500 mr-2"></i>
@@ -260,7 +212,6 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
                 value={form.name}
                 onChange={(e) => setForm(prev => ({ ...prev, name: e.target.value }))}
                 type="text"
-                required
                 className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none transition-colors text-gray-900 placeholder:text-gray-400"
                 placeholder="Введите ваше имя"
               />
@@ -268,50 +219,26 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                <i className="fas fa-phone text-orange-500 mr-2"></i>
-                Телефон
-              </label>
-              <input
-                value={form.phone}
-                onChange={(e) => setForm(prev => ({ ...prev, phone: e.target.value }))}
-                type="tel"
-                required
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none transition-colors text-gray-900 placeholder:text-gray-400"
-                placeholder="+7 900 123 45 67"
-              />
-              <p className="text-xs text-gray-500 mt-1">На этот номер придет SMS с кодом</p>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
                 <i className="fas fa-envelope text-orange-500 mr-2"></i>
-                Email (опционально)
+                Email
               </label>
               <input
                 value={form.email}
                 onChange={(e) => setForm(prev => ({ ...prev, email: e.target.value }))}
                 type="email"
+                required
                 className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none transition-colors text-gray-900 placeholder:text-gray-400"
                 placeholder="example@email.com"
               />
+              <p className="text-xs text-gray-500 mt-1">На эту почту придут данные для входа</p>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                <i className="fas fa-lock text-orange-500 mr-2"></i>
-                Пароль
-              </label>
-              <input
-                value={form.password}
-                onChange={(e) => setForm(prev => ({ ...prev, password: e.target.value }))}
-                type="password"
-                required
-                minLength={6}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none transition-colors text-gray-900 placeholder:text-gray-400"
-                placeholder="Минимум 6 символов"
-              />
-              <p className="text-xs text-gray-500 mt-1">Минимум 6 символов</p>
-            </div>
+            {successMessage && (
+              <div className="p-3 bg-green-50 border border-green-200 rounded-xl text-green-700 text-sm">
+                <i className="fas fa-check-circle mr-2"></i>
+                {successMessage}
+              </div>
+            )}
 
             {errorMessage && (
               <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">
@@ -343,208 +270,16 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
 
             <button
               type="submit"
-              disabled={loading || !privacyAccepted}
+              disabled={loading || !privacyAccepted || !form.email.trim()}
               className="w-full py-4 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300 hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               <i className={`fas ${loading ? 'fa-spinner fa-spin' : 'fa-paper-plane'}`}></i>
-              {loading ? 'Отправка...' : 'Отправить код'}
+              {loading ? 'Регистрация...' : 'Зарегистрироваться'}
             </button>
 
             <div className="text-center text-xs text-gray-500 space-y-1 pt-1">
               <p>
-                Нажимая «Войти», вы соглашаетесь с{' '}
-                <a href="/legal/offer" target="_blank" rel="noopener noreferrer" className="text-orange-600 hover:underline">Офертой</a>
-                {' '}и{' '}
-                <a href="/legal/privacy" target="_blank" rel="noopener noreferrer" className="text-orange-600 hover:underline">Политикой конфиденциальности</a>
-              </p>
-              <p className="flex items-center justify-center gap-3">
-                <a href="/legal/consent/processing" target="_blank" rel="noopener noreferrer" className="text-orange-600 hover:underline">Согласие на обработку данных</a>
-                <span className="text-gray-300">|</span>
-                <a href="/legal/consent/mailing" target="_blank" rel="noopener noreferrer" className="text-orange-600 hover:underline">Согласие на рассылку</a>
-              </p>
-            </div>
-          </form>
-        )}
-
-        {/* Step 2: Verification Code */}
-        {!isLogin && step === 2 && (
-          <form onSubmit={(e) => { e.preventDefault(); handleVerifyCode(); }} className="space-y-4">
-            <div className="text-center mb-6">
-              <div className="w-16 h-16 rounded-full bg-orange-100 mx-auto mb-4 flex items-center justify-center">
-                <i className="fas fa-mobile-alt text-orange-500 text-2xl"></i>
-              </div>
-              <p className="text-gray-600">
-                Код отправлен на номер<br />
-                <span className="font-semibold text-gray-900">{form.phone}</span>
-              </p>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2 text-center">
-                <i className="fas fa-key text-orange-500 mr-2"></i>
-                Введите код из SMS
-              </label>
-              <input
-                value={verificationCode}
-                onChange={(e) => setVerificationCode(e.target.value.replace(/[^0-9]/g, '').slice(0, 4))}
-                type="text"
-                required
-                maxLength={4}
-                pattern="[0-9]{4}"
-                className="w-full px-4 py-4 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none transition-colors text-center text-2xl font-bold text-gray-900 placeholder:text-gray-400 tracking-widest"
-                placeholder="0000"
-              />
-            </div>
-
-            {debugCode && (
-              <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-xl text-yellow-800 text-sm">
-                <i className="fas fa-exclamation-triangle mr-2"></i>
-                <strong>DEV MODE:</strong> Код: {debugCode}
-              </div>
-            )}
-
-            {errorMessage && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">
-                <i className="fas fa-exclamation-circle mr-2"></i>
-                {errorMessage}
-                {attemptsLeft !== null && (
-                  <span className="block mt-1">Осталось попыток: {attemptsLeft}</span>
-                )}
-              </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={loading || verificationCode.length !== 4}
-              className="w-full py-4 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300 hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-            >
-              <i className={`fas ${loading ? 'fa-spinner fa-spin' : 'fa-check'}`}></i>
-              {loading ? 'Проверка...' : 'Подтвердить'}
-            </button>
-
-            <button
-              type="button"
-              onClick={handleSendCode}
-              disabled={resendTimer > 0}
-              className="w-full py-3 text-orange-600 hover:text-orange-700 font-medium disabled:text-gray-400 disabled:cursor-not-allowed"
-            >
-              {resendTimer > 0 ? `Отправить снова через ${resendTimer}с` : 'Отправить код снова'}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => { setStep(1); setErrorMessage(''); setVerificationCode(''); }}
-              className="w-full py-3 text-gray-600 hover:text-gray-700 font-medium"
-            >
-              <i className="fas fa-arrow-left mr-2"></i>
-              Изменить данные
-            </button>
-          </form>
-        )}
-
-        {/* Login Form: Username + API Key from Telegram */}
-        {isLogin && false && (
-          <div className="flex gap-2 mb-6">
-            <button
-              type="button"
-              onClick={() => { setLoginMode('phone'); setErrorMessage(''); }}
-              className={`flex-1 py-3 rounded-xl font-medium transition-all ${
-                loginMode === 'phone'
-                  ? 'bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-lg'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              <i className="fas fa-phone mr-2"></i>
-              Телефон
-            </button>
-            <button
-              type="button"
-              onClick={() => { setLoginMode('apikey'); setErrorMessage(''); }}
-              className={`flex-1 py-3 rounded-xl font-medium transition-all ${
-                loginMode === 'apikey'
-                  ? 'bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-lg'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              <i className="fab fa-telegram mr-2"></i>
-              Telegram
-            </button>
-          </div>
-        )}
-
-        {/* Login Form: Phone + Password */}
-        {isLogin && loginMode === 'phone' && (
-          <form onSubmit={(e) => { e.preventDefault(); handleLoginWithPassword(); }} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                <i className="fas fa-phone text-orange-500 mr-2"></i>
-                Номер телефона
-              </label>
-              <input 
-                value={form.phone}
-                onChange={(e) => setForm(prev => ({ ...prev, phone: e.target.value }))}
-                type="tel"
-                required
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none transition-colors text-gray-900 placeholder:text-gray-400"
-                placeholder="+7 900 123 45 67"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                <i className="fas fa-lock text-orange-500 mr-2"></i>
-                Пароль
-              </label>
-              <input 
-                value={form.password}
-                onChange={(e) => setForm(prev => ({ ...prev, password: e.target.value }))}
-                type="password"
-                required
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none transition-colors text-gray-900 placeholder:text-gray-400"
-                placeholder="••••••••"
-              />
-            </div>
-
-            {errorMessage && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">
-                <i className="fas fa-exclamation-circle mr-2"></i>
-                {errorMessage}
-              </div>
-            )}
-
-            <label className="flex items-start gap-3 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={privacyAccepted}
-                onChange={(e) => setPrivacyAccepted(e.target.checked)}
-                className="mt-0.5 w-4 h-4 accent-orange-500 cursor-pointer flex-shrink-0"
-              />
-              <span className="text-sm text-gray-700">
-                Я соглашаюсь с{' '}
-                <a
-                  href="/legal/privacy"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-orange-600 hover:text-orange-700 underline"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  политикой конфиденциальности
-                </a>
-              </span>
-            </label>
-
-            <button
-              type="submit"
-              disabled={loading || !privacyAccepted}
-              className="w-full py-4 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300 hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-            >
-              <i className={`fas ${loading ? 'fa-spinner fa-spin' : 'fa-sign-in-alt'}`}></i>
-              {loading ? 'Вход...' : 'Войти'}
-            </button>
-
-            <div className="text-center text-xs text-gray-500 space-y-1 pt-1">
-              <p>
-                Нажимая «Войти», вы соглашаетесь с{' '}
+                Нажимая «Зарегистрироваться», вы соглашаетесь с{' '}
                 <a href="/legal/offer" target="_blank" rel="noopener noreferrer" className="text-orange-600 hover:underline">Офертой</a>
                 {' '}и{' '}
                 <a href="/legal/privacy" target="_blank" rel="noopener noreferrer" className="text-orange-600 hover:underline">Политикой конфиденциальности</a>
@@ -649,17 +384,101 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
           </form>
         )}
 
-        {/* Toggle */}
-        {false && (
+        {/* Login Form: Phone + Password */}
+        {isLogin && loginMode === 'phone' && (
+          <form onSubmit={(e) => { e.preventDefault(); handleLoginWithPassword(); }} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                <i className="fas fa-phone text-orange-500 mr-2"></i>
+                Номер телефона
+              </label>
+              <input
+                value={form.phone}
+                onChange={(e) => setForm(prev => ({ ...prev, phone: e.target.value }))}
+                type="tel"
+                required
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none transition-colors text-gray-900 placeholder:text-gray-400"
+                placeholder="+7 900 123 45 67"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                <i className="fas fa-lock text-orange-500 mr-2"></i>
+                Пароль
+              </label>
+              <input
+                value={form.password}
+                onChange={(e) => setForm(prev => ({ ...prev, password: e.target.value }))}
+                type="password"
+                required
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none transition-colors text-gray-900 placeholder:text-gray-400"
+                placeholder="••••••••"
+              />
+            </div>
+
+            {errorMessage && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">
+                <i className="fas fa-exclamation-circle mr-2"></i>
+                {errorMessage}
+              </div>
+            )}
+
+            <label className="flex items-start gap-3 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={privacyAccepted}
+                onChange={(e) => setPrivacyAccepted(e.target.checked)}
+                className="mt-0.5 w-4 h-4 accent-orange-500 cursor-pointer flex-shrink-0"
+              />
+              <span className="text-sm text-gray-700">
+                Я соглашаюсь с{' '}
+                <a
+                  href="/legal/privacy"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-orange-600 hover:text-orange-700 underline"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  политикой конфиденциальности
+                </a>
+              </span>
+            </label>
+
+            <button
+              type="submit"
+              disabled={loading || !privacyAccepted}
+              className="w-full py-4 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300 hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              <i className={`fas ${loading ? 'fa-spinner fa-spin' : 'fa-sign-in-alt'}`}></i>
+              {loading ? 'Вход...' : 'Войти'}
+            </button>
+
+            <div className="text-center text-xs text-gray-500 space-y-1 pt-1">
+              <p>
+                Нажимая «Войти», вы соглашаетесь с{' '}
+                <a href="/legal/offer" target="_blank" rel="noopener noreferrer" className="text-orange-600 hover:underline">Офертой</a>
+                {' '}и{' '}
+                <a href="/legal/privacy" target="_blank" rel="noopener noreferrer" className="text-orange-600 hover:underline">Политикой конфиденциальности</a>
+              </p>
+              <p className="flex items-center justify-center gap-3">
+                <a href="/legal/consent/processing" target="_blank" rel="noopener noreferrer" className="text-orange-600 hover:underline">Согласие на обработку данных</a>
+                <span className="text-gray-300">|</span>
+                <a href="/legal/consent/mailing" target="_blank" rel="noopener noreferrer" className="text-orange-600 hover:underline">Согласие на рассылку</a>
+              </p>
+            </div>
+          </form>
+        )}
+
+        {/* Toggle between Login and Register */}
         <div className="mt-6 text-center">
-          <button 
+          <button
             onClick={toggleMode}
             className="text-orange-600 hover:text-orange-700 font-medium"
           >
             {isLogin ? 'Нет аккаунта? Зарегистрируйтесь' : 'Уже есть аккаунт? Войдите'}
           </button>
         </div>
-        )}
       </div>
     </div>
   )

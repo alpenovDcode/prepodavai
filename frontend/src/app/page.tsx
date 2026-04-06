@@ -86,6 +86,22 @@ function detectMiniApp(): boolean {
   )
 }
 
+/**
+ * Применяет сохранённый реферальный код после авторизации
+ */
+async function applyPendingReferralCode() {
+  const code = localStorage.getItem('prepodavai_referral_code')
+  if (!code) return
+
+  try {
+    await apiClient.post('/referrals/apply', { code })
+  } catch (e) {
+    // Код может быть невалидным или уже применён — не блокируем логин
+  } finally {
+    localStorage.removeItem('prepodavai_referral_code')
+  }
+}
+
 export default function Home() {
   const [isWebApp, setIsWebApp] = useState<boolean | null>(null)
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
@@ -96,7 +112,7 @@ export default function Home() {
     const auth = localStorage.getItem('prepodavai_authenticated') === 'true'
     setIsAuthenticated(auth)
     if (auth) {
-      router.push('/dashboard')
+      applyPendingReferralCode().then(() => router.push('/dashboard'))
     }
   }, [router])
 
@@ -118,6 +134,7 @@ export default function Home() {
             isAuthenticated: true,
             loginTime: new Date().toISOString()
           }))
+          await applyPendingReferralCode()
           setIsAuthenticated(true)
           router.push('/dashboard')
         }
@@ -184,6 +201,7 @@ export default function Home() {
             isAuthenticated: true,
             loginTime: new Date().toISOString()
           }))
+          await applyPendingReferralCode()
           setIsAuthenticated(true)
           router.push('/dashboard')
         }
