@@ -2,12 +2,14 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { ClassesService } from '../classes/classes.service';
+import { ReferralsService } from '../referrals/referrals.service';
 
 @Injectable()
 export class StudentsService {
   constructor(
     private prisma: PrismaService,
     private classesService: ClassesService,
+    private referralsService: ReferralsService,
   ) {}
 
   async createStudent(
@@ -42,6 +44,9 @@ export class StudentsService {
     await this.prisma.$executeRaw`
       UPDATE students SET "passwordHash" = ${passwordHash} WHERE id = ${student.id}
     `;
+
+    // Реферальная система: автоматически создаём реферал учитель→ученик
+    this.referralsService.createTeacherStudentReferral(userId, student.id).catch(() => {});
 
     return student;
   }

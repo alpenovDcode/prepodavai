@@ -4,9 +4,10 @@ import { SubmissionsController } from './submissions.controller';
 import { PrismaModule } from '../../common/prisma/prisma.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { ReplicateModule } from '../replicate/replicate.module';
+import { ReferralsModule } from '../referrals/referrals.module';
 
 @Module({
-  imports: [PrismaModule, NotificationsModule, ReplicateModule],
+  imports: [PrismaModule, NotificationsModule, ReplicateModule, ReferralsModule],
   controllers: [SubmissionsController],
   providers: [SubmissionsService],
   exports: [SubmissionsService],

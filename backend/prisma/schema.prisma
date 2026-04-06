@@ -38,6 +38,11 @@ model AppUser {
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 
+  // Реферальная система
+  referredByCode        String?           // Код, по которому пришёл пользователь
+  referralCodes         ReferralCode[]
+  referralMilestones    ReferralMilestone[]
+
   // Связи
   subscription          UserSubscription?
   generations           UserGeneration[]
@@ -323,6 +328,8 @@ model Student {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
+  referredByCode String?   // Если ученик пришёл по реферальной ссылке
+
   class       Class     @relation(fields: [classId], references: [id], onDelete: Cascade)
   assignments Assignment[]
   submissions Submission[]
@@ -393,6 +400,68 @@ model Notification {
   @@index([userId])
   @@index([userType, userId])
   @@map("notifications")
+}
+
+// ========== РЕФЕРАЛЬНАЯ СИСТЕМА ==========
+
+// Реферальные коды
+model ReferralCode {
+  id          String   @id @default(uuid())
+  userId      String
+  userType    String   // 'teacher' | 'student'
+  code        String   @unique
+  isActive    Boolean  @default(true)
+  usageCount  Int      @default(0)
+  maxUsages   Int?     // null = безлимитно
+  createdAt   DateTime @default(now())
+
+  user        AppUser  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  referrals   Referral[]
+
+  @@index([userId])
+  @@index([code])
+  @@map("referral_codes")
+}
+
+// Факт реферала
+model Referral {
+  id              String    @id @default(uuid())
+  referralCodeId  String
+  referrerUserId  String    // Кто пригласил (AppUser.id)
+  referrerType    String    // 'teacher' | 'student'
+  referredUserId  String    // Кого пригласили (AppUser.id или Student.id)
+  referredType    String    // 'teacher' | 'student'
+  referralType    String    // 'teacher_teacher' | 'teacher_student' | 'student_student'
+  status          String    @default("registered") // 'registered' | 'activated' | 'converted'
+  rewardGranted            Boolean   @default(false)
+  conversionRewardGranted  Boolean   @default(false)
+  activatedAt              DateTime?
+  convertedAt              DateTime?
+  metadata                 Json?     // { submissionsCount, classId, ... }
+  createdAt                DateTime  @default(now())
+
+  referralCode    ReferralCode @relation(fields: [referralCodeId], references: [id])
+
+  @@unique([referredUserId, referredType])
+  @@index([referrerUserId])
+  @@index([referralCodeId])
+  @@index([referralType])
+  @@map("referrals")
+}
+
+// Milestone-бонусы за рефералов
+model ReferralMilestone {
+  id          String   @id @default(uuid())
+  userId      String
+  milestone   String   // 'students_5' | 'students_10' | 'teachers_3' | 'teachers_8'
+  reward      Int      // Сколько кредитов начислено
+  grantedAt   DateTime @default(now())
+
+  user        AppUser  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, milestone])
+  @@index([userId])
+  @@map("referral_milestones")
 }
 
 // Загруженные файлы

@@ -16,6 +16,7 @@ import { HtmlExportService } from '../../common/services/html-export.service';
 import { FilesModule } from '../files/files.module';
 import { ReplicateModule } from '../replicate/replicate.module';
 import { LessonsModule } from '../lessons/lessons.module';
+import { ReferralsModule } from '../referrals/referrals.module';
 import { TelegramModule } from '../telegram/telegram.module';
 import { AssemblyAiService } from '../integrations/assemblyai.service';
 import { VideoAnalysisProcessor } from './processors/video-analysis.processor';
@@ -48,6 +49,7 @@ import { SalesAdvisorProcessor } from './processors/sales-advisor.processor';
     }),
     TelegramModule,
     SubscriptionsModule,
+    ReferralsModule,
     GammaModule,
     FilesModule,
     ReplicateModule,

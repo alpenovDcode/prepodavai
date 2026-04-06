@@ -8,7 +8,7 @@ import { useMiniAppAuth } from '@/lib/hooks/useMiniAppAuth'
 import { useSubscription } from '@/lib/hooks/useSubscription'
 import { LOGO_BASE64 } from '@/constants/branding'
 import { apiClient } from '@/lib/api/client'
-import { Loader2, Menu, X, ArrowLeft, LayoutDashboard, Wand2, BookOpen, Users, BarChart, Settings as SettingsIcon, Sparkles } from 'lucide-react'
+import { Loader2, Menu, X, ArrowLeft, LayoutDashboard, Wand2, BookOpen, Users, BarChart, Settings as SettingsIcon, Sparkles, Gift } from 'lucide-react'
 
 interface DashboardLayoutProps {
     children: ReactNode
@@ -26,6 +26,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         { id: 'courses', label: 'Материалы', icon: BookOpen, path: '/dashboard/courses' },
         { id: 'students', label: 'Ученики', icon: Users, path: '/dashboard/students' },
         { id: 'analytics', label: 'Аналитика', icon: BarChart, path: '/dashboard/analytics' },
+        { id: 'referrals', label: 'Рефералы', icon: Gift, path: '/dashboard/referrals' },
         { id: 'settings', label: 'Настройки', icon: SettingsIcon, path: '/dashboard/settings' },
     ]
 

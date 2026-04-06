@@ -35,6 +35,7 @@ import { ReplicateModule } from './modules/replicate/replicate.module';
 import { LessonsModule } from './modules/lessons/lessons.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { ReferralsModule } from './modules/referrals/referrals.module';
 
 @Module({
   imports: [
@@ -100,6 +101,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
     AnalyticsModule,
     EmailModule,
     NotificationsModule,
+    ReferralsModule,
   ],
   controllers: [AppController],
   providers: [

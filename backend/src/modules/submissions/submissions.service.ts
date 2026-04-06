@@ -7,6 +7,7 @@ import {
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ReplicateService } from '../replicate/replicate.service';
+import { ReferralsService } from '../referrals/referrals.service';
 
 @Injectable()
 export class SubmissionsService {
@@ -14,6 +15,7 @@ export class SubmissionsService {
     private prisma: PrismaService,
     private notificationsService: NotificationsService,
     private replicateService: ReplicateService,
+    private referralsService: ReferralsService,
   ) {}
 
   async createSubmission(
@@ -84,6 +86,9 @@ export class SubmissionsService {
     });
 
     await this._notifyTeacherOnSubmission(assignment, submission);
+
+    // Реферальная система: отслеживаем сдачу заданий учеником
+    this.referralsService.onStudentSubmission(studentId).catch(() => {});
 
     return submission;
   }

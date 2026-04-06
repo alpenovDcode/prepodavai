@@ -3,6 +3,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { FilesService } from '../files/files.service';
 import { EmailService } from '../../common/services/email.service';
 import { LogsService } from '../logs/logs.service';
+import { ReferralsService } from '../referrals/referrals.service';
 import * as crypto from 'crypto';
 
 @Injectable()
@@ -12,6 +13,7 @@ export class AdminService {
     private filesService: FilesService,
     private emailService: EmailService,
     private logsService: LogsService,
+    private referralsService: ReferralsService,
   ) {}
 
   private async audit(action: string, adminId: string, details?: any) {
@@ -519,6 +521,11 @@ export class AdminService {
     });
 
     await this.audit('admin.subscription.update', adminId, { subscriptionId: id });
+
+    // Реферальная система: если план изменился на платный — конверсия реферала
+    if (updateData.planId && subscription.plan.planKey !== 'starter') {
+      this.referralsService.convertReferral(subscription.userId).catch(() => {});
+    }
 
     return {
       success: true,
