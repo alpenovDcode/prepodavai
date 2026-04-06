@@ -529,18 +529,18 @@ export class ReferralsService {
         : [],
     ]);
 
-    const teacherMap = new Map(teachers.map((t) => [t.id, t]));
-    const studentMap = new Map(students.map((s) => [s.id, s]));
+    const teacherMap = new Map(teachers.map((t: any) => [t.id, t] as [string, any]));
+    const studentMap = new Map(students.map((s: any) => [s.id, s] as [string, any]));
 
     return referrals.map((r) => {
       let referredName = 'Пользователь';
       if (r.referredType === 'teacher') {
-        const user = teacherMap.get(r.referredUserId);
+        const user = teacherMap.get(r.referredUserId) as any;
         referredName = user?.firstName
           ? `${user.firstName} ${user.lastName?.[0] || ''}.`
           : user?.username || 'Учитель';
       } else {
-        const student = studentMap.get(r.referredUserId);
+        const student = studentMap.get(r.referredUserId) as any;
         referredName = student?.name || 'Ученик';
       }
 
