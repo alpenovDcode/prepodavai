@@ -5,11 +5,20 @@ import { useRouter } from 'next/navigation'
 import { apiClient } from '@/lib/api/client'
 import StudentSidebar from '@/components/StudentSidebar'
 import DOMPurify from 'isomorphic-dompurify'
-import { Bot, Send, Trash2, Lightbulb, BookOpen, HelpCircle } from 'lucide-react'
+import katex from 'katex'
+import 'katex/dist/katex.min.css'
+import { Bot, Send, Trash2, Lightbulb, BookOpen, HelpCircle, Plus, MessageCircle, Clock } from 'lucide-react'
 
 interface ChatMessage {
     role: 'user' | 'assistant'
     content: string
+}
+
+interface Conversation {
+    id: string
+    title: string
+    messages: ChatMessage[]
+    updatedAt: number
 }
 
 interface StudentUser {
@@ -19,8 +28,58 @@ interface StudentUser {
     className?: string | null
 }
 
+const STORAGE_KEY = 'ai_teacher_conversations'
+
+function loadConversations(): Conversation[] {
+    try {
+        const raw = localStorage.getItem(STORAGE_KEY)
+        return raw ? JSON.parse(raw) : []
+    } catch {
+        return []
+    }
+}
+
+function saveConversations(conversations: Conversation[]) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations))
+}
+
+function generateTitle(messages: ChatMessage[]): string {
+    const firstUserMsg = messages.find(m => m.role === 'user')
+    if (!firstUserMsg) return 'Новый диалог'
+    const text = firstUserMsg.content
+    return text.length > 40 ? text.slice(0, 40) + '...' : text
+}
+
+function renderLatex(text: string): string {
+    // Display math: $$ ... $$ and \[ ... \]
+    let result = text.replace(/\$\$([\s\S]*?)\$\$/g, (_match, tex) => {
+        try {
+            return katex.renderToString(tex.trim(), { displayMode: true, throwOnError: false })
+        } catch { return _match }
+    })
+    result = result.replace(/\\\[([\s\S]*?)\\\]/g, (_match, tex) => {
+        try {
+            return katex.renderToString(tex.trim(), { displayMode: true, throwOnError: false })
+        } catch { return _match }
+    })
+    // Inline math: $ ... $ (not greedy, no newlines) and \( ... \)
+    result = result.replace(/\$([^\$\n]+?)\$/g, (_match, tex) => {
+        try {
+            return katex.renderToString(tex.trim(), { displayMode: false, throwOnError: false })
+        } catch { return _match }
+    })
+    result = result.replace(/\\\(([\s\S]*?)\\\)/g, (_match, tex) => {
+        try {
+            return katex.renderToString(tex.trim(), { displayMode: false, throwOnError: false })
+        } catch { return _match }
+    })
+    return result
+}
+
 function formatMarkdown(text: string): string {
-    let formatted = text
+    // Render LaTeX first, before markdown processing
+    let formatted = renderLatex(text)
+
     formatted = formatted.replace(/^### (.*$)/gim, '<h3 class="text-base font-bold mt-3 mb-2">$1</h3>')
     formatted = formatted.replace(/^## (.*$)/gim, '<h2 class="text-lg font-bold mt-4 mb-2">$1</h2>')
     formatted = formatted.replace(/^# (.*$)/gim, '<h1 class="text-xl font-bold mt-4 mb-3">$1</h1>')
@@ -42,13 +101,19 @@ const quickSuggestions = [
 
 export default function AiTeacherPage() {
     const router = useRouter()
-    const [messages, setMessages] = useState<ChatMessage[]>([])
+    const [conversations, setConversations] = useState<Conversation[]>([])
+    const [activeConvId, setActiveConvId] = useState<string | null>(null)
     const [inputMessage, setInputMessage] = useState('')
     const [isLoading, setIsLoading] = useState(false)
     const [user, setUser] = useState<StudentUser | null>(null)
+    const [showHistory, setShowHistory] = useState(false)
     const messagesEndRef = useRef<HTMLDivElement>(null)
     const inputRef = useRef<HTMLTextAreaElement>(null)
 
+    const activeConv = conversations.find(c => c.id === activeConvId)
+    const messages = activeConv?.messages || []
+
+    // Load user and conversations on mount
     useEffect(() => {
         const userStr = localStorage.getItem('user')
         if (!userStr) {
@@ -56,6 +121,11 @@ export default function AiTeacherPage() {
             return
         }
         setUser(JSON.parse(userStr) as StudentUser)
+        const saved = loadConversations()
+        setConversations(saved)
+        if (saved.length > 0) {
+            setActiveConvId(saved[0].id)
+        }
     }, [router])
 
     useEffect(() => {
@@ -66,6 +136,33 @@ export default function AiTeacherPage() {
         inputRef.current?.focus()
     }, [])
 
+    const updateConversations = (updated: Conversation[]) => {
+        const sorted = [...updated].sort((a, b) => b.updatedAt - a.updatedAt)
+        setConversations(sorted)
+        saveConversations(sorted)
+    }
+
+    const createNewConversation = () => {
+        const newConv: Conversation = {
+            id: Date.now().toString(),
+            title: 'Новый диалог',
+            messages: [],
+            updatedAt: Date.now(),
+        }
+        updateConversations([newConv, ...conversations])
+        setActiveConvId(newConv.id)
+        setShowHistory(false)
+        setInputMessage('')
+    }
+
+    const deleteConversation = (id: string) => {
+        const updated = conversations.filter(c => c.id !== id)
+        updateConversations(updated)
+        if (activeConvId === id) {
+            setActiveConvId(updated.length > 0 ? updated[0].id : null)
+        }
+    }
+
     const sendMessage = async (text?: string) => {
         const messageText = text || inputMessage.trim()
         if (!messageText || isLoading) return
@@ -73,24 +170,47 @@ export default function AiTeacherPage() {
         setInputMessage('')
         setIsLoading(true)
 
-        const newMessages: ChatMessage[] = [...messages, { role: 'user', content: messageText }]
-        setMessages(newMessages)
+        // If no active conversation, create one
+        let convId = activeConvId
+        let convs = conversations
+        if (!convId) {
+            const newConv: Conversation = {
+                id: Date.now().toString(),
+                title: 'Новый диалог',
+                messages: [],
+                updatedAt: Date.now(),
+            }
+            convId = newConv.id
+            convs = [newConv, ...conversations]
+            setActiveConvId(convId)
+        }
+
+        const currentConv = convs.find(c => c.id === convId)!
+        const newMessages: ChatMessage[] = [...currentConv.messages, { role: 'user', content: messageText }]
+
+        // Update state immediately with user message
+        const updatedConv: Conversation = {
+            ...currentConv,
+            messages: newMessages,
+            title: currentConv.messages.length === 0 ? generateTitle(newMessages) : currentConv.title,
+            updatedAt: Date.now(),
+        }
+        const updatedConvs = convs.map(c => c.id === convId ? updatedConv : c)
+        updateConversations(updatedConvs)
 
         try {
             const response = await apiClient.post('/ai-assistant/student-chat', {
                 message: messageText,
-                history: messages,
+                history: currentConv.messages,
             })
-            setMessages([...newMessages, { role: 'assistant', content: response.data.response }])
+            const finalMessages: ChatMessage[] = [...newMessages, { role: 'assistant', content: response.data.response }]
+            const finalConv: Conversation = { ...updatedConv, messages: finalMessages, updatedAt: Date.now() }
+            updateConversations(updatedConvs.map(c => c.id === convId ? finalConv : c))
         } catch (error: any) {
             console.error('Chat error:', error)
-            setMessages([
-                ...newMessages,
-                {
-                    role: 'assistant',
-                    content: 'Извините, произошла ошибка. Пожалуйста, попробуйте еще раз.',
-                },
-            ])
+            const errorMessages: ChatMessage[] = [...newMessages, { role: 'assistant', content: 'Извините, произошла ошибка. Пожалуйста, попробуйте еще раз.' }]
+            const errorConv: Conversation = { ...updatedConv, messages: errorMessages, updatedAt: Date.now() }
+            updateConversations(updatedConvs.map(c => c.id === convId ? errorConv : c))
         } finally {
             setIsLoading(false)
         }
@@ -104,7 +224,11 @@ export default function AiTeacherPage() {
     }
 
     const clearChat = () => {
-        setMessages([])
+        if (!activeConvId) return
+        const updated = conversations.map(c =>
+            c.id === activeConvId ? { ...c, messages: [], title: 'Новый диалог', updatedAt: Date.now() } : c
+        )
+        updateConversations(updated)
         setInputMessage('')
     }
 
@@ -112,6 +236,14 @@ export default function AiTeacherPage() {
         localStorage.removeItem('prepodavai_authenticated')
         localStorage.removeItem('user')
         router.push('/student/login')
+    }
+
+    const formatDate = (ts: number) => {
+        const d = new Date(ts)
+        const now = new Date()
+        const isToday = d.toDateString() === now.toDateString()
+        if (isToday) return `Сегодня, ${d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`
+        return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
     }
 
     return (
@@ -130,16 +262,68 @@ export default function AiTeacherPage() {
                             <p className="text-xs text-gray-500">Подсказки и рекомендации для обучения</p>
                         </div>
                     </div>
-                    {messages.length > 0 && (
+                    <div className="flex items-center gap-2">
                         <button
-                            onClick={clearChat}
-                            className="flex items-center gap-2 px-4 py-2 text-sm text-gray-500 bg-gray-50 rounded-xl hover:bg-red-50 hover:text-red-500 transition-colors"
+                            onClick={() => setShowHistory(!showHistory)}
+                            className={`flex items-center gap-2 px-4 py-2 text-sm rounded-xl transition-colors ${showHistory ? 'bg-orange-100 text-orange-600' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'}`}
                         >
-                            <Trash2 size={16} />
-                            <span className="hidden sm:inline">Очистить чат</span>
+                            <Clock size={16} />
+                            <span className="hidden sm:inline">История</span>
+                            {conversations.length > 0 && (
+                                <span className="bg-orange-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">{conversations.length}</span>
+                            )}
                         </button>
-                    )}
+                        <button
+                            onClick={createNewConversation}
+                            className="flex items-center gap-2 px-4 py-2 text-sm text-gray-500 bg-gray-50 rounded-xl hover:bg-orange-50 hover:text-orange-500 transition-colors"
+                        >
+                            <Plus size={16} />
+                            <span className="hidden sm:inline">Новый чат</span>
+                        </button>
+                        {messages.length > 0 && (
+                            <button
+                                onClick={clearChat}
+                                className="flex items-center gap-2 px-4 py-2 text-sm text-gray-500 bg-gray-50 rounded-xl hover:bg-red-50 hover:text-red-500 transition-colors"
+                            >
+                                <Trash2 size={16} />
+                                <span className="hidden sm:inline">Очистить</span>
+                            </button>
+                        )}
+                    </div>
                 </div>
+
+                {/* History sidebar panel */}
+                {showHistory && (
+                    <div className="border-b border-gray-100 bg-white px-6 lg:px-10 py-3 max-h-64 overflow-y-auto">
+                        {conversations.length === 0 ? (
+                            <p className="text-sm text-gray-400 text-center py-4">Нет сохранённых диалогов</p>
+                        ) : (
+                            <div className="space-y-1">
+                                {conversations.map(conv => (
+                                    <div
+                                        key={conv.id}
+                                        className={`flex items-center justify-between px-4 py-2.5 rounded-xl cursor-pointer transition-colors group ${conv.id === activeConvId ? 'bg-orange-50 text-orange-600' : 'hover:bg-gray-50 text-gray-700'}`}
+                                        onClick={() => { setActiveConvId(conv.id); setShowHistory(false) }}
+                                    >
+                                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                                            <MessageCircle size={16} className="flex-shrink-0 opacity-50" />
+                                            <div className="min-w-0 flex-1">
+                                                <p className="text-sm font-medium truncate">{conv.title}</p>
+                                                <p className="text-xs opacity-60">{formatDate(conv.updatedAt)} · {conv.messages.length} сообщ.</p>
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); deleteConversation(conv.id) }}
+                                            className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-red-50 hover:text-red-500 transition-all"
+                                        >
+                                            <Trash2 size={14} />
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
 
                 {/* Messages */}
                 <div className="flex-1 overflow-y-auto px-4 lg:px-10 py-6">
