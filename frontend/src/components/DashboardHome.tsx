@@ -275,7 +275,8 @@ export default function DashboardHome() {
             </div>
 
             {/* Quick Stats */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mt-6 md:mt-8">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 md:gap-4 mt-6 md:mt-8">
+                {/* Live global counter */}
                 <div className="bg-white rounded-2xl p-4 md:p-6 border border-gray-100 shadow-sm overflow-hidden relative">
                     <div className="flex items-center gap-2 md:gap-3">
                         <div className="w-9 h-9 md:w-10 md:h-10 rounded-xl bg-green-100 flex items-center justify-center flex-shrink-0">
@@ -284,7 +285,7 @@ export default function DashboardHome() {
                         <div>
                             <div className="flex items-baseline gap-1">
                                 <p className="text-xl md:text-2xl font-bold text-gray-900 tabular-nums">
-                                    {(statsData?.generationsCount ?? '—').toLocaleString()}
+                                    {(statsData?.globalGenerationsCount ?? '—').toLocaleString()}
                                 </p>
                                 {statsData && (
                                     <span className="flex h-2 w-2 relative -top-2">
@@ -293,7 +294,22 @@ export default function DashboardHome() {
                                     </span>
                                 )}
                             </div>
-                            <p className="text-[11px] md:text-xs text-gray-600 font-medium">Моих генераций</p>
+                            <p className="text-[11px] md:text-xs text-gray-600 font-medium">Генераций</p>
+                        </div>
+                    </div>
+                </div>
+
+                {/* User's own generations */}
+                <div className="bg-white rounded-2xl p-4 md:p-6 border border-gray-100 shadow-sm">
+                    <div className="flex items-center gap-2 md:gap-3">
+                        <div className="w-9 h-9 md:w-10 md:h-10 rounded-xl bg-indigo-100 flex items-center justify-center flex-shrink-0">
+                            <i className="fas fa-wand-magic-sparkles text-indigo-600 text-sm"></i>
+                        </div>
+                        <div>
+                            <p className="text-xl md:text-2xl font-bold text-gray-900">
+                                {statsData?.generationsCount ?? '—'}
+                            </p>
+                            <p className="text-[11px] md:text-xs text-gray-600 font-medium">Моих</p>
                         </div>
                     </div>
                 </div>
@@ -321,7 +337,7 @@ export default function DashboardHome() {
                             <p className="text-xl md:text-2xl font-bold text-gray-900">
                                 {dashboardData?.stats?.avgScore ? `${dashboardData.stats.avgScore}%` : '—'}
                             </p>
-                            <p className="text-[11px] md:text-xs text-gray-600 font-medium">Средний балл</p>
+                            <p className="text-[11px] md:text-xs text-gray-600 font-medium">Ср. балл</p>
                         </div>
                     </div>
                 </div>
