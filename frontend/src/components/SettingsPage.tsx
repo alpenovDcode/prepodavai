@@ -8,9 +8,19 @@ export default function SettingsPage() {
     const [profile, setProfile] = useState({
         fullName: '',
         email: '',
+        phone: '',
+        phoneVerified: false,
         bio: '',
         avatar: '',
     })
+
+    const [phoneVerif, setPhoneVerif] = useState<{
+        step: 'idle' | 'code_sent' | 'done'
+        loading: boolean
+        code: string
+        error: string | null
+        bonusGranted: boolean
+    }>({ step: 'idle', loading: false, code: '', error: null, bonusGranted: false })
 
     const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -33,6 +43,8 @@ export default function SettingsPage() {
                     setProfile({
                         fullName: `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.username || '',
                         email: u.email || '',
+                        phone: u.phone || '',
+                        phoneVerified: u.phoneVerified || false,
                         bio: u.bio || '',
                         avatar: u.avatar || '',
                     })
@@ -86,6 +98,37 @@ export default function SettingsPage() {
         }
     }
 
+    const handleSendCode = async () => {
+        if (!profile.phone.trim()) {
+            setPhoneVerif(p => ({ ...p, error: 'Введите номер телефона' }))
+            return
+        }
+        setPhoneVerif(p => ({ ...p, loading: true, error: null }))
+        try {
+            await apiClient.post('/users/me/phone/send-code', { phone: profile.phone.trim() })
+            setPhoneVerif(p => ({ ...p, step: 'code_sent', loading: false }))
+        } catch (err: any) {
+            const msg = err?.response?.data?.message || 'Ошибка отправки SMS'
+            setPhoneVerif(p => ({ ...p, loading: false, error: msg }))
+        }
+    }
+
+    const handleVerifyCode = async () => {
+        if (!phoneVerif.code.trim()) return
+        setPhoneVerif(p => ({ ...p, loading: true, error: null }))
+        try {
+            await apiClient.post('/users/me/phone/verify', {
+                phone: profile.phone.trim(),
+                code: phoneVerif.code.trim(),
+            })
+            setProfile(p => ({ ...p, phoneVerified: true }))
+            setPhoneVerif(p => ({ ...p, step: 'done', loading: false, bonusGranted: true }))
+        } catch (err: any) {
+            const msg = err?.response?.data?.message || 'Неверный код'
+            setPhoneVerif(p => ({ ...p, loading: false, error: msg }))
+        }
+    }
+
     const handleSaveProfile = async () => {
         setSaving(true)
         setStatusMessage(null)
@@ -98,6 +141,7 @@ export default function SettingsPage() {
                 firstName,
                 lastName,
                 email: profile.email,
+                phone: profile.phone,
                 bio: profile.bio,
                 avatar: profile.avatar,
                 notifyNewCourse: notifications.notifyNewCourse,
@@ -197,6 +241,97 @@ export default function SettingsPage() {
                             onChange={(e) => setProfile({ ...profile, email: e.target.value })}
                             className="w-full px-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-primary-500 focus:bg-white transition"
                         />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">
+                            Телефон
+                        </label>
+
+                        {/* Verified state */}
+                        {profile.phoneVerified ? (
+                            <div className="flex items-center gap-2 px-4 py-3 bg-green-50 border border-green-200 rounded-xl">
+                                <CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0" />
+                                <span className="text-sm font-medium text-green-800">{profile.phone}</span>
+                                <span className="text-xs text-green-600 ml-auto">Подтверждён</span>
+                            </div>
+                        ) : (
+                            <div className="space-y-2">
+                                {/* Phone input + send button */}
+                                <div className="flex gap-2">
+                                    <input
+                                        type="tel"
+                                        value={profile.phone}
+                                        onChange={(e) => {
+                                            setProfile({ ...profile, phone: e.target.value })
+                                            setPhoneVerif(p => ({ ...p, step: 'idle', error: null, code: '' }))
+                                        }}
+                                        placeholder="+7 (999) 000-00-00"
+                                        disabled={phoneVerif.step === 'code_sent' || phoneVerif.loading}
+                                        className="flex-1 px-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-primary-500 focus:bg-white transition disabled:opacity-60"
+                                    />
+                                    {phoneVerif.step !== 'code_sent' && (
+                                        <button
+                                            type="button"
+                                            onClick={handleSendCode}
+                                            disabled={phoneVerif.loading || !profile.phone.trim()}
+                                            className="px-4 py-3 bg-primary-600 text-white rounded-xl text-sm font-semibold hover:bg-primary-700 transition disabled:opacity-50 flex items-center gap-1.5 whitespace-nowrap"
+                                        >
+                                            {phoneVerif.loading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                                            Получить код
+                                        </button>
+                                    )}
+                                </div>
+
+                                {/* Code input */}
+                                {phoneVerif.step === 'code_sent' && (
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="text"
+                                            value={phoneVerif.code}
+                                            onChange={(e) => setPhoneVerif(p => ({ ...p, code: e.target.value, error: null }))}
+                                            placeholder="Код из SMS"
+                                            maxLength={4}
+                                            className="flex-1 px-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-primary-500 focus:bg-white transition text-center tracking-widest font-mono text-lg"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={handleVerifyCode}
+                                            disabled={phoneVerif.loading || phoneVerif.code.length < 4}
+                                            className="px-4 py-3 bg-green-600 text-white rounded-xl text-sm font-semibold hover:bg-green-700 transition disabled:opacity-50 flex items-center gap-1.5 whitespace-nowrap"
+                                        >
+                                            {phoneVerif.loading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                                            Подтвердить
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setPhoneVerif(p => ({ ...p, step: 'idle', code: '', error: null }))}
+                                            className="px-3 py-3 bg-gray-100 text-gray-500 rounded-xl text-sm hover:bg-gray-200 transition"
+                                        >
+                                            ✕
+                                        </button>
+                                    </div>
+                                )}
+
+                                {/* Hint / error / bonus */}
+                                {phoneVerif.bonusGranted && (
+                                    <p className="text-sm text-green-600 font-medium flex items-center gap-1.5">
+                                        <CheckCircle className="w-4 h-4" /> +50 кредитов начислено!
+                                    </p>
+                                )}
+                                {phoneVerif.error && (
+                                    <p className="text-sm text-red-600 flex items-center gap-1.5">
+                                        <AlertCircle className="w-4 h-4" /> {phoneVerif.error}
+                                    </p>
+                                )}
+                                {phoneVerif.step === 'code_sent' && !phoneVerif.error && (
+                                    <p className="text-xs text-gray-500">SMS отправлено на {profile.phone}. Код действует 5 минут.</p>
+                                )}
+                                {phoneVerif.step === 'idle' && !profile.phoneVerified && (
+                                    <p className="text-xs text-gray-400">Подтвердите телефон и получите +50 кредитов</p>
+                                )}
+                            </div>
+                        )}
                     </div>
                 </div>
 

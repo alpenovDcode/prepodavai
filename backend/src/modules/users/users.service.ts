@@ -1,10 +1,99 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { SmscService } from '../smsc/smsc.service';
 import * as crypto from 'crypto';
+
+const PHONE_VERIFICATION_BONUS = 50;
 
 @Injectable()
 export class UsersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private smscService: SmscService,
+  ) {}
+
+  /**
+   * Отправка кода подтверждения телефона (для уже авторизованного пользователя)
+   */
+  async sendPhoneVerificationCode(userId: string, phone: string): Promise<void> {
+    // Проверяем, не верифицирован ли уже телефон
+    const user = await this.prisma.appUser.findUnique({ where: { id: userId } });
+    if (!user) throw new BadRequestException('Пользователь не найден');
+    if (user.phoneVerified) throw new BadRequestException('Телефон уже подтверждён');
+
+    // Удаляем старые коды для этого телефона
+    await this.prisma.verificationCode.deleteMany({
+      where: { phone, type: 'sms' },
+    });
+
+    const code = crypto.randomInt(1000, 10000).toString(); // 4 цифры
+
+    await this.prisma.verificationCode.create({
+      data: {
+        phone,
+        code,
+        type: 'sms',
+        expiresAt: new Date(Date.now() + 5 * 60 * 1000), // 5 минут
+      },
+    });
+
+    const sent = await this.smscService.sendSms(phone, `Ваш код подтверждения PrepodavAI: ${code}`);
+    if (!sent) throw new BadRequestException('Не удалось отправить SMS. Попробуйте позже.');
+  }
+
+  /**
+   * Подтверждение кода и начисление +50 кредитов (однократно)
+   */
+  async verifyPhoneAndGrantBonus(userId: string, phone: string, code: string): Promise<{ creditsGranted: number }> {
+    const user = await this.prisma.appUser.findUnique({ where: { id: userId } });
+    if (!user) throw new BadRequestException('Пользователь не найден');
+    if (user.phoneVerified) throw new BadRequestException('Телефон уже подтверждён');
+
+    const record = await this.prisma.verificationCode.findFirst({
+      where: { phone, code, type: 'sms', verified: false, expiresAt: { gt: new Date() } },
+    });
+
+    if (!record) throw new UnauthorizedException('Неверный код или срок действия истёк');
+
+    await this.prisma.$transaction(async (tx) => {
+      // Помечаем код как использованный
+      await tx.verificationCode.update({
+        where: { id: record.id },
+        data: { verified: true },
+      });
+
+      // Сохраняем телефон и ставим флаг
+      await tx.appUser.update({
+        where: { id: userId },
+        data: { phone, phoneVerified: true },
+      });
+
+      // Начисляем extraCredits
+      const subscription = await tx.userSubscription.findUnique({ where: { userId } });
+      if (subscription) {
+        const balanceBefore = subscription.creditsBalance + subscription.extraCredits;
+        await tx.userSubscription.update({
+          where: { id: subscription.id },
+          data: { extraCredits: { increment: PHONE_VERIFICATION_BONUS } },
+        });
+        await tx.creditTransaction.create({
+          data: {
+            userId,
+            subscriptionId: subscription.id,
+            type: 'grant',
+            amount: PHONE_VERIFICATION_BONUS,
+            balanceBefore,
+            balanceAfter: balanceBefore + PHONE_VERIFICATION_BONUS,
+            operationType: 'phone_verification',
+            generationRequestId: '',
+            description: 'Бонус за подтверждение номера телефона',
+          },
+        });
+      }
+    });
+
+    return { creditsGranted: PHONE_VERIFICATION_BONUS };
+  }
 
   /**
    * Генерация API ключа
@@ -178,6 +267,7 @@ export class UsersService {
         email: data.email,
         bio: data.bio,
         avatar: data.avatar,
+        phone: data.phone,
         notifyNewCourse: data.notifyNewCourse,
         notifyStudentProgress: data.notifyStudentProgress,
         notifyWeeklyReport: data.notifyWeeklyReport,

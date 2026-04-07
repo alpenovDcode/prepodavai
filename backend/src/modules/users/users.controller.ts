@@ -1,4 +1,4 @@
-import { Controller, Get, Put, Body, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Put, Post, Body, UseGuards, Request } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -21,6 +21,8 @@ export class UsersController {
         source: user.source,
         telegramId: user.telegramId,
         email: user.email,
+        phone: user.phone,
+        phoneVerified: user.phoneVerified,
         bio: user.bio,
         avatar: user.avatar,
         notifyNewCourse: user.notifyNewCourse,
@@ -28,6 +30,20 @@ export class UsersController {
         notifyWeeklyReport: user.notifyWeeklyReport,
       },
     };
+  }
+
+  @Post('me/phone/send-code')
+  @UseGuards(JwtAuthGuard)
+  async sendPhoneVerificationCode(@Request() req, @Body() body: { phone: string }) {
+    await this.usersService.sendPhoneVerificationCode(req.user.id, body.phone);
+    return { success: true, message: 'SMS отправлено' };
+  }
+
+  @Post('me/phone/verify')
+  @UseGuards(JwtAuthGuard)
+  async verifyPhone(@Request() req, @Body() body: { phone: string; code: string }) {
+    const result = await this.usersService.verifyPhoneAndGrantBonus(req.user.id, body.phone, body.code);
+    return { success: true, ...result };
   }
 
   @Put('me')

@@ -309,7 +309,7 @@ export default function DashboardHome() {
                             <p className="text-xl md:text-2xl font-bold text-gray-900">
                                 {statsData?.generationsCount ?? '—'}
                             </p>
-                            <p className="text-[11px] md:text-xs text-gray-600 font-medium">Моих</p>
+                            <p className="text-[11px] md:text-xs text-gray-600 font-medium">Моих генераций</p>
                         </div>
                     </div>
                 </div>
