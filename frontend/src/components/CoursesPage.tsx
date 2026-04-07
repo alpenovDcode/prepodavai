@@ -73,13 +73,28 @@ export default function CoursesPage() {
         )
     }
 
+    const totalGenerations = lessons.reduce((sum, l) => sum + l.generations.length, 0)
+    const completedGenerations = lessons.reduce(
+        (sum, l) => sum + l.generations.filter(g => g.status === 'completed').length, 0
+    )
+
     return (
         <div className="max-w-7xl mx-auto">
             {/* Header */}
             <div className="flex items-center justify-between mb-8">
                 <div>
                     <h1 className="text-3xl font-bold text-gray-900">Мои материалы</h1>
-                    <p className="text-gray-600 mt-1">Список ваших созданных уроков и материалов.</p>
+                    <div className="flex items-center gap-3 mt-1">
+                        <p className="text-gray-600">Список ваших созданных уроков и материалов.</p>
+                        {lessons.length > 0 && (
+                            <div className="flex items-center gap-2 text-sm text-gray-500">
+                                <span className="text-gray-300">·</span>
+                                <span><span className="font-semibold text-gray-700">{lessons.length}</span> уроков</span>
+                                <span className="text-gray-300">·</span>
+                                <span><span className="font-semibold text-gray-700">{completedGenerations}</span> из {totalGenerations} готово</span>
+                            </div>
+                        )}
+                    </div>
                 </div>
                 <button
                     onClick={() => router.push('/dashboard')}

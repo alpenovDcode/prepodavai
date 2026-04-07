@@ -109,6 +109,34 @@ export default function ClassDetailPage({ id }: ClassDetailPageProps) {
                 </div>
             </div>
 
+            {/* Class Stats Pills */}
+            {(() => {
+                const completedCount = classData.assignments.filter(a => a.status !== 'assigned').length
+                const completionPct = classData.assignments.length > 0
+                    ? Math.round((completedCount / classData.assignments.length) * 100)
+                    : 0
+                return (
+                    <div className="flex flex-wrap gap-3 mb-6">
+                        <div className="flex items-center gap-1.5 bg-purple-50 text-purple-700 px-3 py-1.5 rounded-lg text-sm font-medium">
+                            <i className="fas fa-users text-xs"></i>
+                            {classData.students.length} учеников
+                        </div>
+                        <div className="flex items-center gap-1.5 bg-blue-50 text-blue-700 px-3 py-1.5 rounded-lg text-sm font-medium">
+                            <i className="fas fa-tasks text-xs"></i>
+                            {classData.assignments.length} заданий
+                        </div>
+                        {classData.assignments.length > 0 && (
+                            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium ${
+                                completionPct >= 70 ? 'bg-green-50 text-green-700' : 'bg-orange-50 text-orange-700'
+                            }`}>
+                                <i className="fas fa-check-circle text-xs"></i>
+                                {completionPct}% выполнено
+                            </div>
+                        )}
+                    </div>
+                )
+            })()}
+
             {/* Tabs */}
             <div className="flex gap-6 border-b border-gray-200 mb-6">
                 <button

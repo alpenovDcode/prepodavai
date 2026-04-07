@@ -241,6 +241,20 @@ export default function GenerationHistory() {
     }
   }
 
+  const historyStats = useMemo(() => {
+    if (generations.length === 0) return null
+    const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000
+    const last30Count = generations.filter(
+      g => new Date(g.createdAt).getTime() > thirtyDaysAgo
+    ).length
+    const typeCounts: Record<string, number> = {}
+    for (const g of generations) {
+      typeCounts[g.type] = (typeCounts[g.type] || 0) + 1
+    }
+    const mostUsedType = Object.entries(typeCounts).sort((a, b) => b[1] - a[1])[0]?.[0]
+    return { last30Count, mostUsedLabel: mostUsedType ? getGenerationTypeLabel(mostUsedType) : null }
+  }, [generations])
+
   const getTypeLabel = (type: string) => getGenerationTypeLabel(type)
 
   const getStatusLabel = (status: string) => {
@@ -465,6 +479,27 @@ export default function GenerationHistory() {
           <div className="text-center py-8">
             <i className="fas fa-inbox text-4xl text-gray-400 opacity-50 mb-4"></i>
             <p className="text-gray-500">История генераций пуста</p>
+          </div>
+        )}
+
+        {!loading && historyStats && (
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-4 py-3 mb-3 flex flex-wrap gap-x-4 gap-y-1.5 text-sm text-gray-600">
+            <span>
+              <span className="font-semibold text-gray-900">{historyStats.last30Count}</span>
+              {' '}за 30 дней
+            </span>
+            {historyStats.mostUsedLabel && (
+              <>
+                <span className="text-gray-300">·</span>
+                <span>
+                  Чаще всего: <span className="font-semibold text-gray-900">{historyStats.mostUsedLabel}</span>
+                </span>
+              </>
+            )}
+            <span className="text-gray-300">·</span>
+            <span>
+              Всего: <span className="font-semibold text-gray-900">{generations.length}</span>
+            </span>
           </div>
         )}
 

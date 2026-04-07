@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { apiClient } from '@/lib/api/client'
 import { functions } from './InputComposer/config'
 import { useGenerations } from '@/lib/hooks/useGenerations'
+import { useSubscription } from '@/lib/hooks/useSubscription'
 import useSWR from 'swr'
 
 const fetcher = (url: string) => apiClient.get(url).then((res: any) => res.data)
@@ -15,8 +16,10 @@ export default function DashboardHome() {
     const [gradeLevel, setGradeLevel] = useState('middle')
     const [duration, setDuration] = useState('45')
     const { data: statsData } = useSWR('/analytics/live-stats', fetcher, {
-        refreshInterval: 10000 // Refresh every 10 seconds
+        refreshInterval: 10000
     })
+    const { data: dashboardData } = useSWR('/analytics/dashboard', fetcher)
+    const { totalCredits } = useSubscription()
 
     // Default selected types
     const [selectedTypes, setSelectedTypes] = useState<string[]>(['presentation', 'quiz'])
@@ -273,18 +276,6 @@ export default function DashboardHome() {
 
             {/* Quick Stats */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mt-6 md:mt-8">
-                <div className="bg-white rounded-2xl p-4 md:p-6 border border-gray-100 shadow-sm">
-                    <div className="flex items-center gap-2 md:gap-3">
-                        <div className="w-9 h-9 md:w-10 md:h-10 rounded-xl bg-purple-100 flex items-center justify-center flex-shrink-0">
-                            <i className="fas fa-file-alt text-primary-600 text-sm"></i>
-                        </div>
-                        <div>
-                            <p className="text-xl md:text-2xl font-bold text-gray-900">{statsData?.materialsCount || 17}</p>
-                            <p className="text-[11px] md:text-xs text-gray-600 font-medium">Материалов</p>
-                        </div>
-                    </div>
-                </div>
-
                 <div className="bg-white rounded-2xl p-4 md:p-6 border border-gray-100 shadow-sm overflow-hidden relative">
                     <div className="flex items-center gap-2 md:gap-3">
                         <div className="w-9 h-9 md:w-10 md:h-10 rounded-xl bg-green-100 flex items-center justify-center flex-shrink-0">
@@ -293,14 +284,44 @@ export default function DashboardHome() {
                         <div>
                             <div className="flex items-baseline gap-1">
                                 <p className="text-xl md:text-2xl font-bold text-gray-900 tabular-nums">
-                                    {(statsData?.globalGenerationsCount || 156).toLocaleString()}
+                                    {(statsData?.generationsCount ?? '—').toLocaleString()}
                                 </p>
-                                <span className="flex h-2 w-2 relative -top-2">
-                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-                                </span>
+                                {statsData && (
+                                    <span className="flex h-2 w-2 relative -top-2">
+                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                                        <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                                    </span>
+                                )}
                             </div>
-                            <p className="text-[11px] md:text-xs text-gray-600 font-medium">Генераций</p>
+                            <p className="text-[11px] md:text-xs text-gray-600 font-medium">Моих генераций</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="bg-white rounded-2xl p-4 md:p-6 border border-gray-100 shadow-sm">
+                    <div className="flex items-center gap-2 md:gap-3">
+                        <div className="w-9 h-9 md:w-10 md:h-10 rounded-xl bg-purple-100 flex items-center justify-center flex-shrink-0">
+                            <i className="fas fa-users text-primary-600 text-sm"></i>
+                        </div>
+                        <div>
+                            <p className="text-xl md:text-2xl font-bold text-gray-900">
+                                {dashboardData?.stats?.totalStudents ?? '—'}
+                            </p>
+                            <p className="text-[11px] md:text-xs text-gray-600 font-medium">Учеников</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="bg-white rounded-2xl p-4 md:p-6 border border-gray-100 shadow-sm">
+                    <div className="flex items-center gap-2 md:gap-3">
+                        <div className="w-9 h-9 md:w-10 md:h-10 rounded-xl bg-yellow-100 flex items-center justify-center flex-shrink-0">
+                            <i className="fas fa-star text-yellow-500 text-sm"></i>
+                        </div>
+                        <div>
+                            <p className="text-xl md:text-2xl font-bold text-gray-900">
+                                {dashboardData?.stats?.avgScore ? `${dashboardData.stats.avgScore}%` : '—'}
+                            </p>
+                            <p className="text-[11px] md:text-xs text-gray-600 font-medium">Средний балл</p>
                         </div>
                     </div>
                 </div>
@@ -311,20 +332,10 @@ export default function DashboardHome() {
                             <i className="fas fa-coins text-blue-600 text-sm"></i>
                         </div>
                         <div>
-                            <p className="text-xl md:text-2xl font-bold text-gray-900">{(statsData?.totalCreditsSpent || 1250).toLocaleString()}</p>
+                            <p className="text-xl md:text-2xl font-bold text-gray-900">
+                                {totalCredits > 0 ? totalCredits.toLocaleString() : '—'}
+                            </p>
                             <p className="text-[11px] md:text-xs text-gray-600 font-medium">Кредитов</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="bg-white rounded-2xl p-4 md:p-6 border border-gray-100">
-                    <div className="flex items-center gap-2 md:gap-3">
-                        <div className="w-9 h-9 md:w-10 md:h-10 rounded-xl bg-orange-100 flex items-center justify-center flex-shrink-0">
-                            <i className="fas fa-clock text-orange-600 text-sm"></i>
-                        </div>
-                        <div>
-                            <p className="text-xl md:text-2xl font-bold text-gray-900">48h</p>
-                            <p className="text-[11px] md:text-xs text-gray-600">Сэкономлено</p>
                         </div>
                     </div>
                 </div>

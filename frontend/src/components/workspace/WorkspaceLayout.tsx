@@ -1,6 +1,6 @@
 'use client'
 
-import { ReactNode, useState, useEffect } from 'react'
+import { ReactNode, useState, useEffect, useMemo } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useServiceCosts } from '@/lib/hooks/useServiceCosts'
@@ -9,6 +9,29 @@ import { useSubscription } from '@/lib/hooks/useSubscription'
 import { LOGO_BASE64 } from '@/constants/branding'
 import { BookOpen, HelpCircle, Gamepad2, Settings, ArrowLeft, PenTool, LayoutTemplate, MessageSquare, FileEdit, MessageCircle, Sparkles, PackageOpen, Video, LineChart, Camera, Image as ImageIcon, FileAudio, MonitorPlay, ClipboardCheck, GraduationCap, X, Menu } from 'lucide-react'
 import NotificationBell from '@/components/NotificationBell'
+import { getCachedGenerations } from '@/lib/utils/generationsCache'
+import { getCurrentUser } from '@/lib/utils/userIdentity'
+
+// Map: generation type → tool nav id
+const typeToToolId: Record<string, string> = {
+    'lesson_plan': 'lesson-planner', 'lesson-plan': 'lesson-planner',
+    'lesson_preparation': 'lesson-prep', 'lesson-preparation': 'lesson-prep', 'lessonPreparation': 'lesson-prep',
+    'quiz': 'quiz-generator',
+    'game_generation': 'games', 'game': 'games',
+    'worksheet': 'worksheet',
+    'exam_variant': 'exam', 'exam-variant': 'exam',
+    'vocabulary': 'vocabulary',
+    'content_adaptation': 'adaptation', 'content': 'adaptation',
+    'feedback': 'feedback',
+    'unpacking': 'unpacking',
+    'video_analysis': 'video-analysis', 'videoAnalysis': 'video-analysis',
+    'sales_advisor': 'sales-advisor', 'salesAdvisor': 'sales-advisor',
+    'photosession': 'photosession',
+    'image_generation': 'image', 'image': 'image',
+    'transcription': 'transcription',
+    'presentation': 'presentations',
+    'message': 'assistant', 'assistant': 'assistant',
+}
 
 interface WorkspaceLayoutProps {
     children: ReactNode
@@ -45,6 +68,19 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
     ]
 
     const { costs } = useServiceCosts()
+
+    const topToolIds = useMemo(() => {
+        const user = getCurrentUser()
+        const gens = getCachedGenerations().filter(g => g.userId === user.userHash && g.status === 'completed')
+        const counts: Record<string, number> = {}
+        for (const g of gens) {
+            const toolId = typeToToolId[g.type]
+            if (toolId) counts[toolId] = (counts[toolId] || 0) + 1
+        }
+        return new Set(
+            Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([id]) => id)
+        )
+    }, [])
 
     const opMap: Record<string, string> = {
         'lesson-planner': 'lesson_plan',
@@ -130,8 +166,10 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
                     >
                         <Icon className={`w-4 h-4 ${active ? 'text-primary-600' : isUnderMaintenance ? 'text-gray-200' : 'text-gray-400'}`} />
                         <span className="flex-1 text-left">{tool.label}</span>
-                        {isUnderMaintenance && (
+                        {isUnderMaintenance ? (
                             <PenTool className="w-3 h-3 text-amber-400 animate-pulse" />
+                        ) : topToolIds.has(tool.id) && !active && (
+                            <span className="w-1.5 h-1.5 rounded-full bg-primary-400 flex-shrink-0" title="Используете часто" />
                         )}
                     </button>
                 )
