@@ -57,3 +57,17 @@ export class RegisterByEmailDto {
   @IsOptional()
   firstName?: string;
 }
+
+export class VerifyEmailCodeDto {
+  @IsEmail()
+  @IsNotEmpty()
+  email: string;
+
+  @IsString()
+  @IsNotEmpty()
+  code: string;
+
+  @IsString()
+  @IsOptional()
+  firstName?: string;
+}

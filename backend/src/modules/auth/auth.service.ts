@@ -479,12 +479,60 @@ export class AuthService {
   /**
    * Регистрация по email: создаёт пользователя и отправляет приветственное письмо с данными для входа
    */
-  async registerByEmail(email: string, firstName?: string) {
+  async registerByEmail(email: string) {
     // Проверяем, есть ли уже пользователь с таким email
     const existing = await this.prisma.appUser.findFirst({ where: { email } });
     if (existing) {
       throw new BadRequestException('Пользователь с таким email уже зарегистрирован');
     }
+
+    // Генерируем 6-значный код
+    const code = crypto.randomInt(100000, 1000000).toString();
+
+    // Удаляем старые коды для этого email
+    await this.prisma.verificationCode.deleteMany({
+      where: { phone: email, type: 'email' },
+    });
+
+    // Сохраняем код (поле phone используется как идентификатор — здесь email)
+    await this.prisma.verificationCode.create({
+      data: {
+        phone: email,
+        code,
+        type: 'email',
+        expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 минут
+      },
+    });
+
+    // Отправляем письмо с кодом
+    await this.emailService.sendEmailVerificationCode(email, code);
+
+    return { success: true, pending: true };
+  }
+
+  /**
+   * Подтверждение email-кода и завершение регистрации
+   */
+  async verifyEmailCode(email: string, code: string, firstName?: string) {
+    const record = await this.prisma.verificationCode.findFirst({
+      where: {
+        phone: email,
+        code,
+        type: 'email',
+        verified: false,
+        expiresAt: { gt: new Date() },
+      },
+    });
+
+    if (!record) {
+      throw new UnauthorizedException('Неверный код или срок действия истек');
+    }
+
+    // Помечаем код как использованный
+    await this.prisma.verificationCode.update({
+      where: { id: record.id },
+      data: { verified: true },
+    });
 
     // Создаём пользователя
     const user = await this.usersService.findOrCreateByEmail(email, firstName);

@@ -15,6 +15,8 @@ export default function AuthModal({ onClose, onSuccess, initialMode = 'login' }:
   const [errorMessage, setErrorMessage] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
   const [loginMode, setLoginMode] = useState<'phone' | 'apikey'>('apikey')
+  const [verificationStep, setVerificationStep] = useState<'form' | 'verify-code'>('form')
+  const [otpCode, setOtpCode] = useState('')
 
   const [privacyAccepted, setPrivacyAccepted] = useState(false)
 
@@ -116,7 +118,31 @@ export default function AuthModal({ onClose, onSuccess, initialMode = 'login' }:
     try {
       const response = await apiClient.post('/auth/register-by-email', {
         email: form.email.trim(),
-        firstName: form.name.trim() || undefined
+      })
+
+      if (response.data.success && response.data.pending) {
+        setVerificationStep('verify-code')
+        setSuccessMessage('Код подтверждения отправлен на вашу почту')
+      } else {
+        setErrorMessage(response.data.error || 'Ошибка регистрации')
+      }
+    } catch (error: any) {
+      console.error('Register by email error:', error)
+      setErrorMessage(error.response?.data?.message || error.response?.data?.error || 'Ошибка регистрации')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleVerifyEmailCode = async () => {
+    setLoading(true)
+    setErrorMessage('')
+
+    try {
+      const response = await apiClient.post('/auth/verify-email-code', {
+        email: form.email.trim(),
+        code: otpCode.trim(),
+        firstName: form.name.trim() || undefined,
       })
 
       if (response.data.success) {
@@ -133,17 +159,13 @@ export default function AuthModal({ onClose, onSuccess, initialMode = 'login' }:
         localStorage.setItem('prepodavai_user', JSON.stringify(userData))
         localStorage.setItem('prepodavai_authenticated', 'true')
 
-        setSuccessMessage('Данные для входа отправлены на вашу почту!')
-
-        setTimeout(() => {
-          onSuccess()
-        }, 1500)
+        onSuccess()
       } else {
-        setErrorMessage(response.data.error || 'Ошибка регистрации')
+        setErrorMessage(response.data.error || 'Ошибка подтверждения')
       }
     } catch (error: any) {
-      console.error('Register by email error:', error)
-      setErrorMessage(error.response?.data?.message || error.response?.data?.error || 'Ошибка регистрации')
+      console.error('Verify email code error:', error)
+      setErrorMessage(error.response?.data?.message || error.response?.data?.error || 'Неверный код или срок действия истёк')
     } finally {
       setLoading(false)
     }
@@ -154,6 +176,8 @@ export default function AuthModal({ onClose, onSuccess, initialMode = 'login' }:
     setErrorMessage('')
     setSuccessMessage('')
     setPrivacyAccepted(false)
+    setVerificationStep('form')
+    setOtpCode('')
     setForm({
       name: '',
       phone: '',
@@ -190,18 +214,79 @@ export default function AuthModal({ onClose, onSuccess, initialMode = 'login' }:
 
         <h2 className="text-3xl font-bold text-center mb-2">
           <span className="bg-gradient-to-r from-orange-600 to-orange-500 bg-clip-text text-transparent">
-            {isLogin ? 'Вход' : 'Регистрация'}
+            {isLogin ? 'Вход' : verificationStep === 'verify-code' ? 'Подтверждение' : 'Регистрация'}
           </span>
         </h2>
         <p className="text-center text-gray-900 mb-8">
           {isLogin
             ? 'Введите данные из письма'
-            : 'Укажите email для получения данных входа'
+            : verificationStep === 'verify-code'
+              ? 'Введите код из письма'
+              : 'Укажите email для получения данных входа'
           }
         </p>
 
+        {/* Email Verification Step */}
+        {!isLogin && verificationStep === 'verify-code' && (
+          <form onSubmit={(e) => { e.preventDefault(); handleVerifyEmailCode(); }} className="space-y-4">
+            <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl text-blue-800 text-sm">
+              <i className="fas fa-envelope-open text-blue-500 mr-2"></i>
+              Мы отправили 6-значный код на <strong>{form.email}</strong>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                <i className="fas fa-shield-alt text-orange-500 mr-2"></i>
+                Код подтверждения
+              </label>
+              <input
+                value={otpCode}
+                onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                type="text"
+                inputMode="numeric"
+                required
+                autoFocus
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none transition-colors text-gray-900 placeholder:text-gray-400 text-center text-2xl font-mono tracking-widest"
+                placeholder="______"
+              />
+              <p className="text-xs text-gray-500 mt-1">Код действителен 10 минут</p>
+            </div>
+
+            {successMessage && (
+              <div className="p-3 bg-green-50 border border-green-200 rounded-xl text-green-700 text-sm">
+                <i className="fas fa-check-circle mr-2"></i>
+                {successMessage}
+              </div>
+            )}
+
+            {errorMessage && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">
+                <i className="fas fa-exclamation-circle mr-2"></i>
+                {errorMessage}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={loading || otpCode.length !== 6}
+              className="w-full py-4 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300 hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              <i className={`fas ${loading ? 'fa-spinner fa-spin' : 'fa-check'}`}></i>
+              {loading ? 'Проверка...' : 'Подтвердить'}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => { setVerificationStep('form'); setOtpCode(''); setErrorMessage(''); setSuccessMessage(''); }}
+              className="w-full text-sm text-gray-500 hover:text-gray-700"
+            >
+              Изменить email
+            </button>
+          </form>
+        )}
+
         {/* Email Registration Form */}
-        {!isLogin && (
+        {!isLogin && verificationStep === 'form' && (
           <form onSubmit={(e) => { e.preventDefault(); handleRegisterByEmail(); }} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">

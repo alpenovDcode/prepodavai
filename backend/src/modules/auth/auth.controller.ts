@@ -10,6 +10,7 @@ import {
   SendPhoneCodeDto,
   LoginWithPhoneDto,
   RegisterByEmailDto,
+  VerifyEmailCodeDto,
 } from './dto/auth.dto';
 
 @Controller('auth')
@@ -161,12 +162,18 @@ export class AuthController {
 
   @Post('register-by-email')
   @Throttle({ default: { limit: 5, ttl: 60000 } })
-  async registerByEmail(
-    @Body() body: RegisterByEmailDto,
+  async registerByEmail(@Body() body: RegisterByEmailDto) {
+    return this.authService.registerByEmail(body.email);
+  }
+
+  @Post('verify-email-code')
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  async verifyEmailCode(
+    @Body() body: VerifyEmailCodeDto,
     @Res({ passthrough: true }) res: Response,
     @Request() req: any,
   ) {
-    const result = await this.authService.registerByEmail(body.email, body.firstName);
+    const result = await this.authService.verifyEmailCode(body.email, body.code, body.firstName);
     if (result && result.token) {
       this.setTokenCookie(res, result.token, req);
     }
