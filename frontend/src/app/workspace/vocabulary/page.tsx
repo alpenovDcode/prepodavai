@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import DOMPurify from 'isomorphic-dompurify'
 import { BookOpen, RefreshCw, Loader2, Copy, Edit3, Eye, Download } from 'lucide-react'
+import toast from 'react-hot-toast'
 import { useGenerations } from '@/lib/hooks/useGenerations'
 import RichTextEditor from '@/components/workspace/RichTextEditor'
 import { getCurrentUser } from '@/lib/utils/userIdentity'
@@ -99,7 +100,7 @@ export default function VocabularyGenerator() {
             ? localContent.replace(/<\/head>/i, `${autoPrint}</head>`)
             : `<!DOCTYPE html><html><head><meta charset="utf-8">${autoPrint}</head><body>${localContent}</body></html>`
         const win = window.open('', '_blank')
-        if (!win) { alert('Разрешите всплывающие окна для этого сайта'); return }
+        if (!win) { toast.error('Разрешите всплывающие окна для этого сайта'); return }
         win.document.open(); win.document.write(html); win.document.close()
     }
 

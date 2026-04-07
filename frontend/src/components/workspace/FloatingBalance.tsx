@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { Sparkles, Loader2 } from 'lucide-react'
 import { useSubscription } from '@/lib/hooks/useSubscription'
 import { usePathname } from 'next/navigation'
+import { useIsMobile } from '@/lib/hooks/useIsMobile'
 
 export default function FloatingBalance() {
     const [isAuthenticated, setIsAuthenticated] = useState(false)
@@ -18,27 +19,13 @@ export default function FloatingBalance() {
         return () => window.removeEventListener('storage', checkAuth)
     }, [pathname])
 
-    const [isMobileOrMiniApp, setIsMobileOrMiniApp] = useState(false)
-
-    useEffect(() => {
-        const check = () => {
-            const mobile = window.innerWidth < 768
-            const mini = !!(
-                (window as any).Telegram?.WebApp?.initData ||
-                (window as any).WebApp?.initData ||
-                new URLSearchParams(window.location.search).has('tgWebAppData') ||
-                new URLSearchParams(window.location.search).has('max_init_data')
-            )
-            setIsMobileOrMiniApp(mobile || mini)
-        }
-        check()
-        window.addEventListener('resize', check)
-        return () => window.removeEventListener('resize', check)
-    }, [])
+    const { isMobile, isMiniApp } = useIsMobile()
+    const isMobileOrMiniApp = isMobile || isMiniApp
 
     const { totalCredits, loading, error } = useSubscription({ enabled: isAuthenticated && !pathname.startsWith('/admin') })
 
-    if (!isAuthenticated || error || pathname.startsWith('/admin') || isMobileOrMiniApp) return null
+    // На workspace баланс показывается в сайдбаре; на мобильных — там же или скрыт
+    if (!isAuthenticated || error || pathname.startsWith('/admin') || pathname.startsWith('/workspace') || isMobileOrMiniApp) return null
 
     const getLabel = (value: number) => {
         if (value === 0) return 'токенов'

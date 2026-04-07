@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import toast from 'react-hot-toast'
 import { apiClient } from '@/lib/api/client'
 import { functions } from './InputComposer/config'
 import { useGenerations } from '@/lib/hooks/useGenerations'
@@ -87,12 +88,12 @@ export default function DashboardHome() {
 
     const handleGenerate = async () => {
         if (!lessonTopic) {
-            alert('Пожалуйста, введите тему урока')
+            toast.error('Введите тему урока')
             return
         }
 
         if (selectedTypes.length === 0) {
-            alert('Пожалуйста, выберите хотя бы один тип генерации')
+            toast.error('Выберите хотя бы один тип генерации')
             return
         }
 
@@ -108,7 +109,7 @@ export default function DashboardHome() {
             router.push('/dashboard/courses')
         } catch (error) {
             console.error('Generation failed:', error)
-            alert('Ошибка при запуске генерации. Пожалуйста, попробуйте снова.')
+            toast.error('Ошибка при запуске генерации. Попробуйте снова.')
         }
     }
 

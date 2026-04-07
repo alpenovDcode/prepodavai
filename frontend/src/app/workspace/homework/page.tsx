@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { apiClient } from '@/lib/api/client'
+import toast from 'react-hot-toast'
 import Image from 'next/image'
 import DOMPurify from 'isomorphic-dompurify'
 import {
@@ -217,7 +218,7 @@ export default function HomeworkReviewPage() {
     const handleSubmitGrade = async () => {
         if (!selectedStudentStatus?.submission) return
         if (gradeInput === '' || gradeInput < 1 || gradeInput > 5) {
-            alert('Оценка должна быть от 1 до 5')
+            toast.error('Оценка должна быть от 1 до 5')
             return
         }
 
@@ -233,7 +234,7 @@ export default function HomeworkReviewPage() {
             }
         } catch (error) {
             console.error('Failed to submit grade', error)
-            alert('Ошибка при сохранении оценки')
+            toast.error('Ошибка при сохранении оценки')
         } finally {
             setSubmittingGrade(false)
         }
@@ -247,7 +248,7 @@ export default function HomeworkReviewPage() {
             setFeedbackInput((res.data?.feedback || '').trim())
         } catch (error) {
             console.error('Failed to generate AI feedback', error)
-            alert('Ошибка при генерации комментария')
+            toast.error('Ошибка при генерации комментария')
         } finally {
             setGeneratingFeedback(false)
         }

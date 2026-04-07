@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
 import DOMPurify from 'isomorphic-dompurify'
 import { Sparkles, RefreshCw, Loader2, Maximize2, Download, Copy, Eye, Edit3, HelpCircle, ChevronLeft, ChevronRight } from 'lucide-react'
+import toast from 'react-hot-toast'
 import { useGenerations } from '@/lib/hooks/useGenerations'
 import RichTextEditor from '@/components/workspace/RichTextEditor'
 import GenerationCostBadge from '@/components/workspace/GenerationCostBadge'
@@ -147,7 +148,7 @@ export default function LessonPrepGenerator() {
             ? safeContent.replace(/<\/head>/i, `${autoPrint}</head>`)
             : `<!DOCTYPE html><html><head><meta charset="utf-8">${autoPrint}</head><body>${safeContent}</body></html>`
         const win = window.open('', '_blank')
-        if (!win) { alert('Разрешите всплывающие окна для этого сайта'); return }
+        if (!win) { toast.error('Разрешите всплывающие окна для этого сайта'); return }
         win.document.open(); win.document.write(html); win.document.close()
     }
 

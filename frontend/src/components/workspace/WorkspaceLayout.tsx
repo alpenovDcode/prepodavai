@@ -1,13 +1,14 @@
 'use client'
 
-import { ReactNode, useState, useEffect, useMemo } from 'react'
+import { ReactNode, useState, useMemo } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useServiceCosts } from '@/lib/hooks/useServiceCosts'
 import { useUser } from '@/lib/hooks/useUser'
 import { useSubscription } from '@/lib/hooks/useSubscription'
+import { useIsMobile } from '@/lib/hooks/useIsMobile'
 import { LOGO_BASE64 } from '@/constants/branding'
-import { BookOpen, HelpCircle, Gamepad2, Settings, ArrowLeft, PenTool, LayoutTemplate, MessageSquare, FileEdit, MessageCircle, Sparkles, PackageOpen, Video, LineChart, Camera, Image as ImageIcon, FileAudio, MonitorPlay, ClipboardCheck, GraduationCap, X, Menu } from 'lucide-react'
+import { BookOpen, HelpCircle, Gamepad2, Settings, ArrowLeft, PenTool, LayoutTemplate, MessageSquare, FileEdit, MessageCircle, Sparkles, PackageOpen, Video, LineChart, Camera, Image as ImageIcon, FileAudio, MonitorPlay, ClipboardCheck, GraduationCap, X, Menu, Loader2 } from 'lucide-react'
 import NotificationBell from '@/components/NotificationBell'
 import { getCachedGenerations } from '@/lib/utils/generationsCache'
 import { getCurrentUser } from '@/lib/utils/userIdentity'
@@ -33,40 +34,106 @@ const typeToToolId: Record<string, string> = {
     'message': 'assistant', 'assistant': 'assistant',
 }
 
+interface Tool {
+    id: string
+    label: string
+    icon: React.ElementType
+    path: string
+}
+
+interface ToolGroup {
+    label: string
+    tools: Tool[]
+}
+
 interface WorkspaceLayoutProps {
     children: ReactNode
+}
+
+const opMap: Record<string, string> = {
+    'lesson-planner': 'lesson_plan',
+    'lesson-prep': 'lesson_plan',
+    'quiz-generator': 'quiz',
+    'games': 'game_generation',
+    'worksheet': 'worksheet',
+    'exam': 'exam_variant',
+    'vocabulary': 'vocabulary',
+    'adaptation': 'content_adaptation',
+    'feedback': 'feedback',
+    'unpacking': 'unpacking',
+    'video-analysis': 'video_analysis',
+    'sales-advisor': 'sales_advisor',
+    'photosession': 'photosession',
+    'image': 'image_generation',
+    'transcription': 'transcription',
+    'presentations': 'presentation',
+    'assistant': 'message',
+    'homework': 'transcription'
+}
+
+const toolGroups: ToolGroup[] = [
+    {
+        label: 'Подготовка урока',
+        tools: [
+            { id: 'hub', label: 'Главная панель', icon: LayoutTemplate, path: '/workspace' },
+            { id: 'lesson-planner', label: 'Конструктор Уроков', icon: LayoutTemplate, path: '/workspace/lesson-planner' },
+            { id: 'lesson-prep', label: 'Вау-урок', icon: Sparkles, path: '/workspace/lesson-prep' },
+            { id: 'worksheet', label: 'Рабочие Листы', icon: PenTool, path: '/workspace/worksheet' },
+            { id: 'vocabulary', label: 'Словарь', icon: BookOpen, path: '/workspace/vocabulary' },
+            { id: 'adaptation', label: 'Адаптация Текста', icon: FileEdit, path: '/workspace/adaptation' },
+        ]
+    },
+    {
+        label: 'Оценка знаний',
+        tools: [
+            { id: 'quiz-generator', label: 'Генератор Тестов', icon: HelpCircle, path: '/workspace/quiz-generator' },
+            { id: 'games', label: 'Обучающие Игры', icon: Gamepad2, path: '/workspace/games' },
+            { id: 'exam', label: 'Варианты ОГЭ/ЕГЭ', icon: GraduationCap, path: '/workspace/exam' },
+            { id: 'homework', label: 'Проверка ДЗ', icon: ClipboardCheck, path: '/workspace/homework' },
+            { id: 'feedback', label: 'Фидбек', icon: MessageCircle, path: '/workspace/feedback' },
+        ]
+    },
+    {
+        label: 'Медиа-контент',
+        tools: [
+            { id: 'presentations', label: 'Презентации', icon: MonitorPlay, path: '/workspace/presentations' },
+            { id: 'image', label: 'Генератор Изображений', icon: ImageIcon, path: '/workspace/image' },
+            { id: 'photosession', label: 'AI Фотосессия', icon: Camera, path: '/workspace/photosession' },
+            { id: 'transcription', label: 'Транскрибация', icon: FileAudio, path: '/workspace/transcription' },
+            { id: 'video-analysis', label: 'Анализ Видео', icon: Video, path: '/workspace/video-analysis' },
+        ]
+    },
+    {
+        label: 'Другое',
+        tools: [
+            { id: 'assistant', label: 'AI Ассистент', icon: MessageSquare, path: '/workspace/assistant' },
+            { id: 'unpacking', label: 'Распаковка Экспертности', icon: PackageOpen, path: '/workspace/unpacking' },
+            { id: 'sales-advisor', label: 'ИИ-Продажник', icon: LineChart, path: '/workspace/sales-advisor' },
+        ]
+    },
+]
+
+const allTools = toolGroups.flatMap(g => g.tools)
+
+function getCreditsLabel(value: number): string {
+    if (value === 0) return 'токенов'
+    const lastDigit = value % 10
+    const lastTwoDigits = value % 100
+    if (lastTwoDigits >= 11 && lastTwoDigits <= 19) return 'токенов'
+    if (lastDigit === 1) return 'токен'
+    if (lastDigit >= 2 && lastDigit <= 4) return 'токена'
+    return 'токенов'
 }
 
 export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
     const pathname = usePathname()
     const router = useRouter()
     const { user, fullName, initials, loading: userLoading } = useUser()
-    const { subscription, loading: subLoading } = useSubscription()
+    const { subscription, totalCredits, loading: subLoading } = useSubscription()
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
     const [avatarError, setAvatarError] = useState(false)
 
-    const tools = [
-        { id: 'hub', label: 'Главная панель', icon: LayoutTemplate, path: '/workspace' },
-        { id: 'homework', label: 'Проверка ДЗ', icon: ClipboardCheck, path: '/workspace/homework' },
-        { id: 'lesson-planner', label: 'Конструктор Уроков', icon: LayoutTemplate, path: '/workspace/lesson-planner' },
-        { id: 'lesson-prep', label: 'Вау-урок', icon: Sparkles, path: '/workspace/lesson-prep' },
-        { id: 'quiz-generator', label: 'Генератор Тестов', icon: HelpCircle, path: '/workspace/quiz-generator' },
-        { id: 'games', label: 'Обучающие Игры', icon: Gamepad2, path: '/workspace/games' },
-        { id: 'worksheet', label: 'Рабочие Листы', icon: PenTool, path: '/workspace/worksheet' },
-        { id: 'exam', label: 'Варианты ОГЭ/ЕГЭ', icon: GraduationCap, path: '/workspace/exam' },
-        { id: 'vocabulary', label: 'Словарь', icon: BookOpen, path: '/workspace/vocabulary' },
-        { id: 'adaptation', label: 'Адаптация Текста', icon: FileEdit, path: '/workspace/adaptation' },
-        { id: 'feedback', label: 'Фидбек', icon: MessageCircle, path: '/workspace/feedback' },
-        { id: 'unpacking', label: 'Распаковка Экспертности', icon: PackageOpen, path: '/workspace/unpacking' },
-        { id: 'video-analysis', label: 'Анализ Видео', icon: Video, path: '/workspace/video-analysis' },
-        { id: 'sales-advisor', label: 'ИИ-Продажник', icon: LineChart, path: '/workspace/sales-advisor' },
-        { id: 'photosession', label: 'AI Фотосессия', icon: Camera, path: '/workspace/photosession' },
-        { id: 'image', label: 'Генератор Изображений', icon: ImageIcon, path: '/workspace/image' },
-        { id: 'transcription', label: 'Транскрибация', icon: FileAudio, path: '/workspace/transcription' },
-        { id: 'presentations', label: 'Презентации', icon: MonitorPlay, path: '/workspace/presentations' },
-        { id: 'assistant', label: 'AI Ассистент', icon: MessageSquare, path: '/workspace/assistant' },
-    ]
-
+    const { isMobile, isMiniApp } = useIsMobile()
     const { costs } = useServiceCosts()
 
     const topToolIds = useMemo(() => {
@@ -82,106 +149,94 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
         )
     }, [])
 
-    const opMap: Record<string, string> = {
-        'lesson-planner': 'lesson_plan',
-        'lesson-prep': 'lesson_plan',
-        'quiz-generator': 'quiz',
-        'games': 'game_generation',
-        'worksheet': 'worksheet',
-        'exam': 'exam_variant',
-        'vocabulary': 'vocabulary',
-        'adaptation': 'content_adaptation',
-        'feedback': 'feedback',
-        'unpacking': 'unpacking',
-        'video-analysis': 'video_analysis',
-        'sales-advisor': 'sales_advisor',
-        'photosession': 'photosession',
-        'image': 'image_generation',
-        'transcription': 'transcription',
-        'presentations': 'presentation',
-        'assistant': 'message',
-        'homework': 'transcription'
-    }
+    const topTools = useMemo(
+        () => allTools.filter(t => topToolIds.has(t.id)),
+        [topToolIds]
+    )
 
     const isActive = (path: string) => {
-        if (path === '/workspace' && pathname !== '/workspace') return false;
+        if (path === '/workspace' && pathname !== '/workspace') return false
         return pathname.startsWith(path)
     }
 
-    // Проверка, является ли устройство мобильным (включая Mini App)
-    const [isMobile, setIsMobile] = useState(false)
-    const [isMiniApp, setIsMiniApp] = useState(false)
+    const renderToolButton = (tool: Tool, showStar = false) => {
+        const Icon = tool.icon
+        const active = isActive(tool.path)
+        const opType = opMap[tool.id]
+        const isUnderMaintenance = costs?.find(c => c.operationType === opType)?.isUnderMaintenance || false
 
-    useEffect(() => {
-        const checkMobile = () => {
-            const mobile = window.innerWidth < 768
-            const mini = !!(
-                (window as any).Telegram?.WebApp?.initData ||
-                (window as any).WebApp?.initData ||
-                new URLSearchParams(window.location.search).has('tgWebAppData') ||
-                new URLSearchParams(window.location.search).has('max_init_data')
-            )
-            setIsMobile(mobile)
-            setIsMiniApp(mini)
-        }
-        
-        checkMobile()
-        window.addEventListener('resize', checkMobile)
-        return () => window.removeEventListener('resize', checkMobile)
-    }, [])
-
-    // Bottom tab items for Mobile/Mini App
-    const mobileNavItems = [
-        { id: 'dashboard', label: 'Главная', icon: 'fa-solid fa-house', path: '/dashboard' },
-        { id: 'ai', label: 'ИИ', icon: 'fas fa-wand-magic-sparkles', path: '/workspace' },
-        { id: 'courses', label: 'Материалы', icon: 'fas fa-book', path: '/dashboard/courses' },
-        { id: 'students', label: 'Ученики', icon: 'fas fa-users', path: '/dashboard/students' },
-        { id: 'settings', label: 'Ещё', icon: 'fas fa-ellipsis', path: '/dashboard/settings' },
-    ]
+        return (
+            <button
+                key={tool.id}
+                onClick={() => {
+                    if (!isUnderMaintenance) {
+                        router.push(tool.path)
+                        setMobileMenuOpen(false)
+                    }
+                }}
+                title={isUnderMaintenance ? 'Временно недоступно (тех. работы)' : ''}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors group relative w-full ${active
+                    ? 'bg-primary-50 text-primary-700'
+                    : isUnderMaintenance
+                        ? 'text-gray-300 cursor-not-allowed'
+                        : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                    }`}
+            >
+                <Icon className={`w-4 h-4 flex-shrink-0 ${active ? 'text-primary-600' : isUnderMaintenance ? 'text-gray-200' : 'text-gray-400'}`} />
+                <span className="flex-1 text-left">{tool.label}</span>
+                {isUnderMaintenance ? (
+                    <PenTool className="w-3 h-3 text-amber-400 animate-pulse" />
+                ) : showStar ? (
+                    <span className="text-[10px] text-amber-400">★</span>
+                ) : null}
+            </button>
+        )
+    }
 
     const renderToolNav = () => (
-        <nav className="flex flex-col gap-1 pb-4">
-            {tools.map((tool) => {
-                const Icon = tool.icon
-                const active = isActive(tool.path)
-                const opType = opMap[tool.id]
-                const isUnderMaintenance = costs?.find(c => c.operationType === opType)?.isUnderMaintenance || false
+        <nav className="flex flex-col pb-4">
+            {/* Часто используемые */}
+            {topTools.length > 0 && (
+                <div className="mb-1">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-gray-400 px-3 pt-4 pb-1.5">
+                        Часто используемые
+                    </p>
+                    <div className="flex flex-col gap-1">
+                        {topTools.map(tool => renderToolButton(tool, true))}
+                    </div>
+                </div>
+            )}
 
-                return (
-                    <button
-                        key={tool.id}
-                        onClick={() => {
-                            if (!isUnderMaintenance) {
-                                router.push(tool.path)
-                                setMobileMenuOpen(false)
-                            }
-                        }}
-                        title={isUnderMaintenance ? 'Временно недоступно (тех. работы)' : ''}
-                        className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors group relative ${active
-                            ? 'bg-primary-50 text-primary-700'
-                            : isUnderMaintenance
-                                ? 'text-gray-300 cursor-not-allowed'
-                                : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-                            }`}
-                    >
-                        <Icon className={`w-4 h-4 ${active ? 'text-primary-600' : isUnderMaintenance ? 'text-gray-200' : 'text-gray-400'}`} />
-                        <span className="flex-1 text-left">{tool.label}</span>
-                        {isUnderMaintenance ? (
-                            <PenTool className="w-3 h-3 text-amber-400 animate-pulse" />
-                        ) : topToolIds.has(tool.id) && !active && (
-                            <span className="w-1.5 h-1.5 rounded-full bg-primary-400 flex-shrink-0" title="Используете часто" />
-                        )}
-                    </button>
-                )
-            })}
+            {/* Группы инструментов */}
+            {toolGroups.map((group, groupIndex) => (
+                <div key={group.label}>
+                    {(groupIndex > 0 || topTools.length > 0) && (
+                        <div className="border-t border-gray-100 mt-2 mb-2" />
+                    )}
+                    <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-gray-400 px-3 pt-2 pb-1.5">
+                        {group.label}
+                    </p>
+                    <div className="flex flex-col gap-1">
+                        {group.tools.map(tool => renderToolButton(tool))}
+                    </div>
+                </div>
+            ))}
         </nav>
     )
 
     // ===== MOBILE / MINI APP LAYOUT =====
     if (isMobile || isMiniApp) {
+        const mobileNavItems = [
+            { id: 'dashboard', label: 'Главная', icon: 'fa-solid fa-house', path: '/dashboard' },
+            { id: 'ai', label: 'ИИ', icon: 'fas fa-wand-magic-sparkles', path: '/workspace' },
+            { id: 'courses', label: 'Материалы', icon: 'fas fa-book', path: '/dashboard/courses' },
+            { id: 'students', label: 'Ученики', icon: 'fas fa-users', path: '/dashboard/students' },
+            { id: 'settings', label: 'Ещё', icon: 'fas fa-ellipsis', path: '/dashboard/settings' },
+        ]
+
         return (
             <div className="h-screen bg-[#F9FAFB] flex flex-col overflow-hidden">
-                {/* Mobile header with menu toggle */}
+                {/* Mobile header */}
                 <div className="flex-shrink-0 bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between shadow-sm z-30">
                     <button
                         onClick={() => setMobileMenuOpen(true)}
@@ -203,9 +258,9 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
                 {/* Slide-over tools menu */}
                 {mobileMenuOpen && (
                     <div className="fixed inset-0 z-[60]">
-                        <div 
-                            className="absolute inset-0 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200" 
-                            onClick={() => setMobileMenuOpen(false)} 
+                        <div
+                            className="absolute inset-0 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200"
+                            onClick={() => setMobileMenuOpen(false)}
                         />
                         <div className="absolute left-0 top-0 bottom-0 w-[280px] bg-white flex flex-col shadow-2xl animate-in slide-in-from-left duration-300 ease-out">
                             <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
@@ -220,8 +275,8 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
                                     <X className="w-4 h-4 text-gray-600" />
                                 </button>
                             </div>
-                            
-                            {/* User Context in Sidebar */}
+
+                            {/* User Context */}
                             <div className="p-4 border-b border-gray-100 flex items-center gap-3">
                                 <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center text-primary-700 font-bold text-sm">
                                     {initials}
@@ -242,10 +297,7 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
 
                             <div className="p-4 border-t border-gray-100 bg-gray-50/30">
                                 <button
-                                    onClick={() => {
-                                        router.push('/dashboard')
-                                        setMobileMenuOpen(false)
-                                    }}
+                                    onClick={() => { router.push('/dashboard'); setMobileMenuOpen(false) }}
                                     className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-white border border-gray-200 rounded-xl text-sm font-semibold text-gray-700 hover:bg-gray-50 transition active:scale-[0.98]"
                                 >
                                     <ArrowLeft className="w-4 h-4" />
@@ -269,9 +321,7 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
                                 <Link
                                     key={item.id}
                                     href={item.path}
-                                    className={`flex flex-col items-center justify-center flex-1 h-full transition-all relative ${
-                                        active ? 'text-primary-600' : 'text-gray-400'
-                                    }`}
+                                    className={`flex flex-col items-center justify-center flex-1 h-full transition-all relative ${active ? 'text-primary-600' : 'text-gray-400'}`}
                                 >
                                     {active && (
                                         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-1 bg-primary-600 rounded-b-full shadow-[0_2px_4px_rgba(37,99,235,0.2)]" />
@@ -308,7 +358,7 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
                     </div>
                 </div>
 
-                {/* Back to Dashboard Button */}
+                {/* Back to Dashboard */}
                 <div className="p-4">
                     <button
                         onClick={() => router.push('/dashboard')}
@@ -321,15 +371,34 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
 
                 {/* Tools Navigation */}
                 <div className="px-4 flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-200">
-                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.1em] mb-3 px-3 mt-4">Инструменты</p>
                     {renderToolNav()}
+                </div>
+
+                {/* Balance row */}
+                <div className="px-4 pb-3">
+                    <div
+                        className="flex items-center gap-2 px-3 py-2 rounded-xl bg-purple-50 border border-purple-100"
+                        title="Кредиты — внутренняя валюта для генерации материалов"
+                    >
+                        <Sparkles className="w-4 h-4 text-purple-500 flex-shrink-0" />
+                        {subLoading ? (
+                            <Loader2 className="w-4 h-4 text-purple-400 animate-spin" />
+                        ) : (
+                            <span className="text-sm font-bold text-gray-800">
+                                {totalCredits ?? 0}{' '}
+                                <span className="font-normal text-gray-500 text-xs">
+                                    {getCreditsLabel(totalCredits ?? 0)}
+                                </span>
+                            </span>
+                        )}
+                    </div>
                 </div>
 
                 {/* User Profile */}
                 <div className="p-4 border-t border-gray-100 bg-gray-50/30">
                     <div className="flex items-center justify-between mb-4 px-2">
                         <NotificationBell userType="teacher" />
-                        <button 
+                        <button
                             onClick={() => router.push('/dashboard/settings')}
                             className="p-2 text-gray-400 hover:text-gray-600 hover:bg-white rounded-lg border border-transparent hover:border-gray-100 transition-all"
                         >
@@ -364,7 +433,7 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
                 </div>
             </aside>
 
-            {/* Main Content Area */}
+            {/* Main Content */}
             <main className="flex-1 flex flex-col h-full bg-[#fcfcfc] min-w-0 overflow-hidden">
                 {children}
             </main>

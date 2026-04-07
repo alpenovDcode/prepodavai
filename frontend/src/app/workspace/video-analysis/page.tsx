@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import DOMPurify from 'isomorphic-dompurify'
 import { Video, RefreshCw, Loader2, Maximize2, UploadCloud, Copy, Download, Edit3, Eye } from 'lucide-react'
+import toast from 'react-hot-toast'
 import { useGenerations } from '@/lib/hooks/useGenerations'
 import { useServiceCosts } from '@/lib/hooks/useServiceCosts'
 import RichTextEditor from '@/components/workspace/RichTextEditor'
@@ -105,7 +106,7 @@ export default function VideoAnalysisGenerator() {
             ? safeContent.replace(/<\/head>/i, `${autoPrint}</head>`)
             : `<!DOCTYPE html><html><head><meta charset="utf-8">${autoPrint}</head><body>${safeContent}</body></html>`
         const win = window.open('', '_blank')
-        if (!win) { alert('Разрешите всплывающие окна для этого сайта'); return }
+        if (!win) { toast.error('Разрешите всплывающие окна для этого сайта'); return }
         win.document.open(); win.document.write(html); win.document.close()
     }
 

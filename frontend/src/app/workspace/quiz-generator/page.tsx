@@ -3,6 +3,8 @@
 import { useState, useRef, useEffect } from 'react'
 import DOMPurify from 'isomorphic-dompurify'
 import { HelpCircle, Download, Copy, RefreshCw, Loader2, Eye, Edit3 } from 'lucide-react'
+import toast from 'react-hot-toast'
+import { useIsMobile } from '@/lib/hooks/useIsMobile'
 import RichTextEditor from '@/components/workspace/RichTextEditor'
 import { useGenerations } from '@/lib/hooks/useGenerations'
 import { getCurrentUser } from '@/lib/utils/userIdentity'
@@ -19,7 +21,7 @@ export default function QuizGenerator() {
     })
 
     const [activeTab, setActiveTab] = useState<'config' | 'preview'>('config')
-    const [isMobile, setIsMobile] = useState(false)
+    const { isMobile } = useIsMobile()
     const [editMode, setEditMode] = useState(false)
     const [isExporting, setIsExporting] = useState(false)
     const [localContent, setLocalContent] = useState('<p>Определите параметры теста и нажмите Сгенерировать.</p>')
@@ -27,14 +29,6 @@ export default function QuizGenerator() {
 
     const { generateAndWait, isGenerating } = useGenerations()
 
-    useEffect(() => {
-        const checkMobile = () => {
-            setIsMobile(window.innerWidth < 768)
-        }
-        checkMobile()
-        window.addEventListener('resize', checkMobile)
-        return () => window.removeEventListener('resize', checkMobile)
-    }, [])
 
     const generateQuiz = async () => {
         if (!form.topic) return;
@@ -104,7 +98,7 @@ export default function QuizGenerator() {
             ? localContent.replace(/<\/head>/i, `${autoPrint}</head>`)
             : `<!DOCTYPE html><html><head><meta charset="utf-8">${autoPrint}</head><body>${localContent}</body></html>`
         const win = window.open('', '_blank')
-        if (!win) { alert('Разрешите всплывающие окна для этого сайта'); return }
+        if (!win) { toast.error('Разрешите всплывающие окна для этого сайта'); return }
         win.document.open(); win.document.write(html); win.document.close()
     }
 
@@ -115,13 +109,13 @@ export default function QuizGenerator() {
                 <div className="flex p-2 bg-white border-b border-gray-100 gap-2 flex-shrink-0">
                     <button
                         onClick={() => setActiveTab('config')}
-                        className={`flex-1 py-2 text-sm font-bold rounded-xl transition-all ${activeTab === 'config' ? 'bg-emerald-500 text-white shadow-md' : 'text-gray-500 bg-gray-50'}`}
+                        className={`flex-1 py-2 text-sm font-bold rounded-xl transition-all ${activeTab === 'config' ? 'bg-primary-600 text-white shadow-md' : 'text-gray-500 bg-gray-50'}`}
                     >
                         Настройка
                     </button>
                     <button
                         onClick={() => setActiveTab('preview')}
-                        className={`flex-1 py-2 text-sm font-bold rounded-xl transition-all ${activeTab === 'preview' ? 'bg-emerald-500 text-white shadow-md' : 'text-gray-500 bg-gray-50'}`}
+                        className={`flex-1 py-2 text-sm font-bold rounded-xl transition-all ${activeTab === 'preview' ? 'bg-primary-600 text-white shadow-md' : 'text-gray-500 bg-gray-50'}`}
                     >
                         Результат
                     </button>

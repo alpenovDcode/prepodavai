@@ -1,8 +1,10 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import { useIsMobile } from '@/lib/hooks/useIsMobile'
 import DOMPurify from 'isomorphic-dompurify'
 import { LineChart, RefreshCw, Loader2, Maximize2, UploadCloud, X, Copy, Download, Edit3, Eye } from 'lucide-react'
+import toast from 'react-hot-toast'
 import { useGenerations } from '@/lib/hooks/useGenerations'
 import RichTextEditor from '@/components/workspace/RichTextEditor'
 import GenerationCostBadge from '@/components/workspace/GenerationCostBadge'
@@ -14,19 +16,10 @@ export default function SalesAdvisorGenerator() {
     const [editMode, setEditMode] = useState(false)
     const [copied, setCopied] = useState(false)
     const [activeTab, setActiveTab] = useState<'config' | 'preview'>('config')
-    const [isMobile, setIsMobile] = useState(false)
+    const { isMobile } = useIsMobile()
     const iframeRef = useRef<HTMLIFrameElement>(null)
 
     const { generateAndWait, isGenerating } = useGenerations()
-
-    useEffect(() => {
-        const checkMobile = () => {
-            setIsMobile(window.innerWidth < 768)
-        }
-        checkMobile()
-        window.addEventListener('resize', checkMobile)
-        return () => window.removeEventListener('resize', checkMobile)
-    }, [])
 
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = Array.from(e.target.files || [])
@@ -34,7 +27,7 @@ export default function SalesAdvisorGenerator() {
 
         // Check if adding these files exceeds the limit
         if (images.length + files.length > 6) {
-            alert('Можно загрузить максимум 6 скриншотов')
+            toast.error('Можно загрузить максимум 6 скриншотов')
             return
         }
 
@@ -56,7 +49,7 @@ export default function SalesAdvisorGenerator() {
             setImages(prev => [...prev, ...newImages])
         } catch (error) {
             console.error('Upload failed', error)
-            alert('Ошибка при загрузке изображений')
+            toast.error('Ошибка при загрузке изображений')
         } finally {
             setIsUploading(false)
             // Reset input so the same files can be selected again if needed
@@ -126,7 +119,7 @@ export default function SalesAdvisorGenerator() {
             ? localContent.replace(/<\/head>/i, `${autoPrint}</head>`)
             : `<!DOCTYPE html><html><head><meta charset="utf-8">${autoPrint}</head><body>${localContent}</body></html>`
         const win = window.open('', '_blank')
-        if (!win) { alert('Разрешите всплывающие окна для этого сайта'); return }
+        if (!win) { toast.error('Разрешите всплывающие окна для этого сайта'); return }
         win.document.open(); win.document.write(html); win.document.close()
     }
 
@@ -153,13 +146,13 @@ export default function SalesAdvisorGenerator() {
                 <div className="flex p-2 bg-white border-b border-gray-100 gap-2 flex-shrink-0">
                     <button
                         onClick={() => setActiveTab('config')}
-                        className={`flex-1 py-2 text-sm font-bold rounded-xl transition-all ${activeTab === 'config' ? 'bg-teal-600 text-white shadow-md' : 'text-gray-500 bg-gray-50'}`}
+                        className={`flex-1 py-2 text-sm font-bold rounded-xl transition-all ${activeTab === 'config' ? 'bg-primary-600 text-white shadow-md' : 'text-gray-500 bg-gray-50'}`}
                     >
                         Загрузка
                     </button>
                     <button
                         onClick={() => setActiveTab('preview')}
-                        className={`flex-1 py-2 text-sm font-bold rounded-xl transition-all ${activeTab === 'preview' ? 'bg-teal-600 text-white shadow-md' : 'text-gray-500 bg-gray-50'}`}
+                        className={`flex-1 py-2 text-sm font-bold rounded-xl transition-all ${activeTab === 'preview' ? 'bg-primary-600 text-white shadow-md' : 'text-gray-500 bg-gray-50'}`}
                     >
                         Результат
                     </button>
@@ -311,7 +304,7 @@ export default function SalesAdvisorGenerator() {
                                 {isMobile && (
                                     <button 
                                         onClick={() => setActiveTab('config')}
-                                        className="mt-2 px-6 py-2 bg-teal-600 text-white rounded-xl font-bold text-sm shadow-md active:scale-95 transition-all text-gray-900"
+                                        className="mt-2 px-6 py-2 bg-primary-600 text-white rounded-xl font-bold text-sm shadow-md active:scale-95 transition-all text-gray-900"
                                     >
                                         К загрузке
                                     </button>

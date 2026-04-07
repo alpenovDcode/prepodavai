@@ -2,6 +2,7 @@
 
 import React, { useState, useRef } from 'react'
 import { Download, Copy, RefreshCw, Loader2, Gamepad2, ExternalLink } from 'lucide-react'
+import toast from 'react-hot-toast'
 import { apiClient } from '@/lib/api/client'
 import { getCurrentUser } from '@/lib/utils/userIdentity'
 import GenerationCostBadge from '@/components/workspace/GenerationCostBadge'
@@ -38,11 +39,11 @@ export default function GamesGenerator() {
                     downloadUrl: response.data.downloadUrl,
                 })
             } else {
-                alert('Не удалось получить URL игры')
+                toast.error('Не удалось получить URL игры')
             }
         } catch (error: any) {
             console.error(error)
-            alert(error.response?.data?.message || error.message || 'Произошла ошибка при генерации')
+            toast.error(error.response?.data?.message || error.message || 'Произошла ошибка при генерации')
         } finally {
             setIsGenerating(false)
         }
