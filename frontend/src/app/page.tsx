@@ -122,8 +122,9 @@ export default function Home() {
     const ott = urlParams.get('ott')
     if (!ott) return
 
-    apiClient.post('/auth/max/ott', { token: ott })
-      .then((response) => {
+    const handleOtt = async () => {
+      try {
+        const response = await apiClient.post('/auth/max/ott', { token: ott })
         if (response.data.success) {
           const { user } = response.data
           localStorage.setItem('prepodavai_authenticated', 'true')
@@ -138,8 +139,11 @@ export default function Home() {
           setIsAuthenticated(true)
           router.push('/dashboard')
         }
-      })
-      .catch((e) => console.error('[Home] OTT login failed:', e))
+      } catch (e) {
+        console.error('[Home] OTT login failed:', e)
+      }
+    }
+    handleOtt()
   }, [router])
 
   // 3. Mini App detection + auto-login via initData
