@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import AuthModal from './AuthModal'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { apiClient } from '@/lib/api/client'
 
 export default function LandingPage() {
   const [showAuth, setShowAuth] = useState(false);
@@ -9,8 +10,21 @@ export default function LandingPage() {
   const [currentTestimonial, setCurrentTestimonial] = useState(0);
   const router = useRouter()
 
-  const handleAuthSuccess = () => {
+  const handleAuthSuccess = async () => {
     setShowAuth(false)
+
+    // Применяем реферальный код, если пользователь пришёл по реферальной ссылке
+    const referralCode = localStorage.getItem('prepodavai_referral_code')
+    if (referralCode) {
+      try {
+        await apiClient.post('/referrals/apply', { code: referralCode })
+      } catch (e) {
+        // Код невалидный или уже применён — не блокируем переход
+      } finally {
+        localStorage.removeItem('prepodavai_referral_code')
+      }
+    }
+
     router.push('/dashboard')
   }
 

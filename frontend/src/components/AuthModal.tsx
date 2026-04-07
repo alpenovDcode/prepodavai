@@ -26,8 +26,17 @@ export default function AuthModal({ onClose, onSuccess, initialMode = 'login' }:
     email: '',
     password: '',
     username: '',
-    apiKey: ''
+    apiKey: '',
+    referralCode: ''
   })
+
+  // Подставляем реферальный код из localStorage, если пришли по ссылке
+  useEffect(() => {
+    const savedCode = localStorage.getItem('prepodavai_referral_code')
+    if (savedCode) {
+      setForm(prev => ({ ...prev, referralCode: savedCode }))
+    }
+  }, [])
 
   useEffect(() => {
     if (initialMode === 'register') {
@@ -121,6 +130,11 @@ export default function AuthModal({ onClose, onSuccess, initialMode = 'login' }:
       })
 
       if (response.data.success && response.data.pending) {
+        // Сохраняем реферальный код в localStorage, чтобы применить после верификации
+        const code = form.referralCode.trim()
+        if (code) {
+          localStorage.setItem('prepodavai_referral_code', code)
+        }
         setVerificationStep('verify-code')
         setSuccessMessage('Код подтверждения отправлен на вашу почту')
       } else {
@@ -184,7 +198,8 @@ export default function AuthModal({ onClose, onSuccess, initialMode = 'login' }:
       email: '',
       password: '',
       username: '',
-      apiKey: ''
+      apiKey: '',
+      referralCode: ''
     })
   }
 
@@ -316,6 +331,22 @@ export default function AuthModal({ onClose, onSuccess, initialMode = 'login' }:
                 placeholder="example@email.com"
               />
               <p className="text-xs text-gray-500 mt-1">На эту почту придут данные для входа</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                <i className="fas fa-gift text-orange-500 mr-2"></i>
+                Код приглашения
+                <span className="text-gray-400 font-normal ml-1">(необязательно)</span>
+              </label>
+              <input
+                value={form.referralCode}
+                onChange={(e) => setForm(prev => ({ ...prev, referralCode: e.target.value.toUpperCase() }))}
+                type="text"
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none transition-colors text-gray-900 placeholder:text-gray-400 font-mono tracking-wider"
+                placeholder="XXXXXXXX"
+                maxLength={16}
+              />
             </div>
 
             {successMessage && (
