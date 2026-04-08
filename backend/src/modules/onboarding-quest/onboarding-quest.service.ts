@@ -11,7 +11,7 @@ import {
 export class OnboardingQuestService {
   private readonly logger = new Logger(OnboardingQuestService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   /**
    * Статус квеста пользователя — используется в GET /onboarding-quest/status
@@ -62,7 +62,7 @@ export class OnboardingQuestService {
   }
 
   /**
-   * Завершить шаг квеста и начислить кредиты.
+   * Завершить шаг квеста и начислить Токены.
    * Идемпотентно: повторный вызов ничего не делает.
    * Вызывается только из внутренних сервисов (не из контроллера напрямую).
    */
@@ -79,7 +79,7 @@ export class OnboardingQuestService {
     expiresAt.setDate(expiresAt.getDate() + QUEST_DURATION_DAYS);
     if (new Date() > expiresAt) return;
 
-    // Атомарная операция: создаём запись шага + начисляем кредиты в одной транзакции
+    // Атомарная операция: создаём запись шага + начисляем Токены в одной транзакции
     await this.prisma.$transaction(async (tx) => {
       // createMany с skipDuplicates для идемпотентности
       const created = await tx.onboardingQuestStep.createMany({

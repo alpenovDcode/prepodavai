@@ -82,7 +82,7 @@ export default function WebAppIndex({ embedded = false }: WebAppIndexProps) {
 
           // Если max.initData нет напрямую в объекте WebApp, попробуем поискать в URL
           let initData = max?.initData;
-          
+
           if (!initData) {
             // В зависимости от реализации MAX, initData может лежать в URL (window.location.search)
             const urlParams = new URLSearchParams(window.location.search)
@@ -106,7 +106,7 @@ export default function WebAppIndex({ embedded = false }: WebAppIndexProps) {
               console.error('Failed to validate MAX initData:', e)
             }
           } else {
-             console.warn('MAX WebApp detected, but no initData found');
+            console.warn('MAX WebApp detected, but no initData found');
           }
         }
 
@@ -343,10 +343,10 @@ ${autoPrintScript}</head>
         let bodyContent = ''
         if (typeof raw === 'object') {
           const json = JSON.stringify(raw, null, 2)
-          bodyContent = `<pre style="font-family:monospace;white-space:pre-wrap;word-wrap:break-word">${json.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</pre>`
+          bodyContent = `<pre style="font-family:monospace;white-space:pre-wrap;word-wrap:break-word">${json.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre>`
         } else {
           const str = String(raw || '')
-          bodyContent = isHtmlString(str) ? str : `<div style="white-space:pre-wrap;word-wrap:break-word">${str.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>`
+          bodyContent = isHtmlString(str) ? str : `<div style="white-space:pre-wrap;word-wrap:break-word">${str.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>`
         }
         htmlToExport = `<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8"><title>${typeLabel}</title>
 <style>body{font-family:Arial,sans-serif;line-height:1.6;padding:40px;max-width:800px;margin:0 auto;background:#fff;color:#000;font-size:14pt}table{width:100%;border-collapse:collapse;margin-bottom:1em}th,td{border:1px solid #ddd;padding:8px}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style>
@@ -380,7 +380,7 @@ ${autoPrintScript}</head><body>${bodyContent}</body></html>`
         html = /<\/head>/i.test(htmlResult) ? htmlResult.replace(/<\/head>/i, `${autoPrint}</head>`) : htmlResult
       } else {
         let body = textResultPayload || ''
-        if (typeof body === 'object') body = `<pre>${JSON.stringify(body,null,2)}</pre>`
+        if (typeof body === 'object') body = `<pre>${JSON.stringify(body, null, 2)}</pre>`
         else if (typeof body === 'string' && !isHtmlString(body)) body = `<div style="white-space:pre-wrap">${body}</div>`
         html = `<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8"><title>${typeLabel}</title><style>body{font-family:Arial,sans-serif;line-height:1.6;padding:40px;max-width:800px;margin:0 auto;font-size:14pt}@media print{body{-webkit-print-color-adjust:exact}}</style>${autoPrint}</head><body>${body}</body></html>`
       }
@@ -508,7 +508,7 @@ ${autoPrintScript}</head><body>${bodyContent}</body></html>`
           setGenerationResult(partialResult)
           // Если это первая генерация секций, убедимся что индекс 0
           if (partialResult?.sections?.length > 0 && activeSectionIndex === -1) {
-             setActiveSectionIndex(0)
+            setActiveSectionIndex(0)
           }
         }
       })
@@ -699,10 +699,10 @@ ${autoPrintScript}</head><body>${bodyContent}</body></html>`
                     <div className="px-3 py-1.5 rounded-lg bg-[#FFF2F6] text-[#FF2A5F] text-[10px] font-bold tracking-widest uppercase shrink-0">
                       ВАУ-УРОК
                     </div>
-                    
+
                     {isStructuredResult && (
                       <div className="flex items-center bg-[#F1F5F9] rounded-lg px-1.5 py-1 gap-1 sm:gap-2 shrink-0">
-                        <button 
+                        <button
                           onClick={() => setActiveSectionIndex(prev => Math.max(0, prev - 1))}
                           disabled={activeSectionIndex === 0}
                           className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-900 disabled:opacity-20 transition"
@@ -712,7 +712,7 @@ ${autoPrintScript}</head><body>${bodyContent}</body></html>`
                         <div className="text-[10px] sm:text-[11px] font-bold text-[#475569] uppercase whitespace-nowrap px-1">
                           {activeSectionIndex + 1} ИЗ {generationResult.sections.length}: {generationResult.sections[activeSectionIndex].title}
                         </div>
-                        <button 
+                        <button
                           onClick={() => setActiveSectionIndex(prev => Math.min(generationResult.sections.length - 1, prev + 1))}
                           disabled={activeSectionIndex === generationResult.sections.length - 1}
                           className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-900 disabled:opacity-20 transition"
@@ -746,10 +746,10 @@ ${autoPrintScript}</head><body>${bodyContent}</body></html>`
                     </button>
 
                     <div className="flex items-center gap-1 border-x border-gray-100 px-1 sm:px-2">
-                      <button 
+                      <button
                         onClick={() => {
-                          const text = isStructuredResult 
-                            ? generationResult.sections[activeSectionIndex].content.replace(/<[^>]*>/g, '') 
+                          const text = isStructuredResult
+                            ? generationResult.sections[activeSectionIndex].content.replace(/<[^>]*>/g, '')
                             : String(generationResult.content || generationResult)
                           navigator.clipboard.writeText(text)
                           if ((window as any).Telegram?.WebApp) {
@@ -761,7 +761,7 @@ ${autoPrintScript}</head><body>${bodyContent}</body></html>`
                       >
                         <i className="far fa-copy text-base"></i>
                       </button>
-                      <button 
+                      <button
                         onClick={() => generateMaterial()}
                         className="w-9 h-9 flex items-center justify-center text-gray-400 hover:text-gray-600 transition"
                         title="Перегенерировать"
@@ -792,7 +792,7 @@ ${autoPrintScript}</head><body>${bodyContent}</body></html>`
                         </button>
                       </div>
                     )}
-                    
+
                     <button
                       onClick={clearResult}
                       className="w-9 h-9 flex items-center justify-center text-gray-300 hover:text-red-500 transition"
@@ -812,11 +812,10 @@ ${autoPrintScript}</head><body>${bodyContent}</body></html>`
                         <button
                           key={index}
                           onClick={() => setActiveSectionIndex(index)}
-                          className={`px-4 py-3 text-sm font-bold whitespace-nowrap border-b-2 transition-all ${
-                            activeSectionIndex === index
+                          className={`px-4 py-3 text-sm font-bold whitespace-nowrap border-b-2 transition-all ${activeSectionIndex === index
                               ? 'border-[#FF7E58] text-[#FF7E58]'
                               : 'border-transparent text-gray-400 hover:text-gray-600'
-                          }`}
+                            }`}
                         >
                           {section.title.toUpperCase()}
                         </button>
@@ -836,34 +835,34 @@ ${autoPrintScript}</head><body>${bodyContent}</body></html>`
                         </div>
 
                         <div className="p-1 rounded-xl border border-[#D8E6FF] bg-gray-50">
-                           <div className="bg-white rounded-lg p-4 min-h-[400px]">
-                              {generationResult.sections[activeSectionIndex].fileType === 'pptx' ? (
-                                <div className="flex flex-col items-center justify-center py-12 text-center">
-                                   <div className="w-20 h-20 rounded-2xl bg-orange-100 flex items-center justify-center mb-4 text-[#FF7E58]">
-                                      <i className="fas fa-file-powerpoint text-4xl"></i>
-                                   </div>
-                                   <h4 className="text-xl font-bold mb-2">{generationResult.sections[activeSectionIndex].title}</h4>
-                                   <p className="text-gray-500 mb-6 max-w-md">Презентация готова к скачиванию. Вы можете открыть её для просмотра или скачать файл PPTX.</p>
-                                   <div className="flex gap-3">
-                                      <a
-                                        href={generationResult.sections[activeSectionIndex].fileUrl}
-                                        target="_blank"
-                                        className="py-3 px-6 bg-[#FF7E58] text-white rounded-xl font-bold hover:shadow-lg transition active:scale-95 flex items-center gap-2"
-                                      >
-                                        <i className="fas fa-download"></i>
-                                        Скачать PPTX
-                                      </a>
-                                   </div>
+                          <div className="bg-white rounded-lg p-4 min-h-[400px]">
+                            {generationResult.sections[activeSectionIndex].fileType === 'pptx' ? (
+                              <div className="flex flex-col items-center justify-center py-12 text-center">
+                                <div className="w-20 h-20 rounded-2xl bg-orange-100 flex items-center justify-center mb-4 text-[#FF7E58]">
+                                  <i className="fas fa-file-powerpoint text-4xl"></i>
                                 </div>
-                              ) : (
-                                <div 
-                                  className="prose prose-sm max-w-none preview-content"
-                                  dangerouslySetInnerHTML={{ 
-                                    __html: DOMPurify.sanitize(generationResult.sections[activeSectionIndex].content, { allowVulnerableTags: true } as any) 
-                                  }}
-                                />
-                              )}
-                           </div>
+                                <h4 className="text-xl font-bold mb-2">{generationResult.sections[activeSectionIndex].title}</h4>
+                                <p className="text-gray-500 mb-6 max-w-md">Презентация готова к скачиванию. Вы можете открыть её для просмотра или скачать файл PPTX.</p>
+                                <div className="flex gap-3">
+                                  <a
+                                    href={generationResult.sections[activeSectionIndex].fileUrl}
+                                    target="_blank"
+                                    className="py-3 px-6 bg-[#FF7E58] text-white rounded-xl font-bold hover:shadow-lg transition active:scale-95 flex items-center gap-2"
+                                  >
+                                    <i className="fas fa-download"></i>
+                                    Скачать PPTX
+                                  </a>
+                                </div>
+                              </div>
+                            ) : (
+                              <div
+                                className="prose prose-sm max-w-none preview-content"
+                                dangerouslySetInnerHTML={{
+                                  __html: DOMPurify.sanitize(generationResult.sections[activeSectionIndex].content, { allowVulnerableTags: true } as any)
+                                }}
+                              />
+                            )}
+                          </div>
                         </div>
                       </div>
                     )}
@@ -1036,7 +1035,7 @@ ${autoPrintScript}</head><body>${bodyContent}</body></html>`
             </div>
             <div className="p-3 rounded-xl bg-white border border-[#D8E6FF] flex items-center gap-2">
               <i className="fas fa-coins text-[#FF7E58]"></i>
-              <span className="text-black/70">Кредиты списываются при запуске генерации</span>
+              <span className="text-black/70">Токены списываются при запуске генерации</span>
             </div>
           </div>
         </div>
@@ -1143,10 +1142,10 @@ function FullHtmlPreview({ html }: { html: string }) {
       }
     }
     window.addEventListener('message', handler)
-    
+
     // Fallback: hide loader after 5 seconds anyway
     const fallbackTimer = setTimeout(() => setIsLoading(false), 5000)
-    
+
     return () => {
       window.removeEventListener('message', handler)
       clearTimeout(fallbackTimer)
@@ -1217,8 +1216,8 @@ function FullHtmlPreview({ html }: { html: string }) {
     <div className="relative w-full border border-[#D8E6FF] rounded-2xl overflow-hidden bg-white min-h-[600px] flex items-center justify-center">
       {isLoading && (
         <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white backdrop-blur-sm">
-           <Loader2 className="w-8 h-8 text-[#FF7E58] animate-spin mb-4" />
-           <p className="text-gray-500 font-medium animate-pulse">Готовим документ к просмотру (шрифты, формулы, верстка)...</p>
+          <Loader2 className="w-8 h-8 text-[#FF7E58] animate-spin mb-4" />
+          <p className="text-gray-500 font-medium animate-pulse">Готовим документ к просмотру (шрифты, формулы, верстка)...</p>
         </div>
       )}
       <iframe

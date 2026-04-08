@@ -1,0 +1,264 @@
+'use client'
+
+import { use } from 'react'
+import useSWR from 'swr'
+import Link from 'next/link'
+import { apiClient } from '@/lib/api/client'
+import {
+    ArrowLeft, User, Zap, Users, GitBranch, BookOpen,
+    CreditCard, CheckCircle, Clock, TrendingUp
+} from 'lucide-react'
+
+const fetcher = (url: string) => apiClient.get(url).then(r => r.data)
+
+const GENERATION_TYPE_LABELS: Record<string, string> = {
+    lesson_plan: 'План урока',
+    quiz: 'Тест',
+    worksheet: 'Рабочий лист',
+    presentation: 'Презентация',
+    image_generation: 'Изображение',
+    text_generation: 'Текст',
+    transcription: 'Транскрипция',
+    game_generation: 'Игра',
+    vocabulary: 'Словарь',
+    feedback: 'Обратная связь',
+    video_analysis: 'Видеоанализ',
+}
+
+const ONBOARDING_LABELS: Record<string, string> = {
+    FIRST_GENERATION: 'Первая генерация',
+    SECOND_TYPE_GENERATION: 'Второй тип генерации',
+    SHARED_REFERRAL_LINK: 'Поделился ссылкой',
+    FIRST_REFERRAL_ACTIVATED: 'Первый реферал',
+    SECOND_REFERRAL_ACTIVATED: 'Второй реферал',
+}
+
+const STATUS_COLORS: Record<string, string> = {
+    completed: 'bg-emerald-100 text-emerald-700',
+    failed: 'bg-red-100 text-red-700',
+    pending: 'bg-yellow-100 text-yellow-700',
+}
+
+export default function UserStatsPage({ params }: { params: Promise<{ id: string }> }) {
+    const { id } = use(params)
+    const { data, isLoading, error } = useSWR(`/admin/users/${id}/stats`, fetcher)
+    const stats = data?.stats
+
+    if (isLoading) return (
+        <div className="flex items-center justify-center min-h-96">
+            <div className="w-8 h-8 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin" />
+        </div>
+    )
+    if (error) return <div className="text-red-500 p-6">Ошибка загрузки данных пользователя</div>
+    if (!stats) return null
+
+    const { user, generations, classes, referrals, subscription, onboarding, credits } = stats
+
+    const allOnboardingSteps = Object.keys(ONBOARDING_LABELS)
+    const completedSet = new Set(onboarding.completedSteps)
+
+    return (
+        <div className="space-y-6">
+            <div className="flex items-center gap-3">
+                <Link href="/admin/users" className="p-2 hover:bg-gray-100 rounded-xl transition">
+                    <ArrowLeft className="w-5 h-5 text-gray-500" />
+                </Link>
+                <div>
+                    <h1 className="text-2xl font-bold text-gray-900">
+                        {user.firstName} {user.lastName || ''}
+                        {user.username && <span className="text-gray-400 font-normal ml-2">@{user.username}</span>}
+                    </h1>
+                    <p className="text-sm text-gray-500 font-mono">{user.id}</p>
+                </div>
+            </div>
+
+            {/* KPI карточки */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {[
+                    { label: 'Генерации', value: generations.total, icon: Zap, color: 'bg-indigo-50 text-indigo-600' },
+                    { label: 'Классов', value: classes.count, icon: BookOpen, color: 'bg-blue-50 text-blue-600' },
+                    { label: 'Учеников', value: classes.studentsTotal, icon: Users, color: 'bg-cyan-50 text-cyan-600' },
+                    { label: 'Рефералов', value: referrals.invited, icon: GitBranch, color: 'bg-violet-50 text-violet-600' },
+                ].map((card) => {
+                    const Icon = card.icon
+                    return (
+                        <div key={card.label} className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
+                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-3 ${card.color}`}>
+                                <Icon className="w-5 h-5" />
+                            </div>
+                            <p className="text-2xl font-bold text-gray-900">{card.value}</p>
+                            <p className="text-sm text-gray-500">{card.label}</p>
+                        </div>
+                    )
+                })}
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Подписка */}
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+                    <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                        <CreditCard className="w-4 h-4 text-gray-400" /> Подписка и токены
+                    </h2>
+                    {subscription ? (
+                        <div className="space-y-3">
+                            <div className="flex justify-between items-center">
+                                <span className="text-sm text-gray-500">План</span>
+                                <span className="font-semibold text-gray-900">{subscription.plan}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                                <span className="text-sm text-gray-500">Статус</span>
+                                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${subscription.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-600'}`}>
+                                    {subscription.status}
+                                </span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                                <span className="text-sm text-gray-500">Баланс</span>
+                                <span className="font-bold text-indigo-600">{subscription.creditsBalance} токенов</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                                <span className="text-sm text-gray-500">Потрачено (всего)</span>
+                                <span className="font-semibold text-orange-600">{credits.spent}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                                <span className="text-sm text-gray-500">Начислено (всего)</span>
+                                <span className="font-semibold text-emerald-600">+{credits.granted}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                                <span className="text-sm text-gray-500">Подписка до</span>
+                                <span className="text-sm text-gray-700">
+                                    {subscription.endDate ? new Date(subscription.endDate).toLocaleDateString('ru-RU') : '—'}
+                                </span>
+                            </div>
+                        </div>
+                    ) : (
+                        <p className="text-gray-400 text-sm">Нет активной подписки</p>
+                    )}
+                </div>
+
+                {/* Онбординг */}
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+                    <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                        <TrendingUp className="w-4 h-4 text-gray-400" /> Онбординг квест
+                        <span className="ml-auto text-xs text-gray-400">{completedSet.size}/{allOnboardingSteps.length}</span>
+                    </h2>
+                    <div className="space-y-2">
+                        {allOnboardingSteps.map(step => {
+                            const done = completedSet.has(step)
+                            return (
+                                <div key={step} className={`flex items-center gap-3 p-2 rounded-lg ${done ? 'bg-emerald-50' : 'bg-gray-50'}`}>
+                                    {done
+                                        ? <CheckCircle className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+                                        : <Clock className="w-4 h-4 text-gray-300 flex-shrink-0" />
+                                    }
+                                    <span className={`text-sm ${done ? 'text-emerald-700 font-medium' : 'text-gray-400'}`}>
+                                        {ONBOARDING_LABELS[step]}
+                                    </span>
+                                </div>
+                            )
+                        })}
+                    </div>
+                </div>
+
+                {/* Рефералы */}
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+                    <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                        <GitBranch className="w-4 h-4 text-gray-400" /> Реферальная активность
+                    </h2>
+                    <div className="space-y-3">
+                        <div className="flex justify-between items-center">
+                            <span className="text-sm text-gray-500">Приглашено</span>
+                            <span className="font-bold text-gray-900">{referrals.invited}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                            <span className="text-sm text-gray-500">Конвертировано (платные)</span>
+                            <span className="font-bold text-emerald-600">{referrals.converted}</span>
+                        </div>
+                        {referrals.invited > 0 && (
+                            <div className="flex justify-between items-center">
+                                <span className="text-sm text-gray-500">Конверсия</span>
+                                <span className="font-medium text-gray-700">
+                                    {Math.round((referrals.converted / referrals.invited) * 100)}%
+                                </span>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* Генерации по типам */}
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+                    <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                        <Zap className="w-4 h-4 text-gray-400" /> Генерации по типам
+                    </h2>
+                    {generations.byType.length === 0 ? (
+                        <p className="text-gray-400 text-sm">Нет генераций</p>
+                    ) : (
+                        <div className="space-y-2">
+                            {generations.byType
+                                .sort((a: any, b: any) => b.count - a.count)
+                                .map((g: any) => {
+                                    const pct = Math.round((g.count / generations.total) * 100)
+                                    return (
+                                        <div key={g.type}>
+                                            <div className="flex justify-between text-sm mb-1">
+                                                <span className="text-gray-700">{GENERATION_TYPE_LABELS[g.type] || g.type}</span>
+                                                <span className="font-medium text-gray-900">{g.count}</span>
+                                            </div>
+                                            <div className="h-1.5 bg-gray-100 rounded-full">
+                                                <div
+                                                    className="h-1.5 bg-indigo-500 rounded-full"
+                                                    style={{ width: `${pct}%` }}
+                                                />
+                                            </div>
+                                        </div>
+                                    )
+                                })}
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {/* Последние генерации */}
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                <div className="p-4 border-b border-gray-100">
+                    <h2 className="font-semibold text-gray-900 flex items-center gap-2">
+                        <User className="w-4 h-4 text-gray-400" /> Последние 10 генераций
+                    </h2>
+                </div>
+                {generations.recent.length === 0 ? (
+                    <div className="p-8 text-center text-gray-400">Нет генераций</div>
+                ) : (
+                    <table className="w-full text-sm">
+                        <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
+                            <tr>
+                                <th className="px-4 py-3 text-left">Тип</th>
+                                <th className="px-4 py-3 text-left">Статус</th>
+                                <th className="px-4 py-3 text-left">Стоимость</th>
+                                <th className="px-4 py-3 text-left">Дата</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-50">
+                            {generations.recent.map((g: any) => (
+                                <tr key={g.id} className="hover:bg-gray-50">
+                                    <td className="px-4 py-3 text-gray-900">
+                                        {GENERATION_TYPE_LABELS[g.generationType] || g.generationType}
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[g.status] || 'bg-gray-100 text-gray-600'}`}>
+                                            {g.status}
+                                        </span>
+                                    </td>
+                                    <td className="px-4 py-3 font-medium text-indigo-600">
+                                        {g.creditCost ?? '—'}
+                                    </td>
+                                    <td className="px-4 py-3 text-gray-500">
+                                        {new Date(g.createdAt).toLocaleString('ru-RU')}
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                )}
+            </div>
+        </div>
+    )
+}

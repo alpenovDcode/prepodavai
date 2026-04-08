@@ -11,7 +11,7 @@ backend/
 │   │   ├── auth/        # Авторизация
 │   │   ├── users/       # Пользователи
 │   │   ├── generations/ # Генерации
-│   │   ├── subscriptions/ # Подписки и кредиты
+│   │   ├── subscriptions/ # Подписки и Токены
 │   │   ├── telegram/    # Telegram интеграция
 │   │   ├── webhooks/    # Webhook обработка
 │   │   └── logs/        # Логирование

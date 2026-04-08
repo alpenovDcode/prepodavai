@@ -40,7 +40,7 @@ export class ReferralsService {
     private prisma: PrismaService,
     private notificationsService: NotificationsService,
     private onboardingQuestService: OnboardingQuestService,
-  ) {}
+  ) { }
 
   /**
    * Создать или получить реферальный код учителя
@@ -220,11 +220,11 @@ export class ReferralsService {
         },
       });
 
-      // Начисляем кредиты рефереру
+      // Начисляем Токены рефереру
       await this._grantCredits(tx, referral.referrerUserId, reward, 'referral_signup',
         `Реферальный бонус за приглашённого учителя`);
 
-      // Начисляем кредиты приглашённому
+      // Начисляем Токены приглашённому
       await this._grantCredits(tx, referredUserId, reward, 'referral_signup',
         `Бонус за регистрацию по реферальной ссылке`);
     });
@@ -251,14 +251,14 @@ export class ReferralsService {
         userType: 'teacher',
         type: 'referral_activated',
         title: 'Реферал активирован!',
-        message: `${referredName} начал(а) пользоваться платформой по вашей ссылке. Вам начислены кредиты!`,
+        message: `${referredName} начал(а) пользоваться платформой по вашей ссылке. Вам начислены Токены!`,
         metadata: { referralId: referral.id, referredName },
       });
 
       await this._checkMilestones(referral.referrerUserId);
 
       // Онбординг-квест: шаги FIRST/SECOND_REFERRAL_ACTIVATED
-      this.onboardingQuestService.onReferralActivated(referral.referrerUserId).catch(() => {});
+      this.onboardingQuestService.onReferralActivated(referral.referrerUserId).catch(() => { });
     }
   }
 
@@ -323,7 +323,7 @@ export class ReferralsService {
         },
       });
 
-      // Начисляем кредиты учителю
+      // Начисляем Токены учителю
       await this._grantCredits(tx, referral.referrerUserId, STUDENT_REFERRAL_REWARD,
         'referral_student', `Реферальный бонус за активного ученика`);
 
@@ -463,7 +463,7 @@ export class ReferralsService {
       this.prisma.referral.count({ where: { referrerUserId: userId, status: 'converted' } }),
     ]);
 
-    // Подсчитываем заработанные кредиты из CreditTransaction
+    // Подсчитываем заработанные Токены из CreditTransaction
     const creditTransactions = await this.prisma.creditTransaction.findMany({
       where: {
         userId,
@@ -522,15 +522,15 @@ export class ReferralsService {
     const [teachers, students] = await Promise.all([
       teacherIds.length > 0
         ? this.prisma.appUser.findMany({
-            where: { id: { in: teacherIds } },
-            select: { id: true, firstName: true, lastName: true, username: true },
-          })
+          where: { id: { in: teacherIds } },
+          select: { id: true, firstName: true, lastName: true, username: true },
+        })
         : [],
       studentIds.length > 0
         ? this.prisma.student.findMany({
-            where: { id: { in: studentIds } },
-            select: { id: true, name: true },
-          })
+          where: { id: { in: studentIds } },
+          select: { id: true, name: true },
+        })
         : [],
     ]);
 

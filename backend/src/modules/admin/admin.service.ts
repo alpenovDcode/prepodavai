@@ -5,6 +5,8 @@ import { EmailService } from '../../common/services/email.service';
 import { LogsService } from '../logs/logs.service';
 import { ReferralsService } from '../referrals/referrals.service';
 import * as crypto from 'crypto';
+import { TelegramService } from '../telegram/telegram.service';
+import { MaxService } from '../max/max.service';
 
 @Injectable()
 export class AdminService {
@@ -14,6 +16,8 @@ export class AdminService {
     private emailService: EmailService,
     private logsService: LogsService,
     private referralsService: ReferralsService,
+    private telegramService: TelegramService,
+    private maxService: MaxService,
   ) {}
 
   private async audit(action: string, adminId: string, details?: any) {
@@ -709,5 +713,505 @@ export class AdminService {
       cost,
       message: 'Credit cost updated successfully',
     };
+  }
+
+  // ========== USER DETAILED STATS ==========
+  async getUserStats(userId: string) {
+    const user = await this.prisma.appUser.findUnique({
+      where: { id: userId },
+      select: { id: true, username: true, firstName: true, lastName: true, source: true, createdAt: true },
+    });
+    if (!user) throw new NotFoundException('User not found');
+
+    const prismaAny = this.prisma as any;
+    const [
+      generationsTotal,
+      generationsByType,
+      classesCount,
+      studentsCount,
+      referralsInvited,
+      referralsConverted,
+      subscription,
+      onboardingSteps,
+      creditsSpent,
+      creditsGranted,
+      recentGenerations,
+    ] = await Promise.all([
+      this.prisma.userGeneration.count({ where: { userId } }),
+      this.prisma.userGeneration.groupBy({
+        by: ['generationType'],
+        where: { userId },
+        _count: { generationType: true },
+      }),
+      this.prisma.class.count({ where: { teacherId: userId } }),
+      this.prisma.student.count({
+        where: { class: { teacherId: userId } },
+      }),
+      this.prisma.referral.count({ where: { referrerUserId: userId } }),
+      this.prisma.referral.count({ where: { referrerUserId: userId, status: 'converted' } }),
+      this.prisma.userSubscription.findUnique({
+        where: { userId },
+        include: { plan: { select: { planName: true, planKey: true } } },
+      }),
+      prismaAny.onboardingQuestStep.findMany({ where: { userId } }),
+      this.prisma.creditTransaction.aggregate({
+        where: { userId, type: 'debit' },
+        _sum: { amount: true },
+      }),
+      this.prisma.creditTransaction.aggregate({
+        where: { userId, type: { in: ['credit', 'grant', 'monthly_reset'] } },
+        _sum: { amount: true },
+      }),
+      this.prisma.userGeneration.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+        select: { id: true, generationType: true, status: true, creditCost: true, createdAt: true },
+      }),
+    ]);
+
+    return {
+      success: true,
+      stats: {
+        user,
+        generations: {
+          total: generationsTotal,
+          byType: generationsByType.map((g) => ({ type: g.generationType, count: g._count.generationType })),
+          recent: recentGenerations,
+        },
+        classes: { count: classesCount, studentsTotal: studentsCount },
+        referrals: { invited: referralsInvited, converted: referralsConverted },
+        subscription: subscription
+          ? {
+              plan: subscription.plan.planName,
+              planKey: subscription.plan.planKey,
+              status: subscription.status,
+              creditsBalance: subscription.creditsBalance,
+              creditsUsed: subscription.creditsUsed,
+              endDate: subscription.endDate,
+            }
+          : null,
+        onboarding: { completedSteps: onboardingSteps.map((s) => s.step) },
+        credits: {
+          spent: Math.abs(creditsSpent._sum.amount || 0),
+          granted: creditsGranted._sum.amount || 0,
+        },
+      },
+    };
+  }
+
+  // ========== ANALYTICS ==========
+  async getAnalytics(period: 'week' | 'month' | 'quarter' = 'month') {
+    const days = period === 'week' ? 7 : period === 'month' ? 30 : 90;
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+    const [registrations, generations, tokensStat, genByType, sourceBreakdown, conversionFunnel] =
+      await Promise.all([
+        // Регистрации по дням
+        this.prisma.$queryRaw<{ date: string; count: bigint }[]>`
+          SELECT DATE_TRUNC('day', "createdAt")::date::text as date, COUNT(*) as count
+          FROM app_users
+          WHERE "createdAt" >= ${since}
+          GROUP BY DATE_TRUNC('day', "createdAt")
+          ORDER BY date ASC
+        `,
+        // Генерации по дням
+        this.prisma.$queryRaw<{ date: string; count: bigint }[]>`
+          SELECT DATE_TRUNC('day', "createdAt")::date::text as date, COUNT(*) as count
+          FROM user_generations
+          WHERE "createdAt" >= ${since}
+          GROUP BY DATE_TRUNC('day', "createdAt")
+          ORDER BY date ASC
+        `,
+        // Токены: потрачено vs начислено по дням
+        this.prisma.$queryRaw<{ date: string; spent: bigint; granted: bigint }[]>`
+          SELECT
+            DATE_TRUNC('day', "createdAt")::date::text as date,
+            SUM(CASE WHEN type = 'debit' THEN ABS(amount) ELSE 0 END) as spent,
+            SUM(CASE WHEN type IN ('credit','grant','monthly_reset') THEN amount ELSE 0 END) as granted
+          FROM credit_transactions
+          WHERE "createdAt" >= ${since}
+          GROUP BY DATE_TRUNC('day', "createdAt")
+          ORDER BY date ASC
+        `,
+        // Генерации по типам
+        this.prisma.userGeneration.groupBy({
+          by: ['generationType'],
+          where: { createdAt: { gte: since } },
+          _count: { generationType: true },
+          orderBy: { _count: { generationType: 'desc' } },
+        }),
+        // Источники пользователей
+        this.prisma.appUser.groupBy({
+          by: ['source'],
+          _count: { source: true },
+        }),
+        // Воронка конверсии (totals)
+        Promise.all([
+          this.prisma.appUser.count(),
+          this.prisma.userGeneration.groupBy({ by: ['userId'], _count: true }).then((r) => r.length),
+          this.prisma.referral.groupBy({ by: ['referrerUserId'], _count: true }).then((r) => r.length),
+          this.prisma.userSubscription.count({ where: { plan: { planKey: { not: 'starter' } } } }),
+        ]),
+      ]);
+
+    const toNum = (v: bigint | number) => (typeof v === 'bigint' ? Number(v) : v);
+
+    return {
+      success: true,
+      period,
+      registrations: registrations.map((r) => ({ date: r.date, count: toNum(r.count) })),
+      generations: generations.map((g) => ({ date: g.date, count: toNum(g.count) })),
+      tokens: tokensStat.map((t) => ({
+        date: t.date,
+        spent: toNum(t.spent),
+        granted: toNum(t.granted),
+      })),
+      generationsByType: genByType.map((g) => ({
+        type: g.generationType,
+        count: g._count.generationType,
+      })),
+      sourceBreakdown: sourceBreakdown.map((s) => ({
+        source: s.source || 'unknown',
+        count: s._count.source,
+      })),
+      conversionFunnel: {
+        totalUsers: conversionFunnel[0],
+        usersWithGenerations: conversionFunnel[1],
+        usersWithReferrals: conversionFunnel[2],
+        paidSubscriptions: conversionFunnel[3],
+      },
+    };
+  }
+
+  // ========== CLASSES OVERVIEW ==========
+  async getClasses(limit = 50, offset = 0, search?: string) {
+    const where: any = {};
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { teacher: { username: { contains: search, mode: 'insensitive' } } },
+        { teacher: { firstName: { contains: search, mode: 'insensitive' } } },
+      ];
+    }
+
+    const classes = await this.prisma.class.findMany({
+      where,
+      take: limit,
+      skip: offset,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        teacher: { select: { id: true, username: true, firstName: true, lastName: true } },
+        _count: { select: { students: true, assignments: true } },
+      },
+    });
+
+    const total = await this.prisma.class.count({ where });
+
+    return { success: true, classes, total, limit, offset };
+  }
+
+  async getClassStudents(classId: string) {
+    const cls = await this.prisma.class.findUnique({
+      where: { id: classId },
+      include: {
+        teacher: { select: { id: true, username: true, firstName: true } },
+        students: {
+          include: {
+            _count: { select: { assignments: true, submissions: true } },
+          },
+        },
+        _count: { select: { assignments: true } },
+      },
+    });
+    if (!cls) throw new NotFoundException('Class not found');
+    return { success: true, class: cls };
+  }
+
+  // ========== BULK CREDIT GRANT ==========
+  async bulkGrantCredits(
+    data: {
+      userIds?: string[];
+      filter?: { source?: string; planKey?: string; hasGenerations?: boolean };
+      amount: number;
+      description: string;
+    },
+    adminId?: string,
+  ) {
+    if (!data.amount || data.amount <= 0) throw new BadRequestException('Amount must be positive');
+
+    let userIds = data.userIds || [];
+
+    // Если фильтр, а не список ID — формируем список
+    if (!userIds.length && data.filter) {
+      const where: any = {};
+      if (data.filter.source) where.source = data.filter.source;
+      if (data.filter.hasGenerations) where.generations = { some: {} };
+
+      const users = await this.prisma.appUser.findMany({
+        where,
+        select: { id: true },
+        ...(data.filter.planKey
+          ? {
+              where: {
+                ...where,
+                subscription: { plan: { planKey: data.filter.planKey } },
+              },
+            }
+          : {}),
+      });
+      userIds = users.map((u) => u.id);
+    }
+
+    if (!userIds.length) throw new BadRequestException('No users matched');
+
+    // Начисляем каждому
+    let successCount = 0;
+    for (const userId of userIds) {
+      try {
+        const sub = await this.prisma.userSubscription.findUnique({ where: { userId } });
+        if (!sub) continue;
+
+        await this.prisma.userSubscription.update({
+          where: { userId },
+          data: { extraCredits: { increment: data.amount } },
+        });
+
+        await this.prisma.creditTransaction.create({
+          data: {
+            userId,
+            subscriptionId: sub.id,
+            type: 'grant',
+            amount: data.amount,
+            balanceBefore: sub.creditsBalance + sub.extraCredits,
+            balanceAfter: sub.creditsBalance + sub.extraCredits + data.amount,
+            description: data.description || 'Admin bulk grant',
+          },
+        });
+        successCount++;
+      } catch (e) {
+        console.error(`[BulkGrant] Failed for user ${userId}:`, e);
+      }
+    }
+
+    await this.audit('admin.credits.bulkGrant', adminId, {
+      userIds: userIds.length,
+      amount: data.amount,
+      successCount,
+    });
+
+    return { success: true, message: `Начислено ${data.amount} токенов ${successCount} пользователям` };
+  }
+
+  // ========== BROADCAST ==========
+  async broadcast(
+    data: {
+      message: string;
+      platforms: ('telegram' | 'max')[];
+      userIds?: string[];
+      filter?: { source?: string };
+    },
+    adminId?: string,
+  ) {
+    if (!data.message?.trim()) throw new BadRequestException('Message is required');
+
+    let userIds = data.userIds || [];
+
+    if (!userIds.length) {
+      const where: any = {};
+      if (data.filter?.source) where.source = data.filter.source;
+
+      const users = await this.prisma.appUser.findMany({
+        where,
+        select: { id: true },
+      });
+      userIds = users.map((u) => u.id);
+    }
+
+    const users = await this.prisma.appUser.findMany({
+      where: { id: { in: userIds } },
+      select: { id: true, telegramId: true, maxId: true },
+    });
+
+    let sentTelegram = 0;
+    let sentMax = 0;
+    const errors: string[] = [];
+
+    for (const user of users) {
+      if (data.platforms.includes('telegram') && user.telegramId) {
+        try {
+          await this.telegramService.sendBroadcastMessage(user.telegramId, data.message);
+          sentTelegram++;
+        } catch (e) {
+          errors.push(`TG ${user.id}: ${(e as any).message}`);
+        }
+      }
+      if (data.platforms.includes('max') && user.maxId) {
+        try {
+          await this.maxService.sendBroadcastMessage(user.maxId, data.message);
+          sentMax++;
+        } catch (e) {
+          errors.push(`MAX ${user.id}: ${(e as any).message}`);
+        }
+      }
+    }
+
+    await this.audit('admin.broadcast', adminId, { sentTelegram, sentMax, errors: errors.length });
+
+    return {
+      success: true,
+      sentTelegram,
+      sentMax,
+      errors: errors.slice(0, 20),
+      message: `Отправлено: Telegram ${sentTelegram}, MAX ${sentMax}`,
+    };
+  }
+
+  // ========== REFERRALS OVERVIEW ==========
+  async getReferrals(limit = 50, offset = 0) {
+    const referrals = await this.prisma.referral.findMany({
+      take: limit,
+      skip: offset,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        referralCode: {
+          include: {
+            user: { select: { id: true, username: true, firstName: true, lastName: true } },
+          },
+        },
+      },
+    });
+
+    const total = await this.prisma.referral.count();
+
+    // Топ рефереров
+    const topReferrers = await this.prisma.referral.groupBy({
+      by: ['referrerUserId'],
+      _count: { referrerUserId: true },
+      orderBy: { _count: { referrerUserId: 'desc' } },
+      take: 10,
+    });
+
+    const topReferrerIds = topReferrers.map((r) => r.referrerUserId);
+    const topReferrerUsers = await this.prisma.appUser.findMany({
+      where: { id: { in: topReferrerIds } },
+      select: { id: true, username: true, firstName: true, lastName: true },
+    });
+
+    const topReferrersWithNames = topReferrers.map((r) => ({
+      ...r,
+      user: topReferrerUsers.find((u) => u.id === r.referrerUserId),
+      count: r._count.referrerUserId,
+    }));
+
+    return { success: true, referrals, total, limit, offset, topReferrers: topReferrersWithNames };
+  }
+
+  // ========== LOGS WITH FILTERS ==========
+  async getLogsFiltered(
+    limit = 50,
+    offset = 0,
+    filters?: { level?: string; category?: string; search?: string },
+  ) {
+    const where: any = {};
+    if (filters?.level) where.level = filters.level;
+    if (filters?.category) where.category = filters.category;
+    if (filters?.search) {
+      where.OR = [
+        { message: { contains: filters.search, mode: 'insensitive' } },
+        { category: { contains: filters.search, mode: 'insensitive' } },
+      ];
+    }
+
+    const logs = await this.prisma.systemLog.findMany({
+      take: limit,
+      skip: offset,
+      where,
+      orderBy: { timestamp: 'desc' },
+      include: {
+        user: { select: { id: true, username: true } },
+      },
+    });
+
+    const total = await this.prisma.systemLog.count({ where });
+
+    // Сводка по категориям
+    const categories = await this.prisma.systemLog.groupBy({
+      by: ['category'],
+      _count: { category: true },
+      orderBy: { _count: { category: 'desc' } },
+    });
+
+    return { success: true, logs, total, limit, offset, categories };
+  }
+
+  // ========== CSV EXPORT ==========
+  async exportUsersCsv() {
+    const users = await this.prisma.appUser.findMany({
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        username: true,
+        firstName: true,
+        lastName: true,
+        phone: true,
+        email: true,
+        source: true,
+        telegramId: true,
+        createdAt: true,
+        lastAccessAt: true,
+        subscription: {
+          select: {
+            creditsBalance: true,
+            creditsUsed: true,
+            status: true,
+            plan: { select: { planName: true } },
+          },
+        },
+        _count: { select: { generations: true, classes: true } },
+      },
+    });
+
+    const rows = [
+      [
+        'ID',
+        'Username',
+        'Имя',
+        'Фамилия',
+        'Телефон',
+        'Email',
+        'Источник',
+        'Telegram ID',
+        'Дата регистрации',
+        'Последний вход',
+        'План',
+        'Статус подписки',
+        'Баланс токенов',
+        'Потрачено токенов',
+        'Генерации',
+        'Классы',
+      ],
+      ...users.map((u) => [
+        u.id,
+        u.username || '',
+        u.firstName || '',
+        u.lastName || '',
+        u.phone || '',
+        u.email || '',
+        u.source || '',
+        u.telegramId || '',
+        u.createdAt.toISOString(),
+        u.lastAccessAt?.toISOString() || '',
+        u.subscription?.plan?.planName || '',
+        u.subscription?.status || '',
+        u.subscription?.creditsBalance ?? 0,
+        u.subscription?.creditsUsed ?? 0,
+        u._count.generations,
+        u._count.classes,
+      ]),
+    ];
+
+    const csv = rows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+    return csv;
   }
 }

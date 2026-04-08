@@ -378,7 +378,7 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
                 <div className="px-4 pb-3">
                     <div
                         className="flex items-center gap-2 px-3 py-2 rounded-xl bg-purple-50 border border-purple-100"
-                        title="Кредиты — внутренняя валюта для генерации материалов"
+                        title="Токены — внутренняя валюта для генерации материалов"
                     >
                         <Sparkles className="w-4 h-4 text-purple-500 flex-shrink-0" />
                         {subLoading ? (

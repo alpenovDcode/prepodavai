@@ -149,4 +149,82 @@ export class AdminController {
   ) {
     return this.adminService.updateCreditCost(operationType, body, req.user.id);
   }
+
+  // ========== USER DETAILED STATS ==========
+  @Get('users/:id/stats')
+  async getUserStats(@Param('id') id: string) {
+    return this.adminService.getUserStats(id);
+  }
+
+  // ========== ANALYTICS ==========
+  @Get('analytics')
+  async getAnalytics(@Query('period') period?: 'week' | 'month' | 'quarter') {
+    return this.adminService.getAnalytics(period || 'month');
+  }
+
+  // ========== CLASSES ==========
+  @Get('classes')
+  async getClasses(
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+    @Query('search') search?: string,
+  ) {
+    return this.adminService.getClasses(
+      limit ? parseInt(limit) : 50,
+      offset ? parseInt(offset) : 0,
+      search,
+    );
+  }
+
+  @Get('classes/:id/students')
+  async getClassStudents(@Param('id') id: string) {
+    return this.adminService.getClassStudents(id);
+  }
+
+  // ========== BULK CREDIT GRANT ==========
+  @Post('credits/bulk-grant')
+  async bulkGrantCredits(@Body() body: any, @Request() req: any) {
+    return this.adminService.bulkGrantCredits(body, req.user.id);
+  }
+
+  // ========== BROADCAST ==========
+  @Post('broadcast')
+  async broadcast(@Body() body: any, @Request() req: any) {
+    return this.adminService.broadcast(body, req.user.id);
+  }
+
+  // ========== REFERRALS OVERVIEW ==========
+  @Get('referrals')
+  async getReferrals(
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+  ) {
+    return this.adminService.getReferrals(
+      limit ? parseInt(limit) : 50,
+      offset ? parseInt(offset) : 0,
+    );
+  }
+
+  // ========== LOGS WITH FILTERS ==========
+  @Get('logs/filtered')
+  async getLogsFiltered(
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+    @Query('level') level?: string,
+    @Query('category') category?: string,
+    @Query('search') search?: string,
+  ) {
+    return this.adminService.getLogsFiltered(
+      limit ? parseInt(limit) : 50,
+      offset ? parseInt(offset) : 0,
+      { level, category, search },
+    );
+  }
+
+  // ========== CSV EXPORT ==========
+  @Get('export/users')
+  async exportUsers() {
+    const csv = await this.adminService.exportUsersCsv();
+    return { success: true, csv };
+  }
 }

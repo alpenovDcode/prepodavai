@@ -22,7 +22,7 @@ export type OperationType =
 
 @Injectable()
 export class SubscriptionsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
 
   /**
    * Инициализация тарифных планов
@@ -341,7 +341,7 @@ export class SubscriptionsService {
   }
 
   /**
-   * Проверить и списать кредиты
+   * Проверить и списать Токены
    */
   async checkAndDebitCredits(
     userId: string,
@@ -370,7 +370,7 @@ export class SubscriptionsService {
   }
 
   /**
-   * Списать кредиты за операцию
+   * Списать Токены за операцию
    * Использует транзакцию для предотвращения race conditions
    */
   async debitCredits(

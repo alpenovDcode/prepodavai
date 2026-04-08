@@ -176,6 +176,13 @@ export class MaxService {
   /**
    * Отправка результата генерации в MAX
    */
+  /**
+   * Broadcast сообщение от администратора конкретному пользователю
+   */
+  async sendBroadcastMessage(chatId: string, text: string): Promise<void> {
+    await this.sendMessage(chatId, `📢 Сообщение от администратора\n\n${text}`);
+  }
+
   async sendGenerationResult(params: {
     userId: string;
     generationType: string;

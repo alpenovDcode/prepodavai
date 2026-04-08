@@ -177,6 +177,15 @@ export class TelegramService {
   }
 
   /**
+   * Broadcast сообщение от администратора конкретному пользователю
+   */
+  async sendBroadcastMessage(chatId: string, text: string): Promise<void> {
+    await this.bot.api.sendMessage(chatId, `📢 *Сообщение от администратора*\n\n${text}`, {
+      parse_mode: 'Markdown',
+    });
+  }
+
+  /**
    * Отправка результата генерации в Telegram
    */
   async sendGenerationResult(params: {

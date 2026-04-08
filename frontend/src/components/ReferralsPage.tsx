@@ -69,7 +69,7 @@ export default function ReferralsPage() {
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900">Реферальная программа</h1>
-        <p className="text-gray-600 mt-1">Приглашайте коллег и учеников — получайте бонусные кредиты.</p>
+        <p className="text-gray-600 mt-1">Приглашайте коллег и учеников — получайте бонусные Токены.</p>
       </div>
 
       {/* Referral Code Section */}
@@ -225,11 +225,10 @@ export default function ReferralsPage() {
             return (
               <div
                 key={tier.range}
-                className={`flex items-center justify-between px-4 py-3 rounded-xl border transition ${
-                  isActive
+                className={`flex items-center justify-between px-4 py-3 rounded-xl border transition ${isActive
                     ? 'bg-primary-50 border-primary-200 shadow-sm'
                     : 'bg-gray-50 border-gray-100'
-                }`}
+                  }`}
               >
                 <div className="flex items-center gap-3">
                   <UserPlus className={`w-4 h-4 ${isActive ? 'text-primary-600' : 'text-gray-400'}`} />
@@ -310,7 +309,7 @@ export default function ReferralsPage() {
               3
             </div>
             <h3 className="font-semibold text-gray-900 mb-1">Оба получают бонус</h3>
-            <p className="text-sm text-gray-500">Кредиты начисляются автоматически</p>
+            <p className="text-sm text-gray-500">Токены начисляются автоматически</p>
           </div>
         </div>
       </div>

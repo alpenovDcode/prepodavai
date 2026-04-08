@@ -60,7 +60,7 @@ async function addCredits() {
     },
   });
 
-  console.log('✅ Кредиты добавлены:');
+  console.log('✅ Токены добавлены:');
   console.log(`   Пользователь: ${user.username}`);
   console.log(`   Было: ${user.subscription.creditsBalance} кредитов`);
   console.log(`   Добавлено: ${amount} кредитов`);

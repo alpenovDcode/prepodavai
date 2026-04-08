@@ -11,7 +11,11 @@ import {
     LogOut,
     Menu,
     X,
-    Shield
+    Shield,
+    BarChart2,
+    BookOpen,
+    Megaphone,
+    ScrollText,
 } from 'lucide-react'
 
 export default function AdminLayout({
@@ -54,8 +58,12 @@ export default function AdminLayout({
 
     const navigation = [
         { name: 'Дашборд', href: '/admin/dashboard', icon: LayoutDashboard },
+        { name: 'Аналитика', href: '/admin/analytics', icon: BarChart2 },
         { name: 'Пользователи', href: '/admin/users', icon: Users },
+        { name: 'Классы', href: '/admin/classes', icon: BookOpen },
         { name: 'Финансы', href: '/admin/finances', icon: CreditCard },
+        { name: 'Маркетинг', href: '/admin/marketing', icon: Megaphone },
+        { name: 'Логи', href: '/admin/logs', icon: ScrollText },
         { name: 'Настройки AI', href: '/admin/settings', icon: Settings },
     ]
 

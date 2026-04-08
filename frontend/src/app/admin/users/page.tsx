@@ -3,7 +3,8 @@
 import { useState } from 'react'
 import useSWR from 'swr'
 import { apiClient } from '@/lib/api/client'
-import { Search, Plus, Edit2, Trash2, X, ShieldAlert, Key } from 'lucide-react'
+import Link from 'next/link'
+import { Search, Plus, Edit2, Trash2, X, ShieldAlert, Key, BarChart2 } from 'lucide-react'
 
 const fetcher = ([url, page, limit, search]: [string, number, number, string]) => 
     apiClient.get(url, { params: { limit, offset: (page - 1) * limit, search } }).then(res => res.data)
@@ -13,7 +14,7 @@ export default function AdminUsersPage() {
     const [limit] = useState(10)
     const [searchQuery, setSearchQuery] = useState('')
     
-    const { data, error, isLoading, mutate } = useSWR<any>(['/admin/users', page, limit, searchQuery], fetcher)
+    const { data, isLoading, mutate } = useSWR<any>(['/admin/users', page, limit, searchQuery], fetcher)
     const users = data?.users || []
     const total = data?.total || 0
     const totalPages = Math.ceil(total / limit)
@@ -198,11 +199,14 @@ export default function AdminUsersPage() {
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-right">
                                             <div className="flex justify-end gap-1.5 text-gray-400">
+                                                <Link href={`/admin/users/${user.id}`} className="hover:text-indigo-600 hover:bg-indigo-50 p-2 rounded-xl transition-all" title="Статистика">
+                                                    <BarChart2 className="w-4 h-4" />
+                                                </Link>
                                                 <button onClick={() => openEditModal(user)} className="hover:text-blue-600 hover:bg-blue-50 p-2 rounded-xl transition-all" title="Редактировать">
-                                                    <Edit2 className="w-4.5 h-4.5" />
+                                                    <Edit2 className="w-4 h-4" />
                                                 </button>
                                                 <button onClick={() => handleDelete(user.id, user.username)} className="hover:text-red-600 hover:bg-red-50 p-2 rounded-xl transition-all" title="Удалить">
-                                                    <Trash2 className="w-4.5 h-4.5" />
+                                                    <Trash2 className="w-4 h-4" />
                                                 </button>
                                             </div>
                                         </td>

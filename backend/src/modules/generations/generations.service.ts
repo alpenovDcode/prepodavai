@@ -154,7 +154,7 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
     @InjectQueue('sales-advisor') private readonly salesAdvisorQueue: Queue,
     private readonly referralsService: ReferralsService,
     private readonly onboardingQuestService: OnboardingQuestService,
-  ) {}
+  ) { }
 
   async createGeneration(request: GenerationRequest) {
     let { userId, generationType, inputParams, model, lessonId, skipCreditDeduction } = request;
@@ -175,7 +175,7 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
       }
     }
 
-    // Проверяем и списываем кредиты
+    // Проверяем и списываем Токены
     let creditCheck: any = { success: true };
     const operationType = this.mapGenerationTypeToOperationType(generationType);
 
@@ -221,10 +221,10 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
     });
 
     // Реферальная система: активация реферала при первой генерации учителя
-    this.referralsService.activateTeacherReferral(userId).catch(() => {});
+    this.referralsService.activateTeacherReferral(userId).catch(() => { });
 
     // Онбординг-квест: триггер генерации
-    this.onboardingQuestService.onTeacherGeneration(userId, generationType).catch(() => {});
+    this.onboardingQuestService.onTeacherGeneration(userId, generationType).catch(() => { });
 
     // Очередь для Вау-урока (lesson_preparation)
     if (generationType === 'lesson_preparation' || generationType === 'lessonPreparation') {
@@ -337,7 +337,7 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
     // Расчет стоимости: 50 за первые 2, +5 за каждую следующую
     const totalCost = 50 + Math.max(0, types.length - 2) * 5;
 
-    // Списываем кредиты за весь пакет сразу
+    // Списываем Токены за весь пакет сразу
     const creditCheck = await this.subscriptionsService.debitCredits(
       userId,
       'bundle_generation' as any,
@@ -550,147 +550,147 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
 
     try {
       // Для генерации изображений через Replicate API
-        if (generationType === 'photosession') {
-          const promptText = inputParams.prompt;
-          const photoHash = inputParams.photoHash;
-          if (!photoHash) {
-            throw new BadRequestException('No photo provided for photosession');
-          }
-
-          const baseUrl = this.configService.get<string>('BASE_URL', 'https://api.prepodavai.ru');
-          const polzaKey = this.configService.get<string>('POLZA_AI_API_KEY');
-
-          if (!polzaKey) {
-            this.logger.warn('POLZA_AI_API_KEY not configured, falling back to Replicate (if possible) or error.');
-          } else {
-            // Читаем файл с диска и кодируем в base64
-            const fileData = await this.filesService.getFile(photoHash);
-            if (!fileData) {
-              throw new BadRequestException(`File not found for hash: ${photoHash}`);
-            }
-            const base64Image = `data:${fileData.mimeType};base64,${fileData.buffer.toString('base64')}`;
-
-            this.logger.log(`Sending photosession request to Polza.ai API via base64 (hash: ${photoHash})`);
-
-            try {
-              const callbackUrl = `${baseUrl}/api/generate-photosession`;
-
-              const response = await axios.post(
-                'https://polza.ai/api/v1/media',
-                {
-                  model: model,
-                  input: {
-                    prompt: promptText,
-                    aspect_ratio: '1:1',
-                    image_resolution: '4K',
-                    quality: 'high',
-                    isEnhance: true,
-                    images: [
-                      {
-                        type: 'base64',
-                        data: base64Image,
-                      },
-                    ],
-                    callBackUrl: callbackUrl,
-                  },
-                  async: true,
-                },
-                {
-                  headers: {
-                    Authorization: `Bearer ${polzaKey}`,
-                    'Content-Type': 'application/json',
-                  },
-                },
-              );
-
-              const taskId = response.data.id || response.data.task_id;
-              this.logger.log(`Polza.ai photosession task created: ${taskId}`);
-
-              // Сохраняем task ID в metadata генерации
-              await this.prisma.generationRequest.update({
-                where: { id: generationRequestId },
-                data: {
-                  metadata: {
-                    polzaTaskId: taskId,
-                  },
-                },
-              });
-
-              return {
-                provider: 'Polza.ai',
-                mode: generationType,
-                status: 'pending',
-                taskId: taskId,
-                requestId: generationRequestId,
-                completedAt: new Date().toISOString(),
-              };
-            } catch (error: any) {
-              this.logger.error(`Failed to send Polza.ai request: ${error.message}`);
-              throw new BadRequestException(`Failed to start Polza.ai photosession: ${error.message}`);
-            }
-          }
+      if (generationType === 'photosession') {
+        const promptText = inputParams.prompt;
+        const photoHash = inputParams.photoHash;
+        if (!photoHash) {
+          throw new BadRequestException('No photo provided for photosession');
         }
 
-        // URL для обратного вызова (для Replicate)
         const baseUrl = this.configService.get<string>('BASE_URL', 'https://api.prepodavai.ru');
-        const callbackUrl = `${baseUrl}/api/webhooks/replicate-callback`;
+        const polzaKey = this.configService.get<string>('POLZA_AI_API_KEY');
 
-        // Replicate API token
-        const replicateToken = this.configService.get<string>('REPLICATE_API_TOKEN');
-        if (!replicateToken) {
-          throw new BadRequestException('REPLICATE_API_TOKEN not configured');
-        }
+        if (!polzaKey) {
+          this.logger.warn('POLZA_AI_API_KEY not configured, falling back to Replicate (if possible) or error.');
+        } else {
+          // Читаем файл с диска и кодируем в base64
+          const fileData = await this.filesService.getFile(photoHash);
+          if (!fileData) {
+            throw new BadRequestException(`File not found for hash: ${photoHash}`);
+          }
+          const base64Image = `data:${fileData.mimeType};base64,${fileData.buffer.toString('base64')}`;
 
-        this.logger.log(`Sending image generation request to Replicate API`);
+          this.logger.log(`Sending photosession request to Polza.ai API via base64 (hash: ${photoHash})`);
 
-        try {
-          const input: any = {
-            prompt: inputParams.prompt,
-            aspect_ratio: '4:3',
-          };
+          try {
+            const callbackUrl = `${baseUrl}/api/generate-photosession`;
 
-          const requestBody = {
-            input: input,
-            webhook: callbackUrl,
-            webhook_events_filter: ['completed'],
-          };
-
-          // Отправляем запрос на Replicate API
-          const response = await axios.post(
-            'https://api.replicate.com/v1/models/google/nano-banana-pro/predictions',
-            requestBody,
-            {
-              headers: {
-                Authorization: `Bearer ${replicateToken}`,
-                'Content-Type': 'application/json',
+            const response = await axios.post(
+              'https://polza.ai/api/v1/media',
+              {
+                model: model,
+                input: {
+                  prompt: promptText,
+                  aspect_ratio: '1:1',
+                  image_resolution: '4K',
+                  quality: 'high',
+                  isEnhance: true,
+                  images: [
+                    {
+                      type: 'base64',
+                      data: base64Image,
+                    },
+                  ],
+                  callBackUrl: callbackUrl,
+                },
+                async: true,
               },
-            },
-          );
-
-          const predictionId = response.data.id;
-          this.logger.log(`Replicate prediction created: ${predictionId}`);
-
-          await this.prisma.generationRequest.update({
-            where: { id: generationRequestId },
-            data: {
-              metadata: {
-                replicatePredictionId: predictionId,
+              {
+                headers: {
+                  Authorization: `Bearer ${polzaKey}`,
+                  'Content-Type': 'application/json',
+                },
               },
-            },
-          });
+            );
 
-          return {
-            provider: 'Replicate',
-            mode: generationType,
-            status: 'pending',
-            predictionId: predictionId,
-            requestId: generationRequestId,
-            completedAt: new Date().toISOString(),
-          };
-        } catch (error: any) {
-          this.logger.error(`Failed to send Replicate request: ${error.message}`);
-          throw new BadRequestException(`Failed to start image generation: ${error.message}`);
+            const taskId = response.data.id || response.data.task_id;
+            this.logger.log(`Polza.ai photosession task created: ${taskId}`);
+
+            // Сохраняем task ID в metadata генерации
+            await this.prisma.generationRequest.update({
+              where: { id: generationRequestId },
+              data: {
+                metadata: {
+                  polzaTaskId: taskId,
+                },
+              },
+            });
+
+            return {
+              provider: 'Polza.ai',
+              mode: generationType,
+              status: 'pending',
+              taskId: taskId,
+              requestId: generationRequestId,
+              completedAt: new Date().toISOString(),
+            };
+          } catch (error: any) {
+            this.logger.error(`Failed to send Polza.ai request: ${error.message}`);
+            throw new BadRequestException(`Failed to start Polza.ai photosession: ${error.message}`);
+          }
         }
+      }
+
+      // URL для обратного вызова (для Replicate)
+      const baseUrl = this.configService.get<string>('BASE_URL', 'https://api.prepodavai.ru');
+      const callbackUrl = `${baseUrl}/api/webhooks/replicate-callback`;
+
+      // Replicate API token
+      const replicateToken = this.configService.get<string>('REPLICATE_API_TOKEN');
+      if (!replicateToken) {
+        throw new BadRequestException('REPLICATE_API_TOKEN not configured');
+      }
+
+      this.logger.log(`Sending image generation request to Replicate API`);
+
+      try {
+        const input: any = {
+          prompt: inputParams.prompt,
+          aspect_ratio: '4:3',
+        };
+
+        const requestBody = {
+          input: input,
+          webhook: callbackUrl,
+          webhook_events_filter: ['completed'],
+        };
+
+        // Отправляем запрос на Replicate API
+        const response = await axios.post(
+          'https://api.replicate.com/v1/models/google/nano-banana-pro/predictions',
+          requestBody,
+          {
+            headers: {
+              Authorization: `Bearer ${replicateToken}`,
+              'Content-Type': 'application/json',
+            },
+          },
+        );
+
+        const predictionId = response.data.id;
+        this.logger.log(`Replicate prediction created: ${predictionId}`);
+
+        await this.prisma.generationRequest.update({
+          where: { id: generationRequestId },
+          data: {
+            metadata: {
+              replicatePredictionId: predictionId,
+            },
+          },
+        });
+
+        return {
+          provider: 'Replicate',
+          mode: generationType,
+          status: 'pending',
+          predictionId: predictionId,
+          requestId: generationRequestId,
+          completedAt: new Date().toISOString(),
+        };
+      } catch (error: any) {
+        this.logger.error(`Failed to send Replicate request: ${error.message}`);
+        throw new BadRequestException(`Failed to start image generation: ${error.message}`);
+      }
 
       throw new BadRequestException(`Unsupported image generation type: ${generationType}`);
     } catch (error: any) {
@@ -1199,7 +1199,7 @@ ${this.SHARED_INTERACTIVE_FIELDS_RULES}`;
 Отвечай на вопросы пользователя профессионально, четко и структурировано.
 Используй HTML-теги для оформления (<b>, <i>, <ul>, <li>, <p>, <h3>). НЕ используй Markdown (никаких # или *).
 Твой ответ будет отображаться внутри чата, поэтому не используй теги <html> или <body>. Только фрагменты текста с HTML-оформлением.`;
-        
+
         userPrompt = userMsg || 'Привет! Расскажи, чем ты можешь мне помочь?';
         break;
       }
@@ -1378,7 +1378,7 @@ ${details.length ? details.join('\n') : 'Предмет не указан. Вы�
 
   private buildExamVariantPrompt(inputParams: Record<string, any>) {
     const { subject, level, questionsCount, preferences, customPrompt } = inputParams;
- 
+
     const systemPrompt = `Ты — ведущий методист ФИПИ и Senior Frontend-разработчик. Генерируешь тренировочные варианты ОГЭ/ЕГЭ в виде чистого HTML.
  
 <!-- Структура КИМ актуальна по спецификации ФИПИ 2026 -->
@@ -1411,16 +1411,16 @@ ${details.length ? details.join('\n') : 'Предмет не указан. Вы�
 <svg_library>
 [SVG_LIBRARY ОСТАЁТСЯ БЕЗ ИЗМЕНЕНИЙ — все 6 паттернов]
 </svg_library>`;
- 
+
     // ═══════════════════════════════════════════════════════════════════
     // 2. СБОР ПАРАМЕТРОВ
     // ═══════════════════════════════════════════════════════════════════
     const targetSubject = (subject || '').toLowerCase();
     const details: string[] = [];
- 
+
     details.push(`Предмет: ${subject || 'Не указан'}`);
     details.push(`Уровень: ${level || 'Стандартный ЕГЭ/ОГЭ'}`);
- 
+
     if (preferences?.trim()) {
       details.push(`ЗАПРОС: "${preferences}"`);
       details.push(
@@ -1430,11 +1430,11 @@ ${details.length ? details.join('\n') : 'Предмет не указан. Вы�
       details.push(`Количество заданий: ${questionsCount || 'Полный вариант по стандарту ФИПИ'}`);
       details.push(`→ Генерируй стандартный полный вариант.`);
     }
- 
+
     if (customPrompt) details.push(`Доп. инструкции: ${customPrompt}`);
- 
+
     const subjectRules = this.getSubjectRules(targetSubject);
- 
+
     const userPrompt = `Сгенерируй КИМ в формате HTML.
  
 <task_params>
@@ -1515,7 +1515,7 @@ table.answers-table th,table.answers-table td{border:1px solid #000;padding:8px;
 </html_skeleton>
  
 НАЧИНАЙ ВЫВОД СРАЗУ С <!DOCTYPE html>.`;
- 
+
     return { systemPrompt, userPrompt };
   }
 
@@ -1523,7 +1523,7 @@ table.answers-table th,table.answers-table td{border:1px solid #000;padding:8px;
   // ПРЕДМЕТНЫЕ ПРАВИЛА — вынесены в отдельный метод для чистоты
   // ═══════════════════════════════════════════════════════════════════
   private getSubjectRules(target: string): string {
- 
+
     // ─────────────────────────────────────────────
     // МАТЕМАТИКА (ОГЭ / ЕГЭ база / ЕГЭ профиль)
     // Структура: ОГЭ=25, ЕГЭ профиль=19, ЕГЭ база=21
@@ -1644,7 +1644,7 @@ table.answers-table th,table.answers-table td{border:1px solid #000;padding:8px;
     вершины СТРОГО в узлах сетки
   • Точки в вершинах: <circle cx="Xi" cy="Yi" r="2.5" fill="black"/>`;
     }
- 
+
     // ─────────────────────────────────────────────
     // РУССКИЙ ЯЗЫК (ОГЭ / ЕГЭ)
     // ОГЭ: 13 заданий (3 части). ЕГЭ: 27 заданий.
@@ -1755,7 +1755,7 @@ SVG: как правило НЕ требуется.
   → Предложения с цифрами-метками: (1) (2) (3) в круглых скобках.
   → Таблица соответствий (№8): HTML <table> с заголовками.`;
     }
- 
+
     // ─────────────────────────────────────────────
     // ФИЗИКА (ОГЭ / ЕГЭ)
     // ОГЭ: 25 заданий. ЕГЭ: 26 заданий (ИСПРАВЛЕНО с 30).
@@ -1905,7 +1905,7 @@ SVG: как правило НЕ требуется.
   • Силовые линии: <path> дугами от N к S (5–7 линий), стрелки на каждой
   • Компас: <circle> + стрелка (<polygon>) внутри`;
     }
- 
+
     // ─────────────────────────────────────────────
     // ИНФОРМАТИКА (ОГЭ / ЕГЭ)
     // ОГЭ: 15 заданий. ЕГЭ: 27 заданий.
@@ -2019,7 +2019,7 @@ SVG: как правило НЕ требуется.
   • Рёбра: <line stroke="black"/> + подпись <text font-size="10">0</text> или <text>1</text>
   • Левое ребро = 0, правое = 1`;
     }
- 
+
     // ─────────────────────────────────────────────
     // ХИМИЯ (ОГЭ / ЕГЭ)
     // ОГЭ: 24 задания. ЕГЭ: 34 задания.
@@ -2117,7 +2117,7 @@ SVG: как правило НЕ требуется.
   • Момент равновесия: вертикальная пунктирная <line stroke-dasharray="5,3"/>
   • Подписи: «прямая», «обратная», «равновесие» через <text>`;
     }
- 
+
     // ─────────────────────────────────────────────
     // БИОЛОГИЯ (ОГЭ / ЕГЭ)
     // ОГЭ: 26 заданий (ИСПРАВЛЕНО с 29). ЕГЭ: 28 заданий.
@@ -2281,7 +2281,7 @@ SVG: как правило НЕ требуется.
   • Каждый слой: разный fill с низкой opacity (0.1–0.3)
   • Подписи: <text> + <line stroke-dasharray="3,3"/> указатели  `;
     }
- 
+
     // ─────────────────────────────────────────────
     // ОБЩЕСТВОЗНАНИЕ (ОГЭ / ЕГЭ)
     // ОГЭ: 24 задания. ЕГЭ: 25 заданий.
@@ -2377,7 +2377,7 @@ SVG: нужен редко, но для экономики — обязател�
   • Формула секторов: рассчитай startAngle и endAngle по процентам,
     конвертируй в x,y через cos/sin`;
     }
- 
+
     // ─────────────────────────────────────────────
     // ИСТОРИЯ (ОГЭ / ЕГЭ)
     // ─────────────────────────────────────────────
@@ -2470,7 +2470,7 @@ SVG: минимально (карты → заменяй схемами).
   • Символы: <polygon> (звезда — 5 вершин), <circle> (солнце + лучи <line>)
   • Цвета: ограниченная палитра (красный, чёрный, белый)`;
     }
- 
+
     // ─────────────────────────────────────────────
     // ГЕОГРАФИЯ (ОГЭ / ЕГЭ)
     // ОГЭ: 30 заданий. ОБНОВЛЕНА НУМЕРАЦИЯ 2026.
@@ -2594,7 +2594,7 @@ SVG: минимально (карты → заменяй схемами).
   • Легенда: <rect fill="white" stroke="black"/> внизу с символами и подписями
   • Масштаб: <line> + подписи «0 — 100 км — 200 км»`;
     }
- 
+
     // ─────────────────────────────────────────────
     // ИНОСТРАННЫЙ ЯЗЫК (ОГЭ / ЕГЭ)
     // ─────────────────────────────────────────────
@@ -2693,7 +2693,7 @@ SVG: минимально (карты → заменяй схемами).
   • Общий размер: viewBox="0 0 400 250"
   • Альтернатива — HTML <table>: если данные табличные, лучше таблица`;
     }
- 
+
     // ─────────────────────────────────────────────
     // ЛИТЕРАТУРА (ОГЭ / ЕГЭ)
     // ─────────────────────────────────────────────
@@ -2756,7 +2756,7 @@ SVG: НЕ требуется.
   → Вопросы: как в реальном КИМ, с указанием объёма ответа.
   → Критерии: для развёрнутых ответов — в блоке ОТВЕТОВ.`;
     }
- 
+
     // ─────────────────────────────────────────────
     // FALLBACK
     // ─────────────────────────────────────────────
@@ -3350,13 +3350,13 @@ ${customPrompt ? `Дополнительно: ${customPrompt}` : ''}
             this.logger.log(`Polza.ai status response for ${polzaTaskId}: ${JSON.stringify(data)}`);
             if (data.status === 'completed' || data.status === 'succeeded') {
               const polzaDataUrl = data.data?.url;
-              const polzaDataUrls = Array.isArray(data.data) 
+              const polzaDataUrls = Array.isArray(data.data)
                 ? data.data.map((item: any) => item.url || (typeof item === 'string' ? item : null)).filter(Boolean)
                 : (polzaDataUrl ? [polzaDataUrl] : []);
-              
+
               const polzaImages = data.result?.images || polzaDataUrls;
               const imageUrls = polzaImages;
-              
+
               this.logger.log(`Polza.ai task ${polzaTaskId} reported as completed. Extracted ${imageUrls.length} images.`);
 
               if (imageUrls.length > 0) {
@@ -3380,12 +3380,12 @@ ${customPrompt ? `Дополнительно: ${customPrompt}` : ''}
                 where: { id: requestId },
                 include: { userGeneration: true },
               });
-              
+
               return this.formatGenerationStatus(updatedGeneration);
             } else if (data.status === 'failed') {
               const errorMsg = data.status_description || data.error?.message || 'Generation failed';
               await this.generationHelpers.failGeneration(requestId, errorMsg);
-              
+
               // Перезагружаем
               const updatedGeneration = await this.prisma.generationRequest.findUnique({
                 where: { id: requestId },
