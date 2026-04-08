@@ -4,7 +4,6 @@ import { FilesService } from '../files/files.service';
 import { EmailService } from '../../common/services/email.service';
 import { LogsService } from '../logs/logs.service';
 import { ReferralsService } from '../referrals/referrals.service';
-import * as crypto from 'crypto';
 import { TelegramService } from '../telegram/telegram.service';
 import { MaxService } from '../max/max.service';
 
@@ -35,8 +34,11 @@ export class AdminService {
   }
 
   // ========== USERS ==========
-  async getUsers(limit = 50, offset = 0, search?: string) {
+  async getUsers(limit = 50, offset = 0, search?: string, source?: string) {
     const where: any = {};
+    if (source) {
+      where.source = source;
+    }
     if (search) {
       where.OR = [
         { id: { contains: search, mode: 'insensitive' } },
@@ -62,6 +64,7 @@ export class AdminService {
         apiKey: true,
         firstName: true,
         lastName: true,
+        email: true,
         phone: true,
         phoneVerified: true,
         lastAccessAt: true,

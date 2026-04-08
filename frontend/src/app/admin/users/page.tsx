@@ -6,15 +6,16 @@ import { apiClient } from '@/lib/api/client'
 import Link from 'next/link'
 import { Search, Plus, Edit2, Trash2, X, ShieldAlert, Key, BarChart2 } from 'lucide-react'
 
-const fetcher = ([url, page, limit, search]: [string, number, number, string]) => 
-    apiClient.get(url, { params: { limit, offset: (page - 1) * limit, search } }).then(res => res.data)
+const fetcher = ([url, page, limit, search, source]: [string, number, number, string, string]) =>
+    apiClient.get(url, { params: { limit, offset: (page - 1) * limit, search, source: source || undefined } }).then(res => res.data)
 
 export default function AdminUsersPage() {
     const [page, setPage] = useState(1)
     const [limit] = useState(10)
     const [searchQuery, setSearchQuery] = useState('')
-    
-    const { data, isLoading, mutate } = useSWR<any>(['/admin/users', page, limit, searchQuery], fetcher)
+    const [sourceFilter, setSourceFilter] = useState('')
+
+    const { data, isLoading, mutate } = useSWR<any>(['/admin/users', page, limit, searchQuery, sourceFilter], fetcher)
     const users = data?.users || []
     const total = data?.total || 0
     const totalPages = Math.ceil(total / limit)
@@ -121,17 +122,28 @@ export default function AdminUsersPage() {
                 <div className="p-4 border-b border-gray-100 flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
                     <div className="flex-1 flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-xl border border-gray-100 focus-within:ring-2 focus-within:ring-blue-500 transition-all">
                         <Search className="w-5 h-5 text-gray-400" />
-                        <input 
-                            type="text" 
+                        <input
+                            type="text"
                             placeholder="Поиск по имени, логину, тел или ID..."
                             className="flex-1 bg-transparent border-none outline-none text-sm focus:ring-0"
                             value={searchQuery}
                             onChange={(e) => {
                                 setSearchQuery(e.target.value)
-                                setPage(1) // Reset to first page on search
+                                setPage(1)
                             }}
                         />
                     </div>
+                    <select
+                        value={sourceFilter}
+                        onChange={(e) => { setSourceFilter(e.target.value); setPage(1) }}
+                        className="border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none text-gray-700"
+                    >
+                        <option value="">Все источники</option>
+                        <option value="telegram_bot">🤖 Telegram Бот</option>
+                        <option value="telegram">✈️ Telegram TMA</option>
+                        <option value="max">MAX</option>
+                        <option value="web">Web</option>
+                    </select>
                 </div>
                 
                 {isLoading ? (
@@ -159,8 +171,16 @@ export default function AdminUsersPage() {
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <div className="font-bold text-gray-900">{user.username || 'Без юзернейма'}</div>
                                             <div className="font-mono text-xs text-gray-400 mt-1" title={user.id}>ID: <span className="font-semibold text-gray-500">{user.id.substring(0, 8)}...</span></div>
-                                            <div className="text-xs mt-1.5 font-medium">
-                                                {user.hasPassword ? <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">Пароль задан</span> : <span className="text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-100">Пароля нет</span>}
+                                            <div className="flex flex-wrap gap-1 mt-1.5">
+                                                {user.hasPassword
+                                                    ? <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100 text-xs font-medium">Пароль задан</span>
+                                                    : <span className="text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-100 text-xs font-medium">Пароля нет</span>}
+                                                {user.source === 'telegram_bot' && (
+                                                    <span className="text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100 text-xs font-medium">🤖 TG Бот</span>
+                                                )}
+                                                {user.source === 'telegram' && (
+                                                    <span className="text-sky-700 bg-sky-50 px-2 py-0.5 rounded-full border border-sky-100 text-xs font-medium">✈️ TG TMA</span>
+                                                )}
                                             </div>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">

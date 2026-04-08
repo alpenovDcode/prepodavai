@@ -29,11 +29,13 @@ export class AdminController {
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
     @Query('search') search?: string,
+    @Query('source') source?: string,
   ) {
     return this.adminService.getUsers(
       limit ? parseInt(limit) : 50,
       offset ? parseInt(offset) : 0,
       search,
+      source,
     );
   }
 

@@ -3,17 +3,58 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { Bot, Context, InputFile } from 'grammy';
 import axios from 'axios';
+import * as crypto from 'crypto';
+import * as bcrypt from 'bcryptjs';
 import { HtmlExportService } from '../../common/services/html-export.service';
+import { SmscService } from '../smsc/smsc.service';
+
+// ── Типы состояний диалога регистрации ──────────────────────────────────────
+type RegStep = 'awaiting_email' | 'awaiting_phone' | 'awaiting_sms_code';
+
+interface RegistrationState {
+  step: RegStep;
+  email?: string;
+  phone?: string;
+  // Сохраняем не сам SMS-код, а его bcrypt-хэш — чтобы не светить plaintext в памяти
+  smsCodeHash?: string;
+  smsCodeExpiresAt?: number;   // unix ms
+  // Rate-limit: счётчик неверных попыток ввода кода
+  wrongAttempts?: number;
+  // Rate-limit: когда последний раз отправляли SMS
+  smsSentAt?: number;          // unix ms
+  // Идемпотентность: блокируем повторную отправку в рамках одного шага
+  locked?: boolean;
+}
 
 @Injectable()
 export class TelegramService {
   private readonly logger = new Logger(TelegramService.name);
   private bot: Bot;
 
+  /**
+   * Состояния регистрации в памяти.
+   * Ключ — строковый telegramId.
+   * Очищается после успешной/отменённой регистрации.
+   * При рестарте сервиса — сбрасывается (это нормально: пользователь просто
+   * начнёт /start заново).
+   */
+  private readonly regStates = new Map<string, RegistrationState>();
+
+  // ── Константы безопасности ────────────────────────────────────────────────
+  /** Максимум неверных попыток ввода SMS-кода до сброса сессии */
+  private static readonly MAX_WRONG_ATTEMPTS = 3;
+  /** Минимальный интервал между повторными отправками SMS (60 с) */
+  private static readonly SMS_RESEND_COOLDOWN_MS = 60_000;
+  /** TTL SMS-кода (5 минут) */
+  private static readonly SMS_CODE_TTL_MS = 5 * 60_000;
+  /** Максимальное число активных незавершённых сессий регистрации (DoS protection) */
+  private static readonly MAX_CONCURRENT_SESSIONS = 500;
+
   constructor(
     private configService: ConfigService,
     private prisma: PrismaService,
     private readonly htmlExportService: HtmlExportService,
+    private readonly smscService: SmscService,
   ) {
     const token = this.configService.get<string>('TELEGRAM_BOT_TOKEN');
     if (token) {
@@ -69,26 +110,28 @@ export class TelegramService {
    * Настройка обработчиков бота
    */
   private setupHandlers() {
-    // Обработка команды /start
+    // ── /start ──────────────────────────────────────────────────────────────
     this.bot.command('start', async (ctx: Context) => {
       const user = ctx.from;
       if (!user) return;
 
-      // Check for link token argument: /start link_XXXXXXXX
+      const telegramId = user.id.toString();
+
+      // 1. link_XXXXXXXX payload — привязка существующего web-аккаунта
       const payload = ctx.match as string | undefined;
       if (payload && payload.startsWith('link_')) {
-        const token = payload.slice(5); // strip "link_" prefix
+        const token = payload.slice(5);
         await this.handleLinkToken(ctx, user, token);
         return;
       }
 
-      // Normal /start — find existing linked user
-      let existingUser = await this.prisma.appUser.findUnique({
-        where: { telegramId: user.id.toString() },
+      // 2. Уже зарегистрирован — приветствие + кнопка TMA
+      const existingUser = await this.prisma.appUser.findUnique({
+        where: { telegramId },
       });
 
       if (existingUser) {
-        existingUser = await this.prisma.appUser.update({
+        await this.prisma.appUser.update({
           where: { id: existingUser.id },
           data: {
             lastAccessAt: new Date(),
@@ -99,22 +142,386 @@ export class TelegramService {
             username: user.username || existingUser.username,
           } as any,
         });
+        // Сбрасываем незавершённую сессию регистрации, если вдруг была
+        this.regStates.delete(telegramId);
         await this.sendWelcomeWithWebApp(ctx, existingUser);
+        return;
+      }
+
+      // 3. Новый пользователь — начинаем регистрацию
+      await this.startRegistration(ctx, telegramId);
+    });
+
+    // ── /cancel — отмена регистрации ────────────────────────────────────────
+    this.bot.command('cancel', async (ctx: Context) => {
+      const telegramId = ctx.from?.id.toString();
+      if (!telegramId) return;
+      if (this.regStates.has(telegramId)) {
+        this.regStates.delete(telegramId);
+        await ctx.reply('❌ Регистрация отменена. Чтобы начать заново, отправьте /start.');
       } else {
-        // User not linked — prompt to register on the web
-        const webAppUrl = this.configService.get<string>('WEBAPP_URL', 'https://prepodavai.ru');
-        await ctx.reply(
-          `Добро пожаловать в PrepodavAI! 🎓\n\n` +
-          `Для использования бота сначала зарегистрируйтесь на сайте, а затем привяжите Telegram в настройках профиля.\n\n` +
-          `После привязки вы сможете получать результаты генерации прямо здесь.`,
-          {
-            reply_markup: {
-              inline_keyboard: [[{ text: '🌐 Зарегистрироваться', url: `${webAppUrl}/auth` }]],
-            },
-          },
-        );
+        await ctx.reply('Нет активного процесса регистрации.');
       }
     });
+
+    // ── Текстовые сообщения — шаги регистрации ──────────────────────────────
+    this.bot.on('message:text', async (ctx: Context) => {
+      const user = ctx.from;
+      if (!user) return;
+      const telegramId = user.id.toString();
+      const state = this.regStates.get(telegramId);
+
+      // Нет активной сессии — игнорируем (не засоряем чат)
+      if (!state) return;
+
+      const text = (ctx.message as any)?.text?.trim() ?? '';
+
+      switch (state.step) {
+        case 'awaiting_email':
+          await this.handleEmailInput(ctx, telegramId, state, text);
+          break;
+        case 'awaiting_phone':
+          await this.handlePhoneInput(ctx, telegramId, state, text);
+          break;
+        case 'awaiting_sms_code':
+          await this.handleSmsCodeInput(ctx, telegramId, state, text);
+          break;
+      }
+    });
+  }
+
+  // ── Шаг 0: начало регистрации ────────────────────────────────────────────
+  private async startRegistration(ctx: Context, telegramId: string) {
+    // DoS protection: не более MAX_CONCURRENT_SESSIONS незавершённых сессий
+    if (this.regStates.size >= TelegramService.MAX_CONCURRENT_SESSIONS) {
+      this.logger.warn(`[RegBot] Too many concurrent sessions (${this.regStates.size}), rejecting ${telegramId}`);
+      await ctx.reply('⚠️ Сервис временно недоступен. Попробуйте позже.');
+      return;
+    }
+
+    this.regStates.set(telegramId, { step: 'awaiting_email', wrongAttempts: 0 });
+
+    await ctx.reply(
+      `👋 Добро пожаловать в *PrepodavAI*!\n\n` +
+      `Давайте создадим ваш аккаунт — это займёт меньше минуты.\n\n` +
+      `*Шаг 1 из 3* — Введите вашу электронную почту:`,
+      { parse_mode: 'Markdown' },
+    );
+  }
+
+  // ── Шаг 1: email ─────────────────────────────────────────────────────────
+  private async handleEmailInput(
+    ctx: Context,
+    telegramId: string,
+    state: RegistrationState,
+    text: string,
+  ) {
+    // Валидация формата email — строгий regex
+    const emailRegex = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/;
+    if (!emailRegex.test(text) || text.length > 254) {
+      await ctx.reply(
+        '❌ Некорректный формат email.\n\nПожалуйста, введите действительный адрес электронной почты, например: *ivan@example.com*',
+        { parse_mode: 'Markdown' },
+      );
+      return;
+    }
+
+    const email = text.toLowerCase();
+
+    // Проверяем, не занят ли email
+    const exists = await this.prisma.appUser.findFirst({ where: { email } });
+    if (exists) {
+      await ctx.reply(
+        `⚠️ Этот email уже зарегистрирован.\n\nЕсли это ваш аккаунт — войдите на сайте и привяжите Telegram в настройках профиля.`,
+      );
+      // Не сбрасываем сессию — даём попробовать другой email
+      return;
+    }
+
+    state.email = email;
+    state.step = 'awaiting_phone';
+    this.regStates.set(telegramId, state);
+
+    await ctx.reply(
+      `✅ Email принят.\n\n` +
+      `*Шаг 2 из 3* — Введите номер телефона в международном формате:\n\n` +
+      `Например: *+79991234567*\n\n` +
+      `_Отправим SMS с кодом подтверждения_`,
+      { parse_mode: 'Markdown' },
+    );
+  }
+
+  // ── Шаг 2: телефон + отправка SMS ────────────────────────────────────────
+  private async handlePhoneInput(
+    ctx: Context,
+    telegramId: string,
+    state: RegistrationState,
+    text: string,
+  ) {
+    // Нормализуем и валидируем номер
+    const phone = text.replace(/[\s\-\(\)]/g, '');
+    const phoneRegex = /^\+[1-9]\d{7,14}$/;
+    if (!phoneRegex.test(phone)) {
+      await ctx.reply(
+        '❌ Некорректный формат номера.\n\nВведите номер с кодом страны, например: *+79991234567*',
+        { parse_mode: 'Markdown' },
+      );
+      return;
+    }
+
+    // Проверяем, не занят ли номер
+    const exists = await this.prisma.appUser.findFirst({ where: { phone } });
+    if (exists) {
+      await ctx.reply(
+        `⚠️ Этот номер телефона уже зарегистрирован.\n\nЕсли это ваш аккаунт — войдите на сайте и привяжите Telegram в настройках профиля.`,
+      );
+      return;
+    }
+
+    // Rate-limit: не более 1 SMS в 60 секунд
+    const now = Date.now();
+    if (state.smsSentAt && now - state.smsSentAt < TelegramService.SMS_RESEND_COOLDOWN_MS) {
+      const secondsLeft = Math.ceil(
+        (TelegramService.SMS_RESEND_COOLDOWN_MS - (now - state.smsSentAt)) / 1000,
+      );
+      await ctx.reply(`⏳ Подождите ${secondsLeft} секунд перед повторной отправкой SMS.`);
+      return;
+    }
+
+    // Блокируем параллельные запросы (locked на время отправки)
+    if (state.locked) return;
+    state.locked = true;
+
+    try {
+      // Генерируем криптографически случайный 6-значный код
+      const codeRaw = crypto.randomInt(100_000, 999_999).toString();
+
+      // Хэшируем код перед хранением в памяти
+      const codeHash = await bcrypt.hash(codeRaw, 10);
+
+      const sent = await this.smscService.sendSms(
+        phone,
+        `PrepodavAI: ваш код подтверждения ${codeRaw}. Никому не сообщайте этот код.`,
+      );
+
+      if (!sent) {
+        await ctx.reply('❌ Не удалось отправить SMS. Проверьте номер и попробуйте снова.');
+        state.locked = false;
+        return;
+      }
+
+      state.phone = phone;
+      state.step = 'awaiting_sms_code';
+      state.smsCodeHash = codeHash;
+      state.smsCodeExpiresAt = now + TelegramService.SMS_CODE_TTL_MS;
+      state.smsSentAt = now;
+      state.wrongAttempts = 0;
+      state.locked = false;
+      this.regStates.set(telegramId, state);
+
+      const maskedPhone = phone.slice(0, -4).replace(/\d/g, '•') + phone.slice(-4);
+      await ctx.reply(
+        `📱 SMS отправлено на *${maskedPhone}*\n\n` +
+        `*Шаг 3 из 3* — Введите 6-значный код из SMS:\n\n` +
+        `_Код действителен 5 минут. Для отмены — /cancel_`,
+        { parse_mode: 'Markdown' },
+      );
+    } catch (err) {
+      state.locked = false;
+      this.logger.error(`[RegBot] SMS send error for ${telegramId}:`, err);
+      await ctx.reply('❌ Внутренняя ошибка. Попробуйте позже.');
+    }
+  }
+
+  // ── Шаг 3: проверка SMS-кода и создание аккаунта ─────────────────────────
+  private async handleSmsCodeInput(
+    ctx: Context,
+    telegramId: string,
+    state: RegistrationState,
+    text: string,
+  ) {
+    // Принимаем только цифры
+    if (!/^\d{4,6}$/.test(text)) {
+      await ctx.reply('❌ Код должен состоять из 6 цифр. Попробуйте ещё раз.');
+      return;
+    }
+
+    // Проверяем TTL кода
+    if (!state.smsCodeExpiresAt || Date.now() > state.smsCodeExpiresAt) {
+      this.regStates.delete(telegramId);
+      await ctx.reply(
+        '⏰ Срок действия кода истёк.\n\nНачните регистрацию заново: /start',
+      );
+      return;
+    }
+
+    // Предотвращаем параллельные попытки (timing attack protection)
+    if (state.locked) return;
+    state.locked = true;
+
+    try {
+      const isValid = await bcrypt.compare(text, state.smsCodeHash!);
+
+      if (!isValid) {
+        state.wrongAttempts = (state.wrongAttempts ?? 0) + 1;
+        state.locked = false;
+        this.regStates.set(telegramId, state);
+
+        const attemptsLeft = TelegramService.MAX_WRONG_ATTEMPTS - state.wrongAttempts;
+
+        if (attemptsLeft <= 0) {
+          // Исчерпаны попытки — сбрасываем всю сессию
+          this.regStates.delete(telegramId);
+          this.logger.warn(`[RegBot] Too many wrong SMS attempts for telegramId=${telegramId}`);
+          await ctx.reply(
+            '🚫 Слишком много неверных попыток.\n\nРегистрация отменена. Начните заново: /start',
+          );
+        } else {
+          await ctx.reply(`❌ Неверный код. Осталось попыток: *${attemptsLeft}*`, { parse_mode: 'Markdown' });
+        }
+        return;
+      }
+
+      // Код верный — создаём аккаунт
+      await this.completeRegistration(ctx, telegramId, state);
+    } catch (err) {
+      state.locked = false;
+      this.logger.error(`[RegBot] Code verify error for ${telegramId}:`, err);
+      await ctx.reply('❌ Внутренняя ошибка. Попробуйте позже.');
+    }
+  }
+
+  // ── Финал: создание AppUser + отправка учётных данных ────────────────────
+  private async completeRegistration(
+    ctx: Context,
+    telegramId: string,
+    state: RegistrationState,
+  ) {
+    const user = ctx.from!;
+
+    // Финальная проверка уникальности (race condition protection)
+    const [emailTaken, phoneTaken, tgTaken] = await Promise.all([
+      this.prisma.appUser.findFirst({ where: { email: state.email } }),
+      this.prisma.appUser.findFirst({ where: { phone: state.phone } }),
+      this.prisma.appUser.findUnique({ where: { telegramId } }),
+    ]);
+
+    if (emailTaken || phoneTaken || tgTaken) {
+      this.regStates.delete(telegramId);
+      await ctx.reply(
+        '⚠️ Аккаунт с такими данными уже существует.\n\nЕсли это ваш аккаунт — войдите на сайте.',
+      );
+      return;
+    }
+
+    // Генерируем безопасный пароль: 12 символов, буквы + цифры
+    const password = crypto.randomBytes(9).toString('base64').slice(0, 12).replace(/[^a-zA-Z0-9]/g, 'x');
+    const passwordHash = await bcrypt.hash(password, 12);
+
+    // Генерируем уникальный username на основе Telegram username или first_name
+    const baseUsername = user.username
+      ? user.username.toLowerCase().replace(/[^a-z0-9_]/g, '')
+      : `user${telegramId}`;
+    const username = await this.ensureUniqueUsername(baseUsername);
+
+    const apiKey = crypto.randomBytes(16).toString('hex');
+    const chatId = ctx.chat!.id.toString();
+
+    // Создаём пользователя + подписку в одной транзакции
+    const newUser = await this.prisma.$transaction(async (tx) => {
+      const appUser = await tx.appUser.create({
+        data: {
+          username,
+          userHash: username,
+          email: state.email,
+          phone: state.phone,
+          phoneVerified: true,        // телефон подтверждён SMS-кодом
+          passwordHash,
+          apiKey,
+          telegramId,
+          chatId,
+          telegramChatId: chatId,
+          firstName: user.first_name || '',
+          lastName: user.last_name || '',
+          source: 'telegram_bot',     // ← когорта для аналитики
+          lastAccessAt: new Date(),
+          lastTelegramAppAccess: new Date(),
+        } as any,
+      });
+
+      // Создаём стартовую подписку
+      const starterPlan = await tx.subscriptionPlan.findUnique({
+        where: { planKey: 'starter' },
+      });
+
+      if (starterPlan) {
+        const now = new Date();
+        const endDate = new Date(now);
+        endDate.setMonth(endDate.getMonth() + 1);
+
+        await tx.userSubscription.create({
+          data: {
+            userId: appUser.id,
+            planId: starterPlan.id,
+            status: 'active',
+            creditsBalance: 100,
+            extraCredits: 0,
+            creditsUsed: 0,
+            overageCreditsUsed: 0,
+            startDate: now,
+            endDate,
+            autoRenew: true,
+          },
+        });
+      }
+
+      return appUser;
+    });
+
+    // Удаляем сессию регистрации
+    this.regStates.delete(telegramId);
+
+    this.logger.log(`[RegBot] New user registered via bot: id=${newUser.id} username=${username}`);
+
+    const webAppUrl = this.configService.get<string>('WEBAPP_URL', 'https://prepodavai.ru');
+
+    // Отправляем учётные данные — в одном сообщении, без лишних деталей
+    await ctx.reply(
+      `🎉 *Регистрация завершена!*\n\n` +
+      `Ваши данные для входа на сайте:\n\n` +
+      `👤 Логин: \`${username}\`\n` +
+      `🔑 Пароль: \`${password}\`\n\n` +
+      `⚠️ *Сохраните пароль* — он больше не будет показан.\n\n` +
+      `Нажмите кнопку ниже, чтобы открыть PrepodavAI:`,
+      {
+        parse_mode: 'Markdown',
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: '🚀 Открыть PrepodavAI', web_app: { url: `${webAppUrl}/dashboard` } }],
+            [{ text: '🌐 Войти на сайте', url: `${webAppUrl}/auth` }],
+          ],
+        },
+      },
+    );
+  }
+
+  /**
+   * Генерация уникального username: если базовый занят — добавляем случайный суффикс.
+   */
+  private async ensureUniqueUsername(base: string): Promise<string> {
+    // Ограничиваем длину
+    const trimmed = base.slice(0, 20) || 'user';
+    const exists = await this.prisma.appUser.findFirst({ where: { username: trimmed } });
+    if (!exists) return trimmed;
+
+    // Добавляем 4 случайные цифры
+    const suffix = crypto.randomInt(1000, 9999).toString();
+    const candidate = `${trimmed}_${suffix}`.slice(0, 25);
+    // Рекурсивно (практически всегда срабатывает с первого раза)
+    const exists2 = await this.prisma.appUser.findFirst({ where: { username: candidate } });
+    return exists2
+      ? `${trimmed}_${crypto.randomInt(10_000, 99_999)}`
+      : candidate;
   }
 
   /**

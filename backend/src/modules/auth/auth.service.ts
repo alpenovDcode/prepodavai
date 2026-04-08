@@ -95,13 +95,15 @@ export class AuthService {
       throw new UnauthorizedException('Invalid user data format in initData');
     }
 
-    // Ищем пользователя по telegramId — создавать не будем (регистрация только через веб)
+    // Ищем пользователя по telegramId
     const telegramId = userData.id?.toString();
     let appUser = await this.prisma.appUser.findUnique({ where: { telegramId } });
 
     if (!appUser) {
-      // Аккаунт Telegram не привязан ни к одному веб-аккаунту
-      return { success: false, error: 'NOT_LINKED' };
+      // Аккаунт Telegram не привязан ни к одному аккаунту.
+      // Возвращаем NOT_REGISTERED — фронтенд покажет экран с просьбой
+      // пройти регистрацию в боте (а не просто "привяжи аккаунт на сайте").
+      return { success: false, error: 'NOT_REGISTERED' };
     }
 
     // Обновляем данные профиля

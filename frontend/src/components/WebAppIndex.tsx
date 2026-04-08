@@ -48,6 +48,7 @@ export default function WebAppIndex({ embedded = false }: WebAppIndexProps) {
   const [activeSectionIndex, setActiveSectionIndex] = useState(0)
   const [userHash, setUserHash] = useState<string | null>(null)
   const [userSource, setUserSource] = useState<'web' | 'telegram' | 'max' | null>(null)
+  const [tmaError, setTmaError] = useState<'NOT_REGISTERED' | null>(null)
 
   const { generateAndWait, isGenerating: isGenGenerating, activeGenerationId, inputParams } = useGenerations()
   const { subscription, totalCredits, loading: subscriptionLoading } = useSubscription()
@@ -71,6 +72,9 @@ export default function WebAppIndex({ embedded = false }: WebAppIndexProps) {
               if (response.data.token) {
                 localStorage.setItem('prepodavai_authenticated', 'true')
               }
+            } else if (response.data.error === 'NOT_REGISTERED') {
+              setTmaError('NOT_REGISTERED')
+              return
             }
           } catch (e) {
             console.error('Failed to validate Telegram initData:', e)
@@ -562,6 +566,43 @@ ${autoPrintScript}</head><body>${bodyContent}</body></html>`
     } finally {
       setIsAssigning(false)
     }
+  }
+
+  // Экран ошибки для незарегистрированных через бот пользователей
+  if (tmaError === 'NOT_REGISTERED') {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-[#1a1f2e] to-[#0f1319] flex items-center justify-center p-6">
+        <div className="max-w-sm w-full text-center space-y-6">
+          <div className="w-20 h-20 rounded-full bg-amber-500/20 flex items-center justify-center mx-auto">
+            <AlertCircle className="w-10 h-10 text-amber-400" />
+          </div>
+          <div className="space-y-2">
+            <h1 className="text-xl font-bold text-white">Регистрация не завершена</h1>
+            <p className="text-gray-400 text-sm leading-relaxed">
+              Перед тем, как начать пользоваться сервисом, нужно пройти регистрацию в боте.
+            </p>
+          </div>
+          <div className="bg-white/5 border border-white/10 rounded-2xl p-4 text-left space-y-3">
+            <p className="text-gray-300 text-sm font-medium">Как зарегистрироваться:</p>
+            <ol className="space-y-2">
+              {[
+                'Закройте это окно',
+                'Отправьте боту команду /start',
+                'Следуйте инструкциям бота',
+                'После регистрации откройте приложение снова',
+              ].map((step, i) => (
+                <li key={i} className="flex items-start gap-3 text-sm text-gray-400">
+                  <span className="w-5 h-5 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center text-xs flex-shrink-0 font-bold mt-0.5">
+                    {i + 1}
+                  </span>
+                  {step}
+                </li>
+              ))}
+            </ol>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (

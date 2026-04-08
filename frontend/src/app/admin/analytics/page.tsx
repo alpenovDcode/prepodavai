@@ -43,8 +43,14 @@ export default function AdminAnalyticsPage() {
         value: g.count,
     }))
 
+    const SOURCE_LABELS: Record<string, string> = {
+        telegram: 'Telegram TMA',
+        telegram_bot: 'Telegram Бот',
+        max: 'MAX',
+        web: 'Web',
+    }
     const sourceData = (data?.sourceBreakdown || []).map((s: any) => ({
-        name: s.source === 'telegram' ? 'Telegram' : s.source === 'max' ? 'MAX' : s.source === 'web' ? 'Web' : s.source,
+        name: SOURCE_LABELS[s.source] ?? s.source ?? 'Другое',
         value: s.count,
     }))
 
