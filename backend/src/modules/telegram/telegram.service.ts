@@ -1,11 +1,13 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { Bot, Context, InputFile } from 'grammy';
+import axios from 'axios';
 import { HtmlExportService } from '../../common/services/html-export.service';
 
 @Injectable()
 export class TelegramService {
+  private readonly logger = new Logger(TelegramService.name);
   private bot: Bot;
 
   constructor(
@@ -17,6 +19,49 @@ export class TelegramService {
     if (token) {
       this.bot = new Bot(token);
       this.setupHandlers();
+    } else {
+      this.logger.warn('TELEGRAM_BOT_TOKEN is not set. Telegram bot will not work.');
+    }
+  }
+
+  /**
+   * Обработка входящего обновления от Telegram (webhook mode).
+   * Вызывается из TelegramController при каждом POST от Telegram.
+   */
+  async handleWebhook(body: any) {
+    if (!this.bot) return;
+    try {
+      await this.bot.handleUpdate(body);
+    } catch (error) {
+      this.logger.error('Error handling Telegram update:', error);
+    }
+  }
+
+  /**
+   * Регистрация вебхука в Telegram API.
+   * Вызывается вручную через GET /api/webhook/telegram/setup?url=...
+   */
+  async setupWebhook(url: string) {
+    const token = this.configService.get<string>('TELEGRAM_BOT_TOKEN');
+    if (!token) {
+      throw new Error('TELEGRAM_BOT_TOKEN is not configured');
+    }
+
+    this.logger.log(`Registering Telegram webhook at: ${url}`);
+
+    try {
+      const response = await axios.post(
+        `https://api.telegram.org/bot${token}/setWebhook`,
+        { url, allowed_updates: ['message', 'callback_query'] },
+      );
+      this.logger.log(`setWebhook response: ${JSON.stringify(response.data)}`);
+      return response.data;
+    } catch (error: any) {
+      const errorData = error?.response?.data
+        ? JSON.stringify(error.response.data)
+        : error.message;
+      this.logger.error(`Failed to set Telegram webhook: ${errorData}`);
+      throw new Error(`Failed to set webhook: ${errorData}`);
     }
   }
 
