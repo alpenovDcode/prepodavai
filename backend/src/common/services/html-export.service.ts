@@ -44,6 +44,9 @@ export class HtmlExportService implements OnModuleDestroy {
         ...(isLinux
           ? [
               '--disable-crash-reporter',
+              '--crash-dumps-dir=/tmp',
+              '--no-zygote',
+              '--single-process',
               '--no-first-run',
               '--disable-background-networking',
               '--disable-default-apps',

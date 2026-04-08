@@ -1,5 +1,5 @@
 import { Controller, Post, Get, Delete, Body, Res, Request, Query, Param, Logger, UseGuards } from '@nestjs/common';
-import { Throttle } from '@nestjs/throttler';
+import { SkipThrottle, Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { Response } from 'express';
@@ -213,6 +213,7 @@ export class AuthController {
 
   @Get('link-status')
   @UseGuards(JwtAuthGuard)
+  @SkipThrottle()
   async getLinkStatus(@Request() req: any, @Query('token') token: string) {
     return this.authService.getLinkTokenStatus(token, req.user.id);
   }

@@ -163,40 +163,61 @@ export class ReplicateService {
       `Creating completion with model: ${targetModel}, prompt length: ${prompt.length}, max_tokens: ${maxTokens}`,
     );
 
-    try {
-      // Gemini Flash on Replicate does NOT support a separate system_prompt field.
-      // Everything goes into `prompt`. The caller is responsible for combining
-      // system + user prompts before passing them here.
-      const input: Record<string, any> = {
-        prompt,
-        max_new_tokens: maxTokens,
-        temperature,
-      };
+    const maxRetries = 3;
+    let lastError: any;
 
-      const response = await this.http.post(`/models/${targetModel}/predictions`, {
-        input,
-      });
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        // Gemini Flash on Replicate does NOT support a separate system_prompt field.
+        // Everything goes into `prompt`. The caller is responsible for combining
+        // system + user prompts before passing them here.
+        const input: Record<string, any> = {
+          prompt,
+          max_new_tokens: maxTokens,
+          temperature,
+        };
 
-      this.logger.debug('Replicate response received');
+        const response = await this.http.post(`/models/${targetModel}/predictions`, {
+          input,
+        });
 
-      const prediction = response.data;
+        this.logger.debug('Replicate response received');
 
-      if (prediction.status === 'succeeded' && prediction.output) {
-        const text = Array.isArray(prediction.output)
-          ? prediction.output.join('')
-          : prediction.output;
-        return text;
-      } else if (prediction.status === 'starting' || prediction.status === 'processing') {
-        this.logger.warn(`Prediction status is ${prediction.status}. Polling...`);
-        return this.pollPrediction(prediction.urls.get);
-      } else {
-        this.logger.error(`Prediction failed or invalid status: ${prediction.status}`);
-        throw new Error(`Replicate prediction failed: ${prediction.error || prediction.status}`);
+        const prediction = response.data;
+
+        if (prediction.status === 'succeeded' && prediction.output) {
+          const text = Array.isArray(prediction.output)
+            ? prediction.output.join('')
+            : prediction.output;
+          return text;
+        } else if (prediction.status === 'starting' || prediction.status === 'processing') {
+          this.logger.warn(`Prediction status is ${prediction.status}. Polling...`);
+          return this.pollPrediction(prediction.urls.get);
+        } else {
+          this.logger.error(`Prediction failed or invalid status: ${prediction.status}`);
+          throw new Error(`Replicate prediction failed: ${prediction.error || prediction.status}`);
+        }
+      } catch (error) {
+        lastError = error;
+        const status = error.response?.status;
+        const retryAfter = error.response?.data?.retry_after;
+
+        if (status === 429 && attempt < maxRetries) {
+          const waitMs = retryAfter ? retryAfter * 1000 : Math.min(10000 * attempt, 30000);
+          this.logger.warn(
+            `Replicate rate limited (attempt ${attempt}/${maxRetries}), retrying in ${waitMs}ms`,
+          );
+          await new Promise((resolve) => setTimeout(resolve, waitMs));
+          continue;
+        }
+
+        this.logger.error(`Replicate API error: ${error.message}`, error.response?.data);
+        throw error;
       }
-    } catch (error) {
-      this.logger.error(`Replicate API error: ${error.message}`, error.response?.data);
-      throw error;
     }
+
+    this.logger.error(`Replicate API error after ${maxRetries} attempts: ${lastError.message}`);
+    throw lastError;
   }
 
   async createImage(
