@@ -1,8 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { HtmlExportService } from '../../common/services/html-export.service';
 import * as crypto from 'crypto';
 import axios from 'axios';
+import * as FormData from 'form-data';
 
 @Injectable()
 export class MaxService {
@@ -13,6 +15,7 @@ export class MaxService {
   constructor(
     private configService: ConfigService,
     private prisma: PrismaService,
+    private readonly htmlExportService: HtmlExportService,
   ) {
     this.token = this.configService.get<string>('MAX_BOT_TOKEN');
     this.apiUrl = this.configService.get<string>('MAX_API_URL') || 'https://platform-api.max.ru';
@@ -199,7 +202,7 @@ export class MaxService {
       if (generationType === 'image' || generationType === 'photosession') {
         await this.sendImage(chatId, result);
       } else if (generationType === 'presentation') {
-        await this.sendMessage(chatId, `✅ Ваша презентация готова! Просмотр доступен в веб-версии.`);
+        await this.sendPresentation(chatId, result);
       } else {
         await this.sendTextResult(chatId, generationType, result);
       }
@@ -283,6 +286,31 @@ export class MaxService {
     }
   }
 
+  private async sendPresentation(chatId: string, result: any) {
+    const exportUrl = result?.exportUrl || result?.pptxUrl || result?.pdfUrl;
+    const topic = result?.inputText ? `\n\n📌 Тема: ${result.inputText}` : '';
+
+    if (exportUrl) {
+      try {
+        const isPptx = exportUrl.toLowerCase().includes('.pptx') || exportUrl.toLowerCase().includes('pptx');
+        const ext = isPptx ? 'pptx' : 'pdf';
+        const filename = `presentation_${Date.now()}.${ext}`;
+        const fileResp = await axios.get(exportUrl, { responseType: 'arraybuffer' });
+        const buffer = Buffer.from(fileResp.data);
+        await this.uploadAndSendFile(chatId, buffer, filename, `✅ Ваша презентация готова!${topic}`);
+        return;
+      } catch (error) {
+        this.logger.error('[MAX] Failed to download/upload presentation file:', error);
+      }
+    }
+
+    // Fallback
+    await this.sendMessage(
+      chatId,
+      `✅ Ваша презентация готова!${topic}\n\nПросмотр доступен в веб-версии PrepodavAI.`,
+    );
+  }
+
   private async sendImage(chatId: string, result: any) {
     const messageText = `✅ Ваше изображение готово!${result?.prompt ? `\n\n📝 Промпт: ${result.prompt}` : ''}`;
     await this.sendMessage(chatId, messageText + `\n\n[Изображение доступно в веб-версии]`);
@@ -291,12 +319,88 @@ export class MaxService {
   private async sendTextResult(chatId: string, generationType: string, result: any) {
     const content = result?.content || result;
     const text = typeof content === 'string' ? content : JSON.stringify(content, null, 2);
+    const filename = `${generationType}_${new Date().toISOString().split('T')[0]}.pdf`;
 
-    const fallbackText =
-      text.length > 3000
-        ? text.substring(0, 2900) + '\n\n... (полный текст слишком длинный).'
-        : text;
-    await this.sendMessage(chatId, fallbackText);
+    try {
+      const htmlPayload = this.extractHtmlPayload(text);
+      const htmlContent = htmlPayload.isHtml ? htmlPayload.html : this.wrapPlainTextAsHtml(text);
+      const pdfBuffer = await this.htmlExportService.htmlToPdf(htmlContent);
+      await this.uploadAndSendFile(chatId, pdfBuffer, filename, '✅ Ваш материал готов!');
+      return;
+    } catch (error) {
+      this.logger.error(`[MAX] PDF generation failed for ${generationType}:`, error);
+    }
+
+    // Fallback — без raw HTML
+    await this.sendMessage(chatId, `✅ Ваш материал готов!\n\nПросмотр доступен в веб-версии PrepodavAI.`);
+  }
+
+  /**
+   * Загружает файл в MAX и отправляет как документ.
+   * MAX Bot API: POST /uploads?type=file → { url } → multipart POST → { token } → message с attachment.
+   */
+  private async uploadAndSendFile(chatId: string, buffer: Buffer, filename: string, caption: string) {
+    const base = this.apiUrl.endsWith('/') ? this.apiUrl.slice(0, -1) : this.apiUrl;
+
+    // 1. Получаем upload URL
+    const uploadUrlResp = await axios.post(
+      `${base}/uploads?type=file`,
+      {},
+      { headers: { Authorization: this.token } },
+    );
+    const uploadUrl: string = uploadUrlResp.data?.url;
+    if (!uploadUrl) throw new Error('MAX did not return upload URL');
+
+    // 2. Загружаем файл через multipart
+    const form = new FormData();
+    form.append('file', buffer, { filename, contentType: 'application/octet-stream' });
+    const uploadResp = await axios.post(uploadUrl, form, {
+      headers: { ...form.getHeaders(), Authorization: this.token },
+    });
+
+    // Токен может прийти в разных форматах в зависимости от версии API
+    const token: string =
+      uploadResp.data?.token ||
+      uploadResp.data?.attachment?.payload?.token ||
+      uploadResp.data?.attachment?.token;
+    if (!token) throw new Error('MAX did not return file token');
+
+    // 3. Отправляем сообщение с файловым вложением
+    await this.sendMessageWithMarkup(chatId, caption, [
+      { type: 'file', payload: { token } },
+    ]);
+  }
+
+  private looksLikeHtml(value: string): boolean {
+    if (!value) return false;
+    const trimmed = value.trim();
+    return /<!DOCTYPE html/i.test(trimmed) || /<html[\s>]/i.test(trimmed) || /<body[\s>]/i.test(trimmed);
+  }
+
+  private extractHtmlPayload(value: string): { isHtml: boolean; html: string } {
+    if (!value) return { isHtml: false, html: '' };
+    let processed = value.trim();
+    if (processed.startsWith('```')) {
+      processed = processed.replace(/^```(?:html)?/i, '').replace(/```$/, '').trim();
+    }
+    if ((processed.startsWith('"') && processed.endsWith('"')) ||
+        (processed.startsWith("'") && processed.endsWith("'"))) {
+      processed = processed.slice(1, -1);
+    }
+    const isHtml = this.looksLikeHtml(processed) || /<\/?[a-z][\s\S]*>/i.test(processed);
+    return { isHtml, html: processed };
+  }
+
+  private wrapPlainTextAsHtml(text: string): string {
+    const escaped = text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/\n\n+/g, '</p><p>')
+      .replace(/\n/g, '<br>');
+    return `<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8"/><title>PrepodavAI</title>` +
+      `<style>body{font-family:sans-serif;line-height:1.6;padding:24px;color:#1a1a1a}p{margin:12px 0}</style>` +
+      `</head><body><p>${escaped}</p></body></html>`;
   }
 
   private generateApiKey(): string {

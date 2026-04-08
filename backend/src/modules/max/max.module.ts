@@ -3,9 +3,11 @@ import { ConfigModule } from '@nestjs/config';
 import { MaxService } from './max.service';
 import { MaxController } from './max.controller';
 import { PrismaModule } from '../../common/prisma/prisma.module';
+import { HtmlExportService } from '../../common/services/html-export.service';
+
 @Module({
   imports: [ConfigModule, PrismaModule],
-  providers: [MaxService],
+  providers: [MaxService, HtmlExportService],
   controllers: [MaxController],
   exports: [MaxService],
 })

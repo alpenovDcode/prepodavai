@@ -362,12 +362,11 @@ export class TelegramService {
       // Fallback удален по требованию: отправляем только PDF или ошибку (в логах)
     }
 
-    // Если PDF не сгенерировался, отправляем текстовое сообщение (но не HTML файл)
-    const fallbackText =
-      text.length > 3000
-        ? text.substring(0, 2900) + '\n\n... (полный текст слишком длинный).'
-        : text;
-    await this.bot.api.sendMessage(chatId, fallbackText);
+    // Если PDF не сгенерировался — не слать raw HTML, только дружественное сообщение
+    await this.bot.api.sendMessage(
+      chatId,
+      `✅ Ваш материал готов!\n\nПросмотр доступен в веб-версии PrepodavAI.`,
+    );
   }
 
   private looksLikeHtml(value: string) {
