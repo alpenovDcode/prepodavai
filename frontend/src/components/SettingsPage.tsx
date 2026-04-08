@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { apiClient } from '@/lib/api/client'
-import { CheckCircle, AlertCircle, Loader2 } from 'lucide-react'
+import { CheckCircle, AlertCircle, Loader2, Link2, Link2Off } from 'lucide-react'
 
 export default function SettingsPage() {
     const [profile, setProfile] = useState({
@@ -34,6 +34,71 @@ export default function SettingsPage() {
     const [saving, setSaving] = useState(false)
     const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
 
+    // Платформы
+    type PlatformInfo = { linked: boolean; platformId: string | null; platformName: string | null }
+    const [platforms, setPlatforms] = useState<{ telegram: PlatformInfo; max: PlatformInfo } | null>(null)
+    const [linking, setLinking] = useState<{
+        platform: 'telegram' | 'max'
+        token: string
+        link: string
+        status: 'waiting' | 'done' | 'expired'
+    } | null>(null)
+    const [unlinking, setUnlinking] = useState<'telegram' | 'max' | null>(null)
+    const linkPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+    const fetchPlatforms = useCallback(async () => {
+        try {
+            const res = await apiClient.get('/auth/platforms')
+            if (res.data.success) setPlatforms(res.data.platforms)
+        } catch { /* ignore */ }
+    }, [])
+
+    const startLinking = async (platform: 'telegram' | 'max') => {
+        try {
+            const res = await apiClient.post('/auth/link-token', { platform })
+            if (!res.data.success) return
+            setLinking({ platform, token: res.data.token, link: res.data.deepLink, status: 'waiting' })
+
+            // Polling every 2s
+            linkPollRef.current = setInterval(async () => {
+                try {
+                    const poll = await apiClient.get(`/auth/link-status?token=${res.data.token}`)
+                    if (poll.data.status === 'completed') {
+                        clearInterval(linkPollRef.current!)
+                        setLinking(prev => prev ? { ...prev, status: 'done' } : null)
+                        await fetchPlatforms()
+                        setTimeout(() => setLinking(null), 2000)
+                    } else if (poll.data.status === 'expired') {
+                        clearInterval(linkPollRef.current!)
+                        setLinking(prev => prev ? { ...prev, status: 'expired' } : null)
+                    }
+                } catch { /* ignore */ }
+            }, 2000)
+        } catch (err: any) {
+            setStatusMessage({ type: 'error', text: err?.response?.data?.message || 'Ошибка генерации токена' })
+        }
+    }
+
+    const cancelLinking = () => {
+        if (linkPollRef.current) clearInterval(linkPollRef.current)
+        setLinking(null)
+    }
+
+    const handleUnlink = async (platform: 'telegram' | 'max') => {
+        setUnlinking(platform)
+        try {
+            await apiClient.delete(`/auth/unlink/${platform}`)
+            await fetchPlatforms()
+        } catch (err: any) {
+            setStatusMessage({ type: 'error', text: err?.response?.data?.message || 'Ошибка отвязки' })
+        } finally {
+            setUnlinking(null)
+        }
+    }
+
+    // Cleanup polling on unmount
+    useEffect(() => () => { if (linkPollRef.current) clearInterval(linkPollRef.current) }, [])
+
     useEffect(() => {
         const fetchProfile = async () => {
             try {
@@ -62,7 +127,8 @@ export default function SettingsPage() {
             }
         }
         fetchProfile()
-    }, [])
+        fetchPlatforms()
+    }, [fetchPlatforms])
 
     const handleAvatarClick = () => {
         fileInputRef.current?.click()
@@ -363,6 +429,116 @@ export default function SettingsPage() {
                         </div>
                     )}
                 </div>
+            </div>
+
+            {/* Connected Platforms Section */}
+            <div className="dashboard-card mb-6">
+                <h2 className="text-xl font-bold text-gray-900 mb-1">Подключённые платформы</h2>
+                <p className="text-sm text-gray-500 mb-6">Привяжите Telegram или MAX, чтобы получать результаты генерации прямо в мессенджере.</p>
+
+                <div className="space-y-4">
+                    {(['telegram', 'max'] as const).map((platform) => {
+                        const info = platforms?.[platform]
+                        const isLinked = info?.linked ?? false
+                        const displayName = info?.platformName ?? null
+                        const isUnlinking = unlinking === platform
+
+                        return (
+                            <div key={platform} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
+                                <div className="flex items-center gap-3">
+                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${platform === 'telegram' ? 'bg-blue-100' : 'bg-purple-100'}`}>
+                                        {platform === 'telegram'
+                                            ? <i className="fab fa-telegram text-blue-500 text-lg" />
+                                            : <i className="fas fa-robot text-purple-500 text-lg" />}
+                                    </div>
+                                    <div>
+                                        <p className="font-semibold text-gray-900 text-sm">
+                                            {platform === 'telegram' ? 'Telegram' : 'MAX'}
+                                        </p>
+                                        {isLinked && displayName
+                                            ? <p className="text-xs text-green-600 font-medium flex items-center gap-1"><CheckCircle className="w-3 h-3" /> {displayName}</p>
+                                            : <p className="text-xs text-gray-400">Не привязан</p>}
+                                    </div>
+                                </div>
+
+                                {isLinked ? (
+                                    <button
+                                        onClick={() => handleUnlink(platform)}
+                                        disabled={isUnlinking}
+                                        className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition disabled:opacity-50"
+                                    >
+                                        {isUnlinking ? <Loader2 className="w-3 h-3 animate-spin" /> : <Link2Off className="w-3 h-3" />}
+                                        Отвязать
+                                    </button>
+                                ) : (
+                                    <button
+                                        onClick={() => startLinking(platform)}
+                                        disabled={!!linking}
+                                        className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-primary-600 bg-primary-50 hover:bg-primary-100 rounded-lg transition disabled:opacity-50"
+                                    >
+                                        <Link2 className="w-3 h-3" />
+                                        Привязать
+                                    </button>
+                                )}
+                            </div>
+                        )
+                    })}
+                </div>
+
+                {/* Linking modal */}
+                {linking && (
+                    <div className="mt-4 p-4 border-2 border-primary-200 bg-primary-50 rounded-xl">
+                        {linking.status === 'waiting' && (
+                            <>
+                                <p className="text-sm font-semibold text-gray-900 mb-1">
+                                    Привязка {linking.platform === 'telegram' ? 'Telegram' : 'MAX'}
+                                </p>
+                                <p className="text-xs text-gray-600 mb-3">
+                                    Откройте бота и отправьте команду, или нажмите кнопку ниже:
+                                </p>
+                                <div className="flex items-center gap-2 mb-3">
+                                    <code className="flex-1 px-3 py-2 bg-white border border-gray-200 rounded-lg text-xs font-mono text-gray-700 truncate">
+                                        /start link_{linking.token}
+                                    </code>
+                                    <button
+                                        onClick={() => navigator.clipboard.writeText(`/start link_${linking.token}`)}
+                                        className="px-2 py-2 bg-white border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-50 transition text-xs"
+                                        title="Скопировать"
+                                    >
+                                        <i className="fas fa-copy" />
+                                    </button>
+                                </div>
+                                <a
+                                    href={linking.link}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 text-white text-xs font-semibold rounded-lg hover:bg-primary-700 transition mb-3"
+                                >
+                                    <i className={`fab fa-${linking.platform === 'telegram' ? 'telegram' : 'robot'}`} />
+                                    Открыть бота
+                                </a>
+                                <div className="flex items-center gap-2 text-xs text-gray-500">
+                                    <Loader2 className="w-3 h-3 animate-spin text-primary-500" />
+                                    Ожидаю подтверждения...
+                                    <button onClick={cancelLinking} className="ml-auto text-gray-400 hover:text-gray-600">Отмена</button>
+                                </div>
+                            </>
+                        )}
+                        {linking.status === 'done' && (
+                            <p className="text-sm font-semibold text-green-700 flex items-center gap-2">
+                                <CheckCircle className="w-4 h-4" /> Платформа успешно привязана!
+                            </p>
+                        )}
+                        {linking.status === 'expired' && (
+                            <div className="flex items-center justify-between">
+                                <p className="text-sm text-red-600 flex items-center gap-2">
+                                    <AlertCircle className="w-4 h-4" /> Токен истёк. Попробуйте снова.
+                                </p>
+                                <button onClick={cancelLinking} className="text-xs text-gray-500 hover:text-gray-700">Закрыть</button>
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
 
             {/* Notifications Section */}

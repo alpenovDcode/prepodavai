@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2 } from 'lucide-react'
 import dynamic from 'next/dynamic'
@@ -105,6 +105,7 @@ async function applyPendingReferralCode() {
 export default function Home() {
   const [isWebApp, setIsWebApp] = useState<boolean | null>(null)
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
+  const [notLinkedPlatform, setNotLinkedPlatform] = useState<'telegram' | 'max' | null>(null)
   const router = useRouter()
 
   // 1. Немедленная проверка авторизации
@@ -147,75 +148,79 @@ export default function Home() {
   }, [router])
 
   // 3. Mini App detection + auto-login via initData
-  useEffect(() => {
-    const run = async () => {
-      // Сразу вызываем ready() — MAX требует это как можно раньше
-      // (если не вызвать в течение 15 сек, приложение закроется)
-      const tg = (window as any).Telegram?.WebApp
-      const max = (window as any).WebApp
-      tg?.ready?.()
-      max?.ready?.()
+  const tryMiniAppAuth = useCallback(async () => {
+    setNotLinkedPlatform(null)
 
-      // Проверяем, мы в mini app или нет
-      const isMiniApp = detectMiniApp()
+    // Сразу вызываем ready() — MAX требует это как можно раньше
+    // (если не вызвать в течение 15 сек, приложение закроется)
+    const tg = (window as any).Telegram?.WebApp
+    const max = (window as any).WebApp
+    tg?.ready?.()
+    max?.ready?.()
 
-      if (!isMiniApp) {
-        // Ждём SDK немного (вдруг грузится асинхронно)
-        await new Promise<void>((resolve) => {
-          let attempts = 0
-          const interval = setInterval(() => {
-            attempts++
-            if (detectMiniApp()) {
-              clearInterval(interval)
-              resolve()
-            } else if (attempts >= 10) {
-              clearInterval(interval)
-              resolve()
-            }
-          }, 100)
-        })
-      }
+    // Проверяем, мы в mini app или нет
+    const isMiniApp = detectMiniApp()
 
-      const isApp = detectMiniApp()
-      setIsWebApp(isApp)
-
-      if (!isApp) return
-
-      // Повторно вызываем ready() после определения контекста
-      ;(window as any).Telegram?.WebApp?.ready?.()
-      ;(window as any).WebApp?.ready?.()
-
-      // Пробуем авто-логин
-      const { initData, endpoint } = extractInitData()
-
-      if (!initData || !endpoint) {
-        console.warn('[Home] Mini app detected but initData not found')
-        return
-      }
-
-      try {
-        const response = await apiClient.post(endpoint, { initData })
-        if (response.data.success) {
-          const { user } = response.data
-          localStorage.setItem('prepodavai_authenticated', 'true')
-          localStorage.setItem('prepodavai_user', JSON.stringify({
-            name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.username || 'Пользователь',
-            username: user.username,
-            userHash: user.id,
-            isAuthenticated: true,
-            loginTime: new Date().toISOString()
-          }))
-          await applyPendingReferralCode()
-          setIsAuthenticated(true)
-          router.push('/dashboard')
-        }
-      } catch (e) {
-        console.error('[Home] Auto-login failed:', e)
-      }
+    if (!isMiniApp) {
+      // Ждём SDK немного (вдруг грузится асинхронно)
+      await new Promise<void>((resolve) => {
+        let attempts = 0
+        const interval = setInterval(() => {
+          attempts++
+          if (detectMiniApp()) {
+            clearInterval(interval)
+            resolve()
+          } else if (attempts >= 10) {
+            clearInterval(interval)
+            resolve()
+          }
+        }, 100)
+      })
     }
 
-    run()
-  }, [])
+    const isApp = detectMiniApp()
+    setIsWebApp(isApp)
+
+    if (!isApp) return
+
+    // Повторно вызываем ready() после определения контекста
+    ;(window as any).Telegram?.WebApp?.ready?.()
+    ;(window as any).WebApp?.ready?.()
+
+    // Пробуем авто-логин
+    const { initData, endpoint } = extractInitData()
+
+    if (!initData || !endpoint) {
+      console.warn('[Home] Mini app detected but initData not found')
+      return
+    }
+
+    try {
+      const response = await apiClient.post(endpoint, { initData })
+      if (response.data.success) {
+        const { user } = response.data
+        localStorage.setItem('prepodavai_authenticated', 'true')
+        localStorage.setItem('prepodavai_user', JSON.stringify({
+          name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.username || 'Пользователь',
+          username: user.username,
+          userHash: user.id,
+          isAuthenticated: true,
+          loginTime: new Date().toISOString()
+        }))
+        await applyPendingReferralCode()
+        setIsAuthenticated(true)
+        router.push('/dashboard')
+      } else if (response.data.error === 'NOT_LINKED') {
+        setNotLinkedPlatform(endpoint.includes('max') ? 'max' : 'telegram')
+      }
+    } catch (e) {
+      console.error('[Home] Auto-login failed:', e)
+    }
+  }, [router])
+
+  useEffect(() => {
+    tryMiniAppAuth()
+  }, [tryMiniAppAuth])
 
   // Показываем лоадер пока авторизован и идёт редирект
   if (isAuthenticated === true) {
@@ -231,6 +236,52 @@ export default function Home() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <Loader2 className="w-10 h-10 animate-spin text-purple-600" />
+      </div>
+    )
+  }
+
+  // Пользователь открыл Mini App, но его платформа не привязана к веб-аккаунту
+  if (notLinkedPlatform) {
+    const platformName = notLinkedPlatform === 'telegram' ? 'Telegram' : 'MAX'
+    const webUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://prepodavai.ru'
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 px-6">
+        <div className="w-16 h-16 rounded-2xl bg-primary-100 flex items-center justify-center mb-6">
+          <svg className="w-8 h-8 text-primary-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+          </svg>
+        </div>
+        <h1 className="text-2xl font-bold text-gray-900 mb-2 text-center">Аккаунт не привязан</h1>
+        <p className="text-gray-500 text-center text-sm mb-8 max-w-xs">
+          Ваш {platformName} не привязан к аккаунту PrepodavAI. Зарегистрируйтесь на сайте и привяжите {platformName} в настройках профиля.
+        </p>
+        <ol className="w-full max-w-xs space-y-3 mb-8">
+          {[
+            `Откройте ${webUrl} в браузере`,
+            'Зарегистрируйтесь или войдите',
+            `Перейдите в Настройки → Подключённые платформы`,
+            `Нажмите «Привязать» рядом с ${platformName}`,
+          ].map((step, i) => (
+            <li key={i} className="flex items-start gap-3">
+              <span className="w-6 h-6 rounded-full bg-primary-600 text-white text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">{i + 1}</span>
+              <span className="text-sm text-gray-700">{step}</span>
+            </li>
+          ))}
+        </ol>
+        <a
+          href={webUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="px-6 py-3 bg-primary-600 text-white rounded-xl font-semibold hover:bg-primary-700 transition text-sm"
+        >
+          Открыть PrepodavAI
+        </a>
+        <button
+          onClick={tryMiniAppAuth}
+          className="mt-3 text-sm text-gray-500 hover:text-gray-700 underline"
+        >
+          Попробовать снова
+        </button>
       </div>
     )
   }

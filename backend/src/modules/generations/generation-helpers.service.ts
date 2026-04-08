@@ -99,10 +99,15 @@ export class GenerationHelpersService {
       });
       console.log(`[GenerationHelpers] Updated userGeneration table for ${generationRequestId}`);
 
-      // Запускаем Job для отправки в Telegram
-      console.log(`[GenerationHelpers] Scheduling Telegram send for ${generationRequestId}`);
-      // TEMP DISABLED: await this.generationQueue.scheduleTelegramSend(generationRequestId);
-      // console.log(`[GenerationHelpers] Telegram send scheduled successfully for ${generationRequestId}`);
+      // Отправляем результат в мессенджер, если генерация была из Mini App
+      const miniAppPlatform = (userGeneration.inputParams as any)?._miniAppPlatform as string | undefined;
+      if (miniAppPlatform === 'telegram') {
+        await this.generationQueue.scheduleTelegramSend(generationRequestId);
+        console.log(`[GenerationHelpers] Telegram send scheduled for ${generationRequestId}`);
+      } else if (miniAppPlatform === 'max') {
+        await this.generationQueue.scheduleMaxSend(generationRequestId);
+        console.log(`[GenerationHelpers] MAX send scheduled for ${generationRequestId}`);
+      }
     }
   }
 

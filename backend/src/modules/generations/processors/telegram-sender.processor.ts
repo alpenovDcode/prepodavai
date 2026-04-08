@@ -38,17 +38,13 @@ export class TelegramSenderProcessor extends WorkerHost {
       return { success: true, message: 'Already sent' };
     }
 
-    // Проверяем, что пользователь из Telegram
-    if (userGeneration.user.source !== 'telegram') {
-      // Помечаем как отправленное, чтобы не пытаться снова
+    // Проверяем, что к аккаунту привязан Telegram
+    if (!userGeneration.user.telegramId) {
       await this.prisma.userGeneration.update({
         where: { id: userGeneration.id },
-        data: {
-          sentToTelegram: true,
-          telegramSentAt: new Date(),
-        },
+        data: { sentToTelegram: true, telegramSentAt: new Date() },
       });
-      return { success: false, message: 'Not a Telegram user' };
+      return { success: false, message: 'Telegram not linked for this user' };
     }
 
     // Отправляем результат в Telegram

@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Body, Query, UseGuards, Request } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { ReferralsService } from './referrals.service';
+import { OnboardingQuestService } from '../onboarding-quest/onboarding-quest.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CreateReferralCodeDto } from './dto/create-referral-code.dto';
 import { ApplyReferralCodeDto } from './dto/apply-referral-code.dto';
@@ -8,7 +9,10 @@ import { ApplyReferralCodeDto } from './dto/apply-referral-code.dto';
 @Controller('referrals')
 @UseGuards(JwtAuthGuard)
 export class ReferralsController {
-  constructor(private readonly referralsService: ReferralsService) {}
+  constructor(
+    private readonly referralsService: ReferralsService,
+    private readonly onboardingQuestService: OnboardingQuestService,
+  ) {}
 
   /**
    * Создать или получить свой реферальный код
@@ -20,6 +24,9 @@ export class ReferralsController {
       req.user.id,
       body.customCode,
     );
+
+    // Квест: пользователь получил ссылку — намерение поделиться
+    this.onboardingQuestService.onReferralCodeAccessed(req.user.id).catch(() => {});
 
     return {
       success: true,
@@ -43,6 +50,9 @@ export class ReferralsController {
     if (!code) {
       return { success: true, referralCode: null };
     }
+
+    // Квест: пользователь просмотрел свою ссылку — намерение поделиться
+    this.onboardingQuestService.onReferralCodeAccessed(req.user.id).catch(() => {});
 
     return {
       success: true,

@@ -55,14 +55,27 @@ export class MaxService {
       this.logger.log(`Parsed message from ${botUser.username || botUser.id}: ${text} (Target: ${chatId}, Bot: ${botUserId})`);
 
       if (text && text.startsWith('/start')) {
-        await this.handleStartCommand(botUser, chatId, botUserId);
+        // Extract optional argument: "/start link_TOKEN"
+        const parts = text.trim().split(/\s+/);
+        const payload = parts.length > 1 ? parts[1] : undefined;
+        await this.handleStartCommand(botUser, chatId, botUserId, payload);
       }
     } catch (error) {
       this.logger.error('Error handling MAX webhook:', error);
     }
   }
 
-  private async handleStartCommand(user: any, chatId: string | number, botUserId?: number) {
+  private async handleStartCommand(user: any, chatId: string | number, botUserId?: number, payload?: string) {
+    const chatIdStr = chatId.toString();
+
+    // Handle link token: /start link_TOKEN
+    if (payload && payload.startsWith('link_')) {
+      const token = payload.slice(5);
+      await this.handleLinkToken(user, chatIdStr, token);
+      return;
+    }
+
+    // Normal /start — only greet existing linked users
     let existingUser = await this.prisma.appUser.findUnique({
       where: { maxId: user.id.toString() },
     });
@@ -72,29 +85,81 @@ export class MaxService {
         where: { id: existingUser.id },
         data: {
           lastAccessAt: new Date(),
-          chatId: chatId.toString(),
+          chatId: chatIdStr,
+          maxChatId: chatIdStr,
           firstName: user.first_name || existingUser.firstName,
           lastName: user.last_name || existingUser.lastName,
           username: user.username || existingUser.username,
-        },
+        } as any,
       });
-      await this.sendWelcomeMessage(chatId.toString(), existingUser, botUserId);
+      await this.sendWelcomeMessage(chatIdStr, existingUser, botUserId);
     } else {
-      const apiKey = this.generateApiKey();
-      const newUser = await this.prisma.appUser.create({
+      // Not linked — prompt to register on web first
+      const webAppUrl = this.configService.get<string>('WEBAPP_URL', 'https://prepodavai.ru');
+      await this.sendMessage(
+        chatIdStr,
+        `Добро пожаловать в PrepodavAI! 🎓\n\n` +
+        `Для использования бота сначала зарегистрируйтесь на сайте, а затем привяжите MAX в настройках профиля.\n\n` +
+        `После привязки вы сможете получать результаты генерации прямо здесь:\n${webAppUrl}/auth`,
+      );
+    }
+  }
+
+  /**
+   * Подтверждение привязки MAX по токену
+   */
+  private async handleLinkToken(user: any, chatId: string, token: string) {
+    const linkToken = await this.prisma.linkToken.findUnique({ where: { token } });
+
+    if (!linkToken || linkToken.platform !== 'max') {
+      await this.sendMessage(chatId, '❌ Токен привязки не найден. Попробуйте сгенерировать новый в настройках профиля.');
+      return;
+    }
+
+    if (linkToken.status !== 'pending') {
+      await this.sendMessage(chatId, '⚠️ Этот токен уже использован или истёк. Сгенерируйте новый в настройках профиля.');
+      return;
+    }
+
+    if (new Date() > linkToken.expiresAt) {
+      await this.prisma.linkToken.update({ where: { id: linkToken.id }, data: { status: 'expired' } });
+      await this.sendMessage(chatId, '⏰ Токен истёк. Пожалуйста, сгенерируйте новый в настройках профиля.');
+      return;
+    }
+
+    // Check if this MAX account is already linked to another user
+    const alreadyLinked = await this.prisma.appUser.findUnique({
+      where: { maxId: user.id.toString() },
+    });
+    if (alreadyLinked && alreadyLinked.id !== linkToken.userId) {
+      await this.sendMessage(chatId, '⚠️ Этот аккаунт MAX уже привязан к другому профилю PrepodavAI.');
+      return;
+    }
+
+    const platformName = user.username ? `@${user.username}` : user.first_name || `id${user.id}`;
+
+    await this.prisma.$transaction([
+      this.prisma.appUser.update({
+        where: { id: linkToken.userId },
         data: {
           maxId: user.id.toString(),
-          chatId: chatId.toString(),
-          firstName: user.first_name || 'User',
-          lastName: user.last_name || '',
-          username: user.username || `user${user.id}`,
-          source: 'max',
-          apiKey,
-          lastAccessAt: new Date(),
-        },
-      });
-      await this.sendWelcomeMessage(chatId.toString(), newUser, botUserId);
-    }
+          maxChatId: chatId,
+          chatId, // backward compat
+          username: user.username || undefined,
+          firstName: user.first_name || undefined,
+          lastName: user.last_name || undefined,
+        } as any,
+      }),
+      this.prisma.linkToken.update({
+        where: { id: linkToken.id },
+        data: { status: 'completed', linkedId: user.id.toString(), linkedName: platformName },
+      }),
+    ]);
+
+    await this.sendMessage(
+      chatId,
+      `✅ MAX успешно привязан к вашему аккаунту PrepodavAI!\n\nТеперь вы будете получать результаты генерации прямо здесь.`,
+    );
   }
 
   private async sendWelcomeMessage(chatId: string, appUser: any, botUserId?: number) {
@@ -118,22 +183,25 @@ export class MaxService {
 
     const appUser = await this.prisma.appUser.findUnique({
       where: { id: userId },
-    });
+    }) as any;
 
-    if (!appUser || appUser.source !== 'max' || !appUser.chatId) {
-      return { success: false, message: 'Not a valid MAX user' };
+    if (!appUser || !appUser.maxId) {
+      return { success: false, message: 'MAX not linked for this user' };
+    }
+
+    // maxChatId — основной, chatId — fallback для старых пользователей
+    const chatId = appUser.maxChatId || (appUser.source === 'max' ? appUser.chatId : null);
+    if (!chatId) {
+      return { success: false, message: 'No MAX chatId available' };
     }
 
     try {
       if (generationType === 'image' || generationType === 'photosession') {
-        await this.sendImage(appUser.chatId, result);
+        await this.sendImage(chatId, result);
       } else if (generationType === 'presentation') {
-        await this.sendMessage(
-          appUser.chatId,
-          `✅ Ваша презентация готова! Просмотр доступен в веб-версии.`,
-        );
+        await this.sendMessage(chatId, `✅ Ваша презентация готова! Просмотр доступен в веб-версии.`);
       } else {
-        await this.sendTextResult(appUser.chatId, generationType, result);
+        await this.sendTextResult(chatId, generationType, result);
       }
       return { success: true, message: 'Result sent successfully' };
     } catch (error) {

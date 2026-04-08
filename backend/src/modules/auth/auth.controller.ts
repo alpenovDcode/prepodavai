@@ -1,6 +1,7 @@
-import { Controller, Post, Body, Res, Request, Logger } from '@nestjs/common';
+import { Controller, Post, Get, Delete, Body, Res, Request, Query, Param, Logger, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
+import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { Response } from 'express';
 import {
   ValidateInitDataDto,
@@ -11,6 +12,7 @@ import {
   LoginWithPhoneDto,
   RegisterByEmailDto,
   VerifyEmailCodeDto,
+  GenerateLinkTokenDto,
 } from './dto/auth.dto';
 
 @Controller('auth')
@@ -198,5 +200,32 @@ export class AuthController {
       this.setTokenCookie(res, result.token, req);
     }
     return result;
+  }
+
+  // ========== Platform Linking ==========
+
+  @Post('link-token')
+  @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  async generateLinkToken(@Request() req: any, @Body() body: GenerateLinkTokenDto) {
+    return this.authService.generateLinkToken(req.user.id, body.platform);
+  }
+
+  @Get('link-status')
+  @UseGuards(JwtAuthGuard)
+  async getLinkStatus(@Request() req: any, @Query('token') token: string) {
+    return this.authService.getLinkTokenStatus(token, req.user.id);
+  }
+
+  @Delete('unlink/:platform')
+  @UseGuards(JwtAuthGuard)
+  async unlinkPlatform(@Request() req: any, @Param('platform') platform: string) {
+    return this.authService.unlinkPlatform(req.user.id, platform);
+  }
+
+  @Get('platforms')
+  @UseGuards(JwtAuthGuard)
+  async getUserPlatforms(@Request() req: any) {
+    return this.authService.getUserPlatforms(req.user.id);
   }
 }

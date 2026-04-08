@@ -16,6 +16,7 @@ import { ConfigService } from '@nestjs/config';
 import { ReplicateService } from '../replicate/replicate.service';
 import { LessonsService } from '../lessons/lessons.service';
 import { ReferralsService } from '../referrals/referrals.service';
+import { OnboardingQuestService } from '../onboarding-quest/onboarding-quest.service';
 import { GammaService } from '../gamma/gamma.service';
 import { HtmlPostprocessorService } from '../../common/services/html-postprocessor.service';
 import { FilesService } from '../files/files.service';
@@ -152,6 +153,7 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
     @InjectQueue('video-analysis') private readonly videoAnalysisQueue: Queue,
     @InjectQueue('sales-advisor') private readonly salesAdvisorQueue: Queue,
     private readonly referralsService: ReferralsService,
+    private readonly onboardingQuestService: OnboardingQuestService,
   ) {}
 
   async createGeneration(request: GenerationRequest) {
@@ -220,6 +222,9 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
 
     // Реферальная система: активация реферала при первой генерации учителя
     this.referralsService.activateTeacherReferral(userId).catch(() => {});
+
+    // Онбординг-квест: триггер генерации
+    this.onboardingQuestService.onTeacherGeneration(userId, generationType).catch(() => {});
 
     // Очередь для Вау-урока (lesson_preparation)
     if (generationType === 'lesson_preparation' || generationType === 'lessonPreparation') {

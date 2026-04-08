@@ -17,10 +17,13 @@ import { FilesModule } from '../files/files.module';
 import { ReplicateModule } from '../replicate/replicate.module';
 import { LessonsModule } from '../lessons/lessons.module';
 import { ReferralsModule } from '../referrals/referrals.module';
+import { OnboardingQuestModule } from '../onboarding-quest/onboarding-quest.module';
 import { TelegramModule } from '../telegram/telegram.module';
 import { AssemblyAiService } from '../integrations/assemblyai.service';
 import { VideoAnalysisProcessor } from './processors/video-analysis.processor';
 import { SalesAdvisorProcessor } from './processors/sales-advisor.processor';
+import { MaxSenderProcessor } from './processors/max-sender.processor';
+import { MaxModule } from '../max/max.module';
 @Module({
   imports: [
     // Queue for generations
@@ -47,9 +50,14 @@ import { SalesAdvisorProcessor } from './processors/sales-advisor.processor';
     BullModule.registerQueue({
       name: 'sales-advisor',
     }),
+    BullModule.registerQueue({
+      name: 'max-send',
+    }),
     TelegramModule,
+    MaxModule,
     SubscriptionsModule,
     ReferralsModule,
+    OnboardingQuestModule,
     GammaModule,
     FilesModule,
     ReplicateModule,
@@ -66,6 +74,7 @@ import { SalesAdvisorProcessor } from './processors/sales-advisor.processor';
     LessonPreparationProcessor,
     VideoAnalysisProcessor,
     SalesAdvisorProcessor,
+    MaxSenderProcessor,
     AssemblyAiService,
     HtmlPostprocessorService,
     HtmlExportService,

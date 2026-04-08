@@ -7,6 +7,7 @@ import { apiClient } from '@/lib/api/client'
 import { functions } from './InputComposer/config'
 import { useGenerations } from '@/lib/hooks/useGenerations'
 import { useSubscription } from '@/lib/hooks/useSubscription'
+import OnboardingQuestBanner from './OnboardingQuestBanner'
 import useSWR from 'swr'
 
 const fetcher = (url: string) => apiClient.get(url).then((res: any) => res.data)
@@ -142,6 +143,9 @@ export default function DashboardHome() {
 
     return (
         <div className="max-w-7xl mx-auto relative">
+            {/* Онбординг-квест — показывается только новым пользователям */}
+            <OnboardingQuestBanner />
+
             {/* Header */}
             <div className="mb-6 md:mb-8">
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-2">

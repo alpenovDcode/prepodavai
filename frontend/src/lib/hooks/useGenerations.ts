@@ -6,6 +6,24 @@ import { apiClient } from '../api/client'
 import { cacheGeneration, getCachedGeneration, CachedGeneration } from '../utils/generationsCache'
 import { getCurrentUser } from '../utils/userIdentity'
 
+/**
+ * Определяет, запущено ли приложение внутри Mini App и на какой платформе.
+ * Возвращает 'telegram' | 'max' | null.
+ */
+function detectMiniAppPlatform(): 'telegram' | 'max' | null {
+  if (typeof window === 'undefined') return null
+  const tg = (window as any).Telegram?.WebApp
+  const max = (window as any).WebApp
+  if (tg?.initData && tg.initData.includes('hash=')) return 'telegram'
+  if (max?.initData && max.initData.includes('hash=')) return 'max'
+  const hash = window.location.hash
+  if (hash?.includes('WebAppData=')) return 'max'
+  const p = new URLSearchParams(window.location.search)
+  if (p.has('tgWebAppData') || p.has('tgWebAppPlatform')) return 'telegram'
+  if (p.has('max_init_data')) return 'max'
+  return null
+}
+
 export interface GenerationRequest {
   type: string
   params: Record<string, any>
@@ -70,8 +88,14 @@ export function useGenerations() {
         throw new Error(`Unknown generation type: ${request.type}`);
       }
 
+      // Определяем платформу Mini App (если генерация из Telegram/MAX Mini App)
+      const miniAppPlatform = detectMiniAppPlatform()
+      const paramsWithPlatform = miniAppPlatform
+        ? { ...request.params, _miniAppPlatform: miniAppPlatform }
+        : request.params
+
       // Отправляем запрос на генерацию
-      const response = await apiClient.post<GenerationResponse>(endpoint, request.params)
+      const response = await apiClient.post<GenerationResponse>(endpoint, paramsWithPlatform)
 
       if (!response.data.success || !response.data.requestId) {
         throw new Error(response.data.error || 'Не получен ID запроса')
@@ -186,9 +210,10 @@ export function useGenerations() {
     setError(null)
 
     try {
+      const miniAppPlatform = detectMiniAppPlatform()
       const response = await apiClient.post<{ results: any[]; remainingCredits?: number }>('/generate/bundle', {
         types,
-        params
+        params: miniAppPlatform ? { ...params, _miniAppPlatform: miniAppPlatform } : params,
       })
 
       // Optimistically update subscription balance

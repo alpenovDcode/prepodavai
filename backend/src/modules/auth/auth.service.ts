@@ -95,15 +95,27 @@ export class AuthService {
       throw new UnauthorizedException('Invalid user data format in initData');
     }
 
-    // Создаем/обновляем пользователя
-    const appUser = await this.usersService.getOrCreateByTelegram({
-      telegramId: userData.id?.toString(),
-      firstName: userData.first_name,
-      lastName: userData.last_name,
-      username: userData.username,
+    // Ищем пользователя по telegramId — создавать не будем (регистрация только через веб)
+    const telegramId = userData.id?.toString();
+    let appUser = await this.prisma.appUser.findUnique({ where: { telegramId } });
+
+    if (!appUser) {
+      // Аккаунт Telegram не привязан ни к одному веб-аккаунту
+      return { success: false, error: 'NOT_LINKED' };
+    }
+
+    // Обновляем данные профиля
+    appUser = await this.prisma.appUser.update({
+      where: { id: appUser.id },
+      data: {
+        lastAccessAt: new Date(),
+        lastTelegramAppAccess: new Date(),
+        firstName: userData.first_name || appUser.firstName,
+        lastName: userData.last_name || appUser.lastName,
+        username: userData.username || appUser.username,
+      },
     });
 
-    // Генерируем JWT токен
     const token = this.generateJwtToken(appUser.id);
 
     return {
@@ -186,38 +198,26 @@ export class AuthService {
       throw new UnauthorizedException('Invalid user data format in initData');
     }
 
-    // Создаем/обновляем пользователя MAX
-    let appUser = await this.prisma.appUser.findUnique({
-      where: { maxId: userData.id?.toString() },
-    });
+    // Ищем пользователя по maxId — создавать не будем (регистрация только через веб)
+    const maxId = userData.id?.toString();
+    let appUser = await this.prisma.appUser.findUnique({ where: { maxId } });
 
     if (!appUser) {
-      // Ищем по username для возможного слияния, если нужно. Иначе создаём нового
-      appUser = await this.prisma.appUser.create({
-        data: {
-          maxId: userData.id?.toString(),
-          firstName: userData.first_name,
-          lastName: userData.last_name,
-          username: userData.username,
-          source: 'max',
-          lastMaxAppAccess: new Date(),
-          lastAccessAt: new Date(),
-        },
-      });
-    } else {
-      appUser = await this.prisma.appUser.update({
-        where: { id: appUser.id },
-        data: {
-          firstName: userData.first_name || appUser.firstName,
-          lastName: userData.last_name || appUser.lastName,
-          username: userData.username || appUser.username,
-          lastMaxAppAccess: new Date(),
-          lastAccessAt: new Date(),
-        },
-      });
+      // Аккаунт MAX не привязан ни к одному веб-аккаунту
+      return { success: false, error: 'NOT_LINKED' };
     }
 
-    // Генерируем JWT токен
+    appUser = await this.prisma.appUser.update({
+      where: { id: appUser.id },
+      data: {
+        firstName: userData.first_name || appUser.firstName,
+        lastName: userData.last_name || appUser.lastName,
+        username: userData.username || appUser.username,
+        lastMaxAppAccess: new Date(),
+        lastAccessAt: new Date(),
+      },
+    });
+
     const token = this.generateJwtToken(appUser.id);
 
     return {
@@ -557,6 +557,110 @@ export class AuthService {
         email: user.email,
         source: user.source,
       },
+    };
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // Привязка платформ (Telegram / Max) к web-аккаунту
+  // ─────────────────────────────────────────────────────────────────
+
+  /**
+   * Генерирует временный токен привязки для авторизованного web-пользователя.
+   * Возвращает 8-символьный hex-код и ссылку на бота.
+   */
+  async generateLinkToken(userId: string, platform: string) {
+    if (!['telegram', 'max'].includes(platform)) {
+      throw new BadRequestException('Неподдерживаемая платформа');
+    }
+
+    // Удаляем старые pending-токены этого пользователя для данной платформы
+    await this.prisma.linkToken.deleteMany({
+      where: { userId, platform, status: 'pending' },
+    });
+
+    // 8 hex-байт = 16 символов, но для отображения берём 8 → удобно читать
+    const token = crypto.randomBytes(4).toString('hex').toUpperCase(); // напр. "A3F9C2D1"
+
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 минут
+
+    await this.prisma.linkToken.create({
+      data: { token, userId, platform, expiresAt },
+    });
+
+    const botUsername =
+      platform === 'telegram'
+        ? this.configService.get<string>('TELEGRAM_BOT_USERNAME', 'PrepodavAIBot')
+        : this.configService.get<string>('MAX_BOT_USERNAME', 'PrepodavAIBot');
+
+    const deepLink =
+      platform === 'telegram'
+        ? `https://t.me/${botUsername}?start=link_${token}`
+        : `https://max.ru/profile/${botUsername}`;
+
+    return { success: true, token, deepLink, expiresAt, platform };
+  }
+
+  /**
+   * Polling-статус токена привязки для web-клиента.
+   */
+  async getLinkTokenStatus(token: string, userId: string) {
+    const linkToken = await this.prisma.linkToken.findUnique({ where: { token } });
+
+    if (!linkToken || linkToken.userId !== userId) {
+      throw new BadRequestException('Токен не найден');
+    }
+
+    // Автоматически помечаем истёкшие
+    if (linkToken.status === 'pending' && linkToken.expiresAt < new Date()) {
+      await this.prisma.linkToken.update({ where: { id: linkToken.id }, data: { status: 'expired' } });
+      return { status: 'expired' };
+    }
+
+    return {
+      status: linkToken.status,
+      platform: linkToken.platform,
+      linkedName: linkToken.linkedName ?? undefined,
+    };
+  }
+
+  /**
+   * Отвязывает платформу от аккаунта пользователя.
+   */
+  async unlinkPlatform(userId: string, platform: string) {
+    if (!['telegram', 'max'].includes(platform)) {
+      throw new BadRequestException('Неподдерживаемая платформа');
+    }
+
+    await this.prisma.appUser.update({
+      where: { id: userId },
+      data: {
+        ...(platform === 'telegram'
+          ? { telegramId: null, chatId: null, telegramChatId: null }
+          : { maxId: null, maxChatId: null }),
+      } as any,
+    });
+
+    return { success: true };
+  }
+
+  /**
+   * Возвращает список привязанных платформ пользователя.
+   */
+  async getUserPlatforms(userId: string) {
+    const user = await this.prisma.appUser.findUnique({
+      where: { id: userId },
+      select: { telegramId: true, maxId: true, username: true },
+    });
+
+    if (!user) throw new BadRequestException('Пользователь не найден');
+
+    return {
+      telegram: user.telegramId
+        ? { linked: true, platformId: user.telegramId }
+        : { linked: false },
+      max: user.maxId
+        ? { linked: true, platformId: user.maxId }
+        : { linked: false },
     };
   }
 

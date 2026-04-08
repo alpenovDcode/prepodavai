@@ -71,3 +71,15 @@ export class VerifyEmailCodeDto {
   @IsOptional()
   firstName?: string;
 }
+
+export class GenerateLinkTokenDto {
+  @IsString()
+  @IsNotEmpty()
+  platform: string; // 'telegram' | 'max'
+}
+
+export class UnlinkPlatformDto {
+  @IsString()
+  @IsNotEmpty()
+  platform: string; // 'telegram' | 'max'
+}

@@ -18,7 +18,9 @@ model AppUser {
   source                String?   // 'web' | 'telegram' | 'max'
   telegramId            String?   @unique
   maxId                 String?   @unique
-  chatId                String?   // ID чата в Telegram / MAX
+  chatId                String?   // Legacy: ID чата (Telegram или MAX — устарело, используй telegramChatId/maxChatId)
+  telegramChatId        String?   // Chat ID в Telegram для отправки результатов
+  maxChatId             String?   // Chat ID в MAX для отправки результатов
   username              String?
   apiKey                String?   @unique
   firstName             String?
@@ -50,6 +52,8 @@ model AppUser {
   creditTransactions    CreditTransaction[]
   systemLogs            SystemLog[]
   classes               Class[]
+  linkTokens            LinkToken[]
+  onboardingQuestSteps  OnboardingQuestStep[]
 
   @@index([telegramId])
   @@index([maxId])
@@ -462,6 +466,41 @@ model ReferralMilestone {
   @@unique([userId, milestone])
   @@index([userId])
   @@map("referral_milestones")
+}
+
+// Токены для привязки платформ (Telegram/Max) к web-аккаунту
+model LinkToken {
+  id          String   @id @default(uuid())
+  token       String   @unique          // 8-символьный hex (отображается пользователю)
+  userId      String                    // AppUser, который инициировал привязку
+  platform    String                    // 'telegram' | 'max'
+  status      String   @default("pending") // 'pending' | 'completed' | 'expired'
+  linkedId    String?                   // telegramId / maxId после подтверждения
+  linkedName  String?                   // @username для отображения в UI
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+
+  user        AppUser  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([userId])
+  @@map("link_tokens")
+}
+
+// ========== ОНБОРДИНГ КВЕСТ ==========
+
+// Шаги онбординг-квеста новых пользователей
+model OnboardingQuestStep {
+  id          String   @id @default(uuid())
+  userId      String
+  step        String   // 'FIRST_GENERATION' | 'SECOND_TYPE_GENERATION' | 'SHARED_REFERRAL_LINK' | 'FIRST_REFERRAL_ACTIVATED' | 'SECOND_REFERRAL_ACTIVATED'
+  completedAt DateTime @default(now())
+
+  user        AppUser  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, step])
+  @@index([userId])
+  @@map("onboarding_quest_steps")
 }
 
 // Загруженные файлы

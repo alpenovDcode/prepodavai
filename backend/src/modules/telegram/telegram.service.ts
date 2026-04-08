@@ -2,7 +2,6 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { Bot, Context, InputFile } from 'grammy';
-import * as crypto from 'crypto';
 import { HtmlExportService } from '../../common/services/html-export.service';
 
 @Injectable()
@@ -30,7 +29,15 @@ export class TelegramService {
       const user = ctx.from;
       if (!user) return;
 
-      // Проверяем, есть ли пользователь в базе
+      // Check for link token argument: /start link_XXXXXXXX
+      const payload = ctx.match as string | undefined;
+      if (payload && payload.startsWith('link_')) {
+        const token = payload.slice(5); // strip "link_" prefix
+        await this.handleLinkToken(ctx, user, token);
+        return;
+      }
+
+      // Normal /start — find existing linked user
       let existingUser = await this.prisma.appUser.findUnique({
         where: { telegramId: user.id.toString() },
       });
@@ -41,31 +48,87 @@ export class TelegramService {
           data: {
             lastAccessAt: new Date(),
             chatId: ctx.chat.id.toString(),
+            telegramChatId: ctx.chat.id.toString(),
             firstName: user.first_name || existingUser.firstName,
             lastName: user.last_name || existingUser.lastName,
             username: user.username || existingUser.username,
-          },
+          } as any,
         });
-
         await this.sendWelcomeWithWebApp(ctx, existingUser);
       } else {
-        const apiKey = this.generateApiKey();
-        const newUser = await this.prisma.appUser.create({
-          data: {
-            telegramId: user.id.toString(),
-            chatId: ctx.chat.id.toString(),
-            firstName: user.first_name || 'User',
-            lastName: user.last_name || '',
-            username: user.username || `user${user.id}`,
-            source: 'telegram',
-            apiKey,
-            lastAccessAt: new Date(),
+        // User not linked — prompt to register on the web
+        const webAppUrl = this.configService.get<string>('WEBAPP_URL', 'https://prepodavai.ru');
+        await ctx.reply(
+          `Добро пожаловать в PrepodavAI! 🎓\n\n` +
+          `Для использования бота сначала зарегистрируйтесь на сайте, а затем привяжите Telegram в настройках профиля.\n\n` +
+          `После привязки вы сможете получать результаты генерации прямо здесь.`,
+          {
+            reply_markup: {
+              inline_keyboard: [[{ text: '🌐 Зарегистрироваться', url: `${webAppUrl}/auth` }]],
+            },
           },
-        });
-
-        await this.sendWelcomeWithWebApp(ctx, newUser);
+        );
       }
     });
+  }
+
+  /**
+   * Подтверждение привязки Telegram по токену
+   */
+  private async handleLinkToken(ctx: Context, user: any, token: string) {
+    const linkToken = await this.prisma.linkToken.findUnique({ where: { token } });
+
+    if (!linkToken || linkToken.platform !== 'telegram') {
+      await ctx.reply('❌ Токен привязки не найден. Попробуйте сгенерировать новый в настройках профиля.');
+      return;
+    }
+
+    if (linkToken.status !== 'pending') {
+      await ctx.reply('⚠️ Этот токен уже использован или истёк. Сгенерируйте новый в настройках профиля.');
+      return;
+    }
+
+    if (new Date() > linkToken.expiresAt) {
+      await this.prisma.linkToken.update({ where: { id: linkToken.id }, data: { status: 'expired' } });
+      await ctx.reply('⏰ Токен истёк. Пожалуйста, сгенерируйте новый в настройках профиля.');
+      return;
+    }
+
+    // Check if this Telegram account is already linked to another user
+    const alreadyLinked = await this.prisma.appUser.findUnique({
+      where: { telegramId: user.id.toString() },
+    });
+    if (alreadyLinked && alreadyLinked.id !== linkToken.userId) {
+      await ctx.reply('⚠️ Этот аккаунт Telegram уже привязан к другому профилю PrepodavAI.');
+      return;
+    }
+
+    const platformName = user.username ? `@${user.username}` : user.first_name || `id${user.id}`;
+
+    // Link the platform and mark token as completed
+    const telegramChatId = ctx.chat.id.toString();
+    await this.prisma.$transaction([
+      this.prisma.appUser.update({
+        where: { id: linkToken.userId },
+        data: {
+          telegramId: user.id.toString(),
+          telegramChatId,
+          chatId: telegramChatId, // backward compat
+          username: user.username || undefined,
+          firstName: user.first_name || undefined,
+          lastName: user.last_name || undefined,
+        } as any,
+      }),
+      this.prisma.linkToken.update({
+        where: { id: linkToken.id },
+        data: { status: 'completed', linkedId: user.id.toString(), linkedName: platformName },
+      }),
+    ]);
+
+    await ctx.reply(
+      `✅ Telegram успешно привязан к вашему аккаунту PrepodavAI!\n\n` +
+      `Теперь вы будете получать результаты генерации прямо здесь.`,
+    );
   }
 
   /**
@@ -82,18 +145,20 @@ export class TelegramService {
     // Находим пользователя
     const appUser = await this.prisma.appUser.findUnique({
       where: { id: userId },
-    });
+    }) as any;
 
-    if (!appUser || appUser.source !== 'telegram') {
-      return { success: false, message: 'Not a Telegram user' };
+    if (!appUser || !appUser.telegramId) {
+      return { success: false, message: 'Telegram not linked for this user' };
     }
 
-    if (!appUser.chatId) {
-      return { success: false, message: 'No chatId available' };
+    // telegramChatId — основной, chatId — fallback для старых пользователей
+    const chatId = appUser.telegramChatId || (appUser.source === 'telegram' ? appUser.chatId : null);
+    if (!chatId) {
+      return { success: false, message: 'No Telegram chatId available' };
     }
 
     // Skip for dummy test user
-    if (appUser.chatId === '123456789') {
+    if (chatId === '123456789') {
       console.log('[Telegram] Skipping send for test user (dummy chatId)');
       return { success: true, message: 'Skipped for test user' };
     }
@@ -101,11 +166,11 @@ export class TelegramService {
     try {
       // Отправляем в зависимости от типа генерации
       if (generationType === 'image' || generationType === 'photosession') {
-        await this.sendImage(appUser.chatId, result);
+        await this.sendImage(chatId, result);
       } else if (generationType === 'presentation') {
-        await this.sendPresentation(appUser.chatId, result);
+        await this.sendPresentation(chatId, result);
       } else {
-        await this.sendTextResult(appUser.chatId, generationType, result);
+        await this.sendTextResult(chatId, generationType, result);
       }
 
       return { success: true, message: 'Result sent successfully' };
@@ -331,13 +396,6 @@ export class TelegramService {
   <p>${escaped}</p>
 </body>
 </html>`;
-  }
-
-  /**
-   * Генерация API ключа
-   */
-  private generateApiKey(): string {
-    return crypto.randomBytes(16).toString('hex');
   }
 
   /**

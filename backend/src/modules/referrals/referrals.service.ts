@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { OnboardingQuestService } from '../onboarding-quest/onboarding-quest.service';
 import * as crypto from 'crypto';
 
 // Прогрессивная шкала наград за рефералов-учителей
@@ -38,6 +39,7 @@ export class ReferralsService {
   constructor(
     private prisma: PrismaService,
     private notificationsService: NotificationsService,
+    private onboardingQuestService: OnboardingQuestService,
   ) {}
 
   /**
@@ -254,6 +256,9 @@ export class ReferralsService {
       });
 
       await this._checkMilestones(referral.referrerUserId);
+
+      // Онбординг-квест: шаги FIRST/SECOND_REFERRAL_ACTIVATED
+      this.onboardingQuestService.onReferralActivated(referral.referrerUserId).catch(() => {});
     }
   }
 

@@ -303,6 +303,10 @@ export default function AuthModal({ onClose, onSuccess, initialMode = 'login' }:
         {/* Email Registration Form */}
         {!isLogin && verificationStep === 'form' && (
           <form onSubmit={(e) => { e.preventDefault(); handleRegisterByEmail(); }} className="space-y-4">
+            <div className="flex items-start gap-2 p-3 bg-blue-50 border border-blue-100 rounded-xl text-xs text-blue-700">
+              <i className="fas fa-link mt-0.5 shrink-0"></i>
+              <span>Это веб-аккаунт. После регистрации вы сможете привязать <strong>Telegram</strong> и <strong>MAX</strong> в настройках профиля.</span>
+            </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 <i className="fas fa-user text-orange-500 mr-2"></i>
