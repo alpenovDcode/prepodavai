@@ -587,15 +587,10 @@ export class AuthService {
       data: { token, userId, platform, expiresAt },
     });
 
-    const botUsername =
-      platform === 'telegram'
-        ? this.configService.get<string>('TELEGRAM_BOT_USERNAME', 'PrepodavAIBot')
-        : this.configService.get<string>('MAX_BOT_USERNAME', 'PrepodavAIBot');
-
     const deepLink =
       platform === 'telegram'
-        ? `https://t.me/${botUsername}?start=link_${token}`
-        : `https://max.ru/profile/${botUsername}`;
+        ? `https://t.me/${this.configService.get<string>('TELEGRAM_BOT_USERNAME', 'prrv_prepodavAI_bot')}?start=link_${token}`
+        : `https://max.ru/${this.configService.get<string>('MAX_BOT_ID', 'id9714075294_bot')}`;
 
     return { success: true, token, deepLink, expiresAt, platform };
   }
