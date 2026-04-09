@@ -152,7 +152,7 @@ export default function DashboardHome() {
                     <div>
                         <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Главная</h1>
                         <p className="text-gray-600 mt-1 text-sm md:text-base max-w-2xl">
-                            Добро пожаловать в экосистему «Прорыв»! Профессиональный инструмент для учителей, который ускорит подготовку к урокам, поможет структурировать учебные материалы и эффективно отслеживать прогресс ваших учеников.
+                            Готовьтесь к урокам быстрее, создавайте материалы и отслеживайте прогресс учеников — всё в одном месте.
                         </p>
                     </div>
                     <div className="flex items-center md:flex-col md:items-end gap-2">
