@@ -1333,6 +1333,159 @@ export class AdminService {
     };
   }
 
+  /** Глубокая конверсионная аналитика по UTM-источникам */
+  async getUtmDeepAnalytics() {
+    // ── 1. Воронка по источнику ───────────────────────────────────────────────
+    type FunnelRow = {
+      utmSource: string;
+      registrations: bigint;
+      gen_24h: bigint;       // генерация в первые 24 ч
+      gen_7d: bigint;        // генерация в первые 7 дней
+      with_subscription: bigint;
+      active_30d: bigint;
+    };
+    const funnel: FunnelRow[] = await this.prisma.$queryRaw`
+      SELECT
+        u."utmSource",
+        COUNT(DISTINCT u.id)                                              AS registrations,
+        COUNT(DISTINCT CASE
+          WHEN gf.first_gen IS NOT NULL
+            AND EXTRACT(EPOCH FROM (gf.first_gen - u."createdAt")) <= 86400
+          THEN u.id END)                                                  AS gen_24h,
+        COUNT(DISTINCT CASE
+          WHEN gf.first_gen IS NOT NULL
+            AND EXTRACT(EPOCH FROM (gf.first_gen - u."createdAt")) <= 604800
+          THEN u.id END)                                                  AS gen_7d,
+        COUNT(DISTINCT s."userId")                                        AS with_subscription,
+        COUNT(DISTINCT CASE
+          WHEN u."lastAccessAt" > NOW() - INTERVAL '30 days'
+          THEN u.id END)                                                  AS active_30d
+      FROM app_users u
+      LEFT JOIN (
+        SELECT "userId", MIN("createdAt") AS first_gen
+        FROM user_generations
+        GROUP BY "userId"
+      ) gf ON gf."userId" = u.id
+      LEFT JOIN user_subscriptions s ON s."userId" = u.id AND s.status = 'active'
+      WHERE u."utmSource" IS NOT NULL
+      GROUP BY u."utmSource"
+      ORDER BY registrations DESC
+    `;
+
+    // ── 2. Среднее время до первой генерации (в часах) ────────────────────────
+    type TimeRow = { utmSource: string; avg_hours: number | null };
+    const timeToFirstGen: TimeRow[] = await this.prisma.$queryRaw`
+      SELECT
+        u."utmSource",
+        ROUND(
+          AVG(EXTRACT(EPOCH FROM (gf.first_gen - u."createdAt")) / 3600)::numeric,
+          1
+        )::float AS avg_hours
+      FROM app_users u
+      INNER JOIN (
+        SELECT "userId", MIN("createdAt") AS first_gen
+        FROM user_generations
+        GROUP BY "userId"
+      ) gf ON gf."userId" = u.id
+      WHERE u."utmSource" IS NOT NULL
+      GROUP BY u."utmSource"
+    `;
+
+    // ── 3. Средний расход токенов (прокси LTV) ────────────────────────────────
+    type LtvRow = { utmSource: string; avg_credits: number | null; total_credits: bigint };
+    const ltv: LtvRow[] = await this.prisma.$queryRaw`
+      SELECT
+        u."utmSource",
+        ROUND(AVG(s."creditsUsed")::numeric, 1)::float AS avg_credits,
+        SUM(s."creditsUsed")                           AS total_credits
+      FROM app_users u
+      INNER JOIN user_subscriptions s ON s."userId" = u.id
+      WHERE u."utmSource" IS NOT NULL
+      GROUP BY u."utmSource"
+    `;
+
+    // ── 4. Среднее количество генераций за 30 дней ────────────────────────────
+    type EngRow = { utmSource: string; avg_gens: number | null };
+    const engagement: EngRow[] = await this.prisma.$queryRaw`
+      SELECT
+        u."utmSource",
+        ROUND(AVG(gc.cnt)::numeric, 1)::float AS avg_gens
+      FROM app_users u
+      INNER JOIN (
+        SELECT "userId", COUNT(*) AS cnt
+        FROM user_generations
+        WHERE "createdAt" > NOW() - INTERVAL '30 days'
+        GROUP BY "userId"
+      ) gc ON gc."userId" = u.id
+      WHERE u."utmSource" IS NOT NULL
+      GROUP BY u."utmSource"
+    `;
+
+    // ── 5. Топ кампании по подпискам ─────────────────────────────────────────
+    type CampaignRow = {
+      utmCampaign: string; utmSource: string;
+      registrations: bigint; subscriptions: bigint;
+    };
+    const topCampaigns: CampaignRow[] = await this.prisma.$queryRaw`
+      SELECT
+        u."utmCampaign",
+        u."utmSource",
+        COUNT(DISTINCT u.id)   AS registrations,
+        COUNT(DISTINCT s."userId") AS subscriptions
+      FROM app_users u
+      LEFT JOIN user_subscriptions s ON s."userId" = u.id AND s.status = 'active'
+      WHERE u."utmCampaign" IS NOT NULL
+      GROUP BY u."utmCampaign", u."utmSource"
+      ORDER BY subscriptions DESC, registrations DESC
+      LIMIT 20
+    `;
+
+    // ── Собираем в единый ответ ───────────────────────────────────────────────
+    const timeMap = Object.fromEntries(timeToFirstGen.map(r => [r.utmSource, r.avg_hours]));
+    const ltvMap  = Object.fromEntries(ltv.map(r => [r.utmSource, {
+      avgCredits: r.avg_credits,
+      totalCredits: Number(r.total_credits),
+    }]));
+    const engMap  = Object.fromEntries(engagement.map(r => [r.utmSource, r.avg_gens]));
+
+    const sources = funnel.map(row => {
+      const regs = Number(row.registrations);
+      const subs = Number(row.with_subscription);
+      return {
+        source: row.utmSource,
+        registrations:     regs,
+        genWithin24h:      Number(row.gen_24h),
+        genWithin7d:       Number(row.gen_7d),
+        withSubscription:  subs,
+        active30d:         Number(row.active_30d),
+        // Конверсионные %
+        activationRate:    regs > 0 ? Math.round((Number(row.gen_24h) / regs) * 100) : 0,
+        subscriptionRate:  regs > 0 ? Math.round((subs / regs) * 100) : 0,
+        retention30d:      regs > 0 ? Math.round((Number(row.active_30d) / regs) * 100) : 0,
+        // Временны́е метрики
+        avgHoursToFirstGen: timeMap[row.utmSource] ?? null,
+        // LTV-прокси
+        avgCreditsUsed:     ltvMap[row.utmSource]?.avgCredits ?? null,
+        totalCreditsUsed:   ltvMap[row.utmSource]?.totalCredits ?? 0,
+        // Вовлечённость
+        avgGens30d: engMap[row.utmSource] ?? null,
+      };
+    });
+
+    return {
+      sources,
+      topCampaigns: topCampaigns.map(r => ({
+        campaign:      r.utmCampaign,
+        source:        r.utmSource,
+        registrations: Number(r.registrations),
+        subscriptions: Number(r.subscriptions),
+        subscriptionRate: Number(r.registrations) > 0
+          ? Math.round((Number(r.subscriptions) / Number(r.registrations)) * 100)
+          : 0,
+      })),
+    };
+  }
+
   /** Трекинг клика по UTM-ссылке (вызывается публично без авторизации) */
   async trackUtmClick(linkId: string) {
     try {

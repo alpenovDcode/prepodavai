@@ -5,7 +5,7 @@ import useSWR, { mutate } from 'swr'
 import { apiClient } from '@/lib/api/client'
 import {
   Link2, Plus, Trash2, Copy, Check, BarChart2,
-  Instagram, Send, Youtube, ExternalLink, TrendingUp, Users, MousePointerClick
+  TrendingUp, Users, Clock, Zap, CreditCard, Activity, ArrowRight
 } from 'lucide-react'
 
 const fetcher = (url: string) => apiClient.get(url).then(r => r.data)
@@ -58,18 +58,18 @@ const EMPTY_FORM = {
 export default function UtmPage() {
   const { data: linksData, isLoading: linksLoading } = useSWR('/admin/utm', fetcher)
   const { data: analyticsData } = useSWR('/admin/utm/analytics', fetcher)
+  const { data: deepData } = useSWR('/admin/utm/analytics/deep', fetcher)
 
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState(EMPTY_FORM)
   const [creating, setCreating] = useState(false)
   const [copiedId, setCopiedId] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<'links' | 'analytics'>('links')
+  const [activeTab, setActiveTab] = useState<'links' | 'analytics' | 'funnel'>('links')
 
   const links: any[] = linksData?.links || []
   const analytics = analyticsData || null
 
   const mediumOptions = MEDIUMS[form.socialNetwork] || MEDIUMS.other
-  const selectedSN = SOCIAL_NETWORKS.find(s => s.value === form.socialNetwork)
 
   // Авто-подставляем utm_source из выбранной соцсети
   const utmSource = form.socialNetwork
@@ -257,7 +257,7 @@ export default function UtmPage() {
 
       {/* Tabs */}
       <div className="flex gap-2 border-b border-gray-200">
-        {([['links', 'Ссылки'], ['analytics', 'Аналитика']] as const).map(([tab, label]) => (
+        {([['links', 'Ссылки'], ['analytics', 'Аналитика'], ['funnel', 'Воронка']] as const).map(([tab, label]) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -446,6 +446,179 @@ export default function UtmPage() {
               <p className="text-gray-500 font-medium">Данных пока нет</p>
               <p className="text-sm text-gray-400 mt-1">Создайте ссылку и поделитесь ею — здесь появится аналитика</p>
             </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Вкладка: Воронка ── */}
+      {activeTab === 'funnel' && (
+        <div className="space-y-5">
+          {!deepData?.sources?.length ? (
+            <div className="bg-white rounded-2xl border border-gray-200 p-12 text-center">
+              <Activity className="w-10 h-10 text-gray-200 mx-auto mb-3" />
+              <p className="text-gray-500 font-medium">Данных пока нет</p>
+              <p className="text-sm text-gray-400 mt-1">Появится после первых регистраций по UTM-ссылкам</p>
+            </div>
+          ) : (
+            <>
+              {/* Карточки по источникам */}
+              {deepData.sources.map((src: any) => (
+                <div key={src.source} className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+                  {/* Заголовок */}
+                  <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <SocialBadge network={src.source} />
+                      <span className="text-sm text-gray-500">{src.registrations} регистраций</span>
+                    </div>
+                    <div className="flex items-center gap-4 text-xs text-gray-400">
+                      {src.avgHoursToFirstGen !== null && (
+                        <span className="flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          {src.avgHoursToFirstGen < 1
+                            ? `${Math.round(src.avgHoursToFirstGen * 60)} мин до первой генерации`
+                            : `${src.avgHoursToFirstGen} ч до первой генерации`}
+                        </span>
+                      )}
+                      {src.avgGens30d !== null && (
+                        <span className="flex items-center gap-1">
+                          <Zap className="w-3 h-3" />
+                          {src.avgGens30d} ген/30д
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Воронка */}
+                  <div className="px-5 py-5">
+                    <div className="flex items-stretch gap-0">
+                      {[
+                        {
+                          label: 'Регистрации',
+                          value: src.registrations,
+                          pct: 100,
+                          icon: <Users className="w-4 h-4" />,
+                          color: 'bg-purple-500',
+                          textColor: 'text-purple-700',
+                          bg: 'bg-purple-50',
+                        },
+                        {
+                          label: 'Первая генерация (24ч)',
+                          value: src.genWithin24h,
+                          pct: src.activationRate,
+                          icon: <Zap className="w-4 h-4" />,
+                          color: 'bg-blue-500',
+                          textColor: 'text-blue-700',
+                          bg: 'bg-blue-50',
+                        },
+                        {
+                          label: 'Генерация (7 дней)',
+                          value: src.genWithin7d,
+                          pct: src.registrations > 0 ? Math.round((src.genWithin7d / src.registrations) * 100) : 0,
+                          icon: <TrendingUp className="w-4 h-4" />,
+                          color: 'bg-indigo-500',
+                          textColor: 'text-indigo-700',
+                          bg: 'bg-indigo-50',
+                        },
+                        {
+                          label: 'Оформили подписку',
+                          value: src.withSubscription,
+                          pct: src.subscriptionRate,
+                          icon: <CreditCard className="w-4 h-4" />,
+                          color: 'bg-green-500',
+                          textColor: 'text-green-700',
+                          bg: 'bg-green-50',
+                        },
+                        {
+                          label: 'Активны 30 дней',
+                          value: src.active30d,
+                          pct: src.retention30d,
+                          icon: <Activity className="w-4 h-4" />,
+                          color: 'bg-orange-500',
+                          textColor: 'text-orange-700',
+                          bg: 'bg-orange-50',
+                        },
+                      ].map((step, i, arr) => (
+                        <div key={i} className="flex items-center flex-1">
+                          <div className={`flex-1 rounded-xl p-4 ${step.bg}`}>
+                            <div className={`flex items-center gap-1.5 ${step.textColor} mb-2`}>
+                              {step.icon}
+                              <span className="text-xs font-semibold">{step.label}</span>
+                            </div>
+                            <p className="text-2xl font-bold text-gray-900">{step.value}</p>
+                            <div className="mt-2 flex items-center gap-1.5">
+                              <div className="flex-1 bg-white/60 rounded-full h-1.5">
+                                <div
+                                  className={`${step.color} rounded-full h-1.5 transition-all`}
+                                  style={{ width: `${step.pct}%` }}
+                                />
+                              </div>
+                              <span className={`text-xs font-bold ${step.textColor}`}>{step.pct}%</span>
+                            </div>
+                          </div>
+                          {i < arr.length - 1 && (
+                            <ArrowRight className="w-4 h-4 text-gray-300 mx-1 shrink-0" />
+                          )}
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* LTV-прокси */}
+                    {src.avgCreditsUsed !== null && (
+                      <div className="mt-4 pt-4 border-t border-gray-100 flex items-center gap-6 text-sm">
+                        <div>
+                          <span className="text-gray-400 text-xs">Среднее потребление токенов</span>
+                          <p className="font-bold text-gray-900">{src.avgCreditsUsed} токенов/пользователь</p>
+                        </div>
+                        <div>
+                          <span className="text-gray-400 text-xs">Суммарно потреблено</span>
+                          <p className="font-bold text-gray-900">{src.totalCreditsUsed.toLocaleString()} токенов</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+
+              {/* Топ кампаний по подпискам */}
+              {deepData.topCampaigns?.length > 0 && (
+                <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+                  <div className="px-5 py-4 border-b border-gray-100">
+                    <h3 className="font-bold text-gray-900">Кампании по конверсии в подписку</h3>
+                  </div>
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase">Кампания</th>
+                        <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Источник</th>
+                        <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Регистрации</th>
+                        <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Подписки</th>
+                        <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Конверсия</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {deepData.topCampaigns.map((row: any, i: number) => (
+                        <tr key={i} className="hover:bg-gray-50">
+                          <td className="px-5 py-3">
+                            <span className="font-mono text-xs text-purple-600 bg-purple-50 px-2 py-1 rounded">{row.campaign}</span>
+                          </td>
+                          <td className="px-4 py-3"><SocialBadge network={row.source} /></td>
+                          <td className="px-4 py-3 text-center text-gray-700 font-medium">{row.registrations}</td>
+                          <td className="px-4 py-3 text-center font-bold text-green-600">{row.subscriptions}</td>
+                          <td className="px-4 py-3 text-center">
+                            <span className={`font-bold text-sm ${
+                              row.subscriptionRate >= 10 ? 'text-green-600' :
+                              row.subscriptionRate >= 3 ? 'text-yellow-600' : 'text-gray-400'
+                            }`}>
+                              {row.registrations > 0 ? `${row.subscriptionRate}%` : '—'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
           )}
         </div>
       )}

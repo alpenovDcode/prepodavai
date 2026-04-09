@@ -251,6 +251,11 @@ export class AdminController {
     return this.adminService.getUtmAnalytics();
   }
 
+  @Get('utm/analytics/deep')
+  async getUtmDeepAnalytics() {
+    return this.adminService.getUtmDeepAnalytics();
+  }
+
   @Post('utm/:id/click')
   async trackUtmClick(@Param('id') id: string) {
     return this.adminService.trackUtmClick(id);
