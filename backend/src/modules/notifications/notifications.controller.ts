@@ -1,7 +1,9 @@
 import { Controller, Get, Patch, Param, UseGuards, Request } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
 import { NotificationsService } from './notifications.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
+@SkipThrottle()
 @Controller('notifications')
 @UseGuards(JwtAuthGuard)
 export class NotificationsController {
