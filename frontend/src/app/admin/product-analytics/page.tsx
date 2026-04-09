@@ -5,10 +5,10 @@ import useSWR from 'swr'
 import { apiClient } from '@/lib/api/client'
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip,
-  ResponsiveContainer, CartesianGrid, Legend
+  ResponsiveContainer, CartesianGrid
 } from 'recharts'
 import {
-  Activity, Users, TrendingUp, TrendingDown, AlertTriangle,
+  Activity, Users, TrendingUp,
   BookOpen, Zap, BarChart2, UserX, ArrowUp, ArrowDown, Minus
 } from 'lucide-react'
 import DateRangePicker, { daysFromRange } from '@/components/admin/DateRangePicker'
@@ -130,7 +130,7 @@ export default function ProductAnalyticsPage() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
                 <XAxis dataKey="day" tick={{ fontSize: 10 }} tickFormatter={v => new Date(v).toLocaleDateString('ru', { day: '2-digit', month: '2-digit' })} />
                 <YAxis tick={{ fontSize: 10 }} width={30} />
-                <Tooltip formatter={(v: number) => [v, 'DAU']} labelFormatter={v => new Date(v).toLocaleDateString('ru')} />
+                <Tooltip formatter={(v: any) => [v, 'DAU']} labelFormatter={(v: any) => new Date(v).toLocaleDateString('ru')} />
                 <Line type="monotone" dataKey="dau" stroke="#7c3aed" strokeWidth={2} dot={false} />
               </LineChart>
             </ResponsiveContainer>
@@ -144,7 +144,7 @@ export default function ProductAnalyticsPage() {
                   <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
                   <XAxis dataKey="week" tick={{ fontSize: 10 }} tickFormatter={v => new Date(v).toLocaleDateString('ru', { day: '2-digit', month: '2-digit' })} />
                   <YAxis tick={{ fontSize: 10 }} width={30} />
-                  <Tooltip formatter={(v: number) => [v, 'WAU']} />
+                  <Tooltip formatter={(v: any) => [v, 'WAU']} />
                   <Bar dataKey="wau" fill="#7c3aed" radius={[4,4,0,0]} />
                 </BarChart>
               </ResponsiveContainer>
@@ -156,7 +156,7 @@ export default function ProductAnalyticsPage() {
                   <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
                   <XAxis dataKey="month" tick={{ fontSize: 10 }} tickFormatter={v => new Date(v).toLocaleDateString('ru', { month: 'short', year: '2-digit' })} />
                   <YAxis tick={{ fontSize: 10 }} width={30} />
-                  <Tooltip formatter={(v: number) => [v, 'MAU']} />
+                  <Tooltip formatter={(v: any) => [v, 'MAU']} />
                   <Bar dataKey="mau" fill="#4f46e5" radius={[4,4,0,0]} />
                 </BarChart>
               </ResponsiveContainer>
@@ -284,7 +284,7 @@ export default function ProductAnalyticsPage() {
                   <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
                   <XAxis dataKey="month" tick={{ fontSize: 10 }} tickFormatter={v => new Date(v).toLocaleDateString('ru', { month: 'short', year: '2-digit' })} />
                   <YAxis tick={{ fontSize: 10 }} width={35} tickFormatter={v => `${v}%`} />
-                  <Tooltip formatter={(v: number) => [`${v}%`, 'Churn']} />
+                  <Tooltip formatter={(v: any) => [`${v}%`, 'Churn']} />
                   <Bar dataKey="rate" fill="#ef4444" radius={[4,4,0,0]} name="Churn %" />
                 </BarChart>
               </ResponsiveContainer>
