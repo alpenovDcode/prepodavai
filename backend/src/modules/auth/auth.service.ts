@@ -515,7 +515,10 @@ export class AuthService {
   /**
    * Подтверждение email-кода и завершение регистрации
    */
-  async verifyEmailCode(email: string, code: string, firstName?: string) {
+  async verifyEmailCode(email: string, code: string, firstName?: string, utm?: {
+    utmSource?: string; utmMedium?: string; utmCampaign?: string;
+    utmContent?: string; utmTerm?: string; utmLandingPage?: string; utmLinkId?: string;
+  }) {
     const record = await this.prisma.verificationCode.findFirst({
       where: {
         phone: email,
@@ -537,7 +540,7 @@ export class AuthService {
     });
 
     // Создаём пользователя
-    const user = await this.usersService.findOrCreateByEmail(email, firstName);
+    const user = await this.usersService.findOrCreateByEmail(email, firstName, utm);
 
     // Отправляем приветственное письмо с данными для входа
     await this.emailService.sendWelcomeEmail(user.username, user.apiKey, email);

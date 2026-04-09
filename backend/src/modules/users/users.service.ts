@@ -229,7 +229,15 @@ export class UsersService {
   /**
    * Найти или создать пользователя по email
    */
-  async findOrCreateByEmail(email: string, firstName?: string) {
+  async findOrCreateByEmail(email: string, firstName?: string, utm?: {
+    utmSource?: string;
+    utmMedium?: string;
+    utmCampaign?: string;
+    utmContent?: string;
+    utmTerm?: string;
+    utmLandingPage?: string;
+    utmLinkId?: string;
+  }) {
     let user = await this.prisma.appUser.findFirst({
       where: { email },
     });
@@ -248,8 +256,27 @@ export class UsersService {
           firstName: firstName || '',
           source: 'web',
           lastAccessAt: new Date(),
-        },
+          ...(utm?.utmSource ? {
+            utmSource: utm.utmSource,
+            utmMedium: utm.utmMedium,
+            utmCampaign: utm.utmCampaign,
+            utmContent: utm.utmContent,
+            utmTerm: utm.utmTerm,
+            utmLandingPage: utm.utmLandingPage,
+            utmLinkId: utm.utmLinkId,
+          } : {}),
+        } as any,
       });
+
+      // Инкрементируем счётчик регистраций на ссылке
+      if (utm?.utmLinkId) {
+        try {
+          await (this.prisma as any).utmLink.update({
+            where: { id: utm.utmLinkId },
+            data: { registrations: { increment: 1 } },
+          });
+        } catch { /* ссылка могла быть удалена */ }
+      }
     }
 
     return user;

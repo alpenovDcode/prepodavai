@@ -153,10 +153,18 @@ export default function AuthModal({ onClose, onSuccess, initialMode = 'login' }:
     setErrorMessage('')
 
     try {
+      const utmParams = (() => {
+        try {
+          const raw = localStorage.getItem('prepodavai_utm')
+          return raw ? JSON.parse(raw).params : {}
+        } catch { return {} }
+      })()
+
       const response = await apiClient.post('/auth/verify-email-code', {
         email: form.email.trim(),
         code: otpCode.trim(),
         firstName: form.name.trim() || undefined,
+        ...utmParams,
       })
 
       if (response.data.success) {
@@ -172,6 +180,7 @@ export default function AuthModal({ onClose, onSuccess, initialMode = 'login' }:
 
         localStorage.setItem('prepodavai_user', JSON.stringify(userData))
         localStorage.setItem('prepodavai_authenticated', 'true')
+        localStorage.removeItem('prepodavai_utm')
 
         onSuccess()
       } else {

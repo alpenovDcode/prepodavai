@@ -40,6 +40,15 @@ model AppUser {
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 
+  // UTM-атрибуция (маркетинговые ссылки)
+  utmSource             String?   // instagram, telegram, vk, etc.
+  utmMedium             String?   // bio, story, post, direct
+  utmCampaign           String?   // название кампании
+  utmContent            String?   // вариант контента
+  utmTerm               String?   // ключевое слово
+  utmLandingPage        String?   // страница, на которую попал лид
+  utmLinkId             String?   // ссылка на UtmLink
+
   // Реферальная система
   referredByCode        String?           // Код, по которому пришёл пользователь
   referralCodes         ReferralCode[]
@@ -60,6 +69,9 @@ model AppUser {
   @@index([chatId])
   @@index([userHash])
   @@index([apiKey])
+  @@index([utmSource])
+  @@index([utmCampaign])
+  @@index([utmLinkId])
   @@map("app_users")
 }
 
@@ -501,6 +513,31 @@ model OnboardingQuestStep {
   @@unique([userId, step])
   @@index([userId])
   @@map("onboarding_quest_steps")
+}
+
+// ========== UTM-ТРЕКИНГ ==========
+
+// Маркетинговые ссылки с UTM-параметрами
+model UtmLink {
+  id           String   @id @default(uuid())
+  name         String                     // Название для себя (напр. "Instagram bio апрель")
+  socialNetwork String                    // 'instagram' | 'telegram' | 'vk' | 'youtube' | 'tiktok' | 'whatsapp' | 'other'
+  utmSource    String                     // instagram, telegram, vk, ...
+  utmMedium    String                     // bio, story, post, reel, direct, ...
+  utmCampaign  String                     // название кампании
+  utmContent   String?                    // вариант контента (A/B)
+  utmTerm      String?                    // ключевое слово
+  baseUrl      String   @default("https://prepodavai.ru")
+  fullUrl      String                     // итоговая ссылка с UTM
+  clicks       Int      @default(0)       // переходы
+  registrations Int     @default(0)       // регистрации по этой ссылке
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([socialNetwork])
+  @@index([utmCampaign])
+  @@map("utm_links")
 }
 
 // Загруженные файлы

@@ -16,6 +16,7 @@ import {
     BookOpen,
     Megaphone,
     ScrollText,
+    Link2,
 } from 'lucide-react'
 
 export default function AdminLayout({
@@ -63,6 +64,7 @@ export default function AdminLayout({
         { name: 'Классы', href: '/admin/classes', icon: BookOpen },
         { name: 'Финансы', href: '/admin/finances', icon: CreditCard },
         { name: 'Маркетинг', href: '/admin/marketing', icon: Megaphone },
+        { name: 'UTM-ссылки', href: '/admin/utm', icon: Link2 },
         { name: 'Логи', href: '/admin/system-logs', icon: ScrollText },
         { name: 'Настройки AI', href: '/admin/settings', icon: Settings },
     ]

@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google'
 import './globals.css'
 import { Providers } from './providers'
 import Script from 'next/script'
+import UtmCapture from '@/components/UtmCapture'
 
 const inter = Inter({ subsets: ['latin', 'cyrillic'], display: 'swap' })
 
@@ -86,6 +87,7 @@ export default function RootLayout({
       </head>
       <body className={inter.className}>
         <Providers>{children}</Providers>
+        <UtmCapture />
       </body>
     </html>
   )

@@ -175,7 +175,15 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
     @Request() req: any,
   ) {
-    const result = await this.authService.verifyEmailCode(body.email, body.code, body.firstName);
+    const result = await this.authService.verifyEmailCode(body.email, body.code, body.firstName, {
+      utmSource: body.utmSource,
+      utmMedium: body.utmMedium,
+      utmCampaign: body.utmCampaign,
+      utmContent: body.utmContent,
+      utmTerm: body.utmTerm,
+      utmLandingPage: body.utmLandingPage,
+      utmLinkId: body.utmLinkId,
+    });
     if (result && result.token) {
       this.setTokenCookie(res, result.token, req);
     }

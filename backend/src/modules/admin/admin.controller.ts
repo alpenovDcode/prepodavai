@@ -229,4 +229,30 @@ export class AdminController {
     const csv = await this.adminService.exportUsersCsv();
     return { success: true, csv };
   }
+
+  // ========== UTM LINKS ==========
+  @Get('utm')
+  async getUtmLinks() {
+    return this.adminService.getUtmLinks();
+  }
+
+  @Post('utm')
+  async createUtmLink(@Body() body: any) {
+    return this.adminService.createUtmLink(body);
+  }
+
+  @Delete('utm/:id')
+  async deleteUtmLink(@Param('id') id: string) {
+    return this.adminService.deleteUtmLink(id);
+  }
+
+  @Get('utm/analytics')
+  async getUtmAnalytics() {
+    return this.adminService.getUtmAnalytics();
+  }
+
+  @Post('utm/:id/click')
+  async trackUtmClick(@Param('id') id: string) {
+    return this.adminService.trackUtmClick(id);
+  }
 }

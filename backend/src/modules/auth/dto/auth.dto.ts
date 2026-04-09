@@ -70,6 +70,35 @@ export class VerifyEmailCodeDto {
   @IsString()
   @IsOptional()
   firstName?: string;
+
+  // UTM-атрибуция
+  @IsString()
+  @IsOptional()
+  utmSource?: string;
+
+  @IsString()
+  @IsOptional()
+  utmMedium?: string;
+
+  @IsString()
+  @IsOptional()
+  utmCampaign?: string;
+
+  @IsString()
+  @IsOptional()
+  utmContent?: string;
+
+  @IsString()
+  @IsOptional()
+  utmTerm?: string;
+
+  @IsString()
+  @IsOptional()
+  utmLandingPage?: string;
+
+  @IsString()
+  @IsOptional()
+  utmLinkId?: string;
 }
 
 export class GenerateLinkTokenDto {

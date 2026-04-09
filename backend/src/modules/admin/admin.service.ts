@@ -1217,4 +1217,132 @@ export class AdminService {
     const csv = rows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
     return csv;
   }
+
+  // ========== UTM LINKS ==========
+  // NOTE: Prisma types for utmLink / utmSource will be available after
+  // `prisma generate` runs on the server with the new migration applied.
+  // Until then we cast to `any` to avoid compile errors locally.
+  private get db(): any { return this.prisma; }
+
+  /** Список всех UTM-ссылок */
+  async getUtmLinks() {
+    const links = await this.db.utmLink.findMany({
+      orderBy: { createdAt: 'desc' },
+    });
+    return { links };
+  }
+
+  /** Создать UTM-ссылку */
+  async createUtmLink(data: {
+    name: string;
+    socialNetwork: string;
+    utmSource: string;
+    utmMedium: string;
+    utmCampaign: string;
+    utmContent?: string;
+    utmTerm?: string;
+    baseUrl?: string;
+  }) {
+    const base = (data.baseUrl || 'https://prepodavai.ru').replace(/\/$/, '');
+    const params = new URLSearchParams({
+      utm_source: data.utmSource,
+      utm_medium: data.utmMedium,
+      utm_campaign: data.utmCampaign,
+      ...(data.utmContent ? { utm_content: data.utmContent } : {}),
+      ...(data.utmTerm ? { utm_term: data.utmTerm } : {}),
+    });
+    const fullUrl = `${base}?${params.toString()}`;
+
+    const link = await this.db.utmLink.create({
+      data: {
+        name: data.name,
+        socialNetwork: data.socialNetwork,
+        utmSource: data.utmSource,
+        utmMedium: data.utmMedium,
+        utmCampaign: data.utmCampaign,
+        utmContent: data.utmContent ?? null,
+        utmTerm: data.utmTerm ?? null,
+        baseUrl: base,
+        fullUrl,
+        updatedAt: new Date(),
+      },
+    });
+    return link;
+  }
+
+  /** Удалить UTM-ссылку */
+  async deleteUtmLink(id: string) {
+    await this.db.utmLink.delete({ where: { id } });
+    return { success: true };
+  }
+
+  /** Аналитика по UTM: сводка по источникам/кампаниям */
+  async getUtmAnalytics() {
+    // Регистрации по источнику (raw SQL — новые поля)
+    const bySource: { utmSource: string; cnt: bigint }[] = await this.prisma.$queryRaw`
+      SELECT "utmSource", COUNT(*) as cnt
+      FROM app_users
+      WHERE "utmSource" IS NOT NULL
+      GROUP BY "utmSource"
+      ORDER BY cnt DESC
+    `;
+
+    const byCampaign: { utmCampaign: string; utmSource: string; cnt: bigint }[] = await this.prisma.$queryRaw`
+      SELECT "utmCampaign", "utmSource", COUNT(*) as cnt
+      FROM app_users
+      WHERE "utmCampaign" IS NOT NULL
+      GROUP BY "utmCampaign", "utmSource"
+      ORDER BY cnt DESC
+    `;
+
+    const [{ total_utm }]: { total_utm: bigint }[] = await this.prisma.$queryRaw`
+      SELECT COUNT(*) as total_utm FROM app_users WHERE "utmSource" IS NOT NULL
+    `;
+    const [{ with_gen }]: { with_gen: bigint }[] = await this.prisma.$queryRaw`
+      SELECT COUNT(DISTINCT u.id) as with_gen
+      FROM app_users u
+      INNER JOIN user_generations g ON g."userId" = u.id
+      WHERE u."utmSource" IS NOT NULL
+    `;
+
+    const links = await this.db.utmLink.findMany({
+      orderBy: { registrations: 'desc' },
+    });
+
+    const totalFromUtm = Number(total_utm);
+    const withGenerations = Number(with_gen);
+
+    return {
+      bySource: bySource.map(r => ({
+        source: r.utmSource,
+        registrations: Number(r.cnt),
+      })),
+      byCampaign: byCampaign.map(r => ({
+        campaign: r.utmCampaign,
+        source: r.utmSource,
+        registrations: Number(r.cnt),
+      })),
+      funnel: {
+        totalFromUtm,
+        withGenerations,
+        conversionRate: totalFromUtm > 0
+          ? Math.round((withGenerations / totalFromUtm) * 100)
+          : 0,
+      },
+      links,
+    };
+  }
+
+  /** Трекинг клика по UTM-ссылке (вызывается публично без авторизации) */
+  async trackUtmClick(linkId: string) {
+    try {
+      await this.db.utmLink.update({
+        where: { id: linkId },
+        data: { clicks: { increment: 1 } },
+      });
+    } catch {
+      // Ссылка не найдена — игнорируем
+    }
+    return { success: true };
+  }
 }
