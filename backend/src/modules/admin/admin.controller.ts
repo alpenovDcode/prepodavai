@@ -260,4 +260,40 @@ export class AdminController {
   async trackUtmClick(@Param('id') id: string) {
     return this.adminService.trackUtmClick(id);
   }
+
+  // ========== PRODUCT ANALYTICS ==========
+  @Get('product/dau-wau-mau')
+  async getDauWauMau(@Query('days') days?: string) {
+    return this.adminService.getDauWauMau(days ? parseInt(days) : 90);
+  }
+
+  @Get('product/retention')
+  async getRetention(@Query('weeks') weeks?: string) {
+    return this.adminService.getRetentionCohorts(weeks ? parseInt(weeks) : 12);
+  }
+
+  @Get('product/churn')
+  async getChurn() {
+    return this.adminService.getChurnAnalytics();
+  }
+
+  @Get('product/onboarding')
+  async getOnboarding() {
+    return this.adminService.getOnboardingAnalytics();
+  }
+
+  @Get('product/features')
+  async getFeatures(@Query('days') days?: string) {
+    return this.adminService.getFeatureAdoption(days ? parseInt(days) : 30);
+  }
+
+  @Get('product/alerts')
+  async getAlerts() {
+    return this.adminService.getAlerts();
+  }
+
+  @Get('product/comparison')
+  async getComparison(@Query('period') period?: 'week' | 'month') {
+    return this.adminService.getPeriodComparison(period || 'week');
+  }
 }

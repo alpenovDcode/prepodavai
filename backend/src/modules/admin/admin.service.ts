@@ -1498,4 +1498,501 @@ export class AdminService {
     }
     return { success: true };
   }
+
+  // ========== PRODUCT ANALYTICS ==========
+
+  /** DAU / WAU / MAU на основе генераций (activity = сделал генерацию) */
+  async getDauWauMau(days = 90) {
+    type DayRow = { day: Date; dau: bigint };
+    const daily: DayRow[] = await this.prisma.$queryRaw`
+      SELECT DATE("createdAt") AS day, COUNT(DISTINCT "userId") AS dau
+      FROM user_generations
+      WHERE "createdAt" > NOW() - (${days} || ' days')::interval
+      GROUP BY day
+      ORDER BY day
+    `;
+
+    type WeekRow = { week: Date; wau: bigint };
+    const weekly: WeekRow[] = await this.prisma.$queryRaw`
+      SELECT DATE_TRUNC('week', "createdAt") AS week, COUNT(DISTINCT "userId") AS wau
+      FROM user_generations
+      WHERE "createdAt" > NOW() - INTERVAL '26 weeks'
+      GROUP BY week
+      ORDER BY week
+    `;
+
+    type MonthRow = { month: Date; mau: bigint };
+    const monthly: MonthRow[] = await this.prisma.$queryRaw`
+      SELECT DATE_TRUNC('month', "createdAt") AS month, COUNT(DISTINCT "userId") AS mau
+      FROM user_generations
+      WHERE "createdAt" > NOW() - INTERVAL '12 months'
+      GROUP BY month
+      ORDER BY month
+    `;
+
+    // Stickiness: последний полный месяц DAU/MAU
+    const lastMonthDays: { avg_dau: number }[] = await this.prisma.$queryRaw`
+      SELECT ROUND(AVG(dau)::numeric, 1)::float AS avg_dau FROM (
+        SELECT DATE("createdAt"), COUNT(DISTINCT "userId") AS dau
+        FROM user_generations
+        WHERE "createdAt" >= DATE_TRUNC('month', NOW() - INTERVAL '1 month')
+          AND "createdAt" <  DATE_TRUNC('month', NOW())
+        GROUP BY DATE("createdAt")
+      ) t
+    `;
+    const lastMonthMau: { mau: bigint }[] = await this.prisma.$queryRaw`
+      SELECT COUNT(DISTINCT "userId") AS mau
+      FROM user_generations
+      WHERE "createdAt" >= DATE_TRUNC('month', NOW() - INTERVAL '1 month')
+        AND "createdAt" <  DATE_TRUNC('month', NOW())
+    `;
+
+    const avgDau = lastMonthDays[0]?.avg_dau ?? 0;
+    const mau = Number(lastMonthMau[0]?.mau ?? 1);
+    const stickiness = mau > 0 ? Math.round((avgDau / mau) * 100) : 0;
+
+    return {
+      daily: daily.map(r => ({ day: r.day, dau: Number(r.dau) })),
+      weekly: weekly.map(r => ({ week: r.week, wau: Number(r.wau) })),
+      monthly: monthly.map(r => ({ month: r.month, mau: Number(r.mau) })),
+      stickiness,
+      avgDau,
+      lastMau: mau,
+    };
+  }
+
+  /** Когортная retention-сетка (по неделям регистрации) */
+  async getRetentionCohorts(weeks = 12) {
+    type CohortRow = {
+      cohort_week: Date;
+      cohort_size: bigint;
+      w0: bigint; w1: bigint; w2: bigint;
+      w4: bigint; w8: bigint;
+    };
+    const rows: CohortRow[] = await this.prisma.$queryRaw`
+      WITH cohorts AS (
+        SELECT DATE_TRUNC('week', "createdAt") AS cohort_week, id AS user_id
+        FROM app_users
+        WHERE "createdAt" > NOW() - (${weeks} || ' weeks')::interval
+      ),
+      activity AS (
+        SELECT DISTINCT "userId", DATE_TRUNC('week', "createdAt") AS activity_week
+        FROM user_generations
+        WHERE "createdAt" > NOW() - (${weeks * 2} || ' weeks')::interval
+      )
+      SELECT
+        c.cohort_week,
+        COUNT(DISTINCT c.user_id)                                                          AS cohort_size,
+        COUNT(DISTINCT CASE WHEN a.activity_week = c.cohort_week                              THEN c.user_id END) AS w0,
+        COUNT(DISTINCT CASE WHEN a.activity_week = c.cohort_week + INTERVAL '1 week'          THEN c.user_id END) AS w1,
+        COUNT(DISTINCT CASE WHEN a.activity_week = c.cohort_week + INTERVAL '2 weeks'         THEN c.user_id END) AS w2,
+        COUNT(DISTINCT CASE WHEN a.activity_week = c.cohort_week + INTERVAL '4 weeks'         THEN c.user_id END) AS w4,
+        COUNT(DISTINCT CASE WHEN a.activity_week = c.cohort_week + INTERVAL '8 weeks'         THEN c.user_id END) AS w8
+      FROM cohorts c
+      LEFT JOIN activity a ON a."userId" = c.user_id
+      GROUP BY c.cohort_week
+      ORDER BY c.cohort_week DESC
+    `;
+
+    return rows.map(r => {
+      const size = Number(r.cohort_size);
+      const pct = (n: bigint) => size > 0 ? Math.round((Number(n) / size) * 100) : 0;
+      return {
+        cohortWeek: r.cohort_week,
+        cohortSize: size,
+        w0: { count: Number(r.w0), pct: pct(r.w0) },
+        w1: { count: Number(r.w1), pct: pct(r.w1) },
+        w2: { count: Number(r.w2), pct: pct(r.w2) },
+        w4: { count: Number(r.w4), pct: pct(r.w4) },
+        w8: { count: Number(r.w8), pct: pct(r.w8) },
+      };
+    });
+  }
+
+  /** Churn-аналитика */
+  async getChurnAnalytics() {
+    // Churned = подписка закончилась / истекла / неактивна
+    type ChurnedRow = {
+      id: string; username: string; email: string;
+      created_at: Date; last_access: Date | null;
+      sub_status: string; sub_end: Date;
+      days_as_customer: number; credits_used: number;
+    };
+    const churned: ChurnedRow[] = await this.prisma.$queryRaw`
+      SELECT
+        u.id, u.username, u.email,
+        u."createdAt"    AS created_at,
+        u."lastAccessAt" AS last_access,
+        s.status         AS sub_status,
+        s."endDate"      AS sub_end,
+        EXTRACT(DAY FROM (s."endDate" - u."createdAt"))::int AS days_as_customer,
+        s."creditsUsed"  AS credits_used
+      FROM app_users u
+      INNER JOIN user_subscriptions s ON s."userId" = u.id
+      WHERE s.status IN ('inactive', 'expired')
+         OR (s.status = 'active' AND s."endDate" < NOW())
+      ORDER BY s."endDate" DESC
+      LIMIT 100
+    `;
+
+    // Churn rate по месяцам: churned / active at start of month
+    type MonthlyChurnRow = { month: Date; churned: bigint; active: bigint };
+    const monthlyChurn: MonthlyChurnRow[] = await this.prisma.$queryRaw`
+      SELECT
+        DATE_TRUNC('month', s."endDate") AS month,
+        COUNT(*) AS churned,
+        (SELECT COUNT(*) FROM user_subscriptions s2
+         WHERE s2."startDate" <= DATE_TRUNC('month', s."endDate")
+           AND s2."endDate"   >= DATE_TRUNC('month', s."endDate")) AS active
+      FROM user_subscriptions s
+      WHERE (s.status IN ('inactive','expired') OR s."endDate" < NOW())
+        AND s."endDate" > NOW() - INTERVAL '12 months'
+      GROUP BY month
+      ORDER BY month
+    `;
+
+    // Медиана дней жизни до чёрна
+    const [medianRow]: { median_days: number }[] = await this.prisma.$queryRaw`
+      SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (
+        ORDER BY EXTRACT(DAY FROM (s."endDate" - u."createdAt"))
+      )::int AS median_days
+      FROM app_users u
+      INNER JOIN user_subscriptions s ON s."userId" = u.id
+      WHERE s.status IN ('inactive','expired') OR s."endDate" < NOW()
+    `;
+
+    // Последние генерации перед уходом (что делали)
+    type LastGenRow = { user_id: string; generation_type: string; cnt: bigint };
+    const lastActions: LastGenRow[] = await this.prisma.$queryRaw`
+      SELECT g."userId" AS user_id, g."generationType" AS generation_type, COUNT(*) AS cnt
+      FROM user_generations g
+      INNER JOIN user_subscriptions s ON s."userId" = g."userId"
+      WHERE (s.status IN ('inactive','expired') OR s."endDate" < NOW())
+        AND g."createdAt" > s."endDate" - INTERVAL '7 days'
+        AND g."createdAt" < s."endDate"
+      GROUP BY g."userId", g."generationType"
+      ORDER BY cnt DESC
+      LIMIT 50
+    `;
+
+    // Топ типов генераций перед уходом
+    type LastGenTypeRow = { generation_type: string; cnt: bigint };
+    const lastActionTypes: LastGenTypeRow[] = await this.prisma.$queryRaw`
+      SELECT g."generationType" AS generation_type, COUNT(*) AS cnt
+      FROM user_generations g
+      INNER JOIN user_subscriptions s ON s."userId" = g."userId"
+      WHERE (s.status IN ('inactive','expired') OR s."endDate" < NOW())
+        AND g."createdAt" > s."endDate" - INTERVAL '7 days'
+      GROUP BY g."generationType"
+      ORDER BY cnt DESC
+    `;
+
+    return {
+      churnedUsers: churned,
+      monthlyChurn: monthlyChurn.map(r => ({
+        month: r.month,
+        churned: Number(r.churned),
+        active: Number(r.active),
+        rate: Number(r.active) > 0 ? Math.round((Number(r.churned) / Number(r.active)) * 100) : 0,
+      })),
+      medianDaysBeforeChurn: medianRow?.median_days ?? null,
+      lastActionTypes: lastActionTypes.map(r => ({
+        type: r.generation_type,
+        count: Number(r.cnt),
+      })),
+      totalChurned: churned.length,
+    };
+  }
+
+  /** Воронка онбординга */
+  async getOnboardingAnalytics() {
+    const STEPS = [
+      'FIRST_GENERATION',
+      'SECOND_TYPE_GENERATION',
+      'SHARED_REFERRAL_LINK',
+      'FIRST_REFERRAL_ACTIVATED',
+      'SECOND_REFERRAL_ACTIVATED',
+    ];
+
+    const totalUsers = await this.prisma.appUser.count();
+
+    type StepRow = { step: string; cnt: bigint };
+    const stepCounts: StepRow[] = await this.prisma.$queryRaw`
+      SELECT step, COUNT(DISTINCT "userId") AS cnt
+      FROM onboarding_quest_steps
+      GROUP BY step
+    `;
+    const stepMap = Object.fromEntries(stepCounts.map(r => [r.step, Number(r.cnt)]));
+
+    // Время до первого шага (медиана минут)
+    type TimeRow = { step: string; median_minutes: number };
+    const stepTimes: TimeRow[] = await this.prisma.$queryRaw`
+      SELECT
+        o.step,
+        PERCENTILE_CONT(0.5) WITHIN GROUP (
+          ORDER BY EXTRACT(EPOCH FROM (o."completedAt" - u."createdAt")) / 60
+        )::int AS median_minutes
+      FROM onboarding_quest_steps o
+      INNER JOIN app_users u ON u.id = o."userId"
+      GROUP BY o.step
+    `;
+    const timeMap = Object.fromEntries(stepTimes.map(r => [r.step, r.median_minutes]));
+
+    // Пользователи завершившие все 5 шагов
+    const [fullyCompleted]: { cnt: bigint }[] = await this.prisma.$queryRaw`
+      SELECT COUNT(*) AS cnt
+      FROM (
+        SELECT "userId"
+        FROM onboarding_quest_steps
+        GROUP BY "userId"
+        HAVING COUNT(DISTINCT step) >= 5
+      ) t
+    `;
+
+    // Retention: те, кто завершил онбординг vs нет
+    type RetRow = { completed_onboarding: boolean; active_30d: bigint; total: bigint };
+    const onboardingRetention: RetRow[] = await this.prisma.$queryRaw`
+      SELECT
+        (oq.cnt >= 5) AS completed_onboarding,
+        COUNT(DISTINCT CASE WHEN u."lastAccessAt" > NOW() - INTERVAL '30 days' THEN u.id END) AS active_30d,
+        COUNT(DISTINCT u.id) AS total
+      FROM app_users u
+      LEFT JOIN (
+        SELECT "userId", COUNT(DISTINCT step) AS cnt
+        FROM onboarding_quest_steps
+        GROUP BY "userId"
+      ) oq ON oq."userId" = u.id
+      GROUP BY completed_onboarding
+    `;
+
+    return {
+      totalUsers,
+      fullyCompleted: Number(fullyCompleted?.cnt ?? 0),
+      completionRate: totalUsers > 0
+        ? Math.round((Number(fullyCompleted?.cnt ?? 0) / totalUsers) * 100)
+        : 0,
+      steps: STEPS.map(step => ({
+        step,
+        completed: stepMap[step] ?? 0,
+        pct: totalUsers > 0 ? Math.round(((stepMap[step] ?? 0) / totalUsers) * 100) : 0,
+        medianMinutes: timeMap[step] ?? null,
+      })),
+      retention: onboardingRetention.map(r => ({
+        completedOnboarding: r.completed_onboarding ?? false,
+        active30d: Number(r.active_30d),
+        total: Number(r.total),
+        retentionRate: Number(r.total) > 0
+          ? Math.round((Number(r.active_30d) / Number(r.total)) * 100)
+          : 0,
+      })),
+    };
+  }
+
+  /** Feature adoption */
+  async getFeatureAdoption(days = 30) {
+    // Использование по типу генерации за период
+    type FeatureRow = { generation_type: string; cnt: bigint; unique_users: bigint };
+    const byType: FeatureRow[] = await this.prisma.$queryRaw`
+      SELECT
+        "generationType" AS generation_type,
+        COUNT(*) AS cnt,
+        COUNT(DISTINCT "userId") AS unique_users
+      FROM user_generations
+      WHERE "createdAt" > NOW() - (${days} || ' days')::interval
+      GROUP BY "generationType"
+      ORDER BY cnt DESC
+    `;
+
+    // DAU per feature (топ 6 фич за 30 дней)
+    type DailyFeatureRow = { day: Date; generation_type: string; dau: bigint };
+    const dailyByFeature: DailyFeatureRow[] = await this.prisma.$queryRaw`
+      SELECT
+        DATE("createdAt") AS day,
+        "generationType" AS generation_type,
+        COUNT(DISTINCT "userId") AS dau
+      FROM user_generations
+      WHERE "createdAt" > NOW() - (${days} || ' days')::interval
+        AND "generationType" IN (
+          SELECT "generationType" FROM user_generations
+          WHERE "createdAt" > NOW() - (${days} || ' days')::interval
+          GROUP BY "generationType"
+          ORDER BY COUNT(*) DESC
+          LIMIT 6
+        )
+      GROUP BY day, "generationType"
+      ORDER BY day, "generationType"
+    `;
+
+    // Что делают в первые 7 дней новые пользователи (new user behavior)
+    type NewUserRow = { generation_type: string; cnt: bigint; unique_users: bigint };
+    const newUserBehavior: NewUserRow[] = await this.prisma.$queryRaw`
+      SELECT
+        g."generationType" AS generation_type,
+        COUNT(*) AS cnt,
+        COUNT(DISTINCT g."userId") AS unique_users
+      FROM user_generations g
+      INNER JOIN app_users u ON u.id = g."userId"
+      WHERE EXTRACT(EPOCH FROM (g."createdAt" - u."createdAt")) <= 604800
+      GROUP BY g."generationType"
+      ORDER BY cnt DESC
+    `;
+
+    // Платные vs бесплатные — что используют
+    type PlanRow = { is_paid: boolean; generation_type: string; cnt: bigint };
+    const byPlan: PlanRow[] = await this.prisma.$queryRaw`
+      SELECT
+        (s."planId" IS NOT NULL AND s.status = 'active' AND s."endDate" > NOW()) AS is_paid,
+        g."generationType" AS generation_type,
+        COUNT(*) AS cnt
+      FROM user_generations g
+      INNER JOIN app_users u ON u.id = g."userId"
+      LEFT JOIN user_subscriptions s ON s."userId" = u.id
+      WHERE g."createdAt" > NOW() - (${days} || ' days')::interval
+      GROUP BY is_paid, g."generationType"
+      ORDER BY is_paid DESC, cnt DESC
+    `;
+
+    return {
+      byType: byType.map(r => ({
+        type: r.generation_type,
+        count: Number(r.cnt),
+        uniqueUsers: Number(r.unique_users),
+      })),
+      dailyByFeature: dailyByFeature.map(r => ({
+        day: r.day,
+        type: r.generation_type,
+        dau: Number(r.dau),
+      })),
+      newUserBehavior: newUserBehavior.map(r => ({
+        type: r.generation_type,
+        count: Number(r.cnt),
+        uniqueUsers: Number(r.unique_users),
+      })),
+      byPlan: byPlan.map(r => ({
+        isPaid: r.is_paid,
+        type: r.generation_type,
+        count: Number(r.cnt),
+      })),
+    };
+  }
+
+  /** Алерты: проверяем пороговые условия */
+  async getAlerts() {
+    const alerts: { level: 'warning' | 'critical'; title: string; description: string; value: number; threshold: number }[] = [];
+
+    // 1. Регистрации сегодня vs вчера
+    const [regToday]: { cnt: bigint }[] = await this.prisma.$queryRaw`
+      SELECT COUNT(*) AS cnt FROM app_users
+      WHERE "createdAt" >= CURRENT_DATE
+    `;
+    const [regYesterday]: { cnt: bigint }[] = await this.prisma.$queryRaw`
+      SELECT COUNT(*) AS cnt FROM app_users
+      WHERE "createdAt" >= CURRENT_DATE - INTERVAL '1 day'
+        AND "createdAt" < CURRENT_DATE
+    `;
+    const todayReg = Number(regToday?.cnt ?? 0);
+    const yestReg = Number(regYesterday?.cnt ?? 1);
+    if (yestReg > 0 && todayReg < yestReg * 0.7) {
+      const drop = Math.round(((yestReg - todayReg) / yestReg) * 100);
+      alerts.push({
+        level: drop > 50 ? 'critical' : 'warning',
+        title: 'Спад регистраций',
+        description: `Сегодня ${todayReg} регистраций, вчера ${yestReg}`,
+        value: drop,
+        threshold: 30,
+      });
+    }
+
+    // 2. Пользователь с чрезмерным расходом токенов за сутки
+    type HeavyUser = { user_id: string; username: string; total: bigint };
+    const heavyUsers: HeavyUser[] = await this.prisma.$queryRaw`
+      SELECT g."userId" AS user_id, u.username, SUM(g."creditCost") AS total
+      FROM user_generations g
+      INNER JOIN app_users u ON u.id = g."userId"
+      WHERE g."createdAt" >= CURRENT_DATE
+        AND g."creditCost" IS NOT NULL
+      GROUP BY g."userId", u.username
+      HAVING SUM(g."creditCost") > 500
+      ORDER BY total DESC
+      LIMIT 5
+    `;
+    for (const hu of heavyUsers) {
+      alerts.push({
+        level: Number(hu.total) > 1000 ? 'critical' : 'warning',
+        title: `Высокий расход токенов: @${hu.username}`,
+        description: `${Number(hu.total)} токенов сегодня`,
+        value: Number(hu.total),
+        threshold: 500,
+      });
+    }
+
+    // 3. Ошибки генерации сегодня
+    const [errToday]: { cnt: bigint; total: bigint }[] = await this.prisma.$queryRaw`
+      SELECT
+        COUNT(*) FILTER (WHERE status = 'failed') AS cnt,
+        COUNT(*) AS total
+      FROM user_generations
+      WHERE "createdAt" >= CURRENT_DATE
+    `;
+    const errCount = Number(errToday?.cnt ?? 0);
+    const totalToday = Number(errToday?.total ?? 0);
+    const errorRate = totalToday > 0 ? Math.round((errCount / totalToday) * 100) : 0;
+    if (errorRate >= 10) {
+      alerts.push({
+        level: errorRate >= 25 ? 'critical' : 'warning',
+        title: 'Высокий процент ошибок генерации',
+        description: `${errCount} ошибок из ${totalToday} генераций (${errorRate}%)`,
+        value: errorRate,
+        threshold: 10,
+      });
+    }
+
+    // Сводка по текущим показателям (для дашборда алертов)
+    const summary = {
+      registrationsToday: todayReg,
+      registrationsYesterday: yestReg,
+      generationsToday: totalToday,
+      errorsToday: errCount,
+      errorRate,
+    };
+
+    return { alerts, summary };
+  }
+
+  /** Сравнение периодов: текущий vs предыдущий */
+  async getPeriodComparison(period: 'week' | 'month' = 'week') {
+    const interval = period === 'week' ? '7 days' : '30 days';
+
+    type PeriodRow = {
+      registrations: bigint; generations: bigint;
+      active_users: bigint; new_subscriptions: bigint;
+    };
+    const [current]: PeriodRow[] = await this.prisma.$queryRaw`
+      SELECT
+        (SELECT COUNT(*) FROM app_users WHERE "createdAt" > NOW() - INTERVAL ${interval})            AS registrations,
+        (SELECT COUNT(*) FROM user_generations WHERE "createdAt" > NOW() - INTERVAL ${interval})     AS generations,
+        (SELECT COUNT(DISTINCT "userId") FROM user_generations WHERE "createdAt" > NOW() - INTERVAL ${interval}) AS active_users,
+        (SELECT COUNT(*) FROM user_subscriptions WHERE "createdAt" > NOW() - INTERVAL ${interval})   AS new_subscriptions
+    `;
+    const [previous]: PeriodRow[] = await this.prisma.$queryRaw`
+      SELECT
+        (SELECT COUNT(*) FROM app_users WHERE "createdAt" BETWEEN NOW() - INTERVAL ${interval} * 2 AND NOW() - INTERVAL ${interval})            AS registrations,
+        (SELECT COUNT(*) FROM user_generations WHERE "createdAt" BETWEEN NOW() - INTERVAL ${interval} * 2 AND NOW() - INTERVAL ${interval})     AS generations,
+        (SELECT COUNT(DISTINCT "userId") FROM user_generations WHERE "createdAt" BETWEEN NOW() - INTERVAL ${interval} * 2 AND NOW() - INTERVAL ${interval}) AS active_users,
+        (SELECT COUNT(*) FROM user_subscriptions WHERE "createdAt" BETWEEN NOW() - INTERVAL ${interval} * 2 AND NOW() - INTERVAL ${interval})   AS new_subscriptions
+    `;
+
+    const diff = (cur: bigint, prev: bigint) => {
+      const c = Number(cur); const p = Number(prev);
+      return { current: c, previous: p, delta: c - p, pct: p > 0 ? Math.round(((c - p) / p) * 100) : null };
+    };
+
+    return {
+      period,
+      registrations:    diff(current.registrations,    previous.registrations),
+      generations:      diff(current.generations,      previous.generations),
+      activeUsers:      diff(current.active_users,     previous.active_users),
+      newSubscriptions: diff(current.new_subscriptions, previous.new_subscriptions),
+    };
+  }
 }

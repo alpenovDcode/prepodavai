@@ -17,6 +17,8 @@ import {
     Megaphone,
     ScrollText,
     Link2,
+    FlaskConical,
+    Bell,
 } from 'lucide-react'
 
 export default function AdminLayout({
@@ -65,6 +67,8 @@ export default function AdminLayout({
         { name: 'Финансы', href: '/admin/finances', icon: CreditCard },
         { name: 'Маркетинг', href: '/admin/marketing', icon: Megaphone },
         { name: 'UTM-ссылки', href: '/admin/utm', icon: Link2 },
+        { name: 'Продукт', href: '/admin/product-analytics', icon: FlaskConical },
+        { name: 'Алерты', href: '/admin/alerts', icon: Bell },
         { name: 'Логи', href: '/admin/system-logs', icon: ScrollText },
         { name: 'Настройки AI', href: '/admin/settings', icon: Settings },
     ]
