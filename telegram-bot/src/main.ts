@@ -38,7 +38,7 @@ async function sendSms(phone: string, message: string): Promise<boolean> {
   const sender = process.env.SMSC_SENDER;
 
   if (!login || !password) {
-    console.error('[SMS] SMSC credentials not configured');
+    console.error('[SMS] SMSC credentials not configured (SMSC_LOGIN or SMSC_PASSWORD missing)');
     return false;
   }
 
@@ -53,17 +53,30 @@ async function sendSms(phone: string, message: string): Promise<boolean> {
     });
     if (sender) params.set('sender', sender);
 
-    const resp = await fetch(`https://smsc.ru/sys/send.php?${params.toString()}`);
-    const data = await resp.json() as any;
+    const url = `https://smsc.ru/sys/send.php?${params.toString()}`;
+    console.log(`[SMS] Sending to ${phone}, login=${login}, sender=${sender || 'none'}`);
+
+    const resp = await fetch(url);
+    const rawText = await resp.text();
+    console.log(`[SMS] Raw response: ${rawText}`);
+
+    let data: any;
+    try {
+      data = JSON.parse(rawText);
+    } catch {
+      console.error(`[SMS] Non-JSON response: ${rawText}`);
+      return false;
+    }
 
     if (data?.id) {
-      console.log(`[SMS] Sent to ${phone}, id=${data.id}`);
+      console.log(`[SMS] Sent successfully to ${phone}, id=${data.id}`);
       return true;
     }
-    console.error(`[SMS] Failed for ${phone}: ${JSON.stringify(data)}`);
+
+    console.error(`[SMS] Failed for ${phone}: error_code=${data?.error_code}, error=${data?.error}`);
     return false;
   } catch (err) {
-    console.error(`[SMS] Error: ${err}`);
+    console.error(`[SMS] Network error: ${err}`);
     return false;
   }
 }
