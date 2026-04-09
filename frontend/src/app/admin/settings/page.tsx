@@ -73,7 +73,7 @@ export default function AdminSettingsPage() {
                           'content_adaptation',
                           'game_generation',
                           'video_analysis',
-                          'exam-variant',
+                          'exam_variant',
                           'lesson_preparation',
                           'unpacking',
                           'sales_advisor',

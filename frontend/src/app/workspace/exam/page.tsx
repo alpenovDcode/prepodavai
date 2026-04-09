@@ -141,7 +141,7 @@ export default function ExamGeneratorPage() {
                     <div>
                         <div className="flex items-center gap-2">
                             <h2 className="font-bold text-lg">Варианты ОГЭ/ЕГЭ</h2>
-                            <GenerationCostBadge operationType="exam-variant" />
+                            <GenerationCostBadge operationType="exam_variant" />
                         </div>
                         <p className="text-xs text-gray-500 font-medium">WORKSPACE V2</p>
                     </div>
