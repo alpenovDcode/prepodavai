@@ -4,10 +4,15 @@ import { useQuery } from '@tanstack/react-query'
 import { apiClient } from '../api/client'
 
 export interface Subscription {
+  id?: string
+  status?: string
+  planKey?: string
+  planName?: string
   creditsBalance: number
   extraCredits: number
-  planName?: string
-  planId?: string
+  creditsUsed?: number
+  totalAvailable?: number
+  endDate?: string
 }
 
 export function useSubscription(options: { enabled?: boolean } = {}) {

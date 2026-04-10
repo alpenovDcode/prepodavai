@@ -16,9 +16,38 @@ export type OperationType =
   | 'message'
   | 'game_generation'
   | 'exam_variant'
+  | 'expert_unpacking'
   | 'video_analysis'
   | 'sales_advisor'
   | 'unpacking';
+
+// Какие тарифы дают доступ к каждой операции
+// free → starter → pro → business (накопительно)
+export const PLAN_OPERATION_RESTRICTIONS: Record<string, string[]> = {
+  // free и выше
+  free:     ['text_generation', 'message', 'worksheet', 'quiz', 'vocabulary', 'lesson_plan', 'feedback', 'content_adaptation'],
+  // starter и выше
+  starter:  ['game_generation', 'exam_variant', 'expert_unpacking', 'unpacking', 'video_analysis', 'transcription', 'presentation', 'sales_advisor'],
+  // pro и выше
+  pro:      ['image_generation', 'photosession'],
+  // business — всё включено
+  business: [],
+};
+
+const PLAN_ORDER = ['free', 'starter', 'pro', 'business'];
+
+/** Проверяет, разрешена ли операция для данного planKey */
+export function isOperationAllowed(planKey: string, operationType: string): boolean {
+  const planIndex = PLAN_ORDER.indexOf(planKey);
+  if (planIndex === -1) return true; // неизвестный план — не блокируем
+
+  for (let i = 0; i <= planIndex; i++) {
+    const tier = PLAN_ORDER[i];
+    if (PLAN_OPERATION_RESTRICTIONS[tier]?.includes(operationType)) return true;
+  }
+  // pro и business получают всё
+  return planIndex >= PLAN_ORDER.indexOf('pro');
+}
 
 @Injectable()
 export class SubscriptionsService {
@@ -30,48 +59,47 @@ export class SubscriptionsService {
   async initializePlans() {
     const plans = [
       {
-        planKey: 'starter',
-        planName: 'Начальный',
-        monthlyCredits: 100,
+        planKey: 'free',
+        planName: 'Бесплатный',
+        monthlyCredits: 30,
         price: 0,
         currency: 'RUB',
         allowOverage: false,
         overageCostPerCredit: null,
-        features: ['Базовая генерация текстов', 'Ограниченные изображения', 'История генераций'],
+        features: ['Рабочий лист, тест, словарь', 'Адаптация текста, план урока', 'ИИ ассистент (10 запросов/день)', 'История генераций'],
+        isActive: true,
+      },
+      {
+        planKey: 'starter',
+        planName: 'Стартер',
+        monthlyCredits: 200,
+        price: 290,
+        currency: 'RUB',
+        allowOverage: false,
+        overageCostPerCredit: null,
+        features: ['Рабочий лист, тест, словарь', 'Игры, ОГЭ/ЕГЭ, Распаковка', 'Анализ видео, Презентации', 'ИИ ассистент (50 запросов/день)'],
         isActive: true,
       },
       {
         planKey: 'pro',
-        planName: 'Профессиональный',
+        planName: 'Про',
         monthlyCredits: 500,
-        price: 490,
+        price: 690,
         currency: 'RUB',
-        allowOverage: true,
-        overageCostPerCredit: 2,
-        features: [
-          'Неограниченная генерация текстов',
-          'Приоритетная обработка',
-          'Больше изображений',
-          'Фотосессии',
-          'Презентации',
-        ],
+        allowOverage: false,
+        overageCostPerCredit: null,
+        features: ['Всё из Стартера', 'ИИ Генератор фото', 'ИИ Фотосессия', 'ИИ ассистент (безлимит)', 'Перенос до 100 токенов'],
         isActive: true,
       },
       {
         planKey: 'business',
         planName: 'Бизнес',
-        monthlyCredits: 2000,
-        price: 1990,
+        monthlyCredits: 1500,
+        price: 1490,
         currency: 'RUB',
         allowOverage: true,
         overageCostPerCredit: 1.5,
-        features: [
-          'Безлимитная генерация',
-          'Максимальный приоритет',
-          'Все возможности',
-          'Транскрибация видео',
-          'Поддержка 24/7',
-        ],
+        features: ['Всё из Про', 'Перерасход: 1.5р / токен', 'Перенос до 300 токенов', 'Приоритетная поддержка'],
         isActive: true,
       },
     ];
@@ -79,10 +107,10 @@ export class SubscriptionsService {
     for (const planData of plans) {
       await this.prisma.subscriptionPlan.upsert({
         where: { planKey: planData.planKey },
-        update: planData,
+        update: { planName: planData.planName, monthlyCredits: planData.monthlyCredits, price: planData.price, allowOverage: planData.allowOverage, overageCostPerCredit: planData.overageCostPerCredit, features: planData.features },
         create: planData,
       });
-      console.log(`✅ Subscription plan initialized: ${planData.planKey}`);
+      console.log(`✅ Plan: ${planData.planKey} — ${planData.price}р / ${planData.monthlyCredits} токенов`);
     }
   }
 
@@ -91,151 +119,33 @@ export class SubscriptionsService {
    */
   async initializeCreditCosts() {
     const costs = [
-      {
-        operationType: 'text_generation',
-        operationName: 'Генерация текста',
-        creditCost: 3,
-        description: 'Стандартная генерация текста',
-        isActive: true,
-        isUnderMaintenance: false,
-      },
-      {
-        operationType: 'image_generation',
-        operationName: 'Генерация изображения',
-        creditCost: 5,
-        description: 'Создание изображений через AI',
-        isActive: true,
-        isUnderMaintenance: false,
-      },
-      {
-        operationType: 'photosession',
-        operationName: 'Фотосессия',
-        creditCost: 10,
-        description: 'AI фотосессия',
-        isActive: true,
-        isUnderMaintenance: false,
-      },
-      {
-        operationType: 'presentation',
-        operationName: 'Презентация',
-        creditCost: 8,
-        description: 'Создание презентаций',
-        isActive: true,
-        isUnderMaintenance: false,
-      },
-      {
-        operationType: 'transcription',
-        operationName: 'Транскрибация видео',
-        creditCost: 15,
-        description: 'Транскрибация видео через Whisper',
-        isActive: true,
-        isUnderMaintenance: false,
-      },
-      {
-        operationType: 'worksheet',
-        operationName: 'Рабочий лист',
-        creditCost: 3,
-        description: 'Создание рабочих листов',
-        isActive: true,
-        isUnderMaintenance: false,
-      },
-      {
-        operationType: 'quiz',
-        operationName: 'Тест',
-        creditCost: 3,
-        description: 'Создание тестов (викторин)',
-        isActive: true,
-        isUnderMaintenance: false,
-      },
-      {
-        operationType: 'vocabulary',
-        operationName: 'Словарь',
-        creditCost: 2,
-        description: 'Создание словарей',
-        isActive: true,
-        isUnderMaintenance: false,
-      },
-      {
-        operationType: 'lesson_plan',
-        operationName: 'План урока',
-        creditCost: 3,
-        description: 'Создание планов уроков',
-        isActive: true,
-        isUnderMaintenance: false,
-      },
-      {
-        operationType: 'feedback',
-        operationName: 'Обратная связь',
-        creditCost: 2,
-        description: 'Генерация обратной связи',
-        isActive: true,
-        isUnderMaintenance: false,
-      },
-      {
-        operationType: 'content_adaptation',
-        operationName: 'Адаптация контента',
-        creditCost: 3,
-        description: 'Адаптация учебного контента',
-        isActive: true,
-        isUnderMaintenance: false,
-      },
-      {
-        operationType: 'message',
-        operationName: 'Сообщение родителям',
-        creditCost: 1,
-        description: 'Генерация сообщений',
-        isActive: true,
-        isUnderMaintenance: false,
-      },
-      {
-        operationType: 'game_generation',
-        operationName: 'Генерация игры',
-        creditCost: 15,
-        description: 'Создание образовательной игры',
-        isActive: true,
-        isUnderMaintenance: false,
-      },
-      {
-        operationType: 'exam_variant',
-        operationName: 'Вариант ОГЭ/ЕГЭ',
-        creditCost: 20,
-        description: 'Генерация варианта ОГЭ/ЕГЭ',
-        isActive: true,
-        isUnderMaintenance: false,
-      },
-      {
-        operationType: 'unpacking',
-        operationName: 'Распаковка экспертности',
-        creditCost: 20,
-        description: 'Распаковка экспертности',
-        isActive: true,
-        isUnderMaintenance: false,
-      },
-      {
-        operationType: 'video_analysis',
-        operationName: 'Анализ видео',
-        creditCost: 15,
-        description: 'Анализ видео через AI',
-        isActive: true,
-        isUnderMaintenance: false,
-      },
-      {
-        operationType: 'sales_advisor',
-        operationName: 'ИИ-продажник',
-        creditCost: 10,
-        description: 'ИИ-продажник для анализа продаж',
-        isActive: true,
-        isUnderMaintenance: false,
-      },
+      { operationType: 'text_generation',    operationName: 'Генерация текста',           creditCost: 1,  description: 'Себест. ~1р',     isActive: true, isUnderMaintenance: false },
+      { operationType: 'message',            operationName: 'Сообщение родителям',         creditCost: 1,  description: 'Себест. ~1р',     isActive: true, isUnderMaintenance: false },
+      { operationType: 'worksheet',          operationName: 'Рабочий лист',                creditCost: 3,  description: 'Себест. ~1.5р',   isActive: true, isUnderMaintenance: false },
+      { operationType: 'quiz',               operationName: 'Тест',                         creditCost: 3,  description: 'Себест. ~1.5р',   isActive: true, isUnderMaintenance: false },
+      { operationType: 'vocabulary',         operationName: 'Словарь',                     creditCost: 3,  description: 'Себест. ~1.5р',   isActive: true, isUnderMaintenance: false },
+      { operationType: 'lesson_plan',        operationName: 'План урока',                  creditCost: 3,  description: 'Себест. ~1.5р',   isActive: true, isUnderMaintenance: false },
+      { operationType: 'feedback',           operationName: 'Проверка ДЗ',                creditCost: 3,  description: 'Себест. ~1.5р',   isActive: true, isUnderMaintenance: false },
+      { operationType: 'content_adaptation', operationName: 'Адаптация текста',            creditCost: 3,  description: 'Себест. ~1.5–3р', isActive: true, isUnderMaintenance: false },
+      { operationType: 'game_generation',    operationName: 'Игра',                         creditCost: 15, description: 'Себест. ~1.5р',   isActive: true, isUnderMaintenance: false },
+      { operationType: 'exam_variant',       operationName: 'Вариант ОГЭ/ЕГЭ',             creditCost: 20, description: 'Себест. ~1.5р',   isActive: true, isUnderMaintenance: false },
+      { operationType: 'expert_unpacking',   operationName: 'Распаковка экспертности',     creditCost: 20, description: 'Себест. ~2р',     isActive: true, isUnderMaintenance: false },
+      { operationType: 'unpacking',          operationName: 'Распаковка экспертности',     creditCost: 20, description: 'Себест. ~2р',     isActive: true, isUnderMaintenance: false },
+      { operationType: 'video_analysis',     operationName: 'Анализ видео',                creditCost: 15, description: 'Себест. ~5р',     isActive: true, isUnderMaintenance: false },
+      { operationType: 'transcription',      operationName: 'Транскрибация видео',         creditCost: 15, description: 'Себест. ~5р',     isActive: true, isUnderMaintenance: false },
+      { operationType: 'presentation',       operationName: 'Презентация',                 creditCost: 50, description: 'Себест. ~3–15р',  isActive: true, isUnderMaintenance: false },
+      { operationType: 'image_generation',   operationName: 'ИИ Генератор фото',           creditCost: 15, description: 'Себест. ~12р',    isActive: true, isUnderMaintenance: false },
+      { operationType: 'photosession',       operationName: 'ИИ Фотосессия',              creditCost: 25, description: 'Себест. ~18р',    isActive: true, isUnderMaintenance: false },
+      { operationType: 'sales_advisor',      operationName: 'ИИ-продажник',               creditCost: 10, description: 'Себест. ~2р',     isActive: true, isUnderMaintenance: false },
     ];
 
     for (const costData of costs) {
       await this.prisma.creditCost.upsert({
         where: { operationType: costData.operationType as any },
-        update: costData,
+        update: { operationName: costData.operationName, creditCost: costData.creditCost, description: costData.description },
         create: costData,
       });
-      console.log('✅ Credit cost initialized: ' + costData.operationType);
+      console.log(`✅ Cost: ${costData.operationType} — ${costData.creditCost} токенов`);
     }
   }
 
@@ -252,14 +162,15 @@ export class SubscriptionsService {
       return existing;
     }
 
-    // Создаем новую подписку на бесплатный план Starter
-    const starterPlan = await this.prisma.subscriptionPlan.findUnique({
-      where: { planKey: 'starter' },
+    // Создаем новую подписку на бесплатный план Free
+    const starterPlan = await this.prisma.subscriptionPlan.findFirst({
+      where: { planKey: { in: ['free', 'starter'] }, isActive: true },
+      orderBy: { price: 'asc' }, // берём самый дешёвый
     });
 
     if (!starterPlan) {
       throw new BadRequestException(
-        'Starter plan not found. Please initialize subscription plans first.',
+        'Free plan not found. Please initialize subscription plans first.',
       );
     }
 
@@ -324,6 +235,20 @@ export class SubscriptionsService {
         cost: costConfig.creditCost,
         message: 'Функция временно недоступна (технические работы)',
         isUnderMaintenance: true,
+        planRestricted: false,
+      };
+    }
+
+    // Проверка: разрешена ли операция на текущем тарифе
+    if (!isOperationAllowed(plan.planKey, operationType)) {
+      return {
+        available: false,
+        subscription,
+        plan,
+        cost: costConfig?.creditCost ?? 1,
+        message: 'Эта функция недоступна на вашем тарифе. Обновите тариф.',
+        isUnderMaintenance: false,
+        planRestricted: true,
       };
     }
 
@@ -337,7 +262,7 @@ export class SubscriptionsService {
       message = `Недостаточно кредитов. Требуется: ${cost}, доступно: ${totalAvailable}`;
     }
 
-    return { available, subscription, plan, cost, message, isUnderMaintenance: false };
+    return { available, subscription, plan, cost, message, isUnderMaintenance: false, planRestricted: false };
   }
 
   /**
@@ -519,6 +444,8 @@ export class SubscriptionsService {
       subscription: {
         id: subscription.id,
         status: subscription.status,
+        planKey: plan.planKey,
+        planName: plan.planName,
         creditsBalance: subscription.creditsBalance,
         extraCredits: subscription.extraCredits,
         creditsUsed: subscription.creditsUsed,
@@ -557,6 +484,60 @@ export class SubscriptionsService {
         overageCostPerCredit: p.overageCostPerCredit,
         features: p.features,
       })),
+    };
+  }
+
+  /**
+   * Сменить тариф пользователя.
+   * В продакшне здесь должна быть интеграция с платёжной системой.
+   * Сейчас — прямое обновление (для ручного управления / тестов).
+   */
+  async upgradePlan(userId: string, planKey: string) {
+    const plan = await this.prisma.subscriptionPlan.findUnique({ where: { planKey } });
+    if (!plan || !plan.isActive) {
+      throw new BadRequestException(`Тариф "${planKey}" не найден или неактивен`);
+    }
+
+    const subscription = await this.getOrCreateUserSubscription(userId);
+    const currentPlanOrder = ['free', 'starter', 'pro', 'business'];
+    const currentIdx = currentPlanOrder.indexOf(subscription.plan.planKey);
+    const newIdx = currentPlanOrder.indexOf(planKey);
+
+    if (newIdx <= currentIdx) {
+      throw new BadRequestException('Нельзя перейти на тариф ниже текущего через этот эндпоинт');
+    }
+
+    const now = new Date();
+    const endDate = new Date(now);
+    endDate.setMonth(endDate.getMonth() + 1);
+
+    // Добавляем токены нового плана поверх остатка (не обнуляем)
+    const bonusCredits = plan.monthlyCredits;
+
+    const updated = await this.prisma.userSubscription.update({
+      where: { id: subscription.id },
+      data: {
+        planId: plan.id,
+        status: 'active',
+        creditsBalance: { increment: bonusCredits },
+        startDate: now,
+        endDate,
+        autoRenew: true,
+      },
+      include: { plan: true },
+    });
+
+    console.log(`🔼 Plan upgraded: userId=${userId}, ${subscription.plan.planKey} → ${planKey}, +${bonusCredits} tokens`);
+
+    return {
+      success: true,
+      message: `Тариф "${plan.planName}" активирован. Начислено ${bonusCredits} токенов.`,
+      subscription: {
+        planKey: plan.planKey,
+        planName: plan.planName,
+        creditsBalance: updated.creditsBalance,
+        endDate: updated.endDate,
+      },
     };
   }
 

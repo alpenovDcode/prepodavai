@@ -301,7 +301,7 @@ export default function ReferralsPage() {
               2
             </div>
             <h3 className="font-semibold text-gray-900 mb-1">Коллега регистрируется</h3>
-            <p className="text-sm text-gray-500">И начинает пользоваться платформой</p>
+            <p className="text-sm text-gray-500">Создает от 3-х генераций</p>
           </div>
 
           <div className="p-4 bg-gray-50 rounded-xl text-center">

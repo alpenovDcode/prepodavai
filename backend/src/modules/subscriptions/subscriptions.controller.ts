@@ -1,4 +1,4 @@
-import { Controller, Get, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Post, Body, UseGuards, Request } from '@nestjs/common';
 import { SubscriptionsService } from './subscriptions.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
@@ -52,5 +52,11 @@ export class SubscriptionsController {
   @Get('costs')
   async getCreditCosts() {
     return this.subscriptionsService.getCreditCosts();
+  }
+
+  @Post('upgrade')
+  @UseGuards(JwtAuthGuard)
+  async upgradePlan(@Request() req: any, @Body() body: { planKey: string }) {
+    return this.subscriptionsService.upgradePlan(req.user.id, body.planKey);
   }
 }

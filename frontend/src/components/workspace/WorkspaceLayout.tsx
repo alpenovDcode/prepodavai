@@ -8,7 +8,8 @@ import { useUser } from '@/lib/hooks/useUser'
 import { useSubscription } from '@/lib/hooks/useSubscription'
 import { useIsMobile } from '@/lib/hooks/useIsMobile'
 import { LOGO_BASE64 } from '@/constants/branding'
-import { BookOpen, HelpCircle, Gamepad2, Settings, ArrowLeft, PenTool, LayoutTemplate, MessageSquare, FileEdit, MessageCircle, Sparkles, PackageOpen, Video, LineChart, Camera, Image as ImageIcon, FileAudio, MonitorPlay, ClipboardCheck, GraduationCap, X, Menu, Loader2 } from 'lucide-react'
+import { BookOpen, HelpCircle, Gamepad2, Settings, ArrowLeft, PenTool, LayoutTemplate, MessageSquare, FileEdit, MessageCircle, Sparkles, PackageOpen, Video, LineChart, Camera, Image as ImageIcon, FileAudio, MonitorPlay, ClipboardCheck, GraduationCap, X, Menu, Loader2, Zap } from 'lucide-react'
+import PlanUpgradeModal from '@/components/PlanUpgradeModal'
 import NotificationBell from '@/components/NotificationBell'
 import { getCachedGenerations } from '@/lib/utils/generationsCache'
 import { getCurrentUser } from '@/lib/utils/userIdentity'
@@ -132,6 +133,7 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
     const { subscription, totalCredits, loading: subLoading } = useSubscription()
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
     const [avatarError, setAvatarError] = useState(false)
+    const [planModalOpen, setPlanModalOpen] = useState(false)
 
     const { isMobile, isMiniApp } = useIsMobile()
     const { costs } = useServiceCosts()
@@ -374,8 +376,8 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
                     {renderToolNav()}
                 </div>
 
-                {/* Balance row */}
-                <div className="px-4 pb-3">
+                {/* Balance + Upgrade */}
+                <div className="px-4 pb-3 flex flex-col gap-2">
                     <div
                         className="flex items-center gap-2 px-3 py-2 rounded-xl bg-purple-50 border border-purple-100"
                         title="Токены — внутренняя валюта для генерации материалов"
@@ -392,7 +394,16 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
                             </span>
                         )}
                     </div>
+                    <button
+                        onClick={() => setPlanModalOpen(true)}
+                        className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-semibold transition-all active:scale-[0.98] shadow-sm"
+                    >
+                        <Zap className="w-3.5 h-3.5" />
+                        Улучшить тариф
+                    </button>
                 </div>
+
+                <PlanUpgradeModal open={planModalOpen} onClose={() => setPlanModalOpen(false)} />
 
                 {/* User Profile */}
                 <div className="p-4 border-t border-gray-100 bg-gray-50/30">
