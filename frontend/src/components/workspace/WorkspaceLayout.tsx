@@ -8,7 +8,7 @@ import { useUser } from '@/lib/hooks/useUser'
 import { useSubscription } from '@/lib/hooks/useSubscription'
 import { useIsMobile } from '@/lib/hooks/useIsMobile'
 import { LOGO_BASE64 } from '@/constants/branding'
-import { BookOpen, HelpCircle, Gamepad2, Settings, ArrowLeft, PenTool, LayoutTemplate, MessageSquare, FileEdit, MessageCircle, Sparkles, PackageOpen, Video, LineChart, Camera, Image as ImageIcon, FileAudio, MonitorPlay, ClipboardCheck, GraduationCap, X, Menu, Loader2, Zap } from 'lucide-react'
+import { BookOpen, HelpCircle, Gamepad2, Settings, ArrowLeft, PenTool, LayoutTemplate, MessageSquare, FileEdit, MessageCircle, Sparkles, PackageOpen, Video, LineChart, Camera, Image as ImageIcon, FileAudio, MonitorPlay, ClipboardCheck, GraduationCap, X, Menu, Loader2, Zap, Lock } from 'lucide-react'
 import PlanUpgradeModal from '@/components/PlanUpgradeModal'
 import NotificationBell from '@/components/NotificationBell'
 import { getCachedGenerations } from '@/lib/utils/generationsCache'
@@ -49,6 +49,22 @@ interface ToolGroup {
 
 interface WorkspaceLayoutProps {
     children: ReactNode
+}
+
+// Минимальный план для каждой операции
+const OP_REQUIRED_PLAN: Record<string, string> = {
+    lesson_plan: 'free', message: 'free', worksheet: 'free', quiz: 'free',
+    vocabulary: 'free', feedback: 'free', content_adaptation: 'free',
+    game_generation: 'starter', exam_variant: 'starter', unpacking: 'starter',
+    video_analysis: 'starter', transcription: 'starter', presentation: 'starter', sales_advisor: 'starter',
+    image_generation: 'pro', photosession: 'pro',
+}
+const PLAN_ORDER_LAYOUT = ['free', 'starter', 'pro', 'business']
+
+function isOpLocked(opKey: string | undefined, currentPlanKey: string): boolean {
+    if (!opKey) return false
+    const required = OP_REQUIRED_PLAN[opKey] ?? 'free'
+    return PLAN_ORDER_LAYOUT.indexOf(currentPlanKey) < PLAN_ORDER_LAYOUT.indexOf(required)
 }
 
 const opMap: Record<string, string> = {
@@ -161,33 +177,43 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
         return pathname.startsWith(path)
     }
 
+    const currentPlanKey = (subscription as any)?.planKey || 'free'
+
     const renderToolButton = (tool: Tool, showStar = false) => {
         const Icon = tool.icon
         const active = isActive(tool.path)
         const opType = opMap[tool.id]
         const isUnderMaintenance = costs?.find(c => c.operationType === opType)?.isUnderMaintenance || false
+        const locked = isOpLocked(opType, currentPlanKey)
+
+        const handleClick = () => {
+            if (isUnderMaintenance) return
+            if (locked) { setPlanModalOpen(true); return }
+            router.push(tool.path)
+            setMobileMenuOpen(false)
+        }
 
         return (
             <button
                 key={tool.id}
-                onClick={() => {
-                    if (!isUnderMaintenance) {
-                        router.push(tool.path)
-                        setMobileMenuOpen(false)
-                    }
-                }}
-                title={isUnderMaintenance ? 'Временно недоступно (тех. работы)' : ''}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors group relative w-full ${active
-                    ? 'bg-primary-50 text-primary-700'
-                    : isUnderMaintenance
-                        ? 'text-gray-300 cursor-not-allowed'
-                        : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-                    }`}
+                onClick={handleClick}
+                title={isUnderMaintenance ? 'Временно недоступно (тех. работы)' : locked ? 'Недоступно на вашем тарифе' : ''}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors group relative w-full ${
+                    active
+                        ? 'bg-primary-50 text-primary-700'
+                        : isUnderMaintenance
+                            ? 'text-gray-300 cursor-not-allowed'
+                            : locked
+                                ? 'text-gray-300 hover:bg-amber-50 hover:text-amber-600 cursor-pointer'
+                                : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                }`}
             >
-                <Icon className={`w-4 h-4 flex-shrink-0 ${active ? 'text-primary-600' : isUnderMaintenance ? 'text-gray-200' : 'text-gray-400'}`} />
+                <Icon className={`w-4 h-4 flex-shrink-0 ${active ? 'text-primary-600' : isUnderMaintenance ? 'text-gray-200' : locked ? 'text-gray-300 group-hover:text-amber-400' : 'text-gray-400'}`} />
                 <span className="flex-1 text-left">{tool.label}</span>
                 {isUnderMaintenance ? (
                     <PenTool className="w-3 h-3 text-amber-400 animate-pulse" />
+                ) : locked ? (
+                    <Lock className="w-3 h-3 text-gray-300 group-hover:text-amber-400 transition-colors" />
                 ) : showStar ? (
                     <span className="text-[10px] text-amber-400">★</span>
                 ) : null}

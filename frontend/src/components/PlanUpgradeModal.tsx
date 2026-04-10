@@ -53,6 +53,52 @@ const PLAN_COLORS: Record<string, { bg: string; border: string; badge: string; b
   business: { bg: 'bg-amber-50',  border: 'border-amber-300',  badge: 'bg-amber-100 text-amber-700',   btn: 'bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400', icon: 'bg-amber-100 text-amber-600' },
 }
 
+// Детальное описание каждого тарифа с конкретными инструментами
+const PLAN_DETAILS: Record<string, { tagline: string; tools: { emoji: string; name: string; hint: string }[] }> = {
+  free: {
+    tagline: 'Базовые инструменты для подготовки уроков',
+    tools: [
+      { emoji: '📖', name: 'Конструктор Уроков', hint: 'Планы уроков с целями и таймингом' },
+      { emoji: '✏️', name: 'Рабочие Листы', hint: 'Материалы для печати и ДЗ' },
+      { emoji: '📚', name: 'Словарь', hint: 'Термины и определения по теме' },
+      { emoji: '🔄', name: 'Адаптация Текста', hint: 'Упрощение или усложнение материала' },
+      { emoji: '✅', name: 'Генератор Тестов', hint: 'Интерактивные тесты в один клик' },
+      { emoji: '💬', name: 'Фидбек', hint: 'Обратная связь для учеников' },
+      { emoji: '🤖', name: 'AI Ассистент', hint: '10 запросов в день' },
+    ],
+  },
+  starter: {
+    tagline: 'Все базовые + мощные инструменты для активного преподавания',
+    tools: [
+      { emoji: '🎮', name: 'Обучающие Игры', hint: 'Memory, флэш-карты, викторины' },
+      { emoji: '🎓', name: 'Варианты ОГЭ/ЕГЭ', hint: 'По спецификациям ФИПИ' },
+      { emoji: '📦', name: 'Распаковка Экспертности', hint: 'Структурирование знаний' },
+      { emoji: '🎬', name: 'Анализ Видео', hint: 'Ключевые моменты из видеоурока' },
+      { emoji: '🖥️', name: 'Презентации', hint: 'Слайды с экспортом в PDF/PPTX' },
+      { emoji: '🎙️', name: 'Транскрибация', hint: 'Видео и лекции → текст' },
+      { emoji: '🤖', name: 'AI Ассистент', hint: '50 запросов в день' },
+    ],
+  },
+  pro: {
+    tagline: 'Всё из Стартера + создание уникального визуального контента',
+    tools: [
+      { emoji: '🖼️', name: 'Генератор Изображений', hint: 'Иллюстрации для учебных материалов' },
+      { emoji: '📸', name: 'AI Фотосессия', hint: 'Серия фото в едином стиле' },
+      { emoji: '🤖', name: 'AI Ассистент', hint: 'Безлимитные запросы' },
+      { emoji: '🔄', name: 'Перенос токенов', hint: 'До 100 неиспользованных токенов' },
+    ],
+  },
+  business: {
+    tagline: 'Максимум возможностей для школ и образовательных центров',
+    tools: [
+      { emoji: '💰', name: 'Овередж токены', hint: '1.5₽ за токен при превышении лимита' },
+      { emoji: '🔄', name: 'Перенос токенов', hint: 'До 300 неиспользованных токенов' },
+      { emoji: '⚡', name: 'Приоритетная поддержка', hint: 'Ответ в течение 2 часов' },
+      { emoji: '📊', name: '1500 токенов/месяц', hint: 'Максимальный объём генераций' },
+    ],
+  },
+}
+
 const CP_WIDGET_URL = 'https://widget.cloudpayments.ru/bundles/cloudpayments.js'
 
 function useCloudPaymentsScript() {
@@ -238,14 +284,32 @@ export default function PlanUpgradeModal({ open, onClose, highlightPlanKey }: Pr
                   )}
                 </div>
 
-                {/* Features */}
-                <ul className="flex flex-col gap-1.5 flex-1">
-                  {plan.features.map((f, i) => (
-                    <li key={i} className="flex items-start gap-2 text-xs text-gray-600">
-                      <Check className="w-3.5 h-3.5 text-green-500 flex-shrink-0 mt-0.5" />
-                      <span>{f}</span>
-                    </li>
-                  ))}
+                {/* Tagline */}
+                {PLAN_DETAILS[plan.planKey] && (
+                  <p className="text-[11px] text-gray-500 leading-relaxed -mt-1">
+                    {PLAN_DETAILS[plan.planKey].tagline}
+                  </p>
+                )}
+
+                {/* Detailed tools list */}
+                <ul className="flex flex-col gap-2 flex-1">
+                  {PLAN_DETAILS[plan.planKey]
+                    ? PLAN_DETAILS[plan.planKey].tools.map((tool, i) => (
+                        <li key={i} className="flex items-start gap-2">
+                          <span className="text-sm leading-none mt-0.5 flex-shrink-0">{tool.emoji}</span>
+                          <div className="min-w-0">
+                            <span className="text-xs font-semibold text-gray-800">{tool.name}</span>
+                            <span className="text-[10px] text-gray-400 block leading-tight">{tool.hint}</span>
+                          </div>
+                        </li>
+                      ))
+                    : plan.features.map((f, i) => (
+                        <li key={i} className="flex items-start gap-2 text-xs text-gray-600">
+                          <Check className="w-3.5 h-3.5 text-green-500 flex-shrink-0 mt-0.5" />
+                          <span>{f}</span>
+                        </li>
+                      ))
+                  }
                 </ul>
 
                 {/* CTA */}

@@ -1,9 +1,11 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import { BookOpen, HelpCircle, Gamepad2, PenTool, MessageSquare, Image as ImageIcon, Video, Sparkles, ClipboardList, ChevronRight, Search, FileEdit, MessageCircle, PackageOpen, LineChart, Camera, FileAudio, MonitorPlay, ClipboardCheck, GraduationCap } from 'lucide-react'
+import { BookOpen, HelpCircle, Gamepad2, PenTool, MessageSquare, Image as ImageIcon, Video, Sparkles, ClipboardList, ChevronRight, Search, FileEdit, MessageCircle, PackageOpen, LineChart, Camera, FileAudio, MonitorPlay, ClipboardCheck, GraduationCap, Lock } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { apiClient } from '@/lib/api/client'
+import { useSubscription } from '@/lib/hooks/useSubscription'
+import PlanUpgradeModal from '@/components/PlanUpgradeModal'
 
 interface DashboardData {
     totalPending: number
@@ -139,11 +141,55 @@ const tools: ToolDef[] = [
 
 const categories = ['Подготовка урока', 'Оценка знаний', 'Медиа-контент', 'Другое']
 
+// Какой минимальный план нужен для каждой операции
+const OP_REQUIRED_PLAN: Record<string, string> = {
+    lesson_plan: 'free',
+    message: 'free',
+    worksheet: 'free',
+    quiz: 'free',
+    vocabulary: 'free',
+    feedback: 'free',
+    content_adaptation: 'free',
+    game_generation: 'starter',
+    exam_variant: 'starter',
+    unpacking: 'starter',
+    video_analysis: 'starter',
+    transcription: 'starter',
+    presentation: 'starter',
+    sales_advisor: 'starter',
+    image_generation: 'pro',
+    photosession: 'pro',
+}
+
+const PLAN_ORDER = ['free', 'starter', 'pro', 'business']
+
+const PLAN_LABELS: Record<string, string> = {
+    free: 'Бесплатный',
+    starter: 'Стартер',
+    pro: 'Про',
+    business: 'Бизнес',
+}
+
+function getPlanIndex(planKey: string) {
+    const idx = PLAN_ORDER.indexOf(planKey)
+    return idx === -1 ? 0 : idx
+}
+
+function isToolLocked(opKey: string, currentPlanKey: string): { locked: boolean; requiredPlan: string } {
+    const required = OP_REQUIRED_PLAN[opKey] ?? 'free'
+    const locked = getPlanIndex(currentPlanKey) < getPlanIndex(required)
+    return { locked, requiredPlan: required }
+}
+
 export default function WorkspaceHub() {
     const router = useRouter()
+    const { subscription } = useSubscription()
+    const currentPlanKey = (subscription as any)?.planKey || 'free'
+
     const [maintenanceStatus, setMaintenanceStatus] = useState<Record<string, boolean>>({})
     const [dashboard, setDashboard] = useState<DashboardData | null>(null)
     const [query, setQuery] = useState('')
+    const [upgradeModal, setUpgradeModal] = useState<{ open: boolean; highlightPlanKey?: string }>({ open: false })
 
     useEffect(() => {
         const loadStatus = async () => {
@@ -179,21 +225,39 @@ export default function WorkspaceHub() {
     const renderCard = (tool: ToolDef) => {
         const Icon = tool.icon
         const isMaint = maintenanceStatus[tool.opKey]
+        const { locked, requiredPlan } = isToolLocked(tool.opKey, currentPlanKey)
+
+        const handleClick = () => {
+            if (isMaint) return
+            if (locked) {
+                setUpgradeModal({ open: true, highlightPlanKey: requiredPlan })
+                return
+            }
+            router.push(tool.path)
+        }
+
         return (
             <div
                 key={tool.id}
-                onClick={() => !isMaint && router.push(tool.path)}
-                className={`relative bg-white rounded-2xl p-4 border border-gray-100 shadow-sm transition-all group flex flex-col gap-3 ${
+                onClick={handleClick}
+                className={`relative bg-white rounded-2xl p-4 border transition-all group flex flex-col gap-3 cursor-pointer ${
                     isMaint
-                        ? 'cursor-not-allowed opacity-60'
-                        : 'cursor-pointer hover:shadow-md hover:border-primary-200 hover:-translate-y-0.5'
+                        ? 'border-gray-100 shadow-sm opacity-60 cursor-not-allowed'
+                        : locked
+                            ? 'border-gray-100 shadow-sm hover:border-amber-200 hover:shadow-md hover:-translate-y-0.5'
+                            : 'border-gray-100 shadow-sm hover:shadow-md hover:border-primary-200 hover:-translate-y-0.5'
                 }`}
             >
-                {/* Cost / maintenance badge */}
+                {/* Lock / Maintenance / Cost badge */}
                 <div className="absolute top-3 right-3">
                     {isMaint ? (
                         <span className="flex items-center gap-1 text-[9px] font-bold bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded-md border border-yellow-200 uppercase tracking-wide animate-pulse">
                             <i className="fas fa-wrench text-[8px]"></i> Тех.
+                        </span>
+                    ) : locked ? (
+                        <span className="flex items-center gap-1 text-[9px] font-bold bg-amber-50 text-amber-600 px-1.5 py-0.5 rounded-md border border-amber-200">
+                            <Lock className="w-2.5 h-2.5" />
+                            {PLAN_LABELS[requiredPlan]}
                         </span>
                     ) : tool.cost > 0 ? (
                         <span className="flex items-center gap-0.5 text-[10px] font-semibold text-gray-400 bg-gray-50 px-1.5 py-0.5 rounded-md border border-gray-100">
@@ -203,16 +267,33 @@ export default function WorkspaceHub() {
                     ) : null}
                 </div>
 
-                {/* Icon */}
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${tool.color} transition-transform ${!isMaint && 'group-hover:scale-105'}`}>
-                    <Icon className="w-5 h-5" />
+                {/* Icon + lock overlay */}
+                <div className="relative w-10 h-10 flex-shrink-0">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${tool.color} transition-transform ${!isMaint && !locked && 'group-hover:scale-105'} ${locked ? 'opacity-40' : ''}`}>
+                        <Icon className="w-5 h-5" />
+                    </div>
+                    {locked && (
+                        <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-amber-500 flex items-center justify-center shadow-sm">
+                            <Lock className="w-2.5 h-2.5 text-white" />
+                        </div>
+                    )}
                 </div>
 
                 {/* Text */}
                 <div>
-                    <h3 className="text-sm font-bold text-gray-900 leading-snug pr-6 mb-1">{tool.title}</h3>
+                    <h3 className={`text-sm font-bold leading-snug pr-6 mb-1 ${locked ? 'text-gray-400' : 'text-gray-900'}`}>
+                        {tool.title}
+                    </h3>
                     <p className="text-[11px] text-gray-400 leading-relaxed line-clamp-2">{tool.description}</p>
                 </div>
+
+                {/* Upgrade hint */}
+                {locked && (
+                    <div className="mt-auto pt-1 flex items-center gap-1 text-[10px] font-semibold text-amber-600">
+                        <Sparkles className="w-3 h-3" />
+                        Доступно в {PLAN_LABELS[requiredPlan]}
+                    </div>
+                )}
             </div>
         )
     }
@@ -291,6 +372,12 @@ export default function WorkspaceHub() {
                     </div>
                 )}
             </div>
+
+            <PlanUpgradeModal
+                open={upgradeModal.open}
+                onClose={() => setUpgradeModal({ open: false })}
+                highlightPlanKey={upgradeModal.highlightPlanKey}
+            />
         </div>
     )
 }
