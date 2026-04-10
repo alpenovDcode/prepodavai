@@ -135,7 +135,7 @@ model CreditCost {
   @@map("credit_costs")
 }
 
-// Транзакции кредитов
+// Транзакции Токенов
 model CreditTransaction {
   id                String   @id @default(uuid())
   userId            String
@@ -196,7 +196,7 @@ model UserGeneration {
   sentToTelegram      Boolean  @default(false)
   telegramSentAt      DateTime?
   tokensUsed          Int?     // Количество потраченных токенов
-  creditCost          Int?     // Итоговая стоимость кредитов
+  creditCost          Int?     // Итоговая стоимость Токенов
   lessonId            String?
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
@@ -470,7 +470,7 @@ model ReferralMilestone {
   id          String   @id @default(uuid())
   userId      String
   milestone   String   // 'students_5' | 'students_10' | 'teachers_3' | 'teachers_8'
-  reward      Int      // Сколько кредитов начислено
+  reward      Int      // Сколько Токенов начислено
   grantedAt   DateTime @default(now())
 
   user        AppUser  @relation(fields: [userId], references: [id], onDelete: Cascade)

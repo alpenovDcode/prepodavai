@@ -55,7 +55,7 @@ async function createAdminUser() {
   } else {
     // Создаем нового пользователя
     const userHash = `admin_${crypto.randomBytes(8).toString('hex')}`;
-    
+
     const user = await prisma.appUser.create({
       data: {
         username: adminData.username,
@@ -95,7 +95,7 @@ async function createAdminUser() {
 
   if (plan) {
     // Создаем или обновляем подписку для админа
-    const user = existingUser 
+    const user = existingUser
       ? existingUser
       : await prisma.appUser.findFirst({ where: { username: adminData.username } });
 
@@ -103,14 +103,14 @@ async function createAdminUser() {
       const subscription = await prisma.userSubscription.upsert({
         where: { userId: user.id },
         update: {
-          creditsBalance: 100000, // Много кредитов для админа
+          creditsBalance: 100000, // Много Токенов для админа
           status: 'active',
         },
         create: {
           userId: user.id,
           planId: plan.id,
           status: 'active',
-          creditsBalance: 100000, // Много кредитов для админа
+          creditsBalance: 100000, // Много Токенов для админа
           extraCredits: 0,
           creditsUsed: 0,
           overageCreditsUsed: 0,
@@ -120,7 +120,7 @@ async function createAdminUser() {
         },
       });
 
-      console.log(`✅ Подписка создана/обновлена: ${subscription.creditsBalance} кредитов`);
+      console.log(`✅ Подписка создана/обновлена: ${subscription.creditsBalance} Токенов`);
     }
   }
 

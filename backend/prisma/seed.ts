@@ -79,7 +79,6 @@ async function main() {
       overageCostPerCredit: 1.5,
       features: [
         'Всё из Про',
-        'Перерасход: 1.5р / токен',
         'Перенос до 300 токенов на следующий месяц',
         'Приоритетная поддержка',
       ],
@@ -105,24 +104,24 @@ async function main() {
 
   // ── Стоимость операций ──────────────────────────────────────────────────────
   // Значения соответствуют реальной себестоимости (см. юнит-экономику).
-  // update: обновляет кредиты при повторном запуске.
+  // update: обновляет Токены при повторном запуске.
   const costs = [
-    { operationType: 'text_generation',   operationName: 'Генерация текста',          creditCost: 1,  description: 'Себест. ~1р',     isActive: true },
-    { operationType: 'message',           operationName: 'Сообщение родителям',        creditCost: 1,  description: 'Себест. ~1р',     isActive: true },
-    { operationType: 'worksheet',         operationName: 'Рабочий лист',               creditCost: 3,  description: 'Себест. ~1.5р',   isActive: true },
-    { operationType: 'quiz',              operationName: 'Тест',                        creditCost: 3,  description: 'Себест. ~1.5р',   isActive: true },
-    { operationType: 'vocabulary',        operationName: 'Словарь',                    creditCost: 3,  description: 'Себест. ~1.5р',   isActive: true },
-    { operationType: 'lesson_plan',       operationName: 'План урока',                 creditCost: 3,  description: 'Себест. ~1.5р',   isActive: true },
-    { operationType: 'feedback',          operationName: 'Проверка ДЗ',               creditCost: 3,  description: 'Себест. ~1.5р',   isActive: true },
-    { operationType: 'content_adaptation',operationName: 'Адаптация текста',           creditCost: 3,  description: 'Себест. ~1.5–3р', isActive: true },
-    { operationType: 'game_generation',   operationName: 'Игра',                        creditCost: 15, description: 'Себест. ~1.5р',   isActive: true },
-    { operationType: 'exam_variant',      operationName: 'Вариант ОГЭ/ЕГЭ',            creditCost: 20, description: 'Себест. ~1.5р',   isActive: true },
-    { operationType: 'expert_unpacking',  operationName: 'Распаковка экспертности',    creditCost: 20, description: 'Себест. ~2р',     isActive: true },
-    { operationType: 'video_analysis',    operationName: 'Анализ видео',               creditCost: 15, description: 'Себест. ~5р',     isActive: true },
-    { operationType: 'transcription',     operationName: 'Транскрибация видео',        creditCost: 15, description: 'Себест. ~5р',     isActive: true },
-    { operationType: 'presentation',      operationName: 'Презентация',                creditCost: 50, description: 'Себест. ~3–15р',  isActive: true },
-    { operationType: 'image_generation',  operationName: 'ИИ Генератор фото',          creditCost: 15, description: 'Себест. ~12р',    isActive: true },
-    { operationType: 'photosession',      operationName: 'ИИ Фотосессия',             creditCost: 25, description: 'Себест. ~18р',    isActive: true },
+    { operationType: 'text_generation', operationName: 'Генерация текста', creditCost: 1, description: 'Себест. ~1р', isActive: true },
+    { operationType: 'message', operationName: 'Сообщение родителям', creditCost: 1, description: 'Себест. ~1р', isActive: true },
+    { operationType: 'worksheet', operationName: 'Рабочий лист', creditCost: 3, description: 'Себест. ~1.5р', isActive: true },
+    { operationType: 'quiz', operationName: 'Тест', creditCost: 3, description: 'Себест. ~1.5р', isActive: true },
+    { operationType: 'vocabulary', operationName: 'Словарь', creditCost: 3, description: 'Себест. ~1.5р', isActive: true },
+    { operationType: 'lesson_plan', operationName: 'План урока', creditCost: 3, description: 'Себест. ~1.5р', isActive: true },
+    { operationType: 'feedback', operationName: 'Проверка ДЗ', creditCost: 3, description: 'Себест. ~1.5р', isActive: true },
+    { operationType: 'content_adaptation', operationName: 'Адаптация текста', creditCost: 3, description: 'Себест. ~1.5–3р', isActive: true },
+    { operationType: 'game_generation', operationName: 'Игра', creditCost: 15, description: 'Себест. ~1.5р', isActive: true },
+    { operationType: 'exam_variant', operationName: 'Вариант ОГЭ/ЕГЭ', creditCost: 20, description: 'Себест. ~1.5р', isActive: true },
+    { operationType: 'expert_unpacking', operationName: 'Распаковка экспертности', creditCost: 20, description: 'Себест. ~2р', isActive: true },
+    { operationType: 'video_analysis', operationName: 'Анализ видео', creditCost: 15, description: 'Себест. ~5р', isActive: true },
+    { operationType: 'transcription', operationName: 'Транскрибация видео', creditCost: 15, description: 'Себест. ~5р', isActive: true },
+    { operationType: 'presentation', operationName: 'Презентация', creditCost: 50, description: 'Себест. ~3–15р', isActive: true },
+    { operationType: 'image_generation', operationName: 'ИИ Генератор фото', creditCost: 15, description: 'Себест. ~12р', isActive: true },
+    { operationType: 'photosession', operationName: 'ИИ Фотосессия', creditCost: 25, description: 'Себест. ~18р', isActive: true },
   ];
 
   for (const costData of costs) {
@@ -170,14 +169,14 @@ async function main() {
     const testSubscription = await prisma.userSubscription.upsert({
       where: { userId: testTelegramUser.id },
       update: {
-        creditsBalance: 10000, // 10000 кредитов для тестирования
+        creditsBalance: 10000, // 10000 Токенов для тестирования
         status: 'active',
       },
       create: {
         userId: testTelegramUser.id,
         planId: starterPlan.id,
         status: 'active',
-        creditsBalance: 10000, // 10000 кредитов для тестирования
+        creditsBalance: 10000, // 10000 Токенов для тестирования
         extraCredits: 0,
         creditsUsed: 0,
         overageCreditsUsed: 0,
@@ -187,7 +186,7 @@ async function main() {
       },
     });
     console.log(`✅ Test Subscription created: ${testSubscription.id}`);
-    console.log(`💰 Кредитов на балансе: ${testSubscription.creditsBalance}`);
+    console.log(`💰 Токенов на балансе: ${testSubscription.creditsBalance}`);
   }
 
   // Получаем обновленного пользователя с API key

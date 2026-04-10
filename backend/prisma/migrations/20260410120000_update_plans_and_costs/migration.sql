@@ -47,7 +47,7 @@ UPDATE subscription_plans SET
   price            = 1490,
   "allowOverage"   = true,
   "overageCostPerCredit" = 1.5,
-  features         = ARRAY['Всё из Про','Перерасход: 1.5р / токен','Перенос до 300 токенов на следующий месяц','Приоритетная поддержка'],
+  features         = ARRAY['Всё из Про','Перенос до 300 токенов на следующий месяц','Приоритетная поддержка'],
   "updatedAt"      = NOW()
 WHERE "planKey" = 'business';
 

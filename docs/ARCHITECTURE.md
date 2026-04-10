@@ -56,7 +56,7 @@ PREPODAVAI/
 
 ```
 1. Frontend → POST /api/generate/:type
-2. Backend → Проверка кредитов
+2. Backend → Проверка Токенов
 3. Backend → Создание записи в БД (status: pending)
 4. Backend → Отправка в n8n webhook (async)
 5. Backend → Возврат { status: 'pending' }

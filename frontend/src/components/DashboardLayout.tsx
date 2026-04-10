@@ -8,7 +8,8 @@ import { useMiniAppAuth } from '@/lib/hooks/useMiniAppAuth'
 import { useSubscription } from '@/lib/hooks/useSubscription'
 import { LOGO_BASE64 } from '@/constants/branding'
 import { apiClient } from '@/lib/api/client'
-import { Loader2, Menu, X, ArrowLeft, LayoutDashboard, Wand2, BookOpen, Users, BarChart, Settings as SettingsIcon, Sparkles, Gift } from 'lucide-react'
+import { Loader2, Menu, X, LayoutDashboard, Wand2, BookOpen, Users, BarChart, Settings as SettingsIcon, Sparkles, Gift, Zap } from 'lucide-react'
+import PlanUpgradeModal from '@/components/PlanUpgradeModal'
 
 interface DashboardLayoutProps {
     children: ReactNode
@@ -30,6 +31,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         { id: 'settings', label: 'Настройки', icon: SettingsIcon, path: '/dashboard/settings' },
     ]
 
+    const [planModalOpen, setPlanModalOpen] = useState(false)
     const { fullName, user, initials } = useUser()
     const { totalCredits, loading: balanceLoading } = useSubscription({ enabled: true })
 
@@ -241,6 +243,17 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                     })}
                 </nav>
 
+                {/* Upgrade Button */}
+                <div className="px-4 pb-3">
+                    <button
+                        onClick={() => setPlanModalOpen(true)}
+                        className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-sm font-semibold rounded-xl shadow-md transition-all active:scale-95"
+                    >
+                        <Zap className="w-4 h-4" />
+                        Улучшить тариф
+                    </button>
+                </div>
+
                 {/* Bottom Section: Profile */}
                 <div className="p-4 border-t border-gray-100 bg-gray-50/30">
                     <div 
@@ -284,6 +297,8 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                     {children}
                 </main>
             </div>
+
+            <PlanUpgradeModal open={planModalOpen} onClose={() => setPlanModalOpen(false)} />
         </div>
     )
 }

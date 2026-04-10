@@ -204,7 +204,7 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
     }
 
     if (!creditCheck.success) {
-      throw new BadRequestException(creditCheck.message || 'Недостаточно кредитов');
+      throw new BadRequestException(creditCheck.message || 'Недостаточно Токенов');
     }
 
     const deductedCost = creditCheck.transaction?.amount || 0;
@@ -347,7 +347,7 @@ window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\
     );
 
     if (!creditCheck.success) {
-      throw new BadRequestException(creditCheck.message || 'Недостаточно кредитов для пакета');
+      throw new BadRequestException(creditCheck.message || 'Недостаточно Токенов для пакета');
     }
 
     const remainingCredits = creditCheck.transaction?.balanceAfter;
@@ -1600,7 +1600,7 @@ table.answers-table th,table.answers-table td{border:1px solid #000;padding:8px;
   №13: Уравнение (тригонометрическое/показательное/логарифмическое). Отбор корней.
   №14: Стереометрия (доказательство + вычисление). 🔴 SVG: 3D-проекция, невидимые рёбра stroke-dasharray.
   №15: Неравенство (логарифмическое/показательное, метод интервалов).
-  №16: Экономическая задача (кредит, вклад, оптимизация).
+  №16: Экономическая задача (Токен, вклад, оптимизация).
   №17: Планиметрия (доказательство + вычисление). 🔴 SVG: сложный чертёж с дополнительными построениями.
   №18: Задача с параметром. 🔴 SVG: семейство графиков, штриховка областей.
   №19: Числовая задача (делимость, оценки, примеры).
@@ -3244,7 +3244,7 @@ ${customPrompt ? `Дополнительно: ${customPrompt}` : ''}
   }
 
   /**
-   * Маппинг типа генерации в тип операции для кредитов
+   * Маппинг типа генерации в тип операции для Токенов
    */
   private mapGenerationTypeToOperationType(generationType: GenerationType): OperationType {
     const map: Record<GenerationType, OperationType> = {

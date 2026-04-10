@@ -10,7 +10,7 @@ export class UsersService {
   constructor(
     private prisma: PrismaService,
     private smscService: SmscService,
-  ) {}
+  ) { }
 
   /**
    * Отправка кода подтверждения телефона (для уже авторизованного пользователя)
@@ -42,7 +42,7 @@ export class UsersService {
   }
 
   /**
-   * Подтверждение кода и начисление +50 кредитов (однократно)
+   * Подтверждение кода и начисление +50 Токенов (однократно)
    */
   async verifyPhoneAndGrantBonus(userId: string, phone: string, code: string): Promise<{ creditsGranted: number }> {
     const user = await this.prisma.appUser.findUnique({ where: { id: userId } });

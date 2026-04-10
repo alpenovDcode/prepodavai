@@ -147,12 +147,12 @@ export default function SettingsPage() {
             if (response.data.success) {
                 const newAvatarHash = response.data.hash
                 setProfile(prev => ({ ...prev, avatar: newAvatarHash }))
-                
+
                 // Сразу сохраняем в профиль
                 await apiClient.put('/users/me', {
                     avatar: newAvatarHash
                 })
-                
+
                 setStatusMessage({ type: 'success', text: 'Аватар обновлен' })
                 setTimeout(() => setStatusMessage(null), 3000)
             }
@@ -202,7 +202,7 @@ export default function SettingsPage() {
             const names = profile.fullName.trim().split(' ')
             const firstName = names[0] || ''
             const lastName = names.slice(1).join(' ') || ''
-            
+
             await apiClient.put('/users/me', {
                 firstName,
                 lastName,
@@ -214,7 +214,7 @@ export default function SettingsPage() {
                 notifyStudentProgress: notifications.notifyStudentProgress,
                 notifyWeeklyReport: notifications.notifyWeeklyReport,
             })
-            
+
             // Re-sync local storage name if needed somewhere else
             const storedUserStr = localStorage.getItem('prepodavai_user')
             if (storedUserStr) {
@@ -222,7 +222,7 @@ export default function SettingsPage() {
                     const storedUser = JSON.parse(storedUserStr)
                     storedUser.name = `${firstName} ${lastName}`.trim() || storedUser.name
                     localStorage.setItem('prepodavai_user', JSON.stringify(storedUser))
-                } catch (e) {}
+                } catch (e) { }
             }
 
             setStatusMessage({ type: 'success', text: 'Изменения успешно сохранены' })
@@ -258,9 +258,9 @@ export default function SettingsPage() {
                 <div className="flex items-center gap-6 mb-8">
                     <div className="w-24 h-24 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white text-3xl font-bold shadow-lg overflow-hidden border-4 border-white">
                         {profile.avatar ? (
-                            <img 
-                                src={`${apiClient.defaults.baseURL}/files/${profile.avatar}`} 
-                                alt="Avatar" 
+                            <img
+                                src={`${apiClient.defaults.baseURL}/files/${profile.avatar}`}
+                                alt="Avatar"
                                 className="w-full h-full object-cover"
                             />
                         ) : (
@@ -268,14 +268,14 @@ export default function SettingsPage() {
                         )}
                     </div>
                     <div>
-                        <input 
-                            type="file" 
-                            ref={fileInputRef} 
-                            onChange={onAvatarFileChange} 
-                            accept="image/*" 
-                            className="hidden" 
+                        <input
+                            type="file"
+                            ref={fileInputRef}
+                            onChange={onAvatarFileChange}
+                            accept="image/*"
+                            className="hidden"
                         />
-                        <button 
+                        <button
                             onClick={handleAvatarClick}
                             className="px-4 py-2 bg-primary-600 text-white rounded-xl text-sm font-semibold hover:bg-primary-700 transition shadow-md hover:shadow-lg mb-2"
                         >
@@ -382,7 +382,7 @@ export default function SettingsPage() {
                                 {/* Hint / error / bonus */}
                                 {phoneVerif.bonusGranted && (
                                     <p className="text-sm text-green-600 font-medium flex items-center gap-1.5">
-                                        <CheckCircle className="w-4 h-4" /> +50 кредитов начислено!
+                                        <CheckCircle className="w-4 h-4" /> +50 Токенов начислено!
                                     </p>
                                 )}
                                 {phoneVerif.error && (
@@ -394,7 +394,7 @@ export default function SettingsPage() {
                                     <p className="text-xs text-gray-500">SMS отправлено на {profile.phone}. Код действует 5 минут.</p>
                                 )}
                                 {phoneVerif.step === 'idle' && !profile.phoneVerified && (
-                                    <p className="text-xs text-gray-400">Подтвердите телефон и получите +50 кредитов</p>
+                                    <p className="text-xs text-gray-400">Подтвердите телефон и получите +50 Токенов</p>
                                 )}
                             </div>
                         )}

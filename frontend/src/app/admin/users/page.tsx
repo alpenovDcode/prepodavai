@@ -31,7 +31,8 @@ export default function AdminUsersPage() {
         firstName: '',
         lastName: '',
         phone: '',
-        creditsBalance: ''
+        creditsBalance: '',
+        planKey: '',
     })
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [formError, setFormError] = useState('')
@@ -44,7 +45,7 @@ export default function AdminUsersPage() {
         try {
             await apiClient.post('/admin/users', formData)
             setIsCreateModalOpen(false)
-            setFormData({ username: '', password: '', firstName: '', lastName: '', phone: '', creditsBalance: '' })
+            setFormData({ username: '', password: '', firstName: '', lastName: '', phone: '', creditsBalance: '', planKey: '' })
             mutate() // Refresh data
         } catch (err: any) {
             setFormError(err.response?.data?.message || 'Ошибка создания пользователя')
@@ -68,11 +69,12 @@ export default function AdminUsersPage() {
         setSelectedUser(user)
         setFormData({
             username: user.username || '',
-            password: '', // Password is not returned from API
+            password: '',
             firstName: user.firstName || '',
             lastName: user.lastName || '',
             phone: user.phone || '',
-            creditsBalance: user.subscription?.creditsBalance?.toString() || '0'
+            creditsBalance: user.subscription?.creditsBalance?.toString() || '0',
+            planKey: user.subscription?.plan?.planKey || '',
         })
         setIsEditModalOpen(true)
     }
@@ -85,10 +87,13 @@ export default function AdminUsersPage() {
         try {
             const dataToUpdate = { ...formData }
             if (!dataToUpdate.password) {
-                delete (dataToUpdate as any).password // Don't send empty password
+                delete (dataToUpdate as any).password
             }
             if (dataToUpdate.creditsBalance === '') {
                 delete (dataToUpdate as any).creditsBalance
+            }
+            if (!dataToUpdate.planKey) {
+                delete (dataToUpdate as any).planKey
             }
             
             await apiClient.put(`/admin/users/${selectedUser.id}`, dataToUpdate)
@@ -160,7 +165,7 @@ export default function AdminUsersPage() {
                                 <tr>
                                     <th className="px-6 py-4">ID / Логин / Пароль</th>
                                     <th className="px-6 py-4">Имя & Тел</th>
-                                    <th className="px-6 py-4">Ключи доступа / Баланс</th>
+                                    <th className="px-6 py-4">Ключи / Баланс / Тариф</th>
                                     <th className="px-6 py-4">Последний вход</th>
                                     <th className="px-6 py-4 text-right">Действия</th>
                                 </tr>
@@ -210,6 +215,24 @@ export default function AdminUsersPage() {
                                                     <span className="text-gray-400 uppercase tracking-widest text-[9px]">Баланс: </span>
                                                     <span className="text-indigo-600 bg-indigo-50 px-2.5 py-0.5 rounded-lg border border-indigo-100 tabular-nums">{user.subscription?.creditsBalance ?? '—'}</span>
                                                 </div>
+                                                {user.subscription?.plan && (
+                                                    <div className="pl-0.5">
+                                                        {(() => {
+                                                            const pk = user.subscription.plan.planKey
+                                                            const styles: Record<string, string> = {
+                                                                free: 'text-gray-600 bg-gray-100 border-gray-200',
+                                                                starter: 'text-blue-700 bg-blue-50 border-blue-200',
+                                                                pro: 'text-purple-700 bg-purple-50 border-purple-200',
+                                                                business: 'text-amber-700 bg-amber-50 border-amber-200',
+                                                            }
+                                                            return (
+                                                                <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${styles[pk] || styles.free}`}>
+                                                                    {user.subscription.plan.planName}
+                                                                </span>
+                                                            )
+                                                        })()}
+                                                    </div>
+                                                )}
                                             </div>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
@@ -326,6 +349,18 @@ export default function AdminUsersPage() {
                                     <label className="block text-sm font-medium text-indigo-700 mb-1 font-semibold">Баланс токенов</label>
                                     <input type="number" placeholder="100" value={formData.creditsBalance} onChange={e => setFormData({...formData, creditsBalance: e.target.value})} className="w-full border-indigo-200 bg-indigo-50/50 rounded-lg p-2 border focus:ring-2 focus:ring-indigo-500 focus:outline-none" />
                                 </div>
+                                {isEditModalOpen && (
+                                    <div className="col-span-2 sm:col-span-1">
+                                        <label className="block text-sm font-medium text-purple-700 mb-1 font-semibold">Тариф</label>
+                                        <select value={formData.planKey} onChange={e => setFormData({...formData, planKey: e.target.value})} className="w-full border-purple-200 bg-purple-50/50 rounded-lg p-2 border focus:ring-2 focus:ring-purple-500 focus:outline-none text-sm">
+                                            <option value="">— не менять —</option>
+                                            <option value="free">Бесплатный (30 токенов)</option>
+                                            <option value="starter">Стартер (200 токенов, 290₽)</option>
+                                            <option value="pro">Про (500 токенов, 690₽)</option>
+                                            <option value="business">Бизнес (1500 токенов, 1490₽)</option>
+                                        </select>
+                                    </div>
+                                )}
                             </div>
                             
                             <div className="pt-4 flex justify-end gap-3">

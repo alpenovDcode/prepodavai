@@ -35,44 +35,23 @@ const PLAN_COLORS: Record<string, { bg: string; border: string; badge: string; b
   business: { bg: 'bg-amber-50',  border: 'border-amber-300',  badge: 'bg-amber-100 text-amber-700',   btn: 'bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400', icon: 'bg-amber-100 text-amber-600' },
 }
 
-const PLAN_ORDER = ['free', 'starter', 'pro', 'business']
 
 export default function PlanUpgradeModal({ open, onClose, highlightPlanKey }: Props) {
   const [plans, setPlans] = useState<Plan[]>([])
   const [loading, setLoading] = useState(true)
-  const [upgrading, setUpgrading] = useState<string | null>(null)
-  const [success, setSuccess] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const { subscription, refetch } = useSubscription()
+  const { subscription } = useSubscription()
 
   const currentPlanKey = (subscription as any)?.planKey || 'free'
-  const currentIdx = PLAN_ORDER.indexOf(currentPlanKey)
 
   useEffect(() => {
     if (!open) return
     apiClient.get('/subscriptions/plans')
       .then(r => {
-        // sort by price
         const sorted = (r.data.plans as Plan[]).sort((a, b) => a.price - b.price)
         setPlans(sorted)
       })
       .finally(() => setLoading(false))
   }, [open])
-
-  const handleUpgrade = async (planKey: string) => {
-    setUpgrading(planKey)
-    setError(null)
-    try {
-      const res = await apiClient.post('/subscriptions/upgrade', { planKey })
-      setSuccess(res.data.message)
-      await refetch()
-      setTimeout(() => { setSuccess(null); onClose() }, 2500)
-    } catch (e: any) {
-      setError(e?.response?.data?.message || 'Ошибка при смене тарифа')
-    } finally {
-      setUpgrading(null)
-    }
-  }
 
   if (!open) return null
 
@@ -98,18 +77,6 @@ export default function PlanUpgradeModal({ open, onClose, highlightPlanKey }: Pr
           </button>
         </div>
 
-        {/* Success */}
-        {success && (
-          <div className="mx-6 mt-4 p-4 bg-green-50 border border-green-200 rounded-xl text-green-700 font-medium text-sm flex items-center gap-2">
-            <Check className="w-4 h-4 flex-shrink-0" /> {success}
-          </div>
-        )}
-        {error && (
-          <div className="mx-6 mt-4 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
-            {error}
-          </div>
-        )}
-
         {/* Plans grid */}
         <div className="p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {loading ? (
@@ -118,9 +85,7 @@ export default function PlanUpgradeModal({ open, onClose, highlightPlanKey }: Pr
             ))
           ) : plans.map((plan) => {
             const colors = PLAN_COLORS[plan.planKey] || PLAN_COLORS.starter
-            const planIdx = PLAN_ORDER.indexOf(plan.planKey)
             const isCurrent = plan.planKey === currentPlanKey
-            const isDowngrade = planIdx < currentIdx
             const isHighlighted = plan.planKey === highlightPlanKey
             const isPro = plan.planKey === 'pro'
 
@@ -166,9 +131,7 @@ export default function PlanUpgradeModal({ open, onClose, highlightPlanKey }: Pr
                       <span className="text-sm text-gray-500 mb-1">/мес</span>
                     </div>
                   )}
-                  {plan.allowOverage && plan.overageCostPerCredit && (
-                    <p className="text-xs text-gray-400 mt-0.5">Перерасход: {plan.overageCostPerCredit}₽/токен</p>
-                  )}
+                  {plan.allowOverage && plan.overageCostPerCredit}
                 </div>
 
                 {/* Features */}
@@ -182,24 +145,20 @@ export default function PlanUpgradeModal({ open, onClose, highlightPlanKey }: Pr
                 </ul>
 
                 {/* CTA */}
-                <button
-                  onClick={() => !isCurrent && !isDowngrade && handleUpgrade(plan.planKey)}
-                  disabled={isCurrent || isDowngrade || upgrading === plan.planKey}
-                  className={`w-full py-2.5 rounded-xl text-sm font-semibold text-white transition-all ${
-                    isCurrent
-                      ? 'bg-gray-300 cursor-default'
-                      : isDowngrade
-                      ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                      : `${colors.btn} active:scale-[0.98]`
-                  }`}
-                >
-                  {upgrading === plan.planKey ? (
-                    <span className="flex items-center justify-center gap-2">
-                      <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      Активация...
-                    </span>
-                  ) : isCurrent ? 'Текущий тариф' : isDowngrade ? 'Недоступно' : plan.price === 0 ? 'Выбрать' : 'Подключить'}
-                </button>
+                {isCurrent ? (
+                  <div className="w-full py-2.5 rounded-xl text-sm font-semibold text-center bg-gray-200 text-gray-500 cursor-default">
+                    Текущий тариф
+                  </div>
+                ) : plan.price === 0 ? null : (
+                  <a
+                    href="https://t.me/helpprrv"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`w-full py-2.5 rounded-xl text-sm font-semibold text-white text-center block transition-all active:scale-[0.98] ${colors.btn}`}
+                  >
+                    Написать менеджеру
+                  </a>
+                )}
               </div>
             )
           })}

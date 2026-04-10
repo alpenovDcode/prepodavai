@@ -25,11 +25,11 @@ export type OperationType =
 // free → starter → pro → business (накопительно)
 export const PLAN_OPERATION_RESTRICTIONS: Record<string, string[]> = {
   // free и выше
-  free:     ['text_generation', 'message', 'worksheet', 'quiz', 'vocabulary', 'lesson_plan', 'feedback', 'content_adaptation'],
+  free: ['text_generation', 'message', 'worksheet', 'quiz', 'vocabulary', 'lesson_plan', 'feedback', 'content_adaptation'],
   // starter и выше
-  starter:  ['game_generation', 'exam_variant', 'expert_unpacking', 'unpacking', 'video_analysis', 'transcription', 'presentation', 'sales_advisor'],
+  starter: ['game_generation', 'exam_variant', 'expert_unpacking', 'unpacking', 'video_analysis', 'transcription', 'presentation', 'sales_advisor'],
   // pro и выше
-  pro:      ['image_generation', 'photosession'],
+  pro: ['image_generation', 'photosession'],
   // business — всё включено
   business: [],
 };
@@ -99,7 +99,7 @@ export class SubscriptionsService {
         currency: 'RUB',
         allowOverage: true,
         overageCostPerCredit: 1.5,
-        features: ['Всё из Про', 'Перерасход: 1.5р / токен', 'Перенос до 300 токенов', 'Приоритетная поддержка'],
+        features: ['Всё из Про', 'Перенос до 300 токенов', 'Приоритетная поддержка'],
         isActive: true,
       },
     ];
@@ -119,24 +119,24 @@ export class SubscriptionsService {
    */
   async initializeCreditCosts() {
     const costs = [
-      { operationType: 'text_generation',    operationName: 'Генерация текста',           creditCost: 1,  description: 'Себест. ~1р',     isActive: true, isUnderMaintenance: false },
-      { operationType: 'message',            operationName: 'Сообщение родителям',         creditCost: 1,  description: 'Себест. ~1р',     isActive: true, isUnderMaintenance: false },
-      { operationType: 'worksheet',          operationName: 'Рабочий лист',                creditCost: 3,  description: 'Себест. ~1.5р',   isActive: true, isUnderMaintenance: false },
-      { operationType: 'quiz',               operationName: 'Тест',                         creditCost: 3,  description: 'Себест. ~1.5р',   isActive: true, isUnderMaintenance: false },
-      { operationType: 'vocabulary',         operationName: 'Словарь',                     creditCost: 3,  description: 'Себест. ~1.5р',   isActive: true, isUnderMaintenance: false },
-      { operationType: 'lesson_plan',        operationName: 'План урока',                  creditCost: 3,  description: 'Себест. ~1.5р',   isActive: true, isUnderMaintenance: false },
-      { operationType: 'feedback',           operationName: 'Проверка ДЗ',                creditCost: 3,  description: 'Себест. ~1.5р',   isActive: true, isUnderMaintenance: false },
-      { operationType: 'content_adaptation', operationName: 'Адаптация текста',            creditCost: 3,  description: 'Себест. ~1.5–3р', isActive: true, isUnderMaintenance: false },
-      { operationType: 'game_generation',    operationName: 'Игра',                         creditCost: 15, description: 'Себест. ~1.5р',   isActive: true, isUnderMaintenance: false },
-      { operationType: 'exam_variant',       operationName: 'Вариант ОГЭ/ЕГЭ',             creditCost: 20, description: 'Себест. ~1.5р',   isActive: true, isUnderMaintenance: false },
-      { operationType: 'expert_unpacking',   operationName: 'Распаковка экспертности',     creditCost: 20, description: 'Себест. ~2р',     isActive: true, isUnderMaintenance: false },
-      { operationType: 'unpacking',          operationName: 'Распаковка экспертности',     creditCost: 20, description: 'Себест. ~2р',     isActive: true, isUnderMaintenance: false },
-      { operationType: 'video_analysis',     operationName: 'Анализ видео',                creditCost: 15, description: 'Себест. ~5р',     isActive: true, isUnderMaintenance: false },
-      { operationType: 'transcription',      operationName: 'Транскрибация видео',         creditCost: 15, description: 'Себест. ~5р',     isActive: true, isUnderMaintenance: false },
-      { operationType: 'presentation',       operationName: 'Презентация',                 creditCost: 50, description: 'Себест. ~3–15р',  isActive: true, isUnderMaintenance: false },
-      { operationType: 'image_generation',   operationName: 'ИИ Генератор фото',           creditCost: 15, description: 'Себест. ~12р',    isActive: true, isUnderMaintenance: false },
-      { operationType: 'photosession',       operationName: 'ИИ Фотосессия',              creditCost: 25, description: 'Себест. ~18р',    isActive: true, isUnderMaintenance: false },
-      { operationType: 'sales_advisor',      operationName: 'ИИ-продажник',               creditCost: 10, description: 'Себест. ~2р',     isActive: true, isUnderMaintenance: false },
+      { operationType: 'text_generation', operationName: 'Генерация текста', creditCost: 1, description: 'Себест. ~1р', isActive: true, isUnderMaintenance: false },
+      { operationType: 'message', operationName: 'Сообщение родителям', creditCost: 1, description: 'Себест. ~1р', isActive: true, isUnderMaintenance: false },
+      { operationType: 'worksheet', operationName: 'Рабочий лист', creditCost: 3, description: 'Себест. ~1.5р', isActive: true, isUnderMaintenance: false },
+      { operationType: 'quiz', operationName: 'Тест', creditCost: 3, description: 'Себест. ~1.5р', isActive: true, isUnderMaintenance: false },
+      { operationType: 'vocabulary', operationName: 'Словарь', creditCost: 3, description: 'Себест. ~1.5р', isActive: true, isUnderMaintenance: false },
+      { operationType: 'lesson_plan', operationName: 'План урока', creditCost: 3, description: 'Себест. ~1.5р', isActive: true, isUnderMaintenance: false },
+      { operationType: 'feedback', operationName: 'Проверка ДЗ', creditCost: 3, description: 'Себест. ~1.5р', isActive: true, isUnderMaintenance: false },
+      { operationType: 'content_adaptation', operationName: 'Адаптация текста', creditCost: 3, description: 'Себест. ~1.5–3р', isActive: true, isUnderMaintenance: false },
+      { operationType: 'game_generation', operationName: 'Игра', creditCost: 15, description: 'Себест. ~1.5р', isActive: true, isUnderMaintenance: false },
+      { operationType: 'exam_variant', operationName: 'Вариант ОГЭ/ЕГЭ', creditCost: 20, description: 'Себест. ~1.5р', isActive: true, isUnderMaintenance: false },
+      { operationType: 'expert_unpacking', operationName: 'Распаковка экспертности', creditCost: 20, description: 'Себест. ~2р', isActive: true, isUnderMaintenance: false },
+      { operationType: 'unpacking', operationName: 'Распаковка экспертности', creditCost: 20, description: 'Себест. ~2р', isActive: true, isUnderMaintenance: false },
+      { operationType: 'video_analysis', operationName: 'Анализ видео', creditCost: 15, description: 'Себест. ~5р', isActive: true, isUnderMaintenance: false },
+      { operationType: 'transcription', operationName: 'Транскрибация видео', creditCost: 15, description: 'Себест. ~5р', isActive: true, isUnderMaintenance: false },
+      { operationType: 'presentation', operationName: 'Презентация', creditCost: 50, description: 'Себест. ~3–15р', isActive: true, isUnderMaintenance: false },
+      { operationType: 'image_generation', operationName: 'ИИ Генератор фото', creditCost: 15, description: 'Себест. ~12р', isActive: true, isUnderMaintenance: false },
+      { operationType: 'photosession', operationName: 'ИИ Фотосессия', creditCost: 25, description: 'Себест. ~18р', isActive: true, isUnderMaintenance: false },
+      { operationType: 'sales_advisor', operationName: 'ИИ-продажник', creditCost: 10, description: 'Себест. ~2р', isActive: true, isUnderMaintenance: false },
     ];
 
     for (const costData of costs) {
@@ -216,7 +216,7 @@ export class SubscriptionsService {
   }
 
   /**
-   * Проверить достаточно ли кредитов
+   * Проверить достаточно ли Токенов
    */
   async checkCreditsAvailable(userId: string, operationType: OperationType) {
     const subscription = await this.getOrCreateUserSubscription(userId);
@@ -259,7 +259,7 @@ export class SubscriptionsService {
 
     let message: string | undefined;
     if (!available) {
-      message = `Недостаточно кредитов. Требуется: ${cost}, доступно: ${totalAvailable}`;
+      message = `Недостаточно Токенов. Требуется: ${cost}, доступно: ${totalAvailable}`;
     }
 
     return { available, subscription, plan, cost, message, isUnderMaintenance: false, planRestricted: false };
@@ -278,7 +278,7 @@ export class SubscriptionsService {
     if (!check.available) {
       return {
         success: false,
-        message: check.message || 'Недостаточно кредитов',
+        message: check.message || 'Недостаточно Токенов',
       };
     }
 
@@ -287,7 +287,7 @@ export class SubscriptionsService {
     if (!debit.success) {
       return {
         success: false,
-        message: debit.message || 'Ошибка списания кредитов',
+        message: debit.message || 'Ошибка списания Токенов',
       };
     }
 
@@ -307,7 +307,7 @@ export class SubscriptionsService {
   ) {
     // Используем транзакцию для атомарности операций
     return await this.prisma.$transaction(async (tx) => {
-      // Повторно проверяем доступность кредитов внутри транзакции
+      // Повторно проверяем доступность Токенов внутри транзакции
       const subscription = await tx.userSubscription.findUnique({
         where: { userId },
         include: { plan: true },
@@ -336,12 +336,12 @@ export class SubscriptionsService {
       }
       const currentBalance = subscription.creditsBalance + subscription.extraCredits;
 
-      // Проверяем доступность кредитов с учетом овереджа
+      // Проверяем доступность Токенов с учетом овереджа
       if (!plan.allowOverage && currentBalance < cost) {
         return {
           success: false,
           transaction: null,
-          message: `Недостаточно кредитов. Требуется: ${cost}, доступно: ${currentBalance}`,
+          message: `Недостаточно Токенов. Требуется: ${cost}, доступно: ${currentBalance}`,
         };
       }
 
@@ -351,7 +351,7 @@ export class SubscriptionsService {
       let newExtraCredits = subscription.extraCredits;
       let newOverageCredits = subscription.overageCreditsUsed;
 
-      // Сначала списываем с дополнительных кредитов
+      // Сначала списываем с дополнительных Токенов
       if (newExtraCredits >= cost) {
         newExtraCredits -= cost;
       } else if (newExtraCredits > 0) {
@@ -370,7 +370,7 @@ export class SubscriptionsService {
             return {
               success: false,
               transaction: null,
-              message: 'Недостаточно кредитов и овередж не разрешен',
+              message: 'Недостаточно Токенов и овередж не разрешен',
             };
           }
         }
@@ -388,7 +388,7 @@ export class SubscriptionsService {
             return {
               success: false,
               transaction: null,
-              message: 'Недостаточно кредитов и овередж не разрешен',
+              message: 'Недостаточно Токенов и овередж не разрешен',
             };
           }
         }

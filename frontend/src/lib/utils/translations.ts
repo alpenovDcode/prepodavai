@@ -1,5 +1,8 @@
 export const generationTypeLabels: Record<string, string> = {
   'plan': '📋 План урока',
+  'lesson-plan': '📋 План урока',
+  'lesson_plan': '📋 План урока',
+  'lessonPlan': '📋 План урока',
   'presentation': '📊 Презентация',
   'quiz': '❓ Тест/Викторина',
   'unpacking': '📦 Распаковка',
@@ -37,7 +40,7 @@ export const getGenerationTypeIcon = (type: string | undefined | null): string =
   if (!type) return 'fa-file-alt';
   const normalized = type.trim();
   
-  if (normalized === 'plan') return 'fa-list-ol';
+  if (normalized === 'plan' || normalized === 'lesson-plan' || normalized === 'lesson_plan' || normalized === 'lessonPlan') return 'fa-list-ol';
   if (normalized === 'presentation') return 'fa-file-powerpoint';
   if (normalized === 'quiz') return 'fa-question-circle';
   if (normalized === 'unpacking') return 'fa-box';

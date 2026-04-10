@@ -46,7 +46,7 @@ export class GamesService {
       'game_generation',
     );
     if (!creditCheck.available) {
-      throw new Error(creditCheck.message || 'Недостаточно кредитов для генерации игры');
+      throw new Error(creditCheck.message || 'Недостаточно Токенов для генерации игры');
     }
 
     // 1. Get Prompt

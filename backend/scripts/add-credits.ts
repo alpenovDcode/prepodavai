@@ -8,7 +8,7 @@ dotenv.config({ path: path.resolve(__dirname, '../.env') });
 const prisma = new PrismaClient();
 
 /**
- * Скрипт для добавления кредитов пользователю
+ * Скрипт для добавления Токенов пользователю
  * 
  * Использование:
  *   ts-node scripts/add-credits.ts <username> <amount>
@@ -21,7 +21,7 @@ async function addCredits() {
   const amount = parseInt(process.argv[3] || '10000');
   const setExact = process.argv.includes('--set');
 
-  console.log(`💰 ${setExact ? 'Установка' : 'Добавление'} ${amount} кредитов пользователю ${username}...\n`);
+  console.log(`💰 ${setExact ? 'Установка' : 'Добавление'} ${amount} токенов пользователю ${username}...\n`);
 
   // Находим пользователя
   const user = await prisma.appUser.findFirst({
@@ -56,15 +56,15 @@ async function addCredits() {
       amount,
       balanceBefore: user.subscription.creditsBalance,
       balanceAfter: updatedSubscription.creditsBalance,
-      description: `Добавлено ${amount} кредитов через скрипт`,
+      description: `Добавлено ${amount} Токенов через скрипт`,
     },
   });
 
   console.log('✅ Токены добавлены:');
   console.log(`   Пользователь: ${user.username}`);
-  console.log(`   Было: ${user.subscription.creditsBalance} кредитов`);
-  console.log(`   Добавлено: ${amount} кредитов`);
-  console.log(`   Стало: ${updatedSubscription.creditsBalance} кредитов`);
+  console.log(`   Было: ${user.subscription.creditsBalance} Токенов`);
+  console.log(`   Добавлено: ${amount} Токенов`);
+  console.log(`   Стало: ${updatedSubscription.creditsBalance} Токенов`);
 }
 
 addCredits()

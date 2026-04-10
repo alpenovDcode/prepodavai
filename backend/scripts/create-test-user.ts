@@ -72,14 +72,14 @@ async function createTestUser() {
   const subscription = await prisma.userSubscription.upsert({
     where: { userId: user.id },
     update: {
-      creditsBalance: 1000, // Много кредитов для тестирования
+      creditsBalance: 1000, // Много Токенов для тестирования
       status: 'active',
     },
     create: {
       userId: user.id,
       planId: plan.id,
       status: 'active',
-      creditsBalance: 1000, // Много кредитов для тестирования
+      creditsBalance: 1000, // Много Токенов для тестирования
       extraCredits: 0,
       creditsUsed: 0,
       overageCreditsUsed: 0,
@@ -90,7 +90,7 @@ async function createTestUser() {
   });
 
   console.log('✅ Подписка создана/обновлена:');
-  console.log(`   Кредитов: ${subscription.creditsBalance}`);
+  console.log(`   Токенов: ${subscription.creditsBalance}`);
 
   console.log('\n📋 Данные для входа через Telegram:');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
@@ -99,7 +99,7 @@ async function createTestUser() {
   console.log(`Имя: ${user.firstName} ${user.lastName}`);
   console.log(`User Hash: ${user.userHash}`);
   console.log(`User ID: ${user.id}`);
-  console.log(`Кредитов: ${subscription.creditsBalance}`);
+  console.log(`Токенов: ${subscription.creditsBalance}`);
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
   console.log('\n💡 Как использовать:');

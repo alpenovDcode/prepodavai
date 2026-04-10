@@ -71,7 +71,9 @@ export class AdminService {
         lastTelegramAppAccess: true,
         createdAt: true,
         updatedAt: true,
-        subscription: true,
+        subscription: {
+          include: { plan: true },
+        },
         passwordHash: true,
       },
     });
@@ -253,6 +255,7 @@ export class AdminService {
     // Hash password separately if provided
     const password = data.password;
     const creditsBalance = data.creditsBalance;
+    const planKey = data.planKey;
 
     // Хешируем новый пароль, если он передан
     if (password) {
@@ -265,7 +268,7 @@ export class AdminService {
       where: { id },
       data: updateData,
       include: {
-        subscription: true,
+        subscription: { include: { plan: true } },
       },
     });
 
@@ -277,11 +280,23 @@ export class AdminService {
           where: { id: user.subscription.id },
           data: { creditsBalance: numCredits },
         });
-        user.subscription.creditsBalance = numCredits;
+        (user.subscription as any).creditsBalance = numCredits;
       }
     }
 
-    await this.audit('admin.user.update', adminId, { targetUserId: id, fields: Object.keys(updateData) });
+    // Если передан planKey, меняем тариф
+    if (planKey && user.subscription) {
+      const newPlan = await this.prisma.subscriptionPlan.findUnique({ where: { planKey } });
+      if (newPlan) {
+        await this.prisma.userSubscription.update({
+          where: { id: user.subscription.id },
+          data: { planId: newPlan.id },
+        });
+        (user.subscription as any).plan = newPlan;
+      }
+    }
+
+    await this.audit('admin.user.update', adminId, { targetUserId: id, fields: Object.keys(updateData).concat(planKey ? ['planKey'] : []) });
 
     return {
       success: true,
@@ -684,6 +699,58 @@ export class AdminService {
           total: totalTransactions,
         },
       },
+    };
+  }
+
+  // ========== TARIFF ANALYTICS ==========
+  async getTariffAnalytics() {
+    const plans = await this.prisma.subscriptionPlan.findMany({
+      orderBy: { price: 'asc' },
+    });
+
+    const planStats = await Promise.all(
+      plans.map(async (plan) => {
+        const [count, credits, newThisMonth] = await Promise.all([
+          this.prisma.userSubscription.count({ where: { planId: plan.id, status: 'active' } }),
+          this.prisma.userSubscription.aggregate({
+            where: { planId: plan.id, status: 'active' },
+            _sum: { creditsBalance: true, extraCredits: true },
+          }),
+          this.prisma.userSubscription.count({
+            where: {
+              planId: plan.id,
+              createdAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
+            },
+          }),
+        ]);
+        return {
+          plan,
+          count,
+          totalCredits: (credits._sum.creditsBalance || 0) + (credits._sum.extraCredits || 0),
+          newThisMonth,
+          mrr: count * Number(plan.price),
+        };
+      }),
+    );
+
+    const totalActive = planStats.reduce((sum, p) => sum + p.count, 0);
+    const totalMrr = planStats.reduce((sum, p) => sum + p.mrr, 0);
+
+    const recentChanges = await this.prisma.userSubscription.findMany({
+      take: 20,
+      orderBy: { updatedAt: 'desc' },
+      include: {
+        user: { select: { id: true, username: true, firstName: true, lastName: true } },
+        plan: true,
+      },
+    });
+
+    return {
+      success: true,
+      plans: planStats,
+      totalActive,
+      totalMrr,
+      recentChanges,
     };
   }
 

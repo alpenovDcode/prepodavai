@@ -202,7 +202,7 @@ export default function ReferralsPage() {
               <TrendingUp className="w-5 h-5 text-amber-600" />
             </div>
             <p className="text-2xl font-black text-gray-900">{stats.creditsEarned}</p>
-            <p className="text-xs text-gray-500 font-medium">Заработано кредитов</p>
+            <p className="text-xs text-gray-500 font-medium">Заработано Токенов</p>
           </div>
         </div>
       )}
@@ -226,8 +226,8 @@ export default function ReferralsPage() {
               <div
                 key={tier.range}
                 className={`flex items-center justify-between px-4 py-3 rounded-xl border transition ${isActive
-                    ? 'bg-primary-50 border-primary-200 shadow-sm'
-                    : 'bg-gray-50 border-gray-100'
+                  ? 'bg-primary-50 border-primary-200 shadow-sm'
+                  : 'bg-gray-50 border-gray-100'
                   }`}
               >
                 <div className="flex items-center gap-3">
@@ -242,7 +242,7 @@ export default function ReferralsPage() {
                   )}
                 </div>
                 <span className={`text-sm font-bold ${isActive ? 'text-primary-700' : 'text-gray-500'}`}>
-                  +{tier.reward} кредитов за каждого
+                  +{tier.reward} Токенов за каждого
                 </span>
               </div>
             )
@@ -251,7 +251,7 @@ export default function ReferralsPage() {
 
         <div className="mt-4 px-4 py-3 bg-blue-50 border border-blue-100 rounded-xl">
           <p className="text-sm text-blue-700">
-            <strong>+{CONVERSION_REWARD} кредитов</strong> дополнительно, когда приглашённый учитель оплачивает подписку Pro или Business.
+            <strong>+{CONVERSION_REWARD} Токенов</strong> дополнительно, когда приглашённый учитель оплачивает подписку Pro или Business.
           </p>
         </div>
       </div>
@@ -276,7 +276,7 @@ export default function ReferralsPage() {
                     {MILESTONE_LABELS[m.milestone] || m.milestone}
                   </span>
                 </div>
-                <span className="text-sm font-bold text-green-700">+{m.reward} кредитов</span>
+                <span className="text-sm font-bold text-green-700">+{m.reward} Токенов</span>
               </div>
             ))}
           </div>

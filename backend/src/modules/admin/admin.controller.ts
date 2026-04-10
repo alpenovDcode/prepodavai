@@ -137,6 +137,12 @@ export class AdminController {
     return this.adminService.getStats();
   }
 
+  // ========== TARIFF ANALYTICS ==========
+  @Get('analytics/tariffs')
+  async getTariffAnalytics() {
+    return this.adminService.getTariffAnalytics();
+  }
+
   // ========== CREDIT COSTS ==========
   @Get('costs')
   async getCreditCosts() {

@@ -42,115 +42,139 @@ export default function LandingPage() {
   }, [testimonials.length]);
 
   const features = [
-    { title: "Конструктор материалов", desc: "Рабочие листы, тесты и упражнения", preview: (
-      <div style={{ background: "white", borderRadius: 8, padding: 12, boxShadow: "0 1px 2px rgba(0,0,0,.05)", border: "1px solid #f0f0f0", fontSize: 12, fontFamily: "'Times New Roman',serif", color: "#1a1a1a" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "2px solid #333", paddingBottom: 4, marginBottom: 8 }}><span style={{ fontWeight: "bold", fontSize: 13 }}>Рабочий лист</span><span style={{ color: "#999", fontSize: 10 }}>Имя: ___</span></div>
-        <p style={{ fontWeight: "bold", marginBottom: 2 }}>1. Решите:</p>
-        <p style={{ textAlign: "center", fontSize: 14, margin: "6px 0" }}>3x² − 12 = 0</p>
-        <div style={{ borderBottom: "1px solid #ccc", height: 18, margin: "2px 0" }} />
-        <div style={{ borderBottom: "1px solid #ccc", height: 18, margin: "2px 0" }} />
-      </div>
-    )},
-    { title: "Планировщик уроков", desc: "Планы с целями и таймингом", preview: (
-      <div style={{ background: "white", borderRadius: 8, padding: 12, boxShadow: "0 1px 2px rgba(0,0,0,.05)", border: "1px solid #f0f0f0", fontSize: 12, color: "#1a1a1a" }}>
-        <p style={{ fontWeight: "bold", fontSize: 13, color: "#ea580c", marginBottom: 8 }}>📋 План урока</p>
-        <div style={{ display: "flex", gap: 4, alignItems: "center", background: "#fef3c7", borderRadius: 6, padding: "4px 8px", marginBottom: 8, fontSize: 11 }}><span>🎯</span><span>3 этапа · 45 мин</span></div>
-        {["Разминка · 5 мин", "Объяснение · 15 мин", "Практика · 20 мин"].map((s, i) => (
-          <div key={i} style={{ borderLeft: "2px solid #f59e0b", paddingLeft: 8, marginBottom: 4 }}><p style={{ margin: 0, color: "#555" }}>{s}</p></div>
-        ))}
-      </div>
-    )},
-    { title: "Ассистент по оценке", desc: "Обратная связь по работам учеников", preview: (
-      <div style={{ background: "white", borderRadius: 8, padding: 12, boxShadow: "0 1px 2px rgba(0,0,0,.05)", border: "1px solid #f0f0f0", fontSize: 12, color: "#1a1a1a" }}>
-        <p style={{ fontWeight: "bold", fontSize: 13, marginBottom: 8 }}>✅ Обратная связь</p>
-        <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 6, padding: "4px 8px", marginBottom: 4 }}><span style={{ color: "#16a34a" }}>✓ Верно: задания 1–3</span></div>
-        <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 6, padding: "4px 8px", marginBottom: 4 }}><span style={{ color: "#dc2626" }}>✗ Ошибка в задании 4</span></div>
-        <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 6, padding: "4px 8px" }}><span style={{ color: "#2563eb" }}>💡 Повторить тему</span></div>
-      </div>
-    )},
-    { title: "AI-ассистент", desc: "Методическая поддержка 24/7", preview: (
-      <div style={{ background: "white", borderRadius: 8, padding: 12, boxShadow: "0 1px 2px rgba(0,0,0,.05)", border: "1px solid #f0f0f0", fontSize: 12, color: "#1a1a1a" }}>
-        <p style={{ fontWeight: "bold", fontSize: 13, marginBottom: 8 }}>💬 AI-чат</p>
-        <div style={{ background: "#f5f5f5", borderRadius: 8, padding: "6px 10px", marginBottom: 6, color: "#555" }}>Как объяснить дроби?</div>
-        <div style={{ background: "#fff7ed", borderRadius: 8, padding: "6px 10px", border: "1px solid #fed7aa", color: "#444" }}>Используйте аналогию с пиццей...</div>
-      </div>
-    )},
-    { title: "Генератор изображений", desc: "Иллюстрации для материалов", preview: (
-      <div style={{ background: "white", borderRadius: 8, padding: 12, boxShadow: "0 1px 2px rgba(0,0,0,.05)", border: "1px solid #f0f0f0", fontSize: 12 }}>
-        <p style={{ fontWeight: "bold", fontSize: 13, marginBottom: 8, color: "#1a1a1a" }}>🖼️ Генерация</p>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-          {["🧬", "🌍", "⚗️", "📐"].map((e, i) => (
-            <div key={i} style={{ aspectRatio: "1", background: "linear-gradient(135deg,#fff7ed,#fef3c7)", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, border: "1px solid #fed7aa" }}>{e}</div>
+    {
+      title: "Конструктор материалов", desc: "Рабочие листы, тесты и упражнения", preview: (
+        <div style={{ background: "white", borderRadius: 8, padding: 12, boxShadow: "0 1px 2px rgba(0,0,0,.05)", border: "1px solid #f0f0f0", fontSize: 12, fontFamily: "'Times New Roman',serif", color: "#1a1a1a" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "2px solid #333", paddingBottom: 4, marginBottom: 8 }}><span style={{ fontWeight: "bold", fontSize: 13 }}>Рабочий лист</span><span style={{ color: "#999", fontSize: 10 }}>Имя: ___</span></div>
+          <p style={{ fontWeight: "bold", marginBottom: 2 }}>1. Решите:</p>
+          <p style={{ textAlign: "center", fontSize: 14, margin: "6px 0" }}>3x² − 12 = 0</p>
+          <div style={{ borderBottom: "1px solid #ccc", height: 18, margin: "2px 0" }} />
+          <div style={{ borderBottom: "1px solid #ccc", height: 18, margin: "2px 0" }} />
+        </div>
+      )
+    },
+    {
+      title: "Планировщик уроков", desc: "Планы с целями и таймингом", preview: (
+        <div style={{ background: "white", borderRadius: 8, padding: 12, boxShadow: "0 1px 2px rgba(0,0,0,.05)", border: "1px solid #f0f0f0", fontSize: 12, color: "#1a1a1a" }}>
+          <p style={{ fontWeight: "bold", fontSize: 13, color: "#ea580c", marginBottom: 8 }}>📋 План урока</p>
+          <div style={{ display: "flex", gap: 4, alignItems: "center", background: "#fef3c7", borderRadius: 6, padding: "4px 8px", marginBottom: 8, fontSize: 11 }}><span>🎯</span><span>3 этапа · 45 мин</span></div>
+          {["Разминка · 5 мин", "Объяснение · 15 мин", "Практика · 20 мин"].map((s, i) => (
+            <div key={i} style={{ borderLeft: "2px solid #f59e0b", paddingLeft: 8, marginBottom: 4 }}><p style={{ margin: 0, color: "#555" }}>{s}</p></div>
           ))}
         </div>
-      </div>
-    )},
-    { title: "Создание презентаций", desc: "Слайды за минуты", preview: (
-      <div style={{ background: "white", borderRadius: 8, padding: 12, boxShadow: "0 1px 2px rgba(0,0,0,.05)", border: "1px solid #f0f0f0", fontSize: 12, color: "#1a1a1a" }}>
-        <p style={{ fontWeight: "bold", fontSize: 13, marginBottom: 8 }}>📊 Презентация</p>
-        <div style={{ background: "linear-gradient(135deg,#f97316,#ea580c)", borderRadius: 8, padding: 8, color: "white", marginBottom: 6 }}><p style={{ fontWeight: "bold", fontSize: 13, margin: 0 }}>Квадратные уравнения</p><p style={{ fontSize: 10, opacity: 0.8, margin: "2px 0 0" }}>8 класс</p></div>
-        <div style={{ display: "flex", gap: 4 }}>{[1,2,3,4].map(n => (<div key={n} style={{ flex: 1, aspectRatio: "4/3", background: "#f5f5f5", borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, color: "#bbb", border: "1px solid #eee" }}>Слайд {n}</div>))}</div>
-      </div>
-    )},
-    { title: "Шаблоны сообщений", desc: "Переписка с родителями", preview: (
-      <div style={{ background: "white", borderRadius: 8, padding: 12, boxShadow: "0 1px 2px rgba(0,0,0,.05)", border: "1px solid #f0f0f0", fontSize: 12, color: "#1a1a1a" }}>
-        <p style={{ fontWeight: "bold", fontSize: 13, marginBottom: 8 }}>✉️ Шаблоны</p>
-        {["Отчёт об успеваемости", "Перенос занятия", "Домашнее задание"].map((t, i) => (
-          <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0", borderBottom: i < 2 ? "1px solid #f5f5f5" : "none" }}>
-            <span style={{ width: 20, height: 20, borderRadius: 4, background: "#fff7ed", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10 }}>📩</span><span style={{ color: "#555" }}>{t}</span>
+      )
+    },
+    {
+      title: "Ассистент по оценке", desc: "Обратная связь по работам учеников", preview: (
+        <div style={{ background: "white", borderRadius: 8, padding: 12, boxShadow: "0 1px 2px rgba(0,0,0,.05)", border: "1px solid #f0f0f0", fontSize: 12, color: "#1a1a1a" }}>
+          <p style={{ fontWeight: "bold", fontSize: 13, marginBottom: 8 }}>✅ Обратная связь</p>
+          <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 6, padding: "4px 8px", marginBottom: 4 }}><span style={{ color: "#16a34a" }}>✓ Верно: задания 1–3</span></div>
+          <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 6, padding: "4px 8px", marginBottom: 4 }}><span style={{ color: "#dc2626" }}>✗ Ошибка в задании 4</span></div>
+          <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 6, padding: "4px 8px" }}><span style={{ color: "#2563eb" }}>💡 Повторить тему</span></div>
+        </div>
+      )
+    },
+    {
+      title: "AI-ассистент", desc: "Методическая поддержка 24/7", preview: (
+        <div style={{ background: "white", borderRadius: 8, padding: 12, boxShadow: "0 1px 2px rgba(0,0,0,.05)", border: "1px solid #f0f0f0", fontSize: 12, color: "#1a1a1a" }}>
+          <p style={{ fontWeight: "bold", fontSize: 13, marginBottom: 8 }}>💬 AI-чат</p>
+          <div style={{ background: "#f5f5f5", borderRadius: 8, padding: "6px 10px", marginBottom: 6, color: "#555" }}>Как объяснить дроби?</div>
+          <div style={{ background: "#fff7ed", borderRadius: 8, padding: "6px 10px", border: "1px solid #fed7aa", color: "#444" }}>Используйте аналогию с пиццей...</div>
+        </div>
+      )
+    },
+    {
+      title: "Генератор изображений", desc: "Иллюстрации для материалов", preview: (
+        <div style={{ background: "white", borderRadius: 8, padding: 12, boxShadow: "0 1px 2px rgba(0,0,0,.05)", border: "1px solid #f0f0f0", fontSize: 12 }}>
+          <p style={{ fontWeight: "bold", fontSize: 13, marginBottom: 8, color: "#1a1a1a" }}>🖼️ Генерация</p>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+            {["🧬", "🌍", "⚗️", "📐"].map((e, i) => (
+              <div key={i} style={{ aspectRatio: "1", background: "linear-gradient(135deg,#fff7ed,#fef3c7)", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, border: "1px solid #fed7aa" }}>{e}</div>
+            ))}
           </div>
-        ))}
-      </div>
-    )},
-    { title: "Интерактивные игры", desc: "Игры для уроков", preview: (
-      <div style={{ background: "white", borderRadius: 8, padding: 12, boxShadow: "0 1px 2px rgba(0,0,0,.05)", border: "1px solid #f0f0f0", fontSize: 12, color: "#1a1a1a" }}>
-        <p style={{ fontWeight: "bold", fontSize: 13, marginBottom: 8 }}>🎮 Игры</p>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-          {["🎯 Викторина", "🧩 Пазл", "🏆 Квиз", "🎲 Кроссворд"].map((g, i) => (
-            <div key={i} style={{ background: "linear-gradient(135deg,#fffbeb,#fff7ed)", borderRadius: 8, padding: 6, textAlign: "center", border: "1px solid #fed7aa", fontSize: 11 }}>{g}</div>
+        </div>
+      )
+    },
+    {
+      title: "Создание презентаций", desc: "Слайды за минуты", preview: (
+        <div style={{ background: "white", borderRadius: 8, padding: 12, boxShadow: "0 1px 2px rgba(0,0,0,.05)", border: "1px solid #f0f0f0", fontSize: 12, color: "#1a1a1a" }}>
+          <p style={{ fontWeight: "bold", fontSize: 13, marginBottom: 8 }}>📊 Презентация</p>
+          <div style={{ background: "linear-gradient(135deg,#f97316,#ea580c)", borderRadius: 8, padding: 8, color: "white", marginBottom: 6 }}><p style={{ fontWeight: "bold", fontSize: 13, margin: 0 }}>Квадратные уравнения</p><p style={{ fontSize: 10, opacity: 0.8, margin: "2px 0 0" }}>8 класс</p></div>
+          <div style={{ display: "flex", gap: 4 }}>{[1, 2, 3, 4].map(n => (<div key={n} style={{ flex: 1, aspectRatio: "4/3", background: "#f5f5f5", borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, color: "#bbb", border: "1px solid #eee" }}>Слайд {n}</div>))}</div>
+        </div>
+      )
+    },
+    {
+      title: "Шаблоны сообщений", desc: "Переписка с родителями", preview: (
+        <div style={{ background: "white", borderRadius: 8, padding: 12, boxShadow: "0 1px 2px rgba(0,0,0,.05)", border: "1px solid #f0f0f0", fontSize: 12, color: "#1a1a1a" }}>
+          <p style={{ fontWeight: "bold", fontSize: 13, marginBottom: 8 }}>✉️ Шаблоны</p>
+          {["Отчёт об успеваемости", "Перенос занятия", "Домашнее задание"].map((t, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0", borderBottom: i < 2 ? "1px solid #f5f5f5" : "none" }}>
+              <span style={{ width: 20, height: 20, borderRadius: 4, background: "#fff7ed", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10 }}>📩</span><span style={{ color: "#555" }}>{t}</span>
+            </div>
           ))}
         </div>
-      </div>
-    )},
-    { title: "Генератор комментариев", desc: "Комментарии к работам", preview: (
-      <div style={{ background: "white", borderRadius: 8, padding: 12, boxShadow: "0 1px 2px rgba(0,0,0,.05)", border: "1px solid #f0f0f0", fontSize: 12, color: "#1a1a1a" }}>
-        <p style={{ fontWeight: "bold", fontSize: 13, marginBottom: 8 }}>💬 Комментарий</p>
-        <div style={{ background: "#eff6ff", borderRadius: 8, padding: 8, border: "1px solid #bfdbfe", fontSize: 11, color: "#333" }}>«Хорошо справился с вычислениями. Подписывай единицы измерения.»</div>
-      </div>
-    )},
-    { title: "Генератор тестов", desc: "Тесты с вариантами ответов", preview: (
-      <div style={{ background: "white", borderRadius: 8, padding: 12, boxShadow: "0 1px 2px rgba(0,0,0,.05)", border: "1px solid #f0f0f0", fontSize: 12, color: "#1a1a1a" }}>
-        <p style={{ fontWeight: "bold", fontSize: 13, marginBottom: 6 }}>🎯 Тест</p>
-        <p style={{ fontWeight: 600, marginBottom: 4 }}>Столица Франции?</p>
-        {["Лондон","Париж","Берлин","Мадрид"].map((a, i) => (
-          <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, padding: "2px 0", color: i===1 ? "#16a34a" : "#888", fontWeight: i===1 ? 600 : 400 }}>
-            <span style={{ width: 14, height: 14, borderRadius: "50%", border: `1.5px solid ${i===1?"#16a34a":"#ccc"}`, background: i===1?"#16a34a":"transparent", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8 }}>{i===1?"✓":""}</span>{a}
+      )
+    },
+    {
+      title: "Интерактивные игры", desc: "Игры для уроков", preview: (
+        <div style={{ background: "white", borderRadius: 8, padding: 12, boxShadow: "0 1px 2px rgba(0,0,0,.05)", border: "1px solid #f0f0f0", fontSize: 12, color: "#1a1a1a" }}>
+          <p style={{ fontWeight: "bold", fontSize: 13, marginBottom: 8 }}>🎮 Игры</p>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+            {["🎯 Викторина", "🧩 Пазл", "🏆 Квиз", "🎲 Кроссворд"].map((g, i) => (
+              <div key={i} style={{ background: "linear-gradient(135deg,#fffbeb,#fff7ed)", borderRadius: 8, padding: 6, textAlign: "center", border: "1px solid #fed7aa", fontSize: 11 }}>{g}</div>
+            ))}
           </div>
-        ))}
-      </div>
-    )},
-    { title: "Планы уроков", desc: "Поурочные планы", preview: (
-      <div style={{ background: "white", borderRadius: 8, padding: 12, boxShadow: "0 1px 2px rgba(0,0,0,.05)", border: "1px solid #f0f0f0", fontSize: 12, color: "#1a1a1a" }}>
-        <p style={{ fontWeight: "bold", fontSize: 13, marginBottom: 8 }}>📋 План</p>
-        {["Орг. момент — 2 мин","Актуализация — 5 мин","Новая тема — 15 мин","Закрепление — 15 мин"].map((s, i) => (
-          <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
-            <span style={{ width: 16, height: 16, borderRadius: "50%", background: "#fff7ed", color: "#ea580c", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: "bold" }}>{i+1}</span>
-            <span style={{ color: "#555" }}>{s}</span>
-          </div>
-        ))}
-      </div>
-    )},
-    { title: "Адаптация контента", desc: "Под уровень ученика", preview: (
-      <div style={{ background: "white", borderRadius: 8, padding: 12, boxShadow: "0 1px 2px rgba(0,0,0,.05)", border: "1px solid #f0f0f0", fontSize: 12, color: "#1a1a1a" }}>
-        <p style={{ fontWeight: "bold", fontSize: 13, marginBottom: 8 }}>🔄 Адаптация</p>
-        <div style={{ display: "flex", gap: 4, marginBottom: 8 }}>
-          {["Начальный","Средний","Старший"].map((l, i) => (
-            <span key={i} style={{ padding: "4px 10px", borderRadius: 99, fontSize: 10, fontWeight: 600, background: i===1?"#f97316":"#f5f5f5", color: i===1?"white":"#888" }}>{l}</span>
+        </div>
+      )
+    },
+    {
+      title: "Генератор комментариев", desc: "Комментарии к работам", preview: (
+        <div style={{ background: "white", borderRadius: 8, padding: 12, boxShadow: "0 1px 2px rgba(0,0,0,.05)", border: "1px solid #f0f0f0", fontSize: 12, color: "#1a1a1a" }}>
+          <p style={{ fontWeight: "bold", fontSize: 13, marginBottom: 8 }}>💬 Комментарий</p>
+          <div style={{ background: "#eff6ff", borderRadius: 8, padding: 8, border: "1px solid #bfdbfe", fontSize: 11, color: "#333" }}>«Хорошо справился с вычислениями. Подписывай единицы измерения.»</div>
+        </div>
+      )
+    },
+    {
+      title: "Генератор тестов", desc: "Тесты с вариантами ответов", preview: (
+        <div style={{ background: "white", borderRadius: 8, padding: 12, boxShadow: "0 1px 2px rgba(0,0,0,.05)", border: "1px solid #f0f0f0", fontSize: 12, color: "#1a1a1a" }}>
+          <p style={{ fontWeight: "bold", fontSize: 13, marginBottom: 6 }}>🎯 Тест</p>
+          <p style={{ fontWeight: 600, marginBottom: 4 }}>Столица Франции?</p>
+          {["Лондон", "Париж", "Берлин", "Мадрид"].map((a, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, padding: "2px 0", color: i === 1 ? "#16a34a" : "#888", fontWeight: i === 1 ? 600 : 400 }}>
+              <span style={{ width: 14, height: 14, borderRadius: "50%", border: `1.5px solid ${i === 1 ? "#16a34a" : "#ccc"}`, background: i === 1 ? "#16a34a" : "transparent", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8 }}>{i === 1 ? "✓" : ""}</span>{a}
+            </div>
           ))}
         </div>
-        <p style={{ color: "#888", fontSize: 11 }}>Автоматически подстроено под средний уровень</p>
-      </div>
-    )},
+      )
+    },
+    {
+      title: "Планы уроков", desc: "Поурочные планы", preview: (
+        <div style={{ background: "white", borderRadius: 8, padding: 12, boxShadow: "0 1px 2px rgba(0,0,0,.05)", border: "1px solid #f0f0f0", fontSize: 12, color: "#1a1a1a" }}>
+          <p style={{ fontWeight: "bold", fontSize: 13, marginBottom: 8 }}>📋 План</p>
+          {["Орг. момент — 2 мин", "Актуализация — 5 мин", "Новая тема — 15 мин", "Закрепление — 15 мин"].map((s, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
+              <span style={{ width: 16, height: 16, borderRadius: "50%", background: "#fff7ed", color: "#ea580c", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: "bold" }}>{i + 1}</span>
+              <span style={{ color: "#555" }}>{s}</span>
+            </div>
+          ))}
+        </div>
+      )
+    },
+    {
+      title: "Адаптация контента", desc: "Под уровень ученика", preview: (
+        <div style={{ background: "white", borderRadius: 8, padding: 12, boxShadow: "0 1px 2px rgba(0,0,0,.05)", border: "1px solid #f0f0f0", fontSize: 12, color: "#1a1a1a" }}>
+          <p style={{ fontWeight: "bold", fontSize: 13, marginBottom: 8 }}>🔄 Адаптация</p>
+          <div style={{ display: "flex", gap: 4, marginBottom: 8 }}>
+            {["Начальный", "Средний", "Старший"].map((l, i) => (
+              <span key={i} style={{ padding: "4px 10px", borderRadius: 99, fontSize: 10, fontWeight: 600, background: i === 1 ? "#f97316" : "#f5f5f5", color: i === 1 ? "white" : "#888" }}>{l}</span>
+            ))}
+          </div>
+          <p style={{ color: "#888", fontSize: 11 }}>Автоматически подстроено под средний уровень</p>
+        </div>
+      )
+    },
   ];
 
   const S = { page: { minHeight: "100vh", background: "#fafaf8", fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", color: "#1a1a1a" } };
@@ -190,7 +214,7 @@ export default function LandingPage() {
                     <div style={{ width: 26, height: 26, borderRadius: 7, background: "linear-gradient(135deg,#f97316,#ea580c)" }} />
                     <span style={{ fontWeight: 900, fontSize: 12 }}>PrepodavAI</span>
                   </div>
-                  {[{ i: "🏠", l: "Главная", a: true },{ i: "🤖", l: "ИИ Генератор" },{ i: "📁", l: "Материалы" },{ i: "👥", l: "Ученики" },{ i: "📊", l: "Аналитика" },{ i: "⚙️", l: "Настройки" }].map((x, j) => (
+                  {[{ i: "🏠", l: "Главная", a: true }, { i: "🤖", l: "ИИ Генератор" }, { i: "📁", l: "Материалы" }, { i: "👥", l: "Ученики" }, { i: "📊", l: "Аналитика" }, { i: "⚙️", l: "Настройки" }].map((x, j) => (
                     <div key={j} style={{ display: "flex", alignItems: "center", gap: 7, padding: "7px 9px", borderRadius: 8, fontSize: 11, color: x.a ? "#ea580c" : "#999", background: x.a ? "#fff7ed" : "transparent", fontWeight: x.a ? 600 : 400, marginBottom: 1 }}>{x.i} {x.l}</div>
                   ))}
                 </div>
@@ -238,7 +262,7 @@ export default function LandingPage() {
                   </div>
                   {/* Stats */}
                   <div style={{ display: "flex", gap: 6 }}>
-                    {[["📁","17","Материалов"],["✅","564","Генераций"],["💰","1 250","Кредитов"],["⏱️","48h","Сэкономлено"]].map(([ic,v,lb], j) => (
+                    {[["📁", "17", "Материалов"], ["✅", "564", "Генераций"], ["💰", "1 250", "Токенов"], ["⏱️", "48h", "Сэкономлено"]].map(([ic, v, lb], j) => (
                       <div key={j} style={{ flex: 1, background: "white", border: "1px solid #eee", borderRadius: 8, padding: "8px 10px", display: "flex", alignItems: "center", gap: 6 }}>
                         <span style={{ fontSize: 14 }}>{ic}</span>
                         <div><div style={{ fontWeight: 900, fontSize: 14 }}>{v}</div><div style={{ fontSize: 8, color: "#aaa" }}>{lb}</div></div>

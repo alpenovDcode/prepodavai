@@ -28,10 +28,10 @@ const MAX_REFERRALS_PER_PAGE = 50;
 
 // Milestones и их награды (единоразово)
 const MILESTONES = [
-  { key: 'students_5',  type: 'teacher_student', count: 5,  reward: 50 },
+  { key: 'students_5', type: 'teacher_student', count: 5, reward: 50 },
   { key: 'students_10', type: 'teacher_student', count: 10, reward: 100 },
-  { key: 'teachers_3',  type: 'teacher_teacher', count: 3,  reward: 100 },
-  { key: 'teachers_8',  type: 'teacher_teacher', count: 8,  reward: 200 },
+  { key: 'teachers_3', type: 'teacher_teacher', count: 3, reward: 100 },
+  { key: 'teachers_8', type: 'teacher_teacher', count: 8, reward: 200 },
 ];
 
 @Injectable()
@@ -353,7 +353,7 @@ export class ReferralsService {
         userType: 'teacher',
         type: 'referral_activated',
         title: 'Ученик-реферал активирован!',
-        message: `${student?.name || 'Ученик'} выполнил(а) ${STUDENT_ACTIVATION_THRESHOLD} заданий. Вам начислено ${STUDENT_REFERRAL_REWARD} кредитов!`,
+        message: `${student?.name || 'Ученик'} выполнил(а) ${STUDENT_ACTIVATION_THRESHOLD} заданий. Вам начислено ${STUDENT_REFERRAL_REWARD} Токенов!`,
         metadata: { referralId: referral.id, reward: STUDENT_REFERRAL_REWARD, studentName: student?.name },
       });
 
@@ -415,7 +415,7 @@ export class ReferralsService {
         userType: 'teacher',
         type: 'referral_converted',
         title: 'Реферал оплатил подписку!',
-        message: `${referredName} оплатил(а) подписку! Вам начислено ${CONVERSION_REWARD} кредитов!`,
+        message: `${referredName} оплатил(а) подписку! Вам начислено ${CONVERSION_REWARD} Токенов!`,
         metadata: { referralId: referral.id, reward: CONVERSION_REWARD, referredName },
       });
     }
@@ -567,7 +567,7 @@ export class ReferralsService {
   // ========== Приватные методы ==========
 
   /**
-   * Начисление кредитов через extraCredits + запись CreditTransaction
+   * Начисление Токенов через extraCredits + запись CreditTransaction
    */
   private async _grantCredits(
     tx: any,
@@ -661,7 +661,7 @@ export class ReferralsService {
           userType: 'teacher',
           type: 'referral_milestone',
           title: 'Достижение разблокировано!',
-          message: `Вы достигли milestone "${milestone.key}"! Бонус: +${milestone.reward} кредитов.`,
+          message: `Вы достигли milestone "${milestone.key}"! Бонус: +${milestone.reward} Токенов.`,
           metadata: { milestone: milestone.key, reward: milestone.reward },
         });
       }

@@ -62,6 +62,7 @@ body {
   animation: slide-up 0.3s ease-out;
 }
 
+
 /* Scrollbar */
 .no-scrollbar::-webkit-scrollbar {
   display: none;
