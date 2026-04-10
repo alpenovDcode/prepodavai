@@ -31,7 +31,7 @@ export default function LandingPage() {
   const testimonials = [
     { name: "Елена К.", role: "Репетитор по математике", text: "Раньше тратила 3-4 часа на подготовку вариантов. Теперь генерирую полный вариант ОГЭ за 5 минут!", avatar: "👩‍🏫" },
     { name: "Дмитрий Р.", role: "Преподаватель физики", text: "SVG-чертежи для задач рисуются автоматически, не нужно ничего делать руками.", avatar: "👨‍🔬" },
-    { name: "Анна М.", role: "Репетитор по английскому", text: "ИИ-аудит пробного урока открыл глаза на ошибки. Конверсия выросла с 30% до 65%.", avatar: "👩‍💼" },
+    { name: "Анна М.", role: "Репетитор по английскому", text: "AI-аудит пробного урока открыл глаза на ошибки. Конверсия выросла с 30% до 65%.", avatar: "👩‍💼" },
     { name: "Сергей В.", role: "Репетитор по русскому", text: "Создаю материалы для 15 учеников индивидуально. Раньше это было невозможно.", avatar: "👨‍🏫" },
     { name: "Ольга Т.", role: "Преподаватель химии", text: "Структурные формулы генерируются автоматически. Больше не рисую в Paint.", avatar: "👩‍🔬" },
   ];
@@ -75,9 +75,9 @@ export default function LandingPage() {
       )
     },
     {
-      title: "ИИ-ассистент", desc: "Методическая поддержка 24/7", preview: (
+      title: "AI-ассистент", desc: "Методическая поддержка 24/7", preview: (
         <div style={{ background: "white", borderRadius: 8, padding: 12, boxShadow: "0 1px 2px rgba(0,0,0,.05)", border: "1px solid #f0f0f0", fontSize: 12, color: "#1a1a1a" }}>
-          <p style={{ fontWeight: "bold", fontSize: 13, marginBottom: 8 }}>💬 ИИ-чат</p>
+          <p style={{ fontWeight: "bold", fontSize: 13, marginBottom: 8 }}>💬 AI-чат</p>
           <div style={{ background: "#f5f5f5", borderRadius: 8, padding: "6px 10px", marginBottom: 6, color: "#555" }}>Как объяснить дроби?</div>
           <div style={{ background: "#fff7ed", borderRadius: 8, padding: "6px 10px", border: "1px solid #fed7aa", color: "#444" }}>Используйте аналогию с пиццей...</div>
         </div>
@@ -393,7 +393,7 @@ export default function LandingPage() {
       {/* FOOTER */}
       <footer style={{ padding: "32px 24px", background: "white", borderTop: "1px solid #f0f0f0" }}>
         <div style={{ maxWidth: 1200, margin: "0 auto", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, fontSize: 13, color: "#bbb" }}>
-          <span>© 2025 Преподавай</span> — ИИ-помощник для репетиторов</span>
+          <span>© 2025 Преподавай — ИИ-помощник для репетиторов</span>
           <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
             <Link href="/legal/offer" style={{ cursor: "pointer", color: "inherit", textDecoration: "none" }}>Оферта</Link>
             <Link href="/legal/terms" style={{ cursor: "pointer", color: "inherit", textDecoration: "none" }}>Условия</Link>
