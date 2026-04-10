@@ -1,15 +1,29 @@
 'use client'
 
-import { use } from 'react'
+import { use, useState } from 'react'
 import useSWR from 'swr'
 import Link from 'next/link'
 import { apiClient } from '@/lib/api/client'
 import {
     ArrowLeft, User, Zap, Users, GitBranch, BookOpen,
-    CreditCard, CheckCircle, Clock, TrendingUp
+    CreditCard, CheckCircle, Clock, TrendingUp, Loader2
 } from 'lucide-react'
 
 const fetcher = (url: string) => apiClient.get(url).then(r => r.data)
+
+const PLANS = [
+    { key: 'free', label: 'Бесплатный' },
+    { key: 'starter', label: 'Стартер' },
+    { key: 'pro', label: 'Про' },
+    { key: 'business', label: 'Бизнес' },
+]
+
+const PLAN_STYLES: Record<string, string> = {
+    free: 'text-gray-600 bg-gray-100 border-gray-200',
+    starter: 'text-blue-700 bg-blue-50 border-blue-200',
+    pro: 'text-purple-700 bg-purple-50 border-purple-200',
+    business: 'text-amber-700 bg-amber-50 border-amber-200',
+}
 
 const GENERATION_TYPE_LABELS: Record<string, string> = {
     lesson_plan: 'План урока',
@@ -41,8 +55,30 @@ const STATUS_COLORS: Record<string, string> = {
 
 export default function UserStatsPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = use(params)
-    const { data, isLoading, error } = useSWR(`/admin/users/${id}/stats`, fetcher)
+    const { data, isLoading, error, mutate } = useSWR(`/admin/users/${id}/stats`, fetcher)
     const stats = data?.stats
+
+    const [selectedPlan, setSelectedPlan] = useState<string>('')
+    const [planSaving, setPlanSaving] = useState(false)
+    const [planMessage, setPlanMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+
+    const currentPlanKey = stats?.subscription?.planKey ?? ''
+
+    const handlePlanChange = async () => {
+        if (!selectedPlan || selectedPlan === currentPlanKey) return
+        setPlanSaving(true)
+        setPlanMessage(null)
+        try {
+            await apiClient.put(`/admin/users/${id}`, { planKey: selectedPlan })
+            setPlanMessage({ type: 'success', text: 'Тариф успешно изменён' })
+            mutate()
+            setTimeout(() => setPlanMessage(null), 3000)
+        } catch (e: any) {
+            setPlanMessage({ type: 'error', text: e.response?.data?.message || 'Ошибка изменения тарифа' })
+        } finally {
+            setPlanSaving(false)
+        }
+    }
 
     if (isLoading) return (
         <div className="flex items-center justify-center min-h-96">
@@ -102,10 +138,6 @@ export default function UserStatsPage({ params }: { params: Promise<{ id: string
                     {subscription ? (
                         <div className="space-y-3">
                             <div className="flex justify-between items-center">
-                                <span className="text-sm text-gray-500">План</span>
-                                <span className="font-semibold text-gray-900">{subscription.plan}</span>
-                            </div>
-                            <div className="flex justify-between items-center">
                                 <span className="text-sm text-gray-500">Статус</span>
                                 <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${subscription.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-600'}`}>
                                     {subscription.status}
@@ -128,6 +160,39 @@ export default function UserStatsPage({ params }: { params: Promise<{ id: string
                                 <span className="text-sm text-gray-700">
                                     {subscription.endDate ? new Date(subscription.endDate).toLocaleDateString('ru-RU') : '—'}
                                 </span>
+                            </div>
+
+                            {/* Смена тарифа */}
+                            <div className="pt-3 border-t border-gray-100">
+                                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Сменить тариф</p>
+                                <div className="flex items-center gap-2 mb-1">
+                                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${PLAN_STYLES[currentPlanKey] || PLAN_STYLES.free}`}>
+                                        {subscription.plan}
+                                    </span>
+                                    <span className="text-gray-400 text-xs">→</span>
+                                    <select
+                                        value={selectedPlan || currentPlanKey}
+                                        onChange={(e) => setSelectedPlan(e.target.value)}
+                                        className="flex-1 text-sm border border-gray-200 rounded-lg px-2 py-1.5 focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white"
+                                    >
+                                        {PLANS.map(p => (
+                                            <option key={p.key} value={p.key}>{p.label}</option>
+                                        ))}
+                                    </select>
+                                    <button
+                                        onClick={handlePlanChange}
+                                        disabled={planSaving || (selectedPlan || currentPlanKey) === currentPlanKey}
+                                        className="px-3 py-1.5 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700 transition disabled:opacity-40 flex items-center gap-1.5"
+                                    >
+                                        {planSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+                                        Сохранить
+                                    </button>
+                                </div>
+                                {planMessage && (
+                                    <p className={`text-xs mt-1 font-medium ${planMessage.type === 'success' ? 'text-emerald-600' : 'text-red-600'}`}>
+                                        {planMessage.text}
+                                    </p>
+                                )}
                             </div>
                         </div>
                     ) : (
