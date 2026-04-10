@@ -14,14 +14,14 @@ export default function LandingPage() {
     setShowAuth(false)
 
     // Применяем реферальный код, если пользователь пришёл по реферальной ссылке
-    const referralCode = localStorage.getItem('prepodavai_referral_code')
+    const referralCode = localStorage.getItem('преподавai_referral_code')
     if (referralCode) {
       try {
         await apiClient.post('/referrals/apply', { code: referralCode })
       } catch (e) {
         // Код невалидный или уже применён — не блокируем переход
       } finally {
-        localStorage.removeItem('prepodavai_referral_code')
+        localStorage.removeItem('преподавai_referral_code')
       }
     }
 
@@ -31,7 +31,7 @@ export default function LandingPage() {
   const testimonials = [
     { name: "Елена К.", role: "Репетитор по математике", text: "Раньше тратила 3-4 часа на подготовку вариантов. Теперь генерирую полный вариант ОГЭ за 5 минут!", avatar: "👩‍🏫" },
     { name: "Дмитрий Р.", role: "Преподаватель физики", text: "SVG-чертежи для задач рисуются автоматически, не нужно ничего делать руками.", avatar: "👨‍🔬" },
-    { name: "Анна М.", role: "Репетитор по английскому", text: "AI-аудит пробного урока открыл глаза на ошибки. Конверсия выросла с 30% до 65%.", avatar: "👩‍💼" },
+    { name: "Анна М.", role: "Репетитор по английскому", text: "ИИ-аудит пробного урока открыл глаза на ошибки. Конверсия выросла с 30% до 65%.", avatar: "👩‍💼" },
     { name: "Сергей В.", role: "Репетитор по русскому", text: "Создаю материалы для 15 учеников индивидуально. Раньше это было невозможно.", avatar: "👨‍🏫" },
     { name: "Ольга Т.", role: "Преподаватель химии", text: "Структурные формулы генерируются автоматически. Больше не рисую в Paint.", avatar: "👩‍🔬" },
   ];
@@ -75,9 +75,9 @@ export default function LandingPage() {
       )
     },
     {
-      title: "AI-ассистент", desc: "Методическая поддержка 24/7", preview: (
+      title: "ИИ-ассистент", desc: "Методическая поддержка 24/7", preview: (
         <div style={{ background: "white", borderRadius: 8, padding: 12, boxShadow: "0 1px 2px rgba(0,0,0,.05)", border: "1px solid #f0f0f0", fontSize: 12, color: "#1a1a1a" }}>
-          <p style={{ fontWeight: "bold", fontSize: 13, marginBottom: 8 }}>💬 AI-чат</p>
+          <p style={{ fontWeight: "bold", fontSize: 13, marginBottom: 8 }}>💬 ИИ-чат</p>
           <div style={{ background: "#f5f5f5", borderRadius: 8, padding: "6px 10px", marginBottom: 6, color: "#555" }}>Как объяснить дроби?</div>
           <div style={{ background: "#fff7ed", borderRadius: 8, padding: "6px 10px", border: "1px solid #fed7aa", color: "#444" }}>Используйте аналогию с пиццей...</div>
         </div>
@@ -187,7 +187,7 @@ export default function LandingPage() {
           <div style={{ width: 34, height: 34, borderRadius: 10, overflow: "hidden" }}>
             <img src="https://fs.cdn-chatium.io/thumbnail/image_gc_AmbUAlw8Yq.1024x1024.png/s/128x" alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
           </div>
-          <span style={{ fontSize: 19, fontWeight: 900, letterSpacing: "-0.03em" }}>prepodav<span style={{ color: "#f97316" }}>AI</span></span>
+          <span style={{ fontSize: 19, fontWeight: 900, letterSpacing: "-0.03em" }}>Преподавай</span>
         </div>
         <button onClick={() => { setAuthMode('login'); setShowAuth(true); }} style={{ padding: "9px 20px", background: "#f97316", color: "white", border: "none", borderRadius: 12, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Войти</button>
       </header>
@@ -321,7 +321,7 @@ export default function LandingPage() {
       <section style={{ padding: "72px 24px", background: "white", overflow: "hidden" }}>
         <div style={{ maxWidth: 1000, margin: "0 auto" }}>
           <h2 style={{ textAlign: "center", fontSize: 28, fontWeight: 900, marginBottom: 40 }}>
-            Почему учителя выбирают prepodav<span style={{ color: "#f97316" }}>AI</span>
+            Почему учителя выбирают Преподавай
           </h2>
           <div style={{ display: "flex", gap: 20, transition: "transform 0.5s ease", transform: `translateX(-${currentTestimonial * 310}px)` }}>
             {testimonials.map((t, i) => (
@@ -393,7 +393,7 @@ export default function LandingPage() {
       {/* FOOTER */}
       <footer style={{ padding: "32px 24px", background: "white", borderTop: "1px solid #f0f0f0" }}>
         <div style={{ maxWidth: 1200, margin: "0 auto", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, fontSize: 13, color: "#bbb" }}>
-          <span>© 2025 prepodav<span style={{ color: "#fdba74" }}>AI</span> — ИИ-помощник для репетиторов</span>
+          <span>© 2025 Преподавай</span> — ИИ-помощник для репетиторов</span>
           <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
             <Link href="/legal/offer" style={{ cursor: "pointer", color: "inherit", textDecoration: "none" }}>Оферта</Link>
             <Link href="/legal/terms" style={{ cursor: "pointer", color: "inherit", textDecoration: "none" }}>Условия</Link>
