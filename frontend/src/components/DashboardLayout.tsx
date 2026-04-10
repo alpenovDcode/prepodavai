@@ -27,8 +27,8 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         { id: 'courses', label: 'Материалы', icon: BookOpen, path: '/dashboard/courses' },
         { id: 'students', label: 'Ученики', icon: Users, path: '/dashboard/students' },
         { id: 'analytics', label: 'Аналитика', icon: BarChart, path: '/dashboard/analytics' },
-        { id: 'referrals', label: 'Рефералы', icon: Gift, path: '/dashboard/referrals' },
-        { id: 'settings', label: 'Настройки', icon: SettingsIcon, path: '/dashboard/settings' },
+        { id: 'referrals', label: 'Пригласительные', icon: Gift, path: '/dashboard/referrals' },
+        { id: 'settings', label: 'Моя карточка', icon: SettingsIcon, path: '/dashboard/settings' },
     ]
 
     const [planModalOpen, setPlanModalOpen] = useState(false)

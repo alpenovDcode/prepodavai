@@ -23,6 +23,16 @@ export class UpdateUserDto {
 
   @IsString()
   @IsOptional()
+  @MaxLength(100)
+  subject?: string;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(100)
+  grades?: string;
+
+  @IsString()
+  @IsOptional()
   avatar?: string;
 
   @IsBoolean()

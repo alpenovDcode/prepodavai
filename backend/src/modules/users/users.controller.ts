@@ -24,6 +24,8 @@ export class UsersController {
         phone: user.phone,
         phoneVerified: user.phoneVerified,
         bio: user.bio,
+        subject: user.subject,
+        grades: user.grades,
         avatar: user.avatar,
         notifyNewCourse: user.notifyNewCourse,
         notifyStudentProgress: user.notifyStudentProgress,

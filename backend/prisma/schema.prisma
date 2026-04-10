@@ -28,6 +28,8 @@ model AppUser {
   phone                 String?
   email                 String?
   bio                   String?
+  subject               String?   // Предмет преподавания
+  grades                String?   // Классы (например: "5–9 классы")
   avatar                String?
   notifyNewCourse       Boolean   @default(true)
   notifyStudentProgress Boolean   @default(false)

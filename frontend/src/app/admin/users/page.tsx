@@ -213,7 +213,11 @@ export default function AdminUsersPage() {
                                                 </div>
                                                 <div className="text-xs font-bold pl-0.5 flex items-center gap-2">
                                                     <span className="text-gray-400 uppercase tracking-widest text-[9px]">Баланс: </span>
-                                                    <span className="text-indigo-600 bg-indigo-50 px-2.5 py-0.5 rounded-lg border border-indigo-100 tabular-nums">{user.subscription?.creditsBalance ?? '—'}</span>
+                                                    <span className="text-indigo-600 bg-indigo-50 px-2.5 py-0.5 rounded-lg border border-indigo-100 tabular-nums">
+                                                        {user.subscription != null
+                                                            ? (user.subscription.creditsBalance ?? 0) + (user.subscription.extraCredits ?? 0)
+                                                            : '—'}
+                                                    </span>
                                                 </div>
                                                 {user.subscription?.plan && (
                                                     <div className="pl-0.5">

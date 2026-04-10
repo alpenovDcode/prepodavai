@@ -12,6 +12,8 @@ export default function SettingsPage() {
         phoneVerified: false,
         bio: '',
         avatar: '',
+        subject: '',
+        grades: '',
     })
 
     const [phoneVerif, setPhoneVerif] = useState<{
@@ -112,6 +114,8 @@ export default function SettingsPage() {
                         phoneVerified: u.phoneVerified || false,
                         bio: u.bio || '',
                         avatar: u.avatar || '',
+                        subject: u.subject || '',
+                        grades: u.grades || '',
                     })
                     setNotifications({
                         notifyNewCourse: u.notifyNewCourse ?? true,
@@ -210,6 +214,8 @@ export default function SettingsPage() {
                 phone: profile.phone,
                 bio: profile.bio,
                 avatar: profile.avatar,
+                subject: profile.subject,
+                grades: profile.grades,
                 notifyNewCourse: notifications.notifyNewCourse,
                 notifyStudentProgress: notifications.notifyStudentProgress,
                 notifyWeeklyReport: notifications.notifyWeeklyReport,
@@ -247,7 +253,7 @@ export default function SettingsPage() {
         <div className="max-w-4xl mx-auto">
             {/* Header */}
             <div className="mb-8">
-                <h1 className="text-3xl font-bold text-gray-900">Настройки</h1>
+                <h1 className="text-3xl font-bold text-gray-900">Моя карточка</h1>
                 <p className="text-gray-600 mt-1">Управление профилем и настройками аккаунта.</p>
             </div>
 
@@ -401,7 +407,7 @@ export default function SettingsPage() {
                     </div>
                 </div>
 
-                <div className="mb-8">
+                <div className="mb-6">
                     <label className="block text-sm font-semibold text-gray-700 mb-2">
                         О себе
                     </label>
@@ -411,6 +417,34 @@ export default function SettingsPage() {
                         rows={4}
                         className="w-full px-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-primary-500 focus:bg-white transition resize-none"
                     />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                    <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">
+                            Мой предмет
+                        </label>
+                        <input
+                            type="text"
+                            value={profile.subject}
+                            onChange={(e) => setProfile({ ...profile, subject: e.target.value })}
+                            placeholder="Например: Математика, Русский язык"
+                            className="w-full px-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-primary-500 focus:bg-white transition"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">
+                            Классы
+                        </label>
+                        <input
+                            type="text"
+                            value={profile.grades}
+                            onChange={(e) => setProfile({ ...profile, grades: e.target.value })}
+                            placeholder="Например: 5–9 классы"
+                            className="w-full px-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-primary-500 focus:bg-white transition"
+                        />
+                    </div>
                 </div>
 
                 <div className="flex items-center gap-4">

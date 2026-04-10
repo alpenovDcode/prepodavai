@@ -68,7 +68,7 @@ export default function ReferralsPage() {
     <div className="max-w-4xl mx-auto">
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Реферальная программа</h1>
+        <h1 className="text-3xl font-bold text-gray-900">Пригласительная ссылка</h1>
         <p className="text-gray-600 mt-1">Приглашайте коллег и учеников — получайте бонусные Токены.</p>
       </div>
 
@@ -76,7 +76,7 @@ export default function ReferralsPage() {
       <div className="dashboard-card mb-6">
         <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
           <Gift className="w-5 h-5 text-primary-600" />
-          Ваш реферальный код
+          Ваша пригласительная ссылка
         </h2>
 
         {referralCode ? (
@@ -121,7 +121,7 @@ export default function ReferralsPage() {
           </div>
         ) : (
           <div className="space-y-4">
-            <p className="text-gray-600">У вас ещё нет реферального кода. Создайте его, чтобы начать приглашать.</p>
+            <p className="text-gray-600">У вас ещё нет пригласительной ссылки. Создайте её, чтобы начать приглашать.</p>
 
             <div className="flex flex-col sm:flex-row gap-3">
               <button
@@ -178,7 +178,7 @@ export default function ReferralsPage() {
               <Users className="w-5 h-5 text-blue-600" />
             </div>
             <p className="text-2xl font-black text-gray-900">{stats.totalReferrals}</p>
-            <p className="text-xs text-gray-500 font-medium">Всего рефералов</p>
+            <p className="text-xs text-gray-500 font-medium">Всего приглашённых</p>
           </div>
 
           <div className="dashboard-card !p-4 text-center">
@@ -216,9 +216,9 @@ export default function ReferralsPage() {
 
         <div className="space-y-3">
           {[
-            { range: '1-3 реферала', reward: 50, min: 0, max: 3 },
-            { range: '4-7 рефералов', reward: 75, min: 4, max: 7 },
-            { range: '8+ рефералов', reward: 100, min: 8, max: Infinity },
+            { range: '1-3 приглашённых', reward: 50, min: 0, max: 3 },
+            { range: '4-7 приглашённых', reward: 75, min: 4, max: 7 },
+            { range: '8+ приглашённых', reward: 100, min: 8, max: Infinity },
           ].map((tier) => {
             const currentCount = stats?.currentTier.activatedTeachers || 0
             const isActive = currentCount >= tier.min && currentCount <= tier.max
@@ -318,7 +318,7 @@ export default function ReferralsPage() {
       <div className="dashboard-card">
         <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
           <Users className="w-5 h-5 text-primary-600" />
-          Ваши рефералы
+          Мои пригласительные
         </h2>
 
         {listLoading ? (
@@ -328,8 +328,8 @@ export default function ReferralsPage() {
         ) : !referrals || referrals.length === 0 ? (
           <div className="text-center py-8">
             <Users className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-            <p className="text-gray-500 font-medium">Пока нет рефералов</p>
-            <p className="text-sm text-gray-400 mt-1">Поделитесь своим кодом, чтобы начать приглашать</p>
+            <p className="text-gray-500 font-medium">Пока нет приглашённых</p>
+            <p className="text-sm text-gray-400 mt-1">Поделитесь своей ссылкой, чтобы начать приглашать</p>
           </div>
         ) : (
           <div className="space-y-3">

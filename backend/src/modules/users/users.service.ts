@@ -293,6 +293,8 @@ export class UsersService {
         lastName: data.lastName,
         email: data.email,
         bio: data.bio,
+        subject: data.subject,
+        grades: data.grades,
         avatar: data.avatar,
         phone: data.phone,
         notifyNewCourse: data.notifyNewCourse,
