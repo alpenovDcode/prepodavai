@@ -331,7 +331,7 @@ export default function WebAppIndex({ embedded = false }: WebAppIndexProps) {
 <style>body{font-family:Arial,sans-serif;line-height:1.6;padding:40px;max-width:800px;margin:0 auto;background:#fff;color:#000;font-size:14pt}h1{color:#FF7E58;border-bottom:2px solid #D8E6FF;padding-bottom:10px;margin-bottom:20px}table{width:100%;border-collapse:collapse;margin-bottom:1em}th,td{border:1px solid #ddd;padding:8px}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style>
 ${autoPrintScript}</head>
 <body><h1>${section.title || typeLabel}</h1><div>${section.content}</div>
-<p style="margin-top:40px;font-size:10px;color:#a0aec0;border-top:1px solid #edf2f7">Сгенерировано PrepodavAI</p></body></html>`
+<p style="margin-top:40px;font-size:10px;color:#a0aec0;border-top:1px solid #edf2f7">Сгенерировано Преподавай</p></body></html>`
 
       } else if (isHtmlResult && htmlResult) {
         const printStyles = `<style>@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style>`
@@ -405,7 +405,7 @@ ${autoPrintScript}</head><body>${bodyContent}</body></html>`
     try {
       const title = section.title || 'Материал'
       const autoPrint = `<script>window.onload=function(){setTimeout(function(){window.print()},800)}<\/script>`
-      const html = `<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8"><title>${title}</title><style>body{font-family:Arial,sans-serif;line-height:1.6;padding:40px;max-width:800px;margin:0 auto;font-size:14pt}h1{color:#FF7E58}@media print{body{-webkit-print-color-adjust:exact}}</style>${autoPrint}</head><body><h1>${title}</h1><div>${section.content}</div><p style="margin-top:40px;font-size:10px;color:#a0aec0">Сгенерировано PrepodavAI</p></body></html>`
+      const html = `<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8"><title>${title}</title><style>body{font-family:Arial,sans-serif;line-height:1.6;padding:40px;max-width:800px;margin:0 auto;font-size:14pt}h1{color:#FF7E58}@media print{body{-webkit-print-color-adjust:exact}}</style>${autoPrint}</head><body><h1>${title}</h1><div>${section.content}</div><p style="margin-top:40px;font-size:10px;color:#a0aec0">Сгенерировано Преподавай</p></body></html>`
       const win = window.open('', '_blank')
       if (!win) { alert('Разрешите всплывающие окна для этого сайта'); return }
       win.document.open(); win.document.write(html); win.document.close()
@@ -615,12 +615,12 @@ ${autoPrintScript}</head><body>${bodyContent}</body></html>`
               <div className="w-14 h-14 flex-shrink-0 rounded-xl overflow-hidden shadow">
                 <img
                   src="https://fs.cdn-chatium.io/thumbnail/image_gc_AmbUAlw8Yq.1024x1024.png/s/128x"
-                  alt="prepodavAI"
+                  alt="Преподавай"
                   className="w-full h-full object-cover"
                 />
               </div>
               <div className="flex-shrink-0">
-                <h1 className="text-lg font-bold text-black">prepodavAI</h1>
+                <h1 className="text-lg font-bold text-black">Преподавай</h1>
                 <p className="text-xs text-black/70">Ваш умный помощник</p>
               </div>
             </div>

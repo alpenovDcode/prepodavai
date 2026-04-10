@@ -542,6 +542,62 @@ export class SubscriptionsService {
   }
 
   /**
+   * Продлить подписку (рекуррентный платёж или продление вручную)
+   * Добавляет токены и сдвигает endDate на 1 месяц вперёд
+   */
+  async renewSubscription(
+    userId: string,
+    planKey: string,
+    cpCardToken?: string,
+    cpSubscriptionId?: string,
+  ) {
+    const plan = await this.prisma.subscriptionPlan.findUnique({ where: { planKey } });
+    if (!plan || !plan.isActive) {
+      throw new BadRequestException(`Тариф "${planKey}" не найден или неактивен`);
+    }
+
+    const subscription = await this.getOrCreateUserSubscription(userId);
+
+    const now = new Date();
+    const base = subscription.endDate > now ? subscription.endDate : now;
+    const newEndDate = new Date(base);
+    newEndDate.setMonth(newEndDate.getMonth() + 1);
+
+    const balanceBefore = subscription.creditsBalance + subscription.extraCredits;
+
+    const updated = await this.prisma.userSubscription.update({
+      where: { id: subscription.id },
+      data: {
+        planId: plan.id,
+        status: 'active',
+        creditsBalance: { increment: plan.monthlyCredits },
+        endDate: newEndDate,
+        autoRenew: true,
+        ...(cpCardToken ? { cpCardToken } : {}),
+        ...(cpSubscriptionId ? { cpSubscriptionId } : {}),
+      },
+      include: { plan: true },
+    });
+
+    await this.prisma.creditTransaction.create({
+      data: {
+        userId,
+        subscriptionId: subscription.id,
+        type: 'credit',
+        amount: plan.monthlyCredits,
+        balanceBefore,
+        balanceAfter: balanceBefore + plan.monthlyCredits,
+        description: `Продление тарифа "${plan.planName}" — +${plan.monthlyCredits} токенов`,
+        metadata: { planKey, renewedAt: now.toISOString() },
+      },
+    });
+
+    console.log(`🔄 Subscription renewed: userId=${userId}, plan=${planKey}, +${plan.monthlyCredits} tokens, until=${newEndDate}`);
+
+    return { success: true, subscription: updated };
+  }
+
+  /**
    * Получить стоимость операций
    */
   async getCreditCosts() {

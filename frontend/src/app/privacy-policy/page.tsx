@@ -45,7 +45,7 @@ export default function PrivacyPolicyPage() {
                     <section className="mb-8">
                         <h2 className="text-xl font-bold text-gray-900 mb-4">3. ЦЕЛИ ОБРАБОТКИ</h2>
                         <ul className="list-disc pl-6 mb-3 space-y-2">
-                            <li>Предоставление доступа к функционалу сервиса PrepodavAI;</li>
+                            <li>Предоставление доступа к функционалу сервиса Преподавай;</li>
                             <li>Идентификация Пользователя в рамках использования сервиса;</li>
                             <li>Связь с Пользователем, направление уведомлений и запросов;</li>
                             <li>Улучшение качества работы Сайта и сервиса.</li>

@@ -67,7 +67,15 @@ async function bootstrap() {
 
   // Ограничение размера body запросов (защита от DoS) - Глобальный лимит 10MB
   // (2GB для видео загружается через Multer в FilesController)
-  app.use(require('express').json({ limit: '10mb' }));
+  // rawBody capture для HMAC-верификации webhook CloudPayments
+  app.use(
+    require('express').json({
+      limit: '10mb',
+      verify: (req: any, _res: any, buf: Buffer) => {
+        req.rawBody = buf;
+      },
+    }),
+  );
   app.use(require('express').urlencoded({ limit: '10mb', extended: true }));
   app.use(require('cookie-parser')());
   app.use(compression());

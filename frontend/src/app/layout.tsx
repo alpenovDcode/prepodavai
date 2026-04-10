@@ -8,7 +8,7 @@ import UtmCapture from '@/components/UtmCapture'
 const inter = Inter({ subsets: ['latin', 'cyrillic'], display: 'swap' })
 
 export const metadata: Metadata = {
-  title: 'PrepodavAI - AI Tutor Copilot',
+  title: 'Преподавай',
   description: 'Интеллектуальный помощник для преподавателей',
 }
 

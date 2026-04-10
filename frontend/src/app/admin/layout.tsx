@@ -93,7 +93,7 @@ export default function AdminLayout({
                 <div className="flex items-center gap-3 p-6 border-b border-gray-800">
                     <Shield className="w-8 h-8 text-blue-400" />
                     <div>
-                        <h2 className="text-xl font-bold tracking-tight">PrepodavAI</h2>
+                        <h2 className="text-xl font-bold tracking-tight">Преподавай</h2>
                         <span className="text-xs text-blue-400 font-medium">Administration</span>
                     </div>
                 </div>

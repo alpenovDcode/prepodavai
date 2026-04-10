@@ -1,9 +1,27 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { X, Check, Sparkles, Zap, Building2, Gift } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import { X, Check, Sparkles, Zap, Building2, Gift, Loader2 } from 'lucide-react'
 import { apiClient } from '@/lib/api/client'
 import { useSubscription } from '@/lib/hooks/useSubscription'
+
+declare global {
+  interface Window {
+    cp?: {
+      CloudPayments: new () => {
+        pay: (
+          action: 'charge' | 'auth',
+          params: Record<string, unknown>,
+          callbacks: {
+            onSuccess?: (options: unknown) => void
+            onFail?: (reason: string, options: unknown) => void
+            onComplete?: (paymentResult: unknown, options: unknown) => void
+          },
+        ) => void
+      }
+    }
+  }
+}
 
 interface Plan {
   planKey: string
@@ -18,7 +36,7 @@ interface Plan {
 interface Props {
   open: boolean
   onClose: () => void
-  highlightPlanKey?: string // открыть с выделенным тарифом (например после блокировки)
+  highlightPlanKey?: string
 }
 
 const PLAN_ICONS: Record<string, React.ReactNode> = {
@@ -35,16 +53,41 @@ const PLAN_COLORS: Record<string, { bg: string; border: string; badge: string; b
   business: { bg: 'bg-amber-50',  border: 'border-amber-300',  badge: 'bg-amber-100 text-amber-700',   btn: 'bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400', icon: 'bg-amber-100 text-amber-600' },
 }
 
+const CP_WIDGET_URL = 'https://widget.cloudpayments.ru/bundles/cloudpayments.js'
+
+function useCloudPaymentsScript() {
+  const [ready, setReady] = useState(false)
+
+  useEffect(() => {
+    if (window.cp) { setReady(true); return }
+    if (document.querySelector(`script[src="${CP_WIDGET_URL}"]`)) return
+
+    const script = document.createElement('script')
+    script.src = CP_WIDGET_URL
+    script.async = true
+    script.onload = () => setReady(true)
+    document.head.appendChild(script)
+  }, [])
+
+  return ready
+}
 
 export default function PlanUpgradeModal({ open, onClose, highlightPlanKey }: Props) {
   const [plans, setPlans] = useState<Plan[]>([])
   const [loading, setLoading] = useState(true)
-  const { subscription } = useSubscription()
+  const [payingPlanKey, setPayingPlanKey] = useState<string | null>(null)
+  const [successPlanKey, setSuccessPlanKey] = useState<string | null>(null)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
+
+  const { subscription, refetch } = useSubscription()
+  const cpReady = useCloudPaymentsScript()
 
   const currentPlanKey = (subscription as any)?.planKey || 'free'
 
   useEffect(() => {
     if (!open) return
+    setSuccessPlanKey(null)
+    setErrorMsg(null)
     apiClient.get('/subscriptions/plans')
       .then(r => {
         const sorted = (r.data.plans as Plan[]).sort((a, b) => a.price - b.price)
@@ -52,6 +95,56 @@ export default function PlanUpgradeModal({ open, onClose, highlightPlanKey }: Pr
       })
       .finally(() => setLoading(false))
   }, [open])
+
+  const handleBuy = useCallback(async (plan: Plan) => {
+    if (!cpReady || payingPlanKey) return
+    setErrorMsg(null)
+    setPayingPlanKey(plan.planKey)
+
+    try {
+      const { data } = await apiClient.post('/payments/create-order', { planKey: plan.planKey })
+
+      const widget = new window.cp!.CloudPayments()
+
+      widget.pay(
+        'charge',
+        {
+          publicId: data.publicId,
+          description: data.description,
+          amount: data.amount,
+          currency: data.currency,
+          accountId: data.accountId,
+          invoiceId: data.invoiceId,
+          skin: 'mini',
+          data: { planKey: plan.planKey },
+          // Рекуррентные: CloudPayments создаст подписку автоматически
+          // если в настройках терминала включён recurring
+          recurring: {
+            interval: 'Month',
+            period: 1,
+          },
+        },
+        {
+          onSuccess: () => {
+            setSuccessPlanKey(plan.planKey)
+            setPayingPlanKey(null)
+            // Обновляем данные подписки
+            setTimeout(() => refetch(), 2000)
+          },
+          onFail: (reason) => {
+            setErrorMsg(`Платёж отклонён: ${reason}`)
+            setPayingPlanKey(null)
+          },
+          onComplete: () => {
+            setPayingPlanKey(null)
+          },
+        },
+      )
+    } catch (err: any) {
+      setErrorMsg(err?.response?.data?.message || 'Ошибка при создании платежа')
+      setPayingPlanKey(null)
+    }
+  }, [cpReady, payingPlanKey, refetch])
 
   if (!open) return null
 
@@ -67,15 +160,26 @@ export default function PlanUpgradeModal({ open, onClose, highlightPlanKey }: Pr
           <div>
             <h2 className="text-xl font-bold text-gray-900">Выберите тариф</h2>
             <p className="text-sm text-gray-500 mt-0.5">
-              Текущий тариф: <span className="font-semibold text-gray-700">
+              Текущий тариф:{' '}
+              <span className="font-semibold text-gray-700">
                 {plans.find(p => p.planKey === currentPlanKey)?.planName || currentPlanKey}
               </span>
             </p>
           </div>
-          <button onClick={onClose} className="w-8 h-8 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors">
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors"
+          >
             <X className="w-4 h-4 text-gray-500" />
           </button>
         </div>
+
+        {/* Error banner */}
+        {errorMsg && (
+          <div className="mx-6 mt-4 px-4 py-3 rounded-xl bg-red-50 border border-red-200 text-sm text-red-700">
+            {errorMsg}
+          </div>
+        )}
 
         {/* Plans grid */}
         <div className="p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -88,6 +192,8 @@ export default function PlanUpgradeModal({ open, onClose, highlightPlanKey }: Pr
             const isCurrent = plan.planKey === currentPlanKey
             const isHighlighted = plan.planKey === highlightPlanKey
             const isPro = plan.planKey === 'pro'
+            const isPaying = payingPlanKey === plan.planKey
+            const isSuccess = successPlanKey === plan.planKey
 
             return (
               <div
@@ -98,7 +204,6 @@ export default function PlanUpgradeModal({ open, onClose, highlightPlanKey }: Pr
                   colors.border
                 }`}
               >
-                {/* Popular badge */}
                 {isPro && (
                   <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 bg-purple-600 text-white text-xs font-bold rounded-full shadow">
                     Популярный
@@ -131,7 +236,6 @@ export default function PlanUpgradeModal({ open, onClose, highlightPlanKey }: Pr
                       <span className="text-sm text-gray-500 mb-1">/мес</span>
                     </div>
                   )}
-                  {plan.allowOverage && plan.overageCostPerCredit}
                 </div>
 
                 {/* Features */}
@@ -149,15 +253,26 @@ export default function PlanUpgradeModal({ open, onClose, highlightPlanKey }: Pr
                   <div className="w-full py-2.5 rounded-xl text-sm font-semibold text-center bg-gray-200 text-gray-500 cursor-default">
                     Текущий тариф
                   </div>
-                ) : plan.price === 0 ? null : (
-                  <a
-                    href="https://t.me/helpprrv"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className={`w-full py-2.5 rounded-xl text-sm font-semibold text-white text-center block transition-all active:scale-[0.98] ${colors.btn}`}
+                ) : plan.price === 0 ? null : isSuccess ? (
+                  <div className="w-full py-2.5 rounded-xl text-sm font-semibold text-center bg-green-100 text-green-700 flex items-center justify-center gap-2">
+                    <Check className="w-4 h-4" />
+                    Оплачено!
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => handleBuy(plan)}
+                    disabled={isPaying || !!payingPlanKey || !cpReady}
+                    className={`w-full py-2.5 rounded-xl text-sm font-semibold text-white text-center transition-all active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${colors.btn}`}
                   >
-                    Написать менеджеру
-                  </a>
+                    {isPaying ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Открываем...
+                      </>
+                    ) : (
+                      `Купить за ${plan.price}₽`
+                    )}
+                  </button>
                 )}
               </div>
             )
@@ -166,8 +281,8 @@ export default function PlanUpgradeModal({ open, onClose, highlightPlanKey }: Pr
 
         {/* Footer note */}
         <p className="px-6 pb-5 text-xs text-center text-gray-400">
-          Токены начисляются сразу после активации. Остаток текущих токенов сохраняется.
-          {' '}При вопросах — напишите в поддержку.
+          Оплата через CloudPayments — защищена по стандарту PCI DSS.
+          Токены начисляются сразу после оплаты. Остаток текущих токенов сохраняется.
         </p>
       </div>
     </div>

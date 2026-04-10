@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Sparkles, Loader2, Zap } from 'lucide-react'
+import { Sparkles, Loader2 } from 'lucide-react'
 import { useSubscription } from '@/lib/hooks/useSubscription'
 import { usePathname } from 'next/navigation'
 import { useIsMobile } from '@/lib/hooks/useIsMobile'
@@ -43,15 +43,6 @@ export default function FloatingBalance() {
     return (
         <>
             <div className="fixed bottom-6 right-6 z-[9999] animate-fade-in-up flex flex-col items-end gap-2">
-                {/* Upgrade button */}
-                <button
-                    onClick={() => setPlanModalOpen(true)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-semibold rounded-full shadow-lg transition-all active:scale-95"
-                >
-                    <Zap className="w-3 h-3" />
-                    Улучшить тариф
-                </button>
-
                 {/* Balance pill */}
                 <div className="flex items-center gap-2.5 px-4 py-2.5 bg-white/90 backdrop-blur-md border border-purple-100 rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] hover:shadow-[0_8px_40px_rgba(147,51,234,0.15)] transition-all duration-300 group ring-1 ring-purple-50/50">
                     <div className="w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center text-white shadow-[0_0_15px_rgba(147,51,234,0.3)] group-hover:scale-110 transition-transform duration-300">

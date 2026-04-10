@@ -253,7 +253,7 @@ export default function Home() {
         </div>
         <h1 className="text-2xl font-bold text-gray-900 mb-2 text-center">Аккаунт не привязан</h1>
         <p className="text-gray-500 text-center text-sm mb-8 max-w-xs">
-          Ваш {platformName} не привязан к аккаунту PrepodavAI. Зарегистрируйтесь на сайте и привяжите {platformName} в настройках профиля.
+          Ваш {platformName} не привязан к аккаунту Преподавай. Зарегистрируйтесь на сайте и привяжите {platformName} в настройках профиля.
         </p>
         <ol className="w-full max-w-xs space-y-3 mb-8">
           {[
@@ -274,7 +274,7 @@ export default function Home() {
           rel="noopener noreferrer"
           className="px-6 py-3 bg-primary-600 text-white rounded-xl font-semibold hover:bg-primary-700 transition text-sm"
         >
-          Открыть PrepodavAI
+          Открыть Преподавай
         </a>
         <button
           onClick={tryMiniAppAuth}

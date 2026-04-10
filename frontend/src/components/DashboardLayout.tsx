@@ -99,7 +99,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                     </button>
                     <div className="flex items-center gap-2">
                         {LOGO_BASE64 ? (
-                            <img src={LOGO_BASE64} alt="PrepodavAI" className="w-7 h-7 object-contain" />
+                            <img src={LOGO_BASE64} alt="Преподавай" className="w-7 h-7 object-contain" />
                         ) : (
                             <LayoutDashboard className="w-5 h-5 text-primary-600" />
                         )}
@@ -211,13 +211,13 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 <div className="p-6 border-b border-gray-50">
                     <div className="flex items-center gap-3">
                         {LOGO_BASE64 ? (
-                            <img src={LOGO_BASE64} alt="PrepodavAI" className="w-10 h-10 object-contain rounded-lg" />
+                            <img src={LOGO_BASE64} alt="Преподавай" className="w-10 h-10 object-contain rounded-lg" />
                         ) : (
                             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-600 to-primary-700 flex items-center justify-center shadow-lg shadow-primary-200">
                                 <LayoutDashboard className="text-white w-6 h-6" />
                             </div>
                         )}
-                        <span className="text-xl font-bold text-gray-900 tracking-tight">PrepodavAI</span>
+                        <span className="text-xl font-bold text-gray-900 tracking-tight">Преподавай</span>
                     </div>
                 </div>
 

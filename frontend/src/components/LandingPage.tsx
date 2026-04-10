@@ -212,7 +212,7 @@ export default function LandingPage() {
                 <div style={{ width: 160, background: "white", borderRight: "1px solid #f0f0f0", padding: 14, flexShrink: 0 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 20 }}>
                     <div style={{ width: 26, height: 26, borderRadius: 7, background: "linear-gradient(135deg,#f97316,#ea580c)" }} />
-                    <span style={{ fontWeight: 900, fontSize: 12 }}>PrepodavAI</span>
+                    <span style={{ fontWeight: 900, fontSize: 12 }}>Преподавай</span>
                   </div>
                   {[{ i: "🏠", l: "Главная", a: true }, { i: "🤖", l: "ИИ Генератор" }, { i: "📁", l: "Материалы" }, { i: "👥", l: "Ученики" }, { i: "📊", l: "Аналитика" }, { i: "⚙️", l: "Настройки" }].map((x, j) => (
                     <div key={j} style={{ display: "flex", alignItems: "center", gap: 7, padding: "7px 9px", borderRadius: 8, fontSize: 11, color: x.a ? "#ea580c" : "#999", background: x.a ? "#fff7ed" : "transparent", fontWeight: x.a ? 600 : 400, marginBottom: 1 }}>{x.i} {x.l}</div>

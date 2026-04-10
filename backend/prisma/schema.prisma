@@ -63,6 +63,7 @@ model AppUser {
   classes               Class[]
   linkTokens            LinkToken[]
   onboardingQuestSteps  OnboardingQuestStep[]
+  payments              Payment[]
 
   @@index([telegramId])
   @@index([maxId])
@@ -109,6 +110,8 @@ model UserSubscription {
   startDate         DateTime
   endDate           DateTime
   autoRenew         Boolean  @default(true)
+  cpSubscriptionId  String?  // CloudPayments SubscriptionId для рекуррентных
+  cpCardToken       String?  // Токен карты для повторных списаний
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
@@ -538,6 +541,31 @@ model UtmLink {
   @@index([socialNetwork])
   @@index([utmCampaign])
   @@map("utm_links")
+}
+
+// Платежи через CloudPayments
+model Payment {
+  id              String   @id @default(uuid())
+  userId          String
+  planKey         String
+  amount          Decimal  @db.Decimal(10, 2)
+  currency        String   @default("RUB")
+  status          String   // 'pending', 'completed', 'failed'
+  cpTransactionId String?  // TransactionId от CloudPayments
+  cpSubscriptionId String? // SubscriptionId (для рекуррентных)
+  cpToken         String?  // Токен карты (для повторных списаний)
+  invoiceId       String   @unique // Наш внутренний ID заказа
+  isRecurrent     Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user            AppUser  @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([invoiceId])
+  @@index([cpTransactionId])
+  @@index([cpSubscriptionId])
+  @@map("payments")
 }
 
 // Загруженные файлы

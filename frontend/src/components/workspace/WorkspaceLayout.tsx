@@ -248,7 +248,7 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
                     </button>
                     <div className="flex items-center gap-2">
                         {LOGO_BASE64 ? (
-                            <img src={LOGO_BASE64} alt="PrepodavAI" className="w-7 h-7 object-contain" />
+                            <img src={LOGO_BASE64} alt="Преподавай" className="w-7 h-7 object-contain" />
                         ) : (
                             <LayoutTemplate className="w-5 h-5 text-primary-600" />
                         )}
@@ -350,7 +350,7 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
                 <div className="p-5 border-b border-gray-100 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                         {LOGO_BASE64 ? (
-                            <img src={LOGO_BASE64} alt="PrepodavAI" className="w-9 h-9 object-contain rounded-lg" />
+                            <img src={LOGO_BASE64} alt="Преподавай" className="w-9 h-9 object-contain rounded-lg" />
                         ) : (
                             <div className="w-9 h-9 rounded-xl bg-primary-600 flex items-center justify-center shadow-lg shadow-primary-200">
                                 <span className="text-white font-bold text-sm">P</span>

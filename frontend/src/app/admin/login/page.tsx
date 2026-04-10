@@ -58,7 +58,7 @@ export default function AdminLogin() {
                         <Shield className="w-8 h-8 text-white" />
                     </div>
                     <h1 className="text-2xl font-bold tracking-tight text-gray-900">Admin Portal</h1>
-                    <p className="text-sm text-gray-500 mt-1">Sign in to manage PrepodavAI</p>
+                    <p className="text-sm text-gray-500 mt-1">Sign in to manage Преподавай</p>
                 </div>
 
                 {error && (

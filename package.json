@@ -1,7 +1,7 @@
 {
   "name": "prepodavai",
   "version": "1.0.0",
-  "description": "AI Tutor Copilot - Модульная платформа для преподавателей",
+  "description": "Преподавай - Модульная платформа для преподавателей",
   "private": true,
   "workspaces": [
     "frontend",

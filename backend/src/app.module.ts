@@ -37,6 +37,7 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { ReferralsModule } from './modules/referrals/referrals.module';
 import { OnboardingQuestModule } from './modules/onboarding-quest/onboarding-quest.module';
+import { PaymentsModule } from './modules/payments/payments.module';
 
 @Module({
   imports: [
@@ -104,6 +105,7 @@ import { OnboardingQuestModule } from './modules/onboarding-quest/onboarding-que
     NotificationsModule,
     ReferralsModule,
     OnboardingQuestModule,
+    PaymentsModule,
   ],
   controllers: [AppController],
   providers: [
