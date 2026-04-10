@@ -42,17 +42,20 @@ export const STEP_META: Record<OnboardingStep, StepMeta> = {
   },
   [OnboardingStep.FIRST_REFERRAL_ACTIVATED]: {
     step: OnboardingStep.FIRST_REFERRAL_ACTIVATED,
-    reward: 50,
+    reward: 30,
     title: 'Первый коллега',
     description: 'Коллега зарегистрировался и создал материал',
   },
   [OnboardingStep.SECOND_REFERRAL_ACTIVATED]: {
     step: OnboardingStep.SECOND_REFERRAL_ACTIVATED,
-    reward: 75,
+    reward: 50,
     title: 'Методическое объединение',
     description: 'Второй коллега активировался',
   },
 };
+
+// Итого максимум за квест: 10 + 15 + 5 + 30 + 50 = 110 токенов
+// ~55% от Стартера (200 токенов) — хороший буст без замены платного тарифа
 
 // Квест активен 14 дней с момента регистрации
 export const QUEST_DURATION_DAYS = 14;

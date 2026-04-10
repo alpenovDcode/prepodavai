@@ -4,14 +4,14 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { OnboardingQuestService } from '../onboarding-quest/onboarding-quest.service';
 import * as crypto from 'crypto';
 
-// Прогрессивная шкала наград за рефералов-учителей
+// Прогрессивная шкала наград за рефералов-учителей (токены за каждого)
 const TEACHER_REWARD_TIERS = [
-  { minReferrals: 0, maxReferrals: 3, reward: 50 },
-  { minReferrals: 4, maxReferrals: 7, reward: 75 },
-  { minReferrals: 8, maxReferrals: Infinity, reward: 100 },
+  { minReferrals: 0, maxReferrals: 3, reward: 40 },   // 1–3 реферала
+  { minReferrals: 4, maxReferrals: 7, reward: 60 },   // 4–7 рефералов
+  { minReferrals: 8, maxReferrals: Infinity, reward: 80 }, // 8+ рефералов
 ];
 
-// Награда за конверсию (реферал оплатил подписку)
+// Награда за конверсию (реферал оплатил подписку) — сохраняем как сильный стимул
 const CONVERSION_REWARD = 200;
 
 // Награда учителю за активного ученика-реферала
@@ -26,12 +26,12 @@ const MAX_MONTHLY_ACTIVATIONS = 30;
 // Максимум рефералов в списке (пагинация)
 const MAX_REFERRALS_PER_PAGE = 50;
 
-// Milestones и их награды
+// Milestones и их награды (единоразово)
 const MILESTONES = [
-  { key: 'students_5', type: 'teacher_student', count: 5, reward: 50 },
+  { key: 'students_5',  type: 'teacher_student', count: 5,  reward: 50 },
   { key: 'students_10', type: 'teacher_student', count: 10, reward: 100 },
-  { key: 'teachers_3', type: 'teacher_teacher', count: 3, reward: 100 },
-  { key: 'teachers_8', type: 'teacher_teacher', count: 8, reward: 200 },
+  { key: 'teachers_3',  type: 'teacher_teacher', count: 3,  reward: 100 },
+  { key: 'teachers_8',  type: 'teacher_teacher', count: 8,  reward: 200 },
 ];
 
 @Injectable()

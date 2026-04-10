@@ -16,50 +16,72 @@ function generateApiKey(): string {
 async function main() {
   console.log('🌱 Seeding database...');
 
-  // Инициализация тарифных планов
+  // ── Тарифные планы ─────────────────────────────────────────────────────────
+  // update: обновляет данные при повторном запуске seed
   const plans = [
     {
-      planKey: 'starter',
-      planName: 'Starter',
-      monthlyCredits: 100,
+      planKey: 'free',
+      planName: 'Бесплатный',
+      monthlyCredits: 30,
       price: 0,
       currency: 'RUB',
       allowOverage: false,
       overageCostPerCredit: null,
-      features: ['Базовая генерация текстов', 'Ограниченные изображения', 'История генераций'],
+      features: [
+        'Рабочий лист, тест, словарь',
+        'Адаптация текста, план урока',
+        'ИИ ассистент (10 запросов/день)',
+        'История генераций',
+      ],
+      isActive: true,
+    },
+    {
+      planKey: 'starter',
+      planName: 'Стартер',
+      monthlyCredits: 200,
+      price: 290,
+      currency: 'RUB',
+      allowOverage: false,
+      overageCostPerCredit: null,
+      features: [
+        'Рабочий лист, тест, словарь',
+        'Адаптация текста, план урока',
+        'Игры, ОГЭ/ЕГЭ, Распаковка экспертности',
+        'Анализ видео, Презентации',
+        'ИИ ассистент (50 запросов/день)',
+      ],
       isActive: true,
     },
     {
       planKey: 'pro',
-      planName: 'Pro',
+      planName: 'Про',
       monthlyCredits: 500,
-      price: 990,
+      price: 690,
       currency: 'RUB',
-      allowOverage: true,
-      overageCostPerCredit: 2,
+      allowOverage: false,
+      overageCostPerCredit: null,
       features: [
-        'Неограниченная генерация текстов',
-        'Приоритетная обработка',
-        'Больше изображений',
-        'Фотосессии',
-        'Презентации',
+        'Всё из Стартера',
+        'ИИ Генератор фото',
+        'ИИ Фотосессия',
+        'ИИ ассистент (безлимит)',
+        'Перенос до 100 токенов на следующий месяц',
       ],
       isActive: true,
     },
     {
       planKey: 'business',
-      planName: 'Business',
-      monthlyCredits: 2000,
-      price: 2990,
+      planName: 'Бизнес',
+      monthlyCredits: 1500,
+      price: 1490,
       currency: 'RUB',
       allowOverage: true,
       overageCostPerCredit: 1.5,
       features: [
-        'Безлимитная генерация',
-        'Максимальный приоритет',
-        'Все возможности',
-        'Транскрибация видео',
-        'Поддержка 24/7',
+        'Всё из Про',
+        'Перерасход: 1.5р / токен',
+        'Перенос до 300 токенов на следующий месяц',
+        'Приоритетная поддержка',
       ],
       isActive: true,
     },
@@ -68,35 +90,52 @@ async function main() {
   for (const planData of plans) {
     await prisma.subscriptionPlan.upsert({
       where: { planKey: planData.planKey },
-      update: {},
+      update: {
+        planName: planData.planName,
+        monthlyCredits: planData.monthlyCredits,
+        price: planData.price,
+        allowOverage: planData.allowOverage,
+        overageCostPerCredit: planData.overageCostPerCredit,
+        features: planData.features,
+      },
       create: planData,
     });
-    console.log(`✅ Plan: ${planData.planKey}`);
+    console.log(`✅ Plan: ${planData.planKey} — ${planData.price}р / ${planData.monthlyCredits} токенов`);
   }
 
-  // Инициализация стоимости операций
+  // ── Стоимость операций ──────────────────────────────────────────────────────
+  // Значения соответствуют реальной себестоимости (см. юнит-экономику).
+  // update: обновляет кредиты при повторном запуске.
   const costs = [
-    { operationType: 'text_generation', operationName: 'Генерация текста (короткая)', creditCost: 1, description: 'Короткие текстовые генерации', isActive: true },
-    { operationType: 'worksheet', operationName: 'Рабочий лист', creditCost: 2, description: 'Создание рабочих листов', isActive: true },
-    { operationType: 'quiz', operationName: 'Тест', creditCost: 2, description: 'Создание тестов', isActive: true },
-    { operationType: 'vocabulary', operationName: 'Словарь', creditCost: 2, description: 'Создание словарей', isActive: true },
-    { operationType: 'lesson_plan', operationName: 'План урока', creditCost: 3, description: 'Создание планов уроков', isActive: true },
-    { operationType: 'feedback', operationName: 'Обратная связь', creditCost: 2, description: 'Генерация обратной связи', isActive: true },
-    { operationType: 'content_adaptation', operationName: 'Адаптация контента', creditCost: 3, description: 'Адаптация учебного контента', isActive: true },
-    { operationType: 'message', operationName: 'Сообщение родителям', creditCost: 1, description: 'Генерация сообщений', isActive: true },
-    { operationType: 'image_generation', operationName: 'Генерация изображения', creditCost: 5, description: 'Создание изображений через AI', isActive: true },
-    { operationType: 'photosession', operationName: 'Фотосессия', creditCost: 10, description: 'AI фотосессия', isActive: true },
-    { operationType: 'presentation', operationName: 'Презентация', creditCost: 8, description: 'Создание презентаций', isActive: true },
-    { operationType: 'transcription', operationName: 'Транскрибация видео', creditCost: 15, description: 'Транскрибация видео через Whisper', isActive: true },
+    { operationType: 'text_generation',   operationName: 'Генерация текста',          creditCost: 1,  description: 'Себест. ~1р',     isActive: true },
+    { operationType: 'message',           operationName: 'Сообщение родителям',        creditCost: 1,  description: 'Себест. ~1р',     isActive: true },
+    { operationType: 'worksheet',         operationName: 'Рабочий лист',               creditCost: 3,  description: 'Себест. ~1.5р',   isActive: true },
+    { operationType: 'quiz',              operationName: 'Тест',                        creditCost: 3,  description: 'Себест. ~1.5р',   isActive: true },
+    { operationType: 'vocabulary',        operationName: 'Словарь',                    creditCost: 3,  description: 'Себест. ~1.5р',   isActive: true },
+    { operationType: 'lesson_plan',       operationName: 'План урока',                 creditCost: 3,  description: 'Себест. ~1.5р',   isActive: true },
+    { operationType: 'feedback',          operationName: 'Проверка ДЗ',               creditCost: 3,  description: 'Себест. ~1.5р',   isActive: true },
+    { operationType: 'content_adaptation',operationName: 'Адаптация текста',           creditCost: 3,  description: 'Себест. ~1.5–3р', isActive: true },
+    { operationType: 'game_generation',   operationName: 'Игра',                        creditCost: 15, description: 'Себест. ~1.5р',   isActive: true },
+    { operationType: 'exam_variant',      operationName: 'Вариант ОГЭ/ЕГЭ',            creditCost: 20, description: 'Себест. ~1.5р',   isActive: true },
+    { operationType: 'expert_unpacking',  operationName: 'Распаковка экспертности',    creditCost: 20, description: 'Себест. ~2р',     isActive: true },
+    { operationType: 'video_analysis',    operationName: 'Анализ видео',               creditCost: 15, description: 'Себест. ~5р',     isActive: true },
+    { operationType: 'transcription',     operationName: 'Транскрибация видео',        creditCost: 15, description: 'Себест. ~5р',     isActive: true },
+    { operationType: 'presentation',      operationName: 'Презентация',                creditCost: 50, description: 'Себест. ~3–15р',  isActive: true },
+    { operationType: 'image_generation',  operationName: 'ИИ Генератор фото',          creditCost: 15, description: 'Себест. ~12р',    isActive: true },
+    { operationType: 'photosession',      operationName: 'ИИ Фотосессия',             creditCost: 25, description: 'Себест. ~18р',    isActive: true },
   ];
 
   for (const costData of costs) {
     await prisma.creditCost.upsert({
       where: { operationType: costData.operationType },
-      update: {},
+      update: {
+        operationName: costData.operationName,
+        creditCost: costData.creditCost,
+        description: costData.description,
+      },
       create: costData,
     });
-    console.log(`✅ Cost: ${costData.operationType}`);
+    console.log(`✅ Cost: ${costData.operationType} — ${costData.creditCost} токенов`);
   }
 
   // Создание тестового пользователя для Telegram
