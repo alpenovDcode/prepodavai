@@ -1611,97 +1611,92 @@ export class AdminService {
 
   /** Churn-аналитика */
   async getChurnAnalytics() {
-    // Churned = подписка закончилась / истекла / неактивна
-    type ChurnedRow = {
-      id: string; username: string; email: string;
-      created_at: Date; last_access: Date | null;
-      sub_status: string; sub_end: Date;
-      days_as_customer: number; credits_used: number;
-    };
-    const churned: ChurnedRow[] = await this.prisma.$queryRaw`
-      SELECT
-        u.id, u.username, u.email,
-        u."createdAt"    AS created_at,
-        u."lastAccessAt" AS last_access,
-        s.status         AS sub_status,
-        s."endDate"      AS sub_end,
-        EXTRACT(DAY FROM (s."endDate" - u."createdAt"))::int AS days_as_customer,
-        s."creditsUsed"  AS credits_used
-      FROM app_users u
-      INNER JOIN user_subscriptions s ON s."userId" = u.id
-      WHERE s.status IN ('inactive', 'expired')
-         OR (s.status = 'active' AND s."endDate" < NOW())
-      ORDER BY s."endDate" DESC
-      LIMIT 100
-    `;
+    const empty = { churnedUsers: [], monthlyChurn: [], medianDaysBeforeChurn: null, lastActionTypes: [], totalChurned: 0 };
+    try {
+      // Churned = подписка закончилась / истекла / неактивна
+      type ChurnedRow = {
+        id: string; username: string; email: string;
+        created_at: Date; last_access: Date | null;
+        sub_status: string; sub_end: Date;
+        days_as_customer: number; credits_used: number;
+      };
+      const churned: ChurnedRow[] = await this.prisma.$queryRaw`
+        SELECT
+          u.id, u.username, u.email,
+          u."createdAt"    AS created_at,
+          u."lastAccessAt" AS last_access,
+          s.status         AS sub_status,
+          s."endDate"      AS sub_end,
+          EXTRACT(DAY FROM (s."endDate" - u."createdAt"))::int AS days_as_customer,
+          s."creditsUsed"  AS credits_used
+        FROM app_users u
+        INNER JOIN user_subscriptions s ON s."userId" = u.id
+        WHERE s.status IN ('inactive', 'expired')
+           OR (s.status = 'active' AND s."endDate" < NOW())
+        ORDER BY s."endDate" DESC
+        LIMIT 100
+      `;
 
-    // Churn rate по месяцам: churned / active at start of month
-    type MonthlyChurnRow = { month: Date; churned: bigint; active: bigint };
-    const monthlyChurn: MonthlyChurnRow[] = await this.prisma.$queryRaw`
-      SELECT
-        DATE_TRUNC('month', s."endDate") AS month,
-        COUNT(*) AS churned,
-        (SELECT COUNT(*) FROM user_subscriptions s2
-         WHERE s2."startDate" <= DATE_TRUNC('month', s."endDate")
-           AND s2."endDate"   >= DATE_TRUNC('month', s."endDate")) AS active
-      FROM user_subscriptions s
-      WHERE (s.status IN ('inactive','expired') OR s."endDate" < NOW())
-        AND s."endDate" > NOW() - INTERVAL '12 months'
-      GROUP BY month
-      ORDER BY month
-    `;
+      // Churn rate по месяцам
+      type MonthlyChurnRow = { month: Date; churned: bigint; active: bigint };
+      const monthlyChurn: MonthlyChurnRow[] = await this.prisma.$queryRaw`
+        SELECT
+          DATE_TRUNC('month', s."endDate") AS month,
+          COUNT(*) AS churned,
+          (SELECT COUNT(*) FROM user_subscriptions s2
+           WHERE s2."startDate" <= DATE_TRUNC('month', s."endDate")
+             AND s2."endDate"   >= DATE_TRUNC('month', s."endDate")) AS active
+        FROM user_subscriptions s
+        WHERE (s.status IN ('inactive','expired') OR s."endDate" < NOW())
+          AND s."endDate" > NOW() - INTERVAL '12 months'
+        GROUP BY month
+        ORDER BY month
+      `;
 
-    // Медиана дней жизни до чёрна
-    const [medianRow]: { median_days: number }[] = await this.prisma.$queryRaw`
-      SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (
-        ORDER BY EXTRACT(DAY FROM (s."endDate" - u."createdAt"))
-      )::int AS median_days
-      FROM app_users u
-      INNER JOIN user_subscriptions s ON s."userId" = u.id
-      WHERE s.status IN ('inactive','expired') OR s."endDate" < NOW()
-    `;
+      // Медиана дней жизни до чёрна (PERCENTILE_CONT без принудительного cast)
+      const [medianRow]: { median_days: number | null }[] = await this.prisma.$queryRaw`
+        SELECT
+          PERCENTILE_CONT(0.5) WITHIN GROUP (
+            ORDER BY EXTRACT(DAY FROM (s."endDate" - u."createdAt"))
+          ) AS median_days
+        FROM app_users u
+        INNER JOIN user_subscriptions s ON s."userId" = u.id
+        WHERE s.status IN ('inactive','expired') OR s."endDate" < NOW()
+      `;
 
-    // Последние генерации перед уходом (что делали)
-    type LastGenRow = { user_id: string; generation_type: string; cnt: bigint };
-    const lastActions: LastGenRow[] = await this.prisma.$queryRaw`
-      SELECT g."userId" AS user_id, g."generationType" AS generation_type, COUNT(*) AS cnt
-      FROM user_generations g
-      INNER JOIN user_subscriptions s ON s."userId" = g."userId"
-      WHERE (s.status IN ('inactive','expired') OR s."endDate" < NOW())
-        AND g."createdAt" > s."endDate" - INTERVAL '7 days'
-        AND g."createdAt" < s."endDate"
-      GROUP BY g."userId", g."generationType"
-      ORDER BY cnt DESC
-      LIMIT 50
-    `;
+      // Топ типов генераций перед уходом (что делали за 7 дней до ухода)
+      type LastGenTypeRow = { generation_type: string; cnt: bigint };
+      const lastActionTypes: LastGenTypeRow[] = await this.prisma.$queryRaw`
+        SELECT g."generationType" AS generation_type, COUNT(*) AS cnt
+        FROM user_generations g
+        INNER JOIN user_subscriptions s ON s."userId" = g."userId"
+        WHERE (s.status IN ('inactive','expired') OR s."endDate" < NOW())
+          AND g."createdAt" > s."endDate" - INTERVAL '7 days'
+        GROUP BY g."generationType"
+        ORDER BY cnt DESC
+      `;
 
-    // Топ типов генераций перед уходом
-    type LastGenTypeRow = { generation_type: string; cnt: bigint };
-    const lastActionTypes: LastGenTypeRow[] = await this.prisma.$queryRaw`
-      SELECT g."generationType" AS generation_type, COUNT(*) AS cnt
-      FROM user_generations g
-      INNER JOIN user_subscriptions s ON s."userId" = g."userId"
-      WHERE (s.status IN ('inactive','expired') OR s."endDate" < NOW())
-        AND g."createdAt" > s."endDate" - INTERVAL '7 days'
-      GROUP BY g."generationType"
-      ORDER BY cnt DESC
-    `;
+      const medianDays = medianRow?.median_days != null ? Math.round(Number(medianRow.median_days)) : null;
 
-    return {
-      churnedUsers: churned,
-      monthlyChurn: monthlyChurn.map(r => ({
-        month: r.month,
-        churned: Number(r.churned),
-        active: Number(r.active),
-        rate: Number(r.active) > 0 ? Math.round((Number(r.churned) / Number(r.active)) * 100) : 0,
-      })),
-      medianDaysBeforeChurn: medianRow?.median_days ?? null,
-      lastActionTypes: lastActionTypes.map(r => ({
-        type: r.generation_type,
-        count: Number(r.cnt),
-      })),
-      totalChurned: churned.length,
-    };
+      return {
+        churnedUsers: churned,
+        monthlyChurn: monthlyChurn.map(r => ({
+          month: r.month,
+          churned: Number(r.churned),
+          active: Number(r.active),
+          rate: Number(r.active) > 0 ? Math.round((Number(r.churned) / Number(r.active)) * 100) : 0,
+        })),
+        medianDaysBeforeChurn: medianDays,
+        lastActionTypes: lastActionTypes.map(r => ({
+          type: r.generation_type,
+          count: Number(r.cnt),
+        })),
+        totalChurned: churned.length,
+      };
+    } catch (e) {
+      console.error('[ChurnAnalytics] query error:', e);
+      return empty;
+    }
   }
 
   /** Воронка онбординга */
@@ -1961,38 +1956,47 @@ export class AdminService {
 
   /** Сравнение периодов: текущий vs предыдущий */
   async getPeriodComparison(period: 'week' | 'month' = 'week') {
-    const interval = period === 'week' ? '7 days' : '30 days';
+    const zero = { current: 0, previous: 0, delta: 0, pct: null };
+    const emptyResult = { period, registrations: zero, generations: zero, activeUsers: zero, newSubscriptions: zero };
+    try {
+      const days = period === 'week' ? 7 : 30;
+      const interval = `${days} days`;
+      const doubleInterval = `${days * 2} days`;
 
-    type PeriodRow = {
-      registrations: bigint; generations: bigint;
-      active_users: bigint; new_subscriptions: bigint;
-    };
-    const [current]: PeriodRow[] = await this.prisma.$queryRaw`
-      SELECT
-        (SELECT COUNT(*) FROM app_users WHERE "createdAt" > NOW() - INTERVAL ${interval})            AS registrations,
-        (SELECT COUNT(*) FROM user_generations WHERE "createdAt" > NOW() - INTERVAL ${interval})     AS generations,
-        (SELECT COUNT(DISTINCT "userId") FROM user_generations WHERE "createdAt" > NOW() - INTERVAL ${interval}) AS active_users,
-        (SELECT COUNT(*) FROM user_subscriptions WHERE "createdAt" > NOW() - INTERVAL ${interval})   AS new_subscriptions
-    `;
-    const [previous]: PeriodRow[] = await this.prisma.$queryRaw`
-      SELECT
-        (SELECT COUNT(*) FROM app_users WHERE "createdAt" BETWEEN NOW() - INTERVAL ${interval} * 2 AND NOW() - INTERVAL ${interval})            AS registrations,
-        (SELECT COUNT(*) FROM user_generations WHERE "createdAt" BETWEEN NOW() - INTERVAL ${interval} * 2 AND NOW() - INTERVAL ${interval})     AS generations,
-        (SELECT COUNT(DISTINCT "userId") FROM user_generations WHERE "createdAt" BETWEEN NOW() - INTERVAL ${interval} * 2 AND NOW() - INTERVAL ${interval}) AS active_users,
-        (SELECT COUNT(*) FROM user_subscriptions WHERE "createdAt" BETWEEN NOW() - INTERVAL ${interval} * 2 AND NOW() - INTERVAL ${interval})   AS new_subscriptions
-    `;
+      type PeriodRow = {
+        registrations: bigint; generations: bigint;
+        active_users: bigint; new_subscriptions: bigint;
+      };
+      const [current]: PeriodRow[] = await this.prisma.$queryRaw`
+        SELECT
+          (SELECT COUNT(*) FROM app_users WHERE "createdAt" > NOW() - ${interval}::interval)            AS registrations,
+          (SELECT COUNT(*) FROM user_generations WHERE "createdAt" > NOW() - ${interval}::interval)     AS generations,
+          (SELECT COUNT(DISTINCT "userId") FROM user_generations WHERE "createdAt" > NOW() - ${interval}::interval) AS active_users,
+          (SELECT COUNT(*) FROM user_subscriptions WHERE "createdAt" > NOW() - ${interval}::interval)   AS new_subscriptions
+      `;
+      const [previous]: PeriodRow[] = await this.prisma.$queryRaw`
+        SELECT
+          (SELECT COUNT(*) FROM app_users WHERE "createdAt" BETWEEN NOW() - ${doubleInterval}::interval AND NOW() - ${interval}::interval)            AS registrations,
+          (SELECT COUNT(*) FROM user_generations WHERE "createdAt" BETWEEN NOW() - ${doubleInterval}::interval AND NOW() - ${interval}::interval)     AS generations,
+          (SELECT COUNT(DISTINCT "userId") FROM user_generations WHERE "createdAt" BETWEEN NOW() - ${doubleInterval}::interval AND NOW() - ${interval}::interval) AS active_users,
+          (SELECT COUNT(*) FROM user_subscriptions WHERE "createdAt" BETWEEN NOW() - ${doubleInterval}::interval AND NOW() - ${interval}::interval)   AS new_subscriptions
+      `;
 
-    const diff = (cur: bigint, prev: bigint) => {
-      const c = Number(cur); const p = Number(prev);
-      return { current: c, previous: p, delta: c - p, pct: p > 0 ? Math.round(((c - p) / p) * 100) : null };
-    };
+      const diff = (cur: bigint, prev: bigint) => {
+        const c = Number(cur); const p = Number(prev);
+        return { current: c, previous: p, delta: c - p, pct: p > 0 ? Math.round(((c - p) / p) * 100) : null };
+      };
 
-    return {
-      period,
-      registrations:    diff(current.registrations,    previous.registrations),
-      generations:      diff(current.generations,      previous.generations),
-      activeUsers:      diff(current.active_users,     previous.active_users),
-      newSubscriptions: diff(current.new_subscriptions, previous.new_subscriptions),
-    };
+      return {
+        period,
+        registrations:    diff(current.registrations,    previous.registrations),
+        generations:      diff(current.generations,      previous.generations),
+        activeUsers:      diff(current.active_users,     previous.active_users),
+        newSubscriptions: diff(current.new_subscriptions, previous.new_subscriptions),
+      };
+    } catch (e) {
+      console.error('[PeriodComparison] query error:', e);
+      return emptyResult;
+    }
   }
 }
