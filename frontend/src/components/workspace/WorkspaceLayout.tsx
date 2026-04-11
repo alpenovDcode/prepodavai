@@ -53,7 +53,7 @@ interface WorkspaceLayoutProps {
 
 // Минимальный план для каждой операции
 const OP_REQUIRED_PLAN: Record<string, string> = {
-    lesson_plan: 'free', message: 'free', worksheet: 'free', quiz: 'free',
+    lesson_plan: 'free', lesson_preparation: 'starter', message: 'free', worksheet: 'free', quiz: 'free',
     vocabulary: 'free', feedback: 'free', content_adaptation: 'free',
     game_generation: 'starter', exam_variant: 'starter', unpacking: 'starter',
     video_analysis: 'starter', transcription: 'starter', presentation: 'starter', sales_advisor: 'starter',
@@ -69,7 +69,7 @@ function isOpLocked(opKey: string | undefined, currentPlanKey: string): boolean 
 
 const opMap: Record<string, string> = {
     'lesson-planner': 'lesson_plan',
-    'lesson-prep': 'lesson_plan',
+    'lesson-prep': 'lesson_preparation',
     'quiz-generator': 'quiz',
     'games': 'game_generation',
     'worksheet': 'worksheet',

@@ -36,7 +36,7 @@ const tools: ToolDef[] = [
         id: 'lesson-prep', title: 'Вау-урок',
         description: 'Подготовьте впечатляющий урок со структурой и интерактивными элементами.',
         icon: Sparkles, color: 'bg-orange-50 text-orange-600',
-        path: '/workspace/lesson-prep', cost: 5, opKey: 'lesson_plan', category: 'Подготовка урока'
+        path: '/workspace/lesson-prep', cost: 5, opKey: 'lesson_preparation', category: 'Подготовка урока'
     },
     {
         id: 'worksheet', title: 'Рабочие Листы',
