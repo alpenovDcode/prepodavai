@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import useSWR from 'swr'
 import { apiClient } from '@/lib/api/client'
 import Link from 'next/link'
@@ -12,8 +12,18 @@ const fetcher = ([url, page, limit, search, source]: [string, number, number, st
 export default function AdminUsersPage() {
     const [page, setPage] = useState(1)
     const [limit] = useState(10)
+    const [searchInput, setSearchInput] = useState('')
     const [searchQuery, setSearchQuery] = useState('')
     const [sourceFilter, setSourceFilter] = useState('')
+
+    // Debounce: отправляем запрос через 400мс после прекращения ввода
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setSearchQuery(searchInput)
+            setPage(1)
+        }, 400)
+        return () => clearTimeout(timer)
+    }, [searchInput])
 
     const { data, isLoading, mutate } = useSWR<any>(['/admin/users', page, limit, searchQuery, sourceFilter], fetcher)
     const users = data?.users || []
@@ -131,11 +141,8 @@ export default function AdminUsersPage() {
                             type="text"
                             placeholder="Поиск по имени, логину, тел или ID..."
                             className="flex-1 bg-transparent border-none outline-none text-sm focus:ring-0"
-                            value={searchQuery}
-                            onChange={(e) => {
-                                setSearchQuery(e.target.value)
-                                setPage(1)
-                            }}
+                            value={searchInput}
+                            onChange={(e) => setSearchInput(e.target.value)}
                         />
                     </div>
                     <select

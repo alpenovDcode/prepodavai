@@ -24,6 +24,7 @@ export class FilesService {
     '.m4a',
     '.aac',
     '.pptx',
+    '.html',
   ];
   private get maxFileSize(): number {
     return this.configService.get<number>('MAX_VIDEO_SIZE_MB', 2000) * 1024 * 1024;
