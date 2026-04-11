@@ -2,6 +2,7 @@ import { Injectable, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
 import * as fs from 'fs/promises';
+import * as fsSync from 'fs';
 import * as path from 'path';
 import { PrismaService } from '../../common/prisma/prisma.service';
 
@@ -184,6 +185,37 @@ export class FilesService {
   }
 
   /**
+   * Получить путь к файлу по hash (быстро через БД, без readdir)
+   */
+  async getFilePath(hash: string): Promise<{ filePath: string; mimeType: string; size: number } | null> {
+    this.validateHash(hash);
+
+    try {
+      const dbFile = await this.prisma.uploadedFile.findUnique({ where: { hash } });
+      if (!dbFile) return null;
+
+      const ext = path.extname(dbFile.filename) || this.getExtFromMime(dbFile.mimeType);
+      const filePath = path.join(this.uploadDir, `${hash}${ext}`);
+
+      const resolvedPath = path.resolve(filePath);
+      const resolvedDir = path.resolve(this.uploadDir);
+      if (!resolvedPath.startsWith(resolvedDir)) {
+        throw new BadRequestException('Invalid file path');
+      }
+
+      const stat = await fs.stat(filePath);
+      return { filePath, mimeType: dbFile.mimeType, size: stat.size };
+    } catch (error) {
+      if (error instanceof BadRequestException) throw error;
+      return null;
+    }
+  }
+
+  getReadStream(filePath: string): fsSync.ReadStream {
+    return fsSync.createReadStream(filePath);
+  }
+
+  /**
    * Получить файл по hash
    */
   async getFile(hash: string): Promise<{ buffer: Buffer; mimeType: string } | null> {
@@ -191,22 +223,34 @@ export class FilesService {
     this.validateHash(hash);
 
     try {
-      // Ищем файл по hash (может быть с разными расширениями)
+      // Быстрый путь: ищем через БД
+      const dbFile = await this.prisma.uploadedFile.findUnique({ where: { hash } });
+      if (dbFile) {
+        const ext = path.extname(dbFile.filename) || this.getExtFromMime(dbFile.mimeType);
+        const filePath = path.join(this.uploadDir, `${hash}${ext}`);
+        const resolvedPath = path.resolve(filePath);
+        const resolvedDir = path.resolve(this.uploadDir);
+        if (!resolvedPath.startsWith(resolvedDir)) {
+          throw new BadRequestException('Invalid file path');
+        }
+        try {
+          const buffer = await fs.readFile(filePath);
+          return { buffer, mimeType: dbFile.mimeType };
+        } catch {
+          // файл есть в БД, но не на диске — падаем в fallback
+        }
+      }
+
+      // Fallback: сканируем папку (для старых файлов без записи в БД)
       const files = await fs.readdir(this.uploadDir);
       const file = files.find((f) => {
         const fileName = path.basename(f);
-        return (
-          fileName.startsWith(hash) && fileName.length === hash.length + path.extname(f).length
-        );
+        return fileName.startsWith(hash) && fileName.length === hash.length + path.extname(f).length;
       });
 
-      if (!file) {
-        return null;
-      }
+      if (!file) return null;
 
       const filePath = path.join(this.uploadDir, file);
-
-      // Проверка что путь безопасный (защита от path traversal)
       const resolvedPath = path.resolve(filePath);
       const resolvedDir = path.resolve(this.uploadDir);
       if (!resolvedPath.startsWith(resolvedDir)) {
@@ -215,15 +259,33 @@ export class FilesService {
 
       const buffer = await fs.readFile(filePath);
       const mimeType = this.getMimeType(path.extname(file));
-
       return { buffer, mimeType };
     } catch (error) {
-      if (error instanceof BadRequestException) {
-        throw error;
-      }
+      if (error instanceof BadRequestException) throw error;
       console.error('Failed to get file:', error);
       return null;
     }
+  }
+
+  private getExtFromMime(mimeType: string): string {
+    const map: Record<string, string> = {
+      'image/jpeg': '.jpg',
+      'image/png': '.png',
+      'image/gif': '.gif',
+      'image/webp': '.webp',
+      'video/mp4': '.mp4',
+      'video/webm': '.webm',
+      'video/quicktime': '.mov',
+      'application/pdf': '.pdf',
+      'audio/mpeg': '.mp3',
+      'audio/wav': '.wav',
+      'audio/ogg': '.ogg',
+      'audio/mp4': '.m4a',
+      'audio/aac': '.aac',
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation': '.pptx',
+      'text/html': '.html',
+    };
+    return map[mimeType] || '';
   }
 
   /**

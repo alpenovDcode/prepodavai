@@ -105,13 +105,12 @@ export class FilesController {
   @Get(':hash')
   @UseGuards(JwtAuthGuard)
   async getFile(@Param('hash') hash: string, @Res() res: Response) {
-    const file = await this.filesService.getFile(hash);
+    const file = await this.filesService.getFilePath(hash);
 
     if (!file) {
       return res.status(404).json({ success: false, error: 'Файл не найден' });
     }
 
-    // Определяем расширение из MIME типа
     const extMap: Record<string, string> = {
       'image/png': '.png',
       'image/jpeg': '.jpg',
@@ -125,6 +124,7 @@ export class FilesController {
       'audio/wav': '.wav',
       'audio/ogg': '.ogg',
       'application/vnd.openxmlformats-officedocument.presentationml.presentation': '.pptx',
+      'text/html': '.html',
     };
     const ext = extMap[file.mimeType] || '';
     const filename = `${hash}${ext}`;
@@ -134,12 +134,16 @@ export class FilesController {
 
     res.setHeader('Content-Type', file.mimeType);
     res.setHeader('Content-Disposition', `${disposition}; filename="${filename}"`);
-    // Явно разрешаем кросс-доменные запросы для файлов
+    res.setHeader('Content-Length', file.size);
     res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
     res.setHeader('Access-Control-Allow-Origin', process.env.FRONTEND_URL || 'https://prepodavai.ru');
-    // Дополнительная защита от XSS для скачиваемых файлов
     res.setHeader('Content-Security-Policy', "default-src 'none'; img-src *; media-src *; style-src 'unsafe-inline';");
-    return res.send(file.buffer);
+
+    const stream = this.filesService.getReadStream(file.filePath);
+    stream.pipe(res);
+    stream.on('error', () => {
+      if (!res.headersSent) res.status(500).end();
+    });
   }
 
   /**
