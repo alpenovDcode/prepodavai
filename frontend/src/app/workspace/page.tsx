@@ -187,6 +187,7 @@ export default function WorkspaceHub() {
     const currentPlanKey = (subscription as any)?.planKey || 'free'
 
     const [maintenanceStatus, setMaintenanceStatus] = useState<Record<string, boolean>>({})
+    const [activeOps, setActiveOps] = useState<Set<string> | null>(null)
     const [dashboard, setDashboard] = useState<DashboardData | null>(null)
     const [query, setQuery] = useState('')
     const [upgradeModal, setUpgradeModal] = useState<{ open: boolean; highlightPlanKey?: string }>({ open: false })
@@ -197,10 +198,13 @@ export default function WorkspaceHub() {
                 const response = await apiClient.get('/subscriptions/costs')
                 if (response.data.success) {
                     const maintMap: Record<string, boolean> = {}
+                    const active = new Set<string>()
                     response.data.costs.forEach((c: any) => {
                         maintMap[c.operationType] = c.isUnderMaintenance || false
+                        active.add(c.operationType)
                     })
                     setMaintenanceStatus(maintMap)
+                    setActiveOps(active)
                 }
             } catch { /* ignore */ }
         }
@@ -216,13 +220,15 @@ export default function WorkspaceHub() {
 
     const filteredTools = useMemo(() => {
         const q = query.toLowerCase().trim()
+        const visible = tools.filter(t => !activeOps || activeOps.has(t.opKey))
         if (!q) return null
-        return tools.filter(t =>
+        return visible.filter(t =>
             t.title.toLowerCase().includes(q) || t.description.toLowerCase().includes(q)
         )
-    }, [query])
+    }, [query, activeOps])
 
     const renderCard = (tool: ToolDef) => {
+        if (activeOps && !activeOps.has(tool.opKey)) return null
         const Icon = tool.icon
         const isMaint = maintenanceStatus[tool.opKey]
         const { locked, requiredPlan } = isToolLocked(tool.opKey, currentPlanKey)

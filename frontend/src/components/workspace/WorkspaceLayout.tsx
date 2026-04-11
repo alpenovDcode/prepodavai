@@ -183,8 +183,12 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
         const Icon = tool.icon
         const active = isActive(tool.path)
         const opType = opMap[tool.id]
-        const isUnderMaintenance = costs?.find(c => c.operationType === opType)?.isUnderMaintenance || false
+        const costEntry = costs?.find(c => c.operationType === opType)
+        const isHidden = costs !== undefined && opType !== undefined && !costEntry
+        const isUnderMaintenance = costEntry?.isUnderMaintenance || false
         const locked = isOpLocked(opType, currentPlanKey)
+
+        if (isHidden) return null
 
         const handleClick = () => {
             if (isUnderMaintenance) return

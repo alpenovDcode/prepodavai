@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import useSWR from 'swr'
 import { apiClient } from '@/lib/api/client'
-import { Settings, Sparkles, AlertCircle } from 'lucide-react'
+import { Settings, Sparkles, AlertCircle, EyeOff } from 'lucide-react'
 
 const fetcher = (url: string) => apiClient.get(url).then(res => res.data.costs)
 
@@ -90,16 +90,37 @@ export default function AdminSettingsPage() {
                             </div>
 
                             <div className="flex items-center gap-4">
-                                <div className="flex items-center gap-2 mr-4">
+                                <div className="flex items-center gap-3 mr-4">
+                                    {/* Скрыть функционал */}
+                                    <label className="cursor-pointer flex items-center gap-1.5 select-none" title="Скрытый функционал недоступен пользователям">
+                                        <div
+                                            onClick={async () => {
+                                                try {
+                                                    await apiClient.put(`/admin/costs/${cost.operationType}`, { isActive: !cost.isActive })
+                                                    mutate()
+                                                } catch {
+                                                    alert('Ошибка при изменении видимости')
+                                                }
+                                            }}
+                                            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors cursor-pointer ${cost.isActive ? 'bg-emerald-500' : 'bg-gray-300'}`}
+                                        >
+                                            <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${cost.isActive ? 'translate-x-4' : 'translate-x-1'}`} />
+                                        </div>
+                                        <span className={`text-xs font-medium ${cost.isActive ? 'text-emerald-600' : 'text-gray-400'}`}>
+                                            {cost.isActive ? 'Вкл' : <span className="flex items-center gap-1"><EyeOff className="w-3 h-3" />Скрыт</span>}
+                                        </span>
+                                    </label>
+
+                                    {/* Тех. работы */}
                                     <label className="text-xs text-gray-400 cursor-pointer flex items-center gap-1">
-                                        <input 
-                                            type="checkbox" 
+                                        <input
+                                            type="checkbox"
                                             checked={cost.isUnderMaintenance}
                                             onChange={async (e) => {
                                                 try {
                                                     await apiClient.put(`/admin/costs/${cost.operationType}`, { isUnderMaintenance: e.target.checked })
                                                     mutate()
-                                                } catch (err) {
+                                                } catch {
                                                     alert('Ошибка при переключении режима обслуживания')
                                                 }
                                             }}
