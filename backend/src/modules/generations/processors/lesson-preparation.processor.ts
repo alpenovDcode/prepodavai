@@ -268,7 +268,7 @@ ${interests ? `- Интересы аудитории (Интегрируй их 
 
     const prediction = await this.runReplicatePrediction('google/gemini-3-flash', {
       prompt: prompt,
-      max_tokens: 3000,
+      max_tokens: 10000,
       system_prompt: 'Output JSON ONLY.',
     });
 
@@ -869,7 +869,7 @@ ${interests ? `- Интересы аудитории (Интегрируй их 
       this.logger.log(`Using specialized prompt for ${targetType}`);
       const prediction = await this.runReplicatePrediction('google/gemini-3-flash', {
         prompt: specialized.userPrompt,
-        max_tokens: 5000,
+        max_tokens: 10000,
         system_prompt: specialized.systemPrompt,
       });
 
@@ -952,7 +952,7 @@ Make it immersive. Make it detailed. Make it beautiful.
 
     const prediction = await this.runReplicatePrediction('google/gemini-3-flash', {
       prompt: prompt,
-      max_tokens: 3000,
+      max_tokens: 10000,
       system_prompt:
         'You are a creative educational genius. You create content STRICTLY IN RUSSIAN.',
     });

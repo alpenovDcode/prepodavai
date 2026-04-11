@@ -141,7 +141,7 @@ export class SalesAdvisorProcessor extends WorkerHost {
         return this.runReplicatePrediction('google/gemini-3-flash', {
           prompt: userPrompt,
           system_prompt: systemPrompt,
-          max_tokens: 3000,
+          max_tokens: 10000,
           image: imageUrls[0],
         });
       }
@@ -168,7 +168,7 @@ export class SalesAdvisorProcessor extends WorkerHost {
         const analysis = await this.runReplicatePrediction('google/gemini-3-flash', {
           prompt: imagePrompt,
           system_prompt: 'Ты эксперт по анализу диалогов продаж. Анализируй скриншоты переписки.',
-          max_tokens: 1000,
+          max_tokens: 10000,
           image: imageUrls[i],
         });
 
@@ -192,7 +192,7 @@ ${userPrompt}`;
       const finalAnalysis = await this.runReplicatePrediction('google/gemini-3-flash', {
         prompt: finalPrompt,
         system_prompt: systemPrompt,
-        max_tokens: 3000,
+        max_tokens: 10000,
       });
 
       return finalAnalysis;

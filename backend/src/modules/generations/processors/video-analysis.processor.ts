@@ -430,7 +430,7 @@ ${transcript.substring(0, 30000)}
 return this.runReplicatePrediction('google/gemini-3-flash', {
   system_prompt: systemPrompt,
   prompt: userPrompt,
-  max_tokens: 4500,
+  max_tokens: 10000,
 });
   }
 

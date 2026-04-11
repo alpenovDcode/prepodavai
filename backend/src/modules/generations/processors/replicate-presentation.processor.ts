@@ -106,7 +106,7 @@ export class ReplicatePresentationProcessor extends WorkerHost {
 
       try {
         this.logger.log(`Generating PDF for request ${generationRequestId}`);
-        const pdfHtml = `<html><body style="background:#0f172a; color:white; padding:40px;">${slides.map((s) => s.html).join('<div style="page-break-after:always;"></div>')}</body></html>`;
+        const pdfHtml = `<html><head><meta charset="utf-8"></head><body style="margin:0;padding:0;">${slides.map((s) => `<div style="width:100vw;height:100vh;page-break-after:always;">${s.html}</div>`).join('')}</body></html>`;
         const pdfBuffer = await this.htmlExportService.htmlToPdf(pdfHtml);
 
         const fileData = await this.filesService.saveBuffer(pdfBuffer, 'presentation.pdf', userId);
@@ -144,37 +144,88 @@ export class ReplicatePresentationProcessor extends WorkerHost {
     const style = params.style || 'modern';
 
     const prompt = `
-      Ты — топовый методист и Senior Frontend-разработчик. Создай презентацию на языке: Русский.
-      Тема: "${topic}". Целевая аудитория: ${grade}. Длительность: ${duration} мин. Стиль: ${style}.
+Ты — арт-директор и Senior Frontend-разработчик уровня Awwwards/Stripe/Linear. Твоя задача — создать презентацию, которая вызывает "вау-эффект" с первого слайда.
 
-      ТРЕБОВАНИЯ К ФОРМАТУ (КРИТИЧНО):
-      Верни СТРОГО валидный JSON-массив объектов. Никакого лишнего текста до или после.
-      Каждый объект должен иметь поля:
-      - "html": Строка с HTML-версткой слайда.
-      - "imagePrompt": Детальный английский промпт для генерации фонового/тематического изображения (high-quality, professional).
+КОНТЕКСТ:
+- Язык: Русский
+- Тема: "${topic}"
+- Аудитория: ${grade}
+- Длительность: ${duration} мин
+- Стиль: ${style}
+- Количество слайдов: ровно ${numCards}
 
-      ТРЕБОВАНИЯ К ВЕРСТКЕ:
-      1. Используй ТОЛЬКО инлайн-стили (атрибут style="...").
-      2. ЗАПРЕЩЕНО использовать классы (class) и тег <style>.
-      3. Слайд должен иметь:
-         - Темный фон (например, #0f172a или #1e293b).
-         - Размер: width: 100vw; height: 100vh; overflow: hidden; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 40px; box-sizing: border-box; font-family: sans-serif;
-      4. Вставь тег <img src="IMAGE_PLACEHOLDER" style="max-width: 80%; max-height: 50%; border-radius: 12px; margin-top: 20px; object-fit: cover;"> там, где нужно изображение.
+═══════════════════════════════════
+ФОРМАТ ОТВЕТА (КРИТИЧНО)
+═══════════════════════════════════
+Верни СТРОГО валидный JSON-массив. Без markdown, без \`\`\`json, без текста до/после.
+Каждый объект:
+{
+  "html": "строка с HTML слайда",
+  "imagePrompt": "детальный английский промпт для изображения"
+}
 
-      Пример структуры:
-      [
-        {
-          "html": "<div style=\"background: #0f172a; color: white; ...\"><h1 style=\"...\">Заголовок</h1><p style=\"...\">Текст</p><img src=\"IMAGE_PLACEHOLDER\" style=\"...\"></div>",
-          "imagePrompt": "A futuristic classroom with AI holograms, cinematic lighting, 8k"
-        }
-      ]
+═══════════════════════════════════
+ТЕХНИЧЕСКИЕ ОГРАНИЧЕНИЯ
+═══════════════════════════════════
+1. ТОЛЬКО инлайн-стили через атрибут style="...". Запрещены: class, <style>, <script>, внешние шрифты через @import.
+2. Контейнер слайда обязательно: width: 100vw; height: 100vh; overflow: hidden; box-sizing: border-box; position: relative; font-family: -apple-system, 'SF Pro Display', 'Inter', system-ui, sans-serif;
+3. Где нужна картинка — вставляй <img src="IMAGE_PLACEHOLDER" style="..."> (можно как фон через <img> с position: absolute и object-fit: cover, либо как акцентный визуал).
 
-      Сгенерируй ровно ${numCards} слайдов.
+═══════════════════════════════════
+ДИЗАЙН-СИСТЕМА (ВАУ-ЭФФЕКТ)
+═══════════════════════════════════
+
+🎨 ЦВЕТА — используй богатые градиенты, не плоские фоны:
+- Базовые фоны: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%) или (135deg, #1a1a2e, #16213e, #0f3460) или (120deg, #000428, #004e92)
+- Акценты: неоновые (#00f5ff, #ff006e, #8338ec, #fb5607, #ffbe0b), либо премиум (#d4af37 золото, #e0e0e0 серебро)
+- Текст: основной #ffffff, вторичный rgba(255,255,255,0.7), подсказки rgba(255,255,255,0.45)
+
+✨ ЭФФЕКТЫ — обязательны на КАЖДОМ слайде минимум 2-3:
+- Glassmorphism: background: rgba(255,255,255,0.05); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.1); border-radius: 24px;
+- Свечение текста: text-shadow: 0 0 40px rgba(0,245,255,0.5);
+- Градиентный текст для заголовков: background: linear-gradient(135deg, #00f5ff, #ff006e); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+- Декоративные размытые "blob"-круги через position: absolute + filter: blur(80px) + opacity: 0.4
+- Тонкие сетки/линии через linear-gradient для фоновой текстуры
+- Мягкие тени: box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5), 0 0 80px rgba(131,56,236,0.15);
+
+📐 ТИПОГРАФИКА — драматичная иерархия:
+- H1: font-size: clamp(56px, 7vw, 104px); font-weight: 800; letter-spacing: -0.04em; line-height: 1;
+- H2: font-size: clamp(36px, 4vw, 56px); font-weight: 700; letter-spacing: -0.02em;
+- Body: font-size: clamp(18px, 1.4vw, 22px); line-height: 1.6; font-weight: 400;
+- Caption/Eyebrow: font-size: 13px; text-transform: uppercase; letter-spacing: 0.2em; opacity: 0.6;
+
+🧱 ЛЕЙАУТ — НЕ центрируй всё подряд. Чередуй композиции:
+- Asymmetric split (60/40 текст | визуал)
+- Bento grid из карточек разного размера
+- Full-bleed изображение с overlay-текстом снизу слева
+- Большая цифра/метрика + поясняющий текст
+- Timeline/процесс с нумерованными шагами
+- Цитата с огромными кавычками
+Используй CSS Grid и Flexbox активно. Padding контейнера: 64px-96px.
+
+═══════════════════════════════════
+СТРУКТУРА ПРЕЗЕНТАЦИИ
+═══════════════════════════════════
+- Слайд 1 (Cover): драматичный заголовок, eyebrow-текст, минимум контента, максимум атмосферы
+- Слайды 2…N-1: чередуй типы — концепция, данные/метрики, сравнение, процесс, цитата, кейс
+- Финальный слайд: вывод/CTA с сильным визуальным акцентом
+
+КАЖДЫЙ слайд должен отличаться композицией от предыдущего. Никаких шаблонных "заголовок сверху + текст + картинка снизу" подряд.
+
+═══════════════════════════════════
+IMAGE PROMPTS
+═══════════════════════════════════
+Русский, кинематографичный, конкретный. Шаблон:
+"[subject], [style: cinematic/editorial/3d render/abstract], [lighting: volumetric/neon/soft], [mood], [composition], shot on [camera], 8k, ultra detailed, [color palette matching slide]"
+
+Избегай стоковых клише. Стремись к редакционному/арт-направлению.
+
+Сгенерируй ровно ${numCards} слайдов. Начни ответ сразу с [.
     `;
 
     const prediction = await this.runReplicatePrediction('google/gemini-3-flash', {
       prompt: prompt,
-      max_tokens: 4000,
+      max_tokens: 15000,
       system_prompt: 'You are a helpful assistant that outputs only valid JSON array of slides.',
     });
 
