@@ -861,32 +861,33 @@ CSS (вставь точно в таком виде):
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: #F3F4F6; font-family: 'Inter', system-ui, sans-serif; color: #1F2937; line-height: 1.6; padding: 24px 16px; }
-  .container { background: #fff; max-width: 760px; margin: 0 auto; padding: 40px 48px; border: 1px solid #E5E7EB; border-radius: 8px; }
-  .header { display: flex; align-items: center; gap: 20px; padding-bottom: 20px; margin-bottom: 32px; border-bottom: 2px solid #111827; }
-  .header-logo { width: 110px; height: auto; flex-shrink: 0; }
-  .header h1 { font-size: 20px; font-weight: 700; color: #111827; line-height: 1.3; }
-  .meta { font-size: 13px; color: #6B7280; margin-bottom: 32px; display: flex; gap: 24px; }
-  .meta span { display: flex; align-items: center; gap: 6px; }
-  .question-block { margin-bottom: 28px; padding-bottom: 24px; border-bottom: 1px solid #F3F4F6; }
+  body { background: #F3F4F6; font-family: 'Inter', system-ui, sans-serif; color: #1F2937; line-height: 1.5; padding: 12px 8px; }
+  .container { background: #fff; max-width: 760px; margin: 0 auto; padding: 24px 32px; border: 1px solid #E5E7EB; border-radius: 8px; }
+  .header { display: flex; align-items: center; gap: 16px; padding-bottom: 14px; margin-bottom: 16px; border-bottom: 2px solid #111827; }
+  .header-logo { width: 90px; height: auto; flex-shrink: 0; }
+  .header h1 { font-size: 18px; font-weight: 700; color: #111827; line-height: 1.3; }
+  .meta { font-size: 13px; color: #6B7280; margin-bottom: 16px; display: flex; gap: 20px; flex-wrap: wrap; }
+  .meta span { display: flex; align-items: center; gap: 5px; }
+  .question-block { margin-bottom: 16px; padding-bottom: 14px; border-bottom: 1px solid #F3F4F6; page-break-inside: avoid; break-inside: avoid; }
   .question-block:last-of-type { border-bottom: none; }
-  .question-number { font-size: 11px; font-weight: 700; color: #6B7280; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
-  .question-text { font-size: 15px; font-weight: 600; color: #111827; margin-bottom: 14px; line-height: 1.5; }
-  .options { display: flex; flex-direction: column; gap: 8px; }
-  .option label { display: flex; align-items: flex-start; gap: 10px; padding: 10px 14px; border: 1px solid #E5E7EB; border-radius: 6px; cursor: pointer; font-size: 14px; color: #374151; transition: background 0.15s, border-color 0.15s; }
+  .question-number { font-size: 11px; font-weight: 700; color: #6B7280; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+  .question-text { font-size: 14px; font-weight: 600; color: #111827; margin-bottom: 10px; line-height: 1.4; }
+  .options { display: flex; flex-direction: column; gap: 6px; }
+  .option label { display: flex; align-items: flex-start; gap: 8px; padding: 8px 12px; border: 1px solid #E5E7EB; border-radius: 6px; cursor: pointer; font-size: 13px; color: #374151; transition: background 0.15s, border-color 0.15s; }
   .option label:hover { background: #F9FAFB; border-color: #D1D5DB; }
   .option input[type="radio"] { margin-top: 2px; flex-shrink: 0; accent-color: #4F46E5; }
-  .svg-wrap { margin: 14px 0; text-align: center; }
-  .teacher-answers-only { margin-top: 48px; padding-top: 24px; border-top: 2px dashed #9CA3AF; page-break-before: always; }
-  .teacher-answers-only h2 { font-size: 16px; color: #B91C1C; margin-bottom: 16px; }
-  .answer-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 10px; }
-  .answer-item { font-size: 13px; color: #374151; background: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 4px; padding: 6px 10px; }
+  .svg-wrap { margin: 10px 0; text-align: center; }
+  .teacher-answers-only { margin-top: 32px; padding-top: 16px; border-top: 2px dashed #9CA3AF; page-break-before: always; }
+  .teacher-answers-only h2 { font-size: 15px; color: #B91C1C; margin-bottom: 12px; }
+  .answer-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 8px; }
+  .answer-item { font-size: 13px; color: #374151; background: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 4px; padding: 5px 8px; }
   .answer-item strong { color: #111827; }
-  .footer-logo { text-align: right; margin-top: 40px; page-break-inside: avoid; }
-  .footer-logo img { width: 90px; opacity: 0.4; }
+  .footer-logo { text-align: right; margin-top: 24px; page-break-inside: avoid; }
+  .footer-logo img { width: 80px; opacity: 0.4; }
   @media print {
     body { background: none; padding: 0; }
-    .container { border: none; padding: 20px 0; max-width: 100%; }
+    .container { border: none; box-shadow: none; padding: 0; max-width: 100%; }
+    .question-block { page-break-inside: avoid; break-inside: avoid; }
   }
 </style>`;
 
@@ -3304,32 +3305,33 @@ CSS (вставь точно в таком виде):
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: #F3F4F6; font-family: 'Inter', system-ui, sans-serif; color: #1F2937; line-height: 1.6; padding: 24px 16px; }
-  .container { background: #fff; max-width: 760px; margin: 0 auto; padding: 40px 48px; border: 1px solid #E5E7EB; border-radius: 8px; }
-  .header { display: flex; align-items: center; gap: 20px; padding-bottom: 20px; margin-bottom: 32px; border-bottom: 2px solid #111827; }
-  .header-logo { width: 110px; height: auto; flex-shrink: 0; }
-  .header h1 { font-size: 20px; font-weight: 700; color: #111827; line-height: 1.3; }
-  .meta { font-size: 13px; color: #6B7280; margin-bottom: 32px; display: flex; gap: 24px; }
-  .meta span { display: flex; align-items: center; gap: 6px; }
-  .question-block { margin-bottom: 28px; padding-bottom: 24px; border-bottom: 1px solid #F3F4F6; }
+  body { background: #F3F4F6; font-family: 'Inter', system-ui, sans-serif; color: #1F2937; line-height: 1.5; padding: 12px 8px; }
+  .container { background: #fff; max-width: 760px; margin: 0 auto; padding: 24px 32px; border: 1px solid #E5E7EB; border-radius: 8px; }
+  .header { display: flex; align-items: center; gap: 16px; padding-bottom: 14px; margin-bottom: 16px; border-bottom: 2px solid #111827; }
+  .header-logo { width: 90px; height: auto; flex-shrink: 0; }
+  .header h1 { font-size: 18px; font-weight: 700; color: #111827; line-height: 1.3; }
+  .meta { font-size: 13px; color: #6B7280; margin-bottom: 16px; display: flex; gap: 20px; flex-wrap: wrap; }
+  .meta span { display: flex; align-items: center; gap: 5px; }
+  .question-block { margin-bottom: 16px; padding-bottom: 14px; border-bottom: 1px solid #F3F4F6; page-break-inside: avoid; break-inside: avoid; }
   .question-block:last-of-type { border-bottom: none; }
-  .question-number { font-size: 11px; font-weight: 700; color: #6B7280; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
-  .question-text { font-size: 15px; font-weight: 600; color: #111827; margin-bottom: 14px; line-height: 1.5; }
-  .options { display: flex; flex-direction: column; gap: 8px; }
-  .option label { display: flex; align-items: flex-start; gap: 10px; padding: 10px 14px; border: 1px solid #E5E7EB; border-radius: 6px; cursor: pointer; font-size: 14px; color: #374151; transition: background 0.15s, border-color 0.15s; }
+  .question-number { font-size: 11px; font-weight: 700; color: #6B7280; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+  .question-text { font-size: 14px; font-weight: 600; color: #111827; margin-bottom: 10px; line-height: 1.4; }
+  .options { display: flex; flex-direction: column; gap: 6px; }
+  .option label { display: flex; align-items: flex-start; gap: 8px; padding: 8px 12px; border: 1px solid #E5E7EB; border-radius: 6px; cursor: pointer; font-size: 13px; color: #374151; transition: background 0.15s, border-color 0.15s; }
   .option label:hover { background: #F9FAFB; border-color: #D1D5DB; }
   .option input[type="radio"] { margin-top: 2px; flex-shrink: 0; accent-color: #4F46E5; }
-  .svg-wrap { margin: 14px 0; text-align: center; }
-  .teacher-answers-only { margin-top: 48px; padding-top: 24px; border-top: 2px dashed #9CA3AF; page-break-before: always; }
-  .teacher-answers-only h2 { font-size: 16px; color: #B91C1C; margin-bottom: 16px; }
-  .answer-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 10px; }
-  .answer-item { font-size: 13px; color: #374151; background: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 4px; padding: 6px 10px; }
+  .svg-wrap { margin: 10px 0; text-align: center; }
+  .teacher-answers-only { margin-top: 32px; padding-top: 16px; border-top: 2px dashed #9CA3AF; page-break-before: always; }
+  .teacher-answers-only h2 { font-size: 15px; color: #B91C1C; margin-bottom: 12px; }
+  .answer-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 8px; }
+  .answer-item { font-size: 13px; color: #374151; background: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 4px; padding: 5px 8px; }
   .answer-item strong { color: #111827; }
-  .footer-logo { text-align: right; margin-top: 40px; page-break-inside: avoid; }
-  .footer-logo img { width: 90px; opacity: 0.4; }
+  .footer-logo { text-align: right; margin-top: 24px; page-break-inside: avoid; }
+  .footer-logo img { width: 80px; opacity: 0.4; }
   @media print {
     body { background: none; padding: 0; }
-    .container { border: none; padding: 20px 0; max-width: 100%; }
+    .container { border: none; box-shadow: none; padding: 0; max-width: 100%; }
+    .question-block { page-break-inside: avoid; break-inside: avoid; }
   }
 </style>`,
       vocabulary:
