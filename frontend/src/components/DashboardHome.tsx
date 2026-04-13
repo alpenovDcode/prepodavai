@@ -13,17 +13,17 @@ import useSWR from 'swr'
 const fetcher = (url: string) => apiClient.get(url).then((res: any) => res.data)
 
 const typeMetadata: Record<string, { iconBg: string; iconColor: string; description: string }> = {
-    lessonPlan:   { iconBg: 'bg-purple-100', iconColor: 'text-primary-600',  description: 'Создайте полный план урока с целями, заданиями и оценкой.' },
-    presentation: { iconBg: 'bg-orange-100', iconColor: 'text-orange-500',   description: 'Создайте увлекательные слайды для вашего урока.' },
-    quiz:         { iconBg: 'bg-yellow-100', iconColor: 'text-yellow-600',   description: 'Сгенерируйте тест с вопросами и вариантами ответов.' },
-    worksheet:    { iconBg: 'bg-blue-100',   iconColor: 'text-blue-600',     description: 'Рабочий лист с заданиями для учеников.' },
-    vocabulary:   { iconBg: 'bg-green-100',  iconColor: 'text-green-600',    description: 'Словарь терминов и определений по теме.' },
-    content:      { iconBg: 'bg-indigo-100', iconColor: 'text-indigo-600',   description: 'Адаптация учебного материала под уровень учеников.' },
-    feedback:     { iconBg: 'bg-pink-100',   iconColor: 'text-pink-600',     description: 'Генерация обратной связи для ученика.' },
-    image:        { iconBg: 'bg-red-100',    iconColor: 'text-red-600',      description: 'Генерация изображений по описанию.' },
-    photosession: { iconBg: 'bg-teal-100',   iconColor: 'text-teal-600',     description: 'Создание серии изображений в едином стиле.' },
-    message:      { iconBg: 'bg-gray-100',   iconColor: 'text-gray-600',     description: 'Генерация сообщений для родителей или коллег.' },
-    game:         { iconBg: 'bg-cyan-100',   iconColor: 'text-cyan-600',     description: 'Создание обучающих игр.' },
+    lessonPlan:   { iconBg: 'bg-gradient-to-br from-violet-500 to-purple-600', iconColor: 'text-white', description: 'Создайте полный план урока с целями, заданиями и оценкой.' },
+    presentation: { iconBg: 'bg-gradient-to-br from-orange-400 to-red-500',   iconColor: 'text-white', description: 'Создайте увлекательные слайды для вашего урока.' },
+    quiz:         { iconBg: 'bg-gradient-to-br from-amber-400 to-yellow-500',  iconColor: 'text-white', description: 'Сгенерируйте тест с вопросами и вариантами ответов.' },
+    worksheet:    { iconBg: 'bg-gradient-to-br from-blue-400 to-indigo-500',   iconColor: 'text-white', description: 'Рабочий лист с заданиями для учеников.' },
+    vocabulary:   { iconBg: 'bg-gradient-to-br from-emerald-400 to-green-500', iconColor: 'text-white', description: 'Словарь терминов и определений по теме.' },
+    content:      { iconBg: 'bg-gradient-to-br from-indigo-400 to-blue-600',   iconColor: 'text-white', description: 'Адаптация учебного материала под уровень учеников.' },
+    feedback:     { iconBg: 'bg-gradient-to-br from-pink-400 to-rose-500',     iconColor: 'text-white', description: 'Генерация обратной связи для ученика.' },
+    image:        { iconBg: 'bg-gradient-to-br from-rose-400 to-pink-600',     iconColor: 'text-white', description: 'Генерация изображений по описанию.' },
+    photosession: { iconBg: 'bg-gradient-to-br from-teal-400 to-cyan-500',     iconColor: 'text-white', description: 'Создание серии изображений в едином стиле.' },
+    message:      { iconBg: 'bg-gradient-to-br from-slate-400 to-gray-600',    iconColor: 'text-white', description: 'Генерация сообщений для родителей или коллег.' },
+    game:         { iconBg: 'bg-gradient-to-br from-cyan-400 to-teal-500',     iconColor: 'text-white', description: 'Создание обучающих игр.' },
 }
 
 export default function DashboardHome() {
@@ -370,10 +370,10 @@ export default function DashboardHome() {
                                                 className={`flex items-center gap-4 p-4 rounded-2xl border transition-all text-left ${
                                                     isSelected
                                                         ? 'bg-gray-50 border-gray-200 opacity-50 cursor-not-allowed'
-                                                        : 'bg-white border-gray-200 hover:border-primary-500 hover:shadow-md cursor-pointer'
+                                                        : 'bg-white border-gray-200 hover:border-primary-300 hover:shadow-lg hover:-translate-y-0.5 cursor-pointer'
                                                 }`}
                                             >
-                                                <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${meta.iconBg}`}>
+                                                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm ${meta.iconBg}`}>
                                                     <i className={`${func.icon} ${meta.iconColor} text-xl`}></i>
                                                 </div>
                                                 <div>
