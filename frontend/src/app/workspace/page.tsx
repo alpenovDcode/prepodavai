@@ -141,8 +141,11 @@ const tools: ToolDef[] = [
 
 const categories = ['Подготовка урока', 'Оценка знаний', 'Медиа-контент', 'Другое']
 
-// Какой минимальный план нужен для каждой операции
+// Какой минимальный план нужен для каждой операции.
+// Про получает всё из Стартера + Бесплатного; Бизнес — всё из Про + Стартера + Бесплатного.
 const OP_REQUIRED_PLAN: Record<string, string> = {
+    // Бесплатный и выше
+    text_generation: 'free',
     lesson_plan: 'free',
     message: 'free',
     worksheet: 'free',
@@ -150,13 +153,17 @@ const OP_REQUIRED_PLAN: Record<string, string> = {
     vocabulary: 'free',
     feedback: 'free',
     content_adaptation: 'free',
+    // Стартер и выше
+    lesson_preparation: 'starter',
     game_generation: 'starter',
     exam_variant: 'starter',
+    expert_unpacking: 'starter',
     unpacking: 'starter',
     video_analysis: 'starter',
     transcription: 'starter',
     presentation: 'starter',
     sales_advisor: 'starter',
+    // Про и выше
     image_generation: 'pro',
     photosession: 'pro',
 }

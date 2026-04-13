@@ -142,7 +142,9 @@ export default function AuthModal({ onClose, onSuccess, initialMode = 'login' }:
       }
     } catch (error: any) {
       console.error('Register by email error:', error)
-      setErrorMessage(error.response?.data?.message || error.response?.data?.error || 'Ошибка регистрации')
+      const msg = error.response?.data?.message || error.response?.data?.error || ''
+      const isGeneric = !msg || msg.toLowerCase() === 'internal server error'
+      setErrorMessage(isGeneric ? 'Ошибка сервера. Попробуйте позже.' : msg)
     } finally {
       setLoading(false)
     }

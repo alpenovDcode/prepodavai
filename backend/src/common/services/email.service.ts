@@ -9,25 +9,37 @@ export class EmailService {
   private transporter: nodemailer.Transporter;
 
   constructor(private configService: ConfigService) {
-    const host = this.configService.get<string>('SMTP_HOST');
+    const host = this.configService.get<string>('SMTP_HOST') || 'smtp.yandex.ru';
     const port = parseInt(this.configService.get<string>('SMTP_PORT', '465'));
     const user = this.configService.get<string>('SMTP_USER');
     const pass = this.configService.get<string>('SMTP_PASSWORD');
 
     if (user && pass) {
       this.transporter = nodemailer.createTransport({
-        host: host || 'smtp.yandex.ru',
-        port: port,
+        host,
+        port,
         secure: port === 465,
+        requireTLS: port === 587,
         auth: { user, pass },
+        connectionTimeout: 10000,
+        socketTimeout: 15000,
       });
+
+      // Verify connection on startup so misconfiguration shows up in logs immediately
+      this.transporter.verify().then(() => {
+        this.logger.log(`SMTP connection verified: ${host}:${port} (user: ${user})`);
+      }).catch((err) => {
+        this.logger.error(`SMTP connection failed on startup: ${host}:${port} — ${err?.message} (code: ${err?.code}, responseCode: ${err?.responseCode})`);
+      });
+    } else {
+      this.logger.warn('SMTP_USER or SMTP_PASSWORD not set — email sending is disabled');
     }
   }
 
   async sendEmail(to: string, subject: string, html: string) {
     if (!this.transporter) {
-      this.logger.warn(`SMTP credentials not provided. Email to ${to} not sent.`);
-      return;
+      this.logger.error(`SMTP credentials not configured. Cannot send email to ${to}.`);
+      throw new Error('SMTP credentials not configured');
     }
 
     try {
@@ -44,8 +56,10 @@ export class EmailService {
 
       this.logger.log(`Email sent: ${info.messageId}`);
       return info;
-    } catch (error) {
-      this.logger.error(`Error sending email to ${to}:`, error);
+    } catch (error: any) {
+      this.logger.error(
+        `Error sending email to ${to}: ${error?.message} (code: ${error?.code}, responseCode: ${error?.responseCode}, command: ${error?.command})`,
+      );
       throw error;
     }
   }

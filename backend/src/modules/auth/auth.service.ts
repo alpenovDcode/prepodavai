@@ -484,7 +484,14 @@ export class AuthService {
    */
   async registerByEmail(email: string) {
     // Проверяем, есть ли уже пользователь с таким email
-    const existing = await this.prisma.appUser.findFirst({ where: { email } });
+    let existing: any;
+    try {
+      existing = await this.prisma.appUser.findFirst({ where: { email } });
+    } catch (dbError) {
+      this.logger.error(`DB error checking existing user for email ${email}: ${dbError?.message}`);
+      throw new InternalServerErrorException('Ошибка базы данных. Попробуйте позже.');
+    }
+
     if (existing) {
       throw new BadRequestException('Пользователь с таким email уже зарегистрирован');
     }
@@ -492,20 +499,24 @@ export class AuthService {
     // Генерируем 6-значный код
     const code = crypto.randomInt(100000, 1000000).toString();
 
-    // Удаляем старые коды для этого email
-    await this.prisma.verificationCode.deleteMany({
-      where: { phone: email, type: 'email' },
-    });
+    // Удаляем старые коды для этого email и сохраняем новый
+    try {
+      await this.prisma.verificationCode.deleteMany({
+        where: { phone: email, type: 'email' },
+      });
 
-    // Сохраняем код (поле phone используется как идентификатор — здесь email)
-    await this.prisma.verificationCode.create({
-      data: {
-        phone: email,
-        code,
-        type: 'email',
-        expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 минут
-      },
-    });
+      await this.prisma.verificationCode.create({
+        data: {
+          phone: email,
+          code,
+          type: 'email',
+          expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 минут
+        },
+      });
+    } catch (dbError) {
+      this.logger.error(`DB error saving verification code for ${email}: ${dbError?.message}`);
+      throw new InternalServerErrorException('Ошибка базы данных. Попробуйте позже.');
+    }
 
     // Отправляем письмо с кодом
     try {
@@ -514,7 +525,7 @@ export class AuthService {
       // Если письмо не отправилось — удаляем код, чтобы не засорять БД
       await this.prisma.verificationCode.deleteMany({
         where: { phone: email, type: 'email' },
-      });
+      }).catch(() => {});
       this.logger.error(`Failed to send verification email to ${email}: ${emailError?.message}`);
       throw new InternalServerErrorException(
         'Не удалось отправить письмо с кодом. Проверьте правильность email или попробуйте позже.',

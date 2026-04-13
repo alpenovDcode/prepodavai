@@ -51,12 +51,17 @@ interface WorkspaceLayoutProps {
     children: ReactNode
 }
 
-// Минимальный план для каждой операции
+// Минимальный план для каждой операции.
+// Про получает всё из Стартера + Бесплатного; Бизнес — всё из Про + Стартера + Бесплатного.
 const OP_REQUIRED_PLAN: Record<string, string> = {
-    lesson_plan: 'free', lesson_preparation: 'starter', message: 'free', worksheet: 'free', quiz: 'free',
+    // Бесплатный и выше
+    text_generation: 'free', lesson_plan: 'free', message: 'free', worksheet: 'free', quiz: 'free',
     vocabulary: 'free', feedback: 'free', content_adaptation: 'free',
-    game_generation: 'starter', exam_variant: 'starter', unpacking: 'starter',
+    // Стартер и выше
+    lesson_preparation: 'starter', game_generation: 'starter', exam_variant: 'starter',
+    expert_unpacking: 'starter', unpacking: 'starter',
     video_analysis: 'starter', transcription: 'starter', presentation: 'starter', sales_advisor: 'starter',
+    // Про и выше
     image_generation: 'pro', photosession: 'pro',
 }
 const PLAN_ORDER_LAYOUT = ['free', 'starter', 'pro', 'business']

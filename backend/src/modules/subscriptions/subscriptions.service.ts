@@ -23,29 +23,40 @@ export type OperationType =
 
 // Какие тарифы дают доступ к каждой операции
 // free → starter → pro → business (накопительно)
+// Операции, доступные ТОЛЬКО на данном тире (не включают тиры ниже).
+// isOperationAllowed() накапливает доступ снизу-вверх: pro получает free+starter+pro, business — всё.
 export const PLAN_OPERATION_RESTRICTIONS: Record<string, string[]> = {
   // free и выше
   free: ['text_generation', 'message', 'worksheet', 'quiz', 'vocabulary', 'lesson_plan', 'feedback', 'content_adaptation'],
   // starter и выше
-  starter: ['game_generation', 'exam_variant', 'expert_unpacking', 'unpacking', 'video_analysis', 'transcription', 'presentation', 'sales_advisor'],
-  // pro и выше
+  starter: ['lesson_preparation', 'game_generation', 'exam_variant', 'expert_unpacking', 'unpacking', 'video_analysis', 'transcription', 'presentation', 'sales_advisor'],
+  // pro и выше (включает все операции free + starter)
   pro: ['image_generation', 'photosession'],
-  // business — всё включено
+  // business — включает все операции pro + starter + free (накопительно)
   business: [],
 };
 
 const PLAN_ORDER = ['free', 'starter', 'pro', 'business'];
 
-/** Проверяет, разрешена ли операция для данного planKey */
+/**
+ * Накопительная проверка: каждый тариф включает все операции тарифов ниже.
+ *   free     → только free-операции
+ *   starter  → free + starter
+ *   pro      → free + starter + pro
+ *   business → free + starter + pro + business (= все операции)
+ */
 export function isOperationAllowed(planKey: string, operationType: string): boolean {
   const planIndex = PLAN_ORDER.indexOf(planKey);
   if (planIndex === -1) return true; // неизвестный план — не блокируем
 
+  // Проверяем тир текущего плана и все тиры ниже
   for (let i = 0; i <= planIndex; i++) {
     const tier = PLAN_ORDER[i];
     if (PLAN_OPERATION_RESTRICTIONS[tier]?.includes(operationType)) return true;
   }
-  // pro и business получают всё
+
+  // Для pro и business: разрешаем любую операцию, не попавшую в явный список
+  // (business имеет пустой список — это нормально, всё уже покрыто выше)
   return planIndex >= PLAN_ORDER.indexOf('pro');
 }
 
@@ -77,7 +88,14 @@ export class SubscriptionsService {
         currency: 'RUB',
         allowOverage: false,
         overageCostPerCredit: null,
-        features: ['Рабочий лист, тест, словарь', 'Игры, ОГЭ/ЕГЭ, Распаковка', 'Анализ видео, Презентации', 'ИИ ассистент (50 запросов/день)'],
+        features: [
+          'Рабочий лист, тест, словарь',
+          'Адаптация текста, план урока',
+          'Вау-урок, Игры, ОГЭ/ЕГЭ, Распаковка',
+          'Анализ видео, Презентации, Транскрибация',
+          'ИИ-продажник',
+          'ИИ ассистент (50 запросов/день)',
+        ],
         isActive: true,
       },
       {
@@ -88,7 +106,13 @@ export class SubscriptionsService {
         currency: 'RUB',
         allowOverage: false,
         overageCostPerCredit: null,
-        features: ['Всё из Стартера', 'ИИ Генератор фото', 'ИИ Фотосессия', 'ИИ ассистент (безлимит)', 'Перенос до 100 токенов'],
+        features: [
+          'Всё из Стартера',
+          'ИИ Генератор фото',
+          'ИИ Фотосессия',
+          'ИИ ассистент (безлимит)',
+          'Перенос до 100 токенов',
+        ],
         isActive: true,
       },
       {
@@ -99,7 +123,13 @@ export class SubscriptionsService {
         currency: 'RUB',
         allowOverage: true,
         overageCostPerCredit: 1.5,
-        features: ['Всё из Про', 'Перенос до 300 токенов', 'Приоритетная поддержка'],
+        features: [
+          'Всё из Про',
+          'Всё из Стартера',
+          'Перенос до 300 токенов',
+          'Овередж: 1.5₽/токен сверх лимита',
+          'Приоритетная поддержка',
+        ],
         isActive: true,
       },
     ];
