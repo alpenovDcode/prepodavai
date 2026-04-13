@@ -55,26 +55,10 @@ export class AdminService {
       take: limit,
       skip: offset,
       orderBy: { createdAt: 'desc' },
-      select: {
-        id: true,
-        userHash: true,
-        source: true,
-        telegramId: true,
-        username: true,
-        apiKey: true,
-        firstName: true,
-        lastName: true,
-        email: true,
-        phone: true,
-        phoneVerified: true,
-        lastAccessAt: true,
-        lastTelegramAppAccess: true,
-        createdAt: true,
-        updatedAt: true,
+      include: {
         subscription: {
           include: { plan: true },
         },
-        passwordHash: true,
       },
     });
 
