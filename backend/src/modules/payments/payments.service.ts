@@ -61,7 +61,7 @@ export class PaymentsService {
       publicId: this.publicId,
       amount: price,
       currency: 'RUB',
-      description: `${plan.planName} — PrepodavAI`,
+      description: `Тариф ${plan.planName} — Преподавай`,
       accountId: userId,
       planKey,
       planName: plan.planName,
