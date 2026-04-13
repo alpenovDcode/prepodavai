@@ -53,9 +53,11 @@ const PLAN_COLORS: Record<string, { bg: string; border: string; badge: string; b
   business: { bg: 'bg-amber-50',  border: 'border-amber-300',  badge: 'bg-amber-100 text-amber-700',   btn: 'bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400', icon: 'bg-amber-100 text-amber-600' },
 }
 
+const PLAN_ORDER = ['free', 'starter', 'pro', 'business']
+
 // Детальное описание каждого тарифа с конкретными инструментами.
 // Каждый тариф включает все инструменты тарифов ниже (накопительно).
-const PLAN_DETAILS: Record<string, { tagline: string; tools: { emoji: string; name: string; hint: string }[] }> = {
+const PLAN_DETAILS: Record<string, { tagline: string; inherits?: string; tools: { emoji: string; name: string; hint: string }[] }> = {
   free: {
     tagline: 'Базовые инструменты для подготовки уроков',
     tools: [
@@ -70,15 +72,8 @@ const PLAN_DETAILS: Record<string, { tagline: string; tools: { emoji: string; na
   },
   starter: {
     tagline: 'Все базовые + мощные инструменты для активного преподавания',
+    inherits: 'Бесплатный',
     tools: [
-      // Бесплатный
-      { emoji: '📖', name: 'Конструктор Уроков', hint: 'Планы уроков с целями и таймингом' },
-      { emoji: '✏️', name: 'Рабочие Листы', hint: 'Материалы для печати и ДЗ' },
-      { emoji: '📚', name: 'Словарь', hint: 'Термины и определения по теме' },
-      { emoji: '🔄', name: 'Адаптация Текста', hint: 'Упрощение или усложнение материала' },
-      { emoji: '✅', name: 'Генератор Тестов', hint: 'Интерактивные тесты в один клик' },
-      { emoji: '💬', name: 'Фидбек', hint: 'Обратная связь для учеников' },
-      // Стартер
       { emoji: '✨', name: 'Вау-урок', hint: 'Впечатляющий урок с интерактивными элементами' },
       { emoji: '🎮', name: 'Обучающие Игры', hint: 'Memory, флэш-карты, викторины' },
       { emoji: '🎓', name: 'Варианты ОГЭ/ЕГЭ', hint: 'По спецификациям ФИПИ' },
@@ -91,23 +86,8 @@ const PLAN_DETAILS: Record<string, { tagline: string; tools: { emoji: string; na
   },
   pro: {
     tagline: 'Всё из Стартера + создание уникального визуального контента',
+    inherits: 'Стартер',
     tools: [
-      // Бесплатный
-      { emoji: '📖', name: 'Конструктор Уроков', hint: 'Планы уроков с целями и таймингом' },
-      { emoji: '✏️', name: 'Рабочие Листы', hint: 'Материалы для печати и ДЗ' },
-      { emoji: '📚', name: 'Словарь', hint: 'Термины и определения по теме' },
-      { emoji: '🔄', name: 'Адаптация Текста', hint: 'Упрощение или усложнение материала' },
-      { emoji: '✅', name: 'Генератор Тестов', hint: 'Интерактивные тесты в один клик' },
-      { emoji: '💬', name: 'Фидбек', hint: 'Обратная связь для учеников' },
-      // Стартер
-      { emoji: '✨', name: 'Вау-урок', hint: 'Впечатляющий урок с интерактивными элементами' },
-      { emoji: '🎮', name: 'Обучающие Игры', hint: 'Memory, флэш-карты, викторины' },
-      { emoji: '🎓', name: 'Варианты ОГЭ/ЕГЭ', hint: 'По спецификациям ФИПИ' },
-      { emoji: '📦', name: 'Распаковка Экспертности', hint: 'Структурирование знаний' },
-      { emoji: '🎬', name: 'Анализ Видео', hint: 'Ключевые моменты из видеоурока' },
-      { emoji: '🖥️', name: 'Презентации', hint: 'Слайды с экспортом в PDF/PPTX' },
-      { emoji: '🎙️', name: 'Транскрибация', hint: 'Видео и лекции → текст' },
-      // Про
       { emoji: '🖼️', name: 'Генератор Изображений', hint: 'Иллюстрации для учебных материалов' },
       { emoji: '📸', name: 'AI Фотосессия', hint: 'Серия фото в едином стиле' },
       { emoji: '🤖', name: 'AI Ассистент', hint: 'Безлимитные запросы' },
@@ -116,28 +96,8 @@ const PLAN_DETAILS: Record<string, { tagline: string; tools: { emoji: string; na
   },
   business: {
     tagline: 'Максимум возможностей: всё из Про + приоритет и овередж',
+    inherits: 'Про',
     tools: [
-      // Бесплатный
-      { emoji: '📖', name: 'Конструктор Уроков', hint: 'Планы уроков с целями и таймингом' },
-      { emoji: '✏️', name: 'Рабочие Листы', hint: 'Материалы для печати и ДЗ' },
-      { emoji: '📚', name: 'Словарь', hint: 'Термины и определения по теме' },
-      { emoji: '🔄', name: 'Адаптация Текста', hint: 'Упрощение или усложнение материала' },
-      { emoji: '✅', name: 'Генератор Тестов', hint: 'Интерактивные тесты в один клик' },
-      { emoji: '💬', name: 'Фидбек', hint: 'Обратная связь для учеников' },
-      // Стартер
-      { emoji: '✨', name: 'Вау-урок', hint: 'Впечатляющий урок с интерактивными элементами' },
-      { emoji: '🎮', name: 'Обучающие Игры', hint: 'Memory, флэш-карты, викторины' },
-      { emoji: '🎓', name: 'Варианты ОГЭ/ЕГЭ', hint: 'По спецификациям ФИПИ' },
-      { emoji: '📦', name: 'Распаковка Экспертности', hint: 'Структурирование знаний' },
-      { emoji: '🎬', name: 'Анализ Видео', hint: 'Ключевые моменты из видеоурока' },
-      { emoji: '🖥️', name: 'Презентации', hint: 'Слайды с экспортом в PDF/PPTX' },
-      { emoji: '🎙️', name: 'Транскрибация', hint: 'Видео и лекции → текст' },
-      // Про
-      { emoji: '🖼️', name: 'Генератор Изображений', hint: 'Иллюстрации для учебных материалов' },
-      { emoji: '📸', name: 'AI Фотосессия', hint: 'Серия фото в едином стиле' },
-      { emoji: '🤖', name: 'AI Ассистент', hint: 'Безлимитные запросы' },
-      { emoji: '🔄', name: 'Перенос токенов', hint: 'До 100 токенов' },
-      // Бизнес
       { emoji: '💰', name: 'Овередж токены', hint: '1.5₽ за токен при превышении лимита' },
       { emoji: '🏆', name: 'Перенос токенов', hint: 'До 300 неиспользованных токенов' },
       { emoji: '⚡', name: 'Приоритетная поддержка', hint: 'Ответ в течение 2 часов' },
@@ -287,6 +247,9 @@ export default function PlanUpgradeModal({ open, onClose, highlightPlanKey }: Pr
             const isPro = plan.planKey === 'pro'
             const isPaying = payingPlanKey === plan.planKey
             const isSuccess = successPlanKey === plan.planKey
+            const currentIndex = PLAN_ORDER.indexOf(currentPlanKey)
+            const planIndex = PLAN_ORDER.indexOf(plan.planKey)
+            const isLowerPlan = !isCurrent && planIndex < currentIndex
 
             return (
               <div
@@ -341,15 +304,25 @@ export default function PlanUpgradeModal({ open, onClose, highlightPlanKey }: Pr
                 {/* Detailed tools list */}
                 <ul className="flex flex-col gap-2 flex-1">
                   {PLAN_DETAILS[plan.planKey]
-                    ? PLAN_DETAILS[plan.planKey].tools.map((tool, i) => (
-                        <li key={i} className="flex items-start gap-2">
-                          <span className="text-sm leading-none mt-0.5 flex-shrink-0">{tool.emoji}</span>
-                          <div className="min-w-0">
-                            <span className="text-xs font-semibold text-gray-800">{tool.name}</span>
-                            <span className="text-[10px] text-gray-400 block leading-tight">{tool.hint}</span>
-                          </div>
-                        </li>
-                      ))
+                    ? <>
+                        {PLAN_DETAILS[plan.planKey].inherits && (
+                          <li className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-gray-100 border border-gray-200 mb-1">
+                            <Check className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />
+                            <span className="text-xs font-medium text-gray-600">
+                              Все функции тарифа «{PLAN_DETAILS[plan.planKey].inherits}»
+                            </span>
+                          </li>
+                        )}
+                        {PLAN_DETAILS[plan.planKey].tools.map((tool, i) => (
+                          <li key={i} className="flex items-start gap-2">
+                            <span className="text-sm leading-none mt-0.5 flex-shrink-0">{tool.emoji}</span>
+                            <div className="min-w-0">
+                              <span className="text-xs font-semibold text-gray-800">{tool.name}</span>
+                              <span className="text-[10px] text-gray-400 block leading-tight">{tool.hint}</span>
+                            </div>
+                          </li>
+                        ))}
+                      </>
                     : plan.features.map((f, i) => (
                         <li key={i} className="flex items-start gap-2 text-xs text-gray-600">
                           <Check className="w-3.5 h-3.5 text-green-500 flex-shrink-0 mt-0.5" />
@@ -363,6 +336,10 @@ export default function PlanUpgradeModal({ open, onClose, highlightPlanKey }: Pr
                 {isCurrent ? (
                   <div className="w-full py-2.5 rounded-xl text-sm font-semibold text-center bg-gray-200 text-gray-500 cursor-default">
                     Текущий тариф
+                  </div>
+                ) : isLowerPlan ? (
+                  <div className="w-full py-2.5 rounded-xl text-sm font-semibold text-center bg-gray-100 text-gray-400 cursor-default">
+                    Включён в ваш тариф
                   </div>
                 ) : plan.price === 0 ? null : isSuccess ? (
                   <div className="w-full py-2.5 rounded-xl text-sm font-semibold text-center bg-green-100 text-green-700 flex items-center justify-center gap-2">
