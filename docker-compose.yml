@@ -87,6 +87,9 @@ services:
       SMTP_PASSWORD: ${SMTP_PASSWORD}
       SMTP_FROM: ${SMTP_FROM}
       NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-https://prepodavai.ru}
+      # CloudPayments
+      CLOUDPAYMENTS_PUBLIC_ID: ${CLOUDPAYMENTS_PUBLIC_ID}
+      CLOUDPAYMENTS_API_SECRET: ${CLOUDPAYMENTS_API_SECRET}
     depends_on:
       postgres:
         condition: service_healthy
