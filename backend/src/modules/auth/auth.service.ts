@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, BadRequestException, InternalServerErrorException, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { UsersService } from '../users/users.service';
@@ -12,6 +12,7 @@ import { EmailService } from '../../common/services/email.service';
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
   // One-time tokens для MAX mini app (userId -> { token, expiresAt })
   private readonly ottTokens = new Map<string, { userId: string; expiresAt: number }>();
 
@@ -507,7 +508,18 @@ export class AuthService {
     });
 
     // Отправляем письмо с кодом
-    await this.emailService.sendEmailVerificationCode(email, code);
+    try {
+      await this.emailService.sendEmailVerificationCode(email, code);
+    } catch (emailError) {
+      // Если письмо не отправилось — удаляем код, чтобы не засорять БД
+      await this.prisma.verificationCode.deleteMany({
+        where: { phone: email, type: 'email' },
+      });
+      this.logger.error(`Failed to send verification email to ${email}: ${emailError?.message}`);
+      throw new InternalServerErrorException(
+        'Не удалось отправить письмо с кодом. Проверьте правильность email или попробуйте позже.',
+      );
+    }
 
     return { success: true, pending: true };
   }
