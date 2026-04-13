@@ -1,12 +1,13 @@
 'use client'
 
-import { use, useState } from 'react'
+import { useState } from 'react'
 import useSWR from 'swr'
 import Link from 'next/link'
 import { apiClient } from '@/lib/api/client'
 import {
     ArrowLeft, User, Zap, Users, GitBranch, BookOpen,
-    CreditCard, CheckCircle, Clock, TrendingUp, Loader2
+    CreditCard, CheckCircle, Clock, TrendingUp, Loader2,
+    Mail, Phone, BookOpenCheck, GraduationCap, MessageSquare, Link2
 } from 'lucide-react'
 
 const fetcher = (url: string) => apiClient.get(url).then(r => r.data)
@@ -53,8 +54,8 @@ const STATUS_COLORS: Record<string, string> = {
     pending: 'bg-yellow-100 text-yellow-700',
 }
 
-export default function UserStatsPage({ params }: { params: Promise<{ id: string }> }) {
-    const { id } = use(params)
+export default function UserStatsPage({ params }: { params: { id: string } }) {
+    const { id } = params
     const { data, isLoading, error, mutate } = useSWR(`/admin/users/${id}/stats`, fetcher)
     const stats = data?.stats
 
@@ -127,6 +128,99 @@ export default function UserStatsPage({ params }: { params: Promise<{ id: string
                         </div>
                     )
                 })}
+            </div>
+
+            {/* Профиль и платформы */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Профиль */}
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+                    <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                        <User className="w-4 h-4 text-gray-400" /> Профиль
+                    </h2>
+                    <div className="space-y-3">
+                        {user.email && (
+                            <div className="flex items-center gap-3">
+                                <Mail className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                                <span className="text-sm text-gray-700">{user.email}</span>
+                            </div>
+                        )}
+                        {user.phone && (
+                            <div className="flex items-center gap-3">
+                                <Phone className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                                <span className="text-sm text-gray-700">{user.phone}</span>
+                                {user.phoneVerified && (
+                                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-medium">Подтверждён</span>
+                                )}
+                            </div>
+                        )}
+                        {user.subject && (
+                            <div className="flex items-center gap-3">
+                                <BookOpenCheck className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                                <span className="text-sm text-gray-700">{user.subject}</span>
+                            </div>
+                        )}
+                        {user.grades && (
+                            <div className="flex items-center gap-3">
+                                <GraduationCap className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                                <span className="text-sm text-gray-700">{user.grades}</span>
+                            </div>
+                        )}
+                        {user.bio && (
+                            <div className="flex items-start gap-3 pt-1">
+                                <MessageSquare className="w-4 h-4 text-gray-400 flex-shrink-0 mt-0.5" />
+                                <p className="text-sm text-gray-600 leading-relaxed">{user.bio}</p>
+                            </div>
+                        )}
+                        {!user.email && !user.phone && !user.subject && !user.grades && !user.bio && (
+                            <p className="text-sm text-gray-400">Профиль не заполнен</p>
+                        )}
+                    </div>
+                </div>
+
+                {/* Привязанные платформы */}
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+                    <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                        <Link2 className="w-4 h-4 text-gray-400" /> Привязанные платформы
+                    </h2>
+                    <div className="space-y-3">
+                        <div className="flex items-center justify-between p-3 rounded-xl bg-gray-50">
+                            <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center text-blue-500 text-sm font-bold">TG</div>
+                                <div>
+                                    <p className="text-sm font-medium text-gray-900">Telegram</p>
+                                    {user.telegramId
+                                        ? <p className="text-xs text-emerald-600 font-medium flex items-center gap-1"><CheckCircle className="w-3 h-3" /> ID: {user.telegramId}</p>
+                                        : <p className="text-xs text-gray-400">Не привязан</p>}
+                                </div>
+                            </div>
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${user.telegramId ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 text-gray-500'}`}>
+                                {user.telegramId ? 'Привязан' : '—'}
+                            </span>
+                        </div>
+                        <div className="flex items-center justify-between p-3 rounded-xl bg-gray-50">
+                            <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center text-purple-500 text-sm font-bold">MX</div>
+                                <div>
+                                    <p className="text-sm font-medium text-gray-900">MAX</p>
+                                    {user.maxId
+                                        ? <p className="text-xs text-emerald-600 font-medium flex items-center gap-1"><CheckCircle className="w-3 h-3" /> ID: {user.maxId}</p>
+                                        : <p className="text-xs text-gray-400">Не привязан</p>}
+                                </div>
+                            </div>
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${user.maxId ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 text-gray-500'}`}>
+                                {user.maxId ? 'Привязан' : '—'}
+                            </span>
+                        </div>
+                        <div className="flex items-center gap-2 pt-1">
+                            <span className="text-xs text-gray-400">Источник:</span>
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                                user.source === 'telegram' ? 'bg-blue-100 text-blue-700' :
+                                user.source === 'max' ? 'bg-purple-100 text-purple-700' :
+                                'bg-gray-100 text-gray-600'
+                            }`}>{user.source || 'web'}</span>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

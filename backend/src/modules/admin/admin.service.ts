@@ -773,7 +773,13 @@ export class AdminService {
   async getUserStats(userId: string) {
     const user = await this.prisma.appUser.findUnique({
       where: { id: userId },
-      select: { id: true, username: true, firstName: true, lastName: true, source: true, createdAt: true },
+      select: {
+        id: true, username: true, firstName: true, lastName: true,
+        source: true, createdAt: true,
+        email: true, phone: true, phoneVerified: true,
+        bio: true, subject: true, grades: true, avatar: true,
+        telegramId: true, maxId: true,
+      },
     });
     if (!user) throw new NotFoundException('User not found');
 
