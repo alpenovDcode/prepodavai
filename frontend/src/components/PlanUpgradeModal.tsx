@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { X, Check, Sparkles, Zap, Building2, Gift, Loader2 } from 'lucide-react'
+import { X, Check, Sparkles, Zap, Building2, Gift } from 'lucide-react'
 import { apiClient } from '@/lib/api/client'
 import { useSubscription } from '@/lib/hooks/useSubscription'
 
@@ -348,18 +348,10 @@ export default function PlanUpgradeModal({ open, onClose, highlightPlanKey }: Pr
                   </div>
                 ) : (
                   <button
-                    onClick={() => handleBuy(plan)}
-                    disabled={isPaying || !!payingPlanKey || !cpReady}
-                    className={`w-full py-2.5 rounded-xl text-sm font-semibold text-white text-center transition-all active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${colors.btn}`}
+                    disabled
+                    className="w-full py-2.5 rounded-xl text-sm font-semibold text-center bg-gray-100 text-gray-400 cursor-not-allowed flex items-center justify-center gap-2"
                   >
-                    {isPaying ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Открываем...
-                      </>
-                    ) : (
-                      `Купить за ${plan.price}₽`
-                    )}
+                    Скоро будет доступно
                   </button>
                 )}
               </div>

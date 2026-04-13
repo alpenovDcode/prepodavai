@@ -102,7 +102,7 @@ export const functions = [
   { id: 'lessonPreparation', title: 'Вау-урок', icon: 'fas fa-magic' },
   { id: 'content', title: 'Адаптация', icon: 'fas fa-exchange-alt' },
   { id: 'feedback', title: 'Фидбек', icon: 'fas fa-comments' },
-  { id: 'presentation', title: 'Презентация', icon: 'fas fa-slideshare' },
+  { id: 'presentation', title: 'Презентация', icon: 'fas fa-desktop' },
   { id: 'image', title: 'Изображение', icon: 'fas fa-image' },
   { id: 'photosession', title: 'Фотосессия', icon: 'fas fa-camera' },
   // { id: 'transcription', title: 'Транскрибация', icon: 'fas fa-file-audio' }, // Временно скрыто

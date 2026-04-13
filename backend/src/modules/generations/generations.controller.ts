@@ -13,14 +13,14 @@ import {
 } from '@nestjs/common';
 import { GenerationsService } from './generations.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-
+import { GenerationsThrottlerGuard } from '../../common/guards/generations-throttler.guard';
 @Controller('generate')
 export class GenerationsController {
   constructor(private readonly generationsService: GenerationsService) {}
 
   // Текстовые генерации
   @Post('worksheet')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, GenerationsThrottlerGuard)
   async generateWorksheet(@Request() req, @Body() body: any) {
     return this.generationsService.createGeneration({
       userId: req.user?.role === 'student' ? req.user?.teacherId : req.user?.id,
@@ -30,7 +30,7 @@ export class GenerationsController {
   }
 
   @Post('quiz')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, GenerationsThrottlerGuard)
   async generateQuiz(@Request() req, @Body() body: any) {
     return this.generationsService.createGeneration({
       userId: req.user?.role === 'student' ? req.user?.teacherId : req.user?.id,
@@ -40,7 +40,7 @@ export class GenerationsController {
   }
 
   @Post('vocabulary')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, GenerationsThrottlerGuard)
   async generateVocabulary(@Request() req, @Body() body: any) {
     return this.generationsService.createGeneration({
       userId: req.user?.role === 'student' ? req.user?.teacherId : req.user?.id,
@@ -50,7 +50,7 @@ export class GenerationsController {
   }
 
   @Post('lesson-plan')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, GenerationsThrottlerGuard)
   async generateLessonPlan(@Request() req, @Body() body: any) {
     return this.generationsService.createGeneration({
       userId: req.user?.role === 'student' ? req.user?.teacherId : req.user?.id,
@@ -60,7 +60,7 @@ export class GenerationsController {
   }
 
   @Post('content-adaptation')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, GenerationsThrottlerGuard)
   async adaptContent(@Request() req, @Body() body: any) {
     return this.generationsService.createGeneration({
       userId: req.user?.role === 'student' ? req.user?.teacherId : req.user?.id,
@@ -70,7 +70,7 @@ export class GenerationsController {
   }
 
   @Post('message')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, GenerationsThrottlerGuard)
   async generateMessage(@Request() req, @Body() body: any) {
     return this.generationsService.createGeneration({
       userId: req.user?.role === 'student' ? req.user?.teacherId : req.user?.id,
@@ -80,7 +80,7 @@ export class GenerationsController {
   }
 
   @Post('feedback')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, GenerationsThrottlerGuard)
   async generateFeedback(@Request() req, @Body() body: any) {
     return this.generationsService.createGeneration({
       userId: req.user?.role === 'student' ? req.user?.teacherId : req.user?.id,
@@ -91,7 +91,7 @@ export class GenerationsController {
 
   // Медиа генерации
   @Post('image')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, GenerationsThrottlerGuard)
   async generateImage(@Request() req, @Body() body: any) {
     return this.generationsService.createGeneration({
       userId: req.user?.role === 'student' ? req.user?.teacherId : req.user?.id,
@@ -101,7 +101,7 @@ export class GenerationsController {
   }
 
   @Post('photosession')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, GenerationsThrottlerGuard)
   async generatePhotosession(@Request() req, @Body() body: any) {
     return this.generationsService.createGeneration({
       userId: req.user?.role === 'student' ? req.user?.teacherId : req.user?.id,
@@ -111,7 +111,7 @@ export class GenerationsController {
   }
 
   @Post('presentation')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, GenerationsThrottlerGuard)
   async generatePresentation(@Request() req, @Body() body: any) {
     return this.generationsService.createGeneration({
       userId: req.user?.role === 'student' ? req.user?.teacherId : req.user?.id,
@@ -121,7 +121,7 @@ export class GenerationsController {
   }
 
   @Post('video-analysis')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, GenerationsThrottlerGuard)
   async generateVideoAnalysis(@Request() req, @Body() body: any) {
     return this.generationsService.createGeneration({
       userId: req.user?.role === 'student' ? req.user?.teacherId : req.user?.id,
@@ -131,7 +131,7 @@ export class GenerationsController {
   }
 
   @Post('transcribe-video')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, GenerationsThrottlerGuard)
   async transcribeVideo(@Request() req, @Body() body: any) {
     return this.generationsService.createGeneration({
       userId: req.user?.role === 'student' ? req.user?.teacherId : req.user?.id,
@@ -141,7 +141,7 @@ export class GenerationsController {
   }
 
   @Post('exam-variant')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, GenerationsThrottlerGuard)
   async generateExamVariant(@Request() req, @Body() body: any) {
     return this.generationsService.createGeneration({
       userId: req.user?.role === 'student' ? req.user?.teacherId : req.user?.id,
@@ -151,7 +151,7 @@ export class GenerationsController {
   }
 
   @Post('lesson-preparation')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, GenerationsThrottlerGuard)
   async generateLessonPreparation(@Request() req, @Body() body: any) {
     return this.generationsService.createGeneration({
       userId: req.user?.role === 'student' ? req.user?.teacherId : req.user?.id,
@@ -161,7 +161,7 @@ export class GenerationsController {
   }
 
   @Post('unpacking')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, GenerationsThrottlerGuard)
   async generateUnpacking(@Request() req, @Body() body: any) {
     return this.generationsService.createGeneration({
       userId: req.user?.role === 'student' ? req.user?.teacherId : req.user?.id,
@@ -171,7 +171,7 @@ export class GenerationsController {
   }
 
   @Post('sales-advisor')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, GenerationsThrottlerGuard)
   async generateSalesAdvisor(@Request() req, @Body() body: any) {
     return this.generationsService.createGeneration({
       userId: req.user?.role === 'student' ? req.user?.teacherId : req.user?.id,
@@ -181,7 +181,7 @@ export class GenerationsController {
   }
 
   @Post('assistant')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, GenerationsThrottlerGuard)
   async generateAssistant(@Request() req, @Body() body: any) {
     return this.generationsService.createGeneration({
       userId: req.user?.role === 'student' ? req.user?.teacherId : req.user?.id,
@@ -191,7 +191,7 @@ export class GenerationsController {
   }
 
   @Post('bundle')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, GenerationsThrottlerGuard)
   async generateBundle(@Request() req, @Body() body: { types: string[]; params: any }) {
     return this.generationsService.createGenerationBundle({
       userId: req.user?.role === 'student' ? req.user?.teacherId : req.user?.id,
