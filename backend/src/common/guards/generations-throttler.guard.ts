@@ -13,12 +13,19 @@ export class GenerationsThrottlerGuard extends ThrottlerGuard {
     return `ip-${ip}`;
   }
 
-  protected async handleRequest(requestProps: any): Promise<boolean> {
-    const { context, limit, ttl, throttler, getTracker, generateKey } = requestProps;
+  protected async handleRequest(requestPropsOrContext: any, arg2?: any, arg3?: any, arg4?: any): Promise<boolean> {
+    // В зависимости от минорной версии @nestjs/throttler (v4 vs v5), 
+    // первый аргумент может быть либо ExecutionContext, либо объектом ThrottlerRequest.
+    const isContext = typeof requestPropsOrContext.switchToHttp === 'function';
+    const context = isContext ? requestPropsOrContext : requestPropsOrContext.context;
     
     const req = context.switchToHttp().getRequest();
-    const tracker = await getTracker(req);
-    const key = generateKey(context, tracker, throttler.name);
+    const tracker = isContext ? await this.getTracker(req) : await requestPropsOrContext.getTracker(req);
+    
+    const throttlerName = isContext ? (arg4?.name || 'default') : (requestPropsOrContext.throttler?.name || 'default');
+    const key = isContext 
+      ? this.generateKey(context, tracker, throttlerName) 
+      : requestPropsOrContext.generateKey(context, tracker, throttlerName);
 
     // Динамические лимиты для генераций
     let dynamicLimit = 5; // Для неавторизованных/публичных маршрутов (5 в минуту)
