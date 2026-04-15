@@ -42,6 +42,33 @@ interface LessonOption {
     generations: { id: string; generationType: string }[]
 }
 
+const GENERATION_TYPE_LABELS: Record<string, string> = {
+    worksheet: 'Рабочий лист',
+    quiz: 'Тест',
+    vocabulary: 'Словарь',
+    'lesson-plan': 'План урока',
+    lesson_plan: 'План урока',
+    presentation: 'Презентация',
+    'content-adaptation': 'Адаптация текста',
+    content_adaptation: 'Адаптация текста',
+    feedback: 'Фидбек',
+    message: 'Сообщение',
+    game_generation: 'Игра',
+    exam_variant: 'КИМ',
+    'exam-variant': 'КИМ',
+    lesson_preparation: 'Вау-урок',
+    unpacking: 'Распаковка',
+    sales_advisor: 'ИИ-продажник',
+    image_generation: 'Изображение',
+    photosession: 'Фотосессия',
+    'video-analysis': 'Анализ видео',
+    video_analysis: 'Анализ видео',
+}
+
+function formatGenerationType(type: string): string {
+    return GENERATION_TYPE_LABELS[type] || type
+}
+
 interface ClassDetailPageProps {
     id: string
 }
@@ -58,6 +85,7 @@ export default function ClassDetailPage({ id }: ClassDetailPageProps) {
     const [lessons, setLessons] = useState<LessonOption[]>([])
     const [lessonsLoading, setLessonsLoading] = useState(false)
     const [selectedLessonId, setSelectedLessonId] = useState('')
+    const [selectedGenerationId, setSelectedGenerationId] = useState('')
     const [assignDueDate, setAssignDueDate] = useState('')
     const [assignSubmitting, setAssignSubmitting] = useState(false)
 
@@ -66,6 +94,7 @@ export default function ClassDetailPage({ id }: ClassDetailPageProps) {
     const openAssignModal = async () => {
         setShowAssignModal(true)
         setSelectedLessonId('')
+        setSelectedGenerationId('')
         setAssignDueDate('')
         setLessonsLoading(true)
         try {
@@ -86,6 +115,7 @@ export default function ClassDetailPage({ id }: ClassDetailPageProps) {
             await apiClient.post('/assignments', {
                 lessonId: selectedLessonId,
                 classId: id,
+                generationId: selectedGenerationId || undefined,
                 dueDate: assignDueDate ? new Date(assignDueDate).toISOString() : undefined,
             })
             setShowAssignModal(false)
@@ -201,20 +231,49 @@ export default function ClassDetailPage({ id }: ClassDetailPageProps) {
                                         У вас пока нет созданных материалов. Сгенерируйте урок в «ИИ Генераторе».
                                     </div>
                                 ) : (
-                                    <select
-                                        value={selectedLessonId}
-                                        onChange={(e) => setSelectedLessonId(e.target.value)}
-                                        required
-                                        className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900"
-                                    >
-                                        <option value="">Выберите материал</option>
-                                        {lessons.map((l) => (
-                                            <option key={l.id} value={l.id}>
-                                                {l.title || l.topic} · {new Date(l.createdAt).toLocaleDateString('ru-RU')}
-                                                {l.generations?.length ? ` (${l.generations.length})` : ''}
-                                            </option>
-                                        ))}
-                                    </select>
+                                    <>
+                                        <select
+                                            value={selectedLessonId}
+                                            onChange={(e) => {
+                                                setSelectedLessonId(e.target.value)
+                                                setSelectedGenerationId('')
+                                            }}
+                                            required
+                                            className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900"
+                                        >
+                                            <option value="">Выберите материал</option>
+                                            {lessons.map((l) => (
+                                                <option key={l.id} value={l.id}>
+                                                    {l.title || l.topic} · {new Date(l.createdAt).toLocaleDateString('ru-RU')}
+                                                    {l.generations?.length ? ` (${l.generations.length})` : ''}
+                                                </option>
+                                            ))}
+                                        </select>
+                                        {selectedLessonId && (() => {
+                                            const lesson = lessons.find((l) => l.id === selectedLessonId)
+                                            const gens = lesson?.generations || []
+                                            if (gens.length === 0) return null
+                                            return (
+                                                <div className="mt-3">
+                                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                        Конкретная генерация <span className="text-gray-400 font-normal">(необязательно)</span>
+                                                    </label>
+                                                    <select
+                                                        value={selectedGenerationId}
+                                                        onChange={(e) => setSelectedGenerationId(e.target.value)}
+                                                        className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900"
+                                                    >
+                                                        <option value="">Весь урок целиком</option>
+                                                        {gens.map((g) => (
+                                                            <option key={g.id} value={g.id}>
+                                                                {formatGenerationType(g.generationType)}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                            )
+                                        })()}
+                                    </>
                                 )}
                             </div>
 

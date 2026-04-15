@@ -36,6 +36,27 @@ export class AssignmentsService {
       throw new NotFoundException('Lesson not found');
     }
 
+    // Resolve generationId: фронт может прислать UserGeneration.id ИЛИ GenerationRequest.id
+    // (activeGenerationId в хуке — это requestId). Нормализуем к UserGeneration.id.
+    let resolvedGenerationId: string | undefined = undefined;
+    if (data.generationId) {
+      let gen = await this.prisma.userGeneration.findUnique({
+        where: { id: data.generationId },
+      });
+      if (!gen) {
+        gen = await this.prisma.userGeneration.findUnique({
+          where: { generationRequestId: data.generationId },
+        });
+      }
+      if (!gen) {
+        throw new NotFoundException('Генерация не найдена');
+      }
+      if (gen.userId !== userId) {
+        throw new BadRequestException('Доступ к генерации запрещён');
+      }
+      resolvedGenerationId = gen.id;
+    }
+
     // Create assignment(s)
     // If assigned to a class, we might want to create individual assignments for each student later,
     // but for now let's stick to the schema which allows assigning to a class directly.
@@ -50,7 +71,7 @@ export class AssignmentsService {
         classId: data.classId,
         studentId: data.studentId,
         dueDate: data.dueDate,
-        generationId: data.generationId,
+        generationId: resolvedGenerationId,
         status: 'assigned',
       },
     });

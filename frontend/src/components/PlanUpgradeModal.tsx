@@ -74,7 +74,6 @@ const PLAN_DETAILS: Record<string, { tagline: string; inherits?: string; tools: 
     tagline: 'Все базовые + мощные инструменты для активного преподавания',
     inherits: 'Бесплатный',
     tools: [
-      { emoji: '✨', name: 'Вау-урок', hint: 'Впечатляющий урок с интерактивными элементами' },
       { emoji: '🎮', name: 'Обучающие Игры', hint: 'Memory, флэш-карты, викторины' },
       { emoji: '🎓', name: 'Варианты ОГЭ/ЕГЭ', hint: 'По спецификациям ФИПИ' },
       { emoji: '📦', name: 'Распаковка Экспертности', hint: 'Структурирование знаний' },
