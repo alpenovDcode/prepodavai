@@ -208,8 +208,9 @@ window.MathJax = {
       return html;
     }
 
-    // Check if MathJax script is already present
-    const hasMathJaxScript = /mathjax/i.test(html);
+    // Check if MathJax script is already loaded. Сверяем только по реальному <script src="...mathjax...">,
+    // иначе случайное упоминание слова "MathJax" в контенте (коммент/текст) блокирует инъекцию.
+    const hasMathJaxScript = /<script[^>]+src=["'][^"']*mathjax[^"']*["']/i.test(html);
     if (hasMathJaxScript) {
       return html;
     }
@@ -227,7 +228,7 @@ window.MathJax = {
     // 2. Команды без обёртки: \frac, \sqrt, \sum, \int, \cdot, \times, \alpha, \beta и т.д.
     // 3. Явный признак экзаменационных документов — наличие class="sheet"
     const wrappers = /\$\$[\s\S]+?\$\$|\$[^$\n]+?\$|\\\(|\\\[|\\begin\{[a-z\*]+\}/i;
-    const commands = /\\(?:frac|sqrt|sum|int|prod|lim|cdot|times|pm|mp|leq|geq|neq|approx|alpha|beta|gamma|delta|theta|lambda|mu|pi|sigma|omega|infty|text|mathbb|mathcal|xrightarrow)\b/i;
+    const commands = /\\(?:frac|sqrt|sum|int|prod|lim|cdot|times|pm|mp|leq|geq|neq|approx|alpha|beta|gamma|delta|epsilon|zeta|eta|theta|iota|kappa|lambda|mu|nu|xi|rho|sigma|tau|phi|chi|psi|omega|Alpha|Beta|Gamma|Delta|Theta|Lambda|Pi|Sigma|Phi|Omega|infty|text|mathbb|mathcal|mathrm|mathbf|mathit|xrightarrow|overrightarrow|vec|hat|bar|sin|cos|tan|cot|sec|csc|arcsin|arccos|arctan|log|ln|exp|angle|triangle|parallel|perp|in|notin|subset|cup|cap|forall|exists|rightarrow|leftarrow|leftrightarrow|Rightarrow|Leftarrow|Leftrightarrow|to)\b/i;
     const examSheet = /class="[^"]*\bsheet\b[^"]*"/i;
     return wrappers.test(html) || commands.test(html) || examSheet.test(html);
   }

@@ -10,6 +10,7 @@ import { getCurrentUser } from '@/lib/utils/userIdentity'
 import GenerationCostBadge from '@/components/workspace/GenerationCostBadge'
 import AssignTaskButton from '@/components/AssignTaskButton'
 import GenerationProgress from '@/components/workspace/GenerationProgress'
+import { ensureMathJaxInHtml } from '@/lib/utils/ensureMathJax'
 
 export default function WorksheetGenerator() {
     const [topic, setTopic] = useState('')
@@ -305,7 +306,7 @@ export default function WorksheetGenerator() {
                         ) : (
                             <iframe
                                 ref={iframeRef}
-                                srcDoc={localContent}
+                                srcDoc={ensureMathJaxInHtml(localContent)}
                                 className="w-full h-full border-0 bg-white"
                                 sandbox="allow-scripts allow-popups allow-modals"
                                 title="Рабочий лист"
