@@ -34,13 +34,13 @@ export const SHARED_CSS = `<style>
 </style>`;
 
 export const SHARED_MATHJAX_RULES = `МАТЕМАТИЧЕСКИЕ ФОРМУЛЫ (MathJax) - СТРОГИЕ ПРАВИЛА:
-1.  Строчные: Используй ТОЛЬКО \\(...\\). Пример: \\(x^2\\). ЗАПРЕЩЕНО использовать $..$.
-2.  Блочные: Используй ТОЛЬКО \\[...\\[. Пример: \\[E=mc^2\\]. ЗАПРЕЩЕНО использовать $$...$$$.
+1.  Строчные (inline): используй ТОЛЬКО \\(...\\). Пример: \\(x^2\\). Одинарные $..$ ЗАПРЕЩЕНЫ.
+2.  Блочные (display): используй \\[...\\] или $$...$$. Пример: \\[E=mc^2\\] либо $$E=mc^2$$.
 3.  **КИРИЛЛИЦА:** Никогда не используй кириллицу внутри формул MathJax.
-4.  Вставь скрипт конфигурации MathJax в <head>.`;
+4.  Скрипт MathJax вставляется автоматически — не добавляй его вручную.`;
 
 export const SHARED_MATHJAX_SCRIPT = `<script>
-window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\[', '\\\\]']] }, svg: { fontCache: 'global' } };
+window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)'], ['$', '$']], displayMath: [['$$', '$$'], ['\\\\[', '\\\\]']], processEscapes: true }, svg: { fontCache: 'global' } };
 </script>
 <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>`;
 

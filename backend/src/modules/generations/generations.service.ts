@@ -487,8 +487,10 @@ export class GenerationsService {
       throw new BadRequestException('Replicate вернул пустой результат');
     }
 
-    const contentWithLogo = content.replace(/LOGO_PLACEHOLDER/g, LOGO_BASE64);
-    const processedContent = this.htmlPostprocessor.ensureMathJaxScript(contentWithLogo);
+    // Полный постпроцесс: удаление markdown-обёрток, нормализация брендинга
+    // (header/footer с логотипом вместо фейковых копирайтов), замена LOGO_PLACEHOLDER,
+    // инъекция MathJax при наличии формул.
+    const processedContent = this.htmlPostprocessor.process(content);
 
     const normalizedResult = {
       provider: 'Google Gemini',
@@ -738,8 +740,8 @@ export class GenerationsService {
       }
 
       this.logger.log(`[GenerationsService] Starting HTML postprocessing for ${generationType}`);
-      const contentWithLogo = content.replace(/LOGO_PLACEHOLDER/g, LOGO_BASE64);
-      const processedContent = this.htmlPostprocessor.ensureMathJaxScript(contentWithLogo);
+      // Полный постпроцесс: см. комментарий выше в generateWithReplicateNew.
+      const processedContent = this.htmlPostprocessor.process(content);
       this.logger.log(
         `[GenerationsService] HTML postprocessing complete, processed length: ${processedContent.length}`,
       );
