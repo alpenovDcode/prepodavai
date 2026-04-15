@@ -14,12 +14,20 @@ window.MathJax = {
     ignoreHtmlClass: 'tex2jax_ignore',
     processHtmlClass: 'tex2jax_process'
   },
+  startup: {
+    ready: () => {
+      window.MathJax.startup.defaultReady();
+      window.MathJax.startup.promise.then(() => {
+        console.log('MathJax initial typesetting complete');
+      });
+    }
+  },
   svg: {
     fontCache: 'global'
   }
 };
 </script>
-<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>`;
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>`;
 
   /**
    * Process HTML to ensure all requirements are met:
@@ -113,28 +121,20 @@ window.MathJax = {
   }
 
   /**
-   * Injects MathJax script into HTML <head> section
+   * Injects MathJax script into HTML body section
    */
   private injectMathJaxScript(html: string): string {
-    // Try to inject into existing <head>
+    // Вставляем в конец body для максимальной совместимости
+    if (/<\/body>/i.test(html)) {
+      return html.replace(/<\/body>/i, `${this.MATHJAX_SCRIPT}\n</body>`);
+    }
+
+    // Если нет <body>, но есть <head>
     if (/<head[\s>]/i.test(html)) {
       return html.replace(/<head([^>]*)>/i, `<head$1>\n${this.MATHJAX_SCRIPT}`);
     }
 
-    // If no <head>, try to inject before <body>
-    if (/<body[\s>]/i.test(html)) {
-      return html.replace(/<body/i, `<head>\n${this.MATHJAX_SCRIPT}\n</head>\n<body`);
-    }
-
-    // If no <head> or <body>, wrap entire content
-    return `<!DOCTYPE html>
-<html>
-<head>
-${this.MATHJAX_SCRIPT}
-</head>
-<body>
-${html}
-</body>
-</html>`;
+    // Если нет ни head ни body, просто добавляем в конец
+    return `${html}\n${this.MATHJAX_SCRIPT}`;
   }
 }

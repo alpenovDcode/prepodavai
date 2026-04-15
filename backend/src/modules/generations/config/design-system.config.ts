@@ -60,15 +60,8 @@ export const DesignSystemConfig = {
   // Скрипты MathJax
   // Внимательно: inlineMath содержит ТОЛЬКО \\(...\\) — одиночные $...$ отключены.
   // MATHJAX_RULES в промптах также запрещает $...$ для inline, чтобы не было расхождений.
-  MATHJAX_SCRIPTS: `
-<script>
-  window.MathJax = {
-    tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['$$', '$$'], ['\\\\[', '\\\\]']] },
-    svg: { fontCache: 'global' }
-  };
-</script>
-<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
-`,
+  // Скрипты MathJax теперь вставляются динамически через HtmlPostprocessorService
+  MATHJAX_SCRIPTS: '',
 
   // Готовые компоненты-заглушки (для сборки финального HTML)
   COMPONENTS: {
