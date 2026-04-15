@@ -24,7 +24,11 @@ export class StudentsController {
   }
 
   @Post()
-  create(@Request() req, @Body() body: { classId: string; name: string; email: string; password: string }) {
+  create(
+    @Request() req,
+    @Body()
+    body: { classId: string; name: string; email?: string; phone?: string; password: string },
+  ) {
     return this.studentsService.createStudent(req.user.id, body);
   }
 
@@ -50,5 +54,15 @@ export class StudentsController {
   @Delete(':id')
   remove(@Request() req, @Param('id') id: string) {
     return this.studentsService.deleteStudent(req.user.id, id);
+  }
+
+  @Post(':id/approve')
+  approve(@Request() req, @Param('id') id: string) {
+    return this.studentsService.approveStudent(req.user.id, id);
+  }
+
+  @Post(':id/reject')
+  reject(@Request() req, @Param('id') id: string) {
+    return this.studentsService.rejectStudent(req.user.id, id);
   }
 }

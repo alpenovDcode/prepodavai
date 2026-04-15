@@ -69,7 +69,7 @@ export default function ReferralsPage() {
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900">Пригласительная ссылка</h1>
-        <p className="text-gray-600 mt-1">Приглашайте коллег и учеников — получайте бонусные Токены.</p>
+        <p className="text-gray-600 mt-1">Приглашайте коллег — получайте бонусные Токены.</p>
       </div>
 
       {/* Referral Code Section */}

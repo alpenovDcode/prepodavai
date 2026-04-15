@@ -6,6 +6,8 @@ import toast from 'react-hot-toast'
 import { apiClient } from '@/lib/api/client'
 import { getCurrentUser } from '@/lib/utils/userIdentity'
 import GenerationCostBadge from '@/components/workspace/GenerationCostBadge'
+import AssignTaskButton from '@/components/AssignTaskButton'
+import GenerationProgress from '@/components/workspace/GenerationProgress'
 
 export default function GamesGenerator() {
     const [form, setForm] = useState({
@@ -14,7 +16,7 @@ export default function GamesGenerator() {
     })
 
     const [isGenerating, setIsGenerating] = useState(false)
-    const [generationResult, setGenerationResult] = useState<{ url: string; downloadUrl: string } | null>(null)
+    const [generationResult, setGenerationResult] = useState<{ url: string; downloadUrl: string; generationId?: string | null } | null>(null)
 
     const iframeRef = useRef<HTMLIFrameElement>(null)
 
@@ -37,6 +39,7 @@ export default function GamesGenerator() {
                 setGenerationResult({
                     url: response.data.url,
                     downloadUrl: response.data.downloadUrl,
+                    generationId: response.data.generationId,
                 })
             } else {
                 toast.error('Не удалось получить URL игры')
@@ -163,16 +166,19 @@ export default function GamesGenerator() {
                                 <Download className="w-4 h-4" />
                                 Скачать HTML
                             </button>
+                            {generationResult && (
+                                <AssignTaskButton
+                                    generationId={generationResult.generationId}
+                                    topic={form.topic}
+                                    className="flex items-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold rounded-lg shadow-sm transition-colors disabled:opacity-60"
+                                />
+                            )}
                         </div>
                     </div>
 
                     <div className="flex-1 overflow-hidden relative bg-white">
                         {isGenerating ? (
-                            <div className="flex flex-col items-center justify-center h-full gap-4 text-gray-500">
-                                <Loader2 className="w-10 h-10 animate-spin text-orange-500" />
-                                <p className="font-medium">Создаём игру...</p>
-                                <p className="text-sm text-gray-400">Это может занять 15–30 секунд</p>
-                            </div>
+                            <GenerationProgress active={isGenerating} title="Создаём игру..." accentClassName="bg-orange-500" estimatedSeconds={25} />
                         ) : !generationResult ? (
                             <div className="flex flex-col items-center justify-center h-full gap-3 text-gray-400">
                                 <Gamepad2 className="w-12 h-12 text-gray-200" />

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { apiClient } from '@/lib/api/client'
 import toast from 'react-hot-toast'
 import Image from 'next/image'
-import DOMPurify from 'isomorphic-dompurify'
+import MathContent from '@/components/MathContent'
 import {
     Users,
     ChevronRight,
@@ -477,7 +477,10 @@ export default function HomeworkReviewPage() {
                                 <h3 className="text-sm font-semibold text-indigo-900 uppercase tracking-wider mb-2 flex items-center gap-2">
                                     <ScrollText size={16} /> Текст задания
                                 </h3>
-                                <div className="bg-white p-4 rounded-xl border border-indigo-100/50 text-gray-700 text-sm leading-relaxed max-h-48 overflow-y-auto" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(assignmentDetails.assignment.content || 'Текст задания не найден.') }} />
+                                <MathContent
+                                    html={assignmentDetails.assignment.content || 'Текст задания не найден.'}
+                                    className="bg-white p-4 rounded-xl border border-indigo-100/50 text-gray-700 text-sm leading-relaxed max-h-48 overflow-y-auto"
+                                />
                             </div>
 
                             <div className="p-6 border-b border-gray-100 bg-gray-50 flex-1">

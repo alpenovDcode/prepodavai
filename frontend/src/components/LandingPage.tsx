@@ -14,14 +14,14 @@ export default function LandingPage() {
     setShowAuth(false)
 
     // Применяем реферальный код, если пользователь пришёл по реферальной ссылке
-    const referralCode = localStorage.getItem('преподавai_referral_code')
+    const referralCode = localStorage.getItem('prepodavai_referral_code')
     if (referralCode) {
       try {
         await apiClient.post('/referrals/apply', { code: referralCode })
       } catch (e) {
         // Код невалидный или уже применён — не блокируем переход
       } finally {
-        localStorage.removeItem('преподавai_referral_code')
+        localStorage.removeItem('prepodavai_referral_code')
       }
     }
 
@@ -40,6 +40,16 @@ export default function LandingPage() {
     const t = setInterval(() => setCurrentTestimonial((p) => (p + 1) % testimonials.length), 5000);
     return () => clearInterval(t);
   }, [testimonials.length]);
+
+  // Автооткрытие регистрации, если пользователь пришёл по пригласительной ссылке /ref/<code>
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const referralCode = localStorage.getItem('prepodavai_referral_code')
+    if (referralCode) {
+      setAuthMode('register')
+      setShowAuth(true)
+    }
+  }, []);
 
   const features = [
     {

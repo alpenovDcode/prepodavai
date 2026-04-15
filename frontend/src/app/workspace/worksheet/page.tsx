@@ -8,6 +8,8 @@ import { useGenerations } from '@/lib/hooks/useGenerations'
 import RichTextEditor from '@/components/workspace/RichTextEditor'
 import { getCurrentUser } from '@/lib/utils/userIdentity'
 import GenerationCostBadge from '@/components/workspace/GenerationCostBadge'
+import AssignTaskButton from '@/components/AssignTaskButton'
+import GenerationProgress from '@/components/workspace/GenerationProgress'
 
 export default function WorksheetGenerator() {
     const [topic, setTopic] = useState('')
@@ -20,7 +22,8 @@ export default function WorksheetGenerator() {
     const [copied, setCopied] = useState(false)
     const iframeRef = useRef<HTMLIFrameElement>(null)
 
-    const { generateAndWait, isGenerating } = useGenerations()
+    const { generateAndWait, isGenerating, activeGenerationId } = useGenerations()
+    const hasResult = !isGenerating && !!localContent && !localContent.startsWith('<p>Введите') && !localContent.startsWith('<p>Генерируем')
 
     const [activeTab, setActiveTab] = useState<'config' | 'preview'>('config')
     const [isMobile, setIsMobile] = useState(false)
@@ -258,6 +261,13 @@ export default function WorksheetGenerator() {
                                 <Download className="w-3.5 h-3.5" />
                                 <span>PDF</span>
                             </button>
+                            {hasResult && (
+                                <AssignTaskButton
+                                    generationId={activeGenerationId}
+                                    topic={topic}
+                                    className="flex items-center gap-1.5 px-3 py-2 text-[11px] font-bold bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition-all flex-shrink-0 disabled:opacity-60"
+                                />
+                            )}
 
                             <button onClick={generate} className="p-2 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0" title="Перегенерировать">
                                 <RefreshCw className="w-4 h-4" />
@@ -268,13 +278,7 @@ export default function WorksheetGenerator() {
                     {/* Content */}
                     <div className="flex-1 overflow-hidden relative">
                         {isGenerating ? (
-                            <div className="flex flex-col items-center justify-center h-full gap-4 text-gray-500 p-6 text-center">
-                                <Loader2 className="w-12 h-12 animate-spin text-yellow-500" />
-                                <div className="space-y-1">
-                                    <p className="font-bold text-gray-900">Создаем рабочий лист...</p>
-                                    <p className="text-sm text-gray-400">Это может занять до минуты</p>
-                                </div>
-                            </div>
+                            <GenerationProgress active={isGenerating} title="Создаём рабочий лист..." accentClassName="bg-yellow-500" estimatedSeconds={50} />
                         ) : !localContent || localContent === '<p>Введите тему, выберите уровень и класс, нажмите Создать Задания.</p>' ? (
                             <div className="flex flex-col items-center justify-center h-full gap-4 text-gray-400 p-6 text-center">
                                 <div className="w-16 h-16 rounded-2xl bg-gray-50 flex items-center justify-center">

@@ -111,6 +111,7 @@ export class GamesService {
     const downloadUrl = `${contentBaseUrl}/api/games/${gameId}/download`;
 
     // 7. Save to Database & Debit Credits
+    let userGenerationId: string | null = null;
     try {
       // Create GenerationRequest
       const generationRequest = await this.prisma.generationRequest.create({
@@ -131,7 +132,7 @@ export class GamesService {
       });
 
       // Create UserGeneration
-      await this.prisma.userGeneration.create({
+      const userGeneration = await this.prisma.userGeneration.create({
         data: {
           userId,
           generationType: `game_${type}`,
@@ -148,6 +149,7 @@ export class GamesService {
           generationRequestId: generationRequest.id,
         },
       });
+      userGenerationId = userGeneration.id;
 
       // Debit Credits
       await this.subscriptionsService.debitCredits(
@@ -167,6 +169,7 @@ export class GamesService {
     return {
       success: true,
       gameId,
+      generationId: userGenerationId,
       url: gameUrl,
       downloadUrl,
     };

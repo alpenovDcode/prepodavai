@@ -7,6 +7,8 @@ import { useIsMobile } from '@/lib/hooks/useIsMobile'
 import { useGenerations } from '@/lib/hooks/useGenerations'
 import { getCurrentUser } from '@/lib/utils/userIdentity'
 import GenerationCostBadge from '@/components/workspace/GenerationCostBadge'
+import AssignTaskButton from '@/components/AssignTaskButton'
+import GenerationProgress from '@/components/workspace/GenerationProgress'
 
 export default function LessonPlanner() {
     const [form, setForm] = useState({
@@ -29,7 +31,7 @@ export default function LessonPlanner() {
     const { isMobile } = useIsMobile()
     const iframeRef = useRef<HTMLIFrameElement>(null)
 
-    const { generateAndWait, isGenerating } = useGenerations()
+    const { generateAndWait, isGenerating, activeGenerationId } = useGenerations()
 
 
     const generateLesson = async () => {
@@ -301,19 +303,20 @@ export default function LessonPlanner() {
                                 <Download className="w-3.5 h-3.5" />
                                 <span>Export PDF</span>
                             </button>
+                            {htmlContent && !isGenerating && (
+                                <AssignTaskButton
+                                    generationId={activeGenerationId}
+                                    topic={form.topic}
+                                    className="flex items-center gap-2 px-3 md:px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white text-[11px] font-bold rounded-lg shadow-sm transition-all flex-shrink-0 disabled:opacity-60"
+                                />
+                            )}
                         </div>
                     </div>
 
                     {/* Content Area */}
                     <div className="flex-1 overflow-hidden relative">
                         {isGenerating ? (
-                            <div className="flex flex-col items-center justify-center h-full gap-4 text-gray-500 p-6 text-center">
-                                <Loader2 className="w-12 h-12 animate-spin text-blue-500" />
-                                <div className="space-y-1">
-                                    <p className="font-bold text-gray-900">Создаём план урока...</p>
-                                    <p className="text-sm text-gray-400">Это может занять 30–60 секунд</p>
-                                </div>
-                            </div>
+                            <GenerationProgress active={isGenerating} title="Создаём план урока..." accentClassName="bg-blue-500" estimatedSeconds={45} />
                         ) : !htmlContent ? (
                             <div className="flex flex-col items-center justify-center h-full gap-4 text-gray-400 p-6 text-center">
                                 <div className="w-16 h-16 rounded-2xl bg-gray-50 flex items-center justify-center">

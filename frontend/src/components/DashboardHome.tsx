@@ -92,7 +92,17 @@ export default function DashboardHome() {
         if (!lessonTopic) { toast.error('Введите тему урока'); return }
         if (selectedTypes.length === 0) { toast.error('Выберите хотя бы один тип генерации'); return }
 
-        const types = selectedTypes.map((t) => t === 'lessonPlan' ? 'lesson-plan' : t)
+        const typeMap: Record<string, string> = {
+            lessonPlan: 'lesson-plan',
+            lessonPreparation: 'lesson_preparation',
+            game: 'game_generation',
+            image: 'image_generation',
+            content: 'content-adaptation',
+            videoAnalysis: 'video-analysis',
+            salesAdvisor: 'sales_advisor',
+            examVariant: 'exam-variant',
+        }
+        const types = selectedTypes.map((t) => typeMap[t] ?? t)
         try {
             await generateBundle(types, {
                 topic: lessonTopic,

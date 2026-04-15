@@ -66,21 +66,26 @@ window.MathJax = {
     const logoTag = '<img src="LOGO_PLACEHOLDER" alt="Logo">';
     const headerLogoTag = '<img src="LOGO_PLACEHOLDER" class="header-logo" alt="Logo">';
 
-    // 1. Заменяем содержимое любого div.footer-logo на чистый логотип,
-    //    независимо от того, что туда нагенерировала модель (копирайты, ссылки и т.д.)
-    processed = processed.replace(
-      /<div([^>]*\bclass="[^"]*\bfooter-logo\b[^"]*"[^>]*)>[\s\S]*?<\/div>/gi,
-      `<div$1>${logoTag}</div>`,
-    );
+    // 1. Перестраиваем блок <div class="header">...</div> целиком:
+    //    выбрасываем всё, что модель туда нагенерировала (фейковые бренды, свои лого и т.д.),
+    //    оставляем только логотип слева и <h1> справа.
+    processed = this.rebuildMatchedDiv(processed, 'header', (inner) => {
+      const h1Match = inner.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+      const title = h1Match ? h1Match[1].trim() : '';
+      return `${headerLogoTag}<h1>${title}</h1>`;
+    });
 
-    // 2. Удаляем типовые паттерны фейковых копирайтов, если модель поставила их
-    //    ВНЕ footer-logo (например в отдельном <div> в конце).
+    // 2. Перестраиваем блок <div class="footer-logo">...</div> — оставляем только логотип.
+    processed = this.rebuildMatchedDiv(processed, 'footer-logo', () => logoTag);
+
+    // 3. Удаляем типовые фейковые копирайты, если модель поставила их в отдельном
+    //    <div>/<p>/<footer> ВНЕ footer-logo.
     processed = processed.replace(
-      /<(div|p|footer)[^>]*>[\s\S]{0,400}?(?:&copy;|©)[\s\S]{0,400}?(?:Методический центр|Высший балл|Сгенерировано для подготовки)[\s\S]{0,400}?<\/\1>/gi,
+      /<(div|p|footer)[^>]*>[\s\S]{0,400}?(?:&copy;|©)[\s\S]{0,400}?(?:Методический центр|Высший балл|Сгенерировано для подготовки|BIOMETHODICA)[\s\S]{0,400}?<\/\1>/gi,
       '',
     );
 
-    // 3. Если в документе вообще нет footer-logo — добавляем его перед </body>
+    // 4. Если в документе нет footer-logo — добавляем его перед </body>.
     if (!/class="[^"]*\bfooter-logo\b[^"]*"/i.test(processed) && /<\/body>/i.test(processed)) {
       processed = processed.replace(
         /<\/body>/i,
@@ -88,16 +93,74 @@ window.MathJax = {
       );
     }
 
-    // 4. Если в header нет логотипа — вставляем его первым ребёнком <div class="header">
-    processed = processed.replace(
-      /<div([^>]*\bclass="[^"]*\bheader\b[^"]*"[^>]*)>([\s\S]*?)<\/div>/i,
-      (match, attrs, inner) => {
-        if (/LOGO_PLACEHOLDER|header-logo/i.test(inner)) return match;
-        return `<div${attrs}>${headerLogoTag}${inner}</div>`;
-      },
-    );
+    // 5. Если нет <div class="header"> — добавляем его сразу после открывающего <body>
+    //    (случай, когда модель вообще опустила шапку).
+    if (!/class="[^"]*\bheader\b(?!-logo)[^"]*"/i.test(processed) && /<body[^>]*>/i.test(processed)) {
+      processed = processed.replace(
+        /<body([^>]*)>/i,
+        `<body$1>\n<div class="header">${headerLogoTag}<h1></h1></div>`,
+      );
+    }
 
     return processed;
+  }
+
+  /**
+   * Находит <div class="...CLASSNAME..."> с корректным учётом вложенных div-ов
+   * и заменяет содержимое на результат builder(innerHtml). Открывающий тег сохраняется.
+   */
+  private rebuildMatchedDiv(
+    html: string,
+    className: string,
+    builder: (inner: string) => string,
+  ): string {
+    // Для header нужен именно class="header", но НЕ "header-logo"
+    const classRegex =
+      className === 'header'
+        ? new RegExp(`<div\\b[^>]*\\bclass="[^"]*\\bheader\\b(?!-logo)[^"]*"[^>]*>`, 'i')
+        : new RegExp(`<div\\b[^>]*\\bclass="[^"]*\\b${className}\\b[^"]*"[^>]*>`, 'i');
+
+    let result = '';
+    let rest = html;
+    while (true) {
+      const match = rest.match(classRegex);
+      if (!match || match.index === undefined) {
+        result += rest;
+        break;
+      }
+
+      const openEnd = match.index + match[0].length;
+      // Ищем парный </div> с учётом вложенности
+      let depth = 1;
+      let i = openEnd;
+      const divTagRegex = /<div\b[^>]*>|<\/div>/gi;
+      divTagRegex.lastIndex = openEnd;
+      let closeEnd = -1;
+      let tag: RegExpExecArray | null;
+      while ((tag = divTagRegex.exec(rest)) !== null) {
+        if (tag[0].toLowerCase().startsWith('</div')) {
+          depth--;
+          if (depth === 0) {
+            i = tag.index;
+            closeEnd = tag.index + tag[0].length;
+            break;
+          }
+        } else {
+          depth++;
+        }
+      }
+      if (closeEnd === -1) {
+        // Парный </div> не найден — оставляем как есть
+        result += rest;
+        break;
+      }
+
+      const inner = rest.slice(openEnd, i);
+      const rebuilt = `${match[0]}${builder(inner)}</div>`;
+      result += rest.slice(0, match.index) + rebuilt;
+      rest = rest.slice(closeEnd);
+    }
+    return result;
   }
 
   /**

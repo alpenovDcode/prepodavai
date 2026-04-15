@@ -5,28 +5,9 @@ import {
   IsString,
   IsNotEmpty,
   ArrayMaxSize,
-  IsIn,
+  ArrayMinSize,
+  MaxLength,
 } from 'class-validator';
-
-const ALLOWED_GENERATION_TYPES = [
-  'worksheet',
-  'quiz',
-  'vocabulary',
-  'lesson-plan',
-  'content-adaptation',
-  'message',
-  'feedback',
-  'image_generation',
-  'photosession',
-  'presentation',
-  'video-analysis',
-  'transcription',
-  'exam-variant',
-  'lesson_preparation',
-  'unpacking',
-  'sales_advisor',
-  'assistant',
-] as const;
 
 /**
  * Тело любого generation-запроса — произвольный объект с ограничением по размеру.
@@ -39,15 +20,17 @@ export class GenerationBodyDto {
 
 /**
  * DTO для bundle-генерации (несколько типов за раз).
+ * Строгий whitelist типов не делаем — маршрутизация по типам выполняется
+ * дальше в сервисе/стратегиях, а фронтенд использует смешанную нотацию
+ * (camelCase + kebab-case). Проверяем только структуру и лимиты.
  */
 export class GenerationBundleDto {
   @IsArray()
+  @ArrayMinSize(1, { message: 'Список типов не должен быть пустым' })
   @ArrayMaxSize(10, { message: 'Нельзя запустить более 10 генераций одновременно' })
   @IsString({ each: true })
-  @IsIn(ALLOWED_GENERATION_TYPES, {
-    each: true,
-    message: 'Недопустимый тип генерации',
-  })
+  @IsNotEmpty({ each: true })
+  @MaxLength(64, { each: true })
   types: string[];
 
   @IsObject()

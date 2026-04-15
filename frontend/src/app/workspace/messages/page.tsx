@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Send, RefreshCw, Loader2, Maximize2 } from 'lucide-react'
 import { useGenerations } from '@/lib/hooks/useGenerations'
 import RichTextEditor from '@/components/workspace/RichTextEditor'
+import AssignTaskButton from '@/components/AssignTaskButton'
 
 // Pre-defined prompts from config.ts
 const messagePrompts: Record<string, { label: string, value: string }[]> = {
@@ -87,7 +88,8 @@ export default function MessagesGenerator() {
 
     const [localContent, setLocalContent] = useState('<p>Выберите шаблон сообщения и заполните данные для его генерации.</p>')
 
-    const { generateAndWait, isGenerating } = useGenerations()
+    const { generateAndWait, isGenerating, activeGenerationId } = useGenerations()
+    const hasResult = !isGenerating && !!localContent && !localContent.startsWith('<p>Выберите шаблон')
 
     const handleTemplateChange = (newTemplate: string) => {
         setTemplateId(newTemplate)
@@ -231,6 +233,13 @@ export default function MessagesGenerator() {
                             <span className="text-xs font-bold tracking-wide text-gray-500">ГОТОВОЕ СООБЩЕНИЕ</span>
                         </div>
                         <div className="flex items-center gap-2">
+                            {hasResult && (
+                                <AssignTaskButton
+                                    generationId={activeGenerationId}
+                                    topic="Сообщение"
+                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-primary-600 hover:bg-primary-700 text-white text-[11px] font-bold rounded-lg transition-all shadow-sm disabled:opacity-60"
+                                />
+                            )}
                             <button className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded-lg transition-colors">
                                 <Maximize2 className="w-4 h-4" />
                             </button>

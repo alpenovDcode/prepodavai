@@ -80,6 +80,7 @@ interface Student {
     email?: string
     avatar?: string
     accessCode?: string
+    status?: 'active' | 'pending'
     class: {
         name: string
     }
@@ -138,6 +139,58 @@ export default function StudentsPage() {
     // Modals state
     const [showAddClassModal, setShowAddClassModal] = useState(false)
     const [showAddStudentModal, setShowAddStudentModal] = useState(false)
+    const [showInviteModal, setShowInviteModal] = useState(false)
+    const [inviteClassId, setInviteClassId] = useState<string>('')
+    const [inviteUrl, setInviteUrl] = useState<string | null>(null)
+    const [inviteLoading, setInviteLoading] = useState(false)
+    const [inviteCopied, setInviteCopied] = useState(false)
+
+    const openInviteModal = () => {
+        setInviteUrl(null)
+        setInviteClassId('')
+        setInviteCopied(false)
+        setShowInviteModal(true)
+    }
+
+    const createInvite = async () => {
+        setInviteLoading(true)
+        try {
+            const response = await apiClient.post<{ token: string }>('/student-invites', {
+                classId: inviteClassId || undefined,
+            })
+            setInviteUrl(`${window.location.origin}/invite/${response.data.token}`)
+        } catch (error: any) {
+            alert(error?.response?.data?.message || 'Не удалось создать приглашение')
+        } finally {
+            setInviteLoading(false)
+        }
+    }
+
+    const copyInviteUrl = async () => {
+        if (!inviteUrl) return
+        await navigator.clipboard.writeText(inviteUrl)
+        setInviteCopied(true)
+        setTimeout(() => setInviteCopied(false), 2000)
+    }
+
+    const approveStudent = async (studentId: string) => {
+        try {
+            await apiClient.post(`/students/${studentId}/approve`)
+            setStudents((prev) => prev.map((s) => (s.id === studentId ? { ...s, status: 'active' } : s)))
+        } catch (error: any) {
+            alert(error?.response?.data?.message || 'Не удалось принять ученика')
+        }
+    }
+
+    const rejectStudent = async (studentId: string) => {
+        if (!confirm('Отклонить заявку ученика? Его аккаунт будет удалён.')) return
+        try {
+            await apiClient.post(`/students/${studentId}/reject`)
+            setStudents((prev) => prev.filter((s) => s.id !== studentId))
+        } catch (error: any) {
+            alert(error?.response?.data?.message || 'Не удалось отклонить')
+        }
+    }
 
     // Review modal state
     const [reviewAssignment, setReviewAssignment] = useState<Assignment | null>(null)
@@ -153,6 +206,7 @@ export default function StudentsPage() {
     const [newClassName, setNewClassName] = useState('')
     const [newStudentName, setNewStudentName] = useState('')
     const [newStudentEmail, setNewStudentEmail] = useState('')
+    const [newStudentPhone, setNewStudentPhone] = useState('')
     const [newStudentPassword, setNewStudentPassword] = useState('')
     const [selectedClassId, setSelectedClassId] = useState('')
 
@@ -199,12 +253,14 @@ export default function StudentsPage() {
         try {
             await apiClient.post('/students', {
                 name: newStudentName,
-                email: newStudentEmail,
+                email: newStudentEmail || undefined,
+                phone: newStudentPhone || undefined,
                 password: newStudentPassword,
                 classId: selectedClassId
             })
             setNewStudentName('')
             setNewStudentEmail('')
+            setNewStudentPhone('')
             setNewStudentPassword('')
             setSelectedClassId('')
             setShowAddStudentModal(false)
@@ -327,6 +383,13 @@ export default function StudentsPage() {
                         Создать класс
                     </button>
                     <button
+                        onClick={openInviteModal}
+                        className="px-4 py-3 bg-white border border-gray-200 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition flex items-center gap-2 shadow-sm"
+                    >
+                        <i className="fas fa-link"></i>
+                        Пригласить ученика
+                    </button>
+                    <button
                         onClick={() => setShowAddStudentModal(true)}
                         className="px-6 py-3 bg-primary-600 text-white rounded-xl font-semibold hover:bg-primary-700 transition flex items-center gap-2 shadow-lg hover:shadow-xl"
                     >
@@ -412,7 +475,14 @@ export default function StudentsPage() {
                                                     <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center text-primary-700 font-bold text-sm">
                                                         {student.avatar || student.name.charAt(0)}
                                                     </div>
-                                                    <p className="font-semibold text-gray-900">{student.name}</p>
+                                                    <div className="flex items-center gap-2">
+                                                        <p className="font-semibold text-gray-900">{student.name}</p>
+                                                        {student.status === 'pending' && (
+                                                            <span className="px-2 py-0.5 text-xs font-medium bg-amber-100 text-amber-700 rounded-full">
+                                                                Ожидает подтверждения
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             </td>
                                             <td className="py-4 px-4">
@@ -425,26 +495,45 @@ export default function StudentsPage() {
                                             </td>
                                             <td className="py-4 px-4">
                                                 <div className="flex items-center justify-end gap-2">
-                                                    <button
-                                                        onClick={() => {
-                                                            const link = `${window.location.origin}/student/login`
-                                                            navigator.clipboard.writeText(link)
-                                                            alert('Ссылка для входа скопирована!')
-                                                        }}
-                                                        className="p-2 text-gray-400 hover:text-primary-600 transition"
-                                                        title="Копировать ссылку для входа"
-                                                    >
-                                                        <i className="fas fa-link"></i>
-                                                    </button>
-                                                    <button
-                                                        onClick={() => window.location.href = `/dashboard/students/${student.id}`}
-                                                        className="p-2 text-gray-400 hover:text-primary-600 transition"
-                                                    >
-                                                        <i className="fas fa-user-circle"></i>
-                                                    </button>
-                                                    <button className="p-2 text-gray-400 hover:text-red-600 transition">
-                                                        <i className="fas fa-trash-alt"></i>
-                                                    </button>
+                                                    {student.status === 'pending' ? (
+                                                        <>
+                                                            <button
+                                                                onClick={() => approveStudent(student.id)}
+                                                                className="px-3 py-1.5 bg-green-600 text-white text-sm font-semibold rounded-lg hover:bg-green-700 transition"
+                                                            >
+                                                                Принять
+                                                            </button>
+                                                            <button
+                                                                onClick={() => rejectStudent(student.id)}
+                                                                className="px-3 py-1.5 bg-white border border-red-200 text-red-600 text-sm font-semibold rounded-lg hover:bg-red-50 transition"
+                                                            >
+                                                                Отклонить
+                                                            </button>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <button
+                                                                onClick={() => {
+                                                                    const link = `${window.location.origin}/student/login`
+                                                                    navigator.clipboard.writeText(link)
+                                                                    alert('Ссылка для входа скопирована!')
+                                                                }}
+                                                                className="p-2 text-gray-400 hover:text-primary-600 transition"
+                                                                title="Копировать ссылку для входа"
+                                                            >
+                                                                <i className="fas fa-link"></i>
+                                                            </button>
+                                                            <button
+                                                                onClick={() => window.location.href = `/dashboard/students/${student.id}`}
+                                                                className="p-2 text-gray-400 hover:text-primary-600 transition"
+                                                            >
+                                                                <i className="fas fa-user-circle"></i>
+                                                            </button>
+                                                            <button className="p-2 text-gray-400 hover:text-red-600 transition">
+                                                                <i className="fas fa-trash-alt"></i>
+                                                            </button>
+                                                        </>
+                                                    )}
                                                 </div>
                                             </td>
                                         </tr>
@@ -633,7 +722,7 @@ export default function StudentsPage() {
                             </div>
                             <div className="mb-4">
                                 <label className="block text-sm font-semibold text-gray-700 mb-2">
-                                    Email
+                                    Email <span className="text-gray-400 font-normal">(необязательно)</span>
                                 </label>
                                 <input
                                     type="email"
@@ -641,7 +730,18 @@ export default function StudentsPage() {
                                     onChange={(e) => setNewStudentEmail(e.target.value)}
                                     placeholder="ivan@example.com"
                                     className="w-full px-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-primary-500 focus:bg-white transition text-gray-900"
-                                    required
+                                />
+                            </div>
+                            <div className="mb-4">
+                                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                    Номер телефона <span className="text-gray-400 font-normal">(необязательно)</span>
+                                </label>
+                                <input
+                                    type="tel"
+                                    value={newStudentPhone}
+                                    onChange={(e) => setNewStudentPhone(e.target.value)}
+                                    placeholder="+7 999 123-45-67"
+                                    className="w-full px-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-primary-500 focus:bg-white transition text-gray-900"
                                 />
                             </div>
                             <div className="mb-4">
@@ -691,6 +791,72 @@ export default function StudentsPage() {
                                 </button>
                             </div>
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Invite Student Modal */}
+            {showInviteModal && (
+                <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setShowInviteModal(false)}>
+                    <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl" onClick={(e) => e.stopPropagation()}>
+                        <h3 className="text-xl font-bold text-gray-900 mb-1">Пригласить ученика</h3>
+                        <p className="text-sm text-gray-600 mb-4">
+                            Создайте ссылку-приглашение. Ученик зарегистрируется по ней и будет закреплён за вами.
+                        </p>
+
+                        {!inviteUrl ? (
+                            <>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Класс (необязательно)</label>
+                                <select
+                                    value={inviteClassId}
+                                    onChange={(e) => setInviteClassId(e.target.value)}
+                                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900 mb-4"
+                                >
+                                    <option value="">Без привязки к классу</option>
+                                    {classes.map((cls) => (
+                                        <option key={cls.id} value={cls.id}>{cls.name}</option>
+                                    ))}
+                                </select>
+                                <div className="flex gap-3">
+                                    <button
+                                        onClick={() => setShowInviteModal(false)}
+                                        className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition"
+                                    >
+                                        Отмена
+                                    </button>
+                                    <button
+                                        onClick={createInvite}
+                                        disabled={inviteLoading}
+                                        className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg font-semibold hover:bg-primary-700 transition disabled:opacity-60"
+                                    >
+                                        {inviteLoading ? 'Создаём...' : 'Создать ссылку'}
+                                    </button>
+                                </div>
+                            </>
+                        ) : (
+                            <>
+                                <div className="flex gap-2 mb-4">
+                                    <input
+                                        type="text"
+                                        readOnly
+                                        value={inviteUrl}
+                                        className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 font-mono"
+                                    />
+                                    <button
+                                        onClick={copyInviteUrl}
+                                        className="px-4 py-2 bg-primary-600 text-white rounded-lg font-medium hover:bg-primary-700 transition"
+                                    >
+                                        {inviteCopied ? 'Скопировано' : 'Копировать'}
+                                    </button>
+                                </div>
+                                <button
+                                    onClick={() => setShowInviteModal(false)}
+                                    className="w-full px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition"
+                                >
+                                    Закрыть
+                                </button>
+                            </>
+                        )}
                     </div>
                 </div>
             )}

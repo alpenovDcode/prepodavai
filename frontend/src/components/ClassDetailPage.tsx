@@ -10,6 +10,7 @@ interface Student {
     email?: string
     avatar?: string
     accessCode?: string
+    status?: 'active' | 'pending'
     createdAt: string
 }
 
@@ -33,6 +34,14 @@ interface ClassDetail {
     assignments: Assignment[]
 }
 
+interface LessonOption {
+    id: string
+    title: string
+    topic: string
+    createdAt: string
+    generations: { id: string; generationType: string }[]
+}
+
 interface ClassDetailPageProps {
     id: string
 }
@@ -41,7 +50,99 @@ export default function ClassDetailPage({ id }: ClassDetailPageProps) {
     const [classData, setClassData] = useState<ClassDetail | null>(null)
     const [loading, setLoading] = useState(true)
     const [activeTab, setActiveTab] = useState<'students' | 'assignments'>('students')
+    const [inviteUrl, setInviteUrl] = useState<string | null>(null)
+    const [inviteLoading, setInviteLoading] = useState(false)
+    const [inviteCopied, setInviteCopied] = useState(false)
+
+    const [showAssignModal, setShowAssignModal] = useState(false)
+    const [lessons, setLessons] = useState<LessonOption[]>([])
+    const [lessonsLoading, setLessonsLoading] = useState(false)
+    const [selectedLessonId, setSelectedLessonId] = useState('')
+    const [assignDueDate, setAssignDueDate] = useState('')
+    const [assignSubmitting, setAssignSubmitting] = useState(false)
+
     const router = useRouter()
+
+    const openAssignModal = async () => {
+        setShowAssignModal(true)
+        setSelectedLessonId('')
+        setAssignDueDate('')
+        setLessonsLoading(true)
+        try {
+            const res = await apiClient.get<LessonOption[]>('/lessons')
+            setLessons(res.data)
+        } catch (error: any) {
+            alert(error?.response?.data?.message || 'Не удалось загрузить материалы')
+        } finally {
+            setLessonsLoading(false)
+        }
+    }
+
+    const submitAssign = async (e: React.FormEvent) => {
+        e.preventDefault()
+        if (!selectedLessonId) return
+        setAssignSubmitting(true)
+        try {
+            await apiClient.post('/assignments', {
+                lessonId: selectedLessonId,
+                classId: id,
+                dueDate: assignDueDate ? new Date(assignDueDate).toISOString() : undefined,
+            })
+            setShowAssignModal(false)
+            const response = await apiClient.get(`/classes/${id}`)
+            setClassData(response.data)
+        } catch (error: any) {
+            alert(error?.response?.data?.message || 'Не удалось выдать материал')
+        } finally {
+            setAssignSubmitting(false)
+        }
+    }
+
+    const handleInvite = async () => {
+        setInviteLoading(true)
+        setInviteCopied(false)
+        try {
+            const response = await apiClient.post<{ token: string }>('/student-invites', { classId: id })
+            const url = `${window.location.origin}/invite/${response.data.token}`
+            setInviteUrl(url)
+        } catch (error: any) {
+            alert(error?.response?.data?.message || 'Не удалось создать приглашение')
+        } finally {
+            setInviteLoading(false)
+        }
+    }
+
+    const copyInvite = async () => {
+        if (!inviteUrl) return
+        await navigator.clipboard.writeText(inviteUrl)
+        setInviteCopied(true)
+        setTimeout(() => setInviteCopied(false), 2000)
+    }
+
+    const approveStudent = async (studentId: string) => {
+        try {
+            await apiClient.post(`/students/${studentId}/approve`)
+            setClassData((prev) =>
+                prev
+                    ? { ...prev, students: prev.students.map((s) => (s.id === studentId ? { ...s, status: 'active' } : s)) }
+                    : prev,
+            )
+        } catch (error: any) {
+            alert(error?.response?.data?.message || 'Не удалось принять ученика')
+        }
+    }
+
+    const rejectStudent = async (studentId: string) => {
+        if (!confirm('Отклонить заявку ученика? Его аккаунт будет удалён.')) return
+        try {
+            await apiClient.post(`/students/${studentId}/reject`)
+            setClassData((prev) =>
+                prev ? { ...prev, students: prev.students.filter((s) => s.id !== studentId) } : prev,
+            )
+        } catch (error: any) {
+            alert(error?.response?.data?.message || 'Не удалось отклонить')
+        }
+    }
 
     useEffect(() => {
         const fetchClassData = async () => {
@@ -82,6 +183,103 @@ export default function ClassDetailPage({ id }: ClassDetailPageProps) {
 
     return (
         <div className="max-w-7xl mx-auto">
+            {showAssignModal && (
+                <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setShowAssignModal(false)}>
+                    <div className="bg-white rounded-2xl p-6 max-w-lg w-full shadow-2xl" onClick={(e) => e.stopPropagation()}>
+                        <h3 className="text-xl font-bold text-gray-900 mb-1">Выдать материал классу</h3>
+                        <p className="text-sm text-gray-600 mb-4">
+                            Класс: <span className="font-semibold">{classData.name}</span>
+                        </p>
+
+                        <form onSubmit={submitAssign} className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Материал</label>
+                                {lessonsLoading ? (
+                                    <div className="px-3 py-2 text-sm text-gray-500">Загружаем...</div>
+                                ) : lessons.length === 0 ? (
+                                    <div className="px-3 py-2 text-sm text-gray-500 bg-gray-50 border border-gray-200 rounded-lg">
+                                        У вас пока нет созданных материалов. Сгенерируйте урок в «ИИ Генераторе».
+                                    </div>
+                                ) : (
+                                    <select
+                                        value={selectedLessonId}
+                                        onChange={(e) => setSelectedLessonId(e.target.value)}
+                                        required
+                                        className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900"
+                                    >
+                                        <option value="">Выберите материал</option>
+                                        {lessons.map((l) => (
+                                            <option key={l.id} value={l.id}>
+                                                {l.title || l.topic} · {new Date(l.createdAt).toLocaleDateString('ru-RU')}
+                                                {l.generations?.length ? ` (${l.generations.length})` : ''}
+                                            </option>
+                                        ))}
+                                    </select>
+                                )}
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Срок сдачи <span className="text-gray-400 font-normal">(необязательно)</span>
+                                </label>
+                                <input
+                                    type="datetime-local"
+                                    value={assignDueDate}
+                                    onChange={(e) => setAssignDueDate(e.target.value)}
+                                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900"
+                                />
+                            </div>
+
+                            <div className="flex gap-3 pt-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowAssignModal(false)}
+                                    className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition"
+                                >
+                                    Отмена
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={assignSubmitting || !selectedLessonId}
+                                    className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg font-semibold hover:bg-primary-700 transition disabled:opacity-60"
+                                >
+                                    {assignSubmitting ? 'Выдаём...' : 'Выдать'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+            {inviteUrl && (
+                <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setInviteUrl(null)}>
+                    <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl" onClick={(e) => e.stopPropagation()}>
+                        <h3 className="text-xl font-bold text-gray-900 mb-2">Пригласительная ссылка</h3>
+                        <p className="text-sm text-gray-600 mb-4">
+                            Отправьте эту ссылку ученику. После регистрации он будет автоматически добавлен в класс «{classData.name}».
+                        </p>
+                        <div className="flex gap-2">
+                            <input
+                                type="text"
+                                readOnly
+                                value={inviteUrl}
+                                className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 font-mono"
+                            />
+                            <button
+                                onClick={copyInvite}
+                                className="px-4 py-2 bg-primary-600 text-white rounded-lg font-medium hover:bg-primary-700 transition"
+                            >
+                                {inviteCopied ? 'Скопировано' : 'Копировать'}
+                            </button>
+                        </div>
+                        <button
+                            onClick={() => setInviteUrl(null)}
+                            className="mt-4 w-full px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition"
+                        >
+                            Закрыть
+                        </button>
+                    </div>
+                </div>
+            )}
             {/* Header */}
             <div className="mb-8">
                 <button
@@ -101,9 +299,20 @@ export default function ClassDetailPage({ id }: ClassDetailPageProps) {
                             <i className="fas fa-edit"></i>
                             Редактировать
                         </button>
-                        <button className="px-4 py-2 bg-primary-600 text-white rounded-lg font-medium hover:bg-primary-700 transition flex items-center gap-2 shadow-md">
+                        <button
+                            onClick={openAssignModal}
+                            className="px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition flex items-center gap-2 shadow-sm"
+                        >
+                            <i className="fas fa-share-square"></i>
+                            Выдать материал
+                        </button>
+                        <button
+                            onClick={handleInvite}
+                            disabled={inviteLoading}
+                            className="px-4 py-2 bg-primary-600 text-white rounded-lg font-medium hover:bg-primary-700 transition flex items-center gap-2 shadow-md disabled:opacity-60"
+                        >
                             <i className="fas fa-user-plus"></i>
-                            Добавить ученика
+                            {inviteLoading ? 'Создаём...' : 'Пригласить ученика'}
                         </button>
                     </div>
                 </div>
@@ -186,7 +395,14 @@ export default function ClassDetailPage({ id }: ClassDetailPageProps) {
                                                 {student.avatar || student.name.charAt(0)}
                                             </div>
                                             <div>
-                                                <p className="font-semibold text-gray-900">{student.name}</p>
+                                                <div className="flex items-center gap-2">
+                                                    <p className="font-semibold text-gray-900">{student.name}</p>
+                                                    {student.status === 'pending' && (
+                                                        <span className="px-2 py-0.5 text-xs font-medium bg-amber-100 text-amber-700 rounded-full">
+                                                            Ожидает подтверждения
+                                                        </span>
+                                                    )}
+                                                </div>
                                                 <p className="text-sm text-gray-500">{student.email}</p>
                                             </div>
                                         </div>
@@ -200,20 +416,39 @@ export default function ClassDetailPage({ id }: ClassDetailPageProps) {
                                         {new Date(student.createdAt).toLocaleDateString('ru-RU')}
                                     </td>
                                     <td className="py-4 px-6 text-right">
-                                        <button
-                                            onClick={() => {
-                                                const link = `${window.location.origin}/student/login?code=${student.accessCode}`
-                                                navigator.clipboard.writeText(link)
-                                                alert('Ссылка для входа скопирована!')
-                                            }}
-                                            className="p-2 text-gray-400 hover:text-primary-600 transition mr-2"
-                                            title="Копировать ссылку для входа"
-                                        >
-                                            <i className="fas fa-link"></i>
-                                        </button>
-                                        <button className="text-gray-400 hover:text-red-600 transition">
-                                            <i className="fas fa-trash-alt"></i>
-                                        </button>
+                                        {student.status === 'pending' ? (
+                                            <div className="inline-flex items-center gap-2">
+                                                <button
+                                                    onClick={() => approveStudent(student.id)}
+                                                    className="px-3 py-1.5 bg-green-600 text-white text-sm font-semibold rounded-lg hover:bg-green-700 transition"
+                                                >
+                                                    Принять
+                                                </button>
+                                                <button
+                                                    onClick={() => rejectStudent(student.id)}
+                                                    className="px-3 py-1.5 bg-white border border-red-200 text-red-600 text-sm font-semibold rounded-lg hover:bg-red-50 transition"
+                                                >
+                                                    Отклонить
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <>
+                                                <button
+                                                    onClick={() => {
+                                                        const link = `${window.location.origin}/student/login?code=${student.accessCode}`
+                                                        navigator.clipboard.writeText(link)
+                                                        alert('Ссылка для входа скопирована!')
+                                                    }}
+                                                    className="p-2 text-gray-400 hover:text-primary-600 transition mr-2"
+                                                    title="Копировать ссылку для входа"
+                                                >
+                                                    <i className="fas fa-link"></i>
+                                                </button>
+                                                <button className="text-gray-400 hover:text-red-600 transition">
+                                                    <i className="fas fa-trash-alt"></i>
+                                                </button>
+                                            </>
+                                        )}
                                     </td>
                                 </tr>
                             ))}

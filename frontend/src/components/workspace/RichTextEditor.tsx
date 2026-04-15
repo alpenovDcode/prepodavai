@@ -5,6 +5,7 @@ import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
 import { Bold, Italic, Underline as UnderlineIcon, List, ListOrdered, Undo, Redo } from 'lucide-react'
 import { useEffect } from 'react'
+import { MathInline, MathBlock, preprocessMathInHtml } from './math-extensions'
 
 interface RichTextEditorProps {
     content: string
@@ -17,8 +18,10 @@ export default function RichTextEditor({ content, onChange, readOnly = false }: 
         extensions: [
             StarterKit,
             Underline,
+            MathInline,
+            MathBlock,
         ],
-        content,
+        content: preprocessMathInHtml(content),
         editable: !readOnly,
         immediatelyRender: false,
         editorProps: {
@@ -35,11 +38,9 @@ export default function RichTextEditor({ content, onChange, readOnly = false }: 
 
     useEffect(() => {
         if (editor && content !== editor.getHTML()) {
-            // Only update if the content externally changed significantly, preventing cursor jumps
-            // A more robust checking might be needed for a real app depending on the use case.
             const currentHtml = editor.getHTML()
             if (content !== currentHtml && content !== '<p></p>') {
-                editor.commands.setContent(content)
+                editor.commands.setContent(preprocessMathInHtml(content))
             }
         }
     }, [content, editor])

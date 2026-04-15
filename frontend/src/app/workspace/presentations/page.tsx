@@ -10,6 +10,8 @@ import {
 } from 'lucide-react'
 import { useGenerations } from '@/lib/hooks/useGenerations'
 import GenerationCostBadge from '@/components/workspace/GenerationCostBadge'
+import AssignTaskButton from '@/components/AssignTaskButton'
+import GenerationProgress from '@/components/workspace/GenerationProgress'
 
 export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
@@ -97,7 +99,7 @@ function PresentationGeneratorContent() {
 
     const canvasIframeRef = useRef<HTMLIFrameElement>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
-    const { generateAndWait, isGenerating } = useGenerations()
+    const { generateAndWait, isGenerating, activeGenerationId } = useGenerations()
     const searchParams = useSearchParams()
     
     useEffect(() => {
@@ -667,9 +669,16 @@ function PresentationGeneratorContent() {
                             )}
                         </div>
                         <button onClick={generate} disabled={isLoading} className="flex items-center gap-1.5 px-2 md:px-3 py-1.5 text-xs font-semibold bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors disabled:opacity-40">
-                            {isLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />} 
+                            {isLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
                             <span className="hidden md:inline">Регенерировать</span>
                         </button>
+                        {slides.length > 0 && !isGenerating && (
+                            <AssignTaskButton
+                                generationId={activeGenerationId}
+                                topic={topic}
+                                className="flex items-center gap-1.5 px-2 md:px-3 py-1.5 text-xs font-semibold bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition-colors disabled:opacity-60"
+                            />
+                        )}
                     </div>
                 </div>
 
@@ -910,13 +919,7 @@ function PresentationGeneratorContent() {
                 <div className="flex flex-col h-full bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
                     <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
                         {isLoading ? (
-                            <div className="flex flex-col items-center">
-                                <div className="w-20 h-20 bg-purple-100 rounded-full flex items-center justify-center mb-6 shadow-sm">
-                                    <MonitorPlay className="w-10 h-10 text-purple-500 animate-pulse" />
-                                </div>
-                                <h1 className="text-xl font-bold text-gray-900">Создаём презентацию...</h1>
-                                <p className="text-sm text-gray-400 mt-2 max-w-[280px]">ИИ генерирует структуру и дизайн для каждого слайда</p>
-                            </div>
+                            <GenerationProgress active={isLoading} title="Создаём презентацию..." accentClassName="bg-purple-500" estimatedSeconds={75} />
                         ) : (
                             <div className="flex flex-col items-center max-w-[400px]">
                                 <div className="w-16 h-16 rounded-2xl bg-gray-50 flex items-center justify-center mb-6">

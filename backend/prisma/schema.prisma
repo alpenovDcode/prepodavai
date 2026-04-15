@@ -66,6 +66,7 @@ model AppUser {
   linkTokens            LinkToken[]
   onboardingQuestSteps  OnboardingQuestStep[]
   payments              Payment[]
+  studentInvites        StudentInvite[]
 
   @@index([telegramId])
   @@index([maxId])
@@ -331,6 +332,7 @@ model Class {
   teacher     AppUser   @relation(fields: [teacherId], references: [id])
   students    Student[]
   assignments Assignment[]
+  invites     StudentInvite[]
 
   @@index([teacherId])
   @@map("classes")
@@ -342,6 +344,7 @@ model Student {
   classId      String
   name         String
   email        String?
+  phone        String?   // Опциональный номер телефона ученика
   passwordHash String?   // Хэш пароля для входа по email+паролю
   accessCode   String?   @unique // Устаревший метод входа (по коду)
   avatar       String?
@@ -350,6 +353,7 @@ model Student {
   updatedAt    DateTime  @updatedAt
 
   referredByCode String?   // Если ученик пришёл по реферальной ссылке
+  status       String    @default("active") // 'active' | 'pending' (ожидает подтверждения учителя)
 
   class       Class     @relation(fields: [classId], references: [id], onDelete: Cascade)
   assignments Assignment[]
@@ -357,6 +361,24 @@ model Student {
 
   @@index([classId])
   @@map("students")
+}
+
+// Пригласительные ссылки для учеников
+model StudentInvite {
+  id        String    @id @default(uuid())
+  token     String    @unique
+  teacherId String
+  classId   String?
+  expiresAt DateTime?
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  teacher   AppUser   @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  class     Class?    @relation(fields: [classId], references: [id], onDelete: SetNull)
+
+  @@index([teacherId])
+  @@index([classId])
+  @@map("student_invites")
 }
 
 // Назначения (Задания)

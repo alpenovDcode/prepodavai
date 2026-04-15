@@ -5,6 +5,8 @@ import { FileEdit, RefreshCw, Loader2, Maximize2 } from 'lucide-react'
 import { useGenerations } from '@/lib/hooks/useGenerations'
 import RichTextEditor from '@/components/workspace/RichTextEditor'
 import GenerationCostBadge from '@/components/workspace/GenerationCostBadge'
+import AssignTaskButton from '@/components/AssignTaskButton'
+import GenerationProgress from '@/components/workspace/GenerationProgress'
 
 export default function AdaptationGenerator() {
     const [action, setAction] = useState('simplify')
@@ -14,7 +16,8 @@ export default function AdaptationGenerator() {
     const [isMobile, setIsMobile] = useState(false)
     const [localContent, setLocalContent] = useState('<p>Введите исходный текст и выберите действие для генерации.</p>')
 
-    const { generateAndWait, isGenerating } = useGenerations()
+    const { generateAndWait, isGenerating, activeGenerationId } = useGenerations()
+    const hasResult = !isGenerating && !!localContent && !localContent.startsWith('<p>Введите') && !localContent.startsWith('<p>Генерируем')
 
     useEffect(() => {
         const checkMobile = () => {
@@ -170,6 +173,13 @@ export default function AdaptationGenerator() {
                             <span className="text-[11px] font-bold text-gray-400 flex-shrink-0 hidden xs:inline">{actions.find(a => a.value === action)?.label}</span>
                         </div>
                         <div className="flex items-center gap-2">
+                            {hasResult && (
+                                <AssignTaskButton
+                                    generationId={activeGenerationId}
+                                    topic="Адаптация текста"
+                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-primary-600 hover:bg-primary-700 text-white text-[11px] font-bold rounded-lg transition-all shadow-sm disabled:opacity-60"
+                                />
+                            )}
                             <button className="p-2 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors">
                                 <Maximize2 className="w-4 h-4" />
                             </button>
@@ -177,13 +187,7 @@ export default function AdaptationGenerator() {
                     </div>
                     <div className="flex-1 overflow-hidden relative bg-white">
                         {isGenerating ? (
-                            <div className="flex flex-col items-center justify-center h-full gap-4 text-gray-500 p-6 text-center">
-                                <Loader2 className="w-12 h-12 animate-spin text-cyan-500" />
-                                <div className="space-y-1">
-                                    <p className="font-bold text-gray-900">Адаптируем текст...</p>
-                                    <p className="text-sm text-gray-400">Это может занять 15–30 секунд</p>
-                                </div>
-                            </div>
+                            <GenerationProgress active={isGenerating} title="Адаптируем текст..." accentClassName="bg-cyan-500" estimatedSeconds={25} />
                         ) : !text.trim() ? (
                             <div className="flex flex-col items-center justify-center h-full gap-4 text-gray-400 p-6 text-center">
                                 <div className="w-16 h-16 rounded-2xl bg-gray-50 flex items-center justify-center">

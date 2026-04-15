@@ -7,6 +7,8 @@ import toast from 'react-hot-toast'
 import { useGenerations } from '@/lib/hooks/useGenerations'
 import RichTextEditor from '@/components/workspace/RichTextEditor'
 import GenerationCostBadge from '@/components/workspace/GenerationCostBadge'
+import AssignTaskButton from '@/components/AssignTaskButton'
+import GenerationProgress from '@/components/workspace/GenerationProgress'
 
 export default function UnpackingGenerator() {
     const [answers, setAnswers] = useState<Record<string, string>>({})
@@ -17,7 +19,8 @@ export default function UnpackingGenerator() {
     const [isMobile, setIsMobile] = useState(false)
     const iframeRef = useRef<HTMLIFrameElement>(null)
 
-    const { generateAndWait, isGenerating } = useGenerations()
+    const { generateAndWait, isGenerating, activeGenerationId } = useGenerations()
+    const hasResult = !isGenerating && !!localContent && !localContent.includes('Ответьте на вопросы') && !localContent.includes('Анализируем ваши ответы') && !localContent.includes('ответьте хотя бы на 3')
 
     useEffect(() => {
         const checkMobile = () => {
@@ -240,17 +243,18 @@ export default function UnpackingGenerator() {
                                 <Download className="w-3.5 h-3.5" />
                                 <span className="hidden sm:inline">PDF</span>
                             </button>
+                            {hasResult && (
+                                <AssignTaskButton
+                                    generationId={activeGenerationId}
+                                    topic="Распаковка"
+                                    className="flex items-center gap-1.5 px-3 py-2 bg-primary-600 hover:bg-primary-700 text-white text-[11px] font-bold rounded-lg transition-all shadow-sm disabled:opacity-60"
+                                />
+                            )}
                         </div>
                     </div>
                     <div className="flex-1 overflow-hidden relative bg-white">
                         {isGenerating ? (
-                            <div className="flex flex-col items-center justify-center h-full gap-4 text-gray-500 p-6 text-center">
-                                <Loader2 className="w-12 h-12 animate-spin text-violet-500" />
-                                <div className="space-y-1">
-                                    <p className="font-bold text-gray-900">Анализируем ответы...</p>
-                                    <p className="text-sm text-gray-400">Это может занять некоторое время.</p>
-                                </div>
-                            </div>
+                            <GenerationProgress active={isGenerating} title="Анализируем ответы..." accentClassName="bg-violet-500" estimatedSeconds={55} />
                         ) : !localContent || localContent.includes('Ответьте на вопросы') ? (
                             <div className="flex flex-col items-center justify-center h-full text-center p-6 gap-4">
                                 <div className="w-20 h-20 rounded-3xl bg-violet-50 flex items-center justify-center">
