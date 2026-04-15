@@ -10,12 +10,16 @@ window.MathJax = {
     displayMath: [['$$', '$$'], ['\\\\[', '\\\\]']],
     processEscapes: true
   },
+  options: {
+    ignoreHtmlClass: 'tex2jax_ignore',
+    processHtmlClass: 'tex2jax_process'
+  },
   svg: {
     fontCache: 'global'
   }
 };
 </script>
-<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>`;
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>`;
 
   /**
    * Process HTML to ensure all requirements are met:
@@ -47,7 +51,12 @@ window.MathJax = {
    */
   private replaceLogo(html: string): string {
     if (html.includes('LOGO_PLACEHOLDER')) {
-      return html.replace(/LOGO_PLACEHOLDER/g, LOGO_BASE64);
+      let logoData = LOGO_BASE64;
+      // Гарантируем наличие префикса, если его нет
+      if (logoData && !logoData.startsWith('data:image')) {
+        logoData = `data:image/png;base64,${logoData}`;
+      }
+      return html.replace(/LOGO_PLACEHOLDER/g, logoData);
     }
     return html;
   }
@@ -96,11 +105,11 @@ window.MathJax = {
    * Detects LaTeX formula syntax in HTML
    */
   private detectLatexFormulas(html: string): boolean {
-    // Check for common LaTeX delimiters with content
-    // Matches: $$ ... $$, $ ... $, \( ... \), \[ ... \]
-    return /\$\$[\s\S]+?\$\$|\$[^$\n]+?\$|\\\\?\([\s\S]+?\\\\?\)|\\\\?\[[\s\S]+?\\\\?\]/i.test(
-      html,
-    );
+    // Более надежный поиск LaTeX разметки:
+    // 1. $$ ... $$ или $ ... $
+    // 2. \( ... \) или \[ ... \] с учетом экранирования
+    const latexRegex = /\$\$[\s\S]+?\$\$|\$[^$\n]+?\$|\\\(|\\\[|\\begin\{[a-z\*]+\}/i;
+    return latexRegex.test(html);
   }
 
   /**
