@@ -5,6 +5,7 @@ import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 import { GenerationHelpersService } from '../generation-helpers.service';
 import { LOGO_BASE64 } from '../generation.constants';
+import { HtmlPostprocessorService } from '../../../common/services/html-postprocessor.service';
 
 export interface SalesAdvisorJobData {
   generationRequestId: string;
@@ -20,6 +21,7 @@ export class SalesAdvisorProcessor extends WorkerHost {
   constructor(
     private readonly configService: ConfigService,
     private readonly generationHelpers: GenerationHelpersService,
+    private readonly htmlPostprocessor: HtmlPostprocessorService,
   ) {
     super();
     this.replicateToken = this.configService.get<string>('REPLICATE_API_TOKEN');
@@ -49,10 +51,11 @@ export class SalesAdvisorProcessor extends WorkerHost {
 
       // 3. Format result to HTML
       const htmlResult = this.formatToHtml(analysis);
+      const finalizedHtml = this.htmlPostprocessor.process(htmlResult);
 
       // 4. Complete generation
       await this.generationHelpers.completeGeneration(generationRequestId, {
-        htmlResult,
+        htmlResult: finalizedHtml,
         sections: [{ title: 'Анализ и рекомендации', content: analysis }],
       });
 
@@ -328,7 +331,7 @@ ${userPrompt}`;
         </head>
         <body>
             <div class="header">
-                <img src="${LOGO_BASE64}" alt="PrepodavAI" class="header-logo" />
+                <img src="LOGO_PLACEHOLDER" alt="PrepodavAI" class="header-logo" />
                 <h1 class="header-title">Анализ диалога продаж</h1>
             </div>
             
@@ -337,7 +340,7 @@ ${userPrompt}`;
             </div>
 
             <div class="footer">
-                <img src="${LOGO_BASE64}" alt="PrepodavAI" class="footer-logo" />
+                <img src="LOGO_PLACEHOLDER" alt="PrepodavAI" class="footer-logo" />
             </div>
         </body>
         </html>

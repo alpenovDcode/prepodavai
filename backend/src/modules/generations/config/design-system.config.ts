@@ -74,12 +74,12 @@ export const DesignSystemConfig = {
   COMPONENTS: {
     HEADER: (title: string) => `
 <div class="header">
-  <img src="${LOGO_BASE64}" class="header-logo" alt="Logo">
+  <img src="LOGO_PLACEHOLDER" class="header-logo" alt="Logo">
   <h1>${title}</h1>
 </div>`,
     FOOTER: `
 <div class="footer-logo">
-  <img src="${LOGO_BASE64}" alt="Logo">
+  <img src="LOGO_PLACEHOLDER" alt="Logo">
 </div>`,
   },
 

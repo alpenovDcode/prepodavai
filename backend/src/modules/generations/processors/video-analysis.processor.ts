@@ -8,6 +8,7 @@ import { AssemblyAiService } from '../../integrations/assemblyai.service';
 import { FilesService } from '../../files/files.service';
 import { LOGO_BASE64 } from '../generation.constants';
 import { PrismaService } from '../../../common/prisma/prisma.service';
+import { HtmlPostprocessorService } from '../../../common/services/html-postprocessor.service';
 
 export interface VideoAnalysisJobData {
   generationRequestId: string;
@@ -28,6 +29,7 @@ export class VideoAnalysisProcessor extends WorkerHost {
     private readonly assemblyAiService: AssemblyAiService,
     private readonly filesService: FilesService,
     private readonly prisma: PrismaService,
+    private readonly htmlPostprocessor: HtmlPostprocessorService,
   ) {
     super();
     this.replicateToken = this.configService.get<string>('REPLICATE_API_TOKEN');
@@ -193,9 +195,8 @@ export class VideoAnalysisProcessor extends WorkerHost {
           </style>
         </head>
         <body>
-          <div class="container">
             <div class="header">
-              <img src="${LOGO_BASE64}" alt="Prepodavai.ru" class="logo" />
+              <img src="LOGO_PLACEHOLDER" alt="Prepodavai.ru" class="logo" />
               <h1 style="border: none; padding: 0; margin: 0; font-size: 28px;">ОТЧЕТ ОБ АНАЛИЗЕ ВИДЕО</h1>
             </div>
             
@@ -213,7 +214,7 @@ export class VideoAnalysisProcessor extends WorkerHost {
             </div>
 
             <div class="footer">
-              <img src="${LOGO_BASE64}" alt="Logo" />
+              <img src="LOGO_PLACEHOLDER" alt="Logo" />
               <p>&copy; ${new Date().getFullYear()} Prepodavai.ru — Платформа для роста преподавателей</p>
             </div>
           </div>
@@ -221,9 +222,11 @@ export class VideoAnalysisProcessor extends WorkerHost {
         </html>
       `;
 
-      // 4. Complete
+      // 4. Post-process and Complete
+      const finalizedHtml = this.htmlPostprocessor.process(htmlResult);
+
       await this.generationHelpers.completeGeneration(generationRequestId, {
-        htmlResult,
+        htmlResult: finalizedHtml,
         sections: [
           { title: 'Анализ', content: analysis },
           { title: 'Транскрибация', content: transcript },

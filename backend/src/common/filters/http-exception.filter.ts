@@ -80,6 +80,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const errorResponse: any = {
       success: false,
       error: message,
+      message, // дубль для фронтенда, который читает data.message
       statusCode: status,
       timestamp: new Date().toISOString(),
       path: request.url,

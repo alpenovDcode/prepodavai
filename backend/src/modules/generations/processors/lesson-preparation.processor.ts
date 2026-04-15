@@ -161,10 +161,11 @@ export class LessonPreparationProcessor extends WorkerHost {
           htmlContent = this.formatToHtml(finalContent, `${topic} - ${typeLabel}`);
         }
 
-        // 4. Add to sections list
+        // 4. Post-process and Add to sections list
+        const processedHtml = this.htmlPostprocessor.process(htmlContent);
         sections.push({
           title: typeLabel,
-          content: htmlContent,
+          content: processedHtml,
         });
 
         // 5. Update context for next generations (keep it brief to avoid token limits)
@@ -717,7 +718,7 @@ ${interests ? `- Интересы аудитории (Интегрируй их 
       .replace(/^### (.*$)/gim, '<h3 class="subsection-title">$1</h3>')
       .replace(/\*\*(.*)\*\*/gim, '<b>$1</b>');
 
-    const logoUrl = LOGO_BASE64;
+    const logoUrl = 'LOGO_PLACEHOLDER';
 
     return `
         <!DOCTYPE html>
@@ -778,7 +779,7 @@ ${interests ? `- Интересы аудитории (Интегрируй их 
     level: string,
     extraData: any = {},
   ): { systemPrompt: string; userPrompt: string } | null {
-    const logoUrlStr = LOGO_BASE64;
+    const logoUrlStr = 'LOGO_PLACEHOLDER';
 
     switch (type) {
       case 'unpacking':

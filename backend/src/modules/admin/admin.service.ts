@@ -288,13 +288,38 @@ export class AdminService {
     }
 
     // Обновляем пользователя
-    const user = await this.prisma.appUser.update({
-      where: { id },
-      data: updateData,
-      include: {
-        subscription: { include: { plan: true } },
-      },
-    });
+    let user: Awaited<ReturnType<typeof this.prisma.appUser.update>> & {
+      subscription: any;
+    };
+    try {
+      user = await this.prisma.appUser.update({
+        where: { id },
+        data: updateData,
+        include: {
+          subscription: { include: { plan: true } },
+        },
+      });
+    } catch (err: any) {
+      console.error('[AdminService.updateUser] Prisma error', {
+        userId: id,
+        fields: Object.keys(updateData),
+        code: err?.code,
+        meta: err?.meta,
+        message: err?.message,
+      });
+      if (err?.code === 'P2025') {
+        throw new NotFoundException(`Пользователь ${id} не найден`);
+      }
+      if (err?.code === 'P2002') {
+        const target = Array.isArray(err?.meta?.target)
+          ? err.meta.target.join(', ')
+          : err?.meta?.target ?? 'поле';
+        throw new BadRequestException(`Значение уже занято: ${target}`);
+      }
+      throw new BadRequestException(
+        `Не удалось обновить пользователя: ${err?.message || 'unknown error'}`,
+      );
+    }
 
     // Если передан creditsBalance, обновляем подписку пользователя
     if (creditsBalance !== undefined) {
