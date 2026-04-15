@@ -17,7 +17,7 @@ export default function RecurrentConsentPage() {
       <CardContent className="prose prose-sm max-w-none prose-headings:text-gray-900 prose-p:text-gray-800 prose-strong:text-gray-900 prose-li:text-gray-800 prose-a:text-blue-600 text-gray-800">
 
         <div className="mb-8 p-4 border border-gray-200 rounded-md bg-gray-50">
-          <p className="m-0"><strong>Оператор:</strong> Общество с ограниченной ответственностью "МАСТЕРСКАЯ ЗНАНИЙ"</p>
+          <p className="m-0"><strong>Оператор:</strong> Общество с ограниченной ответственностью «МАСТЕРСКАЯ ЗНАНИЙ»</p>
           <p className="m-0"><strong>ОГРН:</strong> 1257700218071, <strong>ИНН:</strong> 9714075294, <strong>КПП:</strong> 771401001</p>
           <p className="m-0"><strong>Адрес:</strong> 125167, г. Москва, вн.тер.г. муниципальный округ Аэропорт, пр-кт Ленинградский, д. 36, стр. 39, помещ. 4</p>
           <p className="m-0"><strong>E-mail:</strong> <a href="mailto:hello@prrv.pro">hello@prrv.pro</a></p>
