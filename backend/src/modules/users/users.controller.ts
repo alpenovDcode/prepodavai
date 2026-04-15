@@ -2,6 +2,7 @@ import { Controller, Get, Put, Post, Body, UseGuards, Request } from '@nestjs/co
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { SendPhoneCodeDto, VerifyPhoneDto } from './dto/phone.dto';
 
 @Controller('users')
 export class UsersController {
@@ -36,14 +37,14 @@ export class UsersController {
 
   @Post('me/phone/send-code')
   @UseGuards(JwtAuthGuard)
-  async sendPhoneVerificationCode(@Request() req, @Body() body: { phone: string }) {
+  async sendPhoneVerificationCode(@Request() req, @Body() body: SendPhoneCodeDto) {
     await this.usersService.sendPhoneVerificationCode(req.user.id, body.phone);
     return { success: true, message: 'SMS отправлено' };
   }
 
   @Post('me/phone/verify')
   @UseGuards(JwtAuthGuard)
-  async verifyPhone(@Request() req, @Body() body: { phone: string; code: string }) {
+  async verifyPhone(@Request() req, @Body() body: VerifyPhoneDto) {
     const result = await this.usersService.verifyPhoneAndGrantBonus(req.user.id, body.phone, body.code);
     return { success: true, ...result };
   }

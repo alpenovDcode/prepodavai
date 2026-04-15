@@ -5,6 +5,7 @@ import {
   Req,
   UseGuards,
   BadRequestException,
+  UnauthorizedException,
   Logger,
   Delete,
   Get,
@@ -27,31 +28,48 @@ export class PaymentsController {
   @UseGuards(JwtAuthGuard)
   async createOrder(
     @Req() req: any,
-    @Body() body: { planKey: string },
+    @Body() body: { planKey: string; consentGiven: boolean },
   ) {
     if (!body.planKey) {
       throw new BadRequestException('planKey обязателен');
     }
-    return this.paymentsService.createOrder(req.user.id, body.planKey);
+    if (!body.consentGiven) {
+      throw new BadRequestException('Необходимо согласие на автоматические списания');
+    }
+    const ip: string = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '';
+    const userAgent: string = req.headers['user-agent'] || '';
+    return this.paymentsService.createOrder(req.user.id, body.planKey, ip, userAgent);
+  }
+
+  /**
+   * Проверяет HMAC-подпись CloudPayments.
+   * Подпись обязательна — отсутствие заголовка или rawBody отклоняется.
+   */
+  private assertHmac(req: any, label: string): void {
+    const signature = req.headers['content-hmac'] as string | undefined;
+    if (!signature) {
+      this.logger.warn(`${label}: отсутствует заголовок Content-HMAC`);
+      throw new UnauthorizedException('Missing HMAC signature');
+    }
+    const rawBody: Buffer | undefined = req.rawBody;
+    if (!rawBody) {
+      this.logger.warn(`${label}: rawBody не захвачен`);
+      throw new UnauthorizedException('Raw body unavailable');
+    }
+    if (!this.paymentsService.verifyHmac(rawBody, signature)) {
+      this.logger.warn(`${label}: неверная HMAC подпись`);
+      throw new UnauthorizedException('Invalid HMAC signature');
+    }
   }
 
   /**
    * Webhook Pay — CloudPayments уведомляет об успешной оплате.
-   * Не требует JWT — аутентификация через HMAC-SHA256 подпись.
+   * Аутентификация через обязательную HMAC-SHA256 подпись.
    */
   @Post('webhook/pay')
   @SkipThrottle()
   async webhookPay(@Req() req: any, @Body() body: Record<string, any>) {
-    const signature = req.headers['content-hmac'] as string;
-
-    if (signature) {
-      const rawBody: Buffer | undefined = req.rawBody;
-      if (rawBody && !this.paymentsService.verifyHmac(rawBody, signature)) {
-        this.logger.warn('Pay webhook: неверная HMAC подпись');
-        return { code: 13 }; // ошибка авторизации
-      }
-    }
-
+    this.assertHmac(req, 'Pay webhook');
     return this.paymentsService.handlePayWebhook(body);
   }
 
@@ -61,16 +79,7 @@ export class PaymentsController {
   @Post('webhook/fail')
   @SkipThrottle()
   async webhookFail(@Req() req: any, @Body() body: Record<string, any>) {
-    const signature = req.headers['content-hmac'] as string;
-
-    if (signature) {
-      const rawBody: Buffer | undefined = req.rawBody;
-      if (rawBody && !this.paymentsService.verifyHmac(rawBody, signature)) {
-        this.logger.warn('Fail webhook: неверная HMAC подпись');
-        return { code: 13 };
-      }
-    }
-
+    this.assertHmac(req, 'Fail webhook');
     return this.paymentsService.handleFailWebhook(body);
   }
 
@@ -80,16 +89,7 @@ export class PaymentsController {
   @Post('webhook/recurrent')
   @SkipThrottle()
   async webhookRecurrent(@Req() req: any, @Body() body: Record<string, any>) {
-    const signature = req.headers['content-hmac'] as string;
-
-    if (signature) {
-      const rawBody: Buffer | undefined = req.rawBody;
-      if (rawBody && !this.paymentsService.verifyHmac(rawBody, signature)) {
-        this.logger.warn('Recurrent webhook: неверная HMAC подпись');
-        return { code: 13 };
-      }
-    }
-
+    this.assertHmac(req, 'Recurrent webhook');
     return this.paymentsService.handleRecurrentWebhook(body);
   }
 

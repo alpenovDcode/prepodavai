@@ -1,4 +1,5 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, UnauthorizedException } from '@nestjs/common';
+import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { FilesService } from '../files/files.service';
 import { EmailService } from '../../common/services/email.service';
@@ -18,6 +19,45 @@ export class AdminService {
     private telegramService: TelegramService,
     private maxService: MaxService,
   ) {}
+
+  /**
+   * Смена собственного пароля администратора.
+   * Проверяет текущий пароль, хеширует новый и сохраняет в БД.
+   * Все старые cookie-сессии продолжат работать (JWT не инвалидируется),
+   * но повторный вход уже будет требовать новый пароль.
+   */
+  async changeOwnPassword(
+    adminId: string,
+    currentPassword: string,
+    newPassword: string,
+  ) {
+    if (currentPassword === newPassword) {
+      throw new BadRequestException('Новый пароль должен отличаться от текущего');
+    }
+
+    const user = await this.prisma.appUser.findUnique({
+      where: { id: adminId },
+      select: { id: true, passwordHash: true },
+    });
+
+    if (!user || !user.passwordHash) {
+      throw new NotFoundException('Пользователь не найден или не имеет пароля');
+    }
+
+    const isMatch = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!isMatch) {
+      throw new UnauthorizedException('Неверный текущий пароль');
+    }
+
+    const newHash = await bcrypt.hash(newPassword, 10);
+    await this.prisma.appUser.update({
+      where: { id: adminId },
+      data: { passwordHash: newHash },
+    });
+
+    await this.audit('admin_password_changed', adminId, { userId: adminId });
+    return { success: true, message: 'Пароль успешно изменён' };
+  }
 
   private async audit(action: string, adminId: string, details?: any) {
     try {

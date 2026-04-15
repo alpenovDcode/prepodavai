@@ -24,6 +24,19 @@ import { VideoAnalysisProcessor } from './processors/video-analysis.processor';
 import { SalesAdvisorProcessor } from './processors/sales-advisor.processor';
 import { MaxSenderProcessor } from './processors/max-sender.processor';
 import { MaxModule } from '../max/max.module';
+import { StrategyRegistryService } from './strategies/strategy-registry.service';
+import { QuizGenerationStrategy } from './strategies/quiz.strategy';
+import { WorksheetGenerationStrategy } from './strategies/worksheet.strategy';
+import { ExamVariantStrategy } from './strategies/exam-variant.strategy';
+import { VocabularyStrategy } from './strategies/vocabulary.strategy';
+import { LessonPlanStrategy } from './strategies/lesson-plan.strategy';
+import { ContentAdaptationStrategy } from './strategies/content-adaptation.strategy';
+import { UnpackingStrategy } from './strategies/unpacking.strategy';
+import { MessageStrategy } from './strategies/message.strategy';
+import { AssistantStrategy } from './strategies/assistant.strategy';
+import { FeedbackStrategy } from './strategies/feedback.strategy';
+import { VideoAnalysisStrategy } from './strategies/video-analysis.strategy';
+
 @Module({
   imports: [
     // Queue for generations
@@ -78,6 +91,18 @@ import { MaxModule } from '../max/max.module';
     AssemblyAiService,
     HtmlPostprocessorService,
     HtmlExportService,
+    StrategyRegistryService,
+    QuizGenerationStrategy,
+    WorksheetGenerationStrategy,
+    ExamVariantStrategy,
+    VocabularyStrategy,
+    LessonPlanStrategy,
+    ContentAdaptationStrategy,
+    UnpackingStrategy,
+    MessageStrategy,
+    AssistantStrategy,
+    FeedbackStrategy,
+    VideoAnalysisStrategy,
   ],
   exports: [GenerationsService, GenerationQueueService, GenerationHelpersService],
 })

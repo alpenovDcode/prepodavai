@@ -3,9 +3,138 @@
 import { useState } from 'react'
 import useSWR from 'swr'
 import { apiClient } from '@/lib/api/client'
-import { Settings, Sparkles, AlertCircle, EyeOff } from 'lucide-react'
+import { Settings, Sparkles, AlertCircle, EyeOff, Lock, Eye, CheckCircle2 } from 'lucide-react'
 
 const fetcher = (url: string) => apiClient.get(url).then(res => res.data.costs)
+
+function ChangePasswordCard() {
+    const [currentPassword, setCurrentPassword] = useState('')
+    const [newPassword, setNewPassword] = useState('')
+    const [confirmPassword, setConfirmPassword] = useState('')
+    const [showCurrent, setShowCurrent] = useState(false)
+    const [showNew, setShowNew] = useState(false)
+    const [loading, setLoading] = useState(false)
+    const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+
+    const canSubmit =
+        currentPassword.length > 0 &&
+        newPassword.length >= 12 &&
+        newPassword === confirmPassword &&
+        newPassword !== currentPassword
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault()
+        if (!canSubmit) return
+        setLoading(true)
+        setMsg(null)
+        try {
+            const res = await apiClient.post('/admin/change-password', { currentPassword, newPassword })
+            if (res.data.success) {
+                setMsg({ type: 'success', text: 'Пароль успешно изменён' })
+                setCurrentPassword('')
+                setNewPassword('')
+                setConfirmPassword('')
+            } else {
+                setMsg({ type: 'error', text: res.data.message || 'Не удалось сменить пароль' })
+            }
+        } catch (err: any) {
+            const text = err?.response?.data?.error || err?.response?.data?.message || 'Ошибка при смене пароля'
+            setMsg({ type: 'error', text })
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    return (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="p-4 border-b border-gray-100 flex items-center gap-2 bg-gray-50/50">
+                <Lock className="w-5 h-5 text-gray-400" />
+                <span className="font-medium text-gray-700">Смена пароля администратора</span>
+            </div>
+            <form onSubmit={handleSubmit} className="p-6 space-y-4 max-w-md">
+                <div className="space-y-1.5">
+                    <label className="text-sm font-medium text-gray-700">Текущий пароль</label>
+                    <div className="relative">
+                        <input
+                            type={showCurrent ? 'text' : 'password'}
+                            value={currentPassword}
+                            onChange={(e) => setCurrentPassword(e.target.value)}
+                            className="w-full px-3 py-2 pr-10 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                            required
+                        />
+                        <button
+                            type="button"
+                            onClick={() => setShowCurrent((v) => !v)}
+                            className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+                        >
+                            {showCurrent ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                    </div>
+                </div>
+
+                <div className="space-y-1.5">
+                    <label className="text-sm font-medium text-gray-700">Новый пароль (мин. 12 символов)</label>
+                    <div className="relative">
+                        <input
+                            type={showNew ? 'text' : 'password'}
+                            value={newPassword}
+                            onChange={(e) => setNewPassword(e.target.value)}
+                            minLength={12}
+                            maxLength={128}
+                            className="w-full px-3 py-2 pr-10 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                            required
+                        />
+                        <button
+                            type="button"
+                            onClick={() => setShowNew((v) => !v)}
+                            className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+                        >
+                            {showNew ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                    </div>
+                </div>
+
+                <div className="space-y-1.5">
+                    <label className="text-sm font-medium text-gray-700">Подтверждение</label>
+                    <input
+                        type={showNew ? 'text' : 'password'}
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        minLength={12}
+                        maxLength={128}
+                        className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                        required
+                    />
+                    {confirmPassword && newPassword !== confirmPassword && (
+                        <p className="text-xs text-red-500">Пароли не совпадают</p>
+                    )}
+                    {newPassword && currentPassword && newPassword === currentPassword && (
+                        <p className="text-xs text-red-500">Новый пароль должен отличаться от текущего</p>
+                    )}
+                </div>
+
+                {msg && (
+                    <div className={`flex items-center gap-2 text-sm px-3 py-2 rounded-lg ${
+                        msg.type === 'success'
+                            ? 'bg-green-50 text-green-700 border border-green-200'
+                            : 'bg-red-50 text-red-700 border border-red-200'
+                    }`}>
+                        {msg.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+                        {msg.text}
+                    </div>
+                )}
+
+                <button
+                    type="submit"
+                    disabled={!canSubmit || loading}
+                    className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-black disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+                >
+                    {loading ? 'Сохранение...' : 'Сменить пароль'}
+                </button>
+            </form>
+        </div>
+    )
+}
 
 export default function AdminSettingsPage() {
     const { data: costs, error, isLoading, mutate } = useSWR<any[]>('/admin/costs', fetcher)
@@ -43,6 +172,8 @@ export default function AdminSettingsPage() {
                 <h1 className="text-2xl font-bold tracking-tight text-gray-900">Настройки Начислений</h1>
                 <p className="text-gray-500">Управление стоимостью генерации AI в токенах</p>
             </div>
+
+            <ChangePasswordCard />
 
             <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 flex gap-3 text-blue-800 text-sm">
                 <AlertCircle className="w-5 h-5 flex-shrink-0" />

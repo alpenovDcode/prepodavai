@@ -10,10 +10,11 @@ import {
   UseGuards,
   Request,
 } from '@nestjs/common';
-import { SkipThrottle } from '@nestjs/throttler';
+import { SkipThrottle, Throttle } from '@nestjs/throttler';
 import { AdminService } from './admin.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AdminGuard } from './guards/admin.guard';
+import { ChangeAdminPasswordDto } from './dto/change-password.dto';
 
 /**
  * Админ-панель для управления данными БД
@@ -24,6 +25,17 @@ import { AdminGuard } from './guards/admin.guard';
 @UseGuards(JwtAuthGuard, AdminGuard)
 export class AdminController {
   constructor(private readonly adminService: AdminService) {}
+
+  // ========== ACCOUNT ==========
+  @Post('change-password')
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  async changePassword(@Body() body: ChangeAdminPasswordDto, @Request() req: any) {
+    return this.adminService.changeOwnPassword(
+      req.user.id,
+      body.currentPassword,
+      body.newPassword,
+    );
+  }
 
   // ========== USERS ==========
   @Get('users')

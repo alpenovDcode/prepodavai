@@ -14,16 +14,26 @@ import {
 import { GenerationsService } from './generations.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { GenerationsThrottlerGuard } from '../../common/guards/generations-throttler.guard';
+import {
+  GenerationBundleDto,
+  UpdateGenerationDto,
+  LinkToLessonDto,
+} from './dto/generation.dto';
+
 @Controller('generate')
 export class GenerationsController {
   constructor(private readonly generationsService: GenerationsService) {}
 
+  private userId(req: any): string {
+    return req.user?.role === 'student' ? req.user?.teacherId : req.user?.id;
+  }
+
   // Текстовые генерации
   @Post('worksheet')
   @UseGuards(JwtAuthGuard, GenerationsThrottlerGuard)
-  async generateWorksheet(@Request() req, @Body() body: any) {
+  async generateWorksheet(@Request() req: any, @Body() body: Record<string, unknown>) {
     return this.generationsService.createGeneration({
-      userId: req.user?.role === 'student' ? req.user?.teacherId : req.user?.id,
+      userId: this.userId(req),
       generationType: 'worksheet',
       inputParams: body,
     });
@@ -31,9 +41,9 @@ export class GenerationsController {
 
   @Post('quiz')
   @UseGuards(JwtAuthGuard, GenerationsThrottlerGuard)
-  async generateQuiz(@Request() req, @Body() body: any) {
+  async generateQuiz(@Request() req: any, @Body() body: Record<string, unknown>) {
     return this.generationsService.createGeneration({
-      userId: req.user?.role === 'student' ? req.user?.teacherId : req.user?.id,
+      userId: this.userId(req),
       generationType: 'quiz',
       inputParams: body,
     });
@@ -41,9 +51,9 @@ export class GenerationsController {
 
   @Post('vocabulary')
   @UseGuards(JwtAuthGuard, GenerationsThrottlerGuard)
-  async generateVocabulary(@Request() req, @Body() body: any) {
+  async generateVocabulary(@Request() req: any, @Body() body: Record<string, unknown>) {
     return this.generationsService.createGeneration({
-      userId: req.user?.role === 'student' ? req.user?.teacherId : req.user?.id,
+      userId: this.userId(req),
       generationType: 'vocabulary',
       inputParams: body,
     });
@@ -51,9 +61,9 @@ export class GenerationsController {
 
   @Post('lesson-plan')
   @UseGuards(JwtAuthGuard, GenerationsThrottlerGuard)
-  async generateLessonPlan(@Request() req, @Body() body: any) {
+  async generateLessonPlan(@Request() req: any, @Body() body: Record<string, unknown>) {
     return this.generationsService.createGeneration({
-      userId: req.user?.role === 'student' ? req.user?.teacherId : req.user?.id,
+      userId: this.userId(req),
       generationType: 'lesson-plan',
       inputParams: body,
     });
@@ -61,9 +71,9 @@ export class GenerationsController {
 
   @Post('content-adaptation')
   @UseGuards(JwtAuthGuard, GenerationsThrottlerGuard)
-  async adaptContent(@Request() req, @Body() body: any) {
+  async adaptContent(@Request() req: any, @Body() body: Record<string, unknown>) {
     return this.generationsService.createGeneration({
-      userId: req.user?.role === 'student' ? req.user?.teacherId : req.user?.id,
+      userId: this.userId(req),
       generationType: 'content-adaptation',
       inputParams: body,
     });
@@ -71,9 +81,9 @@ export class GenerationsController {
 
   @Post('message')
   @UseGuards(JwtAuthGuard, GenerationsThrottlerGuard)
-  async generateMessage(@Request() req, @Body() body: any) {
+  async generateMessage(@Request() req: any, @Body() body: Record<string, unknown>) {
     return this.generationsService.createGeneration({
-      userId: req.user?.role === 'student' ? req.user?.teacherId : req.user?.id,
+      userId: this.userId(req),
       generationType: 'message',
       inputParams: body,
     });
@@ -81,9 +91,9 @@ export class GenerationsController {
 
   @Post('feedback')
   @UseGuards(JwtAuthGuard, GenerationsThrottlerGuard)
-  async generateFeedback(@Request() req, @Body() body: any) {
+  async generateFeedback(@Request() req: any, @Body() body: Record<string, unknown>) {
     return this.generationsService.createGeneration({
-      userId: req.user?.role === 'student' ? req.user?.teacherId : req.user?.id,
+      userId: this.userId(req),
       generationType: 'feedback',
       inputParams: body,
     });
@@ -92,9 +102,9 @@ export class GenerationsController {
   // Медиа генерации
   @Post('image')
   @UseGuards(JwtAuthGuard, GenerationsThrottlerGuard)
-  async generateImage(@Request() req, @Body() body: any) {
+  async generateImage(@Request() req: any, @Body() body: Record<string, unknown>) {
     return this.generationsService.createGeneration({
-      userId: req.user?.role === 'student' ? req.user?.teacherId : req.user?.id,
+      userId: this.userId(req),
       generationType: 'image_generation',
       inputParams: body,
     });
@@ -102,9 +112,9 @@ export class GenerationsController {
 
   @Post('photosession')
   @UseGuards(JwtAuthGuard, GenerationsThrottlerGuard)
-  async generatePhotosession(@Request() req, @Body() body: any) {
+  async generatePhotosession(@Request() req: any, @Body() body: Record<string, unknown>) {
     return this.generationsService.createGeneration({
-      userId: req.user?.role === 'student' ? req.user?.teacherId : req.user?.id,
+      userId: this.userId(req),
       generationType: 'photosession',
       inputParams: body,
     });
@@ -112,9 +122,9 @@ export class GenerationsController {
 
   @Post('presentation')
   @UseGuards(JwtAuthGuard, GenerationsThrottlerGuard)
-  async generatePresentation(@Request() req, @Body() body: any) {
+  async generatePresentation(@Request() req: any, @Body() body: Record<string, unknown>) {
     return this.generationsService.createGeneration({
-      userId: req.user?.role === 'student' ? req.user?.teacherId : req.user?.id,
+      userId: this.userId(req),
       generationType: 'presentation',
       inputParams: body,
     });
@@ -122,9 +132,9 @@ export class GenerationsController {
 
   @Post('video-analysis')
   @UseGuards(JwtAuthGuard, GenerationsThrottlerGuard)
-  async generateVideoAnalysis(@Request() req, @Body() body: any) {
+  async generateVideoAnalysis(@Request() req: any, @Body() body: Record<string, unknown>) {
     return this.generationsService.createGeneration({
-      userId: req.user?.role === 'student' ? req.user?.teacherId : req.user?.id,
+      userId: this.userId(req),
       generationType: 'video-analysis',
       inputParams: body,
     });
@@ -132,9 +142,9 @@ export class GenerationsController {
 
   @Post('transcribe-video')
   @UseGuards(JwtAuthGuard, GenerationsThrottlerGuard)
-  async transcribeVideo(@Request() req, @Body() body: any) {
+  async transcribeVideo(@Request() req: any, @Body() body: Record<string, unknown>) {
     return this.generationsService.createGeneration({
-      userId: req.user?.role === 'student' ? req.user?.teacherId : req.user?.id,
+      userId: this.userId(req),
       generationType: 'transcription',
       inputParams: body,
     });
@@ -142,9 +152,9 @@ export class GenerationsController {
 
   @Post('exam-variant')
   @UseGuards(JwtAuthGuard, GenerationsThrottlerGuard)
-  async generateExamVariant(@Request() req, @Body() body: any) {
+  async generateExamVariant(@Request() req: any, @Body() body: Record<string, unknown>) {
     return this.generationsService.createGeneration({
-      userId: req.user?.role === 'student' ? req.user?.teacherId : req.user?.id,
+      userId: this.userId(req),
       generationType: 'exam-variant',
       inputParams: body,
     });
@@ -152,9 +162,9 @@ export class GenerationsController {
 
   @Post('lesson-preparation')
   @UseGuards(JwtAuthGuard, GenerationsThrottlerGuard)
-  async generateLessonPreparation(@Request() req, @Body() body: any) {
+  async generateLessonPreparation(@Request() req: any, @Body() body: Record<string, unknown>) {
     return this.generationsService.createGeneration({
-      userId: req.user?.role === 'student' ? req.user?.teacherId : req.user?.id,
+      userId: this.userId(req),
       generationType: 'lesson_preparation',
       inputParams: body,
     });
@@ -162,9 +172,9 @@ export class GenerationsController {
 
   @Post('unpacking')
   @UseGuards(JwtAuthGuard, GenerationsThrottlerGuard)
-  async generateUnpacking(@Request() req, @Body() body: any) {
+  async generateUnpacking(@Request() req: any, @Body() body: Record<string, unknown>) {
     return this.generationsService.createGeneration({
-      userId: req.user?.role === 'student' ? req.user?.teacherId : req.user?.id,
+      userId: this.userId(req),
       generationType: 'unpacking',
       inputParams: body,
     });
@@ -172,9 +182,9 @@ export class GenerationsController {
 
   @Post('sales-advisor')
   @UseGuards(JwtAuthGuard, GenerationsThrottlerGuard)
-  async generateSalesAdvisor(@Request() req, @Body() body: any) {
+  async generateSalesAdvisor(@Request() req: any, @Body() body: Record<string, unknown>) {
     return this.generationsService.createGeneration({
-      userId: req.user?.role === 'student' ? req.user?.teacherId : req.user?.id,
+      userId: this.userId(req),
       generationType: 'sales_advisor',
       inputParams: body,
     });
@@ -182,9 +192,9 @@ export class GenerationsController {
 
   @Post('assistant')
   @UseGuards(JwtAuthGuard, GenerationsThrottlerGuard)
-  async generateAssistant(@Request() req, @Body() body: any) {
+  async generateAssistant(@Request() req: any, @Body() body: Record<string, unknown>) {
     return this.generationsService.createGeneration({
-      userId: req.user?.role === 'student' ? req.user?.teacherId : req.user?.id,
+      userId: this.userId(req),
       generationType: 'assistant',
       inputParams: body,
     });
@@ -192,11 +202,11 @@ export class GenerationsController {
 
   @Post('bundle')
   @UseGuards(JwtAuthGuard, GenerationsThrottlerGuard)
-  async generateBundle(@Request() req, @Body() body: { types: string[]; params: any }) {
+  async generateBundle(@Request() req: any, @Body() body: GenerationBundleDto) {
     return this.generationsService.createGenerationBundle({
-      userId: req.user?.role === 'student' ? req.user?.teacherId : req.user?.id,
+      userId: this.userId(req),
       types: body.types,
-      inputParams: body.params,
+      inputParams: body.params ?? {},
     });
   }
 
@@ -204,14 +214,16 @@ export class GenerationsController {
   @Get('history')
   @UseGuards(JwtAuthGuard)
   async getGenerationHistory(
-    @Request() req,
+    @Request() req: any,
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
   ) {
+    const parsedLimit = Math.min(Math.max(parseInt(limit ?? '50', 10) || 50, 1), 200);
+    const parsedOffset = Math.max(parseInt(offset ?? '0', 10) || 0, 0);
     return this.generationsService.getGenerationHistory(
-      req.user.role === 'student' ? req.user.teacherId : req.user.id,
-      limit ? parseInt(limit) : 50,
-      offset ? parseInt(offset) : 0,
+      this.userId(req),
+      parsedLimit,
+      parsedOffset,
     );
   }
 
@@ -221,40 +233,34 @@ export class GenerationsController {
   @Header('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate')
   @Header('Pragma', 'no-cache')
   @Header('Expires', '0')
-  async getGenerationStatus(@Request() req, @Param('requestId') requestId: string) {
-    return this.generationsService.getGenerationStatus(
-      requestId,
-      req.user.role === 'student' ? req.user.teacherId : req.user.id,
-    );
+  async getGenerationStatus(@Request() req: any, @Param('requestId') requestId: string) {
+    return this.generationsService.getGenerationStatus(requestId, this.userId(req));
   }
 
   // Удалить генерацию
   @Delete(':requestId')
   @UseGuards(JwtAuthGuard)
-  async deleteGeneration(@Request() req, @Param('requestId') requestId: string) {
-    return this.generationsService.deleteGeneration(
-      requestId,
-      req.user.role === 'student' ? req.user.teacherId : req.user.id,
-    );
+  async deleteGeneration(@Request() req: any, @Param('requestId') requestId: string) {
+    return this.generationsService.deleteGeneration(requestId, this.userId(req));
   }
 
   @Patch(':id')
   @UseGuards(JwtAuthGuard)
-  async updateGeneration(@Request() req, @Param('id') id: string, @Body() body: any) {
-    return this.generationsService.updateGeneration(
-      id,
-      req.user.role === 'student' ? req.user.teacherId : req.user.id,
-      body,
-    );
+  async updateGeneration(
+    @Request() req: any,
+    @Param('id') id: string,
+    @Body() body: UpdateGenerationDto,
+  ) {
+    return this.generationsService.updateGeneration(id, this.userId(req), body);
   }
 
   @Post(':id/link-lesson')
   @UseGuards(JwtAuthGuard)
-  async linkToLesson(@Request() req, @Param('id') id: string, @Body() body: { lessonId: string }) {
-    return this.generationsService.linkToLesson(
-      id,
-      req.user.role === 'student' ? req.user.teacherId : req.user.id,
-      body.lessonId,
-    );
+  async linkToLesson(
+    @Request() req: any,
+    @Param('id') id: string,
+    @Body() body: LinkToLessonDto,
+  ) {
+    return this.generationsService.linkToLesson(id, this.userId(req), body.lessonId);
   }
 }

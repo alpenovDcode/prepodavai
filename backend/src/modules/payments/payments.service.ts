@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, InternalServerErrorException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
 import axios from 'axios';
@@ -28,7 +28,12 @@ export class PaymentsService {
    * Создать заказ перед открытием виджета.
    * Возвращает данные для инициализации виджета CloudPayments.
    */
-  async createOrder(userId: string, planKey: string) {
+  async createOrder(
+    userId: string,
+    planKey: string,
+    consentIp?: string,
+    consentUserAgent?: string,
+  ) {
     const plan = await this.prisma.subscriptionPlan.findUnique({
       where: { planKey },
     });
@@ -53,6 +58,9 @@ export class PaymentsService {
         status: 'pending',
         invoiceId,
         isRecurrent: true,
+        consentGivenAt: new Date(),
+        consentIp: consentIp ?? null,
+        consentUserAgent: consentUserAgent ?? null,
       },
     });
 
@@ -75,8 +83,8 @@ export class PaymentsService {
    */
   verifyHmac(rawBody: Buffer | string, signature: string): boolean {
     if (!this.apiSecret) {
-      this.logger.warn('CLOUDPAYMENTS_API_SECRET не задан — пропускаем проверку HMAC');
-      return true;
+      this.logger.error('CLOUDPAYMENTS_API_SECRET не задан — невозможно верифицировать webhook');
+      throw new InternalServerErrorException('Payment webhook secret not configured');
     }
     const body = Buffer.isBuffer(rawBody) ? rawBody : Buffer.from(rawBody, 'utf8');
     const expected = crypto

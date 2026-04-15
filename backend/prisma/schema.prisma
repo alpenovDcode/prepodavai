@@ -557,9 +557,12 @@ model Payment {
   cpSubscriptionId String? // SubscriptionId (для рекуррентных)
   cpToken         String?  // Токен карты (для повторных списаний)
   invoiceId       String   @unique // Наш внутренний ID заказа
-  isRecurrent     Boolean  @default(false)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  isRecurrent      Boolean   @default(false)
+  consentGivenAt   DateTime? // Когда пользователь поставил чекбокс согласия
+  consentIp        String?   // IP-адрес в момент согласия
+  consentUserAgent String?   // User-Agent браузера в момент согласия
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   user            AppUser  @relation(fields: [userId], references: [id])
 

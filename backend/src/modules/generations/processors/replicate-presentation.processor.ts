@@ -139,19 +139,18 @@ export class ReplicatePresentationProcessor extends WorkerHost {
 
   private async generatePresentationSlides(topic: string, params: any): Promise<Slide[]> {
     const numCards = params.numCards || 7;
-    const grade = params.targetAudience || 'General Audience';
+    const grade = params.targetAudience || 'Общая аудитория';
     const duration = params.duration || '15';
     const style = params.style || 'modern';
 
     const prompt = `
-Ты — арт-директор и Senior Frontend-разработчик уровня Awwwards/Stripe/Linear. Твоя задача — создать презентацию, которая вызывает "вау-эффект" с первого слайда.
+Ты — опытный методист и дизайнер образовательных презентаций. Твоя задача — создать чистую, читаемую и методически выверенную презентацию для использования на уроке.
 
 КОНТЕКСТ:
 - Язык: Русский
-- Тема: "${topic}"
+- Тема урока: "${topic}"
 - Аудитория: ${grade}
-- Длительность: ${duration} мин
-- Стиль: ${style}
+- Длительность урока: ${duration} мин
 - Количество слайдов: ровно ${numCards}
 
 ═══════════════════════════════════
@@ -168,66 +167,70 @@ export class ReplicatePresentationProcessor extends WorkerHost {
 ТЕХНИЧЕСКИЕ ОГРАНИЧЕНИЯ
 ═══════════════════════════════════
 1. ТОЛЬКО инлайн-стили через атрибут style="...". Запрещены: class, <style>, <script>, внешние шрифты через @import.
-2. Контейнер слайда обязательно: width: 100vw; height: 100vh; overflow: hidden; box-sizing: border-box; position: relative; font-family: -apple-system, 'SF Pro Display', 'Inter', system-ui, sans-serif;
-3. Где нужна картинка — вставляй <img src="IMAGE_PLACEHOLDER" style="..."> (можно как фон через <img> с position: absolute и object-fit: cover, либо как акцентный визуал).
+2. Контейнер слайда обязательно: width: 100vw; height: 100vh; overflow: hidden; box-sizing: border-box; position: relative; font-family: 'Inter', -apple-system, system-ui, sans-serif;
+3. Где нужна картинка — вставляй <img src="IMAGE_PLACEHOLDER" style="...">
 
 ═══════════════════════════════════
-ДИЗАЙН-СИСТЕМА (ВАУ-ЭФФЕКТ)
+МАТЕМАТИЧЕСКИЕ ФОРМУЛЫ (MathJax)
+═══════════════════════════════════
+Если тема требует формул, используй СТРОГИЕ правила:
+- Внутристрочные (inline): оборачивай в \\\\( и \\\\). ЗАПРЕЩЕНО использовать одинарные доллары ($...$).
+- Выделенные (display): оборачивай в \\\\[ и \\\\].
+
+═══════════════════════════════════
+ДИЗАЙН-СИСТЕМА ДЛЯ ОБРАЗОВАНИЯ
 ═══════════════════════════════════
 
-🎨 ЦВЕТА — используй богатые градиенты, не плоские фоны:
-- Базовые фоны: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%) или (135deg, #1a1a2e, #16213e, #0f3460) или (120deg, #000428, #004e92)
-- Акценты: неоновые (#00f5ff, #ff006e, #8338ec, #fb5607, #ffbe0b), либо премиум (#d4af37 золото, #e0e0e0 серебро)
-- Текст: основной #ffffff, вторичный rgba(255,255,255,0.7), подсказки rgba(255,255,255,0.45)
+🎨 ЦВЕТА — светлые, контрастные, читаемые на проекторе:
+- Фон слайдов: чистый белый #ffffff или очень светлый серый #f8f9fa
+- Акцентный цвет (выбери один подходящий под тему):
+  Математика/IT: #4f46e5 (Indigo)
+  Естественные науки: #059669 (Emerald)
+  Гуманитарные: #7c3aed (Violet)
+  История/Общее: #2563eb (Blue)
+- Текст: основной #111827, вторичный #4b5563
+- Разделители: #e5e7eb
+- Выделение блоков: цвет акцента с opacity 0.08 (background: color + "14")
 
-✨ ЭФФЕКТЫ — обязательны на КАЖДОМ слайде минимум 2-3:
-- Glassmorphism: background: rgba(255,255,255,0.05); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.1); border-radius: 24px;
-- Свечение текста: text-shadow: 0 0 40px rgba(0,245,255,0.5);
-- Градиентный текст для заголовков: background: linear-gradient(135deg, #00f5ff, #ff006e); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
-- Декоративные размытые "blob"-круги через position: absolute + filter: blur(80px) + opacity: 0.4
-- Тонкие сетки/линии через linear-gradient для фоновой текстуры
-- Мягкие тени: box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5), 0 0 80px rgba(131,56,236,0.15);
+✨ ОФОРМЛЕНИЕ — минимализм и фокус на контенте:
+- Блоки контента: background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+- Важные акценты: border-left: 4px solid [акцентный цвет];
+- Никаких: неона, размытий, теней-свечений и отвлекающей графики.
 
-📐 ТИПОГРАФИКА — драматичная иерархия:
-- H1: font-size: clamp(56px, 7vw, 104px); font-weight: 800; letter-spacing: -0.04em; line-height: 1;
-- H2: font-size: clamp(36px, 4vw, 56px); font-weight: 700; letter-spacing: -0.02em;
-- Body: font-size: clamp(18px, 1.4vw, 22px); line-height: 1.6; font-weight: 400;
-- Caption/Eyebrow: font-size: 13px; text-transform: uppercase; letter-spacing: 0.2em; opacity: 0.6;
+📐 ТИПОГРАФИКА — крупная и разборчивая:
+- Заголовок слайда: font-size: clamp(32px, 4vw, 48px); font-weight: 700; color: #111827; letter-spacing: -0.02em;
+- Подзаголовок: font-size: clamp(20px, 2.5vw, 28px); font-weight: 600; color: [акцентный];
+- Основной текст: font-size: clamp(20px, 2vw, 26px); line-height: 1.6;
+- Максимум 6-7 строк текста на один слайд.
 
-🧱 ЛЕЙАУТ — НЕ центрируй всё подряд. Чередуй композиции:
-- Asymmetric split (60/40 текст | визуал)
-- Bento grid из карточек разного размера
-- Full-bleed изображение с overlay-текстом снизу слева
-- Большая цифра/метрика + поясняющий текст
-- Timeline/процесс с нумерованными шагами
-- Цитата с огромными кавычками
-Используй CSS Grid и Flexbox активно. Padding контейнера: 64px-96px.
+🧱 ЛЕЙАУТ — структурированный:
+- Заголовок всегда вверху, выровнен влево, под ним — линия-разделитель (height: 4px, width: 60px, background: [акцент]).
+- Композиции: Текст + Картинка (50/50), Список с иконками, Сетка из 2-3 карточек.
+- Отступы (Padding контейнера): 48px 64px.
 
 ═══════════════════════════════════
 СТРУКТУРА ПРЕЗЕНТАЦИИ
 ═══════════════════════════════════
-- Слайд 1 (Cover): драматичный заголовок, eyebrow-текст, минимум контента, максимум атмосферы
-- Слайды 2…N-1: чередуй типы — концепция, данные/метрики, сравнение, процесс, цитата, кейс
-- Финальный слайд: вывод/CTA с сильным визуальным акцентом
-
-КАЖДЫЙ слайд должен отличаться композицией от предыдущего. Никаких шаблонных "заголовок сверху + текст + картинка снизу" подряд.
+1. Титульный (Тема, Предмет, Автор "Имя преподавателя")
+2. Цели урока ("Сегодня на занятии...")
+3-N. Основной материал (Определения в рамках, примеры, таблицы, схемы)
+N-1. Проверка знаний (2-3 вопроса)
+N. Итоги и Домашнее задание (placeholder)
 
 ═══════════════════════════════════
 IMAGE PROMPTS
 ═══════════════════════════════════
-Русский, кинематографичный, конкретный. Шаблон:
-"[subject], [style: cinematic/editorial/3d render/abstract], [lighting: volumetric/neon/soft], [mood], [composition], shot on [camera], 8k, ultra detailed, [color palette matching slide]"
+"High-quality educational illustration, [subject], clean background, professional, clear details, suitable for slide deck, 8k"
 
-Избегай стоковых клише. Стремись к редакционному/арт-направлению.
-
-Сгенерируй ровно ${numCards} слайдов. Начни ответ сразу с [.
+Сгенерируй ровно ${numCards} слайдов. Ответ начни сразу с [.
     `;
 
     const prediction = await this.runReplicatePrediction('google/gemini-3-flash', {
       prompt: prompt,
       max_tokens: 15000,
-      system_prompt: 'You are a helpful assistant that outputs only valid JSON array of slides.',
+      system_prompt: 'You are a professional educational slide designer. Output only valid JSON array of slides.',
     });
+
 
     let rawOutput = '';
     if (Array.isArray(prediction.output)) {

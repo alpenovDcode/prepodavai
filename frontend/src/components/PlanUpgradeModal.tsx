@@ -131,6 +131,7 @@ export default function PlanUpgradeModal({ open, onClose, highlightPlanKey }: Pr
   const [payingPlanKey, setPayingPlanKey] = useState<string | null>(null)
   const [successPlanKey, setSuccessPlanKey] = useState<string | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [consentChecked, setConsentChecked] = useState(false)
 
   const { subscription, refetch } = useSubscription()
   const cpReady = useCloudPaymentsScript()
@@ -141,6 +142,7 @@ export default function PlanUpgradeModal({ open, onClose, highlightPlanKey }: Pr
     if (!open) return
     setSuccessPlanKey(null)
     setErrorMsg(null)
+    setConsentChecked(false)
     apiClient.get('/subscriptions/plans')
       .then(r => {
         const sorted = (r.data.plans as Plan[]).sort((a, b) => a.price - b.price)
@@ -155,7 +157,7 @@ export default function PlanUpgradeModal({ open, onClose, highlightPlanKey }: Pr
     setPayingPlanKey(plan.planKey)
 
     try {
-      const { data } = await apiClient.post('/payments/create-order', { planKey: plan.planKey })
+      const { data } = await apiClient.post('/payments/create-order', { planKey: plan.planKey, consentGiven: true })
 
       const widget = new window.cp!.CloudPayments()
 
@@ -347,12 +349,50 @@ export default function PlanUpgradeModal({ open, onClose, highlightPlanKey }: Pr
                     Оплачено!
                   </div>
                 ) : (
-                  <button
-                    disabled
-                    className="w-full py-2.5 rounded-xl text-sm font-semibold text-center bg-gray-100 text-gray-400 cursor-not-allowed flex items-center justify-center gap-2"
-                  >
-                    Скоро будет доступно
-                  </button>
+                  <div className="flex flex-col gap-2">
+                    <label className="flex items-start gap-2 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={consentChecked}
+                        onChange={e => setConsentChecked(e.target.checked)}
+                        className="mt-0.5 flex-shrink-0 accent-blue-600"
+                      />
+                      <span className="text-[10px] text-gray-500 leading-tight">
+                        Я даю{' '}
+                        <a
+                          href="/legal/consent/recurrent"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 underline"
+                          onClick={e => e.stopPropagation()}
+                        >
+                          Согласие
+                        </a>{' '}
+                        на автоматические ежемесячные списания. Могу отменить в любой момент.
+                      </span>
+                    </label>
+                    <button
+                      onClick={() => handleBuy(plan)}
+                      disabled={!consentChecked || isPaying || !cpReady}
+                      className={`w-full py-2.5 rounded-xl text-sm font-semibold text-white text-center flex items-center justify-center gap-2 transition-all ${
+                        consentChecked && !isPaying
+                          ? `${colors.btn} cursor-pointer`
+                          : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                      }`}
+                    >
+                      {isPaying ? (
+                        <span className="flex items-center gap-2">
+                          <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+                          </svg>
+                          Обработка...
+                        </span>
+                      ) : (
+                        `Оплатить ${plan.price}₽`
+                      )}
+                    </button>
+                  </div>
                 )}
               </div>
             )

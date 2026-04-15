@@ -399,6 +399,7 @@ export default function LandingPage() {
             <Link href="/legal/terms" style={{ cursor: "pointer", color: "inherit", textDecoration: "none" }}>Условия</Link>
             <Link href="/legal/privacy" style={{ cursor: "pointer", color: "inherit", textDecoration: "none" }}>Конфиденциальность</Link>
             <Link href="/legal/consent/processing" style={{ cursor: "pointer", color: "inherit", textDecoration: "none" }}>Обработка ПД</Link>
+            <Link href="/legal/consent/mailing" style={{ cursor: "pointer", color: "inherit", textDecoration: "none" }}>Рассылка</Link>
           </div>
         </div>
       </footer>

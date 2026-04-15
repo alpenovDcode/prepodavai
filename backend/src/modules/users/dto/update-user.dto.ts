@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsBoolean, MaxLength, IsEmail } from 'class-validator';
+import { IsString, IsOptional, IsBoolean, MaxLength, IsEmail, Matches, ValidateIf } from 'class-validator';
 
 export class UpdateUserDto {
   @IsString()
@@ -31,8 +31,16 @@ export class UpdateUserDto {
   @MaxLength(100)
   grades?: string;
 
+  @ValidateIf((_, v) => v !== '' && v != null)
+  @IsEmail()
+  @IsOptional()
+  @MaxLength(200)
+  email?: string;
+
   @IsString()
   @IsOptional()
+  @ValidateIf((_, v) => v !== '' && v != null)
+  @Matches(/^[a-f0-9]{64}$/, { message: 'avatar должен быть SHA-256 хешем файла' })
   avatar?: string;
 
   @IsBoolean()

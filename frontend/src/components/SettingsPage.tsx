@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { apiClient } from '@/lib/api/client'
-import { CheckCircle, AlertCircle, Loader2, Link2, Link2Off } from 'lucide-react'
+import { CheckCircle, AlertCircle, Loader2, Link2, Link2Off, CreditCard, ShieldOff } from 'lucide-react'
+import { useSubscription } from '@/lib/hooks/useSubscription'
 
 export default function SettingsPage() {
     const [profile, setProfile] = useState({
@@ -35,6 +36,31 @@ export default function SettingsPage() {
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
     const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
+
+    // Подписка
+    const { subscription, refetch: refetchSubscription } = useSubscription()
+    const [cancellingSubscription, setCancellingSubscription] = useState(false)
+    const [cancelConfirm, setCancelConfirm] = useState(false)
+    const [subscriptionMsg, setSubscriptionMsg] = useState<{ type: 'success' | 'error', text: string } | null>(null)
+
+    const handleCancelSubscription = async () => {
+        setCancellingSubscription(true)
+        setSubscriptionMsg(null)
+        try {
+            const res = await apiClient.delete('/payments/subscription')
+            if (res.data.success) {
+                setSubscriptionMsg({ type: 'success', text: 'Автопродление отменено. Доступ сохраняется до конца периода.' })
+                setCancelConfirm(false)
+                refetchSubscription()
+            } else {
+                setSubscriptionMsg({ type: 'error', text: res.data.message || 'Не удалось отменить подписку' })
+            }
+        } catch (err: any) {
+            setSubscriptionMsg({ type: 'error', text: err?.response?.data?.message || 'Ошибка при отмене подписки' })
+        } finally {
+            setCancellingSubscription(false)
+        }
+    }
 
     // Платформы
     type PlatformInfo = { linked: boolean; platformId: string | null; platformName: string | null }
@@ -463,6 +489,84 @@ export default function SettingsPage() {
                         </div>
                     )}
                 </div>
+            </div>
+
+            {/* Subscription Section */}
+            <div className="dashboard-card mb-6">
+                <h2 className="text-xl font-bold text-gray-900 mb-1">Подписка</h2>
+                <p className="text-sm text-gray-500 mb-6">Управление автоматическими списаниями.</p>
+
+                <div className="flex items-start gap-4 p-4 bg-gray-50 rounded-xl mb-4">
+                    <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center flex-shrink-0">
+                        <CreditCard className="w-5 h-5 text-blue-600" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-gray-900 text-sm">
+                            {subscription?.planName || subscription?.planKey || 'Загрузка...'}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                            {subscription?.endDate
+                                ? `Активна до ${new Date(subscription.endDate).toLocaleDateString('ru-RU')}`
+                                : 'Нет активной подписки'}
+                        </p>
+                    </div>
+                </div>
+
+                {subscriptionMsg && (
+                    <div className={`flex items-center gap-2 text-sm font-medium mb-4 px-4 py-3 rounded-xl ${
+                        subscriptionMsg.type === 'success'
+                            ? 'bg-green-50 text-green-700 border border-green-200'
+                            : 'bg-red-50 text-red-700 border border-red-200'
+                    }`}>
+                        {subscriptionMsg.type === 'success'
+                            ? <CheckCircle className="w-4 h-4 flex-shrink-0" />
+                            : <AlertCircle className="w-4 h-4 flex-shrink-0" />}
+                        {subscriptionMsg.text}
+                    </div>
+                )}
+
+                {subscription?.planKey && subscription.planKey !== 'free' && (
+                    !cancelConfirm ? (
+                        <button
+                            onClick={() => setCancelConfirm(true)}
+                            className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-red-600 bg-red-50 hover:bg-red-100 rounded-xl transition"
+                        >
+                            <ShieldOff className="w-4 h-4" />
+                            Отменить автопродление
+                        </button>
+                    ) : (
+                        <div className="p-4 border-2 border-red-200 bg-red-50 rounded-xl">
+                            <p className="text-sm font-semibold text-gray-900 mb-1">Вы уверены?</p>
+                            <p className="text-xs text-gray-500 mb-4">
+                                Автосписания прекратятся. Доступ к тарифу сохранится до конца оплаченного периода, затем аккаунт перейдёт на бесплатный план.
+                            </p>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={handleCancelSubscription}
+                                    disabled={cancellingSubscription}
+                                    className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-xl transition disabled:opacity-50"
+                                >
+                                    {cancellingSubscription ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                                    Да, отменить
+                                </button>
+                                <button
+                                    onClick={() => setCancelConfirm(false)}
+                                    disabled={cancellingSubscription}
+                                    className="px-4 py-2 text-sm font-semibold text-gray-600 bg-white hover:bg-gray-100 rounded-xl border border-gray-200 transition disabled:opacity-50"
+                                >
+                                    Назад
+                                </button>
+                            </div>
+                        </div>
+                    )
+                )}
+
+                <p className="text-xs text-gray-400 mt-4">
+                    Согласие на автоматические списания:{' '}
+                    <a href="/legal/consent/recurrent" target="_blank" className="text-blue-500 underline">
+                        просмотреть документ
+                    </a>
+                </p>
             </div>
 
             {/* Connected Platforms Section */}

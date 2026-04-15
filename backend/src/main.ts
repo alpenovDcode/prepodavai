@@ -34,7 +34,12 @@ async function bootstrap() {
   if (!origins.includes('http://localhost:3001')) origins.push('http://localhost:3001');
 
   app.enableCors({
-    origin: origins,
+    origin: (requestOrigin, callback) => {
+      // Запросы без Origin (curl, server-to-server) — разрешаем
+      if (!requestOrigin) return callback(null, true);
+      if (origins.includes(requestOrigin)) return callback(null, true);
+      callback(new Error(`CORS: origin not allowed — ${requestOrigin}`));
+    },
     credentials: true,
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     allowedHeaders: [
@@ -46,11 +51,10 @@ async function bootstrap() {
       'Range',
     ],
     exposedHeaders: ['Content-Range', 'X-Content-Range', 'Set-Cookie'],
-    optionsSuccessStatus: 204, // Важно для корректной обработки preflight OPTIONS
+    optionsSuccessStatus: 204,
   });
 
   const port = configService.get<number>('PORT', 3001);
-  const nodeEnv = configService.get<string>('NODE_ENV', 'development');
 
   // Доверяем прокси (Nginx) для корректного определения протокола (https) и IP
   const expressApp = app.getHttpAdapter().getInstance();
@@ -65,14 +69,15 @@ async function bootstrap() {
     );
   }
 
-  // Ограничение размера body запросов (защита от DoS) - Глобальный лимит 10MB
-  // (2GB для видео загружается через Multer в FilesController)
-  // rawBody capture для HMAC-верификации webhook CloudPayments
+  // rawBody сохраняется только для webhook-путей CloudPayments (экономия памяти).
+  // Для всех остальных запросов buf не удерживается в памяти.
   app.use(
     require('express').json({
       limit: '10mb',
       verify: (req: any, _res: any, buf: Buffer) => {
-        req.rawBody = buf;
+        if (req.url?.includes('/payments/webhook')) {
+          req.rawBody = buf;
+        }
       },
     }),
   );
@@ -113,7 +118,7 @@ async function bootstrap() {
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
-      forbidNonWhitelisted: false,
+      forbidNonWhitelisted: true,
       transform: true,
     }),
   );

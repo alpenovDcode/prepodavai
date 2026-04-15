@@ -32,6 +32,25 @@ const nextConfig = {
     }
     return config;
   },
+  async redirects() {
+    return [
+      {
+        source: '/privacy-policy',
+        destination: '/legal/privacy',
+        permanent: true,
+      },
+      {
+        source: '/public-offer',
+        destination: '/legal/offer',
+        permanent: true,
+      },
+      {
+        source: '/personal-data',
+        destination: '/legal/consent/processing',
+        permanent: true,
+      },
+    ]
+  },
 }
 
 module.exports = nextConfig

@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsEmail, IsOptional } from 'class-validator';
+import { IsString, IsNotEmpty, IsEmail, IsOptional, Matches, IsIn } from 'class-validator';
 
 export class ValidateInitDataDto {
   @IsString()
@@ -35,12 +35,14 @@ export class StudentLoginDto {
 export class SendPhoneCodeDto {
   @IsString()
   @IsNotEmpty()
+  @Matches(/^\+?[\d\s()\-]{7,20}$/, { message: 'Некорректный формат номера телефона' })
   phone: string;
 }
 
 export class LoginWithPhoneDto {
   @IsString()
   @IsNotEmpty()
+  @Matches(/^\+?[\d\s()\-]{7,20}$/, { message: 'Некорректный формат номера телефона' })
   phone: string;
 
   @IsString()
@@ -104,11 +106,13 @@ export class VerifyEmailCodeDto {
 export class GenerateLinkTokenDto {
   @IsString()
   @IsNotEmpty()
-  platform: string; // 'telegram' | 'max'
+  @IsIn(['telegram', 'max'], { message: 'platform должен быть telegram или max' })
+  platform: string;
 }
 
 export class UnlinkPlatformDto {
   @IsString()
   @IsNotEmpty()
-  platform: string; // 'telegram' | 'max'
+  @IsIn(['telegram', 'max'], { message: 'platform должен быть telegram или max' })
+  platform: string;
 }
