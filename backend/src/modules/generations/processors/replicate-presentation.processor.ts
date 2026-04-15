@@ -70,28 +70,46 @@ export class ReplicatePresentationProcessor extends WorkerHost {
       });
       this.logger.log(`Generated ${slides.length} slides for request ${generationRequestId}`);
 
-      // 2. Generate images for each slide (sequential to avoid rate limits)
-      for (let i = 0; i < slides.length; i++) {
-        const slide = slides[i];
-        if (this.replicateToken && slide.imagePrompt && slide.html.includes('IMAGE_PLACEHOLDER')) {
-          try {
-            this.logger.log(`Generating image for slide ${i + 1}/${slides.length}...`);
-            const imageUrl = await this.generateImage(slide.imagePrompt);
-            slide.html = slide.html.replace('IMAGE_PLACEHOLDER', imageUrl);
-          } catch (imgError: any) {
-            this.logger.error(`Failed to generate image for slide ${i + 1}: ${imgError.message}`);
+      // 2. Generate images for each slide in parallel
+      this.logger.log(`Generating images for ${slides.length} slides in parallel...`);
+      
+      await Promise.all(
+        slides.map(async (slide, i) => {
+          if (this.replicateToken && slide.imagePrompt && slide.html.includes('IMAGE_PLACEHOLDER')) {
+            try {
+              this.logger.log(`Starting image generation for slide ${i + 1}`);
+              const remoteImageUrl = await this.generateImage(slide.imagePrompt);
+              
+              // Save to local storage for faster loading and persistence
+              try {
+                const response = await axios.get(remoteImageUrl, { responseType: 'arraybuffer' });
+                const buffer = Buffer.from(response.data);
+                const localFile = await this.filesService.saveBuffer(
+                  buffer,
+                  `slide_${generationRequestId}_${i}.png`,
+                  userId
+                );
+                slide.html = slide.html.replace('IMAGE_PLACEHOLDER', localFile.url);
+                this.logger.log(`Image for slide ${i + 1} saved locally: ${localFile.url}`);
+              } catch (saveError) {
+                this.logger.warn(`Failed to save image locally for slide ${i + 1}, using remote URL: ${remoteImageUrl}`);
+                slide.html = slide.html.replace('IMAGE_PLACEHOLDER', remoteImageUrl);
+              }
+            } catch (imgError: any) {
+              this.logger.error(`Failed to generate image for slide ${i + 1}: ${imgError.message}`);
+              slide.html = slide.html.replace(
+                'IMAGE_PLACEHOLDER',
+                `https://picsum.photos/800/450?sig=${Math.random()}`,
+              );
+            }
+          } else {
             slide.html = slide.html.replace(
               'IMAGE_PLACEHOLDER',
               `https://picsum.photos/800/450?sig=${Math.random()}`,
             );
           }
-        } else {
-          slide.html = slide.html.replace(
-            'IMAGE_PLACEHOLDER',
-            `https://picsum.photos/800/450?sig=${Math.random()}`,
-          );
-        }
-      }
+        })
+      );
 
       const finalResult = {
         provider: 'Replicate',
