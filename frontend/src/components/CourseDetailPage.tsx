@@ -49,27 +49,23 @@ async function downloadGeneration(generation: Generation, typeLabel: string) {
         return
     }
 
-    // HTML — export as PDF
+    // HTML — открываем в новом окне и вызываем печать (сохранение в PDF)
     const content = result?.htmlResult || result?.content || result?.result
     if (content && typeof content === 'string') {
         const safeName = typeLabel.replace(/[^a-zA-Zа-яА-Я0-9]/g, '_') || 'result'
-        const dateSuffix = new Date().toISOString().split('T')[0]
-        const filename = `${safeName}_${dateSuffix}.pdf`
-        try {
-            const pdfResponse = await apiClient.post<Blob>('/files/export/pdf', { html: content, filename }, { responseType: 'blob' })
-            const url = URL.createObjectURL(pdfResponse.data)
-            const a = document.createElement('a')
-            a.href = url; a.download = filename
-            document.body.appendChild(a); a.click(); document.body.removeChild(a)
-            URL.revokeObjectURL(url)
-            return
-        } catch { /* fallback to HTML */ }
-        const blob = new Blob([content], { type: 'text/html;charset=utf-8' })
-        const url = URL.createObjectURL(blob)
+        const autoPrint = `<script>window.onload=function(){setTimeout(function(){window.print()},600)}<\/script>`
+        const hasHead = /<\/head>/i.test(content)
+        const html = hasHead
+            ? content.replace(/<\/head>/i, `${autoPrint}</head>`)
+            : `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${safeName}</title>${autoPrint}</head><body>${content}</body></html>`
+        const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
+        const blobUrl = URL.createObjectURL(blob)
         const a = document.createElement('a')
-        a.href = url; a.download = `${safeName}_${generation.id}.html`
+        a.href = blobUrl
+        a.target = '_blank'
+        a.rel = 'noopener'
         document.body.appendChild(a); a.click(); document.body.removeChild(a)
-        URL.revokeObjectURL(url)
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 10000)
     }
 }
 

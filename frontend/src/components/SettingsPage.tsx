@@ -275,7 +275,6 @@ export default function SettingsPage() {
                 email: profile.email,
                 phone: profile.phone,
                 bio: profile.bio,
-                avatar: profile.avatar,
                 subject: profile.subject,
                 grades: profile.grades,
                 notifyNewCourse: notifications.notifyNewCourse,

@@ -40,13 +40,12 @@ export class HtmlExportService implements OnModuleDestroy {
         '--disable-in-process-stack-traces',
         '--log-level=3',
         '--disable-software-rasterizer',
-        // УБРАНЫ --no-zygote и --single-process — они конфликтуют с crashpad в Docker
         ...(isLinux
           ? [
-              '--disable-crash-reporter',
-              '--crash-dumps-dir=/tmp',
+              // --no-zygote отключает zygote-процесс; не используем --single-process
+              // т.к. он конфликтует с crashpad_handler (требует --database аргумент)
               '--no-zygote',
-              '--single-process',
+              '--disable-crash-reporter',
               '--no-first-run',
               '--disable-background-networking',
               '--disable-default-apps',
