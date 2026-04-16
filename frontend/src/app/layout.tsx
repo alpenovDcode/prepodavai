@@ -10,6 +10,10 @@ const inter = Inter({ subsets: ['latin', 'cyrillic'], display: 'swap' })
 export const metadata: Metadata = {
   title: 'Преподавай',
   description: 'Интеллектуальный помощник для преподавателей',
+  icons: {
+    icon: '/logo.png',
+    apple: '/logo.png',
+  },
 }
 
 export default function RootLayout({
