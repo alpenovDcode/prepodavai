@@ -120,10 +120,13 @@ export class UsersService {
   }
 
   /**
-   * Генерация API ключа
+   * Генерация пароля: 8 читаемых символов (буквы + цифры, без путаницы)
    */
   private generateApiKey(): string {
-    return crypto.randomBytes(16).toString('hex');
+    const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+    return Array.from(crypto.randomBytes(8))
+      .map((b) => chars[b % chars.length])
+      .join('');
   }
 
   /**

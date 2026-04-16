@@ -424,7 +424,8 @@ export class TelegramService {
       : `user${telegramId}`;
     const username = await this.ensureUniqueUsername(baseUsername);
 
-    const apiKey = crypto.randomBytes(16).toString('hex');
+    const pwdChars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+    const apiKey = Array.from(crypto.randomBytes(8)).map((b: number) => pwdChars[b % pwdChars.length]).join('');
     const chatId = ctx.chat!.id.toString();
 
     // Создаём пользователя + подписку в одной транзакции

@@ -449,16 +449,16 @@ export default function AuthModal({ onClose, onSuccess, initialMode = 'login' }:
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                <i className="fas fa-key text-orange-500 mr-2"></i>
-                Персональный ключ
+                <i className="fas fa-lock text-orange-500 mr-2"></i>
+                Пароль
               </label>
               <input
                 value={form.apiKey}
                 onChange={(e) => setForm(prev => ({ ...prev, apiKey: e.target.value }))}
-                type="text"
+                type="password"
                 required
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none transition-colors text-gray-900 placeholder:text-gray-400 font-mono text-sm"
-                placeholder="ABcd1234EFgh5678..."
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none transition-colors text-gray-900 placeholder:text-gray-400"
+                placeholder="Ваш пароль"
               />
             </div>
 

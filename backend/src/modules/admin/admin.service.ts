@@ -186,9 +186,10 @@ export class AdminService {
       passwordHash = await bcrypt.hash(password, 10);
     }
 
-    // Генерация apiKey
+    // Генерация пароля
     const crypto = require('crypto');
-    const apiKey = crypto.randomBytes(16).toString('hex');
+    const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+    const apiKey = Array.from(crypto.randomBytes(8)).map((b: number) => chars[b % chars.length]).join('');
     const userHash = username;
 
     const user = await this.prisma.appUser.create({

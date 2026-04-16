@@ -93,9 +93,9 @@ export class EmailService {
         <p>Используйте следующие данные для входа на платформу:</p>
         <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
           <p style="margin: 0 0 10px 0;"><strong>Логин:</strong> ${sanitizeHtml(username)}</p>
-          <p style="margin: 0;"><strong>Персональный ключ:</strong> <code style="background: #e5e7eb; padding: 2px 6px; border-radius: 4px;">${sanitizeHtml(apiKey)}</code></p>
+          <p style="margin: 0;"><strong>Пароль:</strong> <code style="background: #e5e7eb; padding: 2px 6px; border-radius: 4px;">${sanitizeHtml(apiKey)}</code></p>
         </div>
-        <p style="font-size: 14px; color: #6b7280;">Пожалуйста, сохраните ваш Персональный ключ в надежном месте. Он потребуется вам для входа в личный кабинет.</p>
+        <p style="font-size: 14px; color: #6b7280;">Пожалуйста, сохраните ваш пароль в надёжном месте. Он потребуется вам для входа в личный кабинет.</p>
         <p style="margin-top: 30px;">
           <a href="${appUrl}" style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
             Войти на платформу

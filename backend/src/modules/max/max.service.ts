@@ -411,7 +411,10 @@ export class MaxService {
   }
 
   private generateApiKey(): string {
-    return crypto.randomBytes(16).toString('hex');
+    const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+    return Array.from(crypto.randomBytes(8))
+      .map((b: number) => chars[b % chars.length])
+      .join('');
   }
 
   private getWelcomeMessage(appUser: any): string {
@@ -419,7 +422,7 @@ export class MaxService {
       `Добро пожаловать в prepodavAI 🎓\n\n` +
       `🔑 Ваши данные для входа в веб-версию:\n\n` +
       `👤 Username: ${appUser.username}\n` +
-      `🔐 API Key: ${appUser.apiKey}\n\n` +
+      `🔐 Пароль: ${appUser.apiKey}\n\n` +
       `⚠️ Сохраните эти данные! Они понадобятся для входа в веб-версию.\n\n` +
       `🌐 Веб-версия: https://prepodavai.ru/\n\n` +
       `Я твой интеллектуальный помощник для:\n` +
