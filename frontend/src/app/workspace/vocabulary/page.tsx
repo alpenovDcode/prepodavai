@@ -7,6 +7,7 @@ import toast from 'react-hot-toast'
 import { useGenerations } from '@/lib/hooks/useGenerations'
 import RichTextEditor from '@/components/workspace/RichTextEditor'
 import { getCurrentUser } from '@/lib/utils/userIdentity'
+import { ensureMathJaxInHtml } from '@/lib/utils/ensureMathJax'
 import GenerationCostBadge from '@/components/workspace/GenerationCostBadge'
 import AssignTaskButton from '@/components/AssignTaskButton'
 import GenerationProgress from '@/components/workspace/GenerationProgress'
@@ -61,7 +62,7 @@ export default function VocabularyGenerator() {
                 finalHtml = `<div style="white-space: pre-wrap;">${finalHtml}</div>`
             }
 
-            setLocalContent(finalHtml || '<p>Не удалось сгенерировать контент.</p>')
+            setLocalContent(ensureMathJaxInHtml(finalHtml) || '<p>Не удалось сгенерировать контент.</p>')
             setEditMode(false)
 
         } catch (e: any) {

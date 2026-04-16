@@ -8,6 +8,7 @@ import { useIsMobile } from '@/lib/hooks/useIsMobile'
 import RichTextEditor from '@/components/workspace/RichTextEditor'
 import { useGenerations } from '@/lib/hooks/useGenerations'
 import { getCurrentUser } from '@/lib/utils/userIdentity'
+import { ensureMathJaxInHtml } from '@/lib/utils/ensureMathJax'
 import { apiClient } from '@/lib/api/client'
 import GenerationCostBadge from '@/components/workspace/GenerationCostBadge'
 import AssignTaskButton from '@/components/AssignTaskButton'
@@ -60,7 +61,7 @@ export default function QuizGenerator() {
                 finalHtml = `<div style="white-space: pre-wrap;">${finalHtml}</div>`
             }
 
-            setLocalContent(finalHtml || '<p>Не удалось сгенерировать контент.</p>')
+            setLocalContent(ensureMathJaxInHtml(finalHtml) || '<p>Не удалось сгенерировать контент.</p>')
 
         } catch (e: any) {
             console.error('Generation failed:', e)

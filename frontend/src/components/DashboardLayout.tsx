@@ -8,7 +8,7 @@ import { useMiniAppAuth } from '@/lib/hooks/useMiniAppAuth'
 import { useSubscription } from '@/lib/hooks/useSubscription'
 import { LOGO_BASE64 } from '@/constants/branding'
 import { apiClient } from '@/lib/api/client'
-import { Loader2, Menu, X, LayoutDashboard, Wand2, BookOpen, Users, BarChart, Settings as SettingsIcon, Sparkles, Gift, Zap } from 'lucide-react'
+import { Loader2, Menu, X, LayoutDashboard, Wand2, BookOpen, Users, BarChart, Settings as SettingsIcon, Sparkles, Gift, Zap, MessageCircle } from 'lucide-react'
 import PlanUpgradeModal from '@/components/PlanUpgradeModal'
 
 interface DashboardLayoutProps {
@@ -151,6 +151,16 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                                         </Link>
                                     )
                                 })}
+
+                                <a
+                                    href="https://t.me/+cos_QRyP37k4M2Uy"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+                                >
+                                    <MessageCircle className="w-5 h-5 text-gray-400" />
+                                    <span>Поддержка</span>
+                                </a>
                             </nav>
 
                             <div className="p-4 border-t border-gray-100 bg-gray-50/30">
@@ -241,6 +251,16 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                             </Link>
                         )
                     })}
+
+                    <a
+                        href="https://t.me/+cos_QRyP37k4M2Uy"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold text-gray-500 hover:text-gray-900 hover:bg-gray-50 transition-all border border-transparent"
+                    >
+                        <MessageCircle className="w-5 h-5 text-gray-400" />
+                        <span>Поддержка</span>
+                    </a>
                 </nav>
 
                 {/* Upgrade Button */}
