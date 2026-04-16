@@ -2,6 +2,7 @@ import { Injectable, BadRequestException, UnauthorizedException } from '@nestjs/
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { SmscService } from '../smsc/smsc.service';
 import * as crypto from 'crypto';
+import * as bcrypt from 'bcryptjs';
 
 const PHONE_VERIFICATION_BONUS = 50;
 
@@ -93,6 +94,29 @@ export class UsersService {
     });
 
     return { creditsGranted: PHONE_VERIFICATION_BONUS };
+  }
+
+  /**
+   * Смена пароля для авторизованного пользователя
+   */
+  async changePassword(userId: string, currentPassword: string, newPassword: string): Promise<void> {
+    const user = await this.prisma.appUser.findUnique({ where: { id: userId } });
+    if (!user) throw new BadRequestException('Пользователь не найден');
+
+    if (user.passwordHash) {
+      const isMatch = await bcrypt.compare(currentPassword, user.passwordHash);
+      if (!isMatch) throw new UnauthorizedException('Неверный текущий пароль');
+    }
+
+    if (newPassword.length < 8) {
+      throw new BadRequestException('Новый пароль должен содержать не менее 8 символов');
+    }
+
+    const newHash = await bcrypt.hash(newPassword, 10);
+    await this.prisma.appUser.update({
+      where: { id: userId },
+      data: { passwordHash: newHash },
+    });
   }
 
   /**

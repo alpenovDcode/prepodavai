@@ -265,20 +265,12 @@ export default function PhotosessionGenerator() {
                             <select
                                 value={prompt}
                                 onChange={e => setPrompt(e.target.value)}
-                                className="block w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 mb-3 text-gray-900 placeholder-gray-400"
+                                className="block w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900 placeholder-gray-400"
                             >
                                 {photosessionPrompts.map((opt, idx) => (
                                     <option key={idx} value={opt.value}>{opt.label}</option>
                                 ))}
                             </select>
-
-                            <textarea
-                                value={prompt}
-                                onChange={e => setPrompt(e.target.value)}
-                                placeholder="Опишите желаемый результат..."
-                                rows={4}
-                                className="block w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-mono text-gray-600 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 resize-none text-gray-900 placeholder-gray-400"
-                            />
                         </div>
                     </div>
                 </div>

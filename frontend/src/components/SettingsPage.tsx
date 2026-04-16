@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { apiClient } from '@/lib/api/client'
-import { CheckCircle, AlertCircle, Loader2, Link2, Link2Off, CreditCard, ShieldOff } from 'lucide-react'
+import { CheckCircle, AlertCircle, Loader2, Link2, Link2Off, CreditCard, ShieldOff, KeyRound, Eye, EyeOff } from 'lucide-react'
 import { useSubscription } from '@/lib/hooks/useSubscription'
 
 export default function SettingsPage() {
@@ -36,6 +36,38 @@ export default function SettingsPage() {
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
     const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
+
+    // Смена пароля
+    const [passwordForm, setPasswordForm] = useState({ current: '', next: '', confirm: '' })
+    const [passwordVisible, setPasswordVisible] = useState({ current: false, next: false, confirm: false })
+    const [passwordSaving, setPasswordSaving] = useState(false)
+    const [passwordMsg, setPasswordMsg] = useState<{ type: 'success' | 'error', text: string } | null>(null)
+
+    const handleChangePassword = async () => {
+        if (passwordForm.next !== passwordForm.confirm) {
+            setPasswordMsg({ type: 'error', text: 'Новые пароли не совпадают' })
+            return
+        }
+        if (passwordForm.next.length < 8) {
+            setPasswordMsg({ type: 'error', text: 'Новый пароль должен быть не менее 8 символов' })
+            return
+        }
+        setPasswordSaving(true)
+        setPasswordMsg(null)
+        try {
+            await apiClient.post('/users/me/password', {
+                currentPassword: passwordForm.current,
+                newPassword: passwordForm.next,
+            })
+            setPasswordMsg({ type: 'success', text: 'Пароль успешно изменён' })
+            setPasswordForm({ current: '', next: '', confirm: '' })
+            setTimeout(() => setPasswordMsg(null), 4000)
+        } catch (err: any) {
+            setPasswordMsg({ type: 'error', text: err?.response?.data?.message || 'Не удалось изменить пароль' })
+        } finally {
+            setPasswordSaving(false)
+        }
+    }
 
     // Подписка
     const { subscription, refetch: refetchSubscription } = useSubscription()
@@ -486,6 +518,57 @@ export default function SettingsPage() {
                         <div className={`flex items-center gap-2 text-sm font-medium ${statusMessage.type === 'success' ? 'text-green-600' : 'text-red-600'}`}>
                             {statusMessage.type === 'success' ? <CheckCircle size={18} /> : <AlertCircle size={18} />}
                             {statusMessage.text}
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {/* Password Section */}
+            <div className="dashboard-card mb-6">
+                <h2 className="text-xl font-bold text-gray-900 mb-1">Смена пароля</h2>
+                <p className="text-sm text-gray-500 mb-6">Обновите пароль для входа в аккаунт.</p>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                    {(['current', 'next', 'confirm'] as const).map((field) => {
+                        const labels = { current: 'Текущий пароль', next: 'Новый пароль', confirm: 'Повторите новый пароль' }
+                        return (
+                            <div key={field}>
+                                <label className="block text-sm font-semibold text-gray-700 mb-2">{labels[field]}</label>
+                                <div className="relative">
+                                    <input
+                                        type={passwordVisible[field] ? 'text' : 'password'}
+                                        value={passwordForm[field]}
+                                        onChange={(e) => setPasswordForm({ ...passwordForm, [field]: e.target.value })}
+                                        className="w-full px-4 py-3 pr-10 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-primary-500 focus:bg-white transition"
+                                        autoComplete={field === 'current' ? 'current-password' : 'new-password'}
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setPasswordVisible(v => ({ ...v, [field]: !v[field] }))}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                        tabIndex={-1}
+                                    >
+                                        {passwordVisible[field] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                    </button>
+                                </div>
+                            </div>
+                        )
+                    })}
+                </div>
+
+                <div className="flex items-center gap-4">
+                    <button
+                        onClick={handleChangePassword}
+                        disabled={passwordSaving || !passwordForm.current || !passwordForm.next || !passwordForm.confirm}
+                        className="flex items-center gap-2 px-6 py-3 bg-primary-600 text-white rounded-xl font-semibold hover:bg-primary-700 transition disabled:opacity-50"
+                    >
+                        {passwordSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <KeyRound className="w-5 h-5" />}
+                        {passwordSaving ? 'Сохранение...' : 'Изменить пароль'}
+                    </button>
+                    {passwordMsg && (
+                        <div className={`flex items-center gap-2 text-sm font-medium ${passwordMsg.type === 'success' ? 'text-green-600' : 'text-red-600'}`}>
+                            {passwordMsg.type === 'success' ? <CheckCircle size={18} /> : <AlertCircle size={18} />}
+                            {passwordMsg.text}
                         </div>
                     )}
                 </div>

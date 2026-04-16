@@ -98,10 +98,8 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                         <Menu className="w-5 h-5 text-gray-700" />
                     </button>
                     <div className="flex items-center gap-2">
-                        {LOGO_BASE64 ? (
-                            <img src={LOGO_BASE64} alt="Преподавай" className="w-7 h-7 object-contain" />
-                        ) : (
-                            <LayoutDashboard className="w-5 h-5 text-primary-600" />
+                        {LOGO_BASE64 && (
+                            <img src={LOGO_BASE64} alt="Преподавай" className="w-8 h-8 object-contain" />
                         )}
                         <span className="font-bold text-gray-900 text-sm">Панель управления</span>
                     </div>
@@ -218,14 +216,13 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 className="fixed inset-y-0 left-0 w-[260px] bg-white border-r border-gray-200 z-50 flex flex-col shadow-[4px_0_12px_rgba(0,0,0,0.02)] hidden md:flex"
             >
                 {/* Logo */}
-                <div className="p-6 border-b border-gray-50">
-                    <div className="flex items-center gap-3">
-                        {LOGO_BASE64 ? (
-                            <img src={LOGO_BASE64} alt="Преподавай" className="w-10 h-10 object-contain rounded-lg" />
-                        ) : (
-                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-600 to-primary-700 flex items-center justify-center shadow-lg shadow-primary-200">
-                                <LayoutDashboard className="text-white w-6 h-6" />
-                            </div>
+                <div className="p-6 border-b border-gray-50/50">
+                    <div 
+                        className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity"
+                        onClick={() => router.push('/dashboard')}
+                    >
+                        {LOGO_BASE64 && (
+                            <img src={LOGO_BASE64} alt="Преподавай" className="w-10 h-10 object-contain" />
                         )}
                         <span className="text-xl font-bold text-gray-900 tracking-tight">Преподавай</span>
                     </div>
