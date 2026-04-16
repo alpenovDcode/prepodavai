@@ -11,8 +11,8 @@ export const metadata: Metadata = {
   title: 'Преподавай',
   description: 'Интеллектуальный помощник для преподавателей',
   icons: {
-    icon: '/logo.png',
-    apple: '/logo.png',
+    icon: '/logo-prepodavai.png',
+    apple: '/logo-prepodavai.png',
   },
 }
 
