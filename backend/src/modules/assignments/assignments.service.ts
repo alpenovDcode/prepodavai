@@ -3,6 +3,57 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { ClassesService } from '../classes/classes.service';
 import { StudentsService } from '../students/students.service';
 
+/**
+ * Удаляет раздел с ответами из HTML-контента генерации перед отдачей студенту.
+ * Работает с outputData любого типа (строка, объект с content, JSON).
+ */
+function stripAnswerKeyFromOutput(outputData: any): any {
+  if (!outputData) return outputData;
+
+  if (typeof outputData === 'string') {
+    return stripAnswerKeyFromHtml(outputData);
+  }
+
+  if (typeof outputData === 'object') {
+    // { content: "..." } — основной формат HTML-генераций
+    if (typeof outputData.content === 'string') {
+      return { ...outputData, content: stripAnswerKeyFromHtml(outputData.content) };
+    }
+    // Презентации и другие JSON-форматы — не трогаем
+    return outputData;
+  }
+
+  return outputData;
+}
+
+function stripAnswerKeyFromHtml(html: string): string {
+  let result = html;
+
+  // 1. Элемент с классом teacher-answers-only
+  result = result.replace(/<div[^>]*class\s*=\s*["'][^"']*teacher-answers-only[^"']*["'][^>]*>[\s\S]*/i, '');
+
+  // 2. Горизонтальный разделитель (обычно стоит перед разделом ответов)
+  result = result.replace(/<hr[^>]*>[\s\S]*/i, '');
+
+  // 3. Заголовки "Ключ ответов" / "Ключ Ответов"
+  result = result.replace(/<(h[1-6]|p)\b[^>]*>(?:<[^>]*>)*\s*Ключ\s*[Оо]тветов\s*(?:<\/[^>]*>)*<\/\1>[\s\S]*/i, '');
+
+  // 4. Заголовок "ОТВЕТЫ" / "Ответы" в теге h1-h6
+  result = result.replace(/<h[1-6]\b[^>]*>(?:<[^>]*>)*\s*[ОоOo][тТtT][вВvV][еЕeE][тТtT][ыЫyY]\s*(?:<\/[^>]*>)*<\/h[1-6]>[\s\S]*/i, '');
+
+  // 5. Параграф или div с выравниванием по центру, содержащий только "ОТВЕТЫ"
+  result = result.replace(/<(?:p|div)\b[^>]*(?:center|text-align\s*:\s*center)[^>]*>(?:<[^>]*>)*\s*[ОоOo][тТtT][вВvV][еЕeE][тТtT][ыЫyY]\s*(?:<\/[^>]*>)*<\/(?:p|div)>[\s\S]*/i, '');
+
+  // 6. Таблица ответов: содержит колонки "Ответ" + "Баллы"
+  result = result.replace(/<table\b[^>]*>(?:(?!<\/table>)[\s\S])*(?:[Оо]твет|ОТВЕТ)(?:(?!<\/table>)[\s\S])*(?:[Бб]алл|БАЛЛ)(?:(?!<\/table>)[\s\S])*<\/table>/g, '');
+
+  // 7. Финальный fallback: обрезаем от "Ключ ответов" или "ОТВЕТЫ" в отдельной строке
+  const cutoff = result.search(/(?:Ключ\s*[Оо]тветов|^ОТВЕТЫ$)/im);
+  if (cutoff > 0) result = result.slice(0, cutoff);
+
+  return result.trim();
+}
+
 @Injectable()
 export class AssignmentsService {
   constructor(
@@ -166,6 +217,12 @@ export class AssignmentsService {
       assignment.lesson.generations = assignment.lesson.generations.filter(
         (g) => !STUDENT_HIDDEN_TYPES.includes(g.generationType),
       );
+
+      // Strip answer sections embedded inside HTML content
+      assignment.lesson.generations = assignment.lesson.generations.map((g) => ({
+        ...g,
+        outputData: stripAnswerKeyFromOutput(g.outputData),
+      }));
     }
 
     // If this assignment is for a specific generation, filter to show only that one

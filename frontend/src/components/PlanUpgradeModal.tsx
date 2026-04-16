@@ -57,6 +57,13 @@ const PLAN_ORDER = ['free', 'starter', 'pro', 'business']
 
 // Детальное описание каждого тарифа с конкретными инструментами.
 // Каждый тариф включает все инструменты тарифов ниже (накопительно).
+const PLAN_LIMITS: Record<string, { students: string; classes: string }> = {
+  free:     { students: 'до 5 учеников',  classes: 'до 1 класса' },
+  starter:  { students: 'до 20 учеников', classes: 'до 3 классов' },
+  pro:      { students: 'до 50 учеников', classes: 'до 10 классов' },
+  business: { students: 'безлимит',       classes: 'безлимит' },
+}
+
 const PLAN_DETAILS: Record<string, { tagline: string; inherits?: string; tools: { emoji: string; name: string; hint: string }[] }> = {
   free: {
     tagline: 'Базовые инструменты для подготовки уроков',
@@ -71,24 +78,24 @@ const PLAN_DETAILS: Record<string, { tagline: string; inherits?: string; tools: 
     ],
   },
   starter: {
-    tagline: 'Все базовые + мощные инструменты для активного преподавания',
+    tagline: 'Все базовые + инструменты для активного преподавания',
     inherits: 'Бесплатный',
     tools: [
-      { emoji: '🎮', name: 'Обучающие Игры', hint: 'Memory, флэш-карты, викторины' },
       { emoji: '🎓', name: 'Варианты ОГЭ/ЕГЭ', hint: 'По спецификациям ФИПИ' },
-      { emoji: '📦', name: 'Распаковка Экспертности', hint: 'Структурирование знаний' },
-      { emoji: '🎬', name: 'Анализ Видео', hint: 'Ключевые моменты из видеоурока' },
       { emoji: '🖥️', name: 'Презентации', hint: 'Слайды с экспортом в PDF/PPTX' },
       { emoji: '🎙️', name: 'Транскрибация', hint: 'Видео и лекции → текст' },
       { emoji: '🤖', name: 'AI Ассистент', hint: '50 запросов в день' },
     ],
   },
   pro: {
-    tagline: 'Всё из Стартера + создание уникального визуального контента',
+    tagline: 'Всё из Стартера + игры, распаковка, видео и визуальный контент',
     inherits: 'Стартер',
     tools: [
-      { emoji: '🖼️', name: 'Генератор Изображений', hint: 'Иллюстрации для учебных материалов' },
-      { emoji: '📸', name: 'AI Фотосессия', hint: 'Серия фото в едином стиле' },
+      { emoji: '🎮', name: 'Обучающие Игры', hint: 'Memory, флэш-карты, викторины' },
+      { emoji: '📦', name: 'Распаковка Экспертности', hint: 'Структурирование знаний' },
+      { emoji: '🎬', name: 'Анализ Видео', hint: 'Ключевые моменты из видеоурока' },
+      { emoji: '🖼️', name: 'Генератор Изображений', hint: 'До 30 генераций в месяц' },
+      { emoji: '📸', name: 'AI Фотосессия', hint: 'До 20 генераций в месяц' },
       { emoji: '🤖', name: 'AI Ассистент', hint: 'Безлимитные запросы' },
       { emoji: '🔄', name: 'Перенос токенов', hint: 'До 100 неиспользованных токенов' },
     ],
@@ -97,10 +104,11 @@ const PLAN_DETAILS: Record<string, { tagline: string; inherits?: string; tools: 
     tagline: 'Максимум возможностей: всё из Про + приоритет и овередж',
     inherits: 'Про',
     tools: [
+      { emoji: '🖼️', name: 'Генератор Изображений', hint: 'До 70 генераций в месяц' },
+      { emoji: '📸', name: 'AI Фотосессия', hint: 'До 50 генераций в месяц' },
       { emoji: '💰', name: 'Овередж токены', hint: '1.5₽ за токен при превышении лимита' },
       { emoji: '🏆', name: 'Перенос токенов', hint: 'До 300 неиспользованных токенов' },
       { emoji: '⚡', name: 'Приоритетная поддержка', hint: 'Ответ в течение 2 часов' },
-      { emoji: '📊', name: '1500 токенов/месяц', hint: 'Максимальный объём генераций' },
     ],
   },
 }
@@ -208,7 +216,7 @@ export default function PlanUpgradeModal({ open, onClose, highlightPlanKey }: Pr
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
 
       {/* Modal */}
-      <div className="relative z-10 bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+      <div className="relative z-10 bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between rounded-t-2xl z-10">
           <div>
@@ -294,6 +302,18 @@ export default function PlanUpgradeModal({ open, onClose, highlightPlanKey }: Pr
                     </div>
                   )}
                 </div>
+
+                {/* Limits */}
+                {PLAN_LIMITS[plan.planKey] && (
+                  <div className="flex flex-wrap gap-1.5 -mt-1">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 text-[10px] font-medium text-gray-600">
+                      👥 {PLAN_LIMITS[plan.planKey].students}
+                    </span>
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 text-[10px] font-medium text-gray-600">
+                      🏫 {PLAN_LIMITS[plan.planKey].classes}
+                    </span>
+                  </div>
+                )}
 
                 {/* Tagline */}
                 {PLAN_DETAILS[plan.planKey] && (

@@ -143,6 +143,83 @@ export default function DashboardHome() {
                 </p>
             </div>
 
+            {/* Quick Stats */}
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 md:gap-4 mb-6">
+                <div className="bg-white rounded-2xl p-4 md:p-6 border border-gray-100 shadow-sm">
+                    <div className="flex items-center gap-2 md:gap-3">
+                        <div className="w-9 h-9 md:w-10 md:h-10 rounded-xl bg-green-100 flex items-center justify-center flex-shrink-0">
+                            <i className="fas fa-check-circle text-green-600 text-sm"></i>
+                        </div>
+                        <div>
+                            <div className="flex items-baseline gap-1">
+                                <p className="text-xl md:text-2xl font-bold text-gray-900 tabular-nums">
+                                    {(statsData?.globalGenerationsCount ?? '—').toLocaleString()}
+                                </p>
+                                {statsData && (
+                                    <span className="flex h-2 w-2 relative -top-2">
+                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                                        <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                                    </span>
+                                )}
+                            </div>
+                            <p className="text-[11px] md:text-xs text-gray-600 font-medium">Генераций</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="bg-white rounded-2xl p-4 md:p-6 border border-gray-100 shadow-sm">
+                    <div className="flex items-center gap-2 md:gap-3">
+                        <div className="w-9 h-9 md:w-10 md:h-10 rounded-xl bg-indigo-100 flex items-center justify-center flex-shrink-0">
+                            <i className="fas fa-wand-magic-sparkles text-indigo-600 text-sm"></i>
+                        </div>
+                        <div>
+                            <p className="text-xl md:text-2xl font-bold text-gray-900">{statsData?.generationsCount ?? '—'}</p>
+                            <p className="text-[11px] md:text-xs text-gray-600 font-medium">Моих генераций</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="bg-white rounded-2xl p-4 md:p-6 border border-gray-100 shadow-sm">
+                    <div className="flex items-center gap-2 md:gap-3">
+                        <div className="w-9 h-9 md:w-10 md:h-10 rounded-xl bg-purple-100 flex items-center justify-center flex-shrink-0">
+                            <i className="fas fa-users text-primary-600 text-sm"></i>
+                        </div>
+                        <div>
+                            <p className="text-xl md:text-2xl font-bold text-gray-900">{dashboardData?.stats?.totalStudents ?? '—'}</p>
+                            <p className="text-[11px] md:text-xs text-gray-600 font-medium">Учеников</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="bg-white rounded-2xl p-4 md:p-6 border border-gray-100 shadow-sm">
+                    <div className="flex items-center gap-2 md:gap-3">
+                        <div className="w-9 h-9 md:w-10 md:h-10 rounded-xl bg-yellow-100 flex items-center justify-center flex-shrink-0">
+                            <i className="fas fa-star text-yellow-500 text-sm"></i>
+                        </div>
+                        <div>
+                            <p className="text-xl md:text-2xl font-bold text-gray-900">
+                                {dashboardData?.stats?.avgScore ? `${dashboardData.stats.avgScore}%` : '—'}
+                            </p>
+                            <p className="text-[11px] md:text-xs text-gray-600 font-medium">Ср. балл</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="bg-white rounded-2xl p-4 md:p-6 border border-gray-100 shadow-sm">
+                    <div className="flex items-center gap-2 md:gap-3">
+                        <div className="w-9 h-9 md:w-10 md:h-10 rounded-xl bg-blue-100 flex items-center justify-center flex-shrink-0">
+                            <i className="fas fa-coins text-blue-600 text-sm"></i>
+                        </div>
+                        <div>
+                            <p className="text-xl md:text-2xl font-bold text-gray-900">
+                                {totalCredits > 0 ? totalCredits.toLocaleString() : '—'}
+                            </p>
+                            <p className="text-[11px] md:text-xs text-gray-600 font-medium">Токенов</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             {/* Main Form Card */}
             <div className="dashboard-card mb-4">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
@@ -271,83 +348,6 @@ export default function DashboardHome() {
                             }`}
                             style={{ width: `${progressValue}%` }}
                         />
-                    </div>
-                </div>
-            </div>
-
-            {/* Quick Stats */}
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 md:gap-4">
-                <div className="bg-white rounded-2xl p-4 md:p-6 border border-gray-100 shadow-sm">
-                    <div className="flex items-center gap-2 md:gap-3">
-                        <div className="w-9 h-9 md:w-10 md:h-10 rounded-xl bg-green-100 flex items-center justify-center flex-shrink-0">
-                            <i className="fas fa-check-circle text-green-600 text-sm"></i>
-                        </div>
-                        <div>
-                            <div className="flex items-baseline gap-1">
-                                <p className="text-xl md:text-2xl font-bold text-gray-900 tabular-nums">
-                                    {(statsData?.globalGenerationsCount ?? '—').toLocaleString()}
-                                </p>
-                                {statsData && (
-                                    <span className="flex h-2 w-2 relative -top-2">
-                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                                        <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-                                    </span>
-                                )}
-                            </div>
-                            <p className="text-[11px] md:text-xs text-gray-600 font-medium">Генераций</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="bg-white rounded-2xl p-4 md:p-6 border border-gray-100 shadow-sm">
-                    <div className="flex items-center gap-2 md:gap-3">
-                        <div className="w-9 h-9 md:w-10 md:h-10 rounded-xl bg-indigo-100 flex items-center justify-center flex-shrink-0">
-                            <i className="fas fa-wand-magic-sparkles text-indigo-600 text-sm"></i>
-                        </div>
-                        <div>
-                            <p className="text-xl md:text-2xl font-bold text-gray-900">{statsData?.generationsCount ?? '—'}</p>
-                            <p className="text-[11px] md:text-xs text-gray-600 font-medium">Моих генераций</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="bg-white rounded-2xl p-4 md:p-6 border border-gray-100 shadow-sm">
-                    <div className="flex items-center gap-2 md:gap-3">
-                        <div className="w-9 h-9 md:w-10 md:h-10 rounded-xl bg-purple-100 flex items-center justify-center flex-shrink-0">
-                            <i className="fas fa-users text-primary-600 text-sm"></i>
-                        </div>
-                        <div>
-                            <p className="text-xl md:text-2xl font-bold text-gray-900">{dashboardData?.stats?.totalStudents ?? '—'}</p>
-                            <p className="text-[11px] md:text-xs text-gray-600 font-medium">Учеников</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="bg-white rounded-2xl p-4 md:p-6 border border-gray-100 shadow-sm">
-                    <div className="flex items-center gap-2 md:gap-3">
-                        <div className="w-9 h-9 md:w-10 md:h-10 rounded-xl bg-yellow-100 flex items-center justify-center flex-shrink-0">
-                            <i className="fas fa-star text-yellow-500 text-sm"></i>
-                        </div>
-                        <div>
-                            <p className="text-xl md:text-2xl font-bold text-gray-900">
-                                {dashboardData?.stats?.avgScore ? `${dashboardData.stats.avgScore}%` : '—'}
-                            </p>
-                            <p className="text-[11px] md:text-xs text-gray-600 font-medium">Ср. балл</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="bg-white rounded-2xl p-4 md:p-6 border border-gray-100 shadow-sm">
-                    <div className="flex items-center gap-2 md:gap-3">
-                        <div className="w-9 h-9 md:w-10 md:h-10 rounded-xl bg-blue-100 flex items-center justify-center flex-shrink-0">
-                            <i className="fas fa-coins text-blue-600 text-sm"></i>
-                        </div>
-                        <div>
-                            <p className="text-xl md:text-2xl font-bold text-gray-900">
-                                {totalCredits > 0 ? totalCredits.toLocaleString() : '—'}
-                            </p>
-                            <p className="text-[11px] md:text-xs text-gray-600 font-medium">Токенов</p>
-                        </div>
                     </div>
                 </div>
             </div>

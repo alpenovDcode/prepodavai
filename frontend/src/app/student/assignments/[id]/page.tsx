@@ -90,31 +90,42 @@ function getGenLabel(type: string) {
 // ─── Утилита: удаление ключа ответов из контента ─────────────────────────────
 
 function stripAnswerKey(content: string): string {
-  // Strategy: find the teacher-answers-only section and remove it + everything after.
-  // The generated HTML uses a div with class "teacher-answers-only" for the answer key.
-  // Also handle plain-text and other HTML patterns.
-
   let result = content
 
   // 1. Remove <div class="teacher-answers-only">...</div> and everything after it
   result = result.replace(/<div[^>]*class\s*=\s*["'][^"']*teacher-answers-only[^"']*["'][^>]*>[\s\S]*/i, '')
 
-  // 2. Remove section starting from a heading that contains "Ключ ответов"
-  //    Match: <h1-h6> or <p><strong> containing "Ключ ответов" and everything after
-  result = result.replace(/<(h[1-6]|p)\b[^>]*>[^<]*Ключ ответов[^<]*<\/\1>[\s\S]*/i, '')
-  result = result.replace(/<(h[1-6]|p)\b[^>]*>\s*<[^>]*>[^<]*Ключ ответов[^<]*<\/[^>]*>\s*<\/\1>[\s\S]*/i, '')
+  // 2. Remove <hr> / page-break separators followed by answer section
+  result = result.replace(/<hr[^>]*>[\s\S]*/i, '')
+  result = result.replace(/<div[^>]*(?:page-break|border-top|separator)[^>]*>[\s\S]*/i, '')
 
-  // 3. Handle dashed/styled separator immediately before "Ключ ответов"
-  //    e.g. <hr> or border-top style followed by answer key heading
-  result = result.replace(/<hr[^>]*>\s*<[^>]*>[^<]*Ключ ответов[\s\S]*/i, '')
+  // 3. Heading-based patterns — "Ключ ответов" and variants
+  result = result.replace(/<(h[1-6]|p)\b[^>]*>[^<]*Ключ\s*ответов[^<]*<\/\1>[\s\S]*/i, '')
+  result = result.replace(/<(h[1-6]|p)\b[^>]*>\s*<[^>]*>[^<]*Ключ\s*ответов[^<]*<\/[^>]*>\s*<\/\1>[\s\S]*/i, '')
 
-  // 4. Plain text: "Ключ ответов" at start of line (for non-HTML content)
-  result = result.replace(/^[\s\-–—]*Ключ ответов[^\n]*\n[\s\S]*/im, '')
+  // 4. Heading-based patterns — "ОТВЕТЫ" / "Ответы" as a standalone section title
+  //    Match heading tags containing only the word "ОТВЕТЫ" (possibly wrapped in strong/b)
+  result = result.replace(/<(h[1-6])\b[^>]*>\s*(?:<[^>]*>)*\s*ОТВЕТЫ\s*(?:<\/[^>]*>)*\s*<\/\1>[\s\S]*/i, '')
+  result = result.replace(/<(h[1-6])\b[^>]*>\s*(?:<[^>]*>)*\s*Ответы\s*(?:<\/[^>]*>)*\s*<\/\1>[\s\S]*/i, '')
 
-  // 5. Fallback: if "Ключ ответов" is still present, remove from that text onward
-  //    but only if it's not inside a question text
-  if (/Ключ ответов/i.test(result)) {
-    result = result.replace(/Ключ ответов[\s\S]*/i, '')
+  // 5. Paragraph/div acting as heading for "ОТВЕТЫ" (centered, bold, etc.)
+  result = result.replace(/<p\b[^>]*(?:text-align\s*:\s*center|align\s*=\s*["']center["'])[^>]*>\s*(?:<[^>]*>)*\s*ОТВЕТЫ\s*(?:<\/[^>]*>)*\s*<\/p>[\s\S]*/i, '')
+  result = result.replace(/<div\b[^>]*(?:text-align\s*:\s*center|align\s*=\s*["']center["'])[^>]*>\s*(?:<[^>]*>)*\s*ОТВЕТЫ\s*(?:<\/[^>]*>)*\s*<\/div>[\s\S]*/i, '')
+
+  // 6. Table that looks like an answer key: has "Ответ" AND ("Баллы" OR "Балл") in header row
+  result = result.replace(/<table\b[^>]*>(?:(?!<\/table>)[\s\S])*(?:Ответ|ОТВЕТ)(?:(?!<\/table>)[\s\S])*(?:Балл|БАЛЛ)(?:(?!<\/table>)[\s\S])*<\/table>/gi, '')
+
+  // 7. Plain text patterns
+  result = result.replace(/^[\s\-–—]*Ключ\s*ответов[^\n]*\n[\s\S]*/im, '')
+  result = result.replace(/^[\s\-–—]*ОТВЕТЫ\s*\n[\s\S]*/im, '')
+
+  // 8. Final fallback — if any of these keywords remain at top level, cut from there
+  const ANSWER_PATTERNS = [/Ключ\s*ответов/i, /^ОТВЕТЫ$/im]
+  for (const pat of ANSWER_PATTERNS) {
+    if (pat.test(result)) {
+      const idx = result.search(pat)
+      if (idx > 0) result = result.slice(0, idx)
+    }
   }
 
   return result.trim()

@@ -7,6 +7,7 @@ import { getGenerationTypeLabel } from '@/lib/utils/translations'
 import PresentationEditor, { PresentationEditorRef } from './PresentationEditor'
 import PresentationPlayer from './PresentationPlayer'
 import { Save, Download, ChevronLeft, ChevronRight, ExternalLink, ArrowLeft, Loader2 } from 'lucide-react'
+import AssignTaskButton from './AssignTaskButton'
 import Image from 'next/image'
 import DOMPurify from 'isomorphic-dompurify'
 import jsPDF from 'jspdf'
@@ -741,8 +742,8 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
                             )}
                         </>
                     ) : (
-                        <button 
-                            onClick={handleDownload} 
+                        <button
+                            onClick={handleDownload}
                             disabled={isDownloading}
                             className="px-4 py-2 text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition font-medium flex items-center gap-2 shadow-sm shadow-blue-600/20 active:scale-95 disabled:opacity-50"
                         >
@@ -750,6 +751,11 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
                             <span>{isDownloading ? 'Скачивание...' : isImageContent ? 'Скачать изображение' : 'Скачать'}</span>
                         </button>
                     )}
+                    <AssignTaskButton
+                        generationId={generationId}
+                        lessonId={lessonId}
+                        topic={lessonTitle}
+                    />
                 </div>
             </div>
 

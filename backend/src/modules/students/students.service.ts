@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
@@ -25,6 +25,25 @@ export class StudentsService {
 
     // Verify class ownership
     await this.classesService.getClass(userId, data.classId);
+
+    // Проверяем лимит учеников по тарифу
+    const subscription = await this.prisma.userSubscription.findUnique({
+      where: { userId },
+      include: { plan: true },
+    });
+    if (subscription?.plan) {
+      const maxStudents = (subscription.plan as any).maxStudents as number | null;
+      if (maxStudents !== null && maxStudents !== undefined) {
+        const totalStudents = await this.prisma.student.count({
+          where: { class: { teacherId: userId } },
+        });
+        if (totalStudents >= maxStudents) {
+          throw new ForbiddenException(
+            `Достигнут лимит учеников на вашем тарифе (${maxStudents}). Обновите тариф для добавления новых учеников.`,
+          );
+        }
+      }
+    }
 
     // Check email uniqueness within teacher's students (only if email provided)
     if (email) {

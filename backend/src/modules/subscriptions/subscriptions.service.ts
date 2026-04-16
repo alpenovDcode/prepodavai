@@ -29,9 +29,9 @@ export const PLAN_OPERATION_RESTRICTIONS: Record<string, string[]> = {
   // free и выше
   free: ['text_generation', 'message', 'worksheet', 'quiz', 'vocabulary', 'lesson_plan', 'feedback', 'content_adaptation'],
   // starter и выше
-  starter: ['lesson_preparation', 'game_generation', 'exam_variant', 'expert_unpacking', 'unpacking', 'video_analysis', 'transcription', 'presentation', 'sales_advisor'],
+  starter: ['lesson_preparation', 'exam_variant', 'transcription', 'presentation', 'sales_advisor'],
   // pro и выше (включает все операции free + starter)
-  pro: ['image_generation', 'photosession'],
+  pro: ['game_generation', 'expert_unpacking', 'unpacking', 'video_analysis', 'image_generation', 'photosession'],
   // business — включает все операции pro + starter + free (накопительно)
   business: [],
 };
@@ -79,6 +79,10 @@ export class SubscriptionsService {
         overageCostPerCredit: null,
         features: ['Рабочий лист, тест, словарь', 'Адаптация текста, план урока', 'ИИ ассистент (10 запросов/день)', 'История генераций'],
         isActive: true,
+        maxStudents: 5,
+        maxClasses: 1,
+        maxPhotosessionPerMonth: 0,
+        maxImageGenPerMonth: 0,
       },
       {
         planKey: 'starter',
@@ -91,12 +95,15 @@ export class SubscriptionsService {
         features: [
           'Рабочий лист, тест, словарь',
           'Адаптация текста, план урока',
-          'Вау-урок, Игры, ОГЭ/ЕГЭ, Распаковка',
-          'Анализ видео, Презентации, Транскрибация',
+          'ОГЭ/ЕГЭ, Презентации, Транскрибация',
           'ИИ-продажник',
           'ИИ ассистент (50 запросов/день)',
         ],
         isActive: true,
+        maxStudents: 20,
+        maxClasses: 3,
+        maxPhotosessionPerMonth: 0,
+        maxImageGenPerMonth: 0,
       },
       {
         planKey: 'pro',
@@ -108,12 +115,17 @@ export class SubscriptionsService {
         overageCostPerCredit: null,
         features: [
           'Всё из Стартера',
-          'ИИ Генератор фото',
-          'ИИ Фотосессия',
+          'Обучающие Игры, Распаковка Экспертности, Анализ Видео',
+          'ИИ Генератор фото (до 30/мес)',
+          'ИИ Фотосессия (до 20/мес)',
           'ИИ ассистент (безлимит)',
           'Перенос до 100 токенов',
         ],
         isActive: true,
+        maxStudents: 50,
+        maxClasses: 10,
+        maxPhotosessionPerMonth: 20,
+        maxImageGenPerMonth: 30,
       },
       {
         planKey: 'business',
@@ -125,19 +137,36 @@ export class SubscriptionsService {
         overageCostPerCredit: 1.5,
         features: [
           'Всё из Про',
-          'Всё из Стартера',
+          'Безлимит учеников и классов',
+          'ИИ Генератор фото (до 70/мес)',
+          'ИИ Фотосессия (до 50/мес)',
           'Перенос до 300 токенов',
           'Овередж: 1.5₽/токен сверх лимита',
           'Приоритетная поддержка',
         ],
         isActive: true,
+        maxStudents: null,
+        maxClasses: null,
+        maxPhotosessionPerMonth: 50,
+        maxImageGenPerMonth: 70,
       },
     ];
 
     for (const planData of plans) {
       await this.prisma.subscriptionPlan.upsert({
         where: { planKey: planData.planKey },
-        update: { planName: planData.planName, monthlyCredits: planData.monthlyCredits, price: planData.price, allowOverage: planData.allowOverage, overageCostPerCredit: planData.overageCostPerCredit, features: planData.features },
+        update: {
+          planName: planData.planName,
+          monthlyCredits: planData.monthlyCredits,
+          price: planData.price,
+          allowOverage: planData.allowOverage,
+          overageCostPerCredit: planData.overageCostPerCredit,
+          features: planData.features,
+          maxStudents: planData.maxStudents,
+          maxClasses: planData.maxClasses,
+          maxPhotosessionPerMonth: planData.maxPhotosessionPerMonth,
+          maxImageGenPerMonth: planData.maxImageGenPerMonth,
+        },
         create: planData,
       });
       console.log(`✅ Plan: ${planData.planKey} — ${planData.price}р / ${planData.monthlyCredits} токенов`);
@@ -282,6 +311,43 @@ export class SubscriptionsService {
       };
     }
 
+    // Проверка месячных лимитов для фотосессии и генератора изображений
+    if (operationType === 'photosession') {
+      const limit = (plan as any).maxPhotosessionPerMonth as number | null;
+      if (limit !== null && limit !== undefined) {
+        const used = (subscription as any).photosessionUsedThisMonth as number ?? 0;
+        if (used >= limit) {
+          return {
+            available: false,
+            subscription,
+            plan,
+            cost: costConfig?.creditCost ?? 1,
+            message: `Достигнут месячный лимит AI Фотосессии (${limit} использований). Обновите тариф.`,
+            isUnderMaintenance: false,
+            planRestricted: true,
+          };
+        }
+      }
+    }
+
+    if (operationType === 'image_generation') {
+      const limit = (plan as any).maxImageGenPerMonth as number | null;
+      if (limit !== null && limit !== undefined) {
+        const used = (subscription as any).imageGenUsedThisMonth as number ?? 0;
+        if (used >= limit) {
+          return {
+            available: false,
+            subscription,
+            plan,
+            cost: costConfig?.creditCost ?? 1,
+            message: `Достигнут месячный лимит Генератора Изображений (${limit} использований). Обновите тариф.`,
+            isUnderMaintenance: false,
+            planRestricted: true,
+          };
+        }
+      }
+    }
+
     const cost = costConfig?.creditCost ?? 1;
     const totalAvailable = subscription.creditsBalance + subscription.extraCredits;
     const available =
@@ -424,6 +490,14 @@ export class SubscriptionsService {
         }
       }
 
+      // Инкрементируем счётчики месячного использования для ограниченных функций
+      const usageCounterUpdate: Record<string, any> = {};
+      if (operationType === 'photosession') {
+        usageCounterUpdate.photosessionUsedThisMonth = { increment: 1 };
+      } else if (operationType === 'image_generation') {
+        usageCounterUpdate.imageGenUsedThisMonth = { increment: 1 };
+      }
+
       // Обновляем подписку в транзакции
       const updatedSubscription = await tx.userSubscription.update({
         where: { id: subscription.id },
@@ -432,6 +506,8 @@ export class SubscriptionsService {
           extraCredits: newExtraCredits,
           creditsUsed: subscription.creditsUsed + cost,
           overageCreditsUsed: newOverageCredits,
+          // usageCounterUpdate содержит поля из новой миграции — cast до регенерации клиента
+          ...(usageCounterUpdate as any),
         },
       });
 
@@ -603,6 +679,9 @@ export class SubscriptionsService {
         creditsBalance: { increment: plan.monthlyCredits },
         endDate: newEndDate,
         autoRenew: true,
+        // Сбрасываем месячные счётчики использования функций
+        // (поля добавлены миграцией, cast нужен до регенерации клиента)
+        ...({ photosessionUsedThisMonth: 0, imageGenUsedThisMonth: 0 } as any),
         ...(cpCardToken ? { cpCardToken } : {}),
         ...(cpSubscriptionId ? { cpSubscriptionId } : {}),
       },

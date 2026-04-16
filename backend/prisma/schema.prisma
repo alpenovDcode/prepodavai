@@ -91,6 +91,15 @@ model SubscriptionPlan {
   overageCostPerCredit Decimal? @db.Decimal(10, 2)
   features            String[] // Array of features
   isActive            Boolean  @default(true)
+
+  // Лимиты по классам и ученикам (null = безлимит)
+  maxStudents         Int?
+  maxClasses          Int?
+
+  // Лимиты использования функций в месяц (null = безлимит, 0 = недоступно)
+  maxPhotosessionPerMonth Int?
+  maxImageGenPerMonth     Int?
+
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
@@ -115,6 +124,11 @@ model UserSubscription {
   autoRenew         Boolean  @default(true)
   cpSubscriptionId  String?  // CloudPayments SubscriptionId для рекуррентных
   cpCardToken       String?  // Токен карты для повторных списаний
+
+  // Счётчики использования функций в текущем месяце
+  photosessionUsedThisMonth Int @default(0)
+  imageGenUsedThisMonth     Int @default(0)
+
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 
 @Injectable()
@@ -7,6 +7,23 @@ export class ClassesService {
 
   async createClass(userId: string, data: { name: string; description?: string }) {
     try {
+      // Проверяем лимит классов по тарифу
+      const subscription = await this.prisma.userSubscription.findUnique({
+        where: { userId },
+        include: { plan: true },
+      });
+      if (subscription?.plan) {
+        const maxClasses = (subscription.plan as any).maxClasses as number | null;
+        if (maxClasses !== null && maxClasses !== undefined) {
+          const currentCount = await this.prisma.class.count({ where: { teacherId: userId } });
+          if (currentCount >= maxClasses) {
+            throw new ForbiddenException(
+              `Достигнут лимит классов на вашем тарифе (${maxClasses}). Обновите тариф для создания новых классов.`,
+            );
+          }
+        }
+      }
+
       return await this.prisma.class.create({
         data: {
           ...data,

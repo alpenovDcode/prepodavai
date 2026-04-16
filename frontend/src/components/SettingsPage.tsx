@@ -97,6 +97,7 @@ export default function SettingsPage() {
     // Платформы
     type PlatformInfo = { linked: boolean; platformId: string | null; platformName: string | null }
     const [platforms, setPlatforms] = useState<{ telegram: PlatformInfo; max: PlatformInfo } | null>(null)
+    const [platformsLoading, setPlatformsLoading] = useState(true)
     const [linking, setLinking] = useState<{
         platform: 'telegram' | 'max'
         token: string
@@ -107,10 +108,13 @@ export default function SettingsPage() {
     const linkPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
     const fetchPlatforms = useCallback(async () => {
+        setPlatformsLoading(true)
         try {
             const res = await apiClient.get('/auth/platforms')
             if (res.data.success) setPlatforms(res.data.platforms)
-        } catch { /* ignore */ }
+        } catch { /* ignore */ } finally {
+            setPlatformsLoading(false)
+        }
     }, [])
 
     const startLinking = async (platform: 'telegram' | 'max') => {
@@ -676,13 +680,22 @@ export default function SettingsPage() {
                                         <p className="font-semibold text-gray-900 text-sm">
                                             {platform === 'telegram' ? 'Telegram' : 'MAX'}
                                         </p>
-                                        {isLinked && displayName
-                                            ? <p className="text-xs text-green-600 font-medium flex items-center gap-1"><CheckCircle className="w-3 h-3" /> {displayName}</p>
-                                            : <p className="text-xs text-gray-400">Не привязан</p>}
+                                        {platformsLoading ? (
+                                            <div className="h-3 w-20 bg-gray-200 rounded animate-pulse mt-1" />
+                                        ) : isLinked ? (
+                                            <p className="text-xs text-green-600 font-medium flex items-center gap-1">
+                                                <CheckCircle className="w-3 h-3" />
+                                                {displayName ? displayName : 'Привязан'}
+                                            </p>
+                                        ) : (
+                                            <p className="text-xs text-gray-400">Не привязан</p>
+                                        )}
                                     </div>
                                 </div>
 
-                                {isLinked ? (
+                                {platformsLoading ? (
+                                    <div className="h-8 w-20 bg-gray-200 rounded-lg animate-pulse" />
+                                ) : isLinked ? (
                                     <button
                                         onClick={() => handleUnlink(platform)}
                                         disabled={isUnlinking}
