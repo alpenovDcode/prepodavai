@@ -6,6 +6,73 @@ import AssignMaterialModal from './AssignMaterialModal'
 import { useRouter } from 'next/navigation'
 import { getGenerationTypeLabel, getGenerationTypeIcon } from '@/lib/utils/translations'
 
+function getImageUrl(result: any): string | null {
+    if (!result) return null
+    if (typeof result === 'string' && (result.startsWith('http') || result.startsWith('data:image'))) return result
+    if (result?.imageUrl) return result.imageUrl
+    if (result?.imageUrls?.[0]) return result.imageUrls[0]
+    if (typeof result?.content === 'string' && (result.content.startsWith('http') || result.content.startsWith('data:image'))) return result.content
+    if (result?.content?.imageUrl) return result.content.imageUrl
+    return null
+}
+
+async function downloadGeneration(generation: Generation, typeLabel: string) {
+    const result = generation.result as any
+    if (!result) return
+
+    // Audio
+    const audioUrl = result?.audioUrl || result?.content?.audioUrl
+    if (audioUrl) {
+        const a = document.createElement('a')
+        a.href = audioUrl
+        a.download = `audio-${generation.id}.mp3`
+        document.body.appendChild(a); a.click(); document.body.removeChild(a)
+        return
+    }
+
+    // Image
+    const imageUrl = getImageUrl(result)
+    if (imageUrl) {
+        try {
+            const response = await fetch(imageUrl)
+            const blob = await response.blob()
+            const blobUrl = window.URL.createObjectURL(blob)
+            const a = document.createElement('a')
+            a.href = blobUrl; a.download = `image-${generation.id}.png`
+            document.body.appendChild(a); a.click(); document.body.removeChild(a)
+            window.URL.revokeObjectURL(blobUrl)
+        } catch {
+            const a = document.createElement('a')
+            a.href = imageUrl; a.download = `image-${generation.id}.png`; a.target = '_blank'
+            document.body.appendChild(a); a.click(); document.body.removeChild(a)
+        }
+        return
+    }
+
+    // HTML — export as PDF
+    const content = result?.htmlResult || result?.content || result?.result
+    if (content && typeof content === 'string') {
+        const safeName = typeLabel.replace(/[^a-zA-Zа-яА-Я0-9]/g, '_') || 'result'
+        const dateSuffix = new Date().toISOString().split('T')[0]
+        const filename = `${safeName}_${dateSuffix}.pdf`
+        try {
+            const pdfResponse = await apiClient.post<Blob>('/files/export/pdf', { html: content, filename }, { responseType: 'blob' })
+            const url = URL.createObjectURL(pdfResponse.data)
+            const a = document.createElement('a')
+            a.href = url; a.download = filename
+            document.body.appendChild(a); a.click(); document.body.removeChild(a)
+            URL.revokeObjectURL(url)
+            return
+        } catch { /* fallback to HTML */ }
+        const blob = new Blob([content], { type: 'text/html;charset=utf-8' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url; a.download = `${safeName}_${generation.id}.html`
+        document.body.appendChild(a); a.click(); document.body.removeChild(a)
+        URL.revokeObjectURL(url)
+    }
+}
+
 interface Generation {
     id: string
     generationType: string
@@ -47,6 +114,7 @@ export default function CourseDetailPage({ id }: CourseDetailPageProps) {
     // Assignment Modal State
     const [showAssignModal, setShowAssignModal] = useState(false)
     const [assignGenerationId, setAssignGenerationId] = useState<string | undefined>(undefined)
+    const [downloadingId, setDownloadingId] = useState<string | null>(null)
 
     useEffect(() => {
         const fetchLesson = async () => {
@@ -225,6 +293,22 @@ export default function CourseDetailPage({ id }: CourseDetailPageProps) {
                                                 }}
                                             >
                                                 <i className="fas fa-eye"></i>
+                                            </button>
+                                            <button
+                                                className="p-2 text-gray-400 hover:text-blue-600 transition disabled:opacity-40"
+                                                title="Скачать"
+                                                disabled={downloadingId === generation.id}
+                                                onClick={async (e) => {
+                                                    e.stopPropagation()
+                                                    setDownloadingId(generation.id)
+                                                    try {
+                                                        await downloadGeneration(generation, getGenerationTypeLabel(generation.generationType))
+                                                    } finally {
+                                                        setDownloadingId(null)
+                                                    }
+                                                }}
+                                            >
+                                                <i className={`fas ${downloadingId === generation.id ? 'fa-spinner fa-spin' : 'fa-download'}`}></i>
                                             </button>
                                             <button
                                                 className="px-3 py-1.5 text-sm font-medium text-primary-600 border border-primary-200 hover:bg-primary-50 rounded-lg transition flex items-center gap-1.5"

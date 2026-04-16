@@ -8,6 +8,7 @@ import { useGenerations } from '@/lib/hooks/useGenerations'
 import { useServiceCosts } from '@/lib/hooks/useServiceCosts'
 import RichTextEditor from '@/components/workspace/RichTextEditor'
 import GenerationCostBadge from '@/components/workspace/GenerationCostBadge'
+import GenerationProgress from '@/components/workspace/GenerationProgress'
 
 export default function VideoAnalysisGenerator() {
     const [analysisType, setAnalysisType] = useState('sales')
@@ -249,13 +250,7 @@ export default function VideoAnalysisGenerator() {
                     </div>
                     <div className="flex-1 overflow-hidden relative bg-white">
                         {isGenerating ? (
-                            <div className="flex flex-col items-center justify-center h-full gap-4 text-gray-500 p-6 text-center">
-                                <Loader2 className="w-12 h-12 animate-spin text-indigo-500" />
-                                <div className="space-y-1">
-                                    <p className="font-bold text-gray-900">Анализируем видео...</p>
-                                    <p className="text-sm text-gray-400">Пожалуйста, подождите.</p>
-                                </div>
-                            </div>
+                            <GenerationProgress active={isGenerating} title="Анализируем видео..." accentClassName="bg-indigo-500" estimatedSeconds={90} />
                         ) : !localContent ? (
                             <div className="flex flex-col items-center justify-center h-full gap-4 text-gray-400 p-6 text-center">
                                 <div className="w-16 h-16 rounded-2xl bg-gray-50 flex items-center justify-center">

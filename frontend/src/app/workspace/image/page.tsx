@@ -4,6 +4,50 @@ import { useState, useEffect } from 'react'
 import { Image as ImageIcon, RefreshCw, Loader2, Maximize2, Download, Sparkles } from 'lucide-react'
 import { useGenerations } from '@/lib/hooks/useGenerations'
 import GenerationCostBadge from '@/components/workspace/GenerationCostBadge'
+import GenerationProgress from '@/components/workspace/GenerationProgress'
+
+const IMAGE_PRESETS = [
+    {
+        label: 'Солнечная система',
+        value: 'A stunning educational illustration of the Solar System with all 8 planets orbiting the Sun, vibrant colors, space background with stars and nebulae, clear planet labels, high detail, scientific accuracy',
+        style: 'illustration',
+    },
+    {
+        label: 'Строение клетки',
+        value: 'A detailed and colorful cross-section diagram of an animal cell with labeled organelles: nucleus, mitochondria, ribosomes, endoplasmic reticulum, Golgi apparatus. Clean educational illustration style, bright colors, white background',
+        style: 'illustration',
+    },
+    {
+        label: 'Исторический портрет',
+        value: 'A realistic portrait painting of a historical figure in Renaissance style, detailed face, period-appropriate clothing, dramatic lighting, oil painting texture, museum quality',
+        style: 'realistic',
+    },
+    {
+        label: 'Карта мира',
+        value: 'A beautiful vintage-style world map with illustrated continents, mountains, oceans, compass rose, decorative borders, warm sepia tones with subtle color accents, detailed cartographic style',
+        style: 'illustration',
+    },
+    {
+        label: 'Математическая концепция',
+        value: 'A visually striking 3D geometric composition showing mathematical concepts: golden ratio spiral, Fibonacci sequence in nature, fractals, colorful and modern educational poster style, clean white background',
+        style: '3d-model',
+    },
+    {
+        label: 'Химическая реакция',
+        value: 'A vivid scientific illustration of a chemical reaction at the molecular level, colorful atoms and molecules bonding, glowing energy effects, dark background, educational and visually dynamic',
+        style: 'illustration',
+    },
+    {
+        label: 'Экосистема леса',
+        value: 'A lush detailed forest ecosystem illustration showing flora and fauna, food chain relationships, different layers (canopy, understory, forest floor), vibrant greens and earthy tones, educational nature poster',
+        style: 'illustration',
+    },
+    {
+        label: 'Физика: световые волны',
+        value: 'A beautiful visualization of light waves and the electromagnetic spectrum, showing different wavelengths from radio waves to gamma rays, colorful gradient bands, clean scientific diagram style with glowing effects',
+        style: 'illustration',
+    },
+]
 
 export default function ImageGenerator() {
     const [prompt, setPrompt] = useState('')
@@ -139,6 +183,21 @@ export default function ImageGenerator() {
                         </div>
 
                         <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-2 font-display">Пресеты</label>
+                            <div className="flex flex-wrap gap-1.5">
+                                {IMAGE_PRESETS.map((preset) => (
+                                    <button
+                                        key={preset.label}
+                                        onClick={() => { setPrompt(preset.value); setStyle(preset.style) }}
+                                        className="px-2.5 py-1 text-[11px] font-semibold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg transition-colors border border-indigo-100"
+                                    >
+                                        {preset.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div>
                             <label className="block text-sm font-bold text-gray-700 mb-2 font-display">Описание (Промпт)</label>
                             <textarea
                                 value={prompt}
@@ -207,13 +266,7 @@ export default function ImageGenerator() {
                     </div>
                     <div className="flex-1 overflow-auto relative bg-gray-50/50 flex items-center justify-center p-4 md:p-8">
                         {isGenerating ? (
-                            <div className="flex flex-col items-center animate-pulse text-center p-6">
-                                <div className="w-16 h-16 bg-blue-100 rounded-3xl flex items-center justify-center mb-5 shadow-inner">
-                                    <Sparkles className="w-8 h-8 text-blue-500" />
-                                </div>
-                                <h3 className="text-lg font-bold text-gray-800">Магия ИИ в действии...</h3>
-                                <p className="text-xs text-gray-500 mt-2 max-w-[200px]">Обычно это занимает около 20 секунд.</p>
-                            </div>
+                            <GenerationProgress active={isGenerating} title="Создаём изображение..." accentClassName="bg-blue-500" estimatedSeconds={25} />
                         ) : resultImageUrl ? (
                             <div className="relative group max-w-full rounded-2xl overflow-hidden shadow-2xl border border-gray-100 bg-white p-2">
                                 <img

@@ -1,9 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { Camera, RefreshCw, Loader2, Maximize2, UploadCloud, Download, Image as ImageIcon } from 'lucide-react'
+import { Camera, RefreshCw, Loader2, Maximize2, UploadCloud, Download } from 'lucide-react'
 import { useGenerations } from '@/lib/hooks/useGenerations'
 import GenerationCostBadge from '@/components/workspace/GenerationCostBadge'
+import GenerationProgress from '@/components/workspace/GenerationProgress'
 
 const photosessionPrompts = [
     {
@@ -315,13 +316,7 @@ export default function PhotosessionGenerator() {
                     </div>
                     <div className="flex-1 overflow-hidden relative bg-gray-50/50 flex items-center justify-center p-8">
                         {isGenerating ? (
-                            <div className="flex flex-col items-center animate-pulse">
-                                <div className="w-20 h-20 bg-orange-100 rounded-full flex items-center justify-center mb-4">
-                                    <ImageIcon className="w-10 h-10 text-orange-400" />
-                                </div>
-                                <p className="text-lg font-bold text-gray-800">Магия искусственного интеллекта в действии...</p>
-                                <p className="text-sm text-gray-500 mt-2">Обычно это занимает от 30 до 60 секунд.</p>
-                            </div>
+                            <GenerationProgress active={isGenerating} title="Создаём фотосессию..." accentClassName="bg-orange-500" estimatedSeconds={50} />
                         ) : resultImageUrl ? (
                             <div className="relative group max-w-full max-h-full rounded-xl overflow-hidden shadow-sm border border-gray-200">
                                 <img

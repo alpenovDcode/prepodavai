@@ -77,6 +77,7 @@ ${DesignSystemConfig.PROMPT_MODULES.SYSTEM_INTRO}
 <!-- Структура КИМ актуальна по спецификации ФИПИ 2026 -->
 
 ${DesignSystemConfig.PROMPT_MODULES.MATHJAX_RULES}
+${subject && subject.toLowerCase().includes('хим') ? DesignSystemConfig.PROMPT_MODULES.CHEMISTRY_FORMULA_RULES : ''}
 ${DesignSystemConfig.PROMPT_MODULES.INTERACTIVE_RULES}
 ${DesignSystemConfig.PROMPT_MODULES.CRITICAL_OUTPUT_RULES}
 

@@ -11,14 +11,34 @@ import RichTextEditor from '@/components/workspace/RichTextEditor'
 import { getCurrentUser } from '@/lib/utils/userIdentity'
 import GenerationCostBadge from '@/components/workspace/GenerationCostBadge'
 
+const EXAM_SUBJECTS: Record<string, string[]> = {
+    'ОГЭ (9 класс)': [
+        'Русский язык', 'Математика', 'Физика', 'Химия', 'Биология',
+        'История', 'Обществознание', 'Литература', 'Информатика',
+        'Английский язык', 'Немецкий язык', 'Французский язык',
+        'Испанский язык', 'География',
+    ],
+    'ЕГЭ (11 класс)': [
+        'Русский язык', 'Математика (профильная)', 'Математика (базовая)',
+        'Физика', 'Химия', 'Биология', 'История', 'Обществознание',
+        'Литература', 'Информатика', 'Английский язык', 'Немецкий язык',
+        'Французский язык', 'Испанский язык', 'Китайский язык', 'География',
+    ],
+    'ВПР (Всероссийские проверочные работы)': [
+        'Русский язык', 'Математика', 'Окружающий мир', 'Физика',
+        'Химия', 'Биология', 'История', 'Обществознание', 'Литература',
+        'Английский язык', 'Немецкий язык', 'Французский язык', 'География',
+    ],
+}
+
 export default function ExamGeneratorPage() {
-    const [subject, setSubject] = useState('')
     const [level, setLevel] = useState('ОГЭ (9 класс)')
+    const [subject, setSubject] = useState(EXAM_SUBJECTS['ОГЭ (9 класс)'][0])
     const [questionsCount, setQuestionsCount] = useState(20)
     const [preferences, setPreferences] = useState('')
     const [customPrompt, setCustomPrompt] = useState('')
 
-    const [localContent, setLocalContent] = useState('<p>Введите предмет, выберите тип экзамена (ОГЭ/ЕГЭ), настройте количество заданий и нажмите Сгенерировать Вариант.</p>')
+    const [localContent, setLocalContent] = useState('<p>Выберите предмет и тип экзамена, настройте количество заданий и нажмите Сгенерировать Вариант.</p>')
     const [editMode, setEditMode] = useState(false)
     const [copied, setCopied] = useState(false)
     const [activeTab, setActiveTab] = useState<'config' | 'preview'>('config')
@@ -26,7 +46,7 @@ export default function ExamGeneratorPage() {
     const iframeRef = useRef<HTMLIFrameElement>(null)
 
     const { generateAndWait, isGenerating, activeGenerationId } = useGenerations()
-    const hasResult = !isGenerating && !!localContent && !localContent.includes('Введите предмет') && !localContent.includes('Генерируем')
+    const hasResult = !isGenerating && !!localContent && !localContent.includes('Выберите предмет') && !localContent.includes('Генерируем')
 
     useEffect(() => {
         const checkMobile = () => {
@@ -38,7 +58,7 @@ export default function ExamGeneratorPage() {
     }, [])
 
     const generate = async () => {
-        if (!subject) return
+        if (!subject.trim()) return
         try {
             setLocalContent('<p>Генерируем вариант экзамена (ОГЭ/ЕГЭ)... Это может занять около минуты.</p>')
             setEditMode(false)
@@ -153,26 +173,32 @@ export default function ExamGeneratorPage() {
                 <div className="flex-1 overflow-y-auto p-5 scrollbar-thin scrollbar-thumb-gray-200">
                     <div className="space-y-6">
                         <div>
-                            <label className="block text-sm font-bold text-gray-700 mb-2">Предмет *</label>
-                            <input
-                                type="text"
-                                value={subject}
-                                onChange={e => setSubject(e.target.value)}
-                                placeholder="напр. Информатика, Биология"
-                                className="block w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-purple-500 transition-all text-gray-900 placeholder-gray-400"
-                            />
-                        </div>
-
-                        <div>
                             <label className="block text-sm font-bold text-gray-700 mb-2">Тип экзамена</label>
                             <select
                                 value={level}
-                                onChange={e => setLevel(e.target.value)}
+                                onChange={e => {
+                                    const newLevel = e.target.value
+                                    setLevel(newLevel)
+                                    setSubject(EXAM_SUBJECTS[newLevel]?.[0] ?? '')
+                                }}
                                 className="block w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-purple-500 transition-all text-gray-900"
                             >
                                 <option value="ОГЭ (9 класс)">ОГЭ (9 класс)</option>
                                 <option value="ЕГЭ (11 класс)">ЕГЭ (11 класс)</option>
                                 <option value="ВПР (Всероссийские проверочные работы)">ВПР</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-2">Предмет *</label>
+                            <select
+                                value={subject}
+                                onChange={e => setSubject(e.target.value)}
+                                className="block w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-purple-500 transition-all text-gray-900"
+                            >
+                                {(EXAM_SUBJECTS[level] ?? []).map(s => (
+                                    <option key={s} value={s}>{s}</option>
+                                ))}
                             </select>
                         </div>
 
@@ -208,7 +234,7 @@ export default function ExamGeneratorPage() {
                 <div className="p-5 border-t border-gray-100 bg-white">
                     <button
                         onClick={generate}
-                        disabled={isGenerating || !subject}
+                        disabled={isGenerating}
                         className="w-full relative group overflow-hidden rounded-xl bg-gradient-to-r from-purple-500 to-indigo-600 p-px font-bold shadow-lg active:scale-[0.98] transition-all disabled:opacity-50"
                     >
                         <div className="relative flex items-center justify-center gap-2 px-4 py-3.5 bg-gradient-to-r from-purple-500 to-indigo-600 rounded-[11px] text-white">
@@ -231,7 +257,7 @@ export default function ExamGeneratorPage() {
                             <span className="text-[10px] font-bold tracking-widest text-gray-400 uppercase">КИМ</span>
                         </div>
                         <div className="flex items-center gap-1.5 md:gap-2">
-                            {localContent && !localContent.includes('Введите предмет') && !localContent.includes('Генерируем') && (
+                            {localContent && !localContent.includes('Выберите предмет') && !localContent.includes('Генерируем') && (
                                 <button
                                     onClick={toggleEditMode}
                                     className={`flex items-center gap-1.5 px-3 py-2 text-[11px] font-bold rounded-lg transition-all ${editMode
@@ -271,7 +297,7 @@ export default function ExamGeneratorPage() {
                     <div className="flex-1 overflow-hidden relative">
                         {isGenerating ? (
                             <GenerationProgress active={isGenerating} title="Составляем КИМ..." accentClassName="bg-purple-500" estimatedSeconds={60} />
-                        ) : !localContent || localContent.includes('Введите предмет') ? (
+                        ) : !localContent || localContent.includes('Выберите предмет') ? (
                             <div className="flex flex-col items-center justify-center h-full text-center p-6 gap-4">
                                 <div className="w-20 h-20 rounded-3xl bg-gray-50 flex items-center justify-center">
                                     <GraduationCap className="w-10 h-10 text-gray-200" />
@@ -279,7 +305,7 @@ export default function ExamGeneratorPage() {
                                 <div className="space-y-1">
                                     <h3 className="text-lg font-bold text-gray-700">Вариант появится здесь</h3>
                                     <p className="text-sm text-gray-400 max-w-[320px]">
-                                        Введите предмет и нажмите кнопку Сгенерировать Вариант.
+                                        Выберите предмет и нажмите кнопку Сгенерировать Вариант.
                                     </p>
                                 </div>
                                 {isMobile && (
