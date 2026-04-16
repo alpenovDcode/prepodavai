@@ -158,12 +158,12 @@ export default function VideoAnalysisGenerator() {
                             </div>
                         )}
                         <div>
-                            <label className="block text-sm font-bold text-gray-700 mb-2">Видео (Яндекс.Диск или MP4)</label>
+                            <label className="block text-sm font-bold text-gray-700 mb-2">Видео (Яндекс.Диск)</label>
 
                             <div className="space-y-2">
                                 <input
                                     type="text"
-                                    placeholder="Ссылка на Яндекс.Диск или MP4"
+                                    placeholder="Ссылка на Яндекс.Диск"
                                     value={videoUrl}
                                     onChange={(e) => {
                                         setVideoUrl(e.target.value);
