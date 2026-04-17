@@ -47,7 +47,7 @@ export default function VideoAnalysisGenerator() {
             } else if (resultData) {
                 finalHtml = resultData.html || resultData.htmlResult || resultData.content || resultData.text || JSON.stringify(resultData, null, 2)
             }
-            
+
             if (finalHtml && typeof finalHtml === 'string' && !finalHtml.includes('<p>') && !finalHtml.includes('<div')) {
                 finalHtml = `<div style="white-space: pre-wrap; font-family: sans-serif; padding: 20px;">${finalHtml}</div>`
             }
@@ -143,7 +143,7 @@ export default function VideoAnalysisGenerator() {
                             <h2 className="font-bold text-lg">Анализ Видео</h2>
                             <GenerationCostBadge operationType="video_analysis" />
                         </div>
-                        <p className="text-xs text-gray-500 font-medium">WORKSPACE V2</p>
+                        <p className="text-xs text-gray-500 font-medium">Преподавай 2.0</p>
                     </div>
                 </div>
 

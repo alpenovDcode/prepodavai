@@ -148,7 +148,7 @@ export default function WorksheetGenerator() {
                             <h2 className="font-bold text-lg">Рабочие Листы</h2>
                             <GenerationCostBadge operationType="worksheet" />
                         </div>
-                        <p className="text-xs text-gray-500 font-medium tracking-tight">WORKSPACE V2</p>
+                        <p className="text-xs text-gray-500 font-medium tracking-tight">Преподавай 2.0</p>
                     </div>
                 </div>
 
@@ -254,7 +254,7 @@ export default function WorksheetGenerator() {
                                 <Copy className="w-3.5 h-3.5" />
                                 <span className="hidden xs:inline">{copied ? 'Готово!' : 'Копировать'}</span>
                             </button>
-                            
+
                             <button
                                 onClick={handleDownloadPdf}
                                 className="flex items-center gap-1.5 px-3 py-2 text-[11px] font-bold bg-yellow-50 hover:bg-yellow-100 text-yellow-700 rounded-lg transition-all disabled:opacity-40 flex-shrink-0"
@@ -290,7 +290,7 @@ export default function WorksheetGenerator() {
                                     <p className="text-sm">Введите тему слева и нажмите создать</p>
                                 </div>
                                 {isMobile && (
-                                    <button 
+                                    <button
                                         onClick={() => setActiveTab('config')}
                                         className="mt-2 px-6 py-2 bg-yellow-500 text-white rounded-xl font-bold text-sm shadow-md active:scale-95 transition-all"
                                     >

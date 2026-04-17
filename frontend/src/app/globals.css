@@ -211,35 +211,50 @@ body {
     transform: translateX(0);
   }
 }
-/* Force dark text on form elements and rich text editor across Workspace V2 */
+
+/* Force dark text on form elements and rich text editor across Преподавай 2.0 */
 .prose {
   color: #111827 !important;
 }
 
-.prose p, .prose h1, .prose h2, .prose h3, .prose h4, .prose li, .prose strong, .prose b {
+.prose p,
+.prose h1,
+.prose h2,
+.prose h3,
+.prose h4,
+.prose li,
+.prose strong,
+.prose b {
   color: #111827 !important;
 }
 
-.prose > div {
+.prose>div {
   color: #111827 !important;
 }
 
 /* Force dark text for Tailwind inputs inside workspace if they somehow map to white */
-input[type="text"], input[type="number"], input[type="email"], input[type="password"], textarea, select {
+input[type="text"],
+input[type="number"],
+input[type="email"],
+input[type="password"],
+textarea,
+select {
   color: #111827 !important;
 }
-input::placeholder, textarea::placeholder {
+
+input::placeholder,
+textarea::placeholder {
   color: #9CA3AF !important;
 }
 
 /* Global override for AI generator inputs */
-.sidebar input, 
-.sidebar textarea, 
+.sidebar input,
+.sidebar textarea,
 .sidebar select {
   color: #111827 !important;
 }
 
-.sidebar input::placeholder, 
+.sidebar input::placeholder,
 .sidebar textarea::placeholder {
   color: #9CA3AF !important;
 }

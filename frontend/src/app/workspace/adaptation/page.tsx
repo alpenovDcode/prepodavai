@@ -34,7 +34,7 @@ export default function AdaptationGenerator() {
         try {
             setLocalContent('<p>Генерируем текст...</p>')
             if (isMobile) setActiveTab('preview')
-            
+
             const params = {
                 sourceType: 'text',
                 text,
@@ -100,7 +100,7 @@ export default function AdaptationGenerator() {
                             <h2 className="font-bold text-lg">Адаптация Текста</h2>
                             <GenerationCostBadge operationType="content_adaptation" />
                         </div>
-                        <p className="text-xs text-gray-500 font-medium tracking-tight">WORKSPACE V2</p>
+                        <p className="text-xs text-gray-500 font-medium tracking-tight">Преподавай 2.0</p>
                     </div>
                 </div>
 
@@ -198,7 +198,7 @@ export default function AdaptationGenerator() {
                                     <p className="text-sm">Введите текст и нажмите «Адаптировать»</p>
                                 </div>
                                 {isMobile && (
-                                    <button 
+                                    <button
                                         onClick={() => setActiveTab('config')}
                                         className="mt-2 px-6 py-2 bg-cyan-600 text-white rounded-xl font-bold text-sm shadow-md active:scale-95 transition-all"
                                     >

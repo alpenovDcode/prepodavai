@@ -190,7 +190,7 @@ export default function PhotosessionGenerator() {
                             <h2 className="font-bold text-lg">AI Фотосессия</h2>
                             <GenerationCostBadge operationType="photosession" />
                         </div>
-                        <p className="text-xs text-gray-500 font-medium">WORKSPACE V2</p>
+                        <p className="text-xs text-gray-500 font-medium">Преподавай 2.0</p>
                     </div>
                 </div>
 
@@ -300,7 +300,7 @@ export default function PhotosessionGenerator() {
                         </div>
                         <div className="flex items-center gap-2">
                             {resultImageUrl && (
-                                <button 
+                                <button
                                     onClick={handleDownload}
                                     disabled={isDownloading}
                                     className="p-2 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors flex items-center gap-1.5 text-sm font-medium disabled:opacity-50"

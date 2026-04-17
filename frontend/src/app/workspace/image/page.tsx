@@ -171,7 +171,7 @@ export default function ImageGenerator() {
                             <h2 className="font-bold text-lg">Генератор</h2>
                             <GenerationCostBadge operationType="image_generation" />
                         </div>
-                        <p className="text-xs text-gray-500 font-medium tracking-tight">WORKSPACE V2</p>
+                        <p className="text-xs text-gray-500 font-medium tracking-tight">Преподавай 2.0</p>
                     </div>
                 </div>
 
@@ -250,7 +250,7 @@ export default function ImageGenerator() {
                         </div>
                         <div className="flex items-center gap-1.5 md:gap-2">
                             {resultImageUrl && (
-                                <button 
+                                <button
                                     onClick={handleDownload}
                                     disabled={isDownloading}
                                     className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-all flex items-center gap-1.5 text-[11px] font-bold disabled:opacity-50 active:scale-95"
@@ -287,7 +287,7 @@ export default function ImageGenerator() {
                                     </p>
                                 </div>
                                 {isMobile && (
-                                    <button 
+                                    <button
                                         onClick={() => setActiveTab('config')}
                                         className="mt-2 px-6 py-2 bg-indigo-600 text-white rounded-xl font-bold text-sm shadow-md active:scale-95 transition-all"
                                     >

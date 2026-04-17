@@ -131,7 +131,7 @@ export default function LessonPlanner() {
                             <h2 className="font-bold text-lg">Конструктор</h2>
                             <GenerationCostBadge operationType="lesson_plan" />
                         </div>
-                        <p className="text-xs text-gray-500 font-medium tracking-tight">WORKSPACE V2</p>
+                        <p className="text-xs text-gray-500 font-medium tracking-tight">Преподавай 2.0</p>
                     </div>
                 </div>
 
@@ -294,7 +294,7 @@ export default function LessonPlanner() {
                             <button onClick={handleCopy} disabled={!htmlContent} className="p-2 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-40 flex-shrink-0" title="Скопировать">
                                 <Copy className="w-4 h-4" />
                             </button>
-                            
+
                             <button
                                 onClick={exportPDF}
                                 disabled={!htmlContent}
@@ -327,7 +327,7 @@ export default function LessonPlanner() {
                                     <p className="text-sm">Введите тему и нажмите «Сгенерировать План Урока»</p>
                                 </div>
                                 {isMobile && (
-                                    <button 
+                                    <button
                                         onClick={() => setActiveTab('config')}
                                         className="mt-2 px-6 py-2 bg-indigo-600 text-white rounded-xl font-bold text-sm shadow-md active:scale-95 transition-all"
                                     >

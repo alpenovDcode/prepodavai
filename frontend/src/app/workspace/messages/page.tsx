@@ -154,7 +154,7 @@ export default function MessagesGenerator() {
                     </div>
                     <div>
                         <h2 className="font-bold text-lg">Шаблоны Сообщений</h2>
-                        <p className="text-xs text-gray-500 font-medium">WORKSPACE V2</p>
+                        <p className="text-xs text-gray-500 font-medium">Преподавай 2.0</p>
                     </div>
                 </div>
 

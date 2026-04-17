@@ -206,7 +206,7 @@ export default function LessonPrepGenerator() {
                             <h2 className="font-bold text-lg">Вау-урок</h2>
                             <GenerationCostBadge operationType="lesson_preparation" />
                         </div>
-                        <p className="text-xs text-gray-500 font-medium">WORKSPACE V2</p>
+                        <p className="text-xs text-gray-500 font-medium">Преподавай 2.0</p>
                     </div>
                 </div>
 
@@ -373,7 +373,7 @@ export default function LessonPrepGenerator() {
                                     </p>
                                 </div>
                                 {isMobile && (
-                                    <button 
+                                    <button
                                         onClick={() => setActiveTab('config')}
                                         className="mt-2 px-6 py-2 bg-pink-600 text-white rounded-xl font-bold text-sm shadow-md active:scale-95 transition-all"
                                     >

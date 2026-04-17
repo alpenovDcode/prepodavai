@@ -103,7 +103,7 @@ function PresentationGeneratorContent() {
     const fileInputRef = useRef<HTMLInputElement>(null)
     const { generateAndWait, isGenerating, activeGenerationId } = useGenerations()
     const searchParams = useSearchParams()
-    
+
     useEffect(() => {
         const checkMobile = () => {
             setIsMobile(window.innerWidth < 768)
@@ -848,7 +848,7 @@ function PresentationGeneratorContent() {
                             <h2 className="font-bold text-lg">Презентации</h2>
                             <GenerationCostBadge operationType="presentation" />
                         </div>
-                        <p className="text-xs text-gray-500 font-medium tracking-tight">WORKSPACE V2</p>
+                        <p className="text-xs text-gray-500 font-medium tracking-tight">Преподавай 2.0</p>
                     </div>
                 </div>
 
@@ -856,19 +856,19 @@ function PresentationGeneratorContent() {
                     <div className="space-y-6">
                         <div>
                             <label className="block text-sm font-bold text-gray-700 mb-2 font-display">Тема презентации</label>
-                            <textarea 
-                                value={topic} 
-                                onChange={e => setTopic(e.target.value)} 
-                                placeholder="Строение Солнечной системы..." 
-                                rows={isMobile ? 6 : 4} 
-                                className="block w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-purple-500 focus:bg-white transition-all text-gray-900 placeholder-gray-400 resize-none" 
+                            <textarea
+                                value={topic}
+                                onChange={e => setTopic(e.target.value)}
+                                placeholder="Строение Солнечной системы..."
+                                rows={isMobile ? 6 : 4}
+                                className="block w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-purple-500 focus:bg-white transition-all text-gray-900 placeholder-gray-400 resize-none"
                             />
                         </div>
                         <div>
                             <label className="block text-sm font-bold text-gray-700 mb-2 font-display">Целевая аудитория</label>
-                            <select 
-                                value={targetAudience} 
-                                onChange={e => setTargetAudience(e.target.value)} 
+                            <select
+                                value={targetAudience}
+                                onChange={e => setTargetAudience(e.target.value)}
                                 className="block w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-purple-500 focus:bg-white transition-all text-gray-900"
                             >
                                 {audiences.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
@@ -876,9 +876,9 @@ function PresentationGeneratorContent() {
                         </div>
                         <div>
                             <label className="block text-sm font-bold text-gray-700 mb-2 font-display">Длительность</label>
-                            <select 
-                                value={duration} 
-                                onChange={e => setDuration(e.target.value)} 
+                            <select
+                                value={duration}
+                                onChange={e => setDuration(e.target.value)}
                                 className="block w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-purple-500 focus:bg-white transition-all text-gray-900"
                             >
                                 {durations.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
@@ -886,9 +886,9 @@ function PresentationGeneratorContent() {
                         </div>
                         <div>
                             <label className="block text-sm font-bold text-gray-700 mb-2 font-display">Стиль дизайна</label>
-                            <select 
-                                value={style} 
-                                onChange={e => setStyle(e.target.value)} 
+                            <select
+                                value={style}
+                                onChange={e => setStyle(e.target.value)}
                                 className="block w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-purple-500 focus:bg-white transition-all text-gray-900"
                             >
                                 {styles.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
@@ -898,9 +898,9 @@ function PresentationGeneratorContent() {
                 </div>
 
                 <div className="p-5 border-t border-gray-100 bg-white">
-                    <button 
-                        onClick={generate} 
-                        disabled={isLoading || !topic.trim()} 
+                    <button
+                        onClick={generate}
+                        disabled={isLoading || !topic.trim()}
                         className="w-full relative group overflow-hidden rounded-xl bg-gradient-to-r from-purple-500 to-indigo-600 p-px font-bold shadow-lg active:scale-[0.98] transition-all disabled:opacity-50 disabled:shadow-none"
                     >
                         <div className="absolute inset-0 bg-white/20 group-hover:bg-transparent transition-all"></div>
@@ -930,7 +930,7 @@ function PresentationGeneratorContent() {
                                 <h3 className="text-xl font-bold text-gray-900 mb-2">Готов к работе</h3>
                                 <p className="text-gray-400 text-sm mb-6">Введите тему и получите красивую презентацию с редактором.</p>
                                 {isMobile && (
-                                    <button 
+                                    <button
                                         onClick={() => setActiveTab('config')}
                                         className="px-8 py-3 bg-indigo-600 text-white rounded-xl font-bold text-sm shadow-md active:scale-95 transition-all"
                                     >

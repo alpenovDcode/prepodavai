@@ -86,7 +86,7 @@ export default function FeedbackGenerator() {
                             <h2 className="font-bold text-lg">Фидбек на работу</h2>
                             <GenerationCostBadge operationType="feedback" />
                         </div>
-                        <p className="text-xs text-gray-500 font-medium">WORKSPACE V2</p>
+                        <p className="text-xs text-gray-500 font-medium">Преподавай 2.0</p>
                     </div>
                 </div>
 
@@ -158,7 +158,7 @@ export default function FeedbackGenerator() {
                                     className={`flex items-center gap-1.5 px-3 py-2 text-[11px] font-bold rounded-lg transition-all flex-shrink-0 ${editMode
                                         ? 'bg-orange-100 text-orange-700 hover:bg-orange-200'
                                         : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                                    }`}
+                                        }`}
                                 >
                                     {editMode ? <Eye className="w-3.5 h-3.5" /> : <Edit3 className="w-3.5 h-3.5" />}
                                     <span className="hidden xs:inline">{editMode ? 'Просмотр' : 'Править'}</span>

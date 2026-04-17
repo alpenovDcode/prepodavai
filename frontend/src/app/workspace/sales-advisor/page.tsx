@@ -176,7 +176,7 @@ export default function SalesAdvisorGenerator() {
                             <h2 className="font-bold text-lg">ИИ-Продажник</h2>
                             <GenerationCostBadge operationType="sales_advisor" />
                         </div>
-                        <p className="text-xs text-gray-500 font-medium tracking-tight uppercase">WORKSPACE V2</p>
+                        <p className="text-xs text-gray-500 font-medium tracking-tight uppercase">Преподавай 2.0</p>
                     </div>
                 </div>
 
@@ -306,7 +306,7 @@ export default function SalesAdvisorGenerator() {
                                     </p>
                                 </div>
                                 {isMobile && (
-                                    <button 
+                                    <button
                                         onClick={() => setActiveTab('config')}
                                         className="mt-2 px-6 py-2 bg-primary-600 text-white rounded-xl font-bold text-sm shadow-md active:scale-95 transition-all text-gray-900"
                                     >
