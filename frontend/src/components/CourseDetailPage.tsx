@@ -16,12 +16,31 @@ function getImageUrl(result: any): string | null {
     return null
 }
 
+/** Извлекает читаемый HTML из outputData любого формата (аналог extractHtmlFromOutput) */
+function extractHtml(outputData: any): string | null {
+    if (!outputData) return null
+    let raw: string
+    if (typeof outputData === 'string') {
+        raw = outputData
+    } else if (typeof outputData === 'object') {
+        raw = outputData.content || outputData.htmlResult || outputData.html || outputData.text || ''
+        if (typeof raw !== 'string') return null
+    } else {
+        return null
+    }
+    raw = raw.trim()
+    if (raw.startsWith('```')) {
+        raw = raw.replace(/^```(?:html)?/i, '').replace(/```$/, '').trim()
+    }
+    return raw || null
+}
+
 async function downloadGeneration(generation: Generation, typeLabel: string) {
-    const result = generation.result as any
-    if (!result) return
+    const outputData = generation.outputData as any
+    if (!outputData) return
 
     // Audio
-    const audioUrl = result?.audioUrl || result?.content?.audioUrl
+    const audioUrl = outputData?.audioUrl || outputData?.content?.audioUrl
     if (audioUrl) {
         const a = document.createElement('a')
         a.href = audioUrl
@@ -31,7 +50,7 @@ async function downloadGeneration(generation: Generation, typeLabel: string) {
     }
 
     // Image
-    const imageUrl = getImageUrl(result)
+    const imageUrl = getImageUrl(outputData)
     if (imageUrl) {
         try {
             const response = await fetch(imageUrl)
@@ -50,8 +69,8 @@ async function downloadGeneration(generation: Generation, typeLabel: string) {
     }
 
     // HTML — открываем в новом окне и вызываем печать (сохранение в PDF)
-    const content = result?.htmlResult || result?.content || result?.result
-    if (content && typeof content === 'string') {
+    const content = extractHtml(outputData)
+    if (content) {
         const safeName = typeLabel.replace(/[^a-zA-Zа-яА-Я0-9]/g, '_') || 'result'
         const autoPrint = `<script>window.onload=function(){setTimeout(function(){window.print()},600)}<\/script>`
         const hasHead = /<\/head>/i.test(content)
@@ -74,7 +93,7 @@ interface Generation {
     generationType: string
     status: string
     createdAt: string
-    result?: any // Add result type if known
+    outputData?: any
 }
 
 interface Lesson {
@@ -245,7 +264,7 @@ export default function CourseDetailPage({ id }: CourseDetailPageProps) {
                                         }`}>
                                         {generation.status === 'completed' && (generation.generationType === 'photosession' || generation.generationType === 'image' || generation.generationType === 'image_generation') ? (
                                             <img 
-                                                src={(generation as any).result?.imageUrl || (generation as any).result?.imageUrls?.[0] || (generation as any).outputData?.imageUrl || (generation as any).outputData?.imageUrls?.[0]} 
+                                                src={generation.outputData?.imageUrl || generation.outputData?.imageUrls?.[0]}
                                                 alt=""
                                                 className="w-full h-full object-cover"
                                             />

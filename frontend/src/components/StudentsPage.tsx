@@ -207,6 +207,17 @@ export default function StudentsPage() {
         }
     }
 
+    const deleteStudent = async (studentId: string, studentName: string) => {
+        showConfirm(`Удалить ученика «${studentName}»? Это действие нельзя отменить.`, async () => {
+            try {
+                await apiClient.delete(`/students/${studentId}`)
+                setStudents((prev) => prev.filter((s) => s.id !== studentId))
+            } catch (error: any) {
+                handleApiError(error, 'Не удалось удалить ученика')
+            }
+        })
+    }
+
     const rejectStudent = async (studentId: string) => {
         showConfirm('Отклонить заявку ученика? Его аккаунт будет удалён.', async () => {
             try {
@@ -531,9 +542,15 @@ export default function StudentsPage() {
                                                         </button>
                                                         <button
                                                             onClick={() => copyLink(`${window.location.origin}/student/login`)}
-                                                            className="px-4 py-2 bg-gray-100 text-gray-500 text-sm rounded-lg hover:bg-gray-200 transition"
+                                                            className="px-3 py-2 bg-gray-100 text-gray-500 text-sm rounded-lg hover:bg-gray-200 transition"
                                                         >
                                                             <i className="fas fa-link"></i>
+                                                        </button>
+                                                        <button
+                                                            onClick={() => deleteStudent(student.id, student.name)}
+                                                            className="px-3 py-2 bg-white border border-red-200 text-red-500 text-sm rounded-lg hover:bg-red-50 transition"
+                                                        >
+                                                            <i className="fas fa-trash-alt"></i>
                                                         </button>
                                                     </>
                                                 )}
@@ -586,7 +603,7 @@ export default function StudentsPage() {
                                                                 <>
                                                                     <button onClick={() => copyLink(`${window.location.origin}/student/login`)} className="p-2 text-gray-400 hover:text-primary-600 transition" title="Копировать ссылку для входа"><i className="fas fa-link"></i></button>
                                                                     <button onClick={() => window.location.href = `/dashboard/students/${student.id}`} className="p-2 text-gray-400 hover:text-primary-600 transition"><i className="fas fa-user-circle"></i></button>
-                                                                    <button className="p-2 text-gray-400 hover:text-red-600 transition"><i className="fas fa-trash-alt"></i></button>
+                                                                    <button onClick={() => deleteStudent(student.id, student.name)} className="p-2 text-gray-400 hover:text-red-600 transition"><i className="fas fa-trash-alt"></i></button>
                                                                 </>
                                                             )}
                                                         </div>
