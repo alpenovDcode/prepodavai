@@ -136,7 +136,11 @@ export default function AuthModal({ onClose, onSuccess, initialMode = 'login' }:
           localStorage.setItem('prepodavai_referral_code', code)
         }
         setVerificationStep('verify-code')
-        setSuccessMessage('Код подтверждения отправлен на вашу почту')
+        setSuccessMessage(
+          response.data.isNewUser
+            ? 'Код подтверждения отправлен на вашу почту'
+            : 'Код для входа отправлен на вашу почту'
+        )
       } else {
         setErrorMessage(response.data.error || 'Ошибка регистрации')
       }
@@ -602,13 +606,28 @@ export default function AuthModal({ onClose, onSuccess, initialMode = 'login' }:
         )}
 
         {/* Toggle between Login and Register */}
-        <div className="mt-6 text-center">
+        <div className="mt-6 text-center space-y-2">
           <button
             onClick={toggleMode}
-            className="text-orange-600 hover:text-orange-700 font-medium"
+            className="text-orange-600 hover:text-orange-700 font-medium block w-full"
           >
             {isLogin ? 'Нет аккаунта? Зарегистрируйтесь' : 'Уже есть аккаунт? Войдите'}
           </button>
+          {isLogin && (
+            <button
+              onClick={() => {
+                setIsLogin(false)
+                setErrorMessage('')
+                setSuccessMessage('')
+                setVerificationStep('form')
+                setOtpCode('')
+                setForm(prev => ({ ...prev, name: '', password: '', apiKey: '', referralCode: '' }))
+              }}
+              className="text-sm text-gray-500 hover:text-gray-700 underline"
+            >
+              Забыли данные для входа? Получить код на почту
+            </button>
+          )}
         </div>
       </div>
     </div>

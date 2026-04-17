@@ -492,9 +492,7 @@ export class AuthService {
       throw new InternalServerErrorException('Ошибка базы данных. Попробуйте позже.');
     }
 
-    if (existing) {
-      throw new BadRequestException('Пользователь с таким email уже зарегистрирован');
-    }
+    const isNewUser = !existing;
 
     // Генерируем 6-значный код
     const code = crypto.randomInt(100000, 1000000).toString();
@@ -532,7 +530,7 @@ export class AuthService {
       );
     }
 
-    return { success: true, pending: true };
+    return { success: true, pending: true, isNewUser };
   }
 
   /**
