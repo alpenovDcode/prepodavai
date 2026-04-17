@@ -313,14 +313,14 @@ export class UsersService {
                 data: { registrations: { increment: 1 } },
               });
               if (utmLink.bonusTokens > 0) {
-                await (this.prisma.appUser as any).update({
-                  where: { id: user.id },
+                await this.prisma.userSubscription.updateMany({
+                  where: { userId: user.id },
                   data: { creditsBalance: { increment: utmLink.bonusTokens } },
                 });
               }
             }
           }
-        } catch { /* ссылка могла быть удалена */ }
+        } catch (e) { console.error('[UTM] Failed to process utm bonus:', e); }
       }
     }
 
