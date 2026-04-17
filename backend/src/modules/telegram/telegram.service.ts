@@ -556,6 +556,13 @@ export class TelegramService {
       return;
     }
 
+    // Читаем текущие данные пользователя, чтобы не затереть уже заполненные поля
+    const webUser = await this.prisma.appUser.findUnique({ where: { id: linkToken.userId } });
+    if (!webUser) {
+      await ctx.reply('❌ Аккаунт не найден. Попробуйте позже.');
+      return;
+    }
+
     const platformName = user.username ? `@${user.username}` : user.first_name || `id${user.id}`;
 
     // Link the platform and mark token as completed
@@ -567,9 +574,10 @@ export class TelegramService {
           telegramId: user.id.toString(),
           telegramChatId,
           chatId: telegramChatId, // backward compat
-          username: user.username || undefined,
-          firstName: user.first_name || undefined,
-          lastName: user.last_name || undefined,
+          // Не перезаписываем username — он используется для входа на сайте
+          // Заполняем firstName/lastName только если ещё не заданы
+          ...(webUser.firstName ? {} : { firstName: user.first_name || undefined }),
+          ...(webUser.lastName ? {} : { lastName: user.last_name || undefined }),
         } as any,
       }),
       this.prisma.linkToken.update({

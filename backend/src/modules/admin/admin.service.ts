@@ -356,11 +356,35 @@ export class AdminService {
   }
 
   async deleteUser(id: string, adminId?: string) {
-    // Удаляем связанные записи
+    // Удаляем связанные записи снизу вверх по цепочке FK-зависимостей
+
+    // 1. Submission → Assignment → Lesson / Class / UserGeneration
+    await this.prisma.submission.deleteMany({
+      where: { assignment: { lesson: { userId: id } } },
+    });
+    await this.prisma.submission.deleteMany({
+      where: { assignment: { class: { teacherId: id } } },
+    });
+    await this.prisma.assignment.deleteMany({
+      where: { lesson: { userId: id } },
+    });
+    await this.prisma.assignment.deleteMany({
+      where: { class: { teacherId: id } },
+    });
+
+    // 2. Прямые дочерние таблицы AppUser
     await this.prisma.creditTransaction.deleteMany({ where: { userId: id } });
     await this.prisma.userGeneration.deleteMany({ where: { userId: id } });
     await this.prisma.userSubscription.deleteMany({ where: { userId: id } });
     await this.prisma.generationRequest.deleteMany({ where: { userId: id } });
+    await this.prisma.lesson.deleteMany({ where: { userId: id } });
+    await this.prisma.class.deleteMany({ where: { teacherId: id } }); // Student/StudentInvite каскадом
+    await this.prisma.linkToken.deleteMany({ where: { userId: id } });
+    await this.prisma.onboardingQuestStep.deleteMany({ where: { userId: id } });
+    await this.prisma.payment.deleteMany({ where: { userId: id } });
+    await this.prisma.referralMilestone.deleteMany({ where: { userId: id } });
+    await this.prisma.referralCode.deleteMany({ where: { userId: id } });
+    await this.prisma.systemLog.deleteMany({ where: { userId: id } });
 
     const user = await this.prisma.appUser.delete({
       where: { id },

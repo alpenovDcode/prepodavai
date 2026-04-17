@@ -10,6 +10,7 @@ interface AuthModalProps {
 }
 
 export default function AuthModal({ onClose, onSuccess, initialMode = 'login' }: AuthModalProps) {
+  const [mode, setMode] = useState<'login' | 'register' | 'recovery'>(initialMode === 'register' ? 'register' : 'login')
   const [isLogin, setIsLogin] = useState(initialMode === 'login')
   const [loading, setLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
@@ -17,6 +18,9 @@ export default function AuthModal({ onClose, onSuccess, initialMode = 'login' }:
   const [loginMode, setLoginMode] = useState<'phone' | 'apikey'>('apikey')
   const [verificationStep, setVerificationStep] = useState<'form' | 'verify-code'>('form')
   const [otpCode, setOtpCode] = useState('')
+  const [recoveryEmail, setRecoveryEmail] = useState('')
+  const [recoveryStep, setRecoveryStep] = useState<'form' | 'verify-code'>('form')
+  const [recoveryCode, setRecoveryCode] = useState('')
 
   const [privacyAccepted, setPrivacyAccepted] = useState(false)
 
