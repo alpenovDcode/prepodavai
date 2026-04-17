@@ -678,12 +678,15 @@ export class AuthService {
     if (!user) throw new BadRequestException('Пользователь не найден');
 
     return {
-      telegram: user.telegramId
-        ? { linked: true, platformId: user.telegramId }
-        : { linked: false },
-      max: user.maxId
-        ? { linked: true, platformId: user.maxId }
-        : { linked: false },
+      success: true,
+      platforms: {
+        telegram: user.telegramId
+          ? { linked: true, platformId: user.telegramId, platformName: null }
+          : { linked: false, platformId: null, platformName: null },
+        max: user.maxId
+          ? { linked: true, platformId: user.maxId, platformName: null }
+          : { linked: false, platformId: null, platformName: null },
+      },
     };
   }
 

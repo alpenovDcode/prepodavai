@@ -282,6 +282,7 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
     const [htmlSlides, setHtmlSlides] = useState<any[]>([])
     const [isHtmlResult, setIsHtmlResult] = useState(false)
     const [cleanedTextResult, setCleanedTextResult] = useState('')
+    const [gameData, setGameData] = useState<{ url: string; downloadUrl: string; topic: string; type: string } | null>(null)
     const [isDownloading, setIsDownloading] = useState(false)
     const [isExporting, setIsExporting] = useState(false)
     const [showDownloadMenu, setShowDownloadMenu] = useState(false)
@@ -373,7 +374,15 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
                 } else {
                     setGenerationType(generation.generationType)
 
-                    if (generation.generationType === 'presentation') {
+                    if (generation.generationType === 'game_generation') {
+                        const od = generation.outputData
+                        setGameData({
+                            url: od.url || '',
+                            downloadUrl: od.downloadUrl || '',
+                            topic: od.topic || '',
+                            type: od.type || '',
+                        })
+                    } else if (generation.generationType === 'presentation') {
                         setContent(typeof generation.outputData === 'object' ? JSON.stringify(generation.outputData) : generation.outputData);
                     } else {
                         const { htmlResult, isHtmlResult: isHtml, cleanedTextResult: cleaned } = normalizeResultPayload(generation.outputData);
@@ -741,6 +750,16 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
                                 </button>
                             )}
                         </>
+                    ) : generationType === 'game_generation' && gameData?.url ? (
+                        <a
+                            href={gameData.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-4 py-2 text-white bg-purple-600 hover:bg-purple-700 rounded-lg transition font-medium flex items-center gap-2 shadow-sm active:scale-95"
+                        >
+                            <ExternalLink size={18} />
+                            <span>Открыть игру</span>
+                        </a>
                     ) : (
                         <button
                             onClick={handleDownload}
@@ -822,6 +841,41 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
                         <div className="flex justify-center items-center h-full text-gray-500">Данные презентации не найдены.</div>
                     )
 
+                ) : generationType === 'game_generation' && gameData ? (
+                    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-purple-50 to-indigo-50 p-8">
+                        <div className="bg-white rounded-3xl shadow-xl border border-purple-100 max-w-md w-full p-8 flex flex-col items-center gap-6">
+                            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-purple-200">
+                                <i className="fas fa-gamepad text-white text-3xl"></i>
+                            </div>
+                            <div className="text-center">
+                                <h2 className="text-xl font-bold text-gray-900 mb-1">Обучающая игра готова!</h2>
+                                {gameData.topic && (
+                                    <p className="text-gray-500 text-sm">Тема: <span className="font-medium text-gray-700">{gameData.topic}</span></p>
+                                )}
+                            </div>
+                            <a
+                                href={gameData.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="w-full flex items-center justify-center gap-3 px-6 py-4 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-lg rounded-2xl shadow-md shadow-purple-200 transition-all active:scale-95"
+                            >
+                                <i className="fas fa-play"></i>
+                                Открыть игру
+                                <ExternalLink size={18} />
+                            </a>
+                            {gameData.downloadUrl && (
+                                <a
+                                    href={gameData.downloadUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="w-full flex items-center justify-center gap-2 px-6 py-3 border-2 border-purple-200 text-purple-700 font-semibold rounded-2xl hover:bg-purple-50 transition-all active:scale-95"
+                                >
+                                    <Download size={16} />
+                                    Скачать HTML-файл
+                                </a>
+                            )}
+                        </div>
+                    </div>
                 ) : isImageContent ? (
                     // Image viewer
                     <div className="w-full h-full flex items-center justify-center bg-gray-900 p-8 relative">
