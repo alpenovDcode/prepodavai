@@ -24,14 +24,10 @@ export default function StudentSidebar({ user, onLogout }: StudentSidebarProps) 
         { name: 'Главная', href: '/student/dashboard', icon: LayoutDashboard },
         { name: 'Задания', href: '/student/dashboard', icon: BookOpen },
         { name: 'Оценки', href: '/student/grades', icon: GraduationCap },
-        { name: 'Сообщения', href: '/student/messages', icon: MessageSquare },
         { name: 'ИИ Учитель', href: '/student/ai-teacher', icon: Bot },
     ]
 
-    const bottomItems = [
-        { name: 'Настройки', href: '#', icon: Settings },
-        { name: 'Помощь', href: '#', icon: HelpCircle },
-    ]
+    const bottomItems: any[] = []
 
     const initials = user?.name
         ? user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
