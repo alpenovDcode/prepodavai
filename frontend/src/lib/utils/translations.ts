@@ -25,6 +25,7 @@ export const generationTypeLabels: Record<string, string> = {
   'transcription': '🎬 Транскрипция видео',
   'salesAdvisor': '💼 Продажник',
   'game': '🎮 Мини-игра',
+  'game_generation': '🎮 Мини-игра',
   'image': '🎨 Изображение',
   'image_generation': '🎨 Изображение',
   'assistant': '🤖 ИИ-ассистент',

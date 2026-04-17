@@ -6,8 +6,8 @@ import { v4 as uuidv4 } from 'uuid';
 import { ReplicateService } from '../replicate/replicate.service';
 import { CreateGameDto, GameType } from './dto/create-game.dto';
 import { PrismaService } from '../../common/prisma/prisma.service';
-
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
+import { LessonsService } from '../lessons/lessons.service';
 
 @Injectable()
 export class GamesService {
@@ -18,8 +18,9 @@ export class GamesService {
   constructor(
     private readonly replicateService: ReplicateService,
     private readonly configService: ConfigService,
-    private readonly prisma: PrismaService, // Added PrismaService injection
+    private readonly prisma: PrismaService,
     private readonly subscriptionsService: SubscriptionsService,
+    private readonly lessonsService: LessonsService,
   ) {
     const uploadDir = this.configService.get<string>('UPLOAD_DIR', './uploads');
     this.gamesDir = path.join(path.resolve(uploadDir), 'games');
@@ -113,11 +114,13 @@ export class GamesService {
     // 7. Save to Database & Debit Credits
     let userGenerationId: string | null = null;
     try {
+      const defaultLesson = await this.lessonsService.findOrCreateDefaultLesson(userId);
+
       // Create GenerationRequest
       const generationRequest = await this.prisma.generationRequest.create({
         data: {
           userId,
-          type: `game_${type}`,
+          type: 'game_generation',
           status: 'completed',
           params: dto as any,
           result: {
@@ -135,7 +138,7 @@ export class GamesService {
       const userGeneration = await this.prisma.userGeneration.create({
         data: {
           userId,
-          generationType: `game_${type}`,
+          generationType: 'game_generation',
           status: 'completed',
           inputParams: dto as any,
           outputData: {
@@ -147,7 +150,8 @@ export class GamesService {
           },
           model: 'google/gemini-3-flash',
           generationRequestId: generationRequest.id,
-        },
+          lessonId: defaultLesson.id,
+        } as any,
       });
       userGenerationId = userGeneration.id;
 
