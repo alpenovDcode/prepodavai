@@ -4,11 +4,18 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { apiClient } from '@/lib/api/client'
 
-export default function LandingPage() {
+export default function LandingPage({ autoOpenAuth = false }: { autoOpenAuth?: boolean }) {
   const [showAuth, setShowAuth] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [currentTestimonial, setCurrentTestimonial] = useState(0);
   const router = useRouter()
+
+  useEffect(() => {
+    if (autoOpenAuth) {
+      setAuthMode('register');
+      setShowAuth(true);
+    }
+  }, [autoOpenAuth]);
 
   const handleAuthSuccess = async () => {
     setShowAuth(false)

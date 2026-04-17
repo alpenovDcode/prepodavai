@@ -279,6 +279,26 @@ export class SubscriptionsService {
       include: { plan: true },
     });
 
+    if (utmBonus > 0) {
+      try {
+        await this.prisma.creditTransaction.create({
+          data: {
+            userId,
+            subscriptionId: subscription.id,
+            type: 'grant',
+            amount: utmBonus,
+            balanceBefore: starterPlan.monthlyCredits,
+            balanceAfter: starterPlan.monthlyCredits + utmBonus,
+            operationType: 'utm_bonus' as any,
+            generationRequestId: '',
+            description: 'Бонус по маркетинговой ссылке',
+          },
+        });
+      } catch (e) {
+        console.error('[UTM] Failed to create credit transaction for utm bonus:', e);
+      }
+    }
+
     console.log(`✅ User subscription created: ${userId}, plan: starter${utmBonus > 0 ? `, utm bonus: +${utmBonus}` : ''}`);
 
     return subscription;

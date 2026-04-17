@@ -106,16 +106,45 @@ export default function Home() {
   const [isWebApp, setIsWebApp] = useState<boolean | null>(null)
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
   const [notLinkedPlatform, setNotLinkedPlatform] = useState<'telegram' | 'max' | null>(null)
+  const [triggerAuth, setTriggerAuth] = useState(false)
   const router = useRouter()
 
-  // 1. Захват реферального кода из URL (?ref=CODE)
+  // 1. Захват реферального кода и UTM-меток из URL
   useEffect(() => {
     if (typeof window === 'undefined') return
     const urlParams = new URLSearchParams(window.location.search)
+    
+    // Реферальный код (?ref=CODE)
     const refCode = urlParams.get('ref')
     if (refCode) {
       console.log('[Home] Captured referral code from URL:', refCode)
       localStorage.setItem('prepodavai_referral_code', refCode)
+    }
+
+    // UTM-метки и Link ID (?lid=...)
+    const utmSource = urlParams.get('utm_source')
+    const utmCampaign = urlParams.get('utm_campaign')
+    const utmLinkId = urlParams.get('lid') || urlParams.get('utm_link_id')
+
+    if (utmSource || utmCampaign || utmLinkId) {
+      const utmObj = {
+        params: {
+          utmSource: utmSource || undefined,
+          utmMedium: urlParams.get('utm_medium') || undefined,
+          utmCampaign: utmCampaign || undefined,
+          utmContent: urlParams.get('utm_content') || undefined,
+          utmTerm: urlParams.get('utm_term') || undefined,
+          utmLinkId: utmLinkId || undefined,
+          utmLandingPage: window.location.pathname
+        },
+        timestamp: new Date().toISOString()
+      }
+      localStorage.setItem('prepodavai_utm', JSON.stringify(utmObj))
+      
+      // Если это специальная ссылка с бонусом (есть lid), открываем регистрацию сразу
+      if (utmLinkId) {
+        setTriggerAuth(true)
+      }
     }
   }, [])
 
@@ -298,5 +327,5 @@ export default function Home() {
   }
 
   // Гость — показываем лендинг
-  return <LandingPage />
+  return <LandingPage autoOpenAuth={triggerAuth} />
 }

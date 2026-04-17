@@ -1378,7 +1378,7 @@ export class AdminService {
     });
     const fullUrl = `${base}?${params.toString()}`;
 
-    const link = await this.db.utmLink.create({
+    let link = await this.db.utmLink.create({
       data: {
         name: data.name,
         socialNetwork: data.socialNetwork,
@@ -1388,12 +1388,20 @@ export class AdminService {
         utmContent: data.utmContent ?? null,
         utmTerm: data.utmTerm ?? null,
         baseUrl: base,
-        fullUrl,
+        fullUrl, // Temporary, will be updated with lid
         bonusTokens: data.bonusTokens ?? 0,
         linkTtl: data.linkTtl ?? 'always',
         updatedAt: new Date(),
       },
     });
+
+    // Добавляем lid в итоговую ссылку для однозначной идентификации
+    const finalUrl = `${fullUrl}${fullUrl.includes('?') ? '&' : '?'}lid=${link.id}`;
+    link = await this.db.utmLink.update({
+      where: { id: link.id },
+      data: { fullUrl: finalUrl },
+    });
+
     return link;
   }
 
