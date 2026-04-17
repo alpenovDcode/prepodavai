@@ -9,225 +9,179 @@ interface AuthModalProps {
   initialMode?: 'login' | 'register'
 }
 
+type Mode = 'login' | 'register' | 'recovery'
+
 export default function AuthModal({ onClose, onSuccess, initialMode = 'login' }: AuthModalProps) {
-  const [mode, setMode] = useState<'login' | 'register' | 'recovery'>(initialMode === 'register' ? 'register' : 'login')
-  const [isLogin, setIsLogin] = useState(initialMode === 'login')
+  const [mode, setMode] = useState<Mode>(initialMode === 'register' ? 'register' : 'login')
   const [loading, setLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
-  const [loginMode, setLoginMode] = useState<'phone' | 'apikey'>('apikey')
-  const [verificationStep, setVerificationStep] = useState<'form' | 'verify-code'>('form')
-  const [otpCode, setOtpCode] = useState('')
+  const [privacyAccepted, setPrivacyAccepted] = useState(false)
+
+  // Login form
+  const [loginForm, setLoginForm] = useState({ username: '', apiKey: '' })
+
+  // Register form
+  const [registerForm, setRegisterForm] = useState({ name: '', email: '', referralCode: '' })
+  const [registerStep, setRegisterStep] = useState<'form' | 'verify-code'>('form')
+  const [registerCode, setRegisterCode] = useState('')
+
+  // Recovery form
   const [recoveryEmail, setRecoveryEmail] = useState('')
   const [recoveryStep, setRecoveryStep] = useState<'form' | 'verify-code'>('form')
   const [recoveryCode, setRecoveryCode] = useState('')
 
-  const [privacyAccepted, setPrivacyAccepted] = useState(false)
-
-  const [form, setForm] = useState({
-    name: '',
-    phone: '',
-    email: '',
-    password: '',
-    username: '',
-    apiKey: '',
-    referralCode: ''
-  })
-
-  // Подставляем реферальный код из localStorage, если пришли по ссылке
   useEffect(() => {
     const savedCode = localStorage.getItem('prepodavai_referral_code')
-    if (savedCode) {
-      setForm(prev => ({ ...prev, referralCode: savedCode }))
-    }
+    if (savedCode) setRegisterForm(prev => ({ ...prev, referralCode: savedCode }))
   }, [])
 
   useEffect(() => {
-    if (initialMode === 'register') {
-      setIsLogin(false)
-    } else {
-      setIsLogin(true)
-      setLoginMode('apikey')
-    }
+    setMode(initialMode === 'register' ? 'register' : 'login')
   }, [initialMode])
 
-  const handleLoginWithPassword = async () => {
-    setLoading(true)
-    setErrorMessage('')
+  const resetErrors = () => { setErrorMessage(''); setSuccessMessage('') }
 
-    try {
-      const loginResponse = await apiClient.post('/auth/login', {
-        phone: form.phone.trim(),
-        password: form.password
-      })
-
-      if (loginResponse.data.success) {
-        const user = loginResponse.data.user;
-        const userData = {
-          name: user?.firstName || 'Пользователь',
-          phone: user?.phone || form.phone.trim(),
-          userHash: loginResponse.data.userHash || user?.id || `u_${Date.now()}`,
-          isAuthenticated: true,
-          loginTime: new Date().toISOString()
-        }
-
-        localStorage.setItem('prepodavai_user', JSON.stringify(userData))
-        localStorage.setItem('prepodavai_authenticated', 'true')
-
-        onSuccess()
-      } else {
-        setErrorMessage(loginResponse.data.error || 'Ошибка входа')
-      }
-    } catch (error: any) {
-      console.error('Login error:', error)
-      setErrorMessage(error.response?.data?.error || error.message || 'Ошибка входа')
-    } finally {
-      setLoading(false)
-    }
+  const switchMode = (next: Mode) => {
+    resetErrors()
+    setPrivacyAccepted(false)
+    setMode(next)
   }
 
+  // ── Сохранение пользователя и редирект ──────────────────────────────────
+  const saveAndLogin = (data: any, userHash: string) => {
+    const user = data.user
+    localStorage.setItem('prepodavai_user', JSON.stringify({
+      name: user?.firstName || user?.username || 'Пользователь',
+      username: user?.username,
+      email: user?.email,
+      userHash,
+      isAuthenticated: true,
+      loginTime: new Date().toISOString(),
+    }))
+    localStorage.setItem('prepodavai_authenticated', 'true')
+    localStorage.removeItem('prepodavai_utm')
+    onSuccess()
+  }
+
+  // ── Вход по логину + ключу ───────────────────────────────────────────────
   const handleLoginWithApiKey = async () => {
-    setLoading(true)
-    setErrorMessage('')
-
+    setLoading(true); resetErrors()
     try {
-      const loginResponse = await apiClient.post('/auth/login-with-api-key', {
-        username: form.username.trim(),
-        apiKey: form.apiKey.trim()
+      const res = await apiClient.post('/auth/login-with-api-key', {
+        username: loginForm.username.trim(),
+        apiKey: loginForm.apiKey.trim(),
       })
-
-      if (loginResponse.data.success) {
-        const user = loginResponse.data.user;
-        const userData = {
-          name: user?.firstName || user?.username || 'Пользователь',
-          username: user?.username,
-          phone: user?.phone || '',
-          telegramId: user?.telegramId,
-          userHash: loginResponse.data.userHash || user?.id || `u_${Date.now()}`,
-          isAuthenticated: true,
-          loginTime: new Date().toISOString()
-        }
-
-        localStorage.setItem('prepodavai_user', JSON.stringify(userData))
-        localStorage.setItem('prepodavai_authenticated', 'true')
-
-        onSuccess()
+      if (res.data.success) {
+        saveAndLogin(res.data, res.data.userHash || res.data.user?.id)
       } else {
-        setErrorMessage(loginResponse.data.error || 'Ошибка входа')
+        setErrorMessage(res.data.error || 'Ошибка входа')
       }
-    } catch (error: any) {
-      console.error('Login with API key error:', error)
-      setErrorMessage(error.response?.data?.error || error.message || 'Ошибка входа')
+    } catch (e: any) {
+      setErrorMessage(e.response?.data?.message || e.response?.data?.error || 'Неверный логин или пароль')
     } finally {
       setLoading(false)
     }
   }
 
-  const handleRegisterByEmail = async () => {
-    setLoading(true)
-    setErrorMessage('')
-    setSuccessMessage('')
-
+  // ── Регистрация: отправка кода ───────────────────────────────────────────
+  const handleRegisterSendCode = async () => {
+    setLoading(true); resetErrors()
     try {
-      const response = await apiClient.post('/auth/register-by-email', {
-        email: form.email.trim(),
-      })
-
-      if (response.data.success && response.data.pending) {
-        // Сохраняем реферальный код в localStorage, чтобы применить после верификации
-        const code = form.referralCode.trim()
-        if (code) {
-          localStorage.setItem('prepodavai_referral_code', code)
-        }
-        setVerificationStep('verify-code')
-        setSuccessMessage(
-          response.data.isNewUser
-            ? 'Код подтверждения отправлен на вашу почту'
-            : 'Код для входа отправлен на вашу почту'
-        )
+      const res = await apiClient.post('/auth/register-by-email', { email: registerForm.email.trim() })
+      if (res.data.success && res.data.pending) {
+        const code = registerForm.referralCode.trim()
+        if (code) localStorage.setItem('prepodavai_referral_code', code)
+        setRegisterStep('verify-code')
+        setSuccessMessage('Код подтверждения отправлен на вашу почту')
       } else {
-        setErrorMessage(response.data.error || 'Ошибка регистрации')
+        setErrorMessage(res.data.error || 'Ошибка регистрации')
       }
-    } catch (error: any) {
-      console.error('Register by email error:', error)
-      const msg = error.response?.data?.message || error.response?.data?.error || ''
-      const isGeneric = !msg || msg.toLowerCase() === 'internal server error'
-      setErrorMessage(isGeneric ? 'Ошибка сервера. Попробуйте позже.' : msg)
+    } catch (e: any) {
+      const msg = e.response?.data?.message || e.response?.data?.error || ''
+      setErrorMessage(!msg || msg.toLowerCase() === 'internal server error' ? 'Ошибка сервера. Попробуйте позже.' : msg)
     } finally {
       setLoading(false)
     }
   }
 
-  const handleVerifyEmailCode = async () => {
-    setLoading(true)
-    setErrorMessage('')
-
+  // ── Регистрация: подтверждение кода ─────────────────────────────────────
+  const handleRegisterVerifyCode = async () => {
+    setLoading(true); resetErrors()
     try {
       const utmParams = (() => {
-        try {
-          const raw = localStorage.getItem('prepodavai_utm')
-          return raw ? JSON.parse(raw).params : {}
-        } catch { return {} }
+        try { const r = localStorage.getItem('prepodavai_utm'); return r ? JSON.parse(r).params : {} }
+        catch { return {} }
       })()
-
-      const response = await apiClient.post('/auth/verify-email-code', {
-        email: form.email.trim(),
-        code: otpCode.trim(),
-        firstName: form.name.trim() || undefined,
+      const res = await apiClient.post('/auth/verify-email-code', {
+        email: registerForm.email.trim(),
+        code: registerCode.trim(),
+        firstName: registerForm.name.trim() || undefined,
         ...utmParams,
       })
-
-      if (response.data.success) {
-        const user = response.data.user
-        const userData = {
-          name: user?.firstName || form.name || 'Пользователь',
-          username: user?.username,
-          email: user?.email || form.email,
-          userHash: response.data.userHash || user?.id || `u_${Date.now()}`,
-          isAuthenticated: true,
-          loginTime: new Date().toISOString()
-        }
-
-        localStorage.setItem('prepodavai_user', JSON.stringify(userData))
-        localStorage.setItem('prepodavai_authenticated', 'true')
-        localStorage.removeItem('prepodavai_utm')
-
-        onSuccess()
+      if (res.data.success) {
+        saveAndLogin(res.data, res.data.userHash || res.data.user?.id)
       } else {
-        setErrorMessage(response.data.error || 'Ошибка подтверждения')
+        setErrorMessage(res.data.error || 'Ошибка подтверждения')
       }
-    } catch (error: any) {
-      console.error('Verify email code error:', error)
-      setErrorMessage(error.response?.data?.message || error.response?.data?.error || 'Неверный код или срок действия истёк')
+    } catch (e: any) {
+      setErrorMessage(e.response?.data?.message || e.response?.data?.error || 'Неверный код или срок действия истёк')
     } finally {
       setLoading(false)
     }
   }
 
-  const toggleMode = () => {
-    setIsLogin(!isLogin)
-    setErrorMessage('')
-    setSuccessMessage('')
-    setPrivacyAccepted(false)
-    setVerificationStep('form')
-    setOtpCode('')
-    setForm({
-      name: '',
-      phone: '',
-      email: '',
-      password: '',
-      username: '',
-      apiKey: '',
-      referralCode: ''
-    })
+  // ── Восстановление: отправка кода ───────────────────────────────────────
+  const handleRecoverySendCode = async () => {
+    setLoading(true); resetErrors()
+    try {
+      const res = await apiClient.post('/auth/register-by-email', { email: recoveryEmail.trim() })
+      if (res.data.success && res.data.pending) {
+        setRecoveryStep('verify-code')
+        setSuccessMessage('Код для входа отправлен на вашу почту')
+      } else {
+        setErrorMessage(res.data.error || 'Ошибка отправки кода')
+      }
+    } catch (e: any) {
+      const msg = e.response?.data?.message || e.response?.data?.error || ''
+      setErrorMessage(!msg || msg.toLowerCase() === 'internal server error' ? 'Ошибка сервера. Попробуйте позже.' : msg)
+    } finally {
+      setLoading(false)
+    }
   }
 
+  // ── Восстановление: подтверждение кода ──────────────────────────────────
+  const handleRecoveryVerifyCode = async () => {
+    setLoading(true); resetErrors()
+    try {
+      const res = await apiClient.post('/auth/verify-email-code', {
+        email: recoveryEmail.trim(),
+        code: recoveryCode.trim(),
+      })
+      if (res.data.success) {
+        saveAndLogin(res.data, res.data.userHash || res.data.user?.id)
+      } else {
+        setErrorMessage(res.data.error || 'Ошибка подтверждения')
+      }
+    } catch (e: any) {
+      setErrorMessage(e.response?.data?.message || e.response?.data?.error || 'Неверный код или срок действия истёк')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // ── Заголовок модала ─────────────────────────────────────────────────────
+  const title = mode === 'login' ? 'Вход'
+    : mode === 'register' ? (registerStep === 'verify-code' ? 'Подтверждение' : 'Регистрация')
+    : (recoveryStep === 'verify-code' ? 'Подтверждение' : 'Восстановление доступа')
+
+  const subtitle = mode === 'login' ? 'Введите данные из письма'
+    : mode === 'register' ? (registerStep === 'verify-code' ? 'Введите код из письма' : 'Укажите email для получения данных входа')
+    : (recoveryStep === 'verify-code' ? 'Введите код из письма' : 'Введите email вашего аккаунта')
+
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      onClick={onClose}
-    >
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm"></div>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
 
       <div
         className="relative bg-white rounded-3xl shadow-2xl max-w-md w-full p-8 animate-slide-up"
@@ -237,103 +191,81 @@ export default function AuthModal({ onClose, onSuccess, initialMode = 'login' }:
           onClick={onClose}
           className="absolute top-4 right-4 w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors"
         >
-          <i className="fas fa-times text-gray-400"></i>
+          <i className="fas fa-times text-gray-400" />
         </button>
 
         <div className="flex items-center justify-center mb-6">
           <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center">
-            <i className="fas fa-graduation-cap text-white text-3xl"></i>
+            <i className="fas fa-graduation-cap text-white text-3xl" />
           </div>
         </div>
 
         <h2 className="text-3xl font-bold text-center mb-2">
           <span className="bg-gradient-to-r from-orange-600 to-orange-500 bg-clip-text text-transparent">
-            {isLogin ? 'Вход' : verificationStep === 'verify-code' ? 'Подтверждение' : 'Регистрация'}
+            {title}
           </span>
         </h2>
-        <p className="text-center text-gray-900 mb-8">
-          {isLogin
-            ? 'Введите данные из письма'
-            : verificationStep === 'verify-code'
-              ? 'Введите код из письма'
-              : 'Укажите email для получения данных входа'
-          }
-        </p>
+        <p className="text-center text-gray-500 mb-8 text-sm">{subtitle}</p>
 
-        {/* Email Verification Step */}
-        {!isLogin && verificationStep === 'verify-code' && (
-          <form onSubmit={(e) => { e.preventDefault(); handleVerifyEmailCode(); }} className="space-y-4">
-            <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl text-blue-800 text-sm">
-              <i className="fas fa-envelope-open text-blue-500 mr-2"></i>
-              Мы отправили 6-значный код на <strong>{form.email}</strong>
+        {/* ── ВХОД ─────────────────────────────────────────────────────── */}
+        {mode === 'login' && (
+          <form onSubmit={(e) => { e.preventDefault(); handleLoginWithApiKey() }} className="space-y-4">
+            <div className="p-3 bg-blue-50 border border-blue-100 rounded-xl text-blue-700 text-xs flex items-start gap-2">
+              <i className="fas fa-info-circle mt-0.5 shrink-0" />
+              Если возникли сложности с авторизацией, напишите куратору или менеджеру, который за вами привязан
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                <i className="fas fa-shield-alt text-orange-500 mr-2"></i>
-                Код подтверждения
+                <i className="fas fa-user text-orange-500 mr-2" />Почта
               </label>
               <input
-                value={otpCode}
-                onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                type="text"
-                inputMode="numeric"
-                required
-                autoFocus
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none transition-colors text-gray-900 placeholder:text-gray-400 text-center text-2xl font-mono tracking-widest"
-                placeholder="______"
+                value={loginForm.username}
+                onChange={(e) => setLoginForm(p => ({ ...p, username: e.target.value }))}
+                type="text" required autoComplete="username"
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none transition-colors text-gray-900 placeholder:text-gray-400"
+                placeholder="your@email.com"
               />
-              <p className="text-xs text-gray-500 mt-1">Код действителен 10 минут</p>
             </div>
 
-            {successMessage && (
-              <div className="p-3 bg-green-50 border border-green-200 rounded-xl text-green-700 text-sm">
-                <i className="fas fa-check-circle mr-2"></i>
-                {successMessage}
-              </div>
-            )}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                <i className="fas fa-lock text-orange-500 mr-2" />Пароль
+              </label>
+              <input
+                value={loginForm.apiKey}
+                onChange={(e) => setLoginForm(p => ({ ...p, apiKey: e.target.value }))}
+                type="password" required autoComplete="current-password"
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none transition-colors text-gray-900 placeholder:text-gray-400"
+                placeholder="Ваш пароль"
+              />
+            </div>
 
-            {errorMessage && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">
-                <i className="fas fa-exclamation-circle mr-2"></i>
-                {errorMessage}
-              </div>
-            )}
+            {errorMessage && <ErrorBox message={errorMessage} />}
 
-            <button
-              type="submit"
-              disabled={loading || otpCode.length !== 6}
-              className="w-full py-4 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300 hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-            >
-              <i className={`fas ${loading ? 'fa-spinner fa-spin' : 'fa-check'}`}></i>
-              {loading ? 'Проверка...' : 'Подтвердить'}
-            </button>
+            <PrivacyCheckbox checked={privacyAccepted} onChange={setPrivacyAccepted} />
 
-            <button
-              type="button"
-              onClick={() => { setVerificationStep('form'); setOtpCode(''); setErrorMessage(''); setSuccessMessage(''); }}
-              className="w-full text-sm text-gray-500 hover:text-gray-700"
-            >
-              Изменить email
-            </button>
+            <SubmitButton loading={loading} disabled={!privacyAccepted} label="Войти" loadingLabel="Вход..." icon="fa-sign-in-alt" />
+
+            <LegalLinks action="Войти" />
           </form>
         )}
 
-        {/* Email Registration Form */}
-        {!isLogin && verificationStep === 'form' && (
-          <form onSubmit={(e) => { e.preventDefault(); handleRegisterByEmail(); }} className="space-y-4">
+        {/* ── РЕГИСТРАЦИЯ: ввод email ───────────────────────────────────── */}
+        {mode === 'register' && registerStep === 'form' && (
+          <form onSubmit={(e) => { e.preventDefault(); handleRegisterSendCode() }} className="space-y-4">
             <div className="flex items-start gap-2 p-3 bg-blue-50 border border-blue-100 rounded-xl text-xs text-blue-700">
-              <i className="fas fa-link mt-0.5 shrink-0"></i>
+              <i className="fas fa-link mt-0.5 shrink-0" />
               <span>Это веб-аккаунт. После регистрации вы сможете привязать <strong>Telegram</strong> и <strong>MAX</strong> в настройках профиля.</span>
             </div>
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                <i className="fas fa-user text-orange-500 mr-2"></i>
-                Имя
+                <i className="fas fa-user text-orange-500 mr-2" />Имя
               </label>
               <input
-                value={form.name}
-                onChange={(e) => setForm(prev => ({ ...prev, name: e.target.value }))}
+                value={registerForm.name}
+                onChange={(e) => setRegisterForm(p => ({ ...p, name: e.target.value }))}
                 type="text"
                 className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none transition-colors text-gray-900 placeholder:text-gray-400"
                 placeholder="Введите ваше имя"
@@ -342,298 +274,219 @@ export default function AuthModal({ onClose, onSuccess, initialMode = 'login' }:
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                <i className="fas fa-envelope text-orange-500 mr-2"></i>
-                Email
+                <i className="fas fa-envelope text-orange-500 mr-2" />Email
               </label>
               <input
-                value={form.email}
-                onChange={(e) => setForm(prev => ({ ...prev, email: e.target.value }))}
-                type="email"
-                required
+                value={registerForm.email}
+                onChange={(e) => setRegisterForm(p => ({ ...p, email: e.target.value }))}
+                type="email" required
                 className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none transition-colors text-gray-900 placeholder:text-gray-400"
                 placeholder="example@email.com"
               />
-              <p className="text-xs text-gray-500 mt-1">На эту почту придут данные для входа</p>
+              <p className="text-xs text-gray-400 mt-1">На эту почту придут данные для входа</p>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                <i className="fas fa-gift text-orange-500 mr-2"></i>
-                Код приглашения
+                <i className="fas fa-gift text-orange-500 mr-2" />Код приглашения
                 <span className="text-gray-400 font-normal ml-1">(необязательно)</span>
               </label>
               <input
-                value={form.referralCode}
-                onChange={(e) => setForm(prev => ({ ...prev, referralCode: e.target.value.toUpperCase() }))}
-                type="text"
+                value={registerForm.referralCode}
+                onChange={(e) => setRegisterForm(p => ({ ...p, referralCode: e.target.value.toUpperCase() }))}
+                type="text" maxLength={16}
                 className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none transition-colors text-gray-900 placeholder:text-gray-400 font-mono tracking-wider"
                 placeholder="XXXXXXXX"
-                maxLength={16}
               />
             </div>
 
-            {successMessage && (
-              <div className="p-3 bg-green-50 border border-green-200 rounded-xl text-green-700 text-sm">
-                <i className="fas fa-check-circle mr-2"></i>
-                {successMessage}
-              </div>
-            )}
+            {errorMessage && <ErrorBox message={errorMessage} />}
 
-            {errorMessage && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">
-                <i className="fas fa-exclamation-circle mr-2"></i>
-                {errorMessage}
-              </div>
-            )}
+            <PrivacyCheckbox checked={privacyAccepted} onChange={setPrivacyAccepted} />
 
-            <label className="flex items-start gap-3 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={privacyAccepted}
-                onChange={(e) => setPrivacyAccepted(e.target.checked)}
-                className="mt-0.5 w-4 h-4 accent-orange-500 cursor-pointer flex-shrink-0"
-              />
-              <span className="text-sm text-gray-700">
-                Я соглашаюсь с{' '}
-                <a
-                  href="/legal/privacy"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-orange-600 hover:text-orange-700 underline"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  политикой конфиденциальности
-                </a>
-              </span>
-            </label>
+            <SubmitButton loading={loading} disabled={!privacyAccepted || !registerForm.email.trim()} label="Зарегистрироваться" loadingLabel="Регистрация..." icon="fa-paper-plane" />
 
-            <button
-              type="submit"
-              disabled={loading || !privacyAccepted || !form.email.trim()}
-              className="w-full py-4 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300 hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-            >
-              <i className={`fas ${loading ? 'fa-spinner fa-spin' : 'fa-paper-plane'}`}></i>
-              {loading ? 'Регистрация...' : 'Зарегистрироваться'}
-            </button>
-
-            <div className="text-center text-xs text-gray-500 space-y-1 pt-1">
-              <p>
-                Нажимая «Зарегистрироваться», вы соглашаетесь с{' '}
-                <a href="/legal/offer" target="_blank" rel="noopener noreferrer" className="text-orange-600 hover:underline">Офертой</a>
-                {' '}и{' '}
-                <a href="/legal/privacy" target="_blank" rel="noopener noreferrer" className="text-orange-600 hover:underline">Политикой конфиденциальности</a>
-              </p>
-              <p className="flex items-center justify-center gap-3">
-                <a href="/legal/consent/processing" target="_blank" rel="noopener noreferrer" className="text-orange-600 hover:underline">Согласие на обработку данных</a>
-                <span className="text-gray-300">|</span>
-                <a href="/legal/consent/mailing" target="_blank" rel="noopener noreferrer" className="text-orange-600 hover:underline">Согласие на рассылку</a>
-              </p>
-            </div>
+            <LegalLinks action="Зарегистрироваться" />
           </form>
         )}
 
-        {/* Login Form: Username + API Key */}
-        {isLogin && loginMode === 'apikey' && (
-          <form onSubmit={(e) => { e.preventDefault(); handleLoginWithApiKey(); }} className="space-y-4">
-            <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl text-blue-800 text-sm mb-4">
-              <i className="fas fa-info-circle text-blue-500 mr-2"></i>
-              Если возникли сложности с авторизацией, напишите куратору или менеджеру, который за вами привязан
+        {/* ── РЕГИСТРАЦИЯ: ввод кода ────────────────────────────────────── */}
+        {mode === 'register' && registerStep === 'verify-code' && (
+          <form onSubmit={(e) => { e.preventDefault(); handleRegisterVerifyCode() }} className="space-y-4">
+            <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl text-blue-800 text-sm">
+              <i className="fas fa-envelope-open text-blue-500 mr-2" />
+              Мы отправили 6-значный код на <strong>{registerForm.email}</strong>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                <i className="fas fa-user text-orange-500 mr-2"></i>
-                Почта
-              </label>
-              <input
-                value={form.username}
-                onChange={(e) => setForm(prev => ({ ...prev, username: e.target.value }))}
-                type="text"
-                required
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none transition-colors text-gray-900 placeholder:text-gray-400"
-                placeholder="your_username"
-              />
-            </div>
+            <CodeInput value={registerCode} onChange={setRegisterCode} />
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                <i className="fas fa-lock text-orange-500 mr-2"></i>
-                Пароль
-              </label>
-              <input
-                value={form.apiKey}
-                onChange={(e) => setForm(prev => ({ ...prev, apiKey: e.target.value }))}
-                type="password"
-                required
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none transition-colors text-gray-900 placeholder:text-gray-400"
-                placeholder="Ваш пароль"
-              />
-            </div>
+            {successMessage && <SuccessBox message={successMessage} />}
+            {errorMessage && <ErrorBox message={errorMessage} />}
 
-            {errorMessage && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">
-                <i className="fas fa-exclamation-circle mr-2"></i>
-                {errorMessage}
-              </div>
-            )}
+            <SubmitButton loading={loading} disabled={registerCode.length !== 6} label="Подтвердить" loadingLabel="Проверка..." icon="fa-check" />
 
-            <label className="flex items-start gap-3 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={privacyAccepted}
-                onChange={(e) => setPrivacyAccepted(e.target.checked)}
-                className="mt-0.5 w-4 h-4 accent-orange-500 cursor-pointer flex-shrink-0"
-              />
-              <span className="text-sm text-gray-700">
-                Я соглашаюсь с{' '}
-                <a
-                  href="/legal/privacy"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-orange-600 hover:text-orange-700 underline"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  политикой конфиденциальности
-                </a>
-              </span>
-            </label>
-
-            <button
-              type="submit"
-              disabled={loading || !privacyAccepted}
-              className="w-full py-4 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300 hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-            >
-              <i className={`fas ${loading ? 'fa-spinner fa-spin' : 'fa-sign-in-alt'}`}></i>
-              {loading ? 'Вход...' : 'Войти'}
+            <button type="button" onClick={() => { setRegisterStep('form'); setRegisterCode(''); resetErrors() }}
+              className="w-full text-sm text-gray-500 hover:text-gray-700">
+              Изменить email
             </button>
-
-            <div className="text-center text-xs text-gray-500 space-y-1 pt-1">
-              <p>
-                Нажимая «Войти», вы соглашаетесь с{' '}
-                <a href="/legal/offer" target="_blank" rel="noopener noreferrer" className="text-orange-600 hover:underline">Офертой</a>
-                {' '}и{' '}
-                <a href="/legal/privacy" target="_blank" rel="noopener noreferrer" className="text-orange-600 hover:underline">Политикой конфиденциальности</a>
-              </p>
-              <p className="flex items-center justify-center gap-3">
-                <a href="/legal/consent/processing" target="_blank" rel="noopener noreferrer" className="text-orange-600 hover:underline">Согласие на обработку данных</a>
-                <span className="text-gray-300">|</span>
-                <a href="/legal/consent/mailing" target="_blank" rel="noopener noreferrer" className="text-orange-600 hover:underline">Согласие на рассылку</a>
-              </p>
-            </div>
           </form>
         )}
 
-        {/* Login Form: Phone + Password */}
-        {isLogin && loginMode === 'phone' && (
-          <form onSubmit={(e) => { e.preventDefault(); handleLoginWithPassword(); }} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                <i className="fas fa-phone text-orange-500 mr-2"></i>
-                Номер телефона
-              </label>
-              <input
-                value={form.phone}
-                onChange={(e) => setForm(prev => ({ ...prev, phone: e.target.value }))}
-                type="tel"
-                required
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none transition-colors text-gray-900 placeholder:text-gray-400"
-                placeholder="+7 900 123 45 67"
-              />
+        {/* ── ВОССТАНОВЛЕНИЕ: ввод email ────────────────────────────────── */}
+        {mode === 'recovery' && recoveryStep === 'form' && (
+          <form onSubmit={(e) => { e.preventDefault(); handleRecoverySendCode() }} className="space-y-4">
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs flex items-start gap-2">
+              <i className="fas fa-key mt-0.5 shrink-0" />
+              <span>Введите email, указанный при регистрации. Мы отправим код для входа — ваши данные будут высланы повторно.</span>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                <i className="fas fa-lock text-orange-500 mr-2"></i>
-                Пароль
+                <i className="fas fa-envelope text-orange-500 mr-2" />Email аккаунта
               </label>
               <input
-                value={form.password}
-                onChange={(e) => setForm(prev => ({ ...prev, password: e.target.value }))}
-                type="password"
-                required
+                value={recoveryEmail}
+                onChange={(e) => setRecoveryEmail(e.target.value)}
+                type="email" required autoFocus
                 className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none transition-colors text-gray-900 placeholder:text-gray-400"
-                placeholder="••••••••"
+                placeholder="your@email.com"
               />
             </div>
 
-            {errorMessage && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">
-                <i className="fas fa-exclamation-circle mr-2"></i>
-                {errorMessage}
-              </div>
-            )}
+            {errorMessage && <ErrorBox message={errorMessage} />}
 
-            <label className="flex items-start gap-3 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={privacyAccepted}
-                onChange={(e) => setPrivacyAccepted(e.target.checked)}
-                className="mt-0.5 w-4 h-4 accent-orange-500 cursor-pointer flex-shrink-0"
-              />
-              <span className="text-sm text-gray-700">
-                Я соглашаюсь с{' '}
-                <a
-                  href="/legal/privacy"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-orange-600 hover:text-orange-700 underline"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  политикой конфиденциальности
-                </a>
-              </span>
-            </label>
-
-            <button
-              type="submit"
-              disabled={loading || !privacyAccepted}
-              className="w-full py-4 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300 hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-            >
-              <i className={`fas ${loading ? 'fa-spinner fa-spin' : 'fa-sign-in-alt'}`}></i>
-              {loading ? 'Вход...' : 'Войти'}
-            </button>
-
-            <div className="text-center text-xs text-gray-500 space-y-1 pt-1">
-              <p>
-                Нажимая «Войти», вы соглашаетесь с{' '}
-                <a href="/legal/offer" target="_blank" rel="noopener noreferrer" className="text-orange-600 hover:underline">Офертой</a>
-                {' '}и{' '}
-                <a href="/legal/privacy" target="_blank" rel="noopener noreferrer" className="text-orange-600 hover:underline">Политикой конфиденциальности</a>
-              </p>
-              <p className="flex items-center justify-center gap-3">
-                <a href="/legal/consent/processing" target="_blank" rel="noopener noreferrer" className="text-orange-600 hover:underline">Согласие на обработку данных</a>
-                <span className="text-gray-300">|</span>
-                <a href="/legal/consent/mailing" target="_blank" rel="noopener noreferrer" className="text-orange-600 hover:underline">Согласие на рассылку</a>
-              </p>
-            </div>
+            <SubmitButton loading={loading} disabled={!recoveryEmail.trim()} label="Получить код" loadingLabel="Отправка..." icon="fa-paper-plane" />
           </form>
         )}
 
-        {/* Toggle between Login and Register */}
+        {/* ── ВОССТАНОВЛЕНИЕ: ввод кода ─────────────────────────────────── */}
+        {mode === 'recovery' && recoveryStep === 'verify-code' && (
+          <form onSubmit={(e) => { e.preventDefault(); handleRecoveryVerifyCode() }} className="space-y-4">
+            <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl text-blue-800 text-sm">
+              <i className="fas fa-envelope-open text-blue-500 mr-2" />
+              Мы отправили 6-значный код на <strong>{recoveryEmail}</strong>. В том же письме — ваши данные для входа.
+            </div>
+
+            <CodeInput value={recoveryCode} onChange={setRecoveryCode} />
+
+            {successMessage && <SuccessBox message={successMessage} />}
+            {errorMessage && <ErrorBox message={errorMessage} />}
+
+            <SubmitButton loading={loading} disabled={recoveryCode.length !== 6} label="Войти" loadingLabel="Проверка..." icon="fa-sign-in-alt" />
+
+            <button type="button" onClick={() => { setRecoveryStep('form'); setRecoveryCode(''); resetErrors() }}
+              className="w-full text-sm text-gray-500 hover:text-gray-700">
+              Изменить email
+            </button>
+          </form>
+        )}
+
+        {/* ── НАВИГАЦИЯ ─────────────────────────────────────────────────── */}
         <div className="mt-6 text-center space-y-2">
-          <button
-            onClick={toggleMode}
-            className="text-orange-600 hover:text-orange-700 font-medium block w-full"
-          >
-            {isLogin ? 'Нет аккаунта? Зарегистрируйтесь' : 'Уже есть аккаунт? Войдите'}
-          </button>
-          {isLogin && (
-            <button
-              onClick={() => {
-                setIsLogin(false)
-                setErrorMessage('')
-                setSuccessMessage('')
-                setVerificationStep('form')
-                setOtpCode('')
-                setForm(prev => ({ ...prev, name: '', password: '', apiKey: '', referralCode: '' }))
-              }}
-              className="text-sm text-gray-500 hover:text-gray-700 underline"
-            >
-              Забыли данные для входа? Получить код на почту
+          {mode === 'login' && (
+            <>
+              <button onClick={() => switchMode('register')} className="text-orange-600 hover:text-orange-700 font-medium block w-full">
+                Нет аккаунта? Зарегистрируйтесь
+              </button>
+              <button onClick={() => switchMode('recovery')} className="text-sm text-gray-500 hover:text-gray-700 underline">
+                Забыли данные для входа? Получить код на почту
+              </button>
+            </>
+          )}
+          {mode === 'register' && (
+            <button onClick={() => switchMode('login')} className="text-orange-600 hover:text-orange-700 font-medium">
+              Уже есть аккаунт? Войдите
+            </button>
+          )}
+          {mode === 'recovery' && (
+            <button onClick={() => switchMode('login')} className="text-orange-600 hover:text-orange-700 font-medium">
+              Вспомнили данные? Войти
             </button>
           )}
         </div>
       </div>
+    </div>
+  )
+}
+
+// ── Вспомогательные компоненты ───────────────────────────────────────────────
+
+function CodeInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-2">
+        <i className="fas fa-shield-alt text-orange-500 mr-2" />Код подтверждения
+      </label>
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value.replace(/\D/g, '').slice(0, 6))}
+        type="text" inputMode="numeric" required autoFocus
+        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none transition-colors text-gray-900 text-center text-2xl font-mono tracking-widest"
+        placeholder="______"
+      />
+      <p className="text-xs text-gray-400 mt-1">Код действителен 10 минут</p>
+    </div>
+  )
+}
+
+function PrivacyCheckbox({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <label className="flex items-start gap-3 cursor-pointer select-none">
+      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)}
+        className="mt-0.5 w-4 h-4 accent-orange-500 cursor-pointer flex-shrink-0" />
+      <span className="text-sm text-gray-700">
+        Я соглашаюсь с{' '}
+        <a href="/legal/privacy" target="_blank" rel="noopener noreferrer"
+          className="text-orange-600 hover:text-orange-700 underline" onClick={(e) => e.stopPropagation()}>
+          политикой конфиденциальности
+        </a>
+      </span>
+    </label>
+  )
+}
+
+function SubmitButton({ loading, disabled, label, loadingLabel, icon }: {
+  loading: boolean; disabled: boolean; label: string; loadingLabel: string; icon: string
+}) {
+  return (
+    <button type="submit" disabled={loading || disabled}
+      className="w-full py-4 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300 hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+      <i className={`fas ${loading ? 'fa-spinner fa-spin' : icon}`} />
+      {loading ? loadingLabel : label}
+    </button>
+  )
+}
+
+function ErrorBox({ message }: { message: string }) {
+  return (
+    <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">
+      <i className="fas fa-exclamation-circle mr-2" />{message}
+    </div>
+  )
+}
+
+function SuccessBox({ message }: { message: string }) {
+  return (
+    <div className="p-3 bg-green-50 border border-green-200 rounded-xl text-green-700 text-sm">
+      <i className="fas fa-check-circle mr-2" />{message}
+    </div>
+  )
+}
+
+function LegalLinks({ action }: { action: string }) {
+  return (
+    <div className="text-center text-xs text-gray-500 space-y-1 pt-1">
+      <p>
+        Нажимая «{action}», вы соглашаетесь с{' '}
+        <a href="/legal/offer" target="_blank" rel="noopener noreferrer" className="text-orange-600 hover:underline">Офертой</a>
+        {' '}и{' '}
+        <a href="/legal/privacy" target="_blank" rel="noopener noreferrer" className="text-orange-600 hover:underline">Политикой конфиденциальности</a>
+      </p>
+      <p className="flex items-center justify-center gap-3">
+        <a href="/legal/consent/processing" target="_blank" rel="noopener noreferrer" className="text-orange-600 hover:underline">Согласие на обработку данных</a>
+        <span className="text-gray-300">|</span>
+        <a href="/legal/consent/mailing" target="_blank" rel="noopener noreferrer" className="text-orange-600 hover:underline">Согласие на рассылку</a>
+      </p>
     </div>
   )
 }
