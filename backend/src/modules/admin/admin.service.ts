@@ -1370,9 +1370,9 @@ export class AdminService {
   }) {
     const base = (data.baseUrl || 'https://prepodavai.ru').replace(/\/$/, '');
     const params = new URLSearchParams({
-      utm_source: data.utmSource,
-      utm_medium: data.utmMedium,
-      utm_campaign: data.utmCampaign,
+      utm_source: data.utmSource || 'direct',
+      utm_medium: data.utmMedium || 'link',
+      utm_campaign: data.utmCampaign || 'organic',
       ...(data.utmContent ? { utm_content: data.utmContent } : {}),
       ...(data.utmTerm ? { utm_term: data.utmTerm } : {}),
     });

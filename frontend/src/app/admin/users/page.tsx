@@ -198,6 +198,20 @@ export default function AdminUsersPage() {
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <div className="text-gray-900 font-semibold">{user.firstName} {user.lastName}</div>
                                             <div className="text-gray-400 text-xs mt-1">{user.phone || 'Нет телефона'}</div>
+                                            {(user.utmSource || user.utmCampaign) && (
+                                                <div className="flex flex-wrap gap-1 mt-1.5">
+                                                    {user.utmSource && (
+                                                        <span className="text-gray-600 bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200 text-[10px] font-medium uppercase tracking-wider" title="utm_source">
+                                                            {user.utmSource}
+                                                        </span>
+                                                    )}
+                                                    {user.utmCampaign && (
+                                                        <span className="text-orange-700 bg-orange-50 px-1.5 py-0.5 rounded border border-orange-100 text-[10px] font-medium uppercase tracking-wider" title="utm_campaign">
+                                                            {user.utmCampaign}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            )}
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <div className="flex flex-col gap-2 justify-center">

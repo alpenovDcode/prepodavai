@@ -283,15 +283,14 @@ export class UsersService {
           firstName: firstName || '',
           source: 'web',
           lastAccessAt: new Date(),
-          ...(utm?.utmSource ? {
-            utmSource: utm.utmSource,
-            utmMedium: utm.utmMedium,
-            utmCampaign: utm.utmCampaign,
-            utmContent: utm.utmContent,
-            utmTerm: utm.utmTerm,
-            utmLandingPage: utm.utmLandingPage,
-            utmLinkId: utm.utmLinkId,
-          } : {}),
+          // UTM-параметры и Link ID для бонусов
+          utmSource: utm?.utmSource || null,
+          utmMedium: utm?.utmMedium || null,
+          utmCampaign: utm?.utmCampaign || null,
+          utmContent: utm?.utmContent || null,
+          utmTerm: utm?.utmTerm || null,
+          utmLandingPage: utm?.utmLandingPage || null,
+          utmLinkId: utm?.utmLinkId || null,
         } as any,
       });
 
