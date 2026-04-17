@@ -164,7 +164,7 @@ export class AdminService {
   }
 
   async createUser(data: any, adminId?: string) {
-    const { username, password, firstName, lastName, phone, creditsBalance } = data;
+    const { username, password, firstName, lastName, phone, creditsBalance, planKey } = data;
 
     if (!username) {
       throw new BadRequestException('Username is required');
@@ -205,9 +205,9 @@ export class AdminService {
       },
     });
 
-    // Создаем подписку по умолчанию Starter
+    // Создаем подписку: по выбранному тарифу или Starter по умолчанию
     const starterPlan = await this.prisma.subscriptionPlan.findUnique({
-      where: { planKey: 'starter' },
+      where: { planKey: planKey || 'starter' },
     });
 
     if (starterPlan) {

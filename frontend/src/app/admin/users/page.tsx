@@ -360,18 +360,16 @@ export default function AdminUsersPage() {
                                     <label className="block text-sm font-medium text-indigo-700 mb-1 font-semibold">Баланс токенов</label>
                                     <input type="number" placeholder="100" value={formData.creditsBalance} onChange={e => setFormData({...formData, creditsBalance: e.target.value})} className="w-full border-indigo-200 bg-indigo-50/50 rounded-lg p-2 border focus:ring-2 focus:ring-indigo-500 focus:outline-none" />
                                 </div>
-                                {isEditModalOpen && (
-                                    <div className="col-span-2 sm:col-span-1">
-                                        <label className="block text-sm font-medium text-purple-700 mb-1 font-semibold">Тариф</label>
-                                        <select value={formData.planKey} onChange={e => setFormData({...formData, planKey: e.target.value})} className="w-full border-purple-200 bg-purple-50/50 rounded-lg p-2 border focus:ring-2 focus:ring-purple-500 focus:outline-none text-sm">
-                                            <option value="">— не менять —</option>
-                                            <option value="free">Бесплатный (30 токенов)</option>
-                                            <option value="starter">Стартер (200 токенов, 290₽)</option>
-                                            <option value="pro">Про (500 токенов, 690₽)</option>
-                                            <option value="business">Бизнес (1500 токенов, 1490₽)</option>
-                                        </select>
-                                    </div>
-                                )}
+                                <div className="col-span-2 sm:col-span-1">
+                                    <label className="block text-sm font-medium text-purple-700 mb-1 font-semibold">Тариф</label>
+                                    <select value={formData.planKey} onChange={e => setFormData({...formData, planKey: e.target.value})} className="w-full border-purple-200 bg-purple-50/50 rounded-lg p-2 border focus:ring-2 focus:ring-purple-500 focus:outline-none text-sm">
+                                        <option value="">{isEditModalOpen ? '— не менять —' : '— выбрать тариф —'}</option>
+                                        <option value="free">Бесплатный (30 токенов)</option>
+                                        <option value="starter">Стартер (200 токенов, 290₽)</option>
+                                        <option value="pro">Про (500 токенов, 690₽)</option>
+                                        <option value="business">Бизнес (1500 токенов, 1490₽)</option>
+                                    </select>
+                                </div>
                             </div>
                             
                             <div className="pt-4 flex justify-end gap-3">

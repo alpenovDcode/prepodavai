@@ -369,32 +369,32 @@ export default function StudentsPage() {
     return (
         <div className="max-w-7xl mx-auto">
             {/* Header */}
-            <div className="flex items-center justify-between mb-8">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 sm:mb-8">
                 <div>
-                    <h1 className="text-3xl font-bold text-gray-900">Ученики и Классы</h1>
-                    <p className="text-gray-600 mt-1">Управляйте своими классами и учениками.</p>
+                    <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Ученики и Классы</h1>
+                    <p className="text-gray-600 mt-1 text-sm sm:text-base">Управляйте своими классами и учениками.</p>
                 </div>
-                <div className="flex gap-3">
+                <div className="flex flex-wrap gap-2 sm:gap-3">
                     <button
                         onClick={() => setShowAddClassModal(true)}
-                        className="px-4 py-3 bg-white border border-gray-200 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition flex items-center gap-2 shadow-sm"
+                        className="flex-1 sm:flex-none px-3 sm:px-4 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition flex items-center justify-center gap-2 shadow-sm text-sm"
                     >
                         <i className="fas fa-layer-group"></i>
-                        Создать класс
+                        <span>Создать класс</span>
                     </button>
                     <button
                         onClick={openInviteModal}
-                        className="px-4 py-3 bg-white border border-gray-200 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition flex items-center gap-2 shadow-sm"
+                        className="flex-1 sm:flex-none px-3 sm:px-4 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition flex items-center justify-center gap-2 shadow-sm text-sm"
                     >
                         <i className="fas fa-link"></i>
-                        Пригласить ученика
+                        <span>Пригласить</span>
                     </button>
                     <button
                         onClick={() => setShowAddStudentModal(true)}
-                        className="px-6 py-3 bg-primary-600 text-white rounded-xl font-semibold hover:bg-primary-700 transition flex items-center gap-2 shadow-lg hover:shadow-xl"
+                        className="flex-1 sm:flex-none px-4 sm:px-6 py-2.5 bg-primary-600 text-white rounded-xl font-semibold hover:bg-primary-700 transition flex items-center justify-center gap-2 shadow-lg hover:shadow-xl text-sm"
                     >
                         <i className="fas fa-user-plus"></i>
-                        Добавить ученика
+                        <span>Добавить ученика</span>
                     </button>
                 </div>
             </div>
@@ -455,105 +455,123 @@ export default function StudentsPage() {
                         </div>
                     </div>
 
-                    {/* Students Table */}
+                    {/* Students — cards on mobile, table on sm+ */}
                     <div className="dashboard-card">
-                        <div className="overflow-x-auto">
-                            <table className="w-full">
-                                <thead>
-                                    <tr className="border-b border-gray-50">
-                                        <th className="text-left py-4 px-4 text-sm font-semibold text-gray-700">Имя ученика</th>
-                                        <th className="text-left py-4 px-4 text-sm font-semibold text-gray-700">Класс</th>
-                                        <th className="text-left py-4 px-4 text-sm font-semibold text-gray-700">Email</th>
-                                        <th className="text-right py-4 px-4 text-sm font-semibold text-gray-700">Действия</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
+                        {filteredStudents.length === 0 ? (
+                            <div className="text-center py-12">
+                                <i className="fas fa-users text-6xl text-gray-200 mb-4"></i>
+                                <p className="text-gray-500">Ученики не найдены</p>
+                                <button
+                                    onClick={() => setShowAddStudentModal(true)}
+                                    className="text-primary-600 font-medium hover:text-primary-700 mt-2"
+                                >
+                                    Добавить первого ученика
+                                </button>
+                            </div>
+                        ) : (
+                            <>
+                                {/* Mobile cards */}
+                                <div className="sm:hidden divide-y divide-gray-50">
                                     {filteredStudents.map((student) => (
-                                        <tr key={student.id} className="border-b border-gray-50 hover:bg-gray-50 transition">
-                                            <td className="py-4 px-4">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center text-primary-700 font-bold text-sm">
-                                                        {student.avatar || student.name.charAt(0)}
-                                                    </div>
-                                                    <div className="flex items-center gap-2">
-                                                        <p className="font-semibold text-gray-900">{student.name}</p>
+                                        <div key={student.id} className="py-4 px-2">
+                                            <div className="flex items-center gap-3 mb-3">
+                                                <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center text-primary-700 font-bold text-sm shrink-0">
+                                                    {student.avatar || student.name.charAt(0)}
+                                                </div>
+                                                <div className="min-w-0 flex-1">
+                                                    <p className="font-semibold text-gray-900 truncate">{student.name}</p>
+                                                    <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                                                        <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full text-xs font-medium">{student.class.name}</span>
                                                         {student.status === 'pending' && (
-                                                            <span className="px-2 py-0.5 text-xs font-medium bg-amber-100 text-amber-700 rounded-full">
-                                                                Ожидает подтверждения
-                                                            </span>
+                                                            <span className="px-2 py-0.5 text-xs font-medium bg-amber-100 text-amber-700 rounded-full">Ожидает</span>
                                                         )}
                                                     </div>
+                                                    {student.email && <p className="text-xs text-gray-400 mt-0.5 truncate">{student.email}</p>}
                                                 </div>
-                                            </td>
-                                            <td className="py-4 px-4">
-                                                <span className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm font-medium">
-                                                    {student.class.name}
-                                                </span>
-                                            </td>
-                                            <td className="py-4 px-4 text-sm text-gray-500">
-                                                {student.email || <span className="text-gray-300 italic">не указан</span>}
-                                            </td>
-                                            <td className="py-4 px-4">
-                                                <div className="flex items-center justify-end gap-2">
-                                                    {student.status === 'pending' ? (
-                                                        <>
-                                                            <button
-                                                                onClick={() => approveStudent(student.id)}
-                                                                className="px-3 py-1.5 bg-green-600 text-white text-sm font-semibold rounded-lg hover:bg-green-700 transition"
-                                                            >
-                                                                Принять
-                                                            </button>
-                                                            <button
-                                                                onClick={() => rejectStudent(student.id)}
-                                                                className="px-3 py-1.5 bg-white border border-red-200 text-red-600 text-sm font-semibold rounded-lg hover:bg-red-50 transition"
-                                                            >
-                                                                Отклонить
-                                                            </button>
-                                                        </>
-                                                    ) : (
-                                                        <>
-                                                            <button
-                                                                onClick={() => {
-                                                                    const link = `${window.location.origin}/student/login`
-                                                                    navigator.clipboard.writeText(link)
-                                                                    alert('Ссылка для входа скопирована!')
-                                                                }}
-                                                                className="p-2 text-gray-400 hover:text-primary-600 transition"
-                                                                title="Копировать ссылку для входа"
-                                                            >
-                                                                <i className="fas fa-link"></i>
-                                                            </button>
-                                                            <button
-                                                                onClick={() => window.location.href = `/dashboard/students/${student.id}`}
-                                                                className="p-2 text-gray-400 hover:text-primary-600 transition"
-                                                            >
-                                                                <i className="fas fa-user-circle"></i>
-                                                            </button>
-                                                            <button className="p-2 text-gray-400 hover:text-red-600 transition">
-                                                                <i className="fas fa-trash-alt"></i>
-                                                            </button>
-                                                        </>
-                                                    )}
-                                                </div>
-                                            </td>
-                                        </tr>
+                                            </div>
+                                            <div className="flex gap-2">
+                                                {student.status === 'pending' ? (
+                                                    <>
+                                                        <button onClick={() => approveStudent(student.id)} className="flex-1 py-2 bg-green-600 text-white text-sm font-semibold rounded-lg hover:bg-green-700 transition">Принять</button>
+                                                        <button onClick={() => rejectStudent(student.id)} className="flex-1 py-2 bg-white border border-red-200 text-red-600 text-sm font-semibold rounded-lg hover:bg-red-50 transition">Отклонить</button>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <button
+                                                            onClick={() => window.location.href = `/dashboard/students/${student.id}`}
+                                                            className="flex-1 py-2 bg-gray-100 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-200 transition"
+                                                        >
+                                                            Профиль
+                                                        </button>
+                                                        <button
+                                                            onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/student/login`); alert('Ссылка скопирована!') }}
+                                                            className="px-4 py-2 bg-gray-100 text-gray-500 text-sm rounded-lg hover:bg-gray-200 transition"
+                                                        >
+                                                            <i className="fas fa-link"></i>
+                                                        </button>
+                                                    </>
+                                                )}
+                                            </div>
+                                        </div>
                                     ))}
-                                </tbody>
-                            </table>
-
-                            {filteredStudents.length === 0 && (
-                                <div className="text-center py-12">
-                                    <i className="fas fa-users text-6xl text-gray-200 mb-4"></i>
-                                    <p className="text-gray-500">Ученики не найдены</p>
-                                    <button
-                                        onClick={() => setShowAddStudentModal(true)}
-                                        className="text-primary-600 font-medium hover:text-primary-700 mt-2"
-                                    >
-                                        Добавить первого ученика
-                                    </button>
                                 </div>
-                            )}
-                        </div>
+
+                                {/* Desktop table */}
+                                <div className="hidden sm:block overflow-x-auto">
+                                    <table className="w-full">
+                                        <thead>
+                                            <tr className="border-b border-gray-50">
+                                                <th className="text-left py-4 px-4 text-sm font-semibold text-gray-700">Имя ученика</th>
+                                                <th className="text-left py-4 px-4 text-sm font-semibold text-gray-700">Класс</th>
+                                                <th className="text-left py-4 px-4 text-sm font-semibold text-gray-700">Email</th>
+                                                <th className="text-right py-4 px-4 text-sm font-semibold text-gray-700">Действия</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {filteredStudents.map((student) => (
+                                                <tr key={student.id} className="border-b border-gray-50 hover:bg-gray-50 transition">
+                                                    <td className="py-4 px-4">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center text-primary-700 font-bold text-sm">
+                                                                {student.avatar || student.name.charAt(0)}
+                                                            </div>
+                                                            <div className="flex items-center gap-2">
+                                                                <p className="font-semibold text-gray-900">{student.name}</p>
+                                                                {student.status === 'pending' && (
+                                                                    <span className="px-2 py-0.5 text-xs font-medium bg-amber-100 text-amber-700 rounded-full">Ожидает подтверждения</span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td className="py-4 px-4">
+                                                        <span className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm font-medium">{student.class.name}</span>
+                                                    </td>
+                                                    <td className="py-4 px-4 text-sm text-gray-500">
+                                                        {student.email || <span className="text-gray-300 italic">не указан</span>}
+                                                    </td>
+                                                    <td className="py-4 px-4">
+                                                        <div className="flex items-center justify-end gap-2">
+                                                            {student.status === 'pending' ? (
+                                                                <>
+                                                                    <button onClick={() => approveStudent(student.id)} className="px-3 py-1.5 bg-green-600 text-white text-sm font-semibold rounded-lg hover:bg-green-700 transition">Принять</button>
+                                                                    <button onClick={() => rejectStudent(student.id)} className="px-3 py-1.5 bg-white border border-red-200 text-red-600 text-sm font-semibold rounded-lg hover:bg-red-50 transition">Отклонить</button>
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/student/login`); alert('Ссылка для входа скопирована!') }} className="p-2 text-gray-400 hover:text-primary-600 transition" title="Копировать ссылку для входа"><i className="fas fa-link"></i></button>
+                                                                    <button onClick={() => window.location.href = `/dashboard/students/${student.id}`} className="p-2 text-gray-400 hover:text-primary-600 transition"><i className="fas fa-user-circle"></i></button>
+                                                                    <button className="p-2 text-gray-400 hover:text-red-600 transition"><i className="fas fa-trash-alt"></i></button>
+                                                                </>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </>
+                        )}
                     </div>
                 </>
             ) : activeTab === 'classes' ? (
@@ -596,77 +614,96 @@ export default function StudentsPage() {
                 </div>
             ) : (
                 <div className="dashboard-card overflow-hidden">
-                    <table className="w-full">
-                        <thead>
-                            <tr className="border-b border-gray-100">
-                                <th className="text-left py-4 px-4 text-sm font-semibold text-gray-700">Задание</th>
-                                <th className="text-left py-4 px-4 text-sm font-semibold text-gray-700">Ученик / Класс</th>
-                                <th className="text-left py-4 px-4 text-sm font-semibold text-gray-700">Срок сдачи</th>
-                                <th className="text-left py-4 px-4 text-sm font-semibold text-gray-700">Сдано</th>
-                                <th className="text-right py-4 px-4 text-sm font-semibold text-gray-700">Действия</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {assignments.map((a) => (
-                                <tr key={a.id} className="border-b border-gray-50 hover:bg-gray-50 transition">
-                                    <td className="py-4 px-4">
-                                        <p className="font-semibold text-gray-900">{a.lesson.title}</p>
-                                        <p className="text-sm text-gray-400">{a.lesson.topic}</p>
-                                    </td>
-                                    <td className="py-4 px-4">
-                                        {a.student ? (
-                                            <div>
-                                                <p className="font-medium text-gray-800">{a.student.name}</p>
-                                                <span className="text-xs text-gray-400">индивидуальное</span>
+                    {assignments.length === 0 ? (
+                        <div className="py-12 text-center text-gray-400">Вы ещё не выдали ни одного задания</div>
+                    ) : (
+                        <>
+                            {/* Mobile cards */}
+                            <div className="sm:hidden divide-y divide-gray-50">
+                                {assignments.map((a) => (
+                                    <div key={a.id} className="py-4 px-2">
+                                        <div className="flex items-start justify-between gap-2 mb-2">
+                                            <div className="min-w-0">
+                                                <p className="font-semibold text-gray-900 truncate">{a.lesson.title}</p>
+                                                <p className="text-xs text-gray-400 truncate">{a.lesson.topic}</p>
                                             </div>
-                                        ) : a.class ? (
-                                            <span className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm font-medium">
-                                                {a.class.name}
+                                            <span className={`shrink-0 px-2.5 py-1 rounded-full text-xs font-semibold ${
+                                                a._count.submissions > 0 ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
+                                            }`}>
+                                                {a._count.submissions > 0 ? `${a._count.submissions} работ` : 'Нет'}
                                             </span>
-                                        ) : '—'}
-                                    </td>
-                                    <td className="py-4 px-4 text-sm text-gray-500">
-                                        {a.dueDate
-                                            ? new Date(a.dueDate).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })
-                                            : <span className="text-gray-300">не задан</span>
-                                        }
-                                    </td>
-                                    <td className="py-4 px-4">
-                                        <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
-                                            a._count.submissions > 0
-                                                ? 'bg-green-100 text-green-700'
-                                                : 'bg-yellow-100 text-yellow-700'
-                                        }`}>
-                                            {a._count.submissions > 0 ? `${a._count.submissions} работ` : 'Нет'}
-                                        </span>
-                                    </td>
-                                    <td className="py-4 px-4 text-right">
-                                        <button
-                                            onClick={() => handleOpenReview(a)}
-                                            className="text-sm text-primary-600 font-medium hover:text-primary-700"
-                                        >
-                                            Проверить →
-                                        </button>
-                                    </td>
-                                </tr>
-                            ))}
-                            {assignments.length === 0 && (
-                                <tr>
-                                    <td colSpan={5} className="py-12 text-center text-gray-400">
-                                        Вы ещё не выдали ни одного задания
-                                    </td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
+                                        </div>
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-2 text-xs text-gray-500">
+                                                {a.student ? (
+                                                    <span>{a.student.name} · инд.</span>
+                                                ) : a.class ? (
+                                                    <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full font-medium">{a.class.name}</span>
+                                                ) : null}
+                                                {a.dueDate && (
+                                                    <span>до {new Date(a.dueDate).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}</span>
+                                                )}
+                                            </div>
+                                            <button onClick={() => handleOpenReview(a)} className="text-sm text-primary-600 font-semibold hover:text-primary-700">
+                                                Проверить →
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* Desktop table */}
+                            <div className="hidden sm:block overflow-x-auto">
+                                <table className="w-full">
+                                    <thead>
+                                        <tr className="border-b border-gray-100">
+                                            <th className="text-left py-4 px-4 text-sm font-semibold text-gray-700">Задание</th>
+                                            <th className="text-left py-4 px-4 text-sm font-semibold text-gray-700">Ученик / Класс</th>
+                                            <th className="text-left py-4 px-4 text-sm font-semibold text-gray-700">Срок сдачи</th>
+                                            <th className="text-left py-4 px-4 text-sm font-semibold text-gray-700">Сдано</th>
+                                            <th className="text-right py-4 px-4 text-sm font-semibold text-gray-700">Действия</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {assignments.map((a) => (
+                                            <tr key={a.id} className="border-b border-gray-50 hover:bg-gray-50 transition">
+                                                <td className="py-4 px-4">
+                                                    <p className="font-semibold text-gray-900">{a.lesson.title}</p>
+                                                    <p className="text-sm text-gray-400">{a.lesson.topic}</p>
+                                                </td>
+                                                <td className="py-4 px-4">
+                                                    {a.student ? (
+                                                        <div><p className="font-medium text-gray-800">{a.student.name}</p><span className="text-xs text-gray-400">индивидуальное</span></div>
+                                                    ) : a.class ? (
+                                                        <span className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm font-medium">{a.class.name}</span>
+                                                    ) : '—'}
+                                                </td>
+                                                <td className="py-4 px-4 text-sm text-gray-500">
+                                                    {a.dueDate ? new Date(a.dueDate).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' }) : <span className="text-gray-300">не задан</span>}
+                                                </td>
+                                                <td className="py-4 px-4">
+                                                    <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${a._count.submissions > 0 ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                                                        {a._count.submissions > 0 ? `${a._count.submissions} работ` : 'Нет'}
+                                                    </span>
+                                                </td>
+                                                <td className="py-4 px-4 text-right">
+                                                    <button onClick={() => handleOpenReview(a)} className="text-sm text-primary-600 font-medium hover:text-primary-700">Проверить →</button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </>
+                    )}
                 </div>
             )}
 
             {/* Add Class Modal */}
             {showAddClassModal && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 animate-fade-in">
-                    <div className="bg-white rounded-2xl p-8 max-w-md w-full shadow-2xl">
-                        <h2 className="text-2xl font-bold text-gray-900 mb-6">Создать класс</h2>
+                <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 animate-fade-in p-0 sm:p-4">
+                    <div className="bg-white rounded-t-2xl sm:rounded-2xl p-6 sm:p-8 w-full sm:max-w-md shadow-2xl">
+                        <h2 className="text-xl font-bold text-gray-900 mb-5">Создать класс</h2>
                         <form onSubmit={handleCreateClass}>
                             <div className="mb-6">
                                 <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -703,9 +740,9 @@ export default function StudentsPage() {
 
             {/* Add Student Modal */}
             {showAddStudentModal && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 animate-fade-in">
-                    <div className="bg-white rounded-2xl p-8 max-w-md w-full shadow-2xl">
-                        <h2 className="text-2xl font-bold text-gray-900 mb-6">Добавить ученика</h2>
+                <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 animate-fade-in p-0 sm:p-4">
+                    <div className="bg-white rounded-t-2xl sm:rounded-2xl p-6 sm:p-8 w-full sm:max-w-md shadow-2xl max-h-[90vh] overflow-y-auto">
+                        <h2 className="text-xl font-bold text-gray-900 mb-5">Добавить ученика</h2>
                         <form onSubmit={handleCreateStudent}>
                             <div className="mb-4">
                                 <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -797,8 +834,8 @@ export default function StudentsPage() {
 
             {/* Invite Student Modal */}
             {showInviteModal && (
-                <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setShowInviteModal(false)}>
-                    <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl" onClick={(e) => e.stopPropagation()}>
+                <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={() => setShowInviteModal(false)}>
+                    <div className="bg-white rounded-t-2xl sm:rounded-2xl p-6 w-full sm:max-w-md shadow-2xl" onClick={(e) => e.stopPropagation()}>
                         <h3 className="text-xl font-bold text-gray-900 mb-1">Пригласить ученика</h3>
                         <p className="text-sm text-gray-600 mb-4">
                             Создайте ссылку-приглашение. Ученик зарегистрируется по ней и будет закреплён за вами.
@@ -863,17 +900,17 @@ export default function StudentsPage() {
 
             {/* Review Assignment Modal */}
             {reviewAssignment && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 animate-fade-in">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl mx-4 max-h-[90vh] flex flex-col overflow-hidden">
+                <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 animate-fade-in">
+                    <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-5xl sm:mx-4 max-h-[95vh] sm:max-h-[90vh] flex flex-col overflow-hidden">
                         {/* Modal Header */}
-                        <div className="flex items-center justify-between p-6 border-b border-gray-100">
-                            <div>
-                                <h2 className="text-xl font-bold text-gray-900">{reviewAssignment.lesson.title}</h2>
-                                <p className="text-sm text-gray-500 mt-0.5">{reviewAssignment.lesson.topic}</p>
+                        <div className="flex items-center justify-between p-4 sm:p-6 border-b border-gray-100 shrink-0">
+                            <div className="min-w-0 flex-1">
+                                <h2 className="text-base sm:text-xl font-bold text-gray-900 truncate">{reviewAssignment.lesson.title}</h2>
+                                <p className="text-xs sm:text-sm text-gray-500 mt-0.5 truncate">{reviewAssignment.lesson.topic}</p>
                             </div>
                             <button
                                 onClick={handleCloseReview}
-                                className="w-10 h-10 flex items-center justify-center rounded-xl text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition"
+                                className="w-9 h-9 flex items-center justify-center rounded-xl text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition shrink-0 ml-2"
                             >
                                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                             </button>
@@ -884,37 +921,38 @@ export default function StudentsPage() {
                                 <div className="animate-spin w-8 h-8 border-4 border-primary-200 border-t-primary-600 rounded-full"></div>
                             </div>
                         ) : reviewDetails ? (
-                            <div className="flex flex-1 overflow-hidden">
-                                {/* Left: Students list */}
-                                <div className="w-64 flex-shrink-0 border-r border-gray-100 flex flex-col overflow-hidden">
-                                    <div className="p-3 border-b border-gray-100 bg-gray-50">
+                            <div className="flex flex-col sm:flex-row flex-1 overflow-hidden">
+                                {/* Students list — horizontal scroll on mobile, sidebar on desktop */}
+                                <div className="sm:w-64 sm:flex-shrink-0 sm:border-r border-b sm:border-b-0 border-gray-100 flex flex-col overflow-hidden">
+                                    <div className="p-2 sm:p-3 bg-gray-50 border-b border-gray-100">
                                         <div className="flex items-center gap-2 text-xs font-semibold text-gray-500">
                                             <span className="bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded-full">Ждут: {reviewDetails.submittedCount - reviewDetails.gradedCount}</span>
                                             <span className="bg-green-100 text-green-800 px-2 py-0.5 rounded-full">Оценено: {reviewDetails.gradedCount}</span>
                                         </div>
                                     </div>
-                                    <div className="flex-1 overflow-y-auto p-2">
+                                    {/* Mobile: horizontal scroll; Desktop: vertical scroll */}
+                                    <div className="flex sm:flex-col overflow-x-auto sm:overflow-x-hidden sm:overflow-y-auto p-2 gap-2 sm:gap-0">
                                         {reviewDetails.studentStatuses.map(status => (
                                             <button
                                                 key={status.student.id}
                                                 onClick={() => handleSelectStudent(status)}
-                                                className={`w-full text-left p-3 rounded-xl flex items-center gap-3 mb-1 transition-colors ${
+                                                className={`shrink-0 sm:shrink text-left p-2 sm:p-3 rounded-xl flex items-center gap-2 sm:gap-3 sm:mb-1 transition-colors ${
                                                     selectedStudent?.student.id === status.student.id
                                                         ? 'bg-primary-50 border border-primary-200 ring-1 ring-primary-500'
                                                         : 'hover:bg-gray-50 border border-transparent'
                                                 }`}
                                             >
-                                                <div className="w-8 h-8 rounded-full bg-gray-200 flex flex-shrink-0 items-center justify-center text-gray-600 font-bold text-xs">
+                                                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gray-200 flex flex-shrink-0 items-center justify-center text-gray-600 font-bold text-xs">
                                                     {status.student.avatar || status.student.name.charAt(0)}
                                                 </div>
-                                                <div className="min-w-0 flex-1">
-                                                    <p className="font-semibold text-sm text-gray-900 truncate">{status.student.name}</p>
-                                                    <p className={`text-xs font-medium ${
+                                                <div className="min-w-0">
+                                                    <p className="font-semibold text-xs sm:text-sm text-gray-900 truncate max-w-[90px] sm:max-w-none">{status.student.name}</p>
+                                                    <p className={`text-xs font-medium hidden sm:block ${
                                                         status.status === 'graded' ? 'text-green-600' :
                                                         status.status === 'submitted' ? 'text-yellow-600' : 'text-gray-400'
                                                     }`}>
                                                         {status.status === 'graded' ? `Оценка: ${status.submission?.grade}` :
-                                                         status.status === 'submitted' ? 'Ожидает проверки' : 'Не сдано'}
+                                                         status.status === 'submitted' ? 'Ожидает' : 'Не сдано'}
                                                     </p>
                                                 </div>
                                             </button>
