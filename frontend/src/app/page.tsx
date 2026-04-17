@@ -108,7 +108,18 @@ export default function Home() {
   const [notLinkedPlatform, setNotLinkedPlatform] = useState<'telegram' | 'max' | null>(null)
   const router = useRouter()
 
-  // 1. Немедленная проверка авторизации
+  // 1. Захват реферального кода из URL (?ref=CODE)
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const urlParams = new URLSearchParams(window.location.search)
+    const refCode = urlParams.get('ref')
+    if (refCode) {
+      console.log('[Home] Captured referral code from URL:', refCode)
+      localStorage.setItem('prepodavai_referral_code', refCode)
+    }
+  }, [])
+
+  // 2. Немедленная проверка авторизации
   useEffect(() => {
     const auth = localStorage.getItem('prepodavai_authenticated') === 'true'
     setIsAuthenticated(auth)
