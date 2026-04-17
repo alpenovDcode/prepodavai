@@ -42,9 +42,8 @@ export class HtmlExportService implements OnModuleDestroy {
         '--disable-software-rasterizer',
         ...(isLinux
           ? [
-              // --no-zygote отключает zygote-процесс; не используем --single-process
-              // т.к. он конфликтует с crashpad_handler (требует --database аргумент)
-              '--no-zygote',
+              // --no-zygote и --single-process ЗАПРЕЩЕНЫ:
+              // оба запускают crashpad_handler без обязательного аргумента --database
               '--disable-crash-reporter',
               '--no-first-run',
               '--disable-background-networking',

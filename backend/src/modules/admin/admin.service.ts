@@ -1365,6 +1365,8 @@ export class AdminService {
     utmContent?: string;
     utmTerm?: string;
     baseUrl?: string;
+    bonusTokens?: number;
+    linkTtl?: string;
   }) {
     const base = (data.baseUrl || 'https://prepodavai.ru').replace(/\/$/, '');
     const params = new URLSearchParams({
@@ -1387,6 +1389,8 @@ export class AdminService {
         utmTerm: data.utmTerm ?? null,
         baseUrl: base,
         fullUrl,
+        bonusTokens: data.bonusTokens ?? 0,
+        linkTtl: data.linkTtl ?? 'always',
         updatedAt: new Date(),
       },
     });

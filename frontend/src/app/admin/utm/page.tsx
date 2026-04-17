@@ -53,7 +53,15 @@ const EMPTY_FORM = {
   utmContent: '',
   utmTerm: '',
   baseUrl: 'https://prepodavai.ru',
+  bonusTokens: 0,
+  linkTtl: 'always',
 }
+
+const TTL_OPTIONS = [
+  { value: 'always', label: 'Всегда' },
+  { value: '48h', label: '48 часов' },
+  { value: '24h', label: '24 часа' },
+]
 
 export default function UtmPage() {
   const { data: linksData, isLoading: linksLoading } = useSWR('/admin/utm', fetcher)
@@ -219,6 +227,36 @@ export default function UtmPage() {
                 className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-purple-400 outline-none"
               />
             </div>
+
+            {/* Бонусные токены */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                Бонус <span className="text-gray-400 font-normal">(токены за регистрацию)</span>
+              </label>
+              <input
+                type="number"
+                min={0}
+                value={form.bonusTokens}
+                onChange={e => setForm(f => ({ ...f, bonusTokens: Math.max(0, parseInt(e.target.value) || 0) }))}
+                placeholder="0"
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-purple-400 outline-none"
+              />
+              <p className="text-xs text-gray-400 mt-1">0 — без бонуса</p>
+            </div>
+
+            {/* Активное время ссылки */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1.5">Активное время ссылки</label>
+              <select
+                value={form.linkTtl}
+                onChange={e => setForm(f => ({ ...f, linkTtl: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-purple-400 outline-none"
+              >
+                {TTL_OPTIONS.map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
           </div>
 
           {/* Превью ссылки */}
@@ -290,6 +328,8 @@ export default function UtmPage() {
                   <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Клики</th>
                   <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Регистрации</th>
                   <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Конверсия</th>
+                  <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Бонус</th>
+                  <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Срок</th>
                   <th className="px-4 py-3"></th>
                 </tr>
               </thead>
@@ -327,6 +367,17 @@ export default function UtmPage() {
                       <td className="px-4 py-4 text-center">
                         <span className={`font-bold text-sm ${conv >= 10 ? 'text-green-600' : conv >= 3 ? 'text-yellow-600' : 'text-gray-400'}`}>
                           {link.clicks > 0 ? `${conv}%` : '—'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4 text-center">
+                        {link.bonusTokens > 0
+                          ? <span className="font-semibold text-amber-600 text-sm">+{link.bonusTokens}</span>
+                          : <span className="text-gray-300 text-sm">—</span>
+                        }
+                      </td>
+                      <td className="px-4 py-4 text-center">
+                        <span className="text-xs text-gray-500">
+                          {TTL_OPTIONS.find(o => o.value === link.linkTtl)?.label ?? 'Всегда'}
                         </span>
                       </td>
                       <td className="px-4 py-4">

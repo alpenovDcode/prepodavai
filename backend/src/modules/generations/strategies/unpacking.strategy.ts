@@ -34,11 +34,11 @@ ${DesignSystemConfig.PROMPT_MODULES.CRITICAL_OUTPUT_RULES}
 
 ВАЖНО: Документ — аналитический отчёт для эксперта. Интерактивные поля ввода НЕ нужны.
 
-СТРУКТУРА ОТЧЕТА:
-1. История героя (Storytelling).
+СТРУКТУРА ОТЧЁТА:
+1. История и путь эксперта.
 2. Миссия и ценности.
-3. Профиль идеального ученика.
-4. Продуктовая линейка (Tripwire, Core, VIP).
+3. Портрет идеального ученика.
+4. Линейка продуктов (Вводной, Основной, Премиальный).
 `;
 
     const userPrompt = `Проведи распаковку эксперта на основе ответов:\n\n${answers}\n\n${params.customPrompt ? `Дополнительно: ${params.customPrompt}` : ''}
@@ -48,16 +48,16 @@ ${DesignSystemConfig.PROMPT_MODULES.CRITICAL_OUTPUT_RULES}
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<title>Стратегия Личного Бренда</title>
+<title>Стратегия личного бренда</title>
 ${DesignSystemConfig.STYLES}
 ${DesignSystemConfig.MATHJAX_SCRIPTS}
 </head>
 <body>
 <div class="container">
-  ${DesignSystemConfig.COMPONENTS.HEADER('Распаковка и Стратегия')}
-  
+  ${DesignSystemConfig.COMPONENTS.HEADER('Распаковка и стратегия')}
+
   <div class="meta-info">
-    <p>Отчет сформирован на основе глубокого анализа вашей экспертности.</p>
+    <p>Отчёт сформирован на основе глубокого анализа вашей экспертности.</p>
   </div>
 
   <!-- Блоки стратегии здесь -->

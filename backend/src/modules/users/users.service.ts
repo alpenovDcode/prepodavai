@@ -295,13 +295,31 @@ export class UsersService {
         } as any,
       });
 
-      // Инкрементируем счётчик регистраций на ссылке
+      // Инкрементируем счётчик регистраций на ссылке и начисляем бонусные токены
       if (utm?.utmLinkId) {
         try {
-          await (this.prisma as any).utmLink.update({
+          const utmLink = await (this.prisma as any).utmLink.findUnique({
             where: { id: utm.utmLinkId },
-            data: { registrations: { increment: 1 } },
           });
+          if (utmLink) {
+            // Проверяем TTL ссылки
+            const ttlHours = utmLink.linkTtl === '24h' ? 24 : utmLink.linkTtl === '48h' ? 48 : null;
+            const isExpired = ttlHours !== null
+              && new Date().getTime() - new Date(utmLink.createdAt).getTime() > ttlHours * 60 * 60 * 1000;
+
+            if (!isExpired) {
+              await (this.prisma as any).utmLink.update({
+                where: { id: utm.utmLinkId },
+                data: { registrations: { increment: 1 } },
+              });
+              if (utmLink.bonusTokens > 0) {
+                await (this.prisma.appUser as any).update({
+                  where: { id: user.id },
+                  data: { creditsBalance: { increment: utmLink.bonusTokens } },
+                });
+              }
+            }
+          }
         } catch { /* ссылка могла быть удалена */ }
       }
     }

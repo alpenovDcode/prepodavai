@@ -572,6 +572,8 @@ model UtmLink {
   fullUrl      String                     // итоговая ссылка с UTM
   clicks       Int      @default(0)       // переходы
   registrations Int     @default(0)       // регистрации по этой ссылке
+  bonusTokens  Int      @default(0)       // токены за регистрацию по ссылке
+  linkTtl      String   @default("always") // 'always' | '48h' | '24h'
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
