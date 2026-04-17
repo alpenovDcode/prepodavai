@@ -237,12 +237,38 @@ export class SubscriptionsService {
     const endDate = new Date(now);
     endDate.setMonth(endDate.getMonth() + 1);
 
+    // Проверяем бонусные токены по UTM-ссылке
+    let utmBonus = 0;
+    try {
+      const user = await this.prisma.appUser.findUnique({
+        where: { id: userId },
+        select: { utmLinkId: true } as any,
+      });
+      const utmLinkId = (user as any)?.utmLinkId;
+      if (utmLinkId) {
+        const utmLink = await (this.prisma as any).utmLink.findUnique({
+          where: { id: utmLinkId },
+          select: { bonusTokens: true, linkTtl: true, createdAt: true },
+        });
+        if (utmLink?.bonusTokens > 0) {
+          const ttlHours = utmLink.linkTtl === '24h' ? 24 : utmLink.linkTtl === '48h' ? 48 : null;
+          const isExpired = ttlHours !== null
+            && new Date().getTime() - new Date(utmLink.createdAt).getTime() > ttlHours * 60 * 60 * 1000;
+          if (!isExpired) {
+            utmBonus = utmLink.bonusTokens;
+          }
+        }
+      }
+    } catch (e) {
+      console.error('[UTM] Failed to fetch utm bonus for subscription:', e);
+    }
+
     const subscription = await this.prisma.userSubscription.create({
       data: {
         userId,
         planId: starterPlan.id,
         status: 'active',
-        creditsBalance: starterPlan.monthlyCredits,
+        creditsBalance: starterPlan.monthlyCredits + utmBonus,
         extraCredits: 0,
         creditsUsed: 0,
         overageCreditsUsed: 0,
@@ -253,7 +279,7 @@ export class SubscriptionsService {
       include: { plan: true },
     });
 
-    console.log(`✅ User subscription created: ${userId}, plan: starter`);
+    console.log(`✅ User subscription created: ${userId}, plan: starter${utmBonus > 0 ? `, utm bonus: +${utmBonus}` : ''}`);
 
     return subscription;
   }

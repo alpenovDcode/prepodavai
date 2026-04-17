@@ -295,32 +295,15 @@ export class UsersService {
         } as any,
       });
 
-      // Инкрементируем счётчик регистраций на ссылке и начисляем бонусные токены
+      // Инкрементируем счётчик регистраций на ссылке
+      // Бонусные токены применяются позже — в getOrCreateUserSubscription при создании подписки
       if (utm?.utmLinkId) {
         try {
-          const utmLink = await (this.prisma as any).utmLink.findUnique({
+          await (this.prisma as any).utmLink.update({
             where: { id: utm.utmLinkId },
+            data: { registrations: { increment: 1 } },
           });
-          if (utmLink) {
-            // Проверяем TTL ссылки
-            const ttlHours = utmLink.linkTtl === '24h' ? 24 : utmLink.linkTtl === '48h' ? 48 : null;
-            const isExpired = ttlHours !== null
-              && new Date().getTime() - new Date(utmLink.createdAt).getTime() > ttlHours * 60 * 60 * 1000;
-
-            if (!isExpired) {
-              await (this.prisma as any).utmLink.update({
-                where: { id: utm.utmLinkId },
-                data: { registrations: { increment: 1 } },
-              });
-              if (utmLink.bonusTokens > 0) {
-                await this.prisma.userSubscription.updateMany({
-                  where: { userId: user.id },
-                  data: { creditsBalance: { increment: utmLink.bonusTokens } },
-                });
-              }
-            }
-          }
-        } catch (e) { console.error('[UTM] Failed to process utm bonus:', e); }
+        } catch (e) { console.error('[UTM] Failed to increment registrations:', e); }
       }
     }
 

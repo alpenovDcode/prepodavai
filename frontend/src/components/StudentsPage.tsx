@@ -136,6 +136,31 @@ export default function StudentsPage() {
     const [assignments, setAssignments] = useState<Assignment[]>([])
     const [loading, setLoading] = useState(true)
 
+    // Notification modal
+    const [notification, setNotification] = useState<{ title: string; message: string; isLimit?: boolean } | null>(null)
+    const [confirmModal, setConfirmModal] = useState<{ message: string; onConfirm: () => void } | null>(null)
+    const [copiedToast, setCopiedToast] = useState(false)
+
+    const showError = (message: string) => {
+        setNotification({ title: 'Ошибка', message })
+    }
+    const showLimitError = (message: string) => {
+        setNotification({ title: 'Лимит тарифа', message, isLimit: true })
+    }
+    const showConfirm = (message: string, onConfirm: () => void) => {
+        setConfirmModal({ message, onConfirm })
+    }
+    const copyLink = (text: string) => {
+        navigator.clipboard.writeText(text)
+        setCopiedToast(true)
+        setTimeout(() => setCopiedToast(false), 2000)
+    }
+    const handleApiError = (error: any, fallback = 'Произошла ошибка') => {
+        const msg = error?.response?.data?.message || fallback
+        if (error?.response?.status === 403) showLimitError(msg)
+        else showError(msg)
+    }
+
     // Modals state
     const [showAddClassModal, setShowAddClassModal] = useState(false)
     const [showAddStudentModal, setShowAddStudentModal] = useState(false)
@@ -160,7 +185,7 @@ export default function StudentsPage() {
             })
             setInviteUrl(`${window.location.origin}/invite/${response.data.token}`)
         } catch (error: any) {
-            alert(error?.response?.data?.message || 'Не удалось создать приглашение')
+            handleApiError(error, 'Не удалось создать приглашение')
         } finally {
             setInviteLoading(false)
         }
@@ -178,18 +203,19 @@ export default function StudentsPage() {
             await apiClient.post(`/students/${studentId}/approve`)
             setStudents((prev) => prev.map((s) => (s.id === studentId ? { ...s, status: 'active' } : s)))
         } catch (error: any) {
-            alert(error?.response?.data?.message || 'Не удалось принять ученика')
+            handleApiError(error, 'Не удалось принять ученика')
         }
     }
 
     const rejectStudent = async (studentId: string) => {
-        if (!confirm('Отклонить заявку ученика? Его аккаунт будет удалён.')) return
-        try {
-            await apiClient.post(`/students/${studentId}/reject`)
-            setStudents((prev) => prev.filter((s) => s.id !== studentId))
-        } catch (error: any) {
-            alert(error?.response?.data?.message || 'Не удалось отклонить')
-        }
+        showConfirm('Отклонить заявку ученика? Его аккаунт будет удалён.', async () => {
+            try {
+                await apiClient.post(`/students/${studentId}/reject`)
+                setStudents((prev) => prev.filter((s) => s.id !== studentId))
+            } catch (error: any) {
+                handleApiError(error, 'Не удалось отклонить')
+            }
+        })
     }
 
     // Review modal state
@@ -239,15 +265,15 @@ export default function StudentsPage() {
             setNewClassName('')
             setShowAddClassModal(false)
             fetchData()
-        } catch (error) {
-            alert('Failed to create class')
+        } catch (error: any) {
+            handleApiError(error, 'Не удалось создать класс')
         }
     }
 
     const handleCreateStudent = async (e: React.FormEvent) => {
         e.preventDefault()
         if (!selectedClassId) {
-            alert('Выберите класс')
+            showError('Выберите класс')
             return
         }
         try {
@@ -266,7 +292,7 @@ export default function StudentsPage() {
             setShowAddStudentModal(false)
             fetchData()
         } catch (error: any) {
-            alert(error?.response?.data?.message || 'Ошибка при создании ученика')
+            handleApiError(error, 'Ошибка при создании ученика')
         }
     }
 
@@ -288,9 +314,9 @@ export default function StudentsPage() {
                 setGradeInput(firstSubmitted.submission?.grade || '')
                 setFeedbackInput(firstSubmitted.submission?.feedback || '')
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error('Failed to fetch assignment details:', error)
-            alert('Ошибка при загрузке данных задания')
+            handleApiError(error, 'Ошибка при загрузке данных задания')
             setReviewAssignment(null)
         } finally {
             setReviewLoading(false)
@@ -314,7 +340,7 @@ export default function StudentsPage() {
     const handleSubmitGrade = async () => {
         if (!selectedStudent?.submission) return
         if (gradeInput === '' || gradeInput < 1 || gradeInput > 5) {
-            alert('Оценка должна быть от 1 до 5')
+            showError('Оценка должна быть от 1 до 5')
             return
         }
         setSubmittingGrade(true)
@@ -338,9 +364,9 @@ export default function StudentsPage() {
                 }
             }
             fetchData()
-        } catch (error) {
+        } catch (error: any) {
             console.error('Failed to submit grade:', error)
-            alert('Ошибка при сохранении оценки')
+            handleApiError(error, 'Ошибка при сохранении оценки')
         } finally {
             setSubmittingGrade(false)
         }
@@ -352,9 +378,9 @@ export default function StudentsPage() {
         try {
             const res = await apiClient.post(`/submissions/${selectedStudent.submission.id}/ai-feedback`)
             setFeedbackInput((res.data?.feedback || '').trim())
-        } catch (error) {
+        } catch (error: any) {
             console.error('Failed to generate AI feedback:', error)
-            alert('Ошибка при генерации AI комментария')
+            handleApiError(error, 'Ошибка при генерации AI комментария')
         } finally {
             setGeneratingFeedback(false)
         }
@@ -504,7 +530,7 @@ export default function StudentsPage() {
                                                             Профиль
                                                         </button>
                                                         <button
-                                                            onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/student/login`); alert('Ссылка скопирована!') }}
+                                                            onClick={() => copyLink(`${window.location.origin}/student/login`)}
                                                             className="px-4 py-2 bg-gray-100 text-gray-500 text-sm rounded-lg hover:bg-gray-200 transition"
                                                         >
                                                             <i className="fas fa-link"></i>
@@ -558,7 +584,7 @@ export default function StudentsPage() {
                                                                 </>
                                                             ) : (
                                                                 <>
-                                                                    <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/student/login`); alert('Ссылка для входа скопирована!') }} className="p-2 text-gray-400 hover:text-primary-600 transition" title="Копировать ссылку для входа"><i className="fas fa-link"></i></button>
+                                                                    <button onClick={() => copyLink(`${window.location.origin}/student/login`)} className="p-2 text-gray-400 hover:text-primary-600 transition" title="Копировать ссылку для входа"><i className="fas fa-link"></i></button>
                                                                     <button onClick={() => window.location.href = `/dashboard/students/${student.id}`} className="p-2 text-gray-400 hover:text-primary-600 transition"><i className="fas fa-user-circle"></i></button>
                                                                     <button className="p-2 text-gray-400 hover:text-red-600 transition"><i className="fas fa-trash-alt"></i></button>
                                                                 </>
@@ -1146,6 +1172,71 @@ export default function StudentsPage() {
                             </div>
                         ) : null}
                     </div>
+                </div>
+            )}
+            {/* Notification Modal (error / limit) */}
+            {notification && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+                        <div className={`w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4 ${notification.isLimit ? 'bg-amber-100' : 'bg-red-100'}`}>
+                            {notification.isLimit
+                                ? <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                                : <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                            }
+                        </div>
+                        <h3 className="text-lg font-bold text-gray-900 text-center mb-2">{notification.title}</h3>
+                        <p className="text-sm text-gray-600 text-center mb-6 leading-relaxed">{notification.message}</p>
+                        <div className={`flex gap-3 ${notification.isLimit ? 'flex-col' : ''}`}>
+                            {notification.isLimit && (
+                                <button
+                                    onClick={() => { setNotification(null); router.push('/dashboard/settings') }}
+                                    className="w-full py-2.5 bg-primary-600 text-white font-semibold rounded-xl hover:bg-primary-700 transition text-sm"
+                                >
+                                    Улучшить тариф
+                                </button>
+                            )}
+                            <button
+                                onClick={() => setNotification(null)}
+                                className="w-full py-2.5 bg-gray-100 text-gray-700 font-semibold rounded-xl hover:bg-gray-200 transition text-sm"
+                            >
+                                {notification.isLimit ? 'Закрыть' : 'OK'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Confirm Modal */}
+            {confirmModal && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+                        <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                        </div>
+                        <p className="text-sm text-gray-700 text-center mb-6 leading-relaxed">{confirmModal.message}</p>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => setConfirmModal(null)}
+                                className="flex-1 py-2.5 bg-gray-100 text-gray-700 font-semibold rounded-xl hover:bg-gray-200 transition text-sm"
+                            >
+                                Отмена
+                            </button>
+                            <button
+                                onClick={() => { confirmModal.onConfirm(); setConfirmModal(null) }}
+                                className="flex-1 py-2.5 bg-red-600 text-white font-semibold rounded-xl hover:bg-red-700 transition text-sm"
+                            >
+                                Подтвердить
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Copied toast */}
+            {copiedToast && (
+                <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] bg-gray-900 text-white text-sm font-medium px-4 py-2.5 rounded-xl shadow-lg flex items-center gap-2">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                    Ссылка скопирована
                 </div>
             )}
         </div>
