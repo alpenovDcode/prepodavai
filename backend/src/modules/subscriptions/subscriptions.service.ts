@@ -240,17 +240,24 @@ export class SubscriptionsService {
     // Проверяем бонусные токены по UTM-ссылке
     let utmBonus = 0;
     try {
+      console.log(`[UTM:Bonus] Creating initial subscription for user: ${userId}`);
+      // Ищем юзера, чтобы проверить utmLinkId
       const user = await this.prisma.appUser.findUnique({
         where: { id: userId },
-        select: { utmLinkId: true } as any,
+        select: { utmLinkId: true }
       });
-      const utmLinkId = (user as any)?.utmLinkId;
+      
+      console.log(`[UTM:Bonus] User data for bonus check:`, JSON.stringify(user));
+
+      let utmLinkId = (user as any)?.utmLinkId;
+
       if (utmLinkId) {
         const utmLink = await (this.prisma as any).utmLink.findUnique({
           where: { id: utmLinkId },
           select: { bonusTokens: true, linkTtl: true, createdAt: true },
         });
-        if (utmLink?.bonusTokens > 0) {
+        if (utmLink && utmLink.bonusTokens) {
+          console.log(`[UTM:Bonus] Found bonus tokens: ${utmLink.bonusTokens} for link: ${utmLinkId}`);
           const ttlHours = utmLink.linkTtl === '24h' ? 24 : utmLink.linkTtl === '48h' ? 48 : null;
           const isExpired = ttlHours !== null
             && new Date().getTime() - new Date(utmLink.createdAt).getTime() > ttlHours * 60 * 60 * 1000;

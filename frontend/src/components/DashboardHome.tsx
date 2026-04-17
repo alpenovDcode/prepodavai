@@ -38,7 +38,14 @@ export default function DashboardHome() {
     const [progressText, setProgressText] = useState('')
     const progressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-    const { data: statsData } = useSWR('/analytics/live-stats', fetcher, { refreshInterval: 10000 })
+    const { data: statsData } = useSWR('/analytics/live-stats', fetcher, {
+        refreshInterval: 30000,
+        onErrorRetry: (error, _key, _config, revalidate, { retryCount }) => {
+            if (error?.status === 429) return
+            if (retryCount >= 3) return
+            setTimeout(() => revalidate({ retryCount }), 5000)
+        },
+    })
     const { data: dashboardData } = useSWR('/analytics/dashboard', fetcher)
     const { totalCredits } = useSubscription()
     const { generateBundle, isGenerating } = useGenerations()

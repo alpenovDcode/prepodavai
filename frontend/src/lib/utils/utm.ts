@@ -36,7 +36,7 @@ export function captureUtm(): void {
     utmContent: search.get('utm_content') ?? undefined,
     utmTerm: search.get('utm_term') ?? undefined,
     utmLandingPage: window.location.pathname,
-    utmLinkId: search.get('utm_link_id') ?? undefined,
+    utmLinkId: search.get('lid') ?? undefined,
   };
 
   const stored: StoredUtm = { params, capturedAt: Date.now() };

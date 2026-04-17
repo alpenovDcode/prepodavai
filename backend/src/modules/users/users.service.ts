@@ -274,6 +274,8 @@ export class UsersService {
       const username = email;
       const userHash = `email_${email}`;
 
+      console.log(`[UTM:Auth] Creating new user ${email}. UTM params received:`, JSON.stringify(utm));
+
       user = await this.prisma.appUser.create({
         data: {
           email,
@@ -294,14 +296,16 @@ export class UsersService {
         } as any,
       });
 
+      console.log(`[UTM:Auth] User created with ID: ${user.id}. Saved utmLinkId: ${user.utmLinkId}`);
+
       // Инкрементируем счётчик регистраций на ссылке
-      // Бонусные токены применяются позже — в getOrCreateUserSubscription при создании подписки
       if (utm?.utmLinkId) {
         try {
           await (this.prisma as any).utmLink.update({
             where: { id: utm.utmLinkId },
             data: { registrations: { increment: 1 } },
           });
+          console.log(`[UTM:Auth] Incremented registrations for link: ${utm.utmLinkId}`);
         } catch (e) { console.error('[UTM] Failed to increment registrations:', e); }
       }
     }
