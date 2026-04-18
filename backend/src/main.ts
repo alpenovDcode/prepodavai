@@ -71,17 +71,14 @@ async function bootstrap() {
 
   // rawBody сохраняется только для webhook-путей CloudPayments (экономия памяти).
   // Для всех остальных запросов buf не удерживается в памяти.
-  app.use(
-    require('express').json({
-      limit: '10mb',
-      verify: (req: any, _res: any, buf: Buffer) => {
-        if (req.url?.includes('/payments/webhook')) {
-          req.rawBody = buf;
-        }
-      },
-    }),
-  );
-  app.use(require('express').urlencoded({ limit: '10mb', extended: true }));
+  const captureRawBody = (req: any, _res: any, buf: Buffer) => {
+    if (req.url?.includes('/payments/webhook')) {
+      req.rawBody = buf;
+    }
+  };
+
+  app.use(require('express').json({ limit: '10mb', verify: captureRawBody }));
+  app.use(require('express').urlencoded({ limit: '10mb', extended: true, verify: captureRawBody }));
   app.use(require('cookie-parser')());
   app.use(compression());
 
