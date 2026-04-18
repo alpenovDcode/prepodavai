@@ -17,9 +17,19 @@ export class HtmlExportService implements OnModuleDestroy {
         if (fs.existsSync(p)) return p;
       }
     }
-    // На Linux явно возвращаем путь из переменной окружения
+    // На Linux используем реальный бинарник, минуя shell-обёртку Debian,
+    // которая не пробрасывает pipe-fd нужные Puppeteer v23+
     if (process.platform === 'linux') {
-      return process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium';
+      const fs = require('fs');
+      const candidates = [
+        process.env.PUPPETEER_EXECUTABLE_PATH,
+        '/usr/lib/chromium/chromium',
+        '/usr/bin/chromium-browser',
+        '/usr/bin/chromium',
+      ].filter(Boolean);
+      for (const p of candidates) {
+        if (fs.existsSync(p)) return p;
+      }
     }
     return undefined;
   }
