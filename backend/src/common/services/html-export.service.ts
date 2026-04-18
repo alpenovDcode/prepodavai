@@ -59,7 +59,7 @@ export class HtmlExportService implements OnModuleDestroy {
 
       this.browserPromise = puppeteer
         .launch({
-          headless: true,
+          headless: 'shell',
           timeout: 60000,
           executablePath,
           args,
