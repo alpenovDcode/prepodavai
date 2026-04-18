@@ -31,6 +31,11 @@ async function getBrowser() {
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
         '--disable-gpu',
+        '--no-zygote',
+        '--disable-crash-reporter',
+        '--crash-dumps-dir=/tmp',
+        '--disable-extensions',
+        '--no-first-run',
       ],
       executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
     });
