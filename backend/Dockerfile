@@ -19,6 +19,9 @@ RUN npm config set fetch-retries 5 && \
     npm config set fetch-retry-maxtimeout 120000 && \
     npm config set fetch-timeout 300000
 
+# Puppeteer скачает свой Chrome сюда во время npm ci
+ENV PUPPETEER_CACHE_DIR=/app/.cache/puppeteer
+
 COPY package.json package-lock.json* ./
 # Используем npm install с флагами для более надежной установки
 RUN if [ -f package-lock.json ]; then \
@@ -39,6 +42,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/.cache ./.cache
 COPY . .
 
 # Generate Prisma Client
@@ -55,7 +59,7 @@ WORKDIR /app
 
 ENV NODE_ENV production
 
-# Install OpenSSL for Prisma
+# Системные библиотеки для Chrome (без самого пакета chromium)
 RUN apt-get update && apt-get install -y \
     openssl \
     ca-certificates \
@@ -64,18 +68,11 @@ RUN apt-get update && apt-get install -y \
     libnss3 libx11-xcb1 libxcomposite1 libxcursor1 libxdamage1 libxfixes3 \
     libxi6 libxrandr2 libxrender1 libxss1 libxtst6 wget \
     fonts-noto fonts-noto-cjk fonts-ipafont-gothic fonts-wqy-zenhei fonts-kacst fonts-freefont-ttf fonts-thai-tlwg fonts-indic \
-    chromium \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
 RUN groupadd --system --gid 1001 nodejs
 RUN useradd --system --uid 1001 nestjs
-
-# Replace crashpad handler with a no-op to prevent startup failures in Docker
-RUN if [ -f /usr/lib/chromium/chrome_crashpad_handler ]; then \
-      printf '#!/bin/sh\nexit 0\n' > /usr/lib/chromium/chrome_crashpad_handler && \
-      chmod +x /usr/lib/chromium/chrome_crashpad_handler; \
-    fi
 
 COPY --from=builder --chown=nestjs:nodejs /app/dist ./dist
 COPY --from=builder --chown=nestjs:nodejs /app/node_modules ./node_modules
@@ -83,9 +80,10 @@ COPY --from=builder --chown=nestjs:nodejs /app/package.json ./package.json
 COPY --from=builder --chown=nestjs:nodejs /app/prisma ./prisma
 COPY --from=builder --chown=nestjs:nodejs /app/src/templates ./src/templates
 COPY --from=builder --chown=nestjs:nodejs /app/scripts ./scripts
+COPY --from=builder --chown=nestjs:nodejs /app/.cache ./.cache
 
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
-ENV PUPPETEER_EXECUTABLE_PATH=/usr/lib/chromium/chromium
+ENV PUPPETEER_CACHE_DIR=/app/.cache/puppeteer
 
 # Create uploads directory with correct permissions
 RUN mkdir -p /app/uploads && chown -R nestjs:nodejs /app/uploads
@@ -95,4 +93,3 @@ USER nestjs
 EXPOSE 3001
 
 CMD ["sh", "-c", "npx prisma migrate deploy && node dist/main.js"]
-
