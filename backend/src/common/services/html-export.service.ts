@@ -1,70 +1,21 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
-import * as puppeteer from 'puppeteer';
+import { chromium, Browser, Page } from 'playwright';
 
 @Injectable()
 export class HtmlExportService implements OnModuleDestroy {
-  private browserPromise: Promise<puppeteer.Browser> | null = null;
-
-  private getChromePath(): string | undefined {
-    if (process.platform === 'darwin') {
-      const paths = [
-        '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-        '/Applications/Chromium.app/Contents/MacOS/Chromium',
-        '/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary',
-      ];
-      const fs = require('fs');
-      for (const p of paths) {
-        if (fs.existsSync(p)) return p;
-      }
-    }
-    // На Linux используем Puppeteer's own bundled Chrome
-    // (системный Chromium от Debian несовместим с Puppeteer v23+)
-    if (process.platform === 'linux') {
-      return puppeteer.executablePath();
-    }
-    return undefined;
-  }
+  private browserPromise: Promise<Browser> | null = null;
 
   private async getBrowser() {
     if (!this.browserPromise) {
-      const executablePath = this.getChromePath();
-      console.log(`[HtmlExport] Using Chrome at: ${executablePath}`);
-
-      // Разные аргументы для Linux (Docker) и macOS
-      const isLinux = process.platform === 'linux';
       const args = [
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
         '--disable-gpu',
-        '--disable-extensions',
-        '--disable-in-process-stack-traces',
-        '--log-level=3',
-        '--disable-software-rasterizer',
-        ...(isLinux
-          ? [
-              '--no-zygote',
-              '--disable-crash-reporter',
-              '--crash-dumps-dir=/tmp',
-              '--no-first-run',
-              '--disable-background-networking',
-              '--disable-default-apps',
-              '--disable-sync',
-              '--metrics-recording-only',
-              '--mute-audio',
-              '--no-default-browser-check',
-              '--safebrowsing-disable-auto-update',
-            ]
-          : []),
       ];
 
-      this.browserPromise = puppeteer
-        .launch({
-          headless: 'shell',
-          timeout: 60000,
-          executablePath,
-          args,
-        })
+      this.browserPromise = chromium
+        .launch({ headless: true, args })
         .catch((err) => {
           console.error('[HtmlExport] Failed to launch browser:', err);
           this.browserPromise = null;
@@ -76,8 +27,8 @@ export class HtmlExportService implements OnModuleDestroy {
 
   async htmlToPdf(html: string): Promise<Buffer> {
     console.log(`[HtmlExport] Starting PDF generation, HTML length: ${html.length}`);
-    let browser: puppeteer.Browser;
-    let page: puppeteer.Page;
+    let browser: Browser;
+    let page: Page;
 
     try {
       browser = await this.getBrowser();
@@ -98,10 +49,7 @@ export class HtmlExportService implements OnModuleDestroy {
 
         await page.evaluate(async () => {
           if ((window as any).MathJax && (window as any).MathJax.typesetPromise) {
-            console.log('[HtmlExport] MathJax found, starting typeset');
             await (window as any).MathJax.typesetPromise();
-          } else {
-            console.log('[HtmlExport] MathJax NOT found');
           }
         });
 

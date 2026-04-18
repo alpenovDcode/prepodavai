@@ -19,8 +19,8 @@ RUN npm config set fetch-retries 5 && \
     npm config set fetch-retry-maxtimeout 120000 && \
     npm config set fetch-timeout 300000
 
-# Puppeteer скачает свой Chrome сюда во время npm ci
-ENV PUPPETEER_CACHE_DIR=/app/.cache/puppeteer
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+ENV PLAYWRIGHT_BROWSERS_PATH=/app/.cache/playwright
 
 COPY package.json package-lock.json* ./
 # Используем npm install с флагами для более надежной установки
@@ -29,6 +29,9 @@ RUN if [ -f package-lock.json ]; then \
     else \
     npm install --prefer-offline --no-audit; \
     fi
+
+# Устанавливаем Playwright Chromium и его системные зависимости
+RUN npx playwright install --with-deps chromium
 
 # Rebuild the source code only when needed
 FROM base AS builder
@@ -44,6 +47,7 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/.cache ./.cache
 COPY . .
+ENV PLAYWRIGHT_BROWSERS_PATH=/app/.cache/playwright
 
 # Generate Prisma Client
 RUN ./node_modules/.bin/prisma generate
@@ -83,7 +87,10 @@ COPY --from=builder --chown=nestjs:nodejs /app/scripts ./scripts
 COPY --from=builder --chown=nestjs:nodejs /app/.cache ./.cache
 
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
-ENV PUPPETEER_CACHE_DIR=/app/.cache/puppeteer
+ENV PLAYWRIGHT_BROWSERS_PATH=/app/.cache/playwright
+
+# Устанавливаем системные зависимости для Playwright Chromium
+RUN npx playwright install-deps chromium
 
 # Create uploads directory with correct permissions
 RUN mkdir -p /app/uploads && chown -R nestjs:nodejs /app/uploads
