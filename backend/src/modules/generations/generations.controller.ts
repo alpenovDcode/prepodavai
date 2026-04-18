@@ -10,8 +10,11 @@ import {
   Request,
   Header,
   Patch,
+  StreamableFile,
+  BadRequestException,
 } from '@nestjs/common';
 import { GenerationsService } from './generations.service';
+import { HtmlExportService } from '../../common/services/html-export.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { GenerationsThrottlerGuard } from '../../common/guards/generations-throttler.guard';
 import {
@@ -22,7 +25,10 @@ import {
 
 @Controller('generate')
 export class GenerationsController {
-  constructor(private readonly generationsService: GenerationsService) {}
+  constructor(
+    private readonly generationsService: GenerationsService,
+    private readonly htmlExportService: HtmlExportService,
+  ) {}
 
   private userId(req: any): string {
     return req.user?.role === 'student' ? req.user?.teacherId : req.user?.id;
@@ -198,6 +204,18 @@ export class GenerationsController {
       generationType: 'assistant',
       inputParams: body,
     });
+  }
+
+  @Post('export-pdf')
+  @UseGuards(JwtAuthGuard)
+  @Header('Content-Type', 'application/pdf')
+  @Header('Content-Disposition', 'attachment; filename="document.pdf"')
+  async exportToPdf(@Body() body: { html: string }): Promise<StreamableFile> {
+    if (!body?.html || typeof body.html !== 'string') {
+      throw new BadRequestException('html is required');
+    }
+    const pdfBuffer = await this.htmlExportService.htmlToPdf(body.html);
+    return new StreamableFile(pdfBuffer);
   }
 
   @Post('bundle')

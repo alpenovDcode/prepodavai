@@ -12,6 +12,7 @@ import Image from 'next/image'
 import DOMPurify from 'isomorphic-dompurify'
 import jsPDF from 'jspdf'
 import html2canvas from 'html2canvas'
+import { downloadPdf } from '@/lib/utils/downloadPdf'
 
 interface MaterialViewerProps {
     lessonId?: string
@@ -471,82 +472,15 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
         if (!content) return
 
         setIsDownloading(true)
-
         try {
             const title = lessonTitle || generationType.replace(/[^a-zA-Zа-яА-Я0-9]/g, '_') || 'result'
-
-            let printHtml: string
-
-            if (isHtmlResult) {
-                // Контент уже полноценный HTML — добавляем print-стили и авто-печать
-                const printScript = `<script>
-                  window.onload = function() {
-                    var mjax = window.MathJax;
-                    var doPrint = function() {
-                      setTimeout(function() { window.print(); }, 300);
-                    };
-                    if (mjax && mjax.typesetPromise) {
-                      mjax.typesetPromise().then(doPrint).catch(doPrint);
-                    } else if (mjax && mjax.Hub) {
-                      mjax.Hub.Queue(['Typeset', mjax.Hub], doPrint);
-                    } else {
-                      setTimeout(doPrint, 800);
-                    }
-                  };
-                <\/script>`
-                const printStyles = `<style>@media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }</style>`
-
-                if (/<\/head>/i.test(content)) {
-                    printHtml = content.replace(/<\/head>/i, `${printStyles}${printScript}</head>`)
-                } else if (/<head[\s>]/i.test(content)) {
-                    printHtml = content.replace(/<head([^>]*)>/i, `<head$1>${printStyles}${printScript}`)
-                } else {
-                    printHtml = `<!DOCTYPE html><html><head>${printStyles}${printScript}</head><body>${content}</body></html>`
-                }
-            } else {
-                // Текстовый/markdown контент
-                const rawHtml = contentRef.current?.innerHTML || `<p>${content.replace(/\n/g, '<br>')}</p>`
-                printHtml = `<!DOCTYPE html>
-<html lang="ru">
-<head>
-<meta charset="utf-8">
-<title>${title}</title>
-<style>
-  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; line-height: 1.6; padding: 40px; max-width: 800px; margin: 0 auto; background: #fff; color: #000; font-size: 14pt; }
-  table { width: 100%; border-collapse: collapse; margin-bottom: 1em; }
-  th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-  th { background-color: #f4f4f4; }
-  @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
-</style>
-<script>window.MathJax={tex:{inlineMath:[['$','$'],['\\\\(','\\\\)']],displayMath:[['$$','$$'],['\\\\[','\\\\]']]},svg:{fontCache:'global'}};<\/script>
-<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"><\/script>
-<script>
-  window.onload = function() {
-    var mjax = window.MathJax;
-    var doPrint = function() { setTimeout(function() { window.print(); }, 300); };
-    if (mjax && mjax.typesetPromise) {
-      mjax.typesetPromise().then(doPrint).catch(doPrint);
-    } else {
-      setTimeout(doPrint, 1200);
-    }
-  };
-<\/script>
-</head>
-<body>${rawHtml}</body>
-</html>`
-            }
-
-            const win = window.open('', '_blank')
-            if (!win) {
-                alert('Браузер заблокировал всплывающее окно. Разрешите всплывающие окна для этого сайта и попробуйте снова.')
-                return
-            }
-            win.document.open()
-            win.document.write(printHtml)
-            win.document.close()
+            const htmlToExport = isHtmlResult
+                ? content
+                : `<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8"><title>${title}</title><style>body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;line-height:1.6;padding:40px;max-width:800px;margin:0 auto;}</style></head><body>${contentRef.current?.innerHTML || `<p>${content.replace(/\n/g, '<br>')}</p>`}</body></html>`
+            await downloadPdf(htmlToExport, `${title}.pdf`)
         } catch (error) {
-            console.error('Failed to print PDF:', error)
-            alert('Ошибка при подготовке PDF. Попробуйте снова.')
+            console.error('Failed to generate PDF:', error)
+            alert('Ошибка при генерации PDF. Попробуйте снова.')
         } finally {
             setIsDownloading(false)
         }
@@ -647,22 +581,6 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
             alert('Не удалось сохранить презентацию');
         }
     };
-
-    // PDF export for HTML/CSS slides via print window
-    const handleHtmlExportPDF = () => {
-        if (!slides.length) return
-        const win = window.open('', '_blank')
-        if (!win) return
-        const slidePages = slides.map((s: any) => {
-            const css = s.css?.trim() || 'body{background:#1a1a2e;color:#fff;}'
-            const tmp = document.createElement('div')
-            tmp.innerHTML = DOMPurify.sanitize(s.html || '', { FORBID_TAGS: ['script'] })
-            const html = tmp.innerHTML
-            return `<div class="slide-page">${html}<style>*,*::before,*::after{box-sizing:border-box}html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;font-family:'Segoe UI',system-ui,sans-serif}${css}</style></div>`
-        }).join('')
-        win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><style>@page{size:297mm 167mm;margin:0}body{margin:0}.slide-page{width:297mm;height:167mm;overflow:hidden;page-break-after:always;position:relative;display:block}</style></head><body>${slidePages}<script>window.onload=function(){setTimeout(function(){window.print()},300)}<\/script></body></html>`)
-        win.document.close()
-    }
 
     // Save HTML slides back to API
     const handleSaveHtmlSlides = async () => {

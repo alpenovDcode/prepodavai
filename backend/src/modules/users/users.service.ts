@@ -97,6 +97,20 @@ export class UsersService {
   }
 
   /**
+   * Установка нового пароля без проверки старого (используется после восстановления доступа)
+   */
+  async setPassword(userId: string, newPassword: string): Promise<void> {
+    if (newPassword.length < 8) {
+      throw new BadRequestException('Пароль должен содержать не менее 8 символов');
+    }
+    const hash = await bcrypt.hash(newPassword, 10);
+    await this.prisma.appUser.update({
+      where: { id: userId },
+      data: { passwordHash: hash },
+    });
+  }
+
+  /**
    * Смена пароля для авторизованного пользователя
    */
   async changePassword(userId: string, currentPassword: string, newPassword: string): Promise<void> {

@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import DOMPurify from 'isomorphic-dompurify'
+import { downloadPdf } from '@/lib/utils/downloadPdf'
 import { HelpCircle, Download, Copy, RefreshCw, Loader2, Eye, Edit3 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useIsMobile } from '@/lib/hooks/useIsMobile'
@@ -96,14 +97,12 @@ export default function QuizGenerator() {
         }
     }, [editMode, localContent]);
 
-    const exportPDF = () => {
-        const autoPrint = `<script>window.onload=function(){setTimeout(function(){window.print()},600)}<\/script>`
-        const html = /<\/head>/i.test(localContent)
-            ? localContent.replace(/<\/head>/i, `${autoPrint}</head>`)
-            : `<!DOCTYPE html><html><head><meta charset="utf-8">${autoPrint}</head><body>${localContent}</body></html>`
-        const win = window.open('', '_blank')
-        if (!win) { toast.error('Разрешите всплывающие окна для этого сайта'); return }
-        win.document.open(); win.document.write(html); win.document.close()
+    const exportPDF = async () => {
+        try {
+            await downloadPdf(localContent)
+        } catch {
+            toast.error('Не удалось сформировать PDF')
+        }
     }
 
     return (

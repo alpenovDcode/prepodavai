@@ -28,8 +28,11 @@ export default function AuthModal({ onClose, onSuccess, initialMode = 'login' }:
 
   // Recovery form
   const [recoveryEmail, setRecoveryEmail] = useState('')
-  const [recoveryStep, setRecoveryStep] = useState<'form' | 'verify-code'>('form')
+  const [recoveryStep, setRecoveryStep] = useState<'form' | 'verify-code' | 'set-password'>('form')
   const [recoveryCode, setRecoveryCode] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [newPasswordConfirm, setNewPasswordConfirm] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
 
   useEffect(() => {
     const savedCode = localStorage.getItem('prepodavai_referral_code')
@@ -150,7 +153,7 @@ export default function AuthModal({ onClose, onSuccess, initialMode = 'login' }:
     }
   }
 
-  // ── Восстановление: подтверждение кода ──────────────────────────────────
+  // ── Восстановление: подтверждение кода → переход к смене пароля ────────
   const handleRecoveryVerifyCode = async () => {
     setLoading(true); resetErrors()
     try {
@@ -159,7 +162,18 @@ export default function AuthModal({ onClose, onSuccess, initialMode = 'login' }:
         code: recoveryCode.trim(),
       })
       if (res.data.success) {
-        saveAndLogin(res.data, res.data.userHash || res.data.user?.id)
+        // Сессионная кука установлена сервером — сохраняем данные пользователя
+        // но НЕ помечаем как authenticated до установки пароля
+        const user = res.data.user
+        localStorage.setItem('prepodavai_user', JSON.stringify({
+          name: user?.firstName || user?.username || 'Пользователь',
+          username: user?.username,
+          email: user?.email,
+          userHash: res.data.userHash || user?.id,
+          isAuthenticated: false,
+        }))
+        setRecoveryStep('set-password')
+        resetErrors()
       } else {
         setErrorMessage(res.data.error || 'Ошибка подтверждения')
       }
@@ -170,14 +184,46 @@ export default function AuthModal({ onClose, onSuccess, initialMode = 'login' }:
     }
   }
 
+  // ── Восстановление: установка нового пароля ──────────────────────────────
+  const handleSetPassword = async () => {
+    if (newPassword.length < 8) {
+      setErrorMessage('Пароль должен быть не менее 8 символов')
+      return
+    }
+    if (newPassword !== newPasswordConfirm) {
+      setErrorMessage('Пароли не совпадают')
+      return
+    }
+    setLoading(true); resetErrors()
+    try {
+      const res = await apiClient.post('/users/me/password/set', { newPassword })
+      if (res.data.success) {
+        // Теперь финально логиним пользователя
+        localStorage.setItem('prepodavai_authenticated', 'true')
+        localStorage.removeItem('prepodavai_utm')
+        onSuccess()
+      } else {
+        setErrorMessage(res.data.error || 'Ошибка установки пароля')
+      }
+    } catch (e: any) {
+      setErrorMessage(e.response?.data?.message || e.response?.data?.error || 'Ошибка сервера')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   // ── Заголовок модала ─────────────────────────────────────────────────────
   const title = mode === 'login' ? 'Вход'
     : mode === 'register' ? (registerStep === 'verify-code' ? 'Подтверждение' : 'Регистрация')
-    : (recoveryStep === 'verify-code' ? 'Подтверждение' : 'Восстановление доступа')
+    : recoveryStep === 'set-password' ? 'Новый пароль'
+    : recoveryStep === 'verify-code' ? 'Подтверждение'
+    : 'Восстановление доступа'
 
   const subtitle = mode === 'login' ? 'Введите данные из письма'
     : mode === 'register' ? (registerStep === 'verify-code' ? 'Введите код из письма' : 'Укажите email для получения данных входа')
-    : (recoveryStep === 'verify-code' ? 'Введите код из письма' : 'Введите email вашего аккаунта')
+    : recoveryStep === 'set-password' ? 'Придумайте пароль для входа'
+    : recoveryStep === 'verify-code' ? 'Введите код из письма'
+    : 'Введите email вашего аккаунта'
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
@@ -364,7 +410,7 @@ export default function AuthModal({ onClose, onSuccess, initialMode = 'login' }:
           <form onSubmit={(e) => { e.preventDefault(); handleRecoveryVerifyCode() }} className="space-y-4">
             <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl text-blue-800 text-sm">
               <i className="fas fa-envelope-open text-blue-500 mr-2" />
-              Мы отправили 6-значный код на <strong>{recoveryEmail}</strong>. В том же письме — ваши данные для входа.
+              Мы отправили 6-значный код на <strong>{recoveryEmail}</strong>.
             </div>
 
             <CodeInput value={recoveryCode} onChange={setRecoveryCode} />
@@ -372,12 +418,67 @@ export default function AuthModal({ onClose, onSuccess, initialMode = 'login' }:
             {successMessage && <SuccessBox message={successMessage} />}
             {errorMessage && <ErrorBox message={errorMessage} />}
 
-            <SubmitButton loading={loading} disabled={recoveryCode.length !== 6} label="Войти" loadingLabel="Проверка..." icon="fa-sign-in-alt" />
+            <SubmitButton loading={loading} disabled={recoveryCode.length !== 6} label="Продолжить" loadingLabel="Проверка..." icon="fa-arrow-right" />
 
             <button type="button" onClick={() => { setRecoveryStep('form'); setRecoveryCode(''); resetErrors() }}
               className="w-full text-sm text-gray-500 hover:text-gray-700">
               Изменить email
             </button>
+          </form>
+        )}
+
+        {/* ── ВОССТАНОВЛЕНИЕ: новый пароль ──────────────────────────────── */}
+        {mode === 'recovery' && recoveryStep === 'set-password' && (
+          <form onSubmit={(e) => { e.preventDefault(); handleSetPassword() }} className="space-y-4">
+            <div className="p-3 bg-green-50 border border-green-200 rounded-xl text-green-800 text-xs flex items-start gap-2">
+              <i className="fas fa-check-circle mt-0.5 shrink-0" />
+              <span>Email подтверждён. Придумайте новый пароль — он заменит старый.</span>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                <i className="fas fa-lock text-orange-500 mr-2" />Новый пароль
+              </label>
+              <div className="relative">
+                <input
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  type={showPassword ? 'text' : 'password'}
+                  required autoFocus autoComplete="new-password"
+                  className="w-full px-4 py-3 pr-10 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none transition-colors text-gray-900 placeholder:text-gray-400"
+                  placeholder="Минимум 8 символов"
+                />
+                <button type="button" tabIndex={-1}
+                  onClick={() => setShowPassword(v => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                  <i className={`fas ${showPassword ? 'fa-eye-slash' : 'fa-eye'}`} />
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                <i className="fas fa-lock text-orange-500 mr-2" />Повторите пароль
+              </label>
+              <input
+                value={newPasswordConfirm}
+                onChange={(e) => setNewPasswordConfirm(e.target.value)}
+                type={showPassword ? 'text' : 'password'}
+                required autoComplete="new-password"
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none transition-colors text-gray-900 placeholder:text-gray-400"
+                placeholder="Повторите пароль"
+              />
+            </div>
+
+            {errorMessage && <ErrorBox message={errorMessage} />}
+
+            <SubmitButton
+              loading={loading}
+              disabled={newPassword.length < 8 || newPassword !== newPasswordConfirm}
+              label="Сохранить и войти"
+              loadingLabel="Сохранение..."
+              icon="fa-sign-in-alt"
+            />
           </form>
         )}
 

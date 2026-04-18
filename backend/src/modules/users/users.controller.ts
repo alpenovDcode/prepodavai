@@ -59,6 +59,16 @@ export class UsersController {
     return { success: true, message: 'Пароль успешно изменён' };
   }
 
+  @Post('me/password/set')
+  @UseGuards(JwtAuthGuard)
+  async setPassword(
+    @Request() req,
+    @Body() body: { newPassword: string },
+  ) {
+    await this.usersService.setPassword(req.user.id, body.newPassword);
+    return { success: true, message: 'Пароль установлен' };
+  }
+
   @Put('me')
   @UseGuards(JwtAuthGuard)
   async updateCurrentUser(@Request() req, @Body() body: UpdateUserDto) {

@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import DOMPurify from 'isomorphic-dompurify'
+import { downloadPdf } from '@/lib/utils/downloadPdf'
 import { PenTool, Download, Copy, RefreshCw, Loader2, Edit3, Eye } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useGenerations } from '@/lib/hooks/useGenerations'
@@ -87,15 +88,12 @@ export default function WorksheetGenerator() {
         }
     }, [editMode, localContent]);
 
-    const handleDownloadPdf = () => {
-        const autoPrint = `<script>window.onload=function(){setTimeout(function(){window.print()},600)}<\/script>`
-        const safeContent = DOMPurify.sanitize(localContent, { FORCE_BODY: true })
-        const html = /<\/head>/i.test(safeContent)
-            ? safeContent.replace(/<\/head>/i, `${autoPrint}</head>`)
-            : `<!DOCTYPE html><html><head><meta charset="utf-8">${autoPrint}</head><body>${safeContent}</body></html>`
-        const win = window.open('', '_blank')
-        if (!win) { toast.error('Разрешите всплывающие окна для этого сайта'); return }
-        win.document.open(); win.document.write(html); win.document.close()
+    const handleDownloadPdf = async () => {
+        try {
+            await downloadPdf(localContent)
+        } catch {
+            toast.error('Не удалось сформировать PDF')
+        }
     }
 
     const handleCopy = async () => {

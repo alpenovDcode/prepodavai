@@ -7,6 +7,7 @@ import ImageResultDisplay from './ImageResultDisplay'
 import { apiClient } from '@/lib/api/client'
 import { getUserGenerations, removeCachedGeneration, CachedGeneration } from '@/lib/utils/generationsCache'
 import { getCurrentUser } from '@/lib/utils/userIdentity'
+import { downloadPdf } from '@/lib/utils/downloadPdf'
 
 // ─── Labels & Helpers ────────────────────────────────────────────────
 
@@ -350,33 +351,15 @@ export default function GenerationHistory() {
         return
       }
 
-      // HTML content — export as PDF if possible, otherwise as HTML file
+      // HTML content — export as PDF via backend
       const content = getResultContent(gen)
       if (content && typeof content === 'string' && looksLikeHtml(content)) {
-        try {
-          const typeLabel = getTypeLabel(gen.type)
-          const safeName = typeLabel.replace(/[^a-zA-Zа-яА-Я0-9]/g, '_') || 'result'
-          const dateSuffix = new Date().toISOString().split('T')[0]
-          const filename = `${safeName}_${dateSuffix}.pdf`
-
-          const pdfResponse = await apiClient.post<Blob>(
-            '/files/export/pdf',
-            { html: content, filename },
-            { responseType: 'blob' }
-          )
-          const blob = pdfResponse.data
-          const url = URL.createObjectURL(blob)
-          const link = document.createElement('a')
-          link.href = url
-          link.download = filename
-          document.body.appendChild(link)
-          link.click()
-          document.body.removeChild(link)
-          URL.revokeObjectURL(url)
-          return
-        } catch {
-          // Fallback to HTML download
-        }
+        const typeLabel = getTypeLabel(gen.type)
+        const safeName = typeLabel.replace(/[^a-zA-Zа-яА-Я0-9]/g, '_') || 'result'
+        const dateSuffix = new Date().toISOString().split('T')[0]
+        const filename = `${safeName}_${dateSuffix}.pdf`
+        await downloadPdf(content, filename)
+        return
       }
 
       // Fallback: download as HTML
