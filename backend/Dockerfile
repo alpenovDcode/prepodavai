@@ -71,6 +71,12 @@ RUN apt-get update && apt-get install -y \
 RUN groupadd --system --gid 1001 nodejs
 RUN useradd --system --uid 1001 nestjs
 
+# Replace crashpad handler with a no-op to prevent startup failures in Docker
+RUN if [ -f /usr/lib/chromium/chrome_crashpad_handler ]; then \
+      printf '#!/bin/sh\nexit 0\n' > /usr/lib/chromium/chrome_crashpad_handler && \
+      chmod +x /usr/lib/chromium/chrome_crashpad_handler; \
+    fi
+
 COPY --from=builder --chown=nestjs:nodejs /app/dist ./dist
 COPY --from=builder --chown=nestjs:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=nestjs:nodejs /app/package.json ./package.json
