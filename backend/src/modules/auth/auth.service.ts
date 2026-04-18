@@ -107,7 +107,9 @@ export class AuthService {
       return { success: false, error: 'NOT_REGISTERED' };
     }
 
-    // Обновляем данные профиля
+    // Обновляем данные профиля.
+    // username НЕ перезаписываем: для веб-пользователей username = email,
+    // перезапись TG-ником сломает вход на сайте.
     appUser = await this.prisma.appUser.update({
       where: { id: appUser.id },
       data: {
@@ -115,7 +117,6 @@ export class AuthService {
         lastTelegramAppAccess: new Date(),
         firstName: userData.first_name || appUser.firstName,
         lastName: userData.last_name || appUser.lastName,
-        username: userData.username || appUser.username,
       },
     });
 
