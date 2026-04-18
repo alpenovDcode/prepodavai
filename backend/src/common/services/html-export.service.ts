@@ -1,6 +1,7 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { chromium, Browser, Page } from 'playwright';
 import { DesignSystemConfig } from '../../modules/generations/config/design-system.config';
+import { LOGO_BASE64 } from '../../modules/generations/generation.constants';
 
 const MATHJAX_SNIPPET = `<script>
 window.MathJax = {
@@ -69,6 +70,9 @@ ${DesignSystemConfig.STYLES}
 <body>
 <div class="container">
 ${bodyContent}
+<div class="footer-logo">
+  <img src="${LOGO_BASE64}" alt="Logo">
+</div>
 </div>
 </body>
 </html>`;
