@@ -85,7 +85,7 @@ COPY --from=builder --chown=nestjs:nodejs /app/src/templates ./src/templates
 COPY --from=builder --chown=nestjs:nodejs /app/scripts ./scripts
 
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
-ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/lib/chromium/chromium
 
 # Create uploads directory with correct permissions
 RUN mkdir -p /app/uploads && chown -R nestjs:nodejs /app/uploads
