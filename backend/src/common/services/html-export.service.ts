@@ -45,6 +45,17 @@ export class HtmlExportService implements OnModuleDestroy {
     return MATHJAX_SNIPPET + html;
   }
 
+  /**
+   * Replaces Google Fonts @import with a system font stack fallback so
+   * PDF generation in Docker doesn't depend on external CDN availability.
+   */
+  private patchFonts(html: string): string {
+    return html.replace(
+      /@import\s+url\(['"]?https:\/\/fonts\.googleapis\.com[^'")]+['"]?\)\s*;?/g,
+      '',
+    );
+  }
+
   async htmlToPdf(html: string): Promise<Buffer> {
     console.log(`[HtmlExport] Starting PDF generation, HTML length: ${html.length}`);
     let browser: Browser;
@@ -59,8 +70,11 @@ export class HtmlExportService implements OnModuleDestroy {
     }
 
     try {
-      const processedHtml = this.ensureMathJax(html);
+      const processedHtml = this.ensureMathJax(this.patchFonts(html));
       const needsMathJax = /mathjax/i.test(processedHtml);
+
+      // Use 'screen' media so @media print rules don't strip box-shadows, backgrounds, paddings
+      await page.emulateMedia({ media: 'screen' });
 
       // 'load' waits for all scripts (including MathJax CDN) to finish loading
       await page.setContent(processedHtml, { waitUntil: 'load', timeout: 60000 });
