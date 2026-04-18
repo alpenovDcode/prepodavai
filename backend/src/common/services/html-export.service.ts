@@ -1,16 +1,31 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { chromium, Browser, Page } from 'playwright';
+import { DesignSystemConfig } from '../../modules/generations/config/design-system.config';
 
-const MATHJAX_SNIPPET = `
-<script>
-  window.MathJax = {
-    tex: {
-      inlineMath: [['\\\\(','\\\\)'],['$','$']],
-      displayMath: [['\\\\[','\\\\]'],['$$','$$']]
-    }
-  };
+const MATHJAX_SNIPPET = `<script>
+window.MathJax = {
+  tex: {
+    inlineMath: [['\\\\(','\\\\)'],['$','$']],
+    displayMath: [['\\\\[','\\\\]'],['$$','$$']],
+    processEscapes: true
+  }
+};
 </script>
 <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>`;
+
+/**
+ * Injected into every PDF to force color/background rendering.
+ * Playwright's page.pdf() switches to print media internally, which may suppress
+ * backgrounds even when printBackground:true is set. This overrides it.
+ */
+const PDF_FORCE_STYLES = `<style>
+  /* Force backgrounds and colors to render in PDF */
+  *, *::before, *::after {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+</style>`;
 
 @Injectable()
 export class HtmlExportService implements OnModuleDestroy {
@@ -32,32 +47,73 @@ export class HtmlExportService implements OnModuleDestroy {
     return this.browserPromise;
   }
 
-  /** Injects MathJax if HTML has LaTeX but no MathJax script already */
-  private ensureMathJax(html: string): string {
-    const hasLatex = /\\[([]|\\frac|\\cdot|\\times|\\sqrt|\$\$/.test(html);
-    if (!hasLatex) return html;
-    if (/mathjax/i.test(html)) return html;
-
-    // Inject before </head>; fall back to prepending
-    if (/<\/head>/i.test(html)) {
-      return html.replace(/<\/head>/i, `${MATHJAX_SNIPPET}\n</head>`);
-    }
-    return MATHJAX_SNIPPET + html;
-  }
-
   /**
-   * Replaces Google Fonts @import with a system font stack fallback so
-   * PDF generation in Docker doesn't depend on external CDN availability.
+   * Full HTML preparation pipeline before passing to Playwright.
    */
-  private patchFonts(html: string): string {
-    return html.replace(
+  private prepareHtml(html: string): string {
+    let processed = html;
+
+    // 0. Wrap HTML fragments (no substantial <style> block) in the design system template.
+    //    Applies to video-analysis, assistant, and any other generation type that outputs
+    //    an HTML fragment without the design system CSS.
+    const hasSubstantialStyles = /<style[^>]*>[\s\S]{300,}<\/style>/i.test(processed);
+    if (!hasSubstantialStyles) {
+      const bodyMatch = /<body[^>]*>([\s\S]*?)<\/body>/i.exec(processed);
+      const bodyContent = bodyMatch ? bodyMatch[1] : processed;
+      processed = `<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+${DesignSystemConfig.STYLES}
+</head>
+<body>
+<div class="container">
+${bodyContent}
+</div>
+</body>
+</html>`;
+    }
+
+    // 1. Remove Google Fonts @import — external CDN not available in Docker
+    processed = processed.replace(
       /@import\s+url\(['"]?https:\/\/fonts\.googleapis\.com[^'")]+['"]?\)\s*;?/g,
       '',
     );
+
+    // 2. Neutralize @media print blocks.
+    //    Playwright's page.pdf() forces print media, which triggers @media print rules
+    //    that strip box-shadows, backgrounds, and paddings from the design system.
+    //    Replacing with @media not all ensures the block never applies.
+    processed = processed.replace(/@media\s+print\b/gi, '@media not all');
+
+    // 3. Inject CSS that forces color/background rendering before </head>
+    if (/<\/head>/i.test(processed)) {
+      processed = processed.replace(/<\/head>/i, `${PDF_FORCE_STYLES}\n</head>`);
+    } else {
+      processed = PDF_FORCE_STYLES + processed;
+    }
+
+    // 4. Inject MathJax if LaTeX detected and not already present
+    const hasLatex = /\\[([]|\\frac|\\cdot|\\times|\\sqrt|\\sum|\\int|\$\$/.test(processed);
+    const hasMathJax = /<script[^>]+src=["'][^"']*mathjax[^"']*["']/i.test(processed);
+    if (hasLatex && !hasMathJax) {
+      if (/<\/head>/i.test(processed)) {
+        processed = processed.replace(/<\/head>/i, `${MATHJAX_SNIPPET}\n</head>`);
+      } else if (/<\/body>/i.test(processed)) {
+        processed = processed.replace(/<\/body>/i, `${MATHJAX_SNIPPET}\n</body>`);
+      } else {
+        processed = processed + MATHJAX_SNIPPET;
+      }
+    }
+
+    return processed;
   }
 
   async htmlToPdf(html: string): Promise<Buffer> {
     console.log(`[HtmlExport] Starting PDF generation, HTML length: ${html.length}`);
+    // Log first 300 chars to debug CSS presence
+    console.log(`[HtmlExport] HTML preview: ${html.slice(0, 300).replace(/\n/g, ' ')}`);
+
     let browser: Browser;
     let page: Page;
 
@@ -70,16 +126,14 @@ export class HtmlExportService implements OnModuleDestroy {
     }
 
     try {
-      const processedHtml = this.ensureMathJax(this.patchFonts(html));
-      const needsMathJax = /mathjax/i.test(processedHtml);
+      const processedHtml = this.prepareHtml(html);
+      const hasMathJax = /<script[^>]+src=["'][^"']*mathjax[^"']*["']/i.test(processedHtml);
 
-      // Use 'screen' media so @media print rules don't strip box-shadows, backgrounds, paddings
+      // Use screen media to avoid any additional print-mode overrides
       await page.emulateMedia({ media: 'screen' });
-
-      // 'load' waits for all scripts (including MathJax CDN) to finish loading
       await page.setContent(processedHtml, { waitUntil: 'load', timeout: 60000 });
 
-      if (needsMathJax) {
+      if (hasMathJax) {
         try {
           console.log('[HtmlExport] Waiting for MathJax typesetting...');
           await page.waitForFunction(
