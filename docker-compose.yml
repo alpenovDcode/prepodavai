@@ -99,6 +99,8 @@ services:
       - uploads_data:/app/uploads
     networks:
       - prepodavai-network
+    security_opt:
+      - seccomp:unconfined
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://127.0.0.1:3001/api/health"]
