@@ -41,7 +41,7 @@ export default function OnboardingQuestBanner() {
             <div className="flex items-center gap-2 flex-wrap">
               <span className="font-semibold text-gray-900 text-sm">Квест новичка</span>
               <span className="text-xs bg-primary-100 text-primary-700 px-2 py-0.5 rounded-full font-medium">
-                +{remainingReward} токенов осталось
+                +{remainingReward} можете получить
               </span>
               {daysLeft <= 3 && (
                 <span className="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-medium">
@@ -111,7 +111,7 @@ export default function OnboardingQuestBanner() {
                       {step.title}
                     </p>
                     <p className="text-xs text-gray-400 mt-0.5 hidden sm:block leading-tight">
-                      {step.description}
+                      {step.completed ? step.description : `Получите +${step.reward} токенов`}
                     </p>
                   </div>
 

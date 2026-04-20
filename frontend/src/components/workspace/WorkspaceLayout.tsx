@@ -418,7 +418,7 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
                         className="w-full flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-gray-600 hover:text-primary-700 hover:bg-primary-50 rounded-xl transition-all border border-transparent hover:border-primary-100"
                     >
                         <ArrowLeft className="w-4 h-4" />
-                        <span>Вернуться в Dashboard</span>
+                        <span>Вернуться в Главное меню</span>
                     </button>
                 </div>
 
