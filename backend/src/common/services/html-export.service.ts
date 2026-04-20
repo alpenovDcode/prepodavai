@@ -1,18 +1,9 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { chromium, Browser, Page } from 'playwright';
 import { DesignSystemConfig } from '../../modules/generations/config/design-system.config';
-import { LOGO_BASE64 } from '../../modules/generations/generation.constants';
+import { HtmlPostprocessorService } from './html-postprocessor.service';
 
-const MATHJAX_SNIPPET = `<script>
-window.MathJax = {
-  tex: {
-    inlineMath: [['\\\\(','\\\\)'],['$','$']],
-    displayMath: [['\\\\[','\\\\]'],['$$','$$']],
-    processEscapes: true
-  }
-};
-</script>
-<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>`;
+// MathJax configuration is now managed via HtmlPostprocessorService
 
 /**
  * Injected into every PDF to force color/background rendering.
@@ -32,6 +23,8 @@ const PDF_FORCE_STYLES = `<style>
 export class HtmlExportService implements OnModuleDestroy {
   private browserPromise: Promise<Browser> | null = null;
 
+  constructor(private readonly htmlPostprocessor: HtmlPostprocessorService) {}
+
   private async getBrowser() {
     if (!this.browserPromise) {
       this.browserPromise = chromium
@@ -48,15 +41,12 @@ export class HtmlExportService implements OnModuleDestroy {
     return this.browserPromise;
   }
 
-  /**
-   * Full HTML preparation pipeline before passing to Playwright.
-   */
   private prepareHtml(html: string): string {
-    let processed = html;
+    // 1. Run through common post-processing (branding, logo replacement, MathJax, cleanup)
+    let processed = this.htmlPostprocessor.process(html);
 
-    // 0. Wrap HTML fragments (no substantial <style> block) in the design system template.
-    //    Applies to video-analysis, assistant, and any other generation type that outputs
-    //    an HTML fragment without the design system CSS.
+    // 2. Wrap fragments in the design system template if not already a full document.
+    //    Note: postprocessor might have already added header/footer if they were missing.
     const hasSubstantialStyles = /<style[^>]*>[\s\S]{300,}<\/style>/i.test(processed);
     if (!hasSubstantialStyles) {
       const bodyMatch = /<body[^>]*>([\s\S]*?)<\/body>/i.exec(processed);
@@ -70,9 +60,6 @@ ${DesignSystemConfig.STYLES}
 <body>
 <div class="container">
 ${bodyContent}
-<div class="footer-logo">
-  <img src="${LOGO_BASE64}" alt="Logo">
-</div>
 </div>
 </body>
 </html>`;
@@ -97,18 +84,8 @@ ${bodyContent}
       processed = PDF_FORCE_STYLES + processed;
     }
 
-    // 4. Inject MathJax if LaTeX detected and not already present
-    const hasLatex = /\\[([]|\\frac|\\cdot|\\times|\\sqrt|\\sum|\\int|\$\$/.test(processed);
-    const hasMathJax = /<script[^>]+src=["'][^"']*mathjax[^"']*["']/i.test(processed);
-    if (hasLatex && !hasMathJax) {
-      if (/<\/head>/i.test(processed)) {
-        processed = processed.replace(/<\/head>/i, `${MATHJAX_SNIPPET}\n</head>`);
-      } else if (/<\/body>/i.test(processed)) {
-        processed = processed.replace(/<\/body>/i, `${MATHJAX_SNIPPET}\n</body>`);
-      } else {
-        processed = processed + MATHJAX_SNIPPET;
-      }
-    }
+    // 5. Ensure MathJax is present (postprocessor already does this, but we keep it as a safety check)
+    processed = this.htmlPostprocessor.ensureMathJaxScript(processed);
 
     return processed;
   }
