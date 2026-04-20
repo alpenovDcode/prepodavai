@@ -243,7 +243,18 @@ export class AuthService {
    * Авторизация через username + API key
    */
   async loginWithApiKey(username: string, apiKey: string) {
-    const user = await this.usersService.findByUsernameAndApiKey(username, apiKey);
+    let user = await this.usersService.findByUsernameAndApiKey(username, apiKey);
+
+    // Fallback: если по apiKey не нашли — проверяем passwordHash (после восстановления пароля)
+    if (!user) {
+      const userByUsername = await this.usersService.findByUsername(username);
+      if (userByUsername?.passwordHash) {
+        const isMatch = await bcrypt.compare(apiKey, userByUsername.passwordHash);
+        if (isMatch) {
+          user = userByUsername;
+        }
+      }
+    }
 
     if (!user) {
       throw new UnauthorizedException('Неверный username или персональный ключ');
