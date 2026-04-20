@@ -5,6 +5,7 @@ import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 import { GenerationHelpersService } from '../generation-helpers.service';
 import { HtmlPostprocessorService } from '../../../common/services/html-postprocessor.service';
+import { FilesService } from '../../files/files.service';
 
 export interface SalesAdvisorJobData {
   generationRequestId: string;
@@ -21,6 +22,7 @@ export class SalesAdvisorProcessor extends WorkerHost {
     private readonly configService: ConfigService,
     private readonly generationHelpers: GenerationHelpersService,
     private readonly htmlPostprocessor: HtmlPostprocessorService,
+    private readonly filesService: FilesService,
   ) {
     super();
     this.replicateToken = this.configService.get<string>('REPLICATE_API_TOKEN');
@@ -178,6 +180,28 @@ export class SalesAdvisorProcessor extends WorkerHost {
     return this.runReplicatePredictionWithMultipleImages(imageUrls, userPrompt, systemPrompt);
   }
 
+  /** Extracts hash from a file URL like https://host/api/files/<hash> */
+  private extractHash(url: string): string | null {
+    const match = url.match(/\/api\/files\/([a-f0-9]{32})$/i);
+    return match ? match[1] : null;
+  }
+
+  /** Converts file URLs to base64 data URIs by reading directly from disk */
+  private async toBase64DataUris(urls: string[]): Promise<string[]> {
+    return Promise.all(
+      urls.map(async (url) => {
+        const hash = this.extractHash(url);
+        if (hash) {
+          const file = await this.filesService.getFile(hash);
+          if (file) {
+            return `data:${file.mimeType};base64,${file.buffer.toString('base64')}`;
+          }
+        }
+        return url; // fallback to original URL if hash not found
+      }),
+    );
+  }
+
   /**
    * Sends all images at once to openai/gpt-4o via Replicate using image_input array
    */
@@ -188,6 +212,9 @@ export class SalesAdvisorProcessor extends WorkerHost {
   ): Promise<string> {
     this.logger.log(`Analyzing ${imageUrls.length} image(s) via openai/gpt-4o (image_input array)`);
 
+    const imageInputs = await this.toBase64DataUris(imageUrls);
+    this.logger.log(`Converted ${imageInputs.length} images to base64 data URIs`);
+
     try {
       const response = await axios.post(
         'https://api.replicate.com/v1/models/openai/gpt-4o/predictions',
@@ -196,7 +223,7 @@ export class SalesAdvisorProcessor extends WorkerHost {
           input: {
             prompt: userPrompt,
             system_prompt: systemPrompt,
-            image_input: imageUrls,
+            image_input: imageInputs,
             max_completion_tokens: 8000,
             temperature: 0.7,
           },
