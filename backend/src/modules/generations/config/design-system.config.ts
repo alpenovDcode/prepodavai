@@ -91,6 +91,10 @@ export const DesignSystemConfig = {
 6. ЗАПРЕЩЕНО: писать формулы голым текстом (НЕЛЬЗЯ "H2O" — только \\(\\ce{H2O}\\)), использовать кириллицу внутри формул.
 7. Не вставляй скрипт MathJax вручную — он добавляется автоматически.`,
 
+    // Алиасы для обратной совместимости со старыми стратегиями
+    MATHJAX_RULES: '',
+    CHEMISTRY_FORMULA_RULES: '',
+
     INTERACTIVE_RULES: `ИНТЕРАКТИВНЫЕ ПОЛЯ (ОБЯЗАТЕЛЬНО):
 Документ должен быть цифровым рабочим листом.
 1. Ответы ученика: СТРОГО <input type="text"> или <textarea>.
@@ -103,3 +107,7 @@ export const DesignSystemConfig = {
 3. БЕЗ MARKDOWN (не используй \`\`\`html). Верни чистую строку кода.`,
   },
 };
+
+// Динамическое присваивание алиасов
+(DesignSystemConfig.PROMPT_MODULES as any).MATHJAX_RULES = DesignSystemConfig.PROMPT_MODULES.FORMULA_RULES;
+(DesignSystemConfig.PROMPT_MODULES as any).CHEMISTRY_FORMULA_RULES = DesignSystemConfig.PROMPT_MODULES.FORMULA_RULES;
