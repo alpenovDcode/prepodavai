@@ -29,6 +29,7 @@ import { AdminModule } from './modules/admin/admin.module';
 import { GammaModule } from './modules/gamma/gamma.module';
 import { AiAssistantModule } from './modules/ai-assistant/ai-assistant.module';
 import { HtmlExportService } from './common/services/html-export.service';
+import { HtmlPostprocessorService } from './common/services/html-postprocessor.service';
 import { EmailModule } from './common/services/email.module';
 import { GamesModule } from './modules/games/games.module';
 import { ReplicateModule } from './modules/replicate/replicate.module';
@@ -119,6 +120,7 @@ import { PaymentsModule } from './modules/payments/payments.module';
     },
     AppService,
     HtmlExportService,
+    HtmlPostprocessorService,
   ],
 })
 export class AppModule {}
