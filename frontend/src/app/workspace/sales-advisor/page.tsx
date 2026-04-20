@@ -4,16 +4,17 @@ import { useState, useRef, useEffect } from 'react'
 import { useIsMobile } from '@/lib/hooks/useIsMobile'
 import DOMPurify from 'isomorphic-dompurify'
 import { downloadPdf } from '@/lib/utils/downloadPdf'
-import { LineChart, RefreshCw, Loader2, Maximize2, UploadCloud, X, Copy, Download, Edit3, Eye } from 'lucide-react'
+import { LineChart, RefreshCw, Loader2, UploadCloud, X, Copy, Download, Edit3, Eye } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useGenerations } from '@/lib/hooks/useGenerations'
 import RichTextEditor from '@/components/workspace/RichTextEditor'
 import GenerationCostBadge from '@/components/workspace/GenerationCostBadge'
 import AssignTaskButton from '@/components/AssignTaskButton'
 import GenerationProgress from '@/components/workspace/GenerationProgress'
+import { apiClient } from '@/lib/api/client'
 
 export default function SalesAdvisorGenerator() {
-    const [images, setImages] = useState<{ file: File, url: string, hash: string }[]>([])
+    const [images, setImages] = useState<{ file: File, previewUrl: string, serverUrl: string }[]>([])
     const [isUploading, setIsUploading] = useState(false)
     const [localContent, setLocalContent] = useState('<p>Загрузите скриншоты переписки с клиентом (до 6 штук) для получения рекомендаций по продажам.</p>')
     const [editMode, setEditMode] = useState(false)
@@ -29,7 +30,6 @@ export default function SalesAdvisorGenerator() {
         const files = Array.from(e.target.files || [])
         if (files.length === 0) return
 
-        // Check if adding these files exceeds the limit
         if (images.length + files.length > 6) {
             toast.error('Можно загрузить максимум 6 скриншотов')
             return
@@ -39,15 +39,16 @@ export default function SalesAdvisorGenerator() {
 
         try {
             const newImages = await Promise.all(files.map(async (file) => {
-                // Create local object URL for preview
-                const url = URL.createObjectURL(file)
+                const previewUrl = URL.createObjectURL(file)
 
-                // Placeholder: in a real app, upload the file and get a hash/URL
-                // For now, we simulate a successful upload delay
-                await new Promise(resolve => setTimeout(resolve, 500))
-                const hash = 'simulated_hash_' + Date.now() + '_' + Math.random().toString(36).substring(7)
+                const formData = new FormData()
+                formData.append('file', file)
+                const response = await apiClient.post('/files/upload', formData)
+                if (!response.data?.success) throw new Error('Upload failed')
 
-                return { file, url, hash }
+                const serverUrl: string = response.data.url
+
+                return { file, previewUrl, serverUrl }
             }))
 
             setImages(prev => [...prev, ...newImages])
@@ -56,7 +57,6 @@ export default function SalesAdvisorGenerator() {
             toast.error('Ошибка при загрузке изображений')
         } finally {
             setIsUploading(false)
-            // Reset input so the same files can be selected again if needed
             e.target.value = ''
         }
     }
@@ -73,11 +73,8 @@ export default function SalesAdvisorGenerator() {
             setEditMode(false)
             if (isMobile) setActiveTab('preview')
 
-            // Extract hashes for the API
-            const imageHashes = images.map(img => img.hash)
-
             const params = {
-                imageHashes
+                imageUrls: images.map(img => img.serverUrl)
             }
 
             const status = await generateAndWait({ type: 'sales_advisor', params })
@@ -211,7 +208,7 @@ export default function SalesAdvisorGenerator() {
                                 <div className="grid grid-cols-2 gap-3 mt-4">
                                     {images.map((img, idx) => (
                                         <div key={idx} className="relative aspect-square rounded-xl border border-gray-100 overflow-hidden group shadow-sm bg-gray-50">
-                                            <img src={img.url} alt={`Screenshot ${idx + 1}`} className="w-full h-full object-cover" />
+                                            <img src={img.previewUrl} alt={`Screenshot ${idx + 1}`} className="w-full h-full object-cover" />
                                             <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                                                 <button
                                                     onClick={() => removeImage(idx)}

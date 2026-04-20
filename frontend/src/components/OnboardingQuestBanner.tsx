@@ -111,7 +111,7 @@ export default function OnboardingQuestBanner() {
                       {step.title}
                     </p>
                     <p className="text-xs text-gray-400 mt-0.5 hidden sm:block leading-tight">
-                      {step.completed ? step.description : `Получите +${step.reward} токенов`}
+                      {`Получите +${step.reward} токенов`}
                     </p>
                   </div>
 
@@ -119,7 +119,7 @@ export default function OnboardingQuestBanner() {
                   <div
                     className={`text-xs font-bold shrink-0 ${step.completed ? 'text-green-600' : isNext ? 'text-primary-600' : 'text-gray-300'}`}
                   >
-                    +{step.reward}
+                    {step.completed ? `+${step.reward}` : `Получите +${step.reward} токенов`}
                   </div>
 
                   {/* Стрелка между шагами (только десктоп) */}
