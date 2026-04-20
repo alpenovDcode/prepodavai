@@ -78,6 +78,7 @@ export function useGenerations() {
         videoAnalysis: '/generate/video-analysis',
         'video-analysis': '/generate/video-analysis',
         salesAdvisor: '/generate/sales-advisor',
+        sales_advisor: '/generate/sales-advisor',
         'exam-variant': '/generate/exam-variant',
         exam_variant: '/generate/exam-variant',
         assistant: '/generate/assistant',
