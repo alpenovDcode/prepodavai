@@ -33,16 +33,27 @@ export const SHARED_CSS = `<style>
   }
 </style>`;
 
-export const SHARED_MATHJAX_RULES = `МАТЕМАТИЧЕСКИЕ ФОРМУЛЫ (MathJax) - СТРОГИЕ ПРАВИЛА:
-1.  Строчные (inline): используй ТОЛЬКО \\(...\\). Пример: \\(x^2\\). Одинарные $..$ ЗАПРЕЩЕНЫ.
-2.  Блочные (display): используй \\[...\\] или $$...$$. Пример: \\[E=mc^2\\] либо $$E=mc^2$$.
-3.  **КИРИЛЛИЦА:** Никогда не используй кириллицу внутри формул MathJax.
-4.  Скрипт MathJax вставляется автоматически — не добавляй его вручную.`;
+export const SHARED_MATHJAX_RULES = `ФОРМУЛЫ И СПЕЦСИМВОЛЫ (MathJax) - СТРОГИЕ ПРАВИЛА:
+1.  Любая формула, индекс или спецсимвол ОБЯЗАТЕЛЬНО должны быть в разделителях.
+2.  Строные (inline): используй \\(...\\) или $...$. Пример: \\(x^2\\).
+3.  Блочные (display): используй \\[...\\] или $$...$$. Пример: \\[E=mc^2\\].
+4.  ХИМИЯ: Для химических формул используй \\ce{...}. Пример: \\(\\ce{H2O}\\).
+5.  Кириллица внутри формул ЗАПРЕЩЕНА.`;
 
 export const SHARED_MATHJAX_SCRIPT = `<script>
-window.MathJax = { tex: { inlineMath: [['\\\\(', '\\\\)'], ['$', '$']], displayMath: [['$$', '$$'], ['\\\\[', '\\\\]']], processEscapes: true }, svg: { fontCache: 'global' } };
+window.MathJax = {
+  loader: { load: ['[tex]/mhchem'] },
+  tex: {
+    inlineMath: [['$', '$'], ['\\\\(', '\\\\)']],
+    displayMath: [['$$', '$$'], ['\\\\[', '\\\\]']],
+    processEscapes: true,
+    packages: {'[+]': ['mhchem']}
+  },
+  options: { enableMenu: false },
+  startup: { typeset: true }
+};
 </script>
-<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>`;
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>`;
 
 export const SHARED_CRITICAL_RULES_HTML_OUTPUT = `КРИТИЧЕСКИЕ ПРАВИЛА ВЫВОДА (СОБЛЮДАТЬ СТРОГО):
 1.  **СТРАТЕГИЯ:** Напиши краткий план адаптации внутри блока \`<!-- STRATEGY: ... -->\` ПЕРЕД тегом \`<!DOCTYPE html>\`.

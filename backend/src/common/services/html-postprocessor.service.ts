@@ -5,29 +5,22 @@ import { LOGO_BASE64 } from '../../modules/generations/generation.constants';
 export class HtmlPostprocessorService {
   private readonly MATHJAX_SCRIPT = `<script>
 window.MathJax = {
+  loader: { load: ['[tex]/mhchem'] },
   tex: {
     inlineMath: [['$', '$'], ['\\\\(', '\\\\)']],
     displayMath: [['$$', '$$'], ['\\\\[', '\\\\]']],
-    processEscapes: true
+    processEscapes: true,
+    packages: {'[+]': ['mhchem']}
   },
   options: {
-    ignoreHtmlClass: 'tex2jax_ignore',
-    processHtmlClass: 'tex2jax_process'
+    enableMenu: false
   },
   startup: {
-    ready: () => {
-      window.MathJax.startup.defaultReady();
-      window.MathJax.startup.promise.then(() => {
-        console.log('MathJax initial typesetting complete');
-      });
-    }
-  },
-  svg: {
-    fontCache: 'global'
+    typeset: true
   }
 };
 </script>
-<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>`;
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>`;
 
   /**
    * Process HTML to ensure all requirements are met:
@@ -228,7 +221,7 @@ window.MathJax = {
     // 2. Команды без обёртки: \frac, \sqrt, \sum, \int, \cdot, \times, \alpha, \beta и т.д.
     // 3. Явный признак экзаменационных документов — наличие class="sheet"
     const wrappers = /\$\$[\s\S]+?\$\$|\$[^$\n]+?\$|\\\(|\\\[|\\begin\{[a-z\*]+\}/i;
-    const commands = /\\(?:frac|sqrt|sum|int|prod|lim|cdot|times|pm|mp|leq|geq|neq|approx|alpha|beta|gamma|delta|epsilon|zeta|eta|theta|iota|kappa|lambda|mu|nu|xi|rho|sigma|tau|phi|chi|psi|omega|Alpha|Beta|Gamma|Delta|Theta|Lambda|Pi|Sigma|Phi|Omega|infty|text|mathbb|mathcal|mathrm|mathbf|mathit|xrightarrow|overrightarrow|vec|hat|bar|sin|cos|tan|cot|sec|csc|arcsin|arccos|arctan|log|ln|exp|angle|triangle|parallel|perp|in|notin|subset|cup|cap|forall|exists|rightarrow|leftarrow|leftrightarrow|Rightarrow|Leftarrow|Leftrightarrow|to)\b/i;
+    const commands = /\\(?:frac|sqrt|sum|int|prod|lim|cdot|times|pm|mp|leq|geq|neq|approx|alpha|beta|gamma|delta|epsilon|zeta|eta|theta|iota|kappa|lambda|mu|nu|xi|rho|sigma|tau|phi|chi|psi|omega|Alpha|Beta|Gamma|Delta|Theta|Lambda|Pi|Sigma|Phi|Omega|infty|text|mathbb|mathcal|mathrm|mathbf|mathit|xrightarrow|overrightarrow|vec|hat|bar|sin|cos|tan|cot|sec|csc|arcsin|arccos|arctan|log|ln|exp|angle|triangle|parallel|perp|in|notin|subset|cup|cap|forall|exists|rightarrow|leftarrow|leftrightarrow|Rightarrow|Leftarrow|Leftrightarrow|to|ce|color|style|tag|label|ref|cite)\b/i;
     const examSheet = /class="[^"]*\bsheet\b[^"]*"/i;
     return wrappers.test(html) || commands.test(html) || examSheet.test(html);
   }
@@ -237,17 +230,15 @@ window.MathJax = {
    * Injects MathJax script into HTML body section
    */
   private injectMathJaxScript(html: string): string {
-    // Вставляем в конец body для максимальной совместимости
-    if (/<\/body>/i.test(html)) {
-      return html.replace(/<\/body>/i, `${this.MATHJAX_SCRIPT}\n</body>`);
-    }
-
-    // Если нет <body>, но есть <head>
+    // Вставляем в <head> — скрипт с defer загружается параллельно с рендером контента
     if (/<head[\s>]/i.test(html)) {
       return html.replace(/<head([^>]*)>/i, `<head$1>\n${this.MATHJAX_SCRIPT}`);
     }
 
-    // Если нет ни head ни body, просто добавляем в конец
-    return `${html}\n${this.MATHJAX_SCRIPT}`;
+    if (/<\/body>/i.test(html)) {
+      return html.replace(/<\/body>/i, `${this.MATHJAX_SCRIPT}\n</body>`);
+    }
+
+    return `${this.MATHJAX_SCRIPT}\n${html}`;
   }
 }
