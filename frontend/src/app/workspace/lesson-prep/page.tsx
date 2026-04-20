@@ -10,6 +10,7 @@ import RichTextEditor from '@/components/workspace/RichTextEditor'
 import GenerationCostBadge from '@/components/workspace/GenerationCostBadge'
 import AssignTaskButton from '@/components/AssignTaskButton'
 import GenerationProgress from '@/components/workspace/GenerationProgress'
+import { ensureMathJaxInHtml } from '@/lib/utils/ensureMathJax'
 
 export default function LessonPrepGenerator() {
     const [subject, setSubject] = useState('')
@@ -388,7 +389,7 @@ export default function LessonPrepGenerator() {
                         ) : (
                             <iframe
                                 ref={iframeRef}
-                                srcDoc={localContent}
+                                srcDoc={ensureMathJaxInHtml(localContent)}
                                 className="w-full h-full border-0"
                                 sandbox="allow-scripts allow-popups allow-modals"
                                 title="Вау-урок"

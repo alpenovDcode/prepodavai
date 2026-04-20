@@ -10,6 +10,7 @@ import RichTextEditor from '@/components/workspace/RichTextEditor'
 import GenerationCostBadge from '@/components/workspace/GenerationCostBadge'
 import AssignTaskButton from '@/components/AssignTaskButton'
 import GenerationProgress from '@/components/workspace/GenerationProgress'
+import { ensureMathJaxInHtml } from '@/lib/utils/ensureMathJax'
 
 export default function FeedbackGenerator() {
     const [taskType, setTaskType] = useState('')
@@ -203,7 +204,7 @@ export default function FeedbackGenerator() {
                         ) : (
                             <iframe
                                 ref={iframeRef}
-                                srcDoc={localContent}
+                                srcDoc={ensureMathJaxInHtml(localContent)}
                                 className="w-full h-full border-0 bg-white"
                                 title="Feedback Output"
                                 sandbox="allow-scripts allow-popups allow-modals"

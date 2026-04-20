@@ -71,7 +71,7 @@ const buildEditSrc = (slide: any): string => {
     return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*,*::before,*::after{box-sizing:border-box}html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;font-family:'Segoe UI',system-ui,sans-serif}${css}</style></head><body>${html}${DRAG_SCRIPT}</body></html>`
 }
 
-const MATHJAX_SCRIPT = `<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>`
+const MATHJAX_SCRIPT = `<script>window.MathJax={tex:{inlineMath:[['$','$'],['\\\\(','\\\\)']],displayMath:[['$$','$$'],['\\\\[','\\\\]']],processEscapes:true},chtml:{fontCache:'global'},startup:{typeset:true}};</script><script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>`
 const IFRAME_STYLES = `<style>
   body { margin: 0; padding: 32px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, sans-serif; background: white; color: #1a1a1a; }
   .container { max-width: 820px; margin: 0 auto; }
@@ -229,11 +229,11 @@ function FullHtmlPreview({ html }: { html: string }) {
         }
     }, [html])
 
-    const hasMathJax = /mathjax/i.test(html) || /\\\\\(|\\\\\[|\$\$|\$[^$]+\$/i.test(html)
+    const alreadyHasMathJax = /mathjax/i.test(html)
     const hasHead = /<head[\s>]/i.test(html)
     const hasBody = /<body[\s>]/i.test(html)
 
-    const INJECTED_HEAD = `${IFRAME_STYLES}${hasMathJax ? MATHJAX_SCRIPT : ''}`
+    const INJECTED_HEAD = `${IFRAME_STYLES}${alreadyHasMathJax ? '' : MATHJAX_SCRIPT}`
     const INJECTED_BODY = `${IFRAME_READY_SCRIPT}`
 
     let finalHtml = html

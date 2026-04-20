@@ -194,13 +194,26 @@ function convertBlanksToInputs(html: string): string {
   })
 }
 
-/** Инжектирует скрипт перед </body>, или в конец */
+const MATHJAX_HEAD = `<script>window.MathJax={tex:{inlineMath:[['$','$'],['\\\\(','\\\\)']],displayMath:[['$$','$$'],['\\\\[','\\\\]']],processEscapes:true},chtml:{fontCache:'global'},startup:{typeset:true}};</script><script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>`
+
+/** Инжектирует скрипт перед </body> и MathJax в <head>, или в конец */
 function injectScript(html: string, script: string): string {
   const readySignal = `<script>window.addEventListener('load',function(){window.parent.postMessage('IFRAME_READY','*');});<\/script>`
   const injection = script + readySignal
-  if (/<\/body>/i.test(html)) return html.replace(/<\/body>/i, `${injection}</body>`)
-  if (/<\/html>/i.test(html)) return html.replace(/<\/html>/i, `${injection}</html>`)
-  return html + injection
+  const alreadyHasMathJax = /mathjax/i.test(html)
+
+  let result = html
+  if (!alreadyHasMathJax) {
+    if (/<head[\s>]/i.test(result)) {
+      result = result.replace(/<head([^>]*)>/i, `<head$1>${MATHJAX_HEAD}`)
+    } else {
+      result = MATHJAX_HEAD + result
+    }
+  }
+
+  if (/<\/body>/i.test(result)) return result.replace(/<\/body>/i, `${injection}</body>`)
+  if (/<\/html>/i.test(result)) return result.replace(/<\/html>/i, `${injection}</html>`)
+  return result + injection
 }
 
 // ─── Компонент ────────────────────────────────────────────────────────────────

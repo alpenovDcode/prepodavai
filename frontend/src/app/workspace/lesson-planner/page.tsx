@@ -10,6 +10,7 @@ import { getCurrentUser } from '@/lib/utils/userIdentity'
 import GenerationCostBadge from '@/components/workspace/GenerationCostBadge'
 import AssignTaskButton from '@/components/AssignTaskButton'
 import GenerationProgress from '@/components/workspace/GenerationProgress'
+import { ensureMathJaxInHtml } from '@/lib/utils/ensureMathJax'
 
 export default function LessonPlanner() {
     const [form, setForm] = useState({
@@ -337,7 +338,7 @@ export default function LessonPlanner() {
                         ) : (
                             <iframe
                                 ref={iframeRef}
-                                srcDoc={htmlContent}
+                                srcDoc={ensureMathJaxInHtml(htmlContent)}
                                 className={`w-full h-full border-0 bg-white ${editMode ? 'cursor-text' : ''}`}
                                 sandbox="allow-scripts allow-popups allow-modals"
                                 title="План урока"

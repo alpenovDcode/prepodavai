@@ -1,6 +1,6 @@
 'use client'
 
-import { ReactNode, useState, useMemo } from 'react'
+import { ReactNode, useState, useMemo, useEffect } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useServiceCosts } from '@/lib/hooks/useServiceCosts'
@@ -13,6 +13,7 @@ import PlanUpgradeModal from '@/components/PlanUpgradeModal'
 import NotificationBell from '@/components/NotificationBell'
 import { getCachedGenerations } from '@/lib/utils/generationsCache'
 import { getCurrentUser } from '@/lib/utils/userIdentity'
+import { MATHJAX_CDN } from '@/lib/utils/ensureMathJax'
 
 // Map: generation type → tool nav id
 const typeToToolId: Record<string, string> = {
@@ -159,6 +160,16 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
 
     const { isMobile, isMiniApp } = useIsMobile()
     const { costs } = useServiceCosts()
+
+    // Предзагружаем MathJax при входе в workspace — к моменту открытия iframe скрипт уже в кеше браузера
+    useEffect(() => {
+        const link = document.createElement('link')
+        link.rel = 'preload'
+        link.as = 'script'
+        link.href = MATHJAX_CDN
+        link.crossOrigin = 'anonymous'
+        document.head.appendChild(link)
+    }, [])
 
     const topToolIds = useMemo(() => {
         const user = getCurrentUser()
