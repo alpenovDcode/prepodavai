@@ -3,6 +3,10 @@ import { LOGO_BASE64 } from '../../modules/generations/generation.constants';
 
 @Injectable()
 export class HtmlPostprocessorService {
+  constructor() {
+    console.log('[HtmlPostprocessorService] Initialized');
+  }
+
   private readonly MATHJAX_SCRIPT = `<script>
 window.MathJax = {
   loader: { load: ['[tex]/mhchem'] },

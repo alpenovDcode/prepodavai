@@ -23,7 +23,10 @@ const PDF_FORCE_STYLES = `<style>
 export class HtmlExportService implements OnModuleDestroy {
   private browserPromise: Promise<Browser> | null = null;
 
-  constructor(private readonly htmlPostprocessor: HtmlPostprocessorService) {}
+  constructor(private readonly htmlPostprocessor: HtmlPostprocessorService) {
+    console.log('[HtmlExportService] Initialized');
+  }
+
 
   private async getBrowser() {
     if (!this.browserPromise) {
@@ -71,9 +74,10 @@ ${bodyContent}
 
     // 3. Remove Google Fonts @import — external CDN not available in Docker environment
     processed = processed.replace(
-      /@import\s+url\(['"]?https:\/\/fonts\.googleapis\.com[^'")]+['"]?\)\right|;\s*/g,
+      /@import\s+url\(['"]?https:\/\/fonts\.googleapis\.com[^'")]+['"]?\)\s*;?/g,
       '',
     );
+
 
     // 4. Neutralize @media print blocks.
     processed = processed.replace(/@media\s+print\b/gi, '@media not all');
