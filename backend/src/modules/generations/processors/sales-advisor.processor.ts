@@ -4,7 +4,6 @@ import { Job } from 'bullmq';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 import { GenerationHelpersService } from '../generation-helpers.service';
-import { LOGO_BASE64 } from '../generation.constants';
 import { HtmlPostprocessorService } from '../../../common/services/html-postprocessor.service';
 
 export interface SalesAdvisorJobData {
@@ -41,22 +40,20 @@ export class SalesAdvisorProcessor extends WorkerHost {
         message: `Анализ ${imageCount} скриншот(ов) диалога...`,
       });
 
-      // 2. Analyze dialog using Claude Vision
-      const analysis = await this.analyzeDialog(imageUrls);
+      // 2. Analyze dialog — AI returns full HTML document
+      const htmlResult = await this.analyzeDialog(imageUrls);
 
       await this.generationHelpers.updateProgress(generationRequestId, {
         percent: 80,
         message: 'Формирование рекомендаций...',
       });
 
-      // 3. Format result to HTML
-      const htmlResult = this.formatToHtml(analysis);
+      // 3. Post-process: replace LOGO_PLACEHOLDER, inject MathJax if needed
       const finalizedHtml = this.htmlPostprocessor.process(htmlResult);
 
       // 4. Complete generation
       await this.generationHelpers.completeGeneration(generationRequestId, {
         htmlResult: finalizedHtml,
-        sections: [{ title: 'Анализ и рекомендации', content: analysis }],
       });
 
       this.logger.log(`Sales Advisor analysis completed for ${generationRequestId}`);
@@ -69,149 +66,140 @@ export class SalesAdvisorProcessor extends WorkerHost {
 
   private async analyzeDialog(imageUrls: string[]): Promise<string> {
     const imageCount = imageUrls.length;
-    const systemPrompt = `Ты — опытный директор по продажам и эксперт по переговорам в EdTech индустрии.
 
-Твоя задача — провести профессиональный анализ диалога между менеджером и потенциальным клиентом, выявить ошибки, возражения и дать конкретные рекомендации для закрытия сделки.
+    const systemPrompt = `Ты — опытный директор по продажам и эксперт по переговорам в EdTech индустрии.
+Твоя задача — провести профессиональный анализ диалога, выявить ошибки и возражения, дать конкретные рекомендации.
 
 ТВОЙ ПОДХОД:
 - Используй фреймворки продаж: SPIN, BANT, Challenger Sale
 - Анализируй психологию клиента и его истинные потребности
 - Выявляй скрытые возражения за словами
-- Даешь конкретные, готовые к использованию формулировки
+- Давай конкретные, готовые к использованию формулировки
 
-ФОРМАТ ОТВЕТА (HTML):
-Используй теги <h3> для разделов, <ul> и <li> для списков.
-Используй <strong> для выделения важных мыслей.
-Можешь использовать <div class="highlight-box">...</div> для особо важных рекомендаций или выводов.
-Не используй markdown, только чистый HTML.
-Не добавляй теги html, head, body - только контент.
+КРИТИЧЕСКИЕ ПРАВИЛА ВЫВОДА:
+1. Вывод начинается СТРОГО с <!DOCTYPE html> и заканчивается </html>.
+2. НИКАКОГО текста до или после HTML-кода. Никаких пояснений.
+3. БЕЗ MARKDOWN — не используй \`\`\`html. Верни чистую строку кода.`;
 
-МАТЕМАТИЧЕСКИЕ ФОРМУЛЫ (ЕСЛИ НУЖНЫ):
-- Строчные: \`\\(...\\)\`. ЗАПРЕЩЕНО использовать \`$\`!
-- Блочные: \`\\[...\\]\`. ЗАПРЕЩЕНО использовать \`$$\`!`;
+    const userPrompt = `Проанализируй ${imageCount > 1 ? `${imageCount} скриншота диалога с клиентом (хронологический порядок)` : 'скриншот диалога с клиентом'} и верни результат в виде полного HTML-документа.
 
-    const userPrompt =
-      imageCount > 1
-        ? `Проанализируй ${imageCount} скриншота диалога с клиентом (они идут в хронологическом порядке) и предоставь детальный разбор ВСЕГО диалога целиком.`
-        : `Проанализируй скриншот диалога с клиентом и предоставь детальный разбор.
+ИСПОЛЬЗУЙ ТОЧНО ЭТОТ ШАБЛОН (заменяй только содержимое секций, не меняй структуру):
 
-СТРУКТУРА АНАЛИЗА:
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Анализ диалога продаж</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #f9fafb; font-family: 'Inter', system-ui, sans-serif; color: #111827; line-height: 1.6; padding: 20px; }
+  .container { max-width: 800px; margin: 0 auto; background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+  .header { display: flex; align-items: center; gap: 20px; margin-bottom: 30px; border-bottom: 2px solid #f3f4f6; padding-bottom: 20px; }
+  .header-logo { width: auto; height: 40px; }
+  h1 { font-size: 26px; font-weight: 700; margin: 0; color: #111827; }
+  h2 { font-size: 18px; font-weight: 600; margin-top: 32px; margin-bottom: 12px; color: #374151; display: flex; align-items: center; gap: 8px; }
+  p { margin-bottom: 12px; }
+  ul, ol { padding-left: 24px; margin-bottom: 16px; }
+  li { margin-bottom: 8px; }
+  strong { color: #111827; }
+  .score-badge { display: inline-flex; align-items: center; gap: 6px; background: #f0fdf4; border: 1px solid #86efac; color: #166534; font-weight: 700; font-size: 14px; padding: 4px 12px; border-radius: 999px; margin-bottom: 16px; }
+  .section { margin-bottom: 28px; }
+  .callout { background: #f0fdf4; border-left: 4px solid #22c55e; padding: 16px; margin: 16px 0; border-radius: 0 8px 8px 0; }
+  .callout.warning { background: #fef2f2; border-left-color: #ef4444; }
+  .callout.info { background: #eff6ff; border-left-color: #3b82f6; }
+  .callout.tip { background: #fefce8; border-left-color: #eab308; }
+  .phrase-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px; margin: 8px 0; font-style: italic; color: #374151; }
+  .footer-logo { text-align: right; margin-top: 40px; padding-top: 20px; border-top: 1px solid #f3f4f6; }
+  .footer-logo img { width: 120px; opacity: 0.5; }
+  @media (max-width: 640px) { .container { padding: 20px; } h1 { font-size: 22px; } }
+</style>
+</head>
+<body>
+<div class="container">
 
-<h3>📊 Общая оценка диалога</h3>
-- Краткая оценка качества ведения переговоров (1-10)
-- Ключевые сильные и слабые стороны менеджера
+  <div class="header">
+    <img src="LOGO_PLACEHOLDER" class="header-logo" alt="Logo">
+    <h1>Анализ диалога продаж</h1>
+  </div>
 
-<h3>✅ Что сделано хорошо</h3>
-- Конкретные примеры удачных фраз и техник
-- Что стоит повторять в будущем
+  <div class="section">
+    <h2>📊 Общая оценка диалога</h2>
+    <div class="score-badge">Оценка: X/10</div>
+    <!-- краткая оценка, 2-3 предложения -->
+  </div>
 
-<h3>❌ Критические ошибки</h3>
-- Что НЕ нужно было говорить/делать
-- Упущенные возможности
+  <div class="section">
+    <h2>✅ Что сделано хорошо</h2>
+    <ul>
+      <li><!-- конкретный пример удачной фразы или техники --></li>
+    </ul>
+  </div>
 
-<h3>🎯 Анализ возражений клиента</h3>
-- Какие возражения были озвучены
-- Истинные причины возражений (что стоит за словами)
-- Как правильно было бы отработать каждое возражение
+  <div class="section">
+    <h2>❌ Критические ошибки</h2>
+    <ul>
+      <li><!-- что НЕ нужно было говорить/делать и почему --></li>
+    </ul>
+    <div class="callout warning"><!-- самая критичная ошибка, которую нужно исправить первой --></div>
+  </div>
 
-<h3>💡 Конкретные рекомендации</h3>
-- Готовые фразы для следующего контакта
-- Стратегия дальнейшей работы с этим клиентом
-- Что изменить в подходе
+  <div class="section">
+    <h2>🎯 Анализ возражений клиента</h2>
+    <ul>
+      <li><strong>Возражение:</strong> <!-- цитата --> — <strong>Истинная причина:</strong> <!-- что стоит за словами --></li>
+    </ul>
+    <div class="callout info"><!-- как правильно отработать ключевое возражение --></div>
+  </div>
+
+  <div class="section">
+    <h2>💡 Конкретные рекомендации</h2>
+    <p><strong>Готовые фразы для следующего контакта:</strong></p>
+    <div class="phrase-box"><!-- готовая фраза 1 --></div>
+    <div class="phrase-box"><!-- готовая фраза 2 --></div>
+    <div class="callout tip"><!-- стратегия дальнейшей работы с этим клиентом --></div>
+  </div>
+
+  <div class="footer-logo">
+    <img src="LOGO_PLACEHOLDER" alt="Logo">
+  </div>
+
+</div>
+</body>
+</html>
 
 ВАЖНО:
-- Будь конкретным, избегай общих фраз
-- Давай готовые формулировки, а не советы "типа напиши о..."
-- Учитывай специфику EdTech (родители, ученики, преподаватели)`;
+- Заполни все секции реальным анализом, убери HTML-комментарии из итогового кода
+- Будь конкретным — давай готовые формулировки, не общие советы
+- Учитывай специфику EdTech (родители, ученики, преподаватели)
+- Можешь добавлять дополнительные <div class="phrase-box"> и <div class="callout"> по необходимости`;
 
     return this.runReplicatePredictionWithMultipleImages(imageUrls, userPrompt, systemPrompt);
   }
 
   /**
-   * Run Replicate prediction with support for multiple images
-   * Analyzes images sequentially and combines results
+   * Sends all images at once to openai/gpt-4o via Replicate using image_input array
    */
   private async runReplicatePredictionWithMultipleImages(
     imageUrls: string[],
     userPrompt: string,
     systemPrompt: string,
   ): Promise<string> {
-    try {
-      this.logger.log(`Analyzing ${imageUrls.length} image(s) using Replicate Claude API`);
+    this.logger.log(`Analyzing ${imageUrls.length} image(s) via openai/gpt-4o (image_input array)`);
 
-      // For single image, use simple format
-      if (imageUrls.length === 1) {
-        return this.runReplicatePrediction('google/gemini-3-flash', {
-          prompt: userPrompt,
-          system_prompt: systemPrompt,
-          max_tokens: 10000,
-          image: imageUrls[0],
-        });
-      }
-
-      // For multiple images, analyze each one sequentially and combine results
-      this.logger.log(`Analyzing ${imageUrls.length} images sequentially...`);
-
-      const analyses: string[] = [];
-
-      for (let i = 0; i < imageUrls.length; i++) {
-        const imageNumber = i + 1;
-        this.logger.log(`Analyzing image ${imageNumber}/${imageUrls.length}`);
-
-        const imagePrompt = `Это скриншот ${imageNumber} из ${imageUrls.length} (в хронологическом порядке).
-                
-Проанализируй ТОЛЬКО этот скриншот и опиши:
-1. Что происходит на этом этапе диалога
-2. Ключевые моменты и фразы
-3. Реакция клиента
-4. Действия менеджера
-
-Будь кратким, это промежуточный анализ.`;
-
-        const analysis = await this.runReplicatePrediction('google/gemini-3-flash', {
-          prompt: imagePrompt,
-          system_prompt: 'Ты эксперт по анализу диалогов продаж. Анализируй скриншоты переписки.',
-          max_tokens: 10000,
-          image: imageUrls[i],
-        });
-
-        analyses.push(`### Скриншот ${imageNumber}/${imageUrls.length}\n\n${analysis}`);
-      }
-
-      // Now combine all analyses into final comprehensive analysis
-      this.logger.log(`Combining ${analyses.length} analyses into final report`);
-
-      const combinedContext = analyses.join('\n\n---\n\n');
-
-      const finalPrompt = `Ты получил анализ ${imageUrls.length} скриншотов диалога с клиентом (в хронологическом порядке).
-
-ПРОМЕЖУТОЧНЫЕ АНАЛИЗЫ:
-${combinedContext}
-
-Теперь на основе ВСЕХ этих скриншотов предоставь ИТОГОВЫЙ комплексный анализ всего диалога целиком:
-
-${userPrompt}`;
-
-      const finalAnalysis = await this.runReplicatePrediction('google/gemini-3-flash', {
-        prompt: finalPrompt,
-        system_prompt: systemPrompt,
-        max_tokens: 10000,
-      });
-
-      return finalAnalysis;
-    } catch (error: any) {
-      this.logger.error(`Error in runReplicatePredictionWithMultipleImages: ${error.message}`);
-      throw error;
-    }
-  }
-
-  private async runReplicatePrediction(model: string, input: any): Promise<string> {
     try {
       const response = await axios.post(
-        `https://api.replicate.com/v1/models/${model}/predictions`,
+        'https://api.replicate.com/v1/models/openai/gpt-4o/predictions',
         {
-          input: input,
           stream: false,
+          input: {
+            prompt: userPrompt,
+            system_prompt: systemPrompt,
+            image_input: imageUrls,
+            max_completion_tokens: 8000,
+            temperature: 0.7,
+          },
         },
         {
           headers: {
@@ -224,126 +212,26 @@ ${userPrompt}`;
       let prediction = response.data;
       const predictionId = prediction.id;
 
-      // Poll for completion
       while (['starting', 'processing'].includes(prediction.status)) {
         await new Promise((resolve) => setTimeout(resolve, 2000));
         const statusRes = await axios.get(
           `https://api.replicate.com/v1/predictions/${predictionId}`,
-          {
-            headers: { Authorization: `Bearer ${this.replicateToken}` },
-          },
+          { headers: { Authorization: `Bearer ${this.replicateToken}` } },
         );
         prediction = statusRes.data;
       }
 
       if (prediction.status === 'succeeded') {
-        return Array.isArray(prediction.output) ? prediction.output.join('') : prediction.output;
+        return Array.isArray(prediction.output)
+          ? prediction.output.join('')
+          : String(prediction.output);
       } else {
         throw new Error(`Replicate failed: ${prediction.error}`);
       }
     } catch (error: any) {
-      this.logger.error(`Replicate API Error: ${error.message}`);
+      this.logger.error(`Replicate gpt-4o error: ${error.message}`);
       throw error;
     }
   }
 
-  private formatToHtml(analysis: string): string {
-    return `
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="UTF-8">
-            <style>
-                body {
-                    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-                    line-height: 1.6;
-                    color: #333;
-                    max-width: 900px;
-                    margin: 0 auto;
-                    padding: 40px;
-                    background-color: #fff;
-                }
-                .header {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    border-bottom: 3px solid #FF7E58;
-                    padding-bottom: 20px;
-                    margin-bottom: 40px;
-                }
-                .header-logo {
-                    max-height: 70px;
-                }
-                .header-title {
-                    font-size: 28px;
-                    color: #2d3748;
-                    font-weight: 700;
-                    margin: 0;
-                    text-align: right;
-                }
-                .content {
-                    font-size: 16px;
-                }
-                h3 {
-                    color: #FF7E58;
-                    font-size: 22px;
-                    margin-top: 30px;
-                    margin-bottom: 15px;
-                    border-left: 4px solid #FF7E58;
-                    padding-left: 15px;
-                }
-                h4 {
-                    color: #4a5568;
-                    font-size: 18px;
-                    margin-top: 20px;
-                    margin-bottom: 10px;
-                }
-                ul {
-                    padding-left: 20px;
-                    margin-bottom: 20px;
-                }
-                li {
-                    margin-bottom: 8px;
-                }
-                strong {
-                    color: #2d3748;
-                }
-                .footer {
-                    margin-top: 60px;
-                    padding-top: 20px;
-                    border-top: 1px solid #eee;
-                    display: flex;
-                    justify-content: flex-end;
-                    align-items: center;
-                }
-                .footer-logo {
-                    max-height: 40px;
-                    opacity: 0.6;
-                }
-                .highlight-box {
-                    background-color: #f7fafc;
-                    border-radius: 8px;
-                    padding: 20px;
-                    margin: 20px 0;
-                    border: 1px solid #e2e8f0;
-                }
-            </style>
-        </head>
-        <body>
-            <div class="header">
-                <img src="LOGO_PLACEHOLDER" alt="PrepodavAI" class="header-logo" />
-                <h1 class="header-title">Анализ диалога продаж</h1>
-            </div>
-            
-            <div class="content">
-                ${analysis}
-            </div>
-
-            <div class="footer">
-                <img src="LOGO_PLACEHOLDER" alt="PrepodavAI" class="footer-logo" />
-            </div>
-        </body>
-        </html>
-        `;
-  }
 }

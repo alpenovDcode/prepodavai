@@ -24,7 +24,8 @@ export default function SalesAdvisorGenerator() {
     const iframeRef = useRef<HTMLIFrameElement>(null)
 
     const { generateAndWait, isGenerating, activeGenerationId } = useGenerations()
-    const hasResult = !isGenerating && !!localContent && !localContent.includes('Загрузите скриншоты')
+    const localContentStr = typeof localContent === 'string' ? localContent : ''
+    const hasResult = !isGenerating && !!localContentStr && !localContentStr.includes('Загрузите скриншоты')
 
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = Array.from(e.target.files || [])
@@ -78,10 +79,10 @@ export default function SalesAdvisorGenerator() {
             }
 
             const status = await generateAndWait({ type: 'sales_advisor', params })
-            const resultData = status.result?.content || status.result
+            const resultData = status.result?.htmlResult || status.result?.content || status.result
 
-            let finalHtml = resultData
-            if (typeof finalHtml === 'string' && !finalHtml.includes('<p>')) {
+            let finalHtml = typeof resultData === 'string' ? resultData : JSON.stringify(resultData)
+            if (!finalHtml.includes('<p>') && !finalHtml.includes('<div')) {
                 finalHtml = `<div style="white-space: pre-wrap; font-family: sans-serif; padding: 20px;">${finalHtml}</div>`
             }
 
@@ -250,7 +251,7 @@ export default function SalesAdvisorGenerator() {
                             <span className="text-[10px] font-bold tracking-widest text-gray-400 uppercase">РЕКОМЕНДАЦИИ</span>
                         </div>
                         <div className="flex items-center gap-1.5 md:gap-2">
-                            {localContent && !localContent.includes('Загрузите скриншоты') && !localContent.includes('Анализируем диалог') && (
+                            {localContent && !localContentStr.includes('Загрузите скриншоты') && !localContentStr.includes('Анализируем диалог') && (
                                 <button
                                     onClick={toggleEditMode}
                                     className={`flex items-center gap-1.5 px-3 py-2 text-[11px] font-bold rounded-lg transition-all ${editMode
@@ -264,7 +265,7 @@ export default function SalesAdvisorGenerator() {
                             )}
                             <button
                                 onClick={handleCopy}
-                                disabled={!localContent || isGenerating || localContent.includes('Загрузите скриншоты')}
+                                disabled={!localContent || isGenerating || localContentStr.includes('Загрузите скриншоты')}
                                 className="flex items-center gap-1.5 px-3 py-2 text-[11px] font-bold bg-gray-100 hover:bg-gray-200 rounded-lg transition-all disabled:opacity-40"
                             >
                                 <Copy className="w-3.5 h-3.5" />
@@ -272,7 +273,7 @@ export default function SalesAdvisorGenerator() {
                             </button>
                             <button
                                 onClick={handleDownloadPdf}
-                                disabled={!localContent || isGenerating || localContent.includes('Загрузите скриншоты')}
+                                disabled={!localContent || isGenerating || localContentStr.includes('Загрузите скриншоты')}
                                 className="flex items-center gap-1.5 px-3 py-2 bg-teal-50 hover:bg-teal-100 text-teal-700 text-[11px] font-bold rounded-lg transition-all shadow-sm disabled:opacity-40 ml-1"
                             >
                                 <Download className="w-3.5 h-3.5" />
@@ -290,7 +291,7 @@ export default function SalesAdvisorGenerator() {
                     <div className="flex-1 overflow-hidden relative bg-white">
                         {isGenerating ? (
                             <GenerationProgress active={isGenerating} title="Анализируем диалог..." accentClassName="bg-teal-500" estimatedSeconds={40} />
-                        ) : !localContent || localContent.includes('Загрузите скриншоты') ? (
+                        ) : !localContent || localContentStr.includes('Загрузите скриншоты') ? (
                             <div className="flex flex-col items-center justify-center h-full text-center p-6 gap-4">
                                 <div className="w-20 h-20 rounded-3xl bg-teal-50 flex items-center justify-center">
                                     <LineChart className="w-10 h-10 text-teal-200" />
