@@ -42,16 +42,16 @@ export class HtmlExportService implements OnModuleDestroy {
   }
 
   private prepareHtml(html: string): string {
-    // 1. Run through common post-processing (branding, logo replacement, MathJax, cleanup)
-    let processed = this.htmlPostprocessor.process(html);
+    // 1. Ensure we have a full document structure if it's just a fragment.
+    //    This ensures that the postprocessor has <body> tags to find insertion points for branding.
+    let fullHtml = html;
+    const hasHtmlTag = /<html/i.test(html);
+    const hasBodyTag = /<body/i.test(html);
 
-    // 2. Wrap fragments in the design system template if not already a full document.
-    //    Note: postprocessor might have already added header/footer if they were missing.
-    const hasSubstantialStyles = /<style[^>]*>[\s\S]{300,}<\/style>/i.test(processed);
-    if (!hasSubstantialStyles) {
-      const bodyMatch = /<body[^>]*>([\s\S]*?)<\/body>/i.exec(processed);
-      const bodyContent = bodyMatch ? bodyMatch[1] : processed;
-      processed = `<!DOCTYPE html>
+    if (!hasHtmlTag || !hasBodyTag) {
+      const bodyMatch = /<body[^>]*>([\s\S]*?)<\/body>/i.exec(html);
+      const bodyContent = bodyMatch ? bodyMatch[1] : html;
+      fullHtml = `<!DOCTYPE html>
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
@@ -65,30 +65,32 @@ ${bodyContent}
 </html>`;
     }
 
-    // 1. Remove Google Fonts @import — external CDN not available in Docker
+    // 2. Run through common post-processing (branding normalization, logo replacement, MathJax, cleanup)
+    //    We run it on the FULL document to guarantee branding blocks are injected correctly.
+    let processed = this.htmlPostprocessor.process(fullHtml);
+
+    // 3. Remove Google Fonts @import — external CDN not available in Docker environment
     processed = processed.replace(
-      /@import\s+url\(['"]?https:\/\/fonts\.googleapis\.com[^'")]+['"]?\)\s*;?/g,
+      /@import\s+url\(['"]?https:\/\/fonts\.googleapis\.com[^'")]+['"]?\)\right|;\s*/g,
       '',
     );
 
-    // 2. Neutralize @media print blocks.
-    //    Playwright's page.pdf() forces print media, which triggers @media print rules
-    //    that strip box-shadows, backgrounds, and paddings from the design system.
-    //    Replacing with @media not all ensures the block never applies.
+    // 4. Neutralize @media print blocks.
     processed = processed.replace(/@media\s+print\b/gi, '@media not all');
 
-    // 3. Inject CSS that forces color/background rendering before </head>
+    // 5. Inject CSS that forces color/background rendering before </head>
     if (/<\/head>/i.test(processed)) {
       processed = processed.replace(/<\/head>/i, `${PDF_FORCE_STYLES}\n</head>`);
     } else {
       processed = PDF_FORCE_STYLES + processed;
     }
 
-    // 5. Ensure MathJax is present (postprocessor already does this, but we keep it as a safety check)
+    // 6. Final safety check for MathJax
     processed = this.htmlPostprocessor.ensureMathJaxScript(processed);
 
     return processed;
   }
+
 
   async htmlToPdf(html: string): Promise<Buffer> {
     console.log(`[HtmlExport] Starting PDF generation, HTML length: ${html.length}`);

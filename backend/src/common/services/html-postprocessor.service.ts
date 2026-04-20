@@ -33,6 +33,7 @@ window.MathJax = {
       return html;
     }
 
+    const initialLength = html.length;
     let processed = html;
 
     // 1. Remove markdown code blocks if present (common LLM artifact)
@@ -47,8 +48,13 @@ window.MathJax = {
     // 4. Inject MathJax
     processed = this.ensureMathJaxScript(processed);
 
+    if (processed.length !== initialLength) {
+      console.log(`[HtmlPostprocessor] Processed HTML: ${initialLength} -> ${processed.length} chars`);
+    }
+
     return processed;
   }
+
 
   /**
    * Удаляет сгенерированные моделью фейковые копирайты и гарантирует,
@@ -166,10 +172,13 @@ window.MathJax = {
       if (logoData && !logoData.startsWith('data:image')) {
         logoData = `data:image/png;base64,${logoData}`;
       }
-      return html.replace(/LOGO_PLACEHOLDER/g, logoData);
+      const result = html.replace(/LOGO_PLACEHOLDER/g, logoData);
+      console.log(`[HtmlPostprocessor] Replaced LOGO_PLACEHOLDER with base64 data (length: ${logoData.length})`);
+      return result;
     }
     return html;
   }
+
 
   /**
    * Removes ```html ... ``` wrapper if present
