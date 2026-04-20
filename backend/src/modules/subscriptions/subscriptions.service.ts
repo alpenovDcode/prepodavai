@@ -27,11 +27,11 @@ export type OperationType =
 // isOperationAllowed() накапливает доступ снизу-вверх: pro получает free+starter+pro, business — всё.
 export const PLAN_OPERATION_RESTRICTIONS: Record<string, string[]> = {
   // free и выше
-  free: ['text_generation', 'message', 'worksheet', 'quiz', 'vocabulary', 'lesson_plan', 'feedback', 'content_adaptation'],
+  free: ['text_generation', 'message', 'worksheet', 'quiz', 'vocabulary', 'lesson_plan', 'feedback', 'content_adaptation', 'game_generation', 'exam_variant', 'presentation'],
   // starter и выше
-  starter: ['lesson_preparation', 'exam_variant', 'transcription', 'presentation', 'sales_advisor'],
+  starter: ['lesson_preparation', 'transcription', 'sales_advisor'],
   // pro и выше (включает все операции free + starter)
-  pro: ['game_generation', 'expert_unpacking', 'unpacking', 'video_analysis', 'image_generation', 'photosession'],
+  pro: ['expert_unpacking', 'unpacking', 'video_analysis', 'image_generation', 'photosession'],
   // business — включает все операции pro + starter + free (накопительно)
   business: [],
 };
@@ -77,7 +77,7 @@ export class SubscriptionsService {
         currency: 'RUB',
         allowOverage: false,
         overageCostPerCredit: null,
-        features: ['Рабочий лист, тест, словарь', 'Адаптация текста, план урока', 'ИИ ассистент (10 запросов/день)', 'История генераций'],
+        features: ['Рабочий лист, тест, словарь', 'Адаптация текста, план урока', 'Обучающие игры, ОГЭ/ЕГЭ, Презентации', 'ИИ ассистент (10 запросов/день)', 'История генераций'],
         isActive: true,
         maxStudents: 5,
         maxClasses: 1,
@@ -93,9 +93,8 @@ export class SubscriptionsService {
         allowOverage: false,
         overageCostPerCredit: null,
         features: [
-          'Рабочий лист, тест, словарь',
-          'Адаптация текста, план урока',
-          'ОГЭ/ЕГЭ, Презентации, Транскрибация',
+          'Всё из Бесплатного',
+          'Транскрибация видео',
           'ИИ-продажник',
           'ИИ ассистент (50 запросов/день)',
         ],
@@ -115,7 +114,7 @@ export class SubscriptionsService {
         overageCostPerCredit: null,
         features: [
           'Всё из Стартера',
-          'Обучающие Игры, Распаковка Экспертности, Анализ Видео',
+          'Распаковка Экспертности, Анализ Видео',
           'ИИ Генератор фото (до 30/мес)',
           'ИИ Фотосессия (до 20/мес)',
           'ИИ ассистент (безлимит)',

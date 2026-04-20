@@ -1,4 +1,6 @@
-import { Injectable, NotFoundException, BadRequestException, UnauthorizedException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, UnauthorizedException, ForbiddenException } from '@nestjs/common';
+import * as fs from 'fs';
+import * as path from 'path';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { FilesService } from '../files/files.service';
@@ -2157,5 +2159,93 @@ export class AdminService {
       console.error('[PeriodComparison] query error:', e);
       return emptyResult;
     }
+  }
+
+  // ========== ADMIN MANAGEMENT ==========
+
+  private getAdminIds(): string[] {
+    return (process.env.ADMIN_USER_IDS || '')
+      .split(',')
+      .map((id) => id.trim())
+      .filter((id) => id.length > 0);
+  }
+
+  private persistAdminIds(ids: string[]) {
+    const value = ids.join(',');
+    process.env.ADMIN_USER_IDS = value;
+
+    const envPath = path.resolve(process.cwd(), '.env');
+    if (!fs.existsSync(envPath)) return;
+
+    let content = fs.readFileSync(envPath, 'utf8');
+    const regex = /^ADMIN_USER_IDS=.*$/m;
+    if (regex.test(content)) {
+      content = content.replace(regex, `ADMIN_USER_IDS=${value}`);
+    } else {
+      content += `\nADMIN_USER_IDS=${value}`;
+    }
+    fs.writeFileSync(envPath, content, 'utf8');
+  }
+
+  async getAdmins() {
+    const adminIds = this.getAdminIds();
+    if (adminIds.length === 0) return { admins: [], total: 0 };
+
+    const users = await this.prisma.appUser.findMany({
+      where: { id: { in: adminIds } },
+      select: {
+        id: true,
+        username: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        lastAccessAt: true,
+      },
+    });
+
+    return { admins: users, total: users.length };
+  }
+
+  async addAdmin(userId: string, requestingAdminId: string) {
+    const user = await this.prisma.appUser.findUnique({
+      where: { id: userId },
+      select: { id: true, username: true, firstName: true, lastName: true },
+    });
+
+    if (!user) throw new NotFoundException('Пользователь не найден');
+
+    const adminIds = this.getAdminIds();
+    if (adminIds.includes(userId)) {
+      throw new BadRequestException('Пользователь уже является администратором');
+    }
+
+    adminIds.push(userId);
+    this.persistAdminIds(adminIds);
+
+    await this.logsService.saveLog({ category: 'admin', level: 'info', message: `Admin added: ${user.username} (${userId}) by admin ${requestingAdminId}` });
+
+    return { success: true, user };
+  }
+
+  async removeAdmin(userId: string, requestingAdminId: string) {
+    if (userId === requestingAdminId) {
+      throw new ForbiddenException('Нельзя удалить самого себя из администраторов');
+    }
+
+    const adminIds = this.getAdminIds();
+    if (!adminIds.includes(userId)) {
+      throw new NotFoundException('Пользователь не является администратором');
+    }
+
+    if (adminIds.length === 1) {
+      throw new BadRequestException('Невозможно удалить последнего администратора');
+    }
+
+    const newIds = adminIds.filter((id) => id !== userId);
+    this.persistAdminIds(newIds);
+
+    await this.logsService.saveLog({ category: 'admin', level: 'info', message: `Admin removed: ${userId} by admin ${requestingAdminId}` });
+
+    return { success: true };
   }
 }

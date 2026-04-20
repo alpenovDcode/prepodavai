@@ -316,4 +316,20 @@ export class AdminController {
   async getComparison(@Query('period') period?: 'week' | 'month') {
     return this.adminService.getPeriodComparison(period || 'week');
   }
+
+  // ========== ADMIN MANAGEMENT ==========
+  @Get('admins')
+  async getAdmins() {
+    return this.adminService.getAdmins();
+  }
+
+  @Post('admins/:userId')
+  async addAdmin(@Param('userId') userId: string, @Request() req: any) {
+    return this.adminService.addAdmin(userId, req.user.id);
+  }
+
+  @Delete('admins/:userId')
+  async removeAdmin(@Param('userId') userId: string, @Request() req: any) {
+    return this.adminService.removeAdmin(userId, req.user.id);
+  }
 }

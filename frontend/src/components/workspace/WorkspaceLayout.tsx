@@ -57,10 +57,11 @@ const OP_REQUIRED_PLAN: Record<string, string> = {
     // Бесплатный и выше
     text_generation: 'free', lesson_plan: 'free', message: 'free', worksheet: 'free', quiz: 'free',
     vocabulary: 'free', feedback: 'free', content_adaptation: 'free',
+    // Бесплатный и выше (расширено)
+    game_generation: 'free', exam_variant: 'free', presentation: 'free',
     // Стартер и выше
-    lesson_preparation: 'starter', game_generation: 'starter', exam_variant: 'starter',
-    expert_unpacking: 'starter', unpacking: 'starter',
-    video_analysis: 'starter', transcription: 'starter', presentation: 'starter', sales_advisor: 'starter',
+    lesson_preparation: 'starter', expert_unpacking: 'starter', unpacking: 'starter',
+    video_analysis: 'starter', transcription: 'starter', sales_advisor: 'starter',
     // Про и выше
     image_generation: 'pro', photosession: 'pro',
 }

@@ -72,6 +72,7 @@ export default function AdminLayout({
         { name: 'Продукт', href: '/admin/product-analytics', icon: FlaskConical },
         { name: 'Алерты', href: '/admin/alerts', icon: Bell },
         { name: 'Логи', href: '/admin/system-logs', icon: ScrollText },
+        { name: 'Администраторы', href: '/admin/admins', icon: Shield },
         { name: 'Настройки AI', href: '/admin/settings', icon: Settings },
     ]
 

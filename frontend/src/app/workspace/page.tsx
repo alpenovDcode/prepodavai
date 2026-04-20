@@ -153,15 +153,16 @@ const OP_REQUIRED_PLAN: Record<string, string> = {
     vocabulary: 'free',
     feedback: 'free',
     content_adaptation: 'free',
+    // Бесплатный и выше (расширено)
+    game_generation: 'free',
+    exam_variant: 'free',
+    presentation: 'free',
     // Стартер и выше
     lesson_preparation: 'starter',
-    game_generation: 'starter',
-    exam_variant: 'starter',
     expert_unpacking: 'starter',
     unpacking: 'starter',
     video_analysis: 'starter',
     transcription: 'starter',
-    presentation: 'starter',
     sales_advisor: 'starter',
     // Про и выше
     image_generation: 'pro',
