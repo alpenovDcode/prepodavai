@@ -533,7 +533,7 @@ export class GenerationsService {
     console.log(`[GenerationsService] Using model: ${model}, prompt: ${prompt}`);
 
     try {
-      // Для генерации изображений через Replicate API
+      // Генерация фотосессии через Replicate (flux-2-pro)
       if (generationType === 'photosession') {
         const facePreservation = 'CRITICAL REQUIREMENT: Preserve the exact face of the person from the reference photo — identical facial features, skin tone, eye color, hair color and style, face shape, and overall identity must remain unchanged. Do not alter or replace the face under any circumstances. Face identity preservation is the highest priority.'
         const promptText = `${inputParams.prompt} ${facePreservation}`
@@ -542,78 +542,89 @@ export class GenerationsService {
           throw new BadRequestException('No photo provided for photosession');
         }
 
-        const baseUrl = this.configService.get<string>('BASE_URL', 'https://api.prepodavai.ru');
-        const polzaKey = this.configService.get<string>('POLZA_AI_API_KEY');
-
-        if (!polzaKey) {
-          this.logger.warn('POLZA_AI_API_KEY not configured, falling back to Replicate (if possible) or error.');
-        } else {
-          // Читаем файл с диска и кодируем в base64
-          const fileData = await this.filesService.getFile(photoHash);
-          if (!fileData) {
-            throw new BadRequestException(`File not found for hash: ${photoHash}`);
-          }
-          const base64Image = `data:${fileData.mimeType};base64,${fileData.buffer.toString('base64')}`;
-
-          this.logger.log(`Sending photosession request to Polza.ai API via base64 (hash: ${photoHash})`);
-
-          try {
-            const callbackUrl = `${baseUrl}/api/generate-photosession`;
-
-            const response = await axios.post(
-              'https://polza.ai/api/v1/media',
-              {
-                model: model,
-                input: {
-                  prompt: promptText,
-                  aspect_ratio: '1:1',
-                  image_resolution: '4K',
-                  quality: 'high',
-                  isEnhance: true,
-                  images: [
-                    {
-                      type: 'base64',
-                      data: base64Image,
-                    },
-                  ],
-                  callBackUrl: callbackUrl,
-                },
-                async: true,
-              },
-              {
-                headers: {
-                  Authorization: `Bearer ${polzaKey}`,
-                  'Content-Type': 'application/json',
-                },
-              },
-            );
-
-            const taskId = response.data.id || response.data.task_id;
-            this.logger.log(`Polza.ai photosession task created: ${taskId}`);
-
-            // Сохраняем task ID в metadata генерации
-            await this.prisma.generationRequest.update({
-              where: { id: generationRequestId },
-              data: {
-                metadata: {
-                  polzaTaskId: taskId,
-                },
-              },
-            });
-
-            return {
-              provider: 'Polza.ai',
-              mode: generationType,
-              status: 'pending',
-              taskId: taskId,
-              requestId: generationRequestId,
-              completedAt: new Date().toISOString(),
-            };
-          } catch (error: any) {
-            this.logger.error(`Failed to send Polza.ai request: ${error.message}`);
-            throw new BadRequestException(`Failed to start Polza.ai photosession: ${error.message}`);
-          }
+        const replicateToken = this.configService.get<string>('REPLICATE_API_TOKEN');
+        if (!replicateToken) {
+          throw new BadRequestException('REPLICATE_API_TOKEN not configured');
         }
+
+        const fileData = await this.filesService.getFile(photoHash);
+        if (!fileData) {
+          throw new BadRequestException(`File not found for hash: ${photoHash}`);
+        }
+        const base64Image = `data:${fileData.mimeType};base64,${fileData.buffer.toString('base64')}`;
+
+        const baseUrl = this.configService.get<string>('BASE_URL', 'https://api.prepodavai.ru');
+        const callbackUrl = `${baseUrl}/api/webhooks/replicate-callback`;
+
+        const sizeToAspectRatio: Record<string, string> = {
+          '1024x1024': '1:1',
+          '1024x1792': '9:16',
+          '1792x1024': '16:9',
+        };
+        const aspectRatio = sizeToAspectRatio[inputParams.size] || '1:1';
+
+        this.logger.log(`Sending photosession request to Replicate flux-2-pro (hash: ${photoHash})`);
+
+        try {
+          const response = await axios.post(
+            'https://api.replicate.com/v1/models/black-forest-labs/flux-2-pro/predictions',
+            {
+              input: {
+                prompt: promptText,
+                resolution: '2 MP',
+                aspect_ratio: aspectRatio,
+                input_images: [base64Image],
+                output_format: 'jpg',
+                output_quality: 80,
+                safety_tolerance: 2,
+                prompt_upsampling: false,
+              },
+              webhook: callbackUrl,
+              webhook_events_filter: ['completed'],
+            },
+            {
+              headers: {
+                Authorization: `Bearer ${replicateToken}`,
+                'Content-Type': 'application/json',
+              },
+            },
+          );
+
+          const predictionId = response.data.id;
+          this.logger.log(`Replicate flux-2-pro photosession prediction created: ${predictionId}`);
+
+          await this.prisma.generationRequest.update({
+            where: { id: generationRequestId },
+            data: {
+              metadata: {
+                replicatePredictionId: predictionId,
+              },
+            },
+          });
+
+          return {
+            provider: 'Replicate',
+            mode: generationType,
+            status: 'pending',
+            predictionId: predictionId,
+            requestId: generationRequestId,
+            completedAt: new Date().toISOString(),
+          };
+        } catch (error: any) {
+          this.logger.error(`Failed to send Replicate flux-2-pro request: ${error.message}`);
+          throw new BadRequestException(`Failed to start photosession: ${error.message}`);
+        }
+
+        // === Polza.ai (отключено) ===
+        // const polzaKey = this.configService.get<string>('POLZA_AI_API_KEY');
+        // const callbackUrl = `${baseUrl}/api/generate-photosession`;
+        // await axios.post('https://polza.ai/api/v1/media', {
+        //   model: 'google/gemini-3-pro-image-preview',
+        //   input: { prompt: promptText, aspect_ratio: '1:1', image_resolution: '4K',
+        //     quality: 'high', isEnhance: true, images: [{ type: 'base64', data: base64Image }],
+        //     callBackUrl: callbackUrl },
+        //   async: true,
+        // }, { headers: { Authorization: `Bearer ${polzaKey}` } });
       }
 
       // URL для обратного вызова (для Replicate)
@@ -1100,69 +1111,53 @@ export class GenerationsService {
       throw new NotFoundException('Доступ запрещен');
     }
 
-    // Если запрос всё еще в статусе pending и это Polza.ai - пробуем обновить статус принудительно (polling)
+    // Если запрос в статусе pending — поллим Replicate напрямую (fallback если вебхук не дошёл)
     if (generation.status === 'pending') {
       const metadata = (generation.metadata as any) || {};
-      const polzaTaskId = metadata.polzaTaskId;
+      const replicatePredictionId = metadata.replicatePredictionId;
 
-      if (polzaTaskId) {
-        const polzaKey = this.configService.get<string>('POLZA_AI_API_KEY');
-        if (polzaKey) {
+      if (replicatePredictionId) {
+        const replicateToken = this.configService.get<string>('REPLICATE_API_TOKEN');
+        if (replicateToken) {
           try {
-            this.logger.log(`Polling Polza.ai status for task: ${polzaTaskId}`);
-            const response = await axios.get(`https://polza.ai/api/v1/media/${polzaTaskId}`, {
-              headers: { Authorization: `Bearer ${polzaKey}` },
-            });
+            this.logger.log(`Polling Replicate status for prediction: ${replicatePredictionId}`);
+            const response = await axios.get(
+              `https://api.replicate.com/v1/predictions/${replicatePredictionId}`,
+              { headers: { Authorization: `Bearer ${replicateToken}` } },
+            );
 
             const data = response.data;
-            this.logger.log(`Polza.ai status response for ${polzaTaskId}: ${JSON.stringify(data)}`);
-            if (data.status === 'completed' || data.status === 'succeeded') {
-              const polzaDataUrl = data.data?.url;
-              const polzaDataUrls = Array.isArray(data.data)
-                ? data.data.map((item: any) => item.url || (typeof item === 'string' ? item : null)).filter(Boolean)
-                : (polzaDataUrl ? [polzaDataUrl] : []);
+            this.logger.log(`Replicate status for ${replicatePredictionId}: ${data.status}`);
 
-              const polzaImages = data.result?.images || polzaDataUrls;
-              const imageUrls = polzaImages;
+            if (data.status === 'succeeded' && data.output) {
+              const urls = Array.isArray(data.output) ? data.output : [data.output];
+              const outputData = {
+                imageUrls: urls,
+                imageUrl: urls[0],
+                type: generation.type,
+                provider: 'Replicate',
+                predictionId: replicatePredictionId,
+                completedAt: new Date().toISOString(),
+              };
+              await this.generationHelpers.completeGeneration(requestId, outputData);
 
-              this.logger.log(`Polza.ai task ${polzaTaskId} reported as completed. Extracted ${imageUrls.length} images.`);
-
-              if (imageUrls.length > 0) {
-                this.logger.log(`Updating record ${requestId} via polling...`);
-                const outputData = {
-                  imageUrls: imageUrls,
-                  imageUrl: imageUrls[0],
-                  type: 'photosession',
-                  completedAt: new Date().toISOString(),
-                };
-
-                await this.generationHelpers.completeGeneration(requestId, outputData);
-              } else {
-                // Если статус готов, но картинок нет - это ошибка, прерываем полинг
-                this.logger.error(`Polza.ai task ${polzaTaskId} is completed but NO images were found. Failing generation.`);
-                await this.generationHelpers.failGeneration(requestId, 'Результат генерации не содержит изображений');
-              }
-
-              // Перезагружаем запись в любом случае, чтобы вернуть актуальный статус (completed или failed)
-              const updatedGeneration = await this.prisma.generationRequest.findUnique({
+              const updated = await this.prisma.generationRequest.findUnique({
                 where: { id: requestId },
                 include: { userGeneration: true },
               });
-
-              return this.formatGenerationStatus(updatedGeneration);
+              return this.formatGenerationStatus(updated);
             } else if (data.status === 'failed') {
-              const errorMsg = data.status_description || data.error?.message || 'Generation failed';
+              const errorMsg = data.error || 'Replicate prediction failed';
               await this.generationHelpers.failGeneration(requestId, errorMsg);
 
-              // Перезагружаем
-              const updatedGeneration = await this.prisma.generationRequest.findUnique({
+              const updated = await this.prisma.generationRequest.findUnique({
                 where: { id: requestId },
                 include: { userGeneration: true },
               });
-              return this.formatGenerationStatus(updatedGeneration);
+              return this.formatGenerationStatus(updated);
             }
           } catch (error) {
-            this.logger.error(`Failed to poll Polza.ai status: ${error.message}`);
+            this.logger.error(`Failed to poll Replicate status: ${error.message}`);
           }
         }
       }
