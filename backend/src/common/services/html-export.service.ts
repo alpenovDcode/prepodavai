@@ -195,21 +195,22 @@ ${bodyContent}
       await page.setContent(processedHtml, { waitUntil: 'networkidle', timeout: 60000 });
 
       // Pre-PDF DOM transformation:
-      //   SVGs  → PNG via canvas (guarantees rendering; page.pdf() drops SVGs inconsistently)
+      //   SVGs  → ensure explicit dims for PDF engine
       //   inputs/textareas → styled divs (PDF treats form fields as invisible AcroForm objects)
+      await page.evaluate(async () => {
         // 1. Ensure SVGs have explicit dimensions (Chromium PDF engine needs them)
         for (const svg of Array.from(document.querySelectorAll<SVGSVGElement>('svg'))) {
           try {
-            const vb = svg.viewBox.baseVal;
+            const vb = (svg as any).viewBox?.baseVal;
             const rc = svg.getBoundingClientRect();
             
             // If it has no explicit width/height but has viewBox/rect, force them
             if (!svg.getAttribute('width') || svg.getAttribute('width')?.includes('%')) {
-              const w = vb.width > 0 ? vb.width : (rc.width > 0 ? rc.width : 500);
+              const w = (vb && vb.width > 0) ? vb.width : (rc.width > 0 ? rc.width : 500);
               svg.setAttribute('width', w.toString());
             }
             if (!svg.getAttribute('height') || svg.getAttribute('height')?.includes('%')) {
-              const h = vb.height > 0 ? vb.height : (rc.height > 0 ? rc.height : 300);
+              const h = (vb && vb.height > 0) ? vb.height : (rc.height > 0 ? rc.height : 300);
               svg.setAttribute('height', h.toString());
             }
             
@@ -221,7 +222,7 @@ ${bodyContent}
             svg.style.overflow = 'visible';
             
             // Force print styles for SVG strokes
-            svg.style.webkitPrintColorAdjust = 'exact';
+            (svg.style as any).printColorAdjust = 'exact';
           } catch (e) {
             console.error('[HtmlExport] SVG processing error:', e);
           }
