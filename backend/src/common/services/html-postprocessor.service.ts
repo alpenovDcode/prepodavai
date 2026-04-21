@@ -32,7 +32,7 @@ window.MathJax = {
    * 2. Ensure MathJax script is present if formulas are detected
    * 3. Clean up any markdown formatting if present
    */
-  process(html: string, options?: { isWysiwyg?: boolean }): string {
+  process(html: string): string {
     if (!html || typeof html !== 'string') {
       return html;
     }
@@ -43,16 +43,7 @@ window.MathJax = {
     // 1. Remove markdown code blocks if present (common LLM artifact)
     processed = this.removeMarkdownWrapper(processed);
 
-    // If it's a WYSIWYG export from the frontend, we skip branding normalization
-    // because the frontend already has the correct structure and logos.
-    if (options?.isWysiwyg) {
-      // 2. We still inject MathJax if needed
-      processed = this.ensureMathJaxScript(processed);
-      return processed;
-    }
-
-    // Default flow for Telegram/MAX/Internal generations:
-    // 2. Нормализуем footer/header
+    // 2. Нормализуем footer/header (удаляем фейковые копирайты, гарантируем наличие логотипа)
     processed = this.normalizeBrandingBlocks(processed);
 
     // 3. Replace Logo Placeholder

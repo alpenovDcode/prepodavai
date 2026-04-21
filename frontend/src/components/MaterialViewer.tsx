@@ -463,23 +463,6 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
                     }
                 }
             })
-
-            // --- SVG BAKE ---
-            // Find all SVGs in the LIVE DOM to get their actual rendered sizes
-            const liveSvgs = contentRef.current.querySelectorAll('svg');
-            const clonedSvgs = clone.querySelectorAll('svg');
-            liveSvgs.forEach((svg, i) => {
-                const rect = svg.getBoundingClientRect();
-                const clonedSvg = clonedSvgs[i];
-                if (clonedSvg && rect.width > 0) {
-                    clonedSvg.setAttribute('width', rect.width.toString());
-                    clonedSvg.setAttribute('height', rect.height.toString());
-                    clonedSvg.style.width = `${rect.width}px`;
-                    clonedSvg.style.height = `${rect.height}px`;
-                    // Force path visibility
-                    (clonedSvg.style as any).printColorAdjust = 'exact';
-                }
-            });
             
             contentHtml = clone.innerHTML
         } else {
@@ -529,7 +512,10 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
         
         const cleaner = (html: string) => {
             let p = html;
-            // Neutralize logo placeholders if any are left
+            // Remove manual headers/footers from AI
+            p = p.replace(/<div\b[^>]*\bclass="[^"]*\bheader\b[^"]*"[^>]*>[\s\S]*?<\/div>/gi, '');
+            p = p.replace(/<div\b[^>]*\bclass="[^"]*\bfooter-logo\b[^"]*"[^>]*>[\s\S]*?<\/div>/gi, '');
+            // Neutralize logo placeholders (we can add a clean one later if needed, but 1-to-1 implies keeping what's in UI)
             p = p.replace(/LOGO_PLACEHOLDER/g, ''); 
             return p;
         }
