@@ -197,53 +197,33 @@ ${bodyContent}
       // Pre-PDF DOM transformation:
       //   SVGs  → PNG via canvas (guarantees rendering; page.pdf() drops SVGs inconsistently)
       //   inputs/textareas → styled divs (PDF treats form fields as invisible AcroForm objects)
-      await page.evaluate(async () => {
-        // ── helpers ──────────────────────────────────────────────────────────────
-        function svgDims(svg: SVGSVGElement): { w: number; h: number } {
-          const vb = svg.viewBox?.baseVal;
-          const rc = svg.getBoundingClientRect();
-          const w = Math.round((vb && vb.width  > 0 ? vb.width  : rc.width)  || 400);
-          const h = Math.round((vb && vb.height > 0 ? vb.height : rc.height) || 200);
-          return { w, h };
-        }
-
-        async function svgToPng(svg: SVGSVGElement): Promise<string | null> {
-          try {
-            svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-            const svgStr = new XMLSerializer().serializeToString(svg);
-            const { w, h } = svgDims(svg);
-
-            const canvas = document.createElement('canvas');
-            canvas.width  = w;
-            canvas.height = h;
-            const ctx = canvas.getContext('2d');
-            if (!ctx) return null;
-
-            await new Promise<void>((res) => {
-              const img = new Image();
-              img.onload  = () => { ctx.drawImage(img, 0, 0, w, h); res(); };
-              img.onerror = () => res();
-              img.src = `data:image/svg+xml,${encodeURIComponent(svgStr)}`;
-            });
-
-            return canvas.toDataURL('image/png');
-          } catch {
-            return null;
-          }
-        }
-        // ─────────────────────────────────────────────────────────────────────────
-
-        // 1. SVG → <img src="data:image/png;base64,…">
+        // 1. Ensure SVGs have explicit dimensions (Chromium PDF engine needs them)
         for (const svg of Array.from(document.querySelectorAll<SVGSVGElement>('svg'))) {
-          const { w, h } = svgDims(svg);
-          const png = await svgToPng(svg);
-          if (png) {
-            const img = document.createElement('img');
-            img.src = png;
-            img.width  = w;
-            img.height = h;
-            img.style.cssText = 'display:block;max-width:100%;';
-            svg.parentNode?.replaceChild(img, svg);
+          try {
+            const vb = svg.viewBox.baseVal;
+            const rc = svg.getBoundingClientRect();
+            
+            // If it has no explicit width/height but has viewBox/rect, force them
+            if (!svg.getAttribute('width') || svg.getAttribute('width')?.includes('%')) {
+              const w = vb.width > 0 ? vb.width : (rc.width > 0 ? rc.width : 500);
+              svg.setAttribute('width', w.toString());
+            }
+            if (!svg.getAttribute('height') || svg.getAttribute('height')?.includes('%')) {
+              const h = vb.height > 0 ? vb.height : (rc.height > 0 ? rc.height : 300);
+              svg.setAttribute('height', h.toString());
+            }
+            
+            // Ensure visibility & proper alignment
+            svg.style.display = 'block';
+            svg.style.maxWidth = '100%';
+            svg.style.height = 'auto';
+            svg.style.margin = '16px auto';
+            svg.style.overflow = 'visible';
+            
+            // Force print styles for SVG strokes
+            svg.style.webkitPrintColorAdjust = 'exact';
+          } catch (e) {
+            console.error('[HtmlExport] SVG processing error:', e);
           }
         }
 
