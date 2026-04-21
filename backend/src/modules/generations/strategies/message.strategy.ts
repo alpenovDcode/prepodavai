@@ -20,8 +20,10 @@ ${DesignSystemConfig.PROMPT_MODULES.INTERACTIVE_RULES}
 ${DesignSystemConfig.PROMPT_MODULES.CRITICAL_OUTPUT_RULES}
 `;
 
-    const userPrompt = `Создай сообщение на основе структурированных данных ниже.
-${customPrompt ? `Дополнительно: ${customPrompt}` : ''}
+    const userPrompt = `# ТВОЯ ЗАДАЧА (ГЛАВНОЕ)
+Создай профессиональное сообщение на основе данных ниже.
+Внимательно прочитай все поля и отрази их содержание в тексте сообщения.
+
 <form_data>
 ${JSON.stringify(formData || {}, null, 2)}
 </form_data>
@@ -38,7 +40,7 @@ ${DesignSystemConfig.MATHJAX_SCRIPTS}
 <body>
 <div class="container">
   ${DesignSystemConfig.COMPONENTS.HEADER('Информационное сообщение')}
-  
+
   <div class="message-content">
     <!-- Текст сообщения здесь -->
   </div>
@@ -48,6 +50,9 @@ ${DesignSystemConfig.MATHJAX_SCRIPTS}
 </body>
 </html>
 </html_skeleton>
+
+⚠️ ПРОВЕРЬ ПЕРЕД ВЫВОДОМ: все данные из form_data отражены в тексте сообщения.
+${customPrompt ? `ДОПОЛНИТЕЛЬНЫЕ ИНСТРУКЦИИ (выполни обязательно): ${customPrompt}` : ''}
 
 Начинай вывод сразу с <!DOCTYPE html>.`;
 

@@ -26,14 +26,13 @@ ${DesignSystemConfig.PROMPT_MODULES.CRITICAL_OUTPUT_RULES}
 3. Включай блок для домашнего задания.
 `;
 
-    const userPrompt = `Сгенерируй HTML-код плана урока.
-Вводные данные:
+    const userPrompt = `# ТВОЯ ЗАДАЧА (ГЛАВНОЕ)
+Создай план урока по следующим параметрам:
 Предмет: ${subject || '—'}
-Тема: ${topic || '—'}
+Тема: ${topic || '—'}  ← весь план строго по этой теме
 Класс/Уровень: ${level || 'Средняя школа'}
 Длительность: ${duration || 45} мин.
 Цели: ${objectives || 'Сформулируй стандартные образовательные цели'}
-${customPrompt ? `Дополнительно: ${customPrompt}` : ''}
 
 <html_skeleton>
 <!DOCTYPE html>
@@ -47,7 +46,7 @@ ${DesignSystemConfig.MATHJAX_SCRIPTS}
 <body>
 <div class="container">
   ${DesignSystemConfig.COMPONENTS.HEADER('План занятия')}
-  
+
   <div class="meta-info">
     <p><strong>Предмет:</strong> ${subject || '—'}</p>
     <p><strong>Тема:</strong> ${topic || '—'}</p>
@@ -73,6 +72,9 @@ ${DesignSystemConfig.MATHJAX_SCRIPTS}
 </body>
 </html>
 </html_skeleton>
+
+⚠️ ПРОВЕРЬ ПЕРЕД ВЫВОДОМ: план полностью соответствует теме «${topic || '—'}», длительность ${duration || 45} мин.
+${customPrompt ? `ДОПОЛНИТЕЛЬНЫЕ ИНСТРУКЦИИ (выполни обязательно): ${customPrompt}` : ''}
 
 Начинай вывод сразу с <!DOCTYPE html>.`;
 

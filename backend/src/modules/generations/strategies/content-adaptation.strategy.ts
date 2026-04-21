@@ -26,11 +26,13 @@ ${DesignSystemConfig.PROMPT_MODULES.CRITICAL_OUTPUT_RULES}
 Адаптируй исходный текст в соответствии с запросом (упрощение, усложнение, пересказ) и оформи его в чистый HTML.
 `;
 
-    const userPrompt = `Адаптируй текст для уровня: ${level || 'заданного'}.
-Действие: ${action || 'обработка'}.
-Текст:
+    const userPrompt = `# ТВОЯ ЗАДАЧА (ГЛАВНОЕ)
+Адаптируй исходный текст:
+Действие: ${action || 'обработка'}  ← выполни именно это действие
+Целевой уровень: ${level || '—'}
+
+Исходный текст для адаптации:
 ${text || ''}
-${customPrompt ? `Дополнительно: ${customPrompt}` : ''}
 
 <html_skeleton>
 <!DOCTYPE html>
@@ -44,7 +46,7 @@ ${DesignSystemConfig.MATHJAX_SCRIPTS}
 <body>
 <div class="container">
   ${DesignSystemConfig.COMPONENTS.HEADER('Адаптированный материал')}
-  
+
   <div class="meta-info">
     <p><strong>Действие:</strong> ${action || 'Адаптация'}</p>
     <p><strong>Уровень:</strong> ${level || '—'}</p>
@@ -59,6 +61,9 @@ ${DesignSystemConfig.MATHJAX_SCRIPTS}
 </body>
 </html>
 </html_skeleton>
+
+⚠️ ПРОВЕРЬ ПЕРЕД ВЫВОДОМ: выполнено действие «${action || 'обработка'}», уровень адаптации «${level || '—'}».
+${customPrompt ? `ДОПОЛНИТЕЛЬНЫЕ ИНСТРУКЦИИ (выполни обязательно): ${customPrompt}` : ''}
 
 Начинай вывод сразу с <!DOCTYPE html>.`;
 

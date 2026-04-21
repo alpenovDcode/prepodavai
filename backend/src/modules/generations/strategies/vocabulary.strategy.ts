@@ -34,14 +34,16 @@ ${DesignSystemConfig.PROMPT_MODULES.CRITICAL_OUTPUT_RULES}
 3. Добавляй раздел с упражнениями в конце.
 `;
 
-    const userPrompt = `Сгенерируй HTML-код словаря.
-Вводные данные:
-Тема: ${topic}
-Предмет: ${subject || ''}
+    const userPrompt = `# ТВОЯ ЗАДАЧА (ГЛАВНОЕ)
+Создай словарь/глоссарий по следующим параметрам:
+Тема: ${topic}  ← все слова строго по этой теме
+Предмет: ${subject || '—'}
 Язык: ${langName}
 Уровень: ${level || 'базовый'}
 Количество слов: ${wordsCount || 20}
-${customPrompt ? `Дополнительно: ${customPrompt}` : ''}
+
+Для каждого термина: слово → транскрипция → перевод → определение → пример использования.
+В конце добавь упражнения на закрепление.
 
 <html_skeleton>
 <!DOCTYPE html>
@@ -55,7 +57,7 @@ ${DesignSystemConfig.MATHJAX_SCRIPTS}
 <body>
 <div class="container">
   ${DesignSystemConfig.COMPONENTS.HEADER('Словарь и Глоссарий')}
-  
+
   <div class="meta-info">
     <p><strong>Тема:</strong> ${topic || '—'}</p>
     <p><strong>Язык:</strong> ${langName}</p>
@@ -73,6 +75,9 @@ ${DesignSystemConfig.MATHJAX_SCRIPTS}
 </body>
 </html>
 </html_skeleton>
+
+⚠️ ПРОВЕРЬ ПЕРЕД ВЫВОДОМ: все слова строго по теме «${topic}», язык — ${langName}.
+${customPrompt ? `ДОПОЛНИТЕЛЬНЫЕ ИНСТРУКЦИИ (выполни обязательно): ${customPrompt}` : ''}
 
 Начинай вывод сразу с <!DOCTYPE html>.`;
 

@@ -17,6 +17,57 @@ const PDF_FORCE_STYLES = `<style>
     print-color-adjust: exact !important;
     color-adjust: exact !important;
   }
+
+  /* SVG: prevent height collapse when only viewBox is set, no explicit width/height */
+  svg {
+    display: block;
+    overflow: visible;
+  }
+  .svg-container {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  .svg-container svg {
+    max-width: 100% !important;
+    height: auto !important;
+  }
+
+  /* Input/textarea: make form fields visually present in PDF */
+  input[type="text"],
+  input[type="number"],
+  input[type="email"] {
+    -webkit-appearance: none !important;
+    appearance: none !important;
+    border: 1px solid #9ca3af !important;
+    background-color: #ffffff !important;
+    min-height: 28px !important;
+    display: inline-block !important;
+    color: #111827 !important;
+  }
+  .inline-input {
+    border: none !important;
+    border-bottom: 1.5px solid #374151 !important;
+    background: transparent !important;
+    min-width: 80px !important;
+    display: inline-block !important;
+  }
+  textarea {
+    -webkit-appearance: none !important;
+    appearance: none !important;
+    border: 1px solid #9ca3af !important;
+    background-color: #ffffff !important;
+    color: #111827 !important;
+    display: block !important;
+    min-height: 60px !important;
+  }
+  input[type="radio"],
+  input[type="checkbox"] {
+    -webkit-appearance: auto !important;
+    appearance: auto !important;
+    display: inline-block !important;
+    width: 16px !important;
+    height: 16px !important;
+  }
 </style>`;
 
 @Injectable()
@@ -116,9 +167,28 @@ ${bodyContent}
       const processedHtml = this.prepareHtml(html);
       const hasMathJax = /<script[^>]+src=["'][^"']*mathjax[^"']*["']/i.test(processedHtml);
 
+      // A4 at 96 DPI = 794px wide — prevents content overflow/clipping
+      await page.setViewportSize({ width: 794, height: 1123 });
+
       // Use screen media to avoid any additional print-mode overrides
       await page.emulateMedia({ media: 'screen' });
-      await page.setContent(processedHtml, { waitUntil: 'load', timeout: 60000 });
+
+      // networkidle ensures CDN scripts (MathJax, fonts) finish loading before PDF
+      await page.setContent(processedHtml, { waitUntil: 'networkidle', timeout: 60000 });
+
+      // Fix SVG elements that have viewBox but no explicit width/height:
+      // without this, Playwright collapses their height to 0 in PDF output.
+      await page.evaluate(() => {
+        document.querySelectorAll<SVGSVGElement>('svg').forEach((svg) => {
+          if (!svg.hasAttribute('width') && !svg.hasAttribute('height')) {
+            const vb = svg.viewBox?.baseVal;
+            if (vb && vb.width > 0 && vb.height > 0) {
+              svg.setAttribute('width', String(vb.width));
+              svg.setAttribute('height', String(vb.height));
+            }
+          }
+        });
+      });
 
       if (hasMathJax) {
         try {

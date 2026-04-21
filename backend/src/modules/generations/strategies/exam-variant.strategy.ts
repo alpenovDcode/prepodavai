@@ -99,32 +99,19 @@ ${DesignSystemConfig.PROMPT_MODULES.CRITICAL_OUTPUT_RULES}
 ${ExamVariantStrategy.SVG_LIBRARY}`;
 
     const targetSubject = (subject || '').toLowerCase();
-    const details: string[] = [];
-
-    details.push(`Предмет: ${subject || 'Не указан'}`);
-    details.push(`Тема/Фокус: ${topic || 'Весь курс'}`);
-    details.push(`Уровень: ${level || 'Стандартный ЕГЭ/ОГЭ'}`);
-
-    if (preferences?.trim()) {
-      details.push(`ЗАПРОС: "${preferences}"`);
-    } else {
-      details.push(`Количество заданий: ${questionsCount || 'Полный вариант по стандарту ФИПИ'}`);
-    }
-
-    if (customPrompt) details.push(`Доп. инструкции: ${customPrompt}`);
-
     const subjectRules = this.getSubjectRules(targetSubject);
 
-    const userPrompt = `Сгенерируй КИМ в формате HTML.
- 
-<task_params>
-${details.join('\n')}
-</task_params>
- 
+    const userPrompt = `# ТВОЯ ЗАДАЧА (ГЛАВНОЕ)
+Создай тренировочный КИМ (ОГЭ/ЕГЭ):
+Предмет: ${subject || 'Не указан'}
+Тема/Фокус: ${topic || 'Весь курс'}  ← задания сфокусированы именно на этой теме
+Уровень: ${level || 'Стандартный ЕГЭ/ОГЭ'}
+Количество заданий: ${questionsCount || 'Полный вариант по стандарту ФИПИ'}
+
 <subject_rules>
 ${subjectRules}
 </subject_rules>
- 
+
 <html_skeleton>
 Используй этот CSS-скелет.
 
@@ -172,6 +159,10 @@ ${DesignSystemConfig.COMPONENTS.FOOTER}
 </body>
 </html>
 </html_skeleton>
+
+⚠️ ПРОВЕРЬ ПЕРЕД ВЫВОДОМ: задания сфокусированы на теме «${topic || 'весь курс'}», предмет «${subject || '—'}».
+ПОЖЕЛАНИЯ ПОЛЬЗОВАТЕЛЯ (выполни обязательно): ${preferences?.trim() || 'не указаны'}
+${customPrompt ? `ДОПОЛНИТЕЛЬНЫЕ ИНСТРУКЦИИ: ${customPrompt}` : ''}
 
 НАЧИНАЙ ВЫВОД СРАЗУ С <!DOCTYPE html>.`;
 

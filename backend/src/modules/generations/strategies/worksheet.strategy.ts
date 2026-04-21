@@ -26,14 +26,14 @@ ${DesignSystemConfig.PROMPT_MODULES.CRITICAL_OUTPUT_RULES}
 3. Обязательно в конце — раздел с ответами для учителя.
 `;
     
-    const userPrompt = `Сгенерируй HTML-код рабочего листа.
-Вводные данные:
+    const userPrompt = `# ТВОЯ ЗАДАЧА (ГЛАВНОЕ)
+Создай рабочий лист по следующим параметрам:
 Предмет: ${subject || '—'}
-Тема: ${topic || '—'}
+Тема: ${topic || '—'}  ← все задания строго по этой теме
 Класс/Уровень: ${level || '—'}
 Количество заданий: ${questionsCount || 7}
-Предпочтения: ${preferences || 'не указаны'}
-${customPrompt ? `Дополнительно: ${customPrompt}` : ''}
+
+Задания должны охватывать разные аспекты темы, включать теорию и практику.
 
 <html_skeleton>
 <!DOCTYPE html>
@@ -47,7 +47,7 @@ ${DesignSystemConfig.MATHJAX_SCRIPTS}
 <body>
 <div class="container">
   ${DesignSystemConfig.COMPONENTS.HEADER('Рабочий лист')}
-  
+
   <div class="meta-info">
     <div style="display: flex; justify-content: space-between; gap: 20px;">
       <p><strong>Ученик:</strong> <input type="text" class="inline-input" style="flex: 1;"></p>
@@ -59,7 +59,7 @@ ${DesignSystemConfig.MATHJAX_SCRIPTS}
   </div>
 
   <!-- Содержимое листа здесь -->
-  
+
   <div class="teacher-answers-only">
     <h2>ОТВЕТЫ (ДЛЯ УЧИТЕЛЯ)</h2>
     <!-- Ключ ответов -->
@@ -69,6 +69,10 @@ ${DesignSystemConfig.MATHJAX_SCRIPTS}
 </body>
 </html>
 </html_skeleton>
+
+⚠️ ПРОВЕРЬ ПЕРЕД ВЫВОДОМ: все задания строго по теме «${topic || '—'}», предмет «${subject || '—'}».
+ПОЖЕЛАНИЯ ПОЛЬЗОВАТЕЛЯ (выполни обязательно): ${preferences || 'не указаны'}
+${customPrompt ? `ДОПОЛНИТЕЛЬНЫЕ ИНСТРУКЦИИ: ${customPrompt}` : ''}
 
 Начинай вывод сразу с <!DOCTYPE html>.`;
 
