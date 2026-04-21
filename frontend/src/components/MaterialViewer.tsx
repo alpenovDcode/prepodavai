@@ -477,7 +477,7 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
                     clonedSvg.style.width = `${rect.width}px`;
                     clonedSvg.style.height = `${rect.height}px`;
                     // Force path visibility
-                    clonedSvg.style.webkitPrintColorAdjust = 'exact';
+                    (clonedSvg.style as any).printColorAdjust = 'exact';
                 }
             });
             
