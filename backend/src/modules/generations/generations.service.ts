@@ -527,16 +527,16 @@ export class GenerationsService {
       throw new BadRequestException('Prompt is required for image generation');
     }
 
-    let model = requestedModel || 'google/nano-banana-pro';
-    if (generationType === 'photosession') {
-      model = 'google/gemini-3-pro-image-preview';
-    }
+    let model = generationType === 'photosession'
+      ? 'google/gemini-3-pro-image-preview'
+      : (requestedModel || 'google/imagen-4-ultra');
     console.log(`[GenerationsService] Using model: ${model}, prompt: ${prompt}`);
 
     try {
       // Для генерации изображений через Replicate API
       if (generationType === 'photosession') {
-        const promptText = inputParams.prompt;
+        const facePreservation = 'CRITICAL REQUIREMENT: Preserve the exact face of the person from the reference photo — identical facial features, skin tone, eye color, hair color and style, face shape, and overall identity must remain unchanged. Do not alter or replace the face under any circumstances. Face identity preservation is the highest priority.'
+        const promptText = `${inputParams.prompt} ${facePreservation}`
         const photoHash = inputParams.photoHash;
         if (!photoHash) {
           throw new BadRequestException('No photo provided for photosession');
@@ -626,12 +626,22 @@ export class GenerationsService {
         throw new BadRequestException('REPLICATE_API_TOKEN not configured');
       }
 
-      this.logger.log(`Sending image generation request to Replicate API`);
+      this.logger.log(`Sending image generation request to Replicate API (imagen-4-ultra)`);
 
       try {
+        const sizeToAspectRatio: Record<string, string> = {
+          '1024x1024': '1:1',
+          '1024x1792': '9:16',
+          '1792x1024': '16:9',
+        };
+        const aspectRatio = sizeToAspectRatio[inputParams.size] || '1:1';
+
         const input: any = {
           prompt: inputParams.prompt,
-          aspect_ratio: '4:3',
+          aspect_ratio: aspectRatio,
+          image_size: '1K',
+          output_format: 'jpg',
+          safety_filter_level: 'block_only_high',
         };
 
         const requestBody = {
@@ -640,9 +650,8 @@ export class GenerationsService {
           webhook_events_filter: ['completed'],
         };
 
-        // Отправляем запрос на Replicate API
         const response = await axios.post(
-          'https://api.replicate.com/v1/models/google/nano-banana-pro/predictions',
+          'https://api.replicate.com/v1/models/google/imagen-4-ultra/predictions',
           requestBody,
           {
             headers: {
@@ -1051,8 +1060,8 @@ export class GenerationsService {
       content_adaptation: 'chatgpt-webhook',
       message: 'chatgpt-webhook',
       feedback: 'chatgpt-webhook',
-      image: 'google/nano-banana-pro',
-      image_generation: 'google/nano-banana-pro',
+      image: 'google/imagen-4-ultra',
+      image_generation: 'google/imagen-4-ultra',
       photosession: 'google/gemini-3-pro-image-preview',
       presentation: 'Gamma AI',
       transcription: 'Whisper AI',
