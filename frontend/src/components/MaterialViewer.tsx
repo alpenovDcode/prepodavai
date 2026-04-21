@@ -433,6 +433,130 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
     }
 
 
+    const generateStyledHtmlSnapshot = () => {
+        const title = lessonTitle || generationType || 'Result'
+        
+        // 1. Get the content
+        let contentHtml = ''
+        if (isHtmlResult && content) {
+            contentHtml = content
+        } else if (contentRef.current) {
+            // Clone the element to avoid mutating the live DOM
+            const clone = contentRef.current.cloneNode(true) as HTMLElement
+            
+            // 2. Fix inputs, textareas, selects
+            const originalInputs = contentRef.current.querySelectorAll('input, textarea, select')
+            const clonedInputs = clone.querySelectorAll('input, textarea, select')
+            
+            originalInputs.forEach((input: any, index) => {
+                const clonedInput = clonedInputs[index] as any
+                if (clonedInput) {
+                    if (input.tagName === 'SELECT') {
+                         const selectedIndex = input.selectedIndex;
+                         if (clonedInput.options[selectedIndex]) {
+                             clonedInput.options[selectedIndex].setAttribute('selected', 'selected');
+                         }
+                    } else if (input.tagName === 'TEXTAREA') {
+                        clonedInput.innerHTML = input.value;
+                    } else {
+                        clonedInput.setAttribute('value', input.value);
+                    }
+                }
+            })
+            
+            contentHtml = clone.innerHTML
+        } else {
+            contentHtml = content || ''
+        }
+        
+        // 3. Absolute URLs transformation & MathJax handling
+        const parser = new DOMParser()
+        const doc = parser.parseFromString(contentHtml, 'text/html')
+        
+        const makeAbsolute = (attr: string) => {
+            doc.querySelectorAll(`[${attr}]`).forEach(el => {
+                const val = el.getAttribute(attr)
+                if (val && !val.startsWith('http') && !val.startsWith('data:') && !val.startsWith('//')) {
+                    try {
+                        const absolute = new URL(val, window.location.origin).href
+                        el.setAttribute(attr, absolute)
+                    } catch (e) {
+                        console.error('Failed to make URL absolute:', val, e)
+                    }
+                }
+            })
+        }
+        
+        makeAbsolute('src')
+        makeAbsolute('href')
+        
+        // 4. Collect styles
+        let styles = ''
+        
+        // Add base IFRAME_STYLES for consistency
+        styles += IFRAME_STYLES;
+        
+        // Collect <style> tags from the main document (including Tailwind)
+        document.querySelectorAll('style').forEach(style => {
+            // We only want global styles, not specific component styles if possible
+            // but for simplicity and correctness, we take all
+            styles += style.outerHTML
+        })
+        
+        // Collect <link rel="stylesheet"> tags
+        document.querySelectorAll('link[rel="stylesheet"]').forEach(link => {
+            styles += link.outerHTML
+        })
+        
+        // 5. Wrap in full document
+        const bodyContent = doc.body.innerHTML
+        const alreadyHasHtml = /<html/i.test(bodyContent)
+        
+        if (alreadyHasHtml) {
+            // If it's already a full document, inject styles into head
+            let final = bodyContent
+            if (/<head[^>]*>/i.test(final)) {
+                final = final.replace(/<head([^>]*)>/i, `<head$1>${styles}`)
+            } else {
+                final = final.replace(/<html([^>]*)>/i, `<html$1><head>${styles}</head>`)
+            }
+            return final
+        }
+
+        return `<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <title>${title}</title>
+    ${styles}
+    ${MATHJAX_SCRIPT}
+    <style>
+        body { 
+            background: white !important; 
+            color: black !important;
+            margin: 0 !important;
+            padding: 40px !important;
+            print-color-adjust: exact;
+            -webkit-print-color-adjust: exact;
+        }
+        .container, .max-w-4xl, .worksheet-content { 
+            max-width: 100% !important; 
+            margin: 0 !important; 
+            width: 100% !important;
+        }
+        @media print {
+            body { padding: 20px !important; }
+        }
+    </style>
+</head>
+<body>
+    <div class="worksheet-content formatted-content prose result-content">
+        ${bodyContent}
+    </div>
+</body>
+</html>`
+    }
+
     const handleDownload = async () => {
         // --- Презентация ---
         if (generationType === 'presentation') {
@@ -469,14 +593,12 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
             return
         }
 
-        if (!content) return
+        if (!content && !contentRef.current) return
 
         setIsDownloading(true)
         try {
             const title = lessonTitle || generationType.replace(/[^a-zA-Zа-яА-Я0-9]/g, '_') || 'result'
-            const htmlToExport = isHtmlResult
-                ? content
-                : `<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8"><title>${title}</title><style>body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;line-height:1.6;padding:40px;max-width:800px;margin:0 auto;}</style></head><body>${contentRef.current?.innerHTML || `<p>${content.replace(/\n/g, '<br>')}</p>`}</body></html>`
+            const htmlToExport = generateStyledHtmlSnapshot()
             await downloadPdf(htmlToExport, `${title}.pdf`)
         } catch (error) {
             console.error('Failed to generate PDF:', error)

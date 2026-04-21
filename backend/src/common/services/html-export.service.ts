@@ -97,7 +97,6 @@ export class HtmlExportService implements OnModuleDestroy {
 
   private prepareHtml(html: string): string {
     // 1. Ensure we have a full document structure if it's just a fragment.
-    //    This ensures that the postprocessor has <body> tags to find insertion points for branding.
     let fullHtml = html;
     const hasHtmlTag = /<html/i.test(html);
     const hasBodyTag = /<body/i.test(html);
@@ -112,7 +111,7 @@ export class HtmlExportService implements OnModuleDestroy {
 ${DesignSystemConfig.STYLES}
 </head>
 <body>
-<div class="container">
+<div class="container worksheet-content formatted-content">
 ${bodyContent}
 </div>
 </body>
@@ -120,7 +119,6 @@ ${bodyContent}
     }
 
     // 2. Run through common post-processing (branding normalization, logo replacement, MathJax, cleanup)
-    //    We run it on the FULL document to guarantee branding blocks are injected correctly.
     let processed = this.htmlPostprocessor.process(fullHtml);
 
     // 3. Remove Google Fonts @import — external CDN not available in Docker environment
@@ -134,10 +132,10 @@ ${bodyContent}
     processed = processed.replace(/@media\s+print\b/gi, '@media not all');
 
     // 5. Inject CSS that forces color/background rendering before </head>
-    if (/<\/head>/i.test(processed)) {
-      processed = processed.replace(/<\/head>/i, `${PDF_FORCE_STYLES}\n</head>`);
+    if (processed.includes('</head>')) {
+      processed = processed.replace('</head>', `${PDF_FORCE_STYLES}\n</head>`);
     } else {
-      processed = PDF_FORCE_STYLES + processed;
+      processed = `<head>${PDF_FORCE_STYLES}</head>${processed}`;
     }
 
     // 6. Final safety check for MathJax
@@ -149,9 +147,7 @@ ${bodyContent}
 
   async htmlToPdf(html: string): Promise<Buffer> {
     console.log(`[HtmlExport] Starting PDF generation, HTML length: ${html.length}`);
-    // Log first 300 chars to debug CSS presence
-    console.log(`[HtmlExport] HTML preview: ${html.slice(0, 300).replace(/\n/g, ' ')}`);
-
+    
     let browser: Browser;
     let page: Page;
 
@@ -168,7 +164,7 @@ ${bodyContent}
       const hasMathJax = /<script[^>]+src=["'][^"']*mathjax[^"']*["']/i.test(processedHtml);
 
       // A4 at 96 DPI = 794px wide — prevents content overflow/clipping
-      await page.setViewportSize({ width: 794, height: 1123 });
+      await page.setViewportSize({ width: 850, height: 1100 });
 
       // Use screen media to avoid any additional print-mode overrides
       await page.emulateMedia({ media: 'screen' });
@@ -226,39 +222,47 @@ ${bodyContent}
             img.height = h;
             img.style.cssText = 'display:block;max-width:100%;';
             svg.parentNode?.replaceChild(img, svg);
-          } else {
-            // fallback: at least set explicit dimensions so height doesn't collapse
-            if (!svg.hasAttribute('width'))  svg.setAttribute('width',  String(w));
-            if (!svg.hasAttribute('height')) svg.setAttribute('height', String(h));
-            svg.style.display  = 'block';
-            svg.style.overflow = 'visible';
           }
         }
 
-        // 2. input[type="text"] → underline span or bordered div
-        document.querySelectorAll<HTMLInputElement>('input[type="text"]').forEach((inp) => {
+        // 2. input[type="text"] → contentful span or bordered div
+        document.querySelectorAll<HTMLInputElement>('input[type="text"], input[type="number"], input[type="email"]').forEach((inp) => {
+          const val = inp.value || inp.getAttribute('value') || '';
           if (inp.classList.contains('inline-input')) {
             const span = document.createElement('span');
-            span.style.cssText = 'display:inline-block;min-width:120px;height:1.3em;border-bottom:1.5px solid #374151;vertical-align:bottom;margin:0 2px;';
+            span.className = 'pdf-inline-input';
+            span.textContent = val;
+            span.style.cssText = 'display:inline-block;min-width:120px;min-height:1.3em;border-bottom:1.5px solid #374151;vertical-align:bottom;margin:0 2px;padding:0 5px;';
             inp.parentNode?.replaceChild(span, inp);
           } else {
             const div = document.createElement('div');
-            div.style.cssText = `display:block;width:100%;height:${Math.max(inp.offsetHeight || 0, 32)}px;border:1px solid #d1d5db;border-radius:6px;background:#fff;box-sizing:border-box;margin:4px 0;`;
+            div.className = 'pdf-input-box';
+            div.textContent = val;
+            div.style.cssText = `display:flex;align-items:center;width:100%;min-height:${Math.max(inp.offsetHeight || 0, 32)}px;border:1px solid #d1d5db;border-radius:6px;background:#fff;box-sizing:border-box;margin:4px 0;padding:4px 12px;color:#111827;`;
             inp.parentNode?.replaceChild(div, inp);
           }
         });
 
-        // 3. textarea → bordered div (preserves visual height)
+        // 3. textarea → bordered div (preserves visual height and value)
         document.querySelectorAll<HTMLTextAreaElement>('textarea').forEach((ta) => {
+          const val = ta.value || ta.innerHTML || '';
           const div = document.createElement('div');
-          div.style.cssText = `display:block;width:100%;height:${Math.max(ta.offsetHeight || 0, 100)}px;border:1px solid #d1d5db;border-radius:6px;background:#fff;box-sizing:border-box;margin:4px 0;`;
+          div.className = 'pdf-textarea-box';
+          div.textContent = val;
+          div.style.cssText = `display:block;width:100%;min-height:${Math.max(ta.offsetHeight || 0, 80)}px;border:1px solid #d1d5db;border-radius:6px;background:#fff;box-sizing:border-box;margin:4px 0;padding:8px 12px;color:#111827;white-space:pre-wrap;`;
           ta.parentNode?.replaceChild(div, ta);
         });
 
         // 4. radio → drawn circle (PDF AcroForm radios are invisible)
         document.querySelectorAll<HTMLInputElement>('input[type="radio"]').forEach((r) => {
+          const isChecked = r.checked || r.hasAttribute('checked');
           const span = document.createElement('span');
-          span.style.cssText = 'display:inline-block;width:15px;height:15px;border:2px solid #6b7280;border-radius:50%;background:#fff;vertical-align:middle;flex-shrink:0;';
+          span.style.cssText = `display:inline-block;width:16px;height:16px;border:2px solid #6b7280;border-radius:50%;background:#fff;vertical-align:middle;flex-shrink:0;position:relative;margin-right:8px;`;
+          if (isChecked) {
+            const dot = document.createElement('span');
+            dot.style.cssText = 'position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:8px;height:8px;background:#3b82f6;border-radius:50%;';
+            span.appendChild(dot);
+          }
           r.parentNode?.replaceChild(span, r);
         });
       });
