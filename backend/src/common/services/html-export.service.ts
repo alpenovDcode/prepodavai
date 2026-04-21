@@ -176,17 +176,59 @@ ${bodyContent}
       // networkidle ensures CDN scripts (MathJax, fonts) finish loading before PDF
       await page.setContent(processedHtml, { waitUntil: 'networkidle', timeout: 60000 });
 
-      // Fix SVG elements that have viewBox but no explicit width/height:
-      // without this, Playwright collapses their height to 0 in PDF output.
+      // Pre-PDF DOM fixes: replace form elements with styled divs (PDF renderer
+      // treats <input>/<textarea> as invisible AcroForm fields) and fix SVG dimensions.
       await page.evaluate(() => {
+        // ── 1. SVGs: set explicit width/height from viewBox so height doesn't collapse ──
         document.querySelectorAll<SVGSVGElement>('svg').forEach((svg) => {
-          if (!svg.hasAttribute('width') && !svg.hasAttribute('height')) {
-            const vb = svg.viewBox?.baseVal;
-            if (vb && vb.width > 0 && vb.height > 0) {
-              svg.setAttribute('width', String(vb.width));
-              svg.setAttribute('height', String(vb.height));
-            }
+          const vb = svg.viewBox?.baseVal;
+          if (vb && vb.width > 0 && vb.height > 0) {
+            if (!svg.hasAttribute('width'))  svg.setAttribute('width',  String(Math.round(vb.width)));
+            if (!svg.hasAttribute('height')) svg.setAttribute('height', String(Math.round(vb.height)));
           }
+          svg.style.display   = 'block';
+          svg.style.overflow  = 'visible';
+          svg.style.maxWidth  = '100%';
+        });
+
+        // ── 2. input[type="text"] → styled div/span ──
+        document.querySelectorAll<HTMLInputElement>('input[type="text"]').forEach((input) => {
+          const isInline = input.classList.contains('inline-input');
+          if (isInline) {
+            const span = document.createElement('span');
+            span.style.cssText =
+              'display:inline-block;min-width:120px;height:1.3em;' +
+              'border-bottom:1.5px solid #374151;vertical-align:bottom;margin:0 2px;';
+            input.parentNode?.replaceChild(span, input);
+          } else {
+            const div = document.createElement('div');
+            const h = Math.max(input.offsetHeight || 0, 32);
+            div.style.cssText =
+              `display:block;width:100%;height:${h}px;` +
+              'border:1px solid #d1d5db;border-radius:6px;background:#fff;' +
+              'box-sizing:border-box;margin:4px 0;';
+            input.parentNode?.replaceChild(div, input);
+          }
+        });
+
+        // ── 3. textarea → styled div ──
+        document.querySelectorAll<HTMLTextAreaElement>('textarea').forEach((textarea) => {
+          const div = document.createElement('div');
+          const h = Math.max(textarea.offsetHeight || 0, 100);
+          div.style.cssText =
+            `display:block;width:100%;height:${h}px;` +
+            'border:1px solid #d1d5db;border-radius:6px;background:#fff;' +
+            'box-sizing:border-box;margin:4px 0;';
+          textarea.parentNode?.replaceChild(div, textarea);
+        });
+
+        // ── 4. input[type="radio"] → visual circle span ──
+        document.querySelectorAll<HTMLInputElement>('input[type="radio"]').forEach((radio) => {
+          const span = document.createElement('span');
+          span.style.cssText =
+            'display:inline-block;width:15px;height:15px;border:2px solid #6b7280;' +
+            'border-radius:50%;background:#fff;vertical-align:middle;flex-shrink:0;';
+          radio.parentNode?.replaceChild(span, radio);
         });
       });
 
