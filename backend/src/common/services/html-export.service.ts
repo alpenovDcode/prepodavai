@@ -11,62 +11,61 @@ import { HtmlPostprocessorService } from './html-postprocessor.service';
  * backgrounds even when printBackground:true is set. This overrides it.
  */
 const PDF_FORCE_STYLES = `<style>
-  /* Force backgrounds and colors to render in PDF */
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
   *, *::before, *::after {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
     color-adjust: exact !important;
+    box-sizing: border-box;
   }
 
-  /* SVG: prevent height collapse when only viewBox is set, no explicit width/height */
+  body {
+    background: white !important;
+    color: #111827 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .worksheet-content {
+    background: white !important;
+    padding: 40px !important;
+    min-height: 100vh;
+  }
+
+  /* Force background colors for Tailwind utilities */
+  .bg-gray-50 { background-color: #f9fafb !important; }
+  .bg-blue-50 { background-color: #eff6ff !important; }
+  .border-blue-100 { border-color: #dbeafe !important; }
+
   svg {
     display: block;
     overflow: visible;
   }
-  .svg-container {
-    page-break-inside: avoid;
-    break-inside: avoid;
+  .pdf-inline-input {
+    display: inline-block;
+    min-width: 80px;
+    border-bottom: 1px solid #9ca3af !important;
+    margin: 0 4px;
+    padding: 0 2px;
   }
-  .svg-container svg {
-    max-width: 100% !important;
-    height: auto !important;
+  
+  .pdf-input-box {
+    background-color: white !important;
+    border: 1px solid #d1d5db !important;
+    border-radius: 0.375rem !important;
+    padding: 8px 12px !important;
+    margin: 8px 0 !important;
+    min-height: 40px !important;
+    display: flex;
+    align-items: center;
   }
 
-  /* Input/textarea: make form fields visually present in PDF */
-  input[type="text"],
-  input[type="number"],
-  input[type="email"] {
-    -webkit-appearance: none !important;
-    appearance: none !important;
-    border: 1px solid #9ca3af !important;
-    background-color: #ffffff !important;
-    min-height: 28px !important;
-    display: inline-block !important;
-    color: #111827 !important;
-  }
-  .inline-input {
-    border: none !important;
-    border-bottom: 1.5px solid #374151 !important;
-    background: transparent !important;
-    min-width: 80px !important;
-    display: inline-block !important;
-  }
-  textarea {
-    -webkit-appearance: none !important;
-    appearance: none !important;
-    border: 1px solid #9ca3af !important;
-    background-color: #ffffff !important;
-    color: #111827 !important;
-    display: block !important;
-    min-height: 60px !important;
-  }
-  input[type="radio"],
-  input[type="checkbox"] {
-    -webkit-appearance: auto !important;
-    appearance: auto !important;
-    display: inline-block !important;
-    width: 16px !important;
-    height: 16px !important;
+  @page {
+    size: A4;
+    margin: 0;
   }
 </style>`;
 

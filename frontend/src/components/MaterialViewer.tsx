@@ -510,34 +510,63 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
             }
         })
         
-        // 5. Wrap in full document
-        const bodyContent = doc.body.innerHTML
-        const alreadyHasHtml = /<html/i.test(bodyContent)
-        
-        if (alreadyHasHtml) {
-            // If it's already a full document, inject styles into head
-            let final = bodyContent
-            if (/<head[^>]*>/i.test(final)) {
-                final = final.replace(/<head([^>]*)>/i, `<head$1>${styles}`)
-            } else {
-                final = final.replace(/<html([^>]*)>/i, `<html$1><head>${styles}</head>`)
-            }
-            return final
+        const cleaner = (html: string) => {
+            let p = html;
+            // Remove manual headers/footers from AI
+            p = p.replace(/<div\b[^>]*\bclass="[^"]*\bheader\b[^"]*"[^>]*>[\s\S]*?<\/div>/gi, '');
+            p = p.replace(/<div\b[^>]*\bclass="[^"]*\bfooter-logo\b[^"]*"[^>]*>[\s\S]*?<\/div>/gi, '');
+            // Neutralize logo placeholders (we can add a clean one later if needed, but 1-to-1 implies keeping what's in UI)
+            p = p.replace(/LOGO_PLACEHOLDER/g, ''); 
+            return p;
         }
 
-        const pdfHeader = `
-            <div style="display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid #f3f4f6;">
-                <div>
-                    <h1 style="font-size: 22px; font-weight: 700; margin: 0; color: #111827; line-height: 1.1;">${lessonTitle || 'Материал'}</h1>
-                    <p style="font-size: 13px; color: #6b7280; margin: 4px 0 0 0; text-transform: uppercase; letter-spacing: 0.025em; font-weight: 500;">
-                        ${getGenerationTypeLabel(generationType)}
-                    </p>
-                </div>
-                <div style="display: flex; align-items: center; gap: 8px;">
-                    <div style="width: 24px; height: 24px; background: #FF7E58; border-radius: 6px; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 14px;">П</div>
-                    <span style="font-size: 14px; font-weight: 600; color: #374151;">Преподавай</span>
-                </div>
-            </div>
+        // 5. Build final document
+        const bodyContent = cleaner(doc.body.innerHTML)
+        
+        // Final styles for perfect 1-to-1 match
+        const highFidelityStyles = `
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        
+        * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+        
+        body { 
+            background: white !important; 
+            color: #111827 !important;
+            margin: 0 !important;
+            padding: 40px !important;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+            line-height: 1.5;
+        }
+        
+        .worksheet-content { 
+            max-width: 100% !important; 
+            margin: 0 !important; 
+            width: 100% !important;
+        }
+
+        /* 1-to-1 emulation of the UI blocks */
+        .bg-gray-50 { background-color: #f9fafb !important; }
+        .bg-blue-50 { background-color: #eff6ff !important; }
+        .border-blue-100 { border-color: #dbeafe !important; }
+        .rounded-3xl { border-radius: 1.5rem !important; }
+        .rounded-2xl { border-radius: 1rem !important; }
+        .p-6 { padding: 1.5rem !important; }
+        
+        table { border-collapse: collapse; width: 100%; margin: 16px 0; }
+        th, td { border: 1px solid #e5e7eb; padding: 12px; text-align: left; }
+        th { background-color: #f9fafb; font-weight: 600; }
+        
+        h1 { font-size: 24px; font-weight: 700; margin-bottom: 20px; }
+        h2 { font-size: 20px; font-weight: 600; margin-top: 24px; margin-bottom: 12px; }
+        
+        @media print {
+            body { padding: 0 !important; }
+        }
+    </style>
         `
 
         return `<!DOCTYPE html>
@@ -546,36 +575,10 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
     <meta charset="utf-8">
     <title>${title}</title>
     ${styles}
+    ${highFidelityStyles}
     ${MATHJAX_SCRIPT}
-    <style>
-        body { 
-            background: white !important; 
-            color: black !important;
-            margin: 0 !important;
-            padding: 30px !important;
-            print-color-adjust: exact;
-            -webkit-print-color-adjust: exact;
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-        }
-        .worksheet-content { 
-            max-width: 100% !important; 
-            margin: 0 !important; 
-            width: 100% !important;
-        }
-        /* Улучшение читаемости таблиц в PDF */
-        table { border-collapse: collapse; width: 100%; margin: 16px 0; page-break-inside: auto; }
-        tr { page-break-inside: avoid; page-break-after: auto; }
-        th, td { border: 1px solid #e5e7eb; padding: 10px; text-align: left; }
-        th { background-color: #f9fafb; font-weight: 600; }
-        
-        @media print {
-            body { padding: 0 !important; }
-            .no-print { display: none !important; }
-        }
-    </style>
 </head>
 <body>
-    ${pdfHeader}
     <div class="worksheet-content formatted-content result-content prose max-w-none">
         ${bodyContent}
     </div>
