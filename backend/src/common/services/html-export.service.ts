@@ -176,59 +176,90 @@ ${bodyContent}
       // networkidle ensures CDN scripts (MathJax, fonts) finish loading before PDF
       await page.setContent(processedHtml, { waitUntil: 'networkidle', timeout: 60000 });
 
-      // Pre-PDF DOM fixes: replace form elements with styled divs (PDF renderer
-      // treats <input>/<textarea> as invisible AcroForm fields) and fix SVG dimensions.
-      await page.evaluate(() => {
-        // ── 1. SVGs: set explicit width/height from viewBox so height doesn't collapse ──
-        document.querySelectorAll<SVGSVGElement>('svg').forEach((svg) => {
+      // Pre-PDF DOM transformation:
+      //   SVGs  → PNG via canvas (guarantees rendering; page.pdf() drops SVGs inconsistently)
+      //   inputs/textareas → styled divs (PDF treats form fields as invisible AcroForm objects)
+      await page.evaluate(async () => {
+        // ── helpers ──────────────────────────────────────────────────────────────
+        function svgDims(svg: SVGSVGElement): { w: number; h: number } {
           const vb = svg.viewBox?.baseVal;
-          if (vb && vb.width > 0 && vb.height > 0) {
-            if (!svg.hasAttribute('width'))  svg.setAttribute('width',  String(Math.round(vb.width)));
-            if (!svg.hasAttribute('height')) svg.setAttribute('height', String(Math.round(vb.height)));
-          }
-          svg.style.display   = 'block';
-          svg.style.overflow  = 'visible';
-          svg.style.maxWidth  = '100%';
-        });
+          const rc = svg.getBoundingClientRect();
+          const w = Math.round((vb && vb.width  > 0 ? vb.width  : rc.width)  || 400);
+          const h = Math.round((vb && vb.height > 0 ? vb.height : rc.height) || 200);
+          return { w, h };
+        }
 
-        // ── 2. input[type="text"] → styled div/span ──
-        document.querySelectorAll<HTMLInputElement>('input[type="text"]').forEach((input) => {
-          const isInline = input.classList.contains('inline-input');
-          if (isInline) {
+        async function svgToPng(svg: SVGSVGElement): Promise<string | null> {
+          try {
+            svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+            const svgStr = new XMLSerializer().serializeToString(svg);
+            const { w, h } = svgDims(svg);
+
+            const canvas = document.createElement('canvas');
+            canvas.width  = w;
+            canvas.height = h;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) return null;
+
+            await new Promise<void>((res) => {
+              const img = new Image();
+              img.onload  = () => { ctx.drawImage(img, 0, 0, w, h); res(); };
+              img.onerror = () => res();
+              img.src = `data:image/svg+xml,${encodeURIComponent(svgStr)}`;
+            });
+
+            return canvas.toDataURL('image/png');
+          } catch {
+            return null;
+          }
+        }
+        // ─────────────────────────────────────────────────────────────────────────
+
+        // 1. SVG → <img src="data:image/png;base64,…">
+        for (const svg of Array.from(document.querySelectorAll<SVGSVGElement>('svg'))) {
+          const { w, h } = svgDims(svg);
+          const png = await svgToPng(svg);
+          if (png) {
+            const img = document.createElement('img');
+            img.src = png;
+            img.width  = w;
+            img.height = h;
+            img.style.cssText = 'display:block;max-width:100%;';
+            svg.parentNode?.replaceChild(img, svg);
+          } else {
+            // fallback: at least set explicit dimensions so height doesn't collapse
+            if (!svg.hasAttribute('width'))  svg.setAttribute('width',  String(w));
+            if (!svg.hasAttribute('height')) svg.setAttribute('height', String(h));
+            svg.style.display  = 'block';
+            svg.style.overflow = 'visible';
+          }
+        }
+
+        // 2. input[type="text"] → underline span or bordered div
+        document.querySelectorAll<HTMLInputElement>('input[type="text"]').forEach((inp) => {
+          if (inp.classList.contains('inline-input')) {
             const span = document.createElement('span');
-            span.style.cssText =
-              'display:inline-block;min-width:120px;height:1.3em;' +
-              'border-bottom:1.5px solid #374151;vertical-align:bottom;margin:0 2px;';
-            input.parentNode?.replaceChild(span, input);
+            span.style.cssText = 'display:inline-block;min-width:120px;height:1.3em;border-bottom:1.5px solid #374151;vertical-align:bottom;margin:0 2px;';
+            inp.parentNode?.replaceChild(span, inp);
           } else {
             const div = document.createElement('div');
-            const h = Math.max(input.offsetHeight || 0, 32);
-            div.style.cssText =
-              `display:block;width:100%;height:${h}px;` +
-              'border:1px solid #d1d5db;border-radius:6px;background:#fff;' +
-              'box-sizing:border-box;margin:4px 0;';
-            input.parentNode?.replaceChild(div, input);
+            div.style.cssText = `display:block;width:100%;height:${Math.max(inp.offsetHeight || 0, 32)}px;border:1px solid #d1d5db;border-radius:6px;background:#fff;box-sizing:border-box;margin:4px 0;`;
+            inp.parentNode?.replaceChild(div, inp);
           }
         });
 
-        // ── 3. textarea → styled div ──
-        document.querySelectorAll<HTMLTextAreaElement>('textarea').forEach((textarea) => {
+        // 3. textarea → bordered div (preserves visual height)
+        document.querySelectorAll<HTMLTextAreaElement>('textarea').forEach((ta) => {
           const div = document.createElement('div');
-          const h = Math.max(textarea.offsetHeight || 0, 100);
-          div.style.cssText =
-            `display:block;width:100%;height:${h}px;` +
-            'border:1px solid #d1d5db;border-radius:6px;background:#fff;' +
-            'box-sizing:border-box;margin:4px 0;';
-          textarea.parentNode?.replaceChild(div, textarea);
+          div.style.cssText = `display:block;width:100%;height:${Math.max(ta.offsetHeight || 0, 100)}px;border:1px solid #d1d5db;border-radius:6px;background:#fff;box-sizing:border-box;margin:4px 0;`;
+          ta.parentNode?.replaceChild(div, ta);
         });
 
-        // ── 4. input[type="radio"] → visual circle span ──
-        document.querySelectorAll<HTMLInputElement>('input[type="radio"]').forEach((radio) => {
+        // 4. radio → drawn circle (PDF AcroForm radios are invisible)
+        document.querySelectorAll<HTMLInputElement>('input[type="radio"]').forEach((r) => {
           const span = document.createElement('span');
-          span.style.cssText =
-            'display:inline-block;width:15px;height:15px;border:2px solid #6b7280;' +
-            'border-radius:50%;background:#fff;vertical-align:middle;flex-shrink:0;';
-          radio.parentNode?.replaceChild(span, radio);
+          span.style.cssText = 'display:inline-block;width:15px;height:15px;border:2px solid #6b7280;border-radius:50%;background:#fff;vertical-align:middle;flex-shrink:0;';
+          r.parentNode?.replaceChild(span, r);
         });
       });
 
