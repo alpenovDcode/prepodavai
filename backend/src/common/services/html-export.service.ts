@@ -141,7 +141,7 @@ ${bodyContent}
     }
 
     // 2. Run through common post-processing (branding normalization, logo replacement, MathJax, cleanup)
-    let processed = this.htmlPostprocessor.process(fullHtml);
+    let processed = this.htmlPostprocessor.process(fullHtml, options);
 
     // 3. Remove Google Fonts @import — external CDN not available in Docker environment
     processed = processed.replace(
