@@ -535,7 +535,7 @@ export class GenerationsService {
     try {
       // Генерация фотосессии через Replicate (flux-2-pro)
       if (generationType === 'photosession') {
-        const facePreservation = 'CRITICAL REQUIREMENT: Preserve the exact face of the person from the reference photo — identical facial features, skin tone, eye color, hair color and style, face shape, and overall identity must remain unchanged. Do not alter or replace the face under any circumstances. Face identity preservation is the highest priority.'
+        const facePreservation = 'CRITICAL REQUIREMENT: Preserve the exact face and body of the person from the reference photo — identical facial features, skin tone, eye color, hair color and style, face shape, body proportions, height, and overall identity must remain unchanged. Do not alter or replace the face, body shape, or proportions under any circumstances. Face and body identity preservation is the highest priority.'
         const promptText = `${inputParams.prompt} ${facePreservation}`
         const photoHash = inputParams.photoHash;
         if (!photoHash) {
