@@ -647,8 +647,21 @@ export class GenerationsService {
         };
         const aspectRatio = sizeToAspectRatio[inputParams.size] || '1:1';
 
+        const styleModifiers: Record<string, string> = {
+          realistic: 'photorealistic, hyperrealistic, sharp details, 8K photography',
+          cartoon: 'cartoon style, vibrant colors, clean lines, animated illustration',
+          sketch: 'pencil sketch, hand-drawn, black and white, fine lines, artistic drawing',
+          illustration: 'digital illustration, flat design, colorful, vector art style',
+          '3d-model': '3D render, CGI, octane render, studio lighting, highly detailed 3D model',
+          anime: 'anime style, manga art, cel shading, japanese animation',
+        };
+        const styleSuffix = styleModifiers[inputParams.style] || '';
+        const finalPrompt = styleSuffix
+          ? `${inputParams.prompt}. Style: ${styleSuffix}`
+          : inputParams.prompt;
+
         const input: any = {
-          prompt: inputParams.prompt,
+          prompt: finalPrompt,
           aspect_ratio: aspectRatio,
           size: '2K',
           output_format: 'png',
