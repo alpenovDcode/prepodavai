@@ -473,7 +473,7 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
         const parser = new DOMParser()
         const doc = parser.parseFromString(contentHtml, 'text/html')
         
-        const makeAbsolute = (attr: string) => {
+        const makeAbsolute = (attr: string, baseDoc: Document = document) => {
             doc.querySelectorAll(`[${attr}]`).forEach(el => {
                 const val = el.getAttribute(attr)
                 if (val && !val.startsWith('http') && !val.startsWith('data:') && !val.startsWith('//')) {
@@ -498,14 +498,16 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
         
         // Collect <style> tags from the main document (including Tailwind)
         document.querySelectorAll('style').forEach(style => {
-            // We only want global styles, not specific component styles if possible
-            // but for simplicity and correctness, we take all
             styles += style.outerHTML
         })
         
-        // Collect <link rel="stylesheet"> tags
+        // Collect <link rel="stylesheet"> tags and make their href absolute
         document.querySelectorAll('link[rel="stylesheet"]').forEach(link => {
-            styles += link.outerHTML
+            const relHref = link.getAttribute('href')
+            if (relHref) {
+                const absHref = new URL(relHref, window.location.origin).href
+                styles += `<link rel="stylesheet" href="${absHref}">`
+            }
         })
         
         // 5. Wrap in full document
@@ -523,6 +525,18 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
             return final
         }
 
+        const pdfHeader = `
+            <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #e5e7eb;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <div style="width: 32px; height: 32px; background: #FF7E58; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 18px;">П</div>
+                    <div>
+                        <h1 style="font-size: 18px; font-weight: 700; margin: 0; color: #111827; line-height: 1.2;">${lessonTitle || 'Преподавай'}</h1>
+                        <p style="font-size: 13px; color: #6b7280; margin: 2px 0 0 0; text-transform: capitalize;">${getGenerationTypeLabel(generationType)}</p>
+                    </div>
+                </div>
+            </div>
+        `
+
         return `<!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -538,6 +552,7 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
             padding: 40px !important;
             print-color-adjust: exact;
             -webkit-print-color-adjust: exact;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
         }
         .container, .max-w-4xl, .worksheet-content { 
             max-width: 100% !important; 
@@ -547,10 +562,13 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
         @media print {
             body { padding: 20px !important; }
         }
+        /* Ensure Tailwind-like resets are present if they were missed */
+        img { max-width: 100%; height: auto; }
     </style>
 </head>
 <body>
-    <div class="worksheet-content formatted-content prose result-content">
+    ${pdfHeader}
+    <div class="worksheet-content formatted-content result-content prose">
         ${bodyContent}
     </div>
 </body>
@@ -599,7 +617,7 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
         try {
             const title = lessonTitle || generationType.replace(/[^a-zA-Zа-яА-Я0-9]/g, '_') || 'result'
             const htmlToExport = generateStyledHtmlSnapshot()
-            await downloadPdf(htmlToExport, `${title}.pdf`)
+            await downloadPdf(htmlToExport, `${title}.pdf`, { isWysiwyg: true })
         } catch (error) {
             console.error('Failed to generate PDF:', error)
             alert('Ошибка при генерации PDF. Попробуйте снова.')

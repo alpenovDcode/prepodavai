@@ -95,7 +95,27 @@ export class HtmlExportService implements OnModuleDestroy {
     return this.browserPromise;
   }
 
-  private prepareHtml(html: string): string {
+  private prepareHtml(html: string, options?: { isWysiwyg?: boolean }): string {
+    // 1. If Wysiwyg mode is enabled, we trust the frontend's HTML entirely.
+    //    We skip branding normalization and design system styles.
+    if (options?.isWysiwyg) {
+      let processed = html;
+      
+      // Neutralize @media print blocks to ensure screen styles are used.
+      processed = processed.replace(/@media\s+print\b/gi, '@media not all');
+
+      // Inject only the critical technical PDF overrides
+      if (processed.includes('</head>')) {
+        processed = processed.replace('</head>', `${PDF_FORCE_STYLES}\n</head>`);
+      } else if (processed.includes('<html')) {
+        processed = processed.replace(/<html([^>]*)>/i, `<html$1><head>${PDF_FORCE_STYLES}</head>`);
+      } else {
+        processed = `<head>${PDF_FORCE_STYLES}</head>${processed}`;
+      }
+      
+      return processed;
+    }
+
     // 1. Ensure we have a full document structure if it's just a fragment.
     let fullHtml = html;
     const hasHtmlTag = /<html/i.test(html);
@@ -145,8 +165,8 @@ ${bodyContent}
   }
 
 
-  async htmlToPdf(html: string): Promise<Buffer> {
-    console.log(`[HtmlExport] Starting PDF generation, HTML length: ${html.length}`);
+  async htmlToPdf(html: string, options?: { isWysiwyg?: boolean }): Promise<Buffer> {
+    console.log(`[HtmlExport] Starting PDF generation (isWysiwyg: ${!!options?.isWysiwyg}), HTML length: ${html.length}`);
     
     let browser: Browser;
     let page: Page;
@@ -160,7 +180,7 @@ ${bodyContent}
     }
 
     try {
-      const processedHtml = this.prepareHtml(html);
+      const processedHtml = this.prepareHtml(html, options);
       const hasMathJax = /<script[^>]+src=["'][^"']*mathjax[^"']*["']/i.test(processedHtml);
 
       // A4 at 96 DPI = 794px wide — prevents content overflow/clipping

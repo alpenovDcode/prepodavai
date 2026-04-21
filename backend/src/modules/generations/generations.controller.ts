@@ -210,11 +210,11 @@ export class GenerationsController {
   @UseGuards(JwtAuthGuard)
   @Header('Content-Type', 'application/pdf')
   @Header('Content-Disposition', 'attachment; filename="document.pdf"')
-  async exportToPdf(@Body() body: { html: string }): Promise<StreamableFile> {
+  async exportToPdf(@Body() body: { html: string; isWysiwyg?: boolean }): Promise<StreamableFile> {
     if (!body?.html || typeof body.html !== 'string') {
       throw new BadRequestException('html is required');
     }
-    const pdfBuffer = await this.htmlExportService.htmlToPdf(body.html);
+    const pdfBuffer = await this.htmlExportService.htmlToPdf(body.html, { isWysiwyg: body.isWysiwyg });
     return new StreamableFile(pdfBuffer);
   }
 
