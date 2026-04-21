@@ -112,6 +112,9 @@ export class HtmlExportService implements OnModuleDestroy {
       } else {
         processed = `<head>${PDF_FORCE_STYLES}</head>${processed}`;
       }
+
+      // We still need MathJax in the PDF even in Wysiwyg mode if it was present
+      processed = this.htmlPostprocessor.ensureMathJaxScript(processed);
       
       return processed;
     }

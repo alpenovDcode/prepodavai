@@ -526,13 +526,16 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
         }
 
         const pdfHeader = `
-            <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #e5e7eb;">
-                <div style="display: flex; align-items: center; gap: 12px;">
-                    <div style="width: 32px; height: 32px; background: #FF7E58; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 18px;">П</div>
-                    <div>
-                        <h1 style="font-size: 18px; font-weight: 700; margin: 0; color: #111827; line-height: 1.2;">${lessonTitle || 'Преподавай'}</h1>
-                        <p style="font-size: 13px; color: #6b7280; margin: 2px 0 0 0; text-transform: capitalize;">${getGenerationTypeLabel(generationType)}</p>
-                    </div>
+            <div style="display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid #f3f4f6;">
+                <div>
+                    <h1 style="font-size: 22px; font-weight: 700; margin: 0; color: #111827; line-height: 1.1;">${lessonTitle || 'Материал'}</h1>
+                    <p style="font-size: 13px; color: #6b7280; margin: 4px 0 0 0; text-transform: uppercase; letter-spacing: 0.025em; font-weight: 500;">
+                        ${getGenerationTypeLabel(generationType)}
+                    </p>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <div style="width: 24px; height: 24px; background: #FF7E58; border-radius: 6px; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 14px;">П</div>
+                    <span style="font-size: 14px; font-weight: 600; color: #374151;">Преподавай</span>
                 </div>
             </div>
         `
@@ -549,26 +552,31 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
             background: white !important; 
             color: black !important;
             margin: 0 !important;
-            padding: 40px !important;
+            padding: 30px !important;
             print-color-adjust: exact;
             -webkit-print-color-adjust: exact;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         }
-        .container, .max-w-4xl, .worksheet-content { 
+        .worksheet-content { 
             max-width: 100% !important; 
             margin: 0 !important; 
             width: 100% !important;
         }
+        /* Улучшение читаемости таблиц в PDF */
+        table { border-collapse: collapse; width: 100%; margin: 16px 0; page-break-inside: auto; }
+        tr { page-break-inside: avoid; page-break-after: auto; }
+        th, td { border: 1px solid #e5e7eb; padding: 10px; text-align: left; }
+        th { background-color: #f9fafb; font-weight: 600; }
+        
         @media print {
-            body { padding: 20px !important; }
+            body { padding: 0 !important; }
+            .no-print { display: none !important; }
         }
-        /* Ensure Tailwind-like resets are present if they were missed */
-        img { max-width: 100%; height: auto; }
     </style>
 </head>
 <body>
     ${pdfHeader}
-    <div class="worksheet-content formatted-content result-content prose">
+    <div class="worksheet-content formatted-content result-content prose max-w-none">
         ${bodyContent}
     </div>
 </body>

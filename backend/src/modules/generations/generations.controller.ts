@@ -22,6 +22,7 @@ import {
   UpdateGenerationDto,
   LinkToLessonDto,
 } from './dto/generation.dto';
+import { ExportPdfDto } from './dto/export-pdf.dto';
 
 @Controller('generate')
 export class GenerationsController {
@@ -210,7 +211,7 @@ export class GenerationsController {
   @UseGuards(JwtAuthGuard)
   @Header('Content-Type', 'application/pdf')
   @Header('Content-Disposition', 'attachment; filename="document.pdf"')
-  async exportToPdf(@Body() body: { html: string; isWysiwyg?: boolean }): Promise<StreamableFile> {
+  async exportToPdf(@Body() body: ExportPdfDto): Promise<StreamableFile> {
     if (!body?.html || typeof body.html !== 'string') {
       throw new BadRequestException('html is required');
     }
