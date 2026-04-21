@@ -9,42 +9,50 @@ import GenerationProgress from '@/components/workspace/GenerationProgress'
 const IMAGE_PRESETS = [
     {
         label: 'Солнечная система',
-        value: 'A stunning educational illustration of the Solar System with all 8 planets orbiting the Sun, vibrant colors, space background with stars and nebulae, clear planet labels, high detail, scientific accuracy',
+        preview: '/image-previews/solnechnaya-sistema.jpg',
+        value: 'Красочная образовательная иллюстрация Солнечной системы: все 8 планет на орбитах вокруг Солнца, яркие цвета, космический фон со звёздами и туманностями, подписи к планетам, высокая детализация, научная точность',
         style: 'illustration',
     },
     {
         label: 'Строение клетки',
-        value: 'A detailed and colorful cross-section diagram of an animal cell with labeled organelles: nucleus, mitochondria, ribosomes, endoplasmic reticulum, Golgi apparatus. Clean educational illustration style, bright colors, white background',
+        preview: '/image-previews/stroenie-kletki.jpg',
+        value: 'Детальная цветная схема животной клетки в разрезе с подписанными органеллами: ядро, митохондрии, рибосомы, эндоплазматическая сеть, аппарат Гольджи. Чистый учебный стиль иллюстрации, яркие цвета, белый фон',
         style: 'illustration',
     },
     {
         label: 'Исторический портрет',
-        value: 'A realistic portrait painting of a historical figure in Renaissance style, detailed face, period-appropriate clothing, dramatic lighting, oil painting texture, museum quality',
+        preview: '/image-previews/istoricheskiy-portret.jpg',
+        value: 'Реалистичный портрет исторической личности в стиле эпохи Возрождения, детально прорисованное лицо, одежда соответствующей эпохи, драматическое освещение, фактура масляной живописи, музейное качество',
         style: 'realistic',
     },
     {
         label: 'Карта мира',
-        value: 'A beautiful vintage-style world map with illustrated continents, mountains, oceans, compass rose, decorative borders, warm sepia tones with subtle color accents, detailed cartographic style',
+        preview: '/image-previews/karta-mira.jpg',
+        value: 'Красивая карта мира в винтажном стиле с иллюстрированными континентами, горами, океанами, розой ветров, декоративными рамками, тёплые сепиевые тона с цветовыми акцентами, детализированный картографический стиль',
         style: 'illustration',
     },
     {
         label: 'Математическая концепция',
-        value: 'A visually striking 3D geometric composition showing mathematical concepts: golden ratio spiral, Fibonacci sequence in nature, fractals, colorful and modern educational poster style, clean white background',
+        preview: '/image-previews/matematicheskaya-kontseptsiya.jpg',
+        value: 'Эффектная 3D-геометрическая композиция, отражающая математические концепции: спираль золотого сечения, последовательность Фибоначчи в природе, фракталы, яркий современный стиль учебного плаката, чистый белый фон',
         style: '3d-model',
     },
     {
         label: 'Химическая реакция',
-        value: 'A vivid scientific illustration of a chemical reaction at the molecular level, colorful atoms and molecules bonding, glowing energy effects, dark background, educational and visually dynamic',
+        preview: '/image-previews/himicheskaya-reaktsiya.jpg',
+        value: 'Яркая научная иллюстрация химической реакции на молекулярном уровне: цветные атомы и молекулы в процессе связывания, светящиеся энергетические эффекты, тёмный фон, динамичная и наглядная визуализация',
         style: 'illustration',
     },
     {
         label: 'Экосистема леса',
-        value: 'A lush detailed forest ecosystem illustration showing flora and fauna, food chain relationships, different layers (canopy, understory, forest floor), vibrant greens and earthy tones, educational nature poster',
+        preview: '/image-previews/ekosistema-lesa.jpg',
+        value: 'Подробная иллюстрация лесной экосистемы с флорой и фауной, цепочки питания, различные ярусы леса (полог, подлесок, напочвенный покров), насыщенные зелёные и земляные оттенки, учебный плакат о природе',
         style: 'illustration',
     },
     {
         label: 'Физика: световые волны',
-        value: 'A beautiful visualization of light waves and the electromagnetic spectrum, showing different wavelengths from radio waves to gamma rays, colorful gradient bands, clean scientific diagram style with glowing effects',
+        preview: '/image-previews/fizika-svetovye-volny.jpg',
+        value: 'Наглядная визуализация световых волн и электромагнитного спектра: диапазоны от радиоволн до гамма-излучения, цветные градиентные полосы, чистая научная схема со светящимися эффектами',
         style: 'illustration',
     },
 ]
@@ -276,20 +284,50 @@ export default function ImageGenerator() {
                                 />
                             </div>
                         ) : (
-                            <div className="flex flex-col items-center justify-center text-center p-6 gap-4">
-                                <div className="w-20 h-20 rounded-3xl bg-gray-100 flex items-center justify-center">
-                                    <ImageIcon className="w-10 h-10 text-gray-200" />
-                                </div>
-                                <div className="space-y-1">
-                                    <h3 className="text-lg font-bold text-gray-700">Изображение появится здесь</h3>
-                                    <p className="text-sm text-gray-400 max-w-[280px]">
-                                        Опишите вашу идею в поле слева и нажмите кнопку Сгенерировать.
-                                    </p>
+                            <div className="w-full h-full overflow-y-auto p-6">
+                                <p className="text-xs font-bold tracking-widest text-gray-400 uppercase mb-4">ПРИМЕРЫ</p>
+                                <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                                    {IMAGE_PRESETS.map((preset, idx) => (
+                                        <button
+                                            key={idx}
+                                            onClick={() => { setPrompt(preset.value); setStyle(preset.style) }}
+                                            title={preset.label}
+                                            className={`group relative rounded-xl overflow-hidden border-2 transition-all text-left ${
+                                                prompt === preset.value
+                                                    ? 'border-indigo-500 shadow-md shadow-indigo-100'
+                                                    : 'border-transparent hover:border-indigo-200'
+                                            }`}
+                                        >
+                                            <div className="aspect-square bg-gray-100 relative">
+                                                <img
+                                                    src={preset.preview}
+                                                    alt={preset.label}
+                                                    className="w-full h-full object-cover"
+                                                    onError={(e) => {
+                                                        (e.target as HTMLImageElement).style.display = 'none'
+                                                    }}
+                                                />
+                                                <div className="absolute inset-0 bg-gray-200 flex items-center justify-center -z-10">
+                                                    <ImageIcon className="w-8 h-8 text-gray-300" />
+                                                </div>
+                                                {prompt === preset.value && (
+                                                    <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-indigo-500 flex items-center justify-center">
+                                                        <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                                        </svg>
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent px-2.5 py-2">
+                                                <p className="text-white text-[11px] font-semibold leading-tight line-clamp-2">{preset.label}</p>
+                                            </div>
+                                        </button>
+                                    ))}
                                 </div>
                                 {isMobile && (
                                     <button
                                         onClick={() => setActiveTab('config')}
-                                        className="mt-2 px-6 py-2 bg-indigo-600 text-white rounded-xl font-bold text-sm shadow-md active:scale-95 transition-all"
+                                        className="mt-4 w-full px-6 py-2 bg-indigo-600 text-white rounded-xl font-bold text-sm shadow-md active:scale-95 transition-all"
                                     >
                                         К настройке
                                     </button>

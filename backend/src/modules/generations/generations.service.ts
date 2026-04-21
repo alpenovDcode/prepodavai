@@ -529,7 +529,7 @@ export class GenerationsService {
 
     let model = generationType === 'photosession'
       ? 'google/gemini-3-pro-image-preview'
-      : (requestedModel || 'google/imagen-4-ultra');
+      : (requestedModel || 'bytedance/seedream-5-lite');
     console.log(`[GenerationsService] Using model: ${model}, prompt: ${prompt}`);
 
     try {
@@ -637,22 +637,25 @@ export class GenerationsService {
         throw new BadRequestException('REPLICATE_API_TOKEN not configured');
       }
 
-      this.logger.log(`Sending image generation request to Replicate API (imagen-4-ultra)`);
+      this.logger.log(`Sending image generation request to Replicate API (seedream-5-lite)`);
 
       try {
         const sizeToAspectRatio: Record<string, string> = {
           '1024x1024': '1:1',
-          '1024x1792': '9:16',
-          '1792x1024': '16:9',
+          '1024x1792': '2:3',
+          '1792x1024': '3:2',
         };
         const aspectRatio = sizeToAspectRatio[inputParams.size] || '1:1';
 
         const input: any = {
           prompt: inputParams.prompt,
           aspect_ratio: aspectRatio,
-          image_size: '1K',
-          output_format: 'jpg',
-          safety_filter_level: 'block_only_high',
+          size: '2K',
+          output_format: 'png',
+          max_images: 1,
+          image_input: [],
+          return_byteplus_urls: false,
+          sequential_image_generation: 'disabled',
         };
 
         const requestBody = {
@@ -662,7 +665,7 @@ export class GenerationsService {
         };
 
         const response = await axios.post(
-          'https://api.replicate.com/v1/models/google/imagen-4-ultra/predictions',
+          'https://api.replicate.com/v1/models/bytedance/seedream-5-lite/predictions',
           requestBody,
           {
             headers: {
@@ -1071,8 +1074,8 @@ export class GenerationsService {
       content_adaptation: 'chatgpt-webhook',
       message: 'chatgpt-webhook',
       feedback: 'chatgpt-webhook',
-      image: 'google/imagen-4-ultra',
-      image_generation: 'google/imagen-4-ultra',
+      image: 'bytedance/seedream-5-lite',
+      image_generation: 'bytedance/seedream-5-lite',
       photosession: 'google/gemini-3-pro-image-preview',
       presentation: 'Gamma AI',
       transcription: 'Whisper AI',
