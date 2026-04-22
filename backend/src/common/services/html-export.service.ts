@@ -138,6 +138,18 @@ ${bodyContent}
 </div>
 </body>
 </html>`;
+    } else {
+      // Full HTML structure exists but may lack CSS (e.g. minimal wrapper from frontend).
+      // Inject design system styles if no <style> block is present in <head>.
+      const headMatch = /<head[\s\S]*?<\/head>/i.exec(fullHtml);
+      const headContent = headMatch ? headMatch[0] : '';
+      if (!/<style[\s>]/i.test(headContent)) {
+        if (fullHtml.includes('</head>')) {
+          fullHtml = fullHtml.replace('</head>', `${DesignSystemConfig.STYLES}\n</head>`);
+        } else {
+          fullHtml = fullHtml.replace(/<body/i, `<head>${DesignSystemConfig.STYLES}</head>\n<body`);
+        }
+      }
     }
 
     // 2. Run through common post-processing (branding normalization, logo replacement, MathJax, cleanup)
