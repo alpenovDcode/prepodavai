@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import DOMPurify from 'isomorphic-dompurify'
-import { downloadPdf } from '@/lib/utils/downloadPdf'
+import { downloadPdfById } from '@/lib/utils/downloadPdf'
 import { FileAudio, RefreshCw, Loader2, Maximize2, UploadCloud, Copy, FileText, Download, Edit3, Eye } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useGenerations } from '@/lib/hooks/useGenerations'
@@ -23,7 +23,7 @@ export default function TranscriptionGenerator() {
     const [isMobile, setIsMobile] = useState(false)
     const iframeRef = useRef<HTMLIFrameElement>(null)
 
-    const { generateAndWait, isGenerating } = useGenerations()
+    const { generateAndWait, isGenerating, activeGenerationId } = useGenerations()
 
     useEffect(() => {
         const checkMobile = () => {
@@ -108,8 +108,12 @@ export default function TranscriptionGenerator() {
     }, [editMode, localContent]);
 
     const handleDownloadPdf = async () => {
+        if (!activeGenerationId) {
+            toast.error('Сначала сгенерируйте материал')
+            return
+        }
         try {
-            await downloadPdf(localContent)
+            await downloadPdfById(activeGenerationId, 'transcription.pdf')
         } catch {
             toast.error('Не удалось сформировать PDF')
         }

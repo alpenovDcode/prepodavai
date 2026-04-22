@@ -16,6 +16,7 @@ import { LessonsService } from '../lessons/lessons.service';
 import { ReferralsService } from '../referrals/referrals.service';
 import { OnboardingQuestService } from '../onboarding-quest/onboarding-quest.service';
 import { HtmlPostprocessorService } from '../../common/services/html-postprocessor.service';
+import { HtmlExportService } from '../../common/services/html-export.service';
 import { FilesService } from '../files/files.service';
 import { StrategyRegistryService } from './strategies/strategy-registry.service';
 
@@ -103,6 +104,7 @@ export class GenerationsService {
     private readonly replicateService: ReplicateService,
     private readonly lessonsService: LessonsService,
     private htmlPostprocessor: HtmlPostprocessorService,
+    private readonly htmlExportService: HtmlExportService,
     private filesService: FilesService,
     @InjectQueue('replicate-presentation') private readonly replicatePresentationQueue: Queue,
     @InjectQueue('lesson-preparation') private readonly lessonPreparationQueue: Queue,
@@ -1180,6 +1182,46 @@ export class GenerationsService {
     }
 
     return this.formatGenerationStatus(generation);
+  }
+
+  /**
+   * Экспортирует результат генерации в PDF ТЕМ ЖЕ путём, что и Telegram/MAX
+   * сендеры: читает `outputData` из БД, извлекает `.content`, нормализует
+   * через `normalizeIncomingHtml` и отдаёт в `htmlToPdf`.
+   *
+   * Фронт при клике «PDF» присылает только id генерации — весь контент
+   * формируется на сервере из одного источника (БД), как для мессенджеров.
+   * Это гарантирует, что веб-PDF байт-в-байт совпадает с тем, что летит
+   * в чат.
+   */
+  async exportGenerationPdf(requestId: string, userId: string): Promise<Buffer> {
+    // Принимаем как generationRequestId (то, что отдаёт useGenerations.activeGenerationId),
+    // так и userGeneration.id (то, что есть в списках генераций / MaterialViewer).
+    let userGen = await this.prisma.userGeneration.findUnique({
+      where: { generationRequestId: requestId },
+      include: { generationRequest: true },
+    });
+    if (!userGen) {
+      userGen = await this.prisma.userGeneration.findUnique({
+        where: { id: requestId },
+        include: { generationRequest: true },
+      });
+    }
+    if (!userGen) {
+      throw new NotFoundException('Генерация не найдена');
+    }
+    if (userGen.userId !== userId) {
+      throw new NotFoundException('Доступ запрещён');
+    }
+
+    const result = userGen.outputData ?? userGen.generationRequest?.result;
+    if (!result) {
+      throw new NotFoundException('Результат генерации пуст');
+    }
+
+    const content = (result as any)?.content ?? result;
+    const htmlContent = this.htmlExportService.normalizeIncomingHtml(content);
+    return this.htmlExportService.htmlToPdf(htmlContent);
   }
 
   private formatGenerationStatus(generation: any) {

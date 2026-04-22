@@ -12,7 +12,7 @@ import Image from 'next/image'
 import DOMPurify from 'isomorphic-dompurify'
 import jsPDF from 'jspdf'
 import html2canvas from 'html2canvas'
-import { downloadPdf } from '@/lib/utils/downloadPdf'
+import { downloadPdfById } from '@/lib/utils/downloadPdf'
 
 interface MaterialViewerProps {
     lessonId?: string
@@ -439,14 +439,17 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
             return
         }
 
-        if (!content) return
+        if (!generationId) {
+            alert('Не найден id генерации')
+            return
+        }
 
         setIsDownloading(true)
         try {
             const title = lessonTitle || generationType.replace(/[^a-zA-Zа-яА-Я0-9]/g, '_') || 'result'
-            // Отправляем исходный outputData (без снимка live DOM) — тот же путь,
-            // что и в Telegram/MAX, гарантирует 1-в-1 совпадение PDF.
-            await downloadPdf(content, `${title}.pdf`)
+            // Шлём id генерации — бекенд сам читает outputData из БД и рендерит
+            // PDF тем же путём, что Telegram/MAX. Гарантирует 1-в-1 совпадение.
+            await downloadPdfById(generationId, `${title}.pdf`)
         } catch (error) {
             console.error('Failed to generate PDF:', error)
             alert('Ошибка при генерации PDF. Попробуйте снова.')

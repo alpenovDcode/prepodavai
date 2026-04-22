@@ -3,7 +3,7 @@
 import { useState, useRef } from 'react'
 import { BookOpen, Download, Copy, RefreshCw, Loader2, Edit3, Eye } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { downloadPdf } from '@/lib/utils/downloadPdf'
+import { downloadPdfById } from '@/lib/utils/downloadPdf'
 import { useIsMobile } from '@/lib/hooks/useIsMobile'
 import { useGenerations } from '@/lib/hooks/useGenerations'
 import { getCurrentUser } from '@/lib/utils/userIdentity'
@@ -89,8 +89,12 @@ export default function LessonPlanner() {
     }
 
     const exportPDF = async () => {
+        if (!activeGenerationId) {
+            toast.error('Сначала сгенерируйте материал')
+            return
+        }
         try {
-            await downloadPdf(htmlContent)
+            await downloadPdfById(activeGenerationId, 'lesson-plan.pdf')
         } catch {
             toast.error('Не удалось сформировать PDF')
         }

@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useMemo } from 'react'
 import DOMPurify from 'isomorphic-dompurify'
-import { downloadPdf } from '@/lib/utils/downloadPdf'
+import { downloadPdfById } from '@/lib/utils/downloadPdf'
 import { Sparkles, RefreshCw, Loader2, Maximize2, Download, Copy, Eye, Edit3, HelpCircle, ChevronLeft, ChevronRight } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useGenerations } from '@/lib/hooks/useGenerations'
@@ -147,8 +147,12 @@ export default function LessonPrepGenerator() {
     }
 
     const exportPDF = async () => {
+        if (!activeGenerationId) {
+            toast.error('Сначала сгенерируйте материал')
+            return
+        }
         try {
-            await downloadPdf(localContent)
+            await downloadPdfById(activeGenerationId, 'lesson-prep.pdf')
         } catch {
             toast.error('Не удалось сформировать PDF')
         }

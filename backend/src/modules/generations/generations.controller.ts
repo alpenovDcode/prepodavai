@@ -11,10 +11,8 @@ import {
   Header,
   Patch,
   StreamableFile,
-  BadRequestException,
 } from '@nestjs/common';
 import { GenerationsService } from './generations.service';
-import { HtmlExportService } from '../../common/services/html-export.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { GenerationsThrottlerGuard } from '../../common/guards/generations-throttler.guard';
 import {
@@ -22,13 +20,11 @@ import {
   UpdateGenerationDto,
   LinkToLessonDto,
 } from './dto/generation.dto';
-import { ExportPdfDto } from './dto/export-pdf.dto';
 
 @Controller('generate')
 export class GenerationsController {
   constructor(
     private readonly generationsService: GenerationsService,
-    private readonly htmlExportService: HtmlExportService,
   ) {}
 
   private userId(req: any): string {
@@ -207,18 +203,23 @@ export class GenerationsController {
     });
   }
 
-  @Post('export-pdf')
+  /**
+   * Экспорт PDF по id генерации — ровно тот же путь, что у Telegram/MAX:
+   * читаем `outputData` из БД, рендерим через единый `htmlToPdf`.
+   * Фронт шлёт только `requestId`; никакой передачи HTML с клиента.
+   */
+  @Post(':requestId/pdf')
   @UseGuards(JwtAuthGuard)
   @Header('Content-Type', 'application/pdf')
   @Header('Content-Disposition', 'attachment; filename="document.pdf"')
-  async exportToPdf(@Body() body: ExportPdfDto): Promise<StreamableFile> {
-    if (!body?.html || typeof body.html !== 'string') {
-      throw new BadRequestException('html is required');
-    }
-    // Use the same normalization/render path as Telegram/MAX senders so the
-    // web PDF matches the messenger PDF 1-to-1.
-    const normalized = this.htmlExportService.normalizeIncomingHtml(body.html);
-    const pdfBuffer = await this.htmlExportService.htmlToPdf(normalized);
+  async exportGenerationPdf(
+    @Request() req: any,
+    @Param('requestId') requestId: string,
+  ): Promise<StreamableFile> {
+    const pdfBuffer = await this.generationsService.exportGenerationPdf(
+      requestId,
+      this.userId(req),
+    );
     return new StreamableFile(pdfBuffer);
   }
 

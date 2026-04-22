@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import DOMPurify from 'isomorphic-dompurify'
-import { downloadPdf } from '@/lib/utils/downloadPdf'
+import { downloadPdfById } from '@/lib/utils/downloadPdf'
 import { Video, RefreshCw, Loader2, Maximize2, UploadCloud, Copy, Download, Edit3, Eye } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useGenerations } from '@/lib/hooks/useGenerations'
@@ -19,7 +19,7 @@ export default function VideoAnalysisGenerator() {
     const [copied, setCopied] = useState(false)
     const iframeRef = useRef<HTMLIFrameElement>(null)
 
-    const { generateAndWait, isGenerating } = useGenerations()
+    const { generateAndWait, isGenerating, activeGenerationId } = useGenerations()
 
     const types = [
         { value: 'sales', label: 'Пробный урок' },
@@ -102,8 +102,12 @@ export default function VideoAnalysisGenerator() {
     }, [editMode, localContent]);
 
     const handleDownloadPdf = async () => {
+        if (!activeGenerationId) {
+            toast.error('Сначала сгенерируйте материал')
+            return
+        }
         try {
-            await downloadPdf(localContent)
+            await downloadPdfById(activeGenerationId, 'video-analysis.pdf')
         } catch {
             toast.error('Не удалось сформировать PDF')
         }

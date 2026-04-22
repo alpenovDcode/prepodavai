@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import DOMPurify from 'isomorphic-dompurify'
-import { downloadPdf } from '@/lib/utils/downloadPdf'
+import { downloadPdfById } from '@/lib/utils/downloadPdf'
 import { BookOpen, RefreshCw, Loader2, Copy, Edit3, Eye, Download } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useGenerations } from '@/lib/hooks/useGenerations'
@@ -100,8 +100,12 @@ export default function VocabularyGenerator() {
     }, [editMode, localContent]);
 
     const exportPDF = async () => {
+        if (!activeGenerationId) {
+            toast.error('Сначала сгенерируйте материал')
+            return
+        }
         try {
-            await downloadPdf(localContent)
+            await downloadPdfById(activeGenerationId, 'vocabulary.pdf')
         } catch {
             toast.error('Не удалось сформировать PDF')
         }

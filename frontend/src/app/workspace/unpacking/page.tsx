@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import DOMPurify from 'isomorphic-dompurify'
-import { downloadPdf } from '@/lib/utils/downloadPdf'
+import { downloadPdfById } from '@/lib/utils/downloadPdf'
 import { PackageOpen, RefreshCw, Loader2, Maximize2, Copy, Download, Edit3, Eye } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useGenerations } from '@/lib/hooks/useGenerations'
@@ -106,8 +106,12 @@ export default function UnpackingGenerator() {
     }, [editMode, localContent]);
 
     const handleDownloadPdf = async () => {
+        if (!activeGenerationId) {
+            toast.error('Сначала сгенерируйте материал')
+            return
+        }
         try {
-            await downloadPdf(localContent)
+            await downloadPdfById(activeGenerationId, 'unpacking.pdf')
         } catch {
             toast.error('Не удалось сформировать PDF')
         }

@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import DOMPurify from 'isomorphic-dompurify'
-import { downloadPdf } from '@/lib/utils/downloadPdf'
+import { downloadPdfById } from '@/lib/utils/downloadPdf'
 import { HelpCircle, Download, Copy, RefreshCw, Loader2, Eye, Edit3 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useIsMobile } from '@/lib/hooks/useIsMobile'
@@ -98,8 +98,12 @@ export default function QuizGenerator() {
     }, [editMode, localContent]);
 
     const exportPDF = async () => {
+        if (!activeGenerationId) {
+            toast.error('Сначала сгенерируйте материал')
+            return
+        }
         try {
-            await downloadPdf(localContent)
+            await downloadPdfById(activeGenerationId, 'quiz.pdf')
         } catch {
             toast.error('Не удалось сформировать PDF')
         }

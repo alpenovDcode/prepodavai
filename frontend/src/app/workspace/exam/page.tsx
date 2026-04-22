@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import DOMPurify from 'isomorphic-dompurify'
-import { downloadPdf } from '@/lib/utils/downloadPdf'
+import { downloadPdfById } from '@/lib/utils/downloadPdf'
 import { GraduationCap, Download, Copy, RefreshCw, Loader2, Edit3, Eye } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useGenerations } from '@/lib/hooks/useGenerations'
@@ -109,8 +109,12 @@ export default function ExamGeneratorPage() {
     }, [editMode, localContent]);
 
     const handleDownloadPdf = async () => {
+        if (!activeGenerationId) {
+            toast.error('Сначала сгенерируйте материал')
+            return
+        }
         try {
-            await downloadPdf(localContent)
+            await downloadPdfById(activeGenerationId, 'exam-variant.pdf')
         } catch {
             toast.error('Не удалось сформировать PDF')
         }
