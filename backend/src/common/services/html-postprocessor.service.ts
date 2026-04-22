@@ -98,7 +98,7 @@ window.MathJax = {
 
     // 5. Если нет <div class="header"> — добавляем его сразу после открывающего <body>
     //    (случай, когда модель вообще опустила шапку).
-    if (!/class="[^"]*\bheader\b(?!-logo)[^"]*"/i.test(processed) && /<body[^>]*>/i.test(processed)) {
+    if (!/class="[^"]*\bheader\b(?!-)[^"]*"/i.test(processed) && /<body[^>]*>/i.test(processed)) {
       processed = processed.replace(
         /<body([^>]*)>/i,
         `<body$1>\n<div class="header">${headerLogoTag}<h1></h1></div>`,
@@ -117,10 +117,10 @@ window.MathJax = {
     className: string,
     builder: (inner: string) => string,
   ): string {
-    // Для header нужен именно class="header", но НЕ "header-logo"
+    // Для header нужен именно class="header", но НЕ "header-logo", "header-exam", и т.д.
     const classRegex =
       className === 'header'
-        ? new RegExp(`<div\\b[^>]*\\bclass="[^"]*\\bheader\\b(?!-logo)[^"]*"[^>]*>`, 'i')
+        ? new RegExp(`<div\\b[^>]*\\bclass="[^"]*\\bheader\\b(?!-)[^"]*"[^>]*>`, 'i')
         : new RegExp(`<div\\b[^>]*\\bclass="[^"]*\\b${className}\\b[^"]*"[^>]*>`, 'i');
 
     let result = '';
