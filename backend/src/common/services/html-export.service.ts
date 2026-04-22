@@ -77,6 +77,72 @@ export class HtmlExportService implements OnModuleDestroy {
     console.log('[HtmlExportService] Initialized');
   }
 
+  /**
+   * Unified input normalizer used by ALL PDF export paths (web export-pdf,
+   * Telegram/MAX senders). Guarantees that `htmlToPdf` receives a sane string:
+   *   - unwraps markdown fences / surrounding quotes
+   *   - falls back to wrapping plain text in a minimal HTML doc
+   * Kept here so the behaviour is identical across entry points.
+   */
+  normalizeIncomingHtml(raw: unknown): string {
+    if (raw === null || raw === undefined) return this.wrapPlainTextAsHtml('');
+
+    const text = typeof raw === 'string' ? raw : JSON.stringify(raw, null, 2);
+
+    let processed = text.trim();
+
+    if (processed.startsWith('```')) {
+      processed = processed
+        .replace(/^```(?:html)?/i, '')
+        .replace(/```$/, '')
+        .trim();
+    }
+
+    if (
+      (processed.startsWith('"') && processed.endsWith('"')) ||
+      (processed.startsWith("'") && processed.endsWith("'"))
+    ) {
+      processed = processed.slice(1, -1);
+    }
+
+    const looksLikeHtml =
+      /<!DOCTYPE html/i.test(processed) ||
+      /<html[\s>]/i.test(processed) ||
+      /<body[\s>]/i.test(processed) ||
+      /<\/?[a-z][\s\S]*>/i.test(processed);
+
+    return looksLikeHtml ? processed : this.wrapPlainTextAsHtml(text);
+  }
+
+  private wrapPlainTextAsHtml(text: string): string {
+    const escaped = (text || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/\n\n+/g, '</p><p>')
+      .replace(/\n/g, '<br>');
+
+    return `<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <title>PrepodavAI Result</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, sans-serif;
+      line-height: 1.6;
+      padding: 24px;
+      background: #ffffff;
+      color: #1a1a1a;
+    }
+    p { margin: 12px 0; }
+  </style>
+</head>
+<body>
+  <p>${escaped}</p>
+</body>
+</html>`;
+  }
 
   private async getBrowser() {
     if (!this.browserPromise) {
@@ -94,30 +160,7 @@ export class HtmlExportService implements OnModuleDestroy {
     return this.browserPromise;
   }
 
-  private prepareHtml(html: string, options?: { isWysiwyg?: boolean }): string {
-    // 1. If Wysiwyg mode is enabled, we trust the frontend's HTML entirely.
-    //    We skip branding normalization and design system styles.
-    if (options?.isWysiwyg) {
-      let processed = html;
-      
-      // Neutralize @media print blocks to ensure screen styles are used.
-      processed = processed.replace(/@media\s+print\b/gi, '@media not all');
-
-      // Inject only the critical technical PDF overrides
-      if (processed.includes('</head>')) {
-        processed = processed.replace('</head>', `${PDF_FORCE_STYLES}\n</head>`);
-      } else if (processed.includes('<html')) {
-        processed = processed.replace(/<html([^>]*)>/i, `<html$1><head>${PDF_FORCE_STYLES}</head>`);
-      } else {
-        processed = `<head>${PDF_FORCE_STYLES}</head>${processed}`;
-      }
-
-      // We still need MathJax in the PDF even in Wysiwyg mode if it was present
-      processed = this.htmlPostprocessor.ensureMathJaxScript(processed);
-      
-      return processed;
-    }
-
+  private prepareHtml(html: string): string {
     // 1. Ensure we have a full document structure if it's just a fragment.
     let fullHtml = html;
     const hasHtmlTag = /<html/i.test(html);
@@ -179,9 +222,9 @@ ${bodyContent}
   }
 
 
-  async htmlToPdf(html: string, options?: { isWysiwyg?: boolean }): Promise<Buffer> {
-    console.log(`[HtmlExport] Starting PDF generation (isWysiwyg: ${!!options?.isWysiwyg}), HTML length: ${html.length}`);
-    
+  async htmlToPdf(html: string): Promise<Buffer> {
+    console.log(`[HtmlExport] Starting PDF generation, HTML length: ${html.length}`);
+
     let browser: Browser;
     let page: Page;
 
@@ -194,7 +237,7 @@ ${bodyContent}
     }
 
     try {
-      const processedHtml = this.prepareHtml(html, options);
+      const processedHtml = this.prepareHtml(html);
       const hasMathJax = /<script[^>]+src=["'][^"']*mathjax[^"']*["']/i.test(processedHtml);
 
       // A4 at 96 DPI = 794px wide — prevents content overflow/clipping
@@ -211,32 +254,31 @@ ${bodyContent}
       //   inputs/textareas → styled divs (PDF treats form fields as invisible AcroForm objects)
       await page.evaluate(async () => {
         // 1. Ensure SVGs have explicit dimensions (Chromium PDF engine needs them)
-        // IMPORTANT: 'height: auto' causes SVGs to collapse to 0px in Chromium PDF mode.
-        // We must set explicit pixel values based on the browser-rendered layout (getBoundingClientRect)
-        // BEFORE page.pdf() switches the media type to 'print'.
+        // ROOT CAUSE: 'height: auto' on SVG collapses to 0px when Chromium switches to print
+        // media for page.pdf(). Only <text> nodes survive as PDF text layer — shapes disappear.
+        // FIX: read actual layout dims in screen media (before the switch), set explicit px values
+        // as inline styles (highest CSS specificity, survive the media switch).
         for (const svg of Array.from(document.querySelectorAll<SVGSVGElement>('svg'))) {
           try {
             const vb = (svg as any).viewBox?.baseVal;
-            // Read actual rendered dimensions in screen media (correct values before PDF switch)
             const rc = svg.getBoundingClientRect();
 
-            // Prefer actual rendered size; fall back to viewBox; fall back to safe defaults
-            const w = rc.width > 0 ? rc.width : (vb && vb.width > 0 ? vb.width : 500);
-            const h = rc.height > 0 ? rc.height
-              : (vb && vb.width > 0 && vb.height > 0 ? w * vb.height / vb.width : 300);
+            // Compute width: prefer actual rendered width, else viewBox, else 500px default
+            const rawW = rc.width > 0 ? rc.width : (vb && vb.width > 0 ? vb.width : 500);
+            // Cap at usable PDF page width (A4 minus margins ~750px) to avoid overflow
+            const w = Math.min(rawW, 750);
+
+            // Compute height: prefer actual rendered height (correct in screen media),
+            // else use viewBox aspect ratio (ensures correct proportions when rc is 0)
+            const h = rc.height > 0
+              ? rc.height
+              : (vb && vb.width > 0 && vb.height > 0 ? w * (vb.height / vb.width) : 300);
 
             svg.setAttribute('width', Math.round(w).toString());
             svg.setAttribute('height', Math.round(h).toString());
 
-            // Set explicit pixel sizes as inline styles — these survive the media switch to 'print'
-            // and override any CSS 'height: auto' rules from the stylesheet.
-            svg.style.display = 'block';
-            svg.style.width = Math.round(w) + 'px';
-            svg.style.height = Math.round(h) + 'px';
-            svg.style.maxWidth = '100%';
-            svg.style.margin = '16px auto';
-            svg.style.overflow = 'visible';
-            (svg.style as any).printColorAdjust = 'exact';
+            // Inline styles survive print-media switch; they override CSS 'height: auto'
+            svg.style.cssText += `;display:block;width:${Math.round(w)}px;height:${Math.round(h)}px;max-width:100%;margin:16px auto;overflow:visible;-webkit-print-color-adjust:exact;print-color-adjust:exact;`;
           } catch (e) {
             console.error('[HtmlExport] SVG processing error:', e);
           }

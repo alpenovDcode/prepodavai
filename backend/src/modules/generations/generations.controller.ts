@@ -215,7 +215,10 @@ export class GenerationsController {
     if (!body?.html || typeof body.html !== 'string') {
       throw new BadRequestException('html is required');
     }
-    const pdfBuffer = await this.htmlExportService.htmlToPdf(body.html, { isWysiwyg: body.isWysiwyg });
+    // Use the same normalization/render path as Telegram/MAX senders so the
+    // web PDF matches the messenger PDF 1-to-1.
+    const normalized = this.htmlExportService.normalizeIncomingHtml(body.html);
+    const pdfBuffer = await this.htmlExportService.htmlToPdf(normalized);
     return new StreamableFile(pdfBuffer);
   }
 

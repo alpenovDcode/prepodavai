@@ -333,12 +333,10 @@ export class MaxService {
 
   private async sendTextResult(chatId: string, generationType: string, result: any) {
     const content = result?.content || result;
-    const text = typeof content === 'string' ? content : JSON.stringify(content, null, 2);
     const filename = `${generationType}_${new Date().toISOString().split('T')[0]}.pdf`;
 
     try {
-      const htmlPayload = this.extractHtmlPayload(text);
-      const htmlContent = htmlPayload.isHtml ? htmlPayload.html : this.wrapPlainTextAsHtml(text);
+      const htmlContent = this.htmlExportService.normalizeIncomingHtml(content);
       const pdfBuffer = await this.htmlExportService.htmlToPdf(htmlContent);
       await this.uploadAndSendFile(chatId, pdfBuffer, filename, '✅ Ваш материал готов!');
       return;
@@ -384,38 +382,6 @@ export class MaxService {
     await this.sendMessageWithMarkup(chatId, caption, [
       { type: 'file', payload: { token } },
     ]);
-  }
-
-  private looksLikeHtml(value: string): boolean {
-    if (!value) return false;
-    const trimmed = value.trim();
-    return /<!DOCTYPE html/i.test(trimmed) || /<html[\s>]/i.test(trimmed) || /<body[\s>]/i.test(trimmed);
-  }
-
-  private extractHtmlPayload(value: string): { isHtml: boolean; html: string } {
-    if (!value) return { isHtml: false, html: '' };
-    let processed = value.trim();
-    if (processed.startsWith('```')) {
-      processed = processed.replace(/^```(?:html)?/i, '').replace(/```$/, '').trim();
-    }
-    if ((processed.startsWith('"') && processed.endsWith('"')) ||
-        (processed.startsWith("'") && processed.endsWith("'"))) {
-      processed = processed.slice(1, -1);
-    }
-    const isHtml = this.looksLikeHtml(processed) || /<\/?[a-z][\s\S]*>/i.test(processed);
-    return { isHtml, html: processed };
-  }
-
-  private wrapPlainTextAsHtml(text: string): string {
-    const escaped = text
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/\n\n+/g, '</p><p>')
-      .replace(/\n/g, '<br>');
-    return `<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8"/><title>PrepodavAI</title>` +
-      `<style>body{font-family:sans-serif;line-height:1.6;padding:24px;color:#1a1a1a}p{margin:12px 0}</style>` +
-      `</head><body><p>${escaped}</p></body></html>`;
   }
 
   private generateApiKey(): string {

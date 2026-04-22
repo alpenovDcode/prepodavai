@@ -403,189 +403,6 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
         fetchContent()
     }, [lessonId, generationId, directContent, type])
 
-    // Helper function to clean up HTML content (ported from TelegramService)
-    const extractHtmlPayload = (value: string): { isHtml: boolean; html: string } => {
-        if (!value) {
-            return { isHtml: false, html: '' };
-        }
-
-        let processed = value.trim();
-
-        // Remove markdown blocks ```html ... ```
-        if (processed.startsWith('```')) {
-            processed = processed.replace(/^```(?:html)?/i, '').replace(/```$/, '').trim();
-        }
-
-        // Remove surrounding quotes if present
-        if (
-            (processed.startsWith('"') && processed.endsWith('"')) ||
-            (processed.startsWith("'") && processed.endsWith("'"))
-        ) {
-            processed = processed.slice(1, -1);
-        }
-
-        // Unescape common JSON escapes if it looks like it was double-stringified
-        processed = processed.replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\');
-
-        const isHtml = /<!DOCTYPE html/i.test(processed) || /<html[\s>]/i.test(processed) || /<body[\s>]/i.test(processed) || /<\/?[a-z][\s\S]*>/i.test(processed);
-
-        return { isHtml, html: processed };
-    }
-
-
-    const generateStyledHtmlSnapshot = () => {
-        const title = lessonTitle || generationType || 'Result'
-        
-        // 1. Get the content
-        let contentHtml = ''
-        if (isHtmlResult && content) {
-            contentHtml = content
-        } else if (contentRef.current) {
-            // Clone the element to avoid mutating the live DOM
-            const clone = contentRef.current.cloneNode(true) as HTMLElement
-            
-            // 2. Fix inputs, textareas, selects
-            const originalInputs = contentRef.current.querySelectorAll('input, textarea, select')
-            const clonedInputs = clone.querySelectorAll('input, textarea, select')
-            
-            originalInputs.forEach((input: any, index) => {
-                const clonedInput = clonedInputs[index] as any
-                if (clonedInput) {
-                    if (input.tagName === 'SELECT') {
-                         const selectedIndex = input.selectedIndex;
-                         if (clonedInput.options[selectedIndex]) {
-                             clonedInput.options[selectedIndex].setAttribute('selected', 'selected');
-                         }
-                    } else if (input.tagName === 'TEXTAREA') {
-                        clonedInput.innerHTML = input.value;
-                    } else {
-                        clonedInput.setAttribute('value', input.value);
-                    }
-                }
-            })
-            
-            contentHtml = clone.innerHTML
-        } else {
-            contentHtml = content || ''
-        }
-        
-        // 3. Absolute URLs transformation & MathJax handling
-        const parser = new DOMParser()
-        const doc = parser.parseFromString(contentHtml, 'text/html')
-        
-        const makeAbsolute = (attr: string, baseDoc: Document = document) => {
-            doc.querySelectorAll(`[${attr}]`).forEach(el => {
-                const val = el.getAttribute(attr)
-                if (val && !val.startsWith('http') && !val.startsWith('data:') && !val.startsWith('//')) {
-                    try {
-                        const absolute = new URL(val, window.location.origin).href
-                        el.setAttribute(attr, absolute)
-                    } catch (e) {
-                        console.error('Failed to make URL absolute:', val, e)
-                    }
-                }
-            })
-        }
-        
-        makeAbsolute('src')
-        makeAbsolute('href')
-        
-        // 4. Collect styles
-        let styles = ''
-        
-        // Add base IFRAME_STYLES for consistency
-        styles += IFRAME_STYLES;
-        
-        // Collect <style> tags from the main document (including Tailwind)
-        document.querySelectorAll('style').forEach(style => {
-            styles += style.outerHTML
-        })
-        
-        // Collect <link rel="stylesheet"> tags and make their href absolute
-        document.querySelectorAll('link[rel="stylesheet"]').forEach(link => {
-            const relHref = link.getAttribute('href')
-            if (relHref) {
-                const absHref = new URL(relHref, window.location.origin).href
-                styles += `<link rel="stylesheet" href="${absHref}">`
-            }
-        })
-        
-        const cleaner = (html: string) => {
-            let p = html;
-            // Remove manual headers/footers from AI
-            p = p.replace(/<div\b[^>]*\bclass="[^"]*\bheader\b[^"]*"[^>]*>[\s\S]*?<\/div>/gi, '');
-            p = p.replace(/<div\b[^>]*\bclass="[^"]*\bfooter-logo\b[^"]*"[^>]*>[\s\S]*?<\/div>/gi, '');
-            // Neutralize logo placeholders (we can add a clean one later if needed, but 1-to-1 implies keeping what's in UI)
-            p = p.replace(/LOGO_PLACEHOLDER/g, ''); 
-            return p;
-        }
-
-        // 5. Build final document
-        const bodyContent = cleaner(doc.body.innerHTML)
-        
-        // Final styles for perfect 1-to-1 match
-        const highFidelityStyles = `
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-        
-        * {
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
-        }
-        
-        body { 
-            background: white !important; 
-            color: #111827 !important;
-            margin: 0 !important;
-            padding: 40px !important;
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
-            line-height: 1.5;
-        }
-        
-        .worksheet-content { 
-            max-width: 100% !important; 
-            margin: 0 !important; 
-            width: 100% !important;
-        }
-
-        /* 1-to-1 emulation of the UI blocks */
-        .bg-gray-50 { background-color: #f9fafb !important; }
-        .bg-blue-50 { background-color: #eff6ff !important; }
-        .border-blue-100 { border-color: #dbeafe !important; }
-        .rounded-3xl { border-radius: 1.5rem !important; }
-        .rounded-2xl { border-radius: 1rem !important; }
-        .p-6 { padding: 1.5rem !important; }
-        
-        table { border-collapse: collapse; width: 100%; margin: 16px 0; }
-        th, td { border: 1px solid #e5e7eb; padding: 12px; text-align: left; }
-        th { background-color: #f9fafb; font-weight: 600; }
-        
-        h1 { font-size: 24px; font-weight: 700; margin-bottom: 20px; }
-        h2 { font-size: 20px; font-weight: 600; margin-top: 24px; margin-bottom: 12px; }
-        
-        @media print {
-            body { padding: 0 !important; }
-        }
-    </style>
-        `
-
-        return `<!DOCTYPE html>
-<html lang="ru">
-<head>
-    <meta charset="utf-8">
-    <title>${title}</title>
-    ${styles}
-    ${highFidelityStyles}
-    ${MATHJAX_SCRIPT}
-</head>
-<body>
-    <div class="worksheet-content formatted-content result-content prose max-w-none">
-        ${bodyContent}
-    </div>
-</body>
-</html>`
-    }
-
     const handleDownload = async () => {
         // --- Презентация ---
         if (generationType === 'presentation') {
@@ -622,13 +439,14 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
             return
         }
 
-        if (!content && !contentRef.current) return
+        if (!content) return
 
         setIsDownloading(true)
         try {
             const title = lessonTitle || generationType.replace(/[^a-zA-Zа-яА-Я0-9]/g, '_') || 'result'
-            const htmlToExport = generateStyledHtmlSnapshot()
-            await downloadPdf(htmlToExport, `${title}.pdf`, { isWysiwyg: true })
+            // Отправляем исходный outputData (без снимка live DOM) — тот же путь,
+            // что и в Telegram/MAX, гарантирует 1-в-1 совпадение PDF.
+            await downloadPdf(content, `${title}.pdf`)
         } catch (error) {
             console.error('Failed to generate PDF:', error)
             alert('Ошибка при генерации PDF. Попробуйте снова.')
