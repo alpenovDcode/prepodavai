@@ -206,29 +206,32 @@ export class SalesAdvisorProcessor extends WorkerHost {
   }
 
   /**
-   * Sends all images at once to openai/gpt-4o via Replicate using image_input array
+   * Sends all images at once to google/gemini-3-flash via Replicate using images array.
+   * Gemini wrapper has no NSFW pre-filter (openai/gpt-4o wrapper refuses on PNG screenshots).
    */
   private async runReplicatePredictionWithMultipleImages(
     imageUrls: string[],
     userPrompt: string,
     systemPrompt: string,
   ): Promise<string> {
-    this.logger.log(`Analyzing ${imageUrls.length} image(s) via openai/gpt-4o (image_input array)`);
+    this.logger.log(`Analyzing ${imageUrls.length} image(s) via google/gemini-3-flash`);
 
-    const imageInputs = await this.toPublicUrls(imageUrls);
-    this.logger.log(`Passing ${imageInputs.length} public image URLs to Replicate`);
+    const images = await this.toPublicUrls(imageUrls);
+    this.logger.log(`Passing ${images.length} public image URLs to Replicate`);
 
     try {
       const response = await axios.post(
-        'https://api.replicate.com/v1/models/openai/gpt-4o/predictions',
+        'https://api.replicate.com/v1/models/google/gemini-3-flash/predictions',
         {
           stream: false,
           input: {
             prompt: userPrompt,
-            system_prompt: systemPrompt,
-            image_input: imageInputs,
-            max_completion_tokens: 8000,
+            system_instruction: systemPrompt,
+            images,
+            max_output_tokens: 8000,
             temperature: 0.7,
+            top_p: 0.95,
+            thinking_level: 'low',
           },
         },
         {
@@ -259,7 +262,7 @@ export class SalesAdvisorProcessor extends WorkerHost {
         throw new Error(`Replicate failed: ${prediction.error}`);
       }
     } catch (error: any) {
-      this.logger.error(`Replicate gpt-4o error: ${error.message}`);
+      this.logger.error(`Replicate gemini-3-flash error: ${error.message}`);
       throw error;
     }
   }
