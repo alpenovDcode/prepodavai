@@ -3,6 +3,7 @@ import { Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
+import * as path from 'path';
 import { GenerationHelpersService } from '../generation-helpers.service';
 import { HtmlPostprocessorService } from '../../../common/services/html-postprocessor.service';
 import { FilesService } from '../../files/files.service';
@@ -186,18 +187,20 @@ export class SalesAdvisorProcessor extends WorkerHost {
     return match ? match[1] : null;
   }
 
-  /** Converts file URLs to base64 data URIs by reading directly from disk */
-  private async toBase64DataUris(urls: string[]): Promise<string[]> {
+  /**
+   * Converts JWT-protected /api/files/<hash> URLs into public /api/uploads/<hash><ext> URLs
+   * so Replicate can fetch the images directly (base64 fails Replicate's NSFW pre-check).
+   */
+  private async toPublicUrls(urls: string[]): Promise<string[]> {
+    const baseUrl = this.configService.get<string>('BASE_URL', 'http://localhost:3001');
     return Promise.all(
       urls.map(async (url) => {
         const hash = this.extractHash(url);
-        if (hash) {
-          const file = await this.filesService.getFile(hash);
-          if (file) {
-            return `data:${file.mimeType};base64,${file.buffer.toString('base64')}`;
-          }
-        }
-        return url; // fallback to original URL if hash not found
+        if (!hash) return url;
+        const file = await this.filesService.getFilePath(hash);
+        if (!file) return url;
+        const ext = path.extname(file.filePath);
+        return `${baseUrl}/api/uploads/${hash}${ext}`;
       }),
     );
   }
@@ -212,8 +215,8 @@ export class SalesAdvisorProcessor extends WorkerHost {
   ): Promise<string> {
     this.logger.log(`Analyzing ${imageUrls.length} image(s) via openai/gpt-4o (image_input array)`);
 
-    const imageInputs = await this.toBase64DataUris(imageUrls);
-    this.logger.log(`Converted ${imageInputs.length} images to base64 data URIs`);
+    const imageInputs = await this.toPublicUrls(imageUrls);
+    this.logger.log(`Passing ${imageInputs.length} public image URLs to Replicate`);
 
     try {
       const response = await axios.post(
