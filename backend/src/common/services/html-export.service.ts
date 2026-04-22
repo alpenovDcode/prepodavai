@@ -211,29 +211,31 @@ ${bodyContent}
       //   inputs/textareas → styled divs (PDF treats form fields as invisible AcroForm objects)
       await page.evaluate(async () => {
         // 1. Ensure SVGs have explicit dimensions (Chromium PDF engine needs them)
+        // IMPORTANT: 'height: auto' causes SVGs to collapse to 0px in Chromium PDF mode.
+        // We must set explicit pixel values based on the browser-rendered layout (getBoundingClientRect)
+        // BEFORE page.pdf() switches the media type to 'print'.
         for (const svg of Array.from(document.querySelectorAll<SVGSVGElement>('svg'))) {
           try {
             const vb = (svg as any).viewBox?.baseVal;
+            // Read actual rendered dimensions in screen media (correct values before PDF switch)
             const rc = svg.getBoundingClientRect();
-            
-            // If it has no explicit width/height but has viewBox/rect, force them
-            if (!svg.getAttribute('width') || svg.getAttribute('width')?.includes('%')) {
-              const w = (vb && vb.width > 0) ? vb.width : (rc.width > 0 ? rc.width : 500);
-              svg.setAttribute('width', w.toString());
-            }
-            if (!svg.getAttribute('height') || svg.getAttribute('height')?.includes('%')) {
-              const h = (vb && vb.height > 0) ? vb.height : (rc.height > 0 ? rc.height : 300);
-              svg.setAttribute('height', h.toString());
-            }
-            
-            // Ensure visibility & proper alignment
+
+            // Prefer actual rendered size; fall back to viewBox; fall back to safe defaults
+            const w = rc.width > 0 ? rc.width : (vb && vb.width > 0 ? vb.width : 500);
+            const h = rc.height > 0 ? rc.height
+              : (vb && vb.width > 0 && vb.height > 0 ? w * vb.height / vb.width : 300);
+
+            svg.setAttribute('width', Math.round(w).toString());
+            svg.setAttribute('height', Math.round(h).toString());
+
+            // Set explicit pixel sizes as inline styles — these survive the media switch to 'print'
+            // and override any CSS 'height: auto' rules from the stylesheet.
             svg.style.display = 'block';
+            svg.style.width = Math.round(w) + 'px';
+            svg.style.height = Math.round(h) + 'px';
             svg.style.maxWidth = '100%';
-            svg.style.height = 'auto';
             svg.style.margin = '16px auto';
             svg.style.overflow = 'visible';
-            
-            // Force print styles for SVG strokes
             (svg.style as any).printColorAdjust = 'exact';
           } catch (e) {
             console.error('[HtmlExport] SVG processing error:', e);
