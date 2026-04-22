@@ -119,15 +119,18 @@ export default function ImageGenerator() {
             }
 
             const status = await generateAndWait({ type: 'image_generation', params })
-            const resultData = status.result?.content || status.result
+            const resultData: any = status.result
 
-            // In a real implementation this might be a URL or base64. 
-            // Here we check if it is formatted like an image URL.
-            if (typeof resultData === 'string' && (resultData.startsWith('http') || resultData.startsWith('data:image'))) {
-                setResultImageUrl(resultData)
+            const imageUrl =
+                resultData?.imageUrl ||
+                (Array.isArray(resultData?.imageUrls) && resultData.imageUrls[0]) ||
+                (typeof resultData?.content === 'string' ? resultData.content : null) ||
+                (typeof resultData === 'string' ? resultData : null)
+
+            if (typeof imageUrl === 'string' && (imageUrl.startsWith('http') || imageUrl.startsWith('data:image'))) {
+                setResultImageUrl(imageUrl)
             } else {
-                // For demo/mock purposes, if we don't get a valid image, we fake it with Unsplash
-                setResultImageUrl(`https://source.unsplash.com/random/1024x1024?${encodeURIComponent(prompt.split(' ')[0])}`)
+                setErrorMsg('Не удалось получить ссылку на изображение')
             }
 
         } catch (e: any) {
