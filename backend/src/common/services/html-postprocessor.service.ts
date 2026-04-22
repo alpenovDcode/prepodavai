@@ -59,6 +59,31 @@ window.MathJax = {
     return processed;
   }
 
+  /**
+   * Lightweight render pass used by PDF export (Playwright) and any other
+   * consumer that needs a display-ready document WITHOUT destructive mutations.
+   *
+   * Unlike `process()`, this does NOT rebuild `<div class="header">` or inject
+   * a synthetic footer block — the stored HTML is assumed to be already
+   * post-processed at generation time. Here we only:
+   *   - strip markdown fences (no-op for stored HTML, defensive for raw input)
+   *   - replace LOGO_PLACEHOLDER with base64 (idempotent — no-op if already done)
+   *   - ensure the MathJax script tag is present (no-op if already there)
+   *
+   * This preserves the exact layout the user sees in the iframe on the frontend,
+   * so the resulting PDF matches the browser preview 1-to-1.
+   */
+  processForRender(html: string): string {
+    if (!html || typeof html !== 'string') {
+      return html;
+    }
+    let processed = html;
+    processed = this.removeMarkdownWrapper(processed);
+    processed = this.replaceLogo(processed);
+    processed = this.ensureMathJaxScript(processed);
+    return processed;
+  }
+
 
   /**
    * Удаляет сгенерированные моделью фейковые копирайты и гарантирует,

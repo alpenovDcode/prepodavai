@@ -162,25 +162,20 @@ export class HtmlExportService implements OnModuleDestroy {
   /**
    * Подготавливает HTML к рендеру в PDF, минимально вмешиваясь в верстку.
    *
-   * Контент уже постпроцессен на этапе генерации (см. HtmlPostprocessorService.process):
-   *   - markdown-обёртки сняты
-   *   - LOGO_PLACEHOLDER заменён на base64
-   *   - header/footer-logo нормализованы
-   *   - MathJax-скрипт инжектирован при необходимости
+   * Используем `processForRender` — лёгкий вариант пост-процесса:
+   *   - LOGO_PLACEHOLDER → base64 (идемпотентно, no-op если уже заменён)
+   *   - MathJax-скрипт подключается если в контенте есть формулы
+   *   - снятие markdown-обёрток (защитный шаг)
    *
-   * Повторно прогонять постпроцессор НЕЛЬЗЯ — он деструктивен (rebuildMatchedDiv
-   * сносит всё содержимое <div class="header"> кроме <h1>, что ломает кастомные
-   * шапки с SVG/иконками от AI). Аналогично DesignSystemConfig.STYLES не нужен —
-   * иначе стили навязываются поверх уже свёрстанного документа, и PDF расходится
-   * с тем, что пользователь видит в iframe на фронте.
-   *
-   * Здесь делаем только PDF-специфичные технические оверрайды.
+   * Деструктивные шаги (rebuildMatchedDiv для header/footer, инжекция
+   * DesignSystemConfig.STYLES) НЕ выполняются — иначе кастомные header/SVG от
+   * AI перезаписываются, и PDF расходится с тем, что пользователь видит в
+   * iframe на фронте.
    */
   private prepareHtml(html: string): string {
     let processed = html;
 
-    // 1. Если пришёл фрагмент без <html>/<body> — оборачиваем в минимальный
-    //    каркас. Дизайн-систему НЕ инжектим: пусть фрагмент рендерится как есть.
+    // 1. Если пришёл фрагмент без <html>/<body> — оборачиваем в минимальный каркас.
     if (!/<html/i.test(processed) || !/<body/i.test(processed)) {
       processed = `<!DOCTYPE html>
 <html lang="ru">
@@ -189,17 +184,21 @@ export class HtmlExportService implements OnModuleDestroy {
 </html>`;
     }
 
-    // 2. Убираем Google Fonts @import — внешний CDN недоступен из Docker.
+    // 2. Лёгкий пост-процесс: LOGO_PLACEHOLDER → base64, MathJax-скрипт.
+    //    Без rebuildMatchedDiv и прочих деструктивных мутаций.
+    processed = this.htmlPostprocessor.processForRender(processed);
+
+    // 3. Убираем Google Fonts @import — внешний CDN недоступен из Docker.
     processed = processed.replace(
       /@import\s+url\(['"]?https:\/\/fonts\.googleapis\.com[^'")]+['"]?\)\s*;?/g,
       '',
     );
 
-    // 3. Нейтрализуем @media print, чтобы Playwright рендерил screen-стили
+    // 4. Нейтрализуем @media print, чтобы Playwright рендерил screen-стили
     //    (page.pdf() внутренне переключается на print media).
     processed = processed.replace(/@media\s+print\b/gi, '@media not all');
 
-    // 4. Инжектим PDF_FORCE_STYLES (force colors/backgrounds, SVG visible).
+    // 5. Инжектим PDF_FORCE_STYLES (force colors/backgrounds, SVG visible).
     if (processed.includes('</head>')) {
       processed = processed.replace('</head>', `${PDF_FORCE_STYLES}\n</head>`);
     } else if (/<html/i.test(processed)) {
@@ -207,10 +206,6 @@ export class HtmlExportService implements OnModuleDestroy {
     } else {
       processed = `<head>${PDF_FORCE_STYLES}</head>${processed}`;
     }
-
-    // 5. Подстраховка: MathJax в head, если в контенте есть формулы, но скрипт
-    //    забыли подключить.
-    processed = this.htmlPostprocessor.ensureMathJaxScript(processed);
 
     return processed;
   }
