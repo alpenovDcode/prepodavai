@@ -1,6 +1,5 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { chromium, Browser, Page } from 'playwright';
-import { DesignSystemConfig } from '../../modules/generations/config/design-system.config';
 import { HtmlPostprocessorService } from './html-postprocessor.service';
 
 // MathJax configuration is now managed via HtmlPostprocessorService
@@ -160,62 +159,57 @@ export class HtmlExportService implements OnModuleDestroy {
     return this.browserPromise;
   }
 
+  /**
+   * Подготавливает HTML к рендеру в PDF, минимально вмешиваясь в верстку.
+   *
+   * Контент уже постпроцессен на этапе генерации (см. HtmlPostprocessorService.process):
+   *   - markdown-обёртки сняты
+   *   - LOGO_PLACEHOLDER заменён на base64
+   *   - header/footer-logo нормализованы
+   *   - MathJax-скрипт инжектирован при необходимости
+   *
+   * Повторно прогонять постпроцессор НЕЛЬЗЯ — он деструктивен (rebuildMatchedDiv
+   * сносит всё содержимое <div class="header"> кроме <h1>, что ломает кастомные
+   * шапки с SVG/иконками от AI). Аналогично DesignSystemConfig.STYLES не нужен —
+   * иначе стили навязываются поверх уже свёрстанного документа, и PDF расходится
+   * с тем, что пользователь видит в iframe на фронте.
+   *
+   * Здесь делаем только PDF-специфичные технические оверрайды.
+   */
   private prepareHtml(html: string): string {
-    // 1. Ensure we have a full document structure if it's just a fragment.
-    let fullHtml = html;
-    const hasHtmlTag = /<html/i.test(html);
-    const hasBodyTag = /<body/i.test(html);
+    let processed = html;
 
-    if (!hasHtmlTag || !hasBodyTag) {
-      const bodyMatch = /<body[^>]*>([\s\S]*?)<\/body>/i.exec(html);
-      const bodyContent = bodyMatch ? bodyMatch[1] : html;
-      fullHtml = `<!DOCTYPE html>
+    // 1. Если пришёл фрагмент без <html>/<body> — оборачиваем в минимальный
+    //    каркас. Дизайн-систему НЕ инжектим: пусть фрагмент рендерится как есть.
+    if (!/<html/i.test(processed) || !/<body/i.test(processed)) {
+      processed = `<!DOCTYPE html>
 <html lang="ru">
-<head>
-<meta charset="UTF-8">
-${DesignSystemConfig.STYLES}
-</head>
-<body>
-<div class="container worksheet-content formatted-content">
-${bodyContent}
-</div>
-</body>
+<head><meta charset="UTF-8"></head>
+<body>${processed}</body>
 </html>`;
-    } else {
-      // Full HTML structure exists but may lack CSS (e.g. minimal wrapper from frontend).
-      // Inject design system styles if no <style> block is present in <head>.
-      const headMatch = /<head[\s\S]*?<\/head>/i.exec(fullHtml);
-      const headContent = headMatch ? headMatch[0] : '';
-      if (!/<style[\s>]/i.test(headContent)) {
-        if (fullHtml.includes('</head>')) {
-          fullHtml = fullHtml.replace('</head>', `${DesignSystemConfig.STYLES}\n</head>`);
-        } else {
-          fullHtml = fullHtml.replace(/<body/i, `<head>${DesignSystemConfig.STYLES}</head>\n<body`);
-        }
-      }
     }
 
-    // 2. Run through common post-processing (branding normalization, logo replacement, MathJax, cleanup)
-    let processed = this.htmlPostprocessor.process(fullHtml);
-
-    // 3. Remove Google Fonts @import — external CDN not available in Docker environment
+    // 2. Убираем Google Fonts @import — внешний CDN недоступен из Docker.
     processed = processed.replace(
       /@import\s+url\(['"]?https:\/\/fonts\.googleapis\.com[^'")]+['"]?\)\s*;?/g,
       '',
     );
 
-
-    // 4. Neutralize @media print blocks.
+    // 3. Нейтрализуем @media print, чтобы Playwright рендерил screen-стили
+    //    (page.pdf() внутренне переключается на print media).
     processed = processed.replace(/@media\s+print\b/gi, '@media not all');
 
-    // 5. Inject CSS that forces color/background rendering before </head>
+    // 4. Инжектим PDF_FORCE_STYLES (force colors/backgrounds, SVG visible).
     if (processed.includes('</head>')) {
       processed = processed.replace('</head>', `${PDF_FORCE_STYLES}\n</head>`);
+    } else if (/<html/i.test(processed)) {
+      processed = processed.replace(/<html([^>]*)>/i, `<html$1><head>${PDF_FORCE_STYLES}</head>`);
     } else {
       processed = `<head>${PDF_FORCE_STYLES}</head>${processed}`;
     }
 
-    // 6. Final safety check for MathJax
+    // 5. Подстраховка: MathJax в head, если в контенте есть формулы, но скрипт
+    //    забыли подключить.
     processed = this.htmlPostprocessor.ensureMathJaxScript(processed);
 
     return processed;
