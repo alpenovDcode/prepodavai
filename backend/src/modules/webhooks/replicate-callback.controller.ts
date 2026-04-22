@@ -163,7 +163,7 @@ export class ReplicateCallbackController {
     const buffer = Buffer.from(response.data);
 
     // Determine extension from content-type or URL
-    const contentType = response.headers['content-type'] || '';
+    const contentType = String(response.headers['content-type'] || '');
     let ext = '.png';
     if (contentType.includes('jpeg') || contentType.includes('jpg')) ext = '.jpg';
     else if (contentType.includes('webp')) ext = '.webp';
