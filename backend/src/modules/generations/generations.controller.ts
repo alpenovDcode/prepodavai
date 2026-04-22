@@ -215,10 +215,15 @@ export class GenerationsController {
   async exportGenerationPdf(
     @Request() req: any,
     @Param('requestId') requestId: string,
+    @Query('withAnswers') withAnswers?: string,
   ): Promise<StreamableFile> {
+    // По умолчанию PDF для учителя — с ответами. Флаг передаём только
+    // если явно указан `withAnswers=false` (режим «для ученика»).
+    const withAnswersFlag = withAnswers === 'false' ? false : true;
     const pdfBuffer = await this.generationsService.exportGenerationPdf(
       requestId,
       this.userId(req),
+      { withAnswers: withAnswersFlag },
     );
     return new StreamableFile(pdfBuffer);
   }

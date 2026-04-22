@@ -2,9 +2,8 @@
 
 import { useState, useRef, useEffect } from 'react'
 import DOMPurify from 'isomorphic-dompurify'
-import { downloadPdfById } from '@/lib/utils/downloadPdf'
-import { PenTool, Download, Copy, RefreshCw, Loader2, Edit3, Eye } from 'lucide-react'
-import toast from 'react-hot-toast'
+import PdfDownloadButton from '@/components/workspace/PdfDownloadButton'
+import { PenTool, Copy, RefreshCw, Loader2, Edit3, Eye } from 'lucide-react'
 import { useGenerations } from '@/lib/hooks/useGenerations'
 import RichTextEditor from '@/components/workspace/RichTextEditor'
 import { getCurrentUser } from '@/lib/utils/userIdentity'
@@ -87,18 +86,6 @@ export default function WorksheetGenerator() {
             }
         }
     }, [editMode, localContent]);
-
-    const handleDownloadPdf = async () => {
-        if (!activeGenerationId) {
-            toast.error('Сначала сгенерируйте материал')
-            return
-        }
-        try {
-            await downloadPdfById(activeGenerationId, 'worksheet.pdf')
-        } catch {
-            toast.error('Не удалось сформировать PDF')
-        }
-    }
 
     const handleCopy = async () => {
         if (!localContent) return
@@ -257,13 +244,11 @@ export default function WorksheetGenerator() {
                                 <span className="hidden xs:inline">{copied ? 'Готово!' : 'Копировать'}</span>
                             </button>
 
-                            <button
-                                onClick={handleDownloadPdf}
-                                className="flex items-center gap-1.5 px-3 py-2 text-[11px] font-bold bg-yellow-50 hover:bg-yellow-100 text-yellow-700 rounded-lg transition-all disabled:opacity-40 flex-shrink-0"
-                            >
-                                <Download className="w-3.5 h-3.5" />
-                                <span>PDF</span>
-                            </button>
+                            <PdfDownloadButton
+                                generationId={activeGenerationId}
+                                filename="worksheet.pdf"
+                                hasAnswers
+                            />
                             {hasResult && (
                                 <AssignTaskButton
                                     generationId={activeGenerationId}

@@ -2,9 +2,8 @@
 
 import { useState, useRef, useEffect } from 'react'
 import DOMPurify from 'isomorphic-dompurify'
-import { downloadPdfById } from '@/lib/utils/downloadPdf'
-import { GraduationCap, Download, Copy, RefreshCw, Loader2, Edit3, Eye } from 'lucide-react'
-import toast from 'react-hot-toast'
+import PdfDownloadButton from '@/components/workspace/PdfDownloadButton'
+import { GraduationCap, Copy, RefreshCw, Loader2, Edit3, Eye } from 'lucide-react'
 import { useGenerations } from '@/lib/hooks/useGenerations'
 import AssignTaskButton from '@/components/AssignTaskButton'
 import GenerationProgress from '@/components/workspace/GenerationProgress'
@@ -107,18 +106,6 @@ export default function ExamGeneratorPage() {
             }
         }
     }, [editMode, localContent]);
-
-    const handleDownloadPdf = async () => {
-        if (!activeGenerationId) {
-            toast.error('Сначала сгенерируйте материал')
-            return
-        }
-        try {
-            await downloadPdfById(activeGenerationId, 'exam-variant.pdf')
-        } catch {
-            toast.error('Не удалось сформировать PDF')
-        }
-    }
 
     const handleCopy = async () => {
         if (!localContent) return
@@ -280,13 +267,12 @@ export default function ExamGeneratorPage() {
                                 <Copy className="w-3.5 h-3.5" />
                                 <span className="hidden sm:inline">{copied ? 'Готово!' : 'Копировать'}</span>
                             </button>
-                            <button
-                                onClick={handleDownloadPdf}
+                            <PdfDownloadButton
+                                generationId={activeGenerationId}
+                                filename="exam-variant.pdf"
+                                hasAnswers
                                 className="flex items-center gap-1.5 px-3 py-2 text-[11px] font-bold bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-lg transition-all disabled:opacity-40"
-                            >
-                                <Download className="w-3.5 h-3.5" />
-                                <span className="hidden sm:inline">PDF</span>
-                            </button>
+                            />
                             {hasResult && (
                                 <AssignTaskButton
                                     generationId={activeGenerationId}

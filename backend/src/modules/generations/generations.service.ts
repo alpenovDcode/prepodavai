@@ -17,6 +17,7 @@ import { ReferralsService } from '../referrals/referrals.service';
 import { OnboardingQuestService } from '../onboarding-quest/onboarding-quest.service';
 import { HtmlPostprocessorService } from '../../common/services/html-postprocessor.service';
 import { HtmlExportService } from '../../common/services/html-export.service';
+import { stripAnswerKeyFromHtml } from '../../common/utils/strip-answer-key.util';
 import { FilesService } from '../files/files.service';
 import { StrategyRegistryService } from './strategies/strategy-registry.service';
 
@@ -1194,7 +1195,11 @@ export class GenerationsService {
    * Это гарантирует, что веб-PDF байт-в-байт совпадает с тем, что летит
    * в чат.
    */
-  async exportGenerationPdf(requestId: string, userId: string): Promise<Buffer> {
+  async exportGenerationPdf(
+    requestId: string,
+    userId: string,
+    options: { withAnswers?: boolean } = {},
+  ): Promise<Buffer> {
     // Принимаем как generationRequestId (то, что отдаёт useGenerations.activeGenerationId),
     // так и userGeneration.id (то, что есть в списках генераций / MaterialViewer).
     let userGen = await this.prisma.userGeneration.findUnique({
@@ -1220,7 +1225,10 @@ export class GenerationsService {
     }
 
     const content = (result as any)?.content ?? result;
-    const htmlContent = this.htmlExportService.normalizeIncomingHtml(content);
+    let htmlContent = this.htmlExportService.normalizeIncomingHtml(content);
+    if (options.withAnswers === false) {
+      htmlContent = stripAnswerKeyFromHtml(htmlContent);
+    }
     return this.htmlExportService.htmlToPdf(htmlContent);
   }
 

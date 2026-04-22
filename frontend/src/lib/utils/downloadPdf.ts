@@ -8,11 +8,25 @@ import { apiClient } from '@/lib/api/client'
  * `id` — это `generationRequestId` (из `useGenerations().activeGenerationId`)
  * либо `userGeneration.id` (из сохранённых материалов). Бекенд принимает оба.
  */
-export async function downloadPdfById(id: string, filename = 'document.pdf'): Promise<void> {
+export interface DownloadPdfOptions {
+    /**
+     * Если `false` — бэкенд вырежет блок «для учителя» (ключ ответов)
+     * перед рендером. По умолчанию `true` — PDF со всеми ответами.
+     */
+    withAnswers?: boolean
+}
+
+export async function downloadPdfById(
+    id: string,
+    filename = 'document.pdf',
+    options: DownloadPdfOptions = {},
+): Promise<void> {
     if (!id) throw new Error('generation id is required')
 
+    const query = options.withAnswers === false ? '?withAnswers=false' : ''
+
     const response = await apiClient.post(
-        `/generate/${encodeURIComponent(id)}/pdf`,
+        `/generate/${encodeURIComponent(id)}/pdf${query}`,
         {},
         { responseType: 'blob' },
     )

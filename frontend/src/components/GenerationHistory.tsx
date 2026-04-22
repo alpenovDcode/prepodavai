@@ -8,6 +8,7 @@ import { apiClient } from '@/lib/api/client'
 import { getUserGenerations, removeCachedGeneration, CachedGeneration } from '@/lib/utils/generationsCache'
 import { getCurrentUser } from '@/lib/utils/userIdentity'
 import { downloadPdfById } from '@/lib/utils/downloadPdf'
+import DownloadPdfModal from './workspace/DownloadPdfModal'
 
 // ─── Labels & Helpers ────────────────────────────────────────────────
 
@@ -166,6 +167,7 @@ export default function GenerationHistory() {
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [isDownloading, setIsDownloading] = useState(false)
+  const [showPdfModal, setShowPdfModal] = useState(false)
   const [hasMore, setHasMore] = useState(true)
   const [offset, setOffset] = useState(0)
   const limit = 20
@@ -315,7 +317,10 @@ export default function GenerationHistory() {
     setSelectedGeneration(null)
   }
 
-  const downloadGeneration = async () => {
+  const typeHasAnswers = (t: string) =>
+    ['worksheet', 'quiz', 'exam-variant', 'lesson_preparation'].includes(t)
+
+  const downloadGeneration = async (opts: { withAnswers?: boolean } = {}) => {
     const gen = selectedGeneration
     if (!gen || !gen.result || isDownloading) return
 
@@ -358,8 +363,9 @@ export default function GenerationHistory() {
         const typeLabel = getTypeLabel(gen.type)
         const safeName = typeLabel.replace(/[^a-zA-Zа-яА-Я0-9]/g, '_') || 'result'
         const dateSuffix = new Date().toISOString().split('T')[0]
-        const filename = `${safeName}_${dateSuffix}.pdf`
-        await downloadPdfById(gen.id, filename)
+        const variantSuffix = typeHasAnswers(gen.type) && opts.withAnswers === false ? '_student' : ''
+        const filename = `${safeName}${variantSuffix}_${dateSuffix}.pdf`
+        await downloadPdfById(gen.id, filename, { withAnswers: opts.withAnswers })
         return
       }
 
@@ -630,16 +636,25 @@ export default function GenerationHistory() {
 
               {/* Actions */}
               <div className="mt-6 pt-4 border-t border-gray-200 space-y-2">
-                {selectedGeneration.status === 'completed' && (
-                  <button 
-                    onClick={downloadGeneration}
-                    disabled={isDownloading}
-                    className="w-full py-3 bg-blue-50 text-blue-600 rounded-xl font-medium disabled:opacity-50"
-                  >
-                    <i className={`fas ${isDownloading ? 'fa-spinner fa-spin' : 'fa-download'} mr-2`}></i>
-                    {isDownloading ? 'Скачивание...' : 'Скачать'}
-                  </button>
-                )}
+                {selectedGeneration.status === 'completed' && (() => {
+                  // Для HTML-контента (worksheet / quiz / exam / lesson-plan и т.п.)
+                  // открываем модалку скачивания. Для audio/image идём старым путём.
+                  const htmlContent = getResultContent(selectedGeneration)
+                  const isHtml =
+                    typeof htmlContent === 'string' && looksLikeHtml(htmlContent)
+                  const hasMedia =
+                    !!(selectedGeneration.result as any)?.audioUrl || !!getImageUrl(selectedGeneration)
+                  return (
+                    <button
+                      onClick={() => (isHtml && !hasMedia ? setShowPdfModal(true) : downloadGeneration())}
+                      disabled={isDownloading}
+                      className="w-full py-3 bg-blue-50 text-blue-600 rounded-xl font-medium disabled:opacity-50"
+                    >
+                      <i className={`fas ${isDownloading ? 'fa-spinner fa-spin' : 'fa-download'} mr-2`}></i>
+                      {isDownloading ? 'Скачивание...' : 'Скачать'}
+                    </button>
+                  )
+                })()}
                 <button 
                   onClick={deleteGeneration}
                   className="w-full py-3 bg-red-50 text-red-600 rounded-xl font-medium"
@@ -650,6 +665,15 @@ export default function GenerationHistory() {
             </div>
           </div>
         </div>
+      )}
+      {selectedGeneration && (
+        <DownloadPdfModal
+          isOpen={showPdfModal}
+          onClose={() => setShowPdfModal(false)}
+          generationId={selectedGeneration.id}
+          filename={`${(getTypeLabel(selectedGeneration.type).replace(/[^a-zA-Zа-яА-Я0-9]/g, '_') || 'result')}_${new Date().toISOString().split('T')[0]}.pdf`}
+          hasAnswers={typeHasAnswers(selectedGeneration.type)}
+        />
       )}
     </div>
   )

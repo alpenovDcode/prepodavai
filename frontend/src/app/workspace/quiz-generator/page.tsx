@@ -2,9 +2,8 @@
 
 import { useState, useRef, useEffect } from 'react'
 import DOMPurify from 'isomorphic-dompurify'
-import { downloadPdfById } from '@/lib/utils/downloadPdf'
-import { HelpCircle, Download, Copy, RefreshCw, Loader2, Eye, Edit3 } from 'lucide-react'
-import toast from 'react-hot-toast'
+import PdfDownloadButton from '@/components/workspace/PdfDownloadButton'
+import { HelpCircle, Copy, RefreshCw, Loader2, Eye, Edit3 } from 'lucide-react'
 import { useIsMobile } from '@/lib/hooks/useIsMobile'
 import RichTextEditor from '@/components/workspace/RichTextEditor'
 import { useGenerations } from '@/lib/hooks/useGenerations'
@@ -27,7 +26,6 @@ export default function QuizGenerator() {
     const [activeTab, setActiveTab] = useState<'config' | 'preview'>('config')
     const { isMobile } = useIsMobile()
     const [editMode, setEditMode] = useState(false)
-    const [isExporting, setIsExporting] = useState(false)
     const [localContent, setLocalContent] = useState('<p>Определите параметры теста и нажмите Сгенерировать.</p>')
     const iframeRef = useRef<HTMLIFrameElement>(null)
 
@@ -96,18 +94,6 @@ export default function QuizGenerator() {
             }
         }
     }, [editMode, localContent]);
-
-    const exportPDF = async () => {
-        if (!activeGenerationId) {
-            toast.error('Сначала сгенерируйте материал')
-            return
-        }
-        try {
-            await downloadPdfById(activeGenerationId, 'quiz.pdf')
-        } catch {
-            toast.error('Не удалось сформировать PDF')
-        }
-    }
 
     return (
         <div className="flex flex-col md:flex-row w-full h-full bg-[#F9FAFB] overflow-hidden">
@@ -270,14 +256,12 @@ export default function QuizGenerator() {
                                 <Copy className="w-4 h-4" />
                             </button>
 
-                            <button
-                                onClick={exportPDF}
-                                disabled={isExporting}
+                            <PdfDownloadButton
+                                generationId={activeGenerationId}
+                                filename="quiz.pdf"
+                                hasAnswers
                                 className="flex items-center gap-2 px-3 md:px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-[11px] font-bold rounded-lg shadow-sm transition-all active:scale-[0.98] ml-1 flex-shrink-0"
-                            >
-                                {isExporting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
-                                <span>PDF</span>
-                            </button>
+                            />
                             {hasResult && (
                                 <AssignTaskButton
                                     generationId={activeGenerationId}

@@ -13,6 +13,7 @@ import DOMPurify from 'isomorphic-dompurify'
 import jsPDF from 'jspdf'
 import html2canvas from 'html2canvas'
 import { downloadPdfById } from '@/lib/utils/downloadPdf'
+import DownloadPdfModal from './workspace/DownloadPdfModal'
 
 interface MaterialViewerProps {
     lessonId?: string
@@ -287,6 +288,7 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
     const [isDownloading, setIsDownloading] = useState(false)
     const [isExporting, setIsExporting] = useState(false)
     const [showDownloadMenu, setShowDownloadMenu] = useState(false)
+    const [showPdfModal, setShowPdfModal] = useState(false)
     const downloadMenuRef = useRef<HTMLDivElement>(null)
     const router = useRouter()
     const editorRef = useRef<PresentationEditorRef>(null)
@@ -403,7 +405,10 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
         fetchContent()
     }, [lessonId, generationId, directContent, type])
 
-    const handleDownload = async () => {
+    const typeHasAnswers = (t: string) =>
+        ['worksheet', 'quiz', 'exam-variant', 'lesson_preparation'].includes(t)
+
+    const handleDownload = async (opts: { withAnswers?: boolean } = {}) => {
         // --- Презентация ---
         if (generationType === 'presentation') {
             const data = typeof content === 'string' ? JSON.parse(content) : content
@@ -446,10 +451,11 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
 
         setIsDownloading(true)
         try {
-            const title = lessonTitle || generationType.replace(/[^a-zA-Zа-яА-Я0-9]/g, '_') || 'result'
+            const baseTitle = lessonTitle || generationType.replace(/[^a-zA-Zа-яА-Я0-9]/g, '_') || 'result'
+            const suffix = typeHasAnswers(generationType) && opts.withAnswers === false ? '-student' : ''
             // Шлём id генерации — бекенд сам читает outputData из БД и рендерит
             // PDF тем же путём, что Telegram/MAX. Гарантирует 1-в-1 совпадение.
-            await downloadPdfById(generationId, `${title}.pdf`)
+            await downloadPdfById(generationId, `${baseTitle}${suffix}.pdf`, { withAnswers: opts.withAnswers })
         } catch (error) {
             console.error('Failed to generate PDF:', error)
             alert('Ошибка при генерации PDF. Попробуйте снова.')
@@ -650,9 +656,18 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
                             <ExternalLink size={18} />
                             <span>Открыть игру</span>
                         </a>
+                    ) : !isImageContent && generationType !== 'presentation' && generationId ? (
+                        <button
+                            onClick={() => setShowPdfModal(true)}
+                            disabled={isDownloading}
+                            className="px-4 py-2 text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition font-medium flex items-center gap-2 shadow-sm shadow-blue-600/20 active:scale-95 disabled:opacity-50"
+                        >
+                            <Download size={18} />
+                            <span>Скачать PDF</span>
+                        </button>
                     ) : (
                         <button
-                            onClick={handleDownload}
+                            onClick={() => handleDownload()}
                             disabled={isDownloading}
                             className="px-4 py-2 text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition font-medium flex items-center gap-2 shadow-sm shadow-blue-600/20 active:scale-95 disabled:opacity-50"
                         >
@@ -791,6 +806,13 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
                     </div>
                 )}
             </div>
+            <DownloadPdfModal
+                isOpen={showPdfModal}
+                onClose={() => setShowPdfModal(false)}
+                generationId={generationId}
+                filename={`${lessonTitle || generationType.replace(/[^a-zA-Zа-яА-Я0-9]/g, '_') || 'result'}.pdf`}
+                hasAnswers={typeHasAnswers(generationType)}
+            />
         </div>
     )
 }
