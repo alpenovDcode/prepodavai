@@ -8,9 +8,9 @@ export async function downloadPdf(html: string, filename = 'document.pdf', optio
         ? html
         : `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body>${html}</body></html>`
 
-    const response = await apiClient.post('/generate/export-pdf', { 
+    const response = await apiClient.post('/generate/export-pdf', {
         html: fullHtml,
-        isWysiwyg: options?.isWysiwyg
+        isWysiwyg: options?.isWysiwyg ?? true
     }, { responseType: 'blob' })
 
     const url = URL.createObjectURL(response.data)
