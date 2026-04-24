@@ -82,11 +82,25 @@ const INTERACTIVE_SCRIPT = `<script>
 <\/script>`
 
 // ─── Скрипт для РЕЖИМА ПРОСМОТРА (учитель видит заполненный бланк) ───────────
+// ВАЖНО: autoId должен работать идентично INTERACTIVE_SCRIPT.autoId, иначе
+// сохранённые ключи ответов ученика (hw_f_N) не совпадут с элементами DOM.
 function buildReadonlyScript(data: Record<string, any>): string {
   return `<script>
 (function(){
   var d=${JSON.stringify(data)};
+
+  function autoId(){
+    var i=0;
+    document.querySelectorAll('input,textarea,select,[contenteditable="true"]').forEach(function(el){
+      if(!el.id&&!el.name){el.id='hw_f_'+i;if(el.tagName!=='DIV'&&el.tagName!=='SPAN')el.name=el.id;}
+      i++;
+    });
+  }
+
   function apply(){
+    // ШАГ 1: проставить автогенерируемые id так же, как в интерактивном режиме.
+    autoId();
+
     // Текстовые поля, textarea, select
     Object.keys(d).forEach(function(k){
       if(k.startsWith('r__'))return;
@@ -245,12 +259,12 @@ export default function InteractiveHtmlViewer({
     ? buildReadonlyScript(prefillData)
     : INTERACTIVE_SCRIPT
 
-  // В интерактивном режиме: убираем ответы и конвертируем ___ → <input>
-  // В режиме просмотра: тоже конвертируем ___ → <input>, чтобы buildReadonlyScript
-  // мог найти элементы по id (blank_0, blank_1...) и заполнить ответы ученика
-  const processedHtml = !readOnly
-    ? convertBlanksToInputs(stripAnswerSection(html))
-    : convertBlanksToInputs(html)
+  // В обоих режимах применяем ОДИНАКОВЫЙ пайплайн: убираем ключ ответов и
+  // конвертируем ___ → <input>. Это критично, потому что auto-id
+  // (hw_f_0, hw_f_1, ...) зависит от DOM-порядка. Если interactive и readonly
+  // видят разный DOM, сохранённые ключи ответов ученика не совпадут с
+  // элементами при повторном открытии — и поля останутся пустыми.
+  const processedHtml = convertBlanksToInputs(stripAnswerSection(html))
   const finalHtml = injectScript(processedHtml, scriptToInject)
 
   // Слушаем сообщения от iframe

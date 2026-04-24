@@ -16,7 +16,7 @@ import { Response } from 'express';
 import * as path from 'path';
 import { FilesService } from './files.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { Throttle } from '@nestjs/throttler';
+import { Throttle, SkipThrottle } from '@nestjs/throttler';
 
 @Controller('files')
 export class FilesController {
@@ -100,9 +100,12 @@ export class FilesController {
   /**
    * Получить файл по hash
    * Поддерживает ?download=1 для принудительного скачивания с правильным именем
-   * Защищено JWT — доступ только авторизованным пользователям
+   * Защищено JWT — доступ только авторизованным пользователям.
+   * Без throttle: страница с интерактивным заданием может подгружать 5-10+
+   * картинок параллельно, глобальный лимит зря триггерит 429.
    */
   @Get(':hash')
+  @SkipThrottle()
   @UseGuards(JwtAuthGuard)
   async getFile(@Param('hash') hash: string, @Res() res: Response) {
     const file = await this.filesService.getFilePath(hash);
