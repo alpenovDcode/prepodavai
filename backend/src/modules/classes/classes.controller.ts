@@ -32,6 +32,11 @@ export class ClassesController {
     return this.classesService.getClass(req.user.id, id);
   }
 
+  @Get(':id/analytics')
+  analytics(@Request() req, @Param('id') id: string) {
+    return this.classesService.getClassAnalytics(req.user.id, id);
+  }
+
   @Put(':id')
   update(
     @Request() req,

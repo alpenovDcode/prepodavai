@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { apiClient } from '@/lib/api/client'
 import toast from 'react-hot-toast'
 import Image from 'next/image'
@@ -17,9 +17,18 @@ import {
     Paperclip,
     BarChart2,
     Sparkles,
-    Download
+    Download,
+    Zap,
+    Keyboard
 } from 'lucide-react'
 import InteractiveHtmlViewer, { extractHtmlFromOutput } from '@/components/InteractiveHtmlViewer'
+
+const FEEDBACK_TEMPLATES = [
+    'Отличная работа, всё верно! Молодец!',
+    'В целом хорошо, но есть пара недочётов — обрати внимание и исправь.',
+    'Есть ошибки. Повтори тему и попробуй ещё раз.',
+    'Требуется доработка — перечитай задание и сдай повторно.',
+]
 
 /** Сравнивает ответы ученика с ключом ответов из HTML теста */
 function computeQuizScore(html: string, formData: Record<string, any>): { correct: number; total: number } | null {
@@ -148,6 +157,12 @@ export default function HomeworkReviewPage() {
     const [submittingGrade, setSubmittingGrade] = useState(false)
     const [generatingFeedback, setGeneratingFeedback] = useState(false)
 
+    // AI draft cache: submissionId -> { grade, feedback }
+    const [aiDrafts, setAiDrafts] = useState<Record<string, { grade: number | null; feedback: string }>>({})
+    const [draftFetchingId, setDraftFetchingId] = useState<string | null>(null)
+    const [showHotkeys, setShowHotkeys] = useState(false)
+    const feedbackTextareaRef = useRef<HTMLTextAreaElement | null>(null)
+
     // Initial load classes
     useEffect(() => {
         const fetchClasses = async () => {
@@ -209,28 +224,174 @@ export default function HomeworkReviewPage() {
         if (selectedClass) handleSelectClass(selectedClass)
     }
 
+    const fetchAiDraftFor = useCallback(async (submissionId: string) => {
+        if (aiDrafts[submissionId] || draftFetchingId === submissionId) return
+        setDraftFetchingId(submissionId)
+        try {
+            const res = await apiClient.post<{ grade: number | null; feedback: string }>(
+                `/submissions/${submissionId}/ai-feedback`
+            )
+            setAiDrafts(prev => ({
+                ...prev,
+                [submissionId]: {
+                    grade: typeof res.data?.grade === 'number' ? res.data.grade : null,
+                    feedback: (res.data?.feedback || '').trim(),
+                },
+            }))
+        } catch (error) {
+            console.error('Failed to prefetch AI draft', error)
+        } finally {
+            setDraftFetchingId(prev => (prev === submissionId ? null : prev))
+        }
+    }, [aiDrafts, draftFetchingId])
+
     const handleSelectStudentForGrading = (status: StudentStatus) => {
         setSelectedStudentStatus(status)
         setGradeInput(status.submission?.grade || '')
         setFeedbackInput(status.submission?.feedback || '')
+        // Auto-prefetch AI draft for submitted but not-yet-graded work
+        if (status.status === 'submitted' && status.submission?.id) {
+            fetchAiDraftFor(status.submission.id)
+        }
     }
 
-    const handleSubmitGrade = async () => {
+    const acceptAiDraft = useCallback(() => {
+        const submissionId = selectedStudentStatus?.submission?.id
+        if (!submissionId) return
+        const draft = aiDrafts[submissionId]
+        if (!draft) {
+            toast('ИИ-черновик ещё готовится...', { icon: '⏳' })
+            return
+        }
+        if (draft.grade !== null) setGradeInput(draft.grade)
+        if (draft.feedback) setFeedbackInput(draft.feedback)
+    }, [selectedStudentStatus, aiDrafts])
+
+    const navigateStudent = useCallback((delta: 1 | -1) => {
+        if (!assignmentDetails) return
+        const list = assignmentDetails.studentStatuses
+        if (list.length === 0) return
+        const currentIdx = selectedStudentStatus
+            ? list.findIndex(s => s.student.id === selectedStudentStatus.student.id)
+            : -1
+        const nextIdx = currentIdx === -1
+            ? (delta === 1 ? 0 : list.length - 1)
+            : (currentIdx + delta + list.length) % list.length
+        handleSelectStudentForGrading(list[nextIdx])
+    }, [assignmentDetails, selectedStudentStatus])
+
+    const insertFeedbackTemplate = useCallback((tpl: string) => {
+        setFeedbackInput(prev => (prev.trim() ? `${prev.trim()}\n${tpl}` : tpl))
+    }, [])
+
+    // Global keyboard shortcuts for grading view
+    useEffect(() => {
+        if (view !== 'grading') return
+        const isEditableTarget = (el: EventTarget | null) => {
+            if (!(el instanceof HTMLElement)) return false
+            const tag = el.tagName
+            return tag === 'INPUT' || tag === 'TEXTAREA' || el.isContentEditable
+        }
+
+        const handler = (e: KeyboardEvent) => {
+            if (e.metaKey || e.ctrlKey || e.altKey) return
+            const inEditable = isEditableTarget(e.target)
+
+            // Allow Escape from textarea to blur
+            if (e.key === 'Escape' && inEditable) {
+                (e.target as HTMLElement).blur()
+                return
+            }
+
+            // Hotkeys that should work only outside text inputs
+            if (inEditable) return
+
+            if (!selectedStudentStatus) return
+
+            if (e.key >= '1' && e.key <= '5') {
+                e.preventDefault()
+                setGradeInput(Number(e.key))
+                return
+            }
+            if (e.key === 'a' || e.key === 'A' || e.key === 'ф' || e.key === 'Ф') {
+                e.preventDefault()
+                acceptAiDraft()
+                return
+            }
+            if (e.key === 'e' || e.key === 'E' || e.key === 'у' || e.key === 'У') {
+                e.preventDefault()
+                feedbackTextareaRef.current?.focus()
+                return
+            }
+            if (e.key === 'Enter') {
+                e.preventDefault()
+                if (gradeInput !== '' && !submittingGrade) {
+                    handleSubmitGrade({ advance: true })
+                }
+                return
+            }
+            if (e.key === 'ArrowDown') {
+                e.preventDefault()
+                navigateStudent(1)
+                return
+            }
+            if (e.key === 'ArrowUp') {
+                e.preventDefault()
+                navigateStudent(-1)
+                return
+            }
+        }
+
+        window.addEventListener('keydown', handler)
+        return () => window.removeEventListener('keydown', handler)
+    }, [view, selectedStudentStatus, gradeInput, submittingGrade, acceptAiDraft, navigateStudent])
+
+
+    const handleSubmitGrade = async (opts?: { advance?: boolean }) => {
         if (!selectedStudentStatus?.submission) return
         if (gradeInput === '' || gradeInput < 1 || gradeInput > 5) {
             toast.error('Оценка должна быть от 1 до 5')
             return
         }
 
+        const currentStudentId = selectedStudentStatus.student.id
         setSubmittingGrade(true)
         try {
             await apiClient.patch(`/submissions/${selectedStudentStatus.submission.id}/grade`, {
                 grade: Number(gradeInput),
                 feedback: feedbackInput
             })
+            toast.success('Оценка сохранена')
             // Refresh details
             if (selectedAssignment) {
-                await fetchAssignmentDetails(selectedAssignment.id)
+                const res = await apiClient.get(`/submissions/assignment/${selectedAssignment.id}`)
+                const details: AssignmentDetails = res.data
+                setAssignmentDetails(details)
+
+                if (opts?.advance) {
+                    const list = details.studentStatuses
+                    const currentIdx = list.findIndex(s => s.student.id === currentStudentId)
+                    // find next submitted-not-graded, starting from currentIdx + 1
+                    let next: StudentStatus | null = null
+                    for (let i = 1; i <= list.length; i++) {
+                        const candidate = list[(currentIdx + i + list.length) % list.length]
+                        if (candidate.status === 'submitted') {
+                            next = candidate
+                            break
+                        }
+                    }
+                    if (next) {
+                        handleSelectStudentForGrading(next)
+                    } else {
+                        // all graded — clear selection, celebrate
+                        setSelectedStudentStatus(null)
+                        toast.success('Все работы этого задания проверены! 🎉')
+                    }
+                } else {
+                    // keep selection in sync with updated submission (grade/feedback persist)
+                    const updated = details.studentStatuses.find(s => s.student.id === currentStudentId)
+                    if (updated) setSelectedStudentStatus(updated)
+                }
             }
         } catch (error) {
             console.error('Failed to submit grade', error)
@@ -242,10 +403,17 @@ export default function HomeworkReviewPage() {
 
     const handleGenerateAiFeedback = async () => {
         if (!selectedStudentStatus?.submission) return
+        const submissionId = selectedStudentStatus.submission.id
         setGeneratingFeedback(true)
         try {
-            const res = await apiClient.post(`/submissions/${selectedStudentStatus.submission.id}/ai-feedback`)
-            setFeedbackInput((res.data?.feedback || '').trim())
+            const res = await apiClient.post<{ grade: number | null; feedback: string }>(
+                `/submissions/${submissionId}/ai-feedback`
+            )
+            const feedback = (res.data?.feedback || '').trim()
+            const grade = typeof res.data?.grade === 'number' ? res.data.grade : null
+            setFeedbackInput(feedback)
+            if (grade !== null) setGradeInput(grade)
+            setAiDrafts(prev => ({ ...prev, [submissionId]: { grade, feedback } }))
         } catch (error) {
             console.error('Failed to generate AI feedback', error)
             toast.error('Ошибка при генерации комментария')
@@ -414,6 +582,37 @@ export default function HomeworkReviewPage() {
                             <span className="bg-green-100 text-green-800 px-2 py-0.5 rounded-full font-semibold">Оценено: {assignmentDetails.gradedCount}</span>
                             <span className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full font-semibold">Не сдали: {assignmentDetails.notSubmittedCount}</span>
                         </div>
+                        {/* Grading progress */}
+                        {assignmentDetails.submittedCount > 0 && (
+                            <div className="mt-3">
+                                <div className="flex items-center justify-between text-[11px] text-gray-500 font-semibold mb-1">
+                                    <span>Проверено работ</span>
+                                    <span>{assignmentDetails.gradedCount} / {assignmentDetails.submittedCount}</span>
+                                </div>
+                                <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden">
+                                    <div
+                                        className="h-full bg-gradient-to-r from-green-400 to-green-600 transition-all"
+                                        style={{ width: `${Math.round((assignmentDetails.gradedCount / assignmentDetails.submittedCount) * 100)}%` }}
+                                    />
+                                </div>
+                            </div>
+                        )}
+                        <button
+                            onClick={() => setShowHotkeys(v => !v)}
+                            className="mt-3 w-full flex items-center justify-center gap-1.5 text-[11px] font-semibold text-gray-500 hover:text-gray-800 bg-gray-50 hover:bg-gray-100 border border-gray-200 px-2 py-1.5 rounded-lg transition-colors"
+                            title="Показать горячие клавиши"
+                        >
+                            <Keyboard size={12} /> Горячие клавиши
+                        </button>
+                        {showHotkeys && (
+                            <div className="mt-2 p-3 bg-indigo-50 border border-indigo-100 rounded-xl text-[11px] text-indigo-900 space-y-1">
+                                <div className="flex justify-between"><kbd className="font-mono font-bold">1–5</kbd><span>Поставить оценку</span></div>
+                                <div className="flex justify-between"><kbd className="font-mono font-bold">A</kbd><span>Принять ИИ-черновик</span></div>
+                                <div className="flex justify-between"><kbd className="font-mono font-bold">Enter</kbd><span>Сохранить и к следующему</span></div>
+                                <div className="flex justify-between"><kbd className="font-mono font-bold">↑ / ↓</kbd><span>Предыдущий / следующий</span></div>
+                                <div className="flex justify-between"><kbd className="font-mono font-bold">E</kbd><span>Фокус на комментарий</span></div>
+                            </div>
+                        )}
                         {/* Analytics block */}
                         <div className="mt-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
                             <div className="flex items-center gap-1.5 mb-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
@@ -600,8 +799,62 @@ export default function HomeworkReviewPage() {
                                         </div>
                                     )
                                 })()}
+                                {/* AI DRAFT BANNER */}
+                                {(() => {
+                                    const submissionId = selectedStudentStatus.submission?.id
+                                    if (!submissionId) return null
+                                    const draft = aiDrafts[submissionId]
+                                    const isDraftLoading = draftFetchingId === submissionId
+
+                                    if (isDraftLoading) {
+                                        return (
+                                            <div className="mb-5 p-4 rounded-xl border border-purple-200 bg-gradient-to-br from-purple-50 to-indigo-50 flex items-center gap-3">
+                                                <Loader2 size={18} className="animate-spin text-purple-600" />
+                                                <div>
+                                                    <p className="text-sm font-bold text-purple-900">ИИ проверяет работу...</p>
+                                                    <p className="text-xs text-purple-700">Черновик оценки и комментарий появятся через пару секунд.</p>
+                                                </div>
+                                            </div>
+                                        )
+                                    }
+
+                                    if (!draft) return null
+
+                                    return (
+                                        <div className="mb-5 p-4 rounded-xl border border-purple-200 bg-gradient-to-br from-purple-50 to-indigo-50">
+                                            <div className="flex items-start justify-between gap-3 mb-2">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center">
+                                                        <Sparkles size={16} className="text-purple-600" />
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-xs font-semibold text-purple-600 uppercase tracking-wider">ИИ предлагает</p>
+                                                        <p className="text-sm font-bold text-gray-900">
+                                                            Оценка: {draft.grade !== null
+                                                                ? <span className="text-lg">{draft.grade}</span>
+                                                                : <span className="text-gray-400 text-xs">не определена</span>}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    onClick={acceptAiDraft}
+                                                    className="flex items-center gap-1.5 text-xs font-bold text-white bg-purple-600 hover:bg-purple-700 px-3 py-2 rounded-lg transition shadow-sm"
+                                                    title="Принять черновик (A)"
+                                                >
+                                                    <Zap size={13} /> Принять
+                                                </button>
+                                            </div>
+                                            {draft.feedback && (
+                                                <p className="text-xs text-gray-700 bg-white/60 rounded-lg p-2.5 leading-relaxed mt-2">
+                                                    {draft.feedback}
+                                                </p>
+                                            )}
+                                        </div>
+                                    )
+                                })()}
+
                                 <h3 className="text-lg font-bold text-gray-900 mb-4">Оценка и комментарий</h3>
-                                
+
                                 <div className="mb-6">
                                     <label className="block text-sm font-semibold text-gray-700 mb-2">Оценка (1-5)</label>
                                     <div className="flex gap-2">
@@ -631,7 +884,22 @@ export default function HomeworkReviewPage() {
                                             }
                                         </button>
                                     </div>
+                                    {/* Quick templates */}
+                                    <div className="flex flex-wrap gap-1.5 mb-2">
+                                        {FEEDBACK_TEMPLATES.map((tpl, i) => (
+                                            <button
+                                                key={i}
+                                                type="button"
+                                                onClick={() => insertFeedbackTemplate(tpl)}
+                                                className="text-[11px] font-medium text-gray-600 bg-gray-50 hover:bg-gray-100 border border-gray-200 px-2 py-1 rounded-md transition"
+                                                title="Вставить шаблон"
+                                            >
+                                                {tpl.length > 35 ? tpl.slice(0, 34) + '…' : tpl}
+                                            </button>
+                                        ))}
+                                    </div>
                                     <textarea
+                                        ref={feedbackTextareaRef}
                                         value={feedbackInput}
                                         onChange={(e) => setFeedbackInput(e.target.value)}
                                         className="w-full h-32 px-4 py-3 bg-white border border-gray-300 rounded-xl focus:border-primary-500 focus:ring-2 focus:ring-primary-100 transition resize-none"
@@ -639,14 +907,33 @@ export default function HomeworkReviewPage() {
                                     />
                                 </div>
 
-                                <div className="flex justify-end pt-4 border-t border-gray-100">
+                                <div className="flex justify-between items-center pt-4 border-t border-gray-100 gap-2">
                                     <button
-                                        onClick={handleSubmitGrade}
-                                        disabled={submittingGrade || gradeInput === ''}
-                                        className="flex items-center gap-2 px-8 py-3.5 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 transition shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed transform hover:-translate-y-0.5"
+                                        onClick={() => navigateStudent(-1)}
+                                        className="px-3 py-2.5 text-gray-500 hover:text-gray-900 bg-gray-50 hover:bg-gray-100 rounded-lg text-sm font-semibold transition flex items-center gap-1"
+                                        title="Предыдущий ученик (↑)"
                                     >
-                                        {submittingGrade ? <><Loader2 size={18} className="animate-spin" /> Сохранение...</> : <><CheckCircle size={18} /> Сохранить оценку</>}
+                                        <ChevronLeft size={16} /> Пред.
                                     </button>
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={() => handleSubmitGrade()}
+                                            disabled={submittingGrade || gradeInput === ''}
+                                            className="flex items-center gap-2 px-5 py-2.5 bg-white border border-green-200 text-green-700 font-semibold rounded-lg hover:bg-green-50 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            <CheckCircle size={16} /> Сохранить
+                                        </button>
+                                        <button
+                                            onClick={() => handleSubmitGrade({ advance: true })}
+                                            disabled={submittingGrade || gradeInput === ''}
+                                            className="flex items-center gap-2 px-6 py-2.5 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 transition shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                                            title="Сохранить и к следующему (Enter)"
+                                        >
+                                            {submittingGrade
+                                                ? <><Loader2 size={16} className="animate-spin" /> Сохранение...</>
+                                                : <>Сохранить и далее <ChevronRight size={16} /></>}
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </div>

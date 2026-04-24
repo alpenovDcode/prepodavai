@@ -3,6 +3,67 @@
 import { useState, useEffect } from 'react'
 import { apiClient } from '@/lib/api/client'
 import { useRouter } from 'next/navigation'
+import {
+    BarChart,
+    Bar,
+    LineChart,
+    Line,
+    XAxis,
+    YAxis,
+    Tooltip,
+    ResponsiveContainer,
+    CartesianGrid,
+    Cell,
+} from 'recharts'
+
+interface ClassAnalytics {
+    classInfo: { id: string; name: string; totalStudents: number; totalAssignments: number }
+    summary: {
+        avgGrade: number | null
+        submissionRate: number
+        onTimeRate: number | null
+        gradedCount: number
+        submissionsCount: number
+        expectedSubmissions: number
+    }
+    gradeDistribution: Record<string, number>
+    weeksTrend: { weekStart: string; avgGrade: number | null; count: number }[]
+    studentBreakdown: {
+        id: string
+        name: string
+        avatar: string | null
+        avgGrade: number | null
+        submitted: number
+        graded: number
+        totalAssignments: number
+        submissionRate: number
+        onTimeRate: number | null
+        riskLevel: 'good' | 'watch' | 'risk' | 'unknown'
+    }[]
+    atRisk: ClassAnalytics['studentBreakdown']
+}
+
+const RISK_COLOR: Record<ClassAnalytics['studentBreakdown'][number]['riskLevel'], string> = {
+    good: 'bg-green-100 text-green-700',
+    watch: 'bg-amber-100 text-amber-700',
+    risk: 'bg-red-100 text-red-700',
+    unknown: 'bg-gray-100 text-gray-600',
+}
+
+const RISK_LABEL: Record<ClassAnalytics['studentBreakdown'][number]['riskLevel'], string> = {
+    good: 'Стабильно',
+    watch: 'Под наблюдением',
+    risk: 'Отстаёт',
+    unknown: 'Мало данных',
+}
+
+const GRADE_COLORS: Record<string, string> = {
+    '5': '#10b981',
+    '4': '#84cc16',
+    '3': '#facc15',
+    '2': '#fb923c',
+    '1': '#ef4444',
+}
 
 interface Student {
     id: string
@@ -76,7 +137,9 @@ interface ClassDetailPageProps {
 export default function ClassDetailPage({ id }: ClassDetailPageProps) {
     const [classData, setClassData] = useState<ClassDetail | null>(null)
     const [loading, setLoading] = useState(true)
-    const [activeTab, setActiveTab] = useState<'students' | 'assignments'>('students')
+    const [activeTab, setActiveTab] = useState<'students' | 'assignments' | 'analytics'>('students')
+    const [analytics, setAnalytics] = useState<ClassAnalytics | null>(null)
+    const [analyticsLoading, setAnalyticsLoading] = useState(false)
     const [inviteUrl, setInviteUrl] = useState<string | null>(null)
     const [inviteLoading, setInviteLoading] = useState(false)
     const [inviteCopied, setInviteCopied] = useState(false)
@@ -188,6 +251,22 @@ export default function ClassDetailPage({ id }: ClassDetailPageProps) {
 
         fetchClassData()
     }, [id])
+
+    useEffect(() => {
+        if (activeTab !== 'analytics' || analytics) return
+        const fetchAnalytics = async () => {
+            setAnalyticsLoading(true)
+            try {
+                const res = await apiClient.get(`/classes/${id}/analytics`)
+                setAnalytics(res.data)
+            } catch (error) {
+                console.error('Failed to fetch class analytics:', error)
+            } finally {
+                setAnalyticsLoading(false)
+            }
+        }
+        fetchAnalytics()
+    }, [activeTab, analytics, id])
 
     if (loading) {
         return (
@@ -431,10 +510,29 @@ export default function ClassDetailPage({ id }: ClassDetailPageProps) {
                         <div className="absolute bottom-0 left-0 w-full h-0.5 bg-primary-600 rounded-t-full"></div>
                     )}
                 </button>
+                <button
+                    onClick={() => setActiveTab('analytics')}
+                    className={`pb-4 px-2 font-medium transition relative ${activeTab === 'analytics'
+                        ? 'text-primary-600'
+                        : 'text-gray-500 hover:text-gray-700'
+                        }`}
+                >
+                    <i className="fas fa-chart-line mr-1.5 text-xs"></i>
+                    Аналитика
+                    {activeTab === 'analytics' && (
+                        <div className="absolute bottom-0 left-0 w-full h-0.5 bg-primary-600 rounded-t-full"></div>
+                    )}
+                </button>
             </div>
 
             {/* Content */}
-            {activeTab === 'students' ? (
+            {activeTab === 'analytics' ? (
+                <ClassAnalyticsView
+                    loading={analyticsLoading}
+                    analytics={analytics}
+                    onSelectStudent={(studentId: string) => router.push(`/dashboard/students/${studentId}`)}
+                />
+            ) : activeTab === 'students' ? (
                 <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                     <table className="w-full">
                         <thead>
@@ -555,6 +653,273 @@ export default function ClassDetailPage({ id }: ClassDetailPageProps) {
                     )}
                 </div>
             )}
+        </div>
+    )
+}
+
+interface ClassAnalyticsViewProps {
+    loading: boolean
+    analytics: ClassAnalytics | null
+    onSelectStudent: (studentId: string) => void
+}
+
+function ClassAnalyticsView({ loading, analytics, onSelectStudent }: ClassAnalyticsViewProps) {
+    if (loading) {
+        return (
+            <div className="bg-white rounded-2xl border border-gray-100 p-16 text-center">
+                <div className="inline-block animate-spin rounded-full h-10 w-10 border-b-2 border-primary-600 mb-4"></div>
+                <p className="text-sm text-gray-500">Считаем аналитику класса...</p>
+            </div>
+        )
+    }
+
+    if (!analytics) {
+        return (
+            <div className="bg-white rounded-2xl border border-gray-100 p-16 text-center text-gray-500">
+                Не удалось загрузить аналитику.
+            </div>
+        )
+    }
+
+    const { summary, gradeDistribution, weeksTrend, studentBreakdown, atRisk } = analytics
+    const submissionPct = Math.round(summary.submissionRate * 100)
+    const onTimePct = summary.onTimeRate !== null ? Math.round(summary.onTimeRate * 100) : null
+
+    const distributionData = (['5', '4', '3', '2', '1'] as const).map((g) => ({
+        grade: g,
+        count: gradeDistribution[g] || 0,
+        color: GRADE_COLORS[g],
+    }))
+
+    const trendData = weeksTrend.map((w) => ({
+        week: new Date(w.weekStart).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' }),
+        avgGrade: w.avgGrade,
+        count: w.count,
+    }))
+
+    return (
+        <div className="space-y-6">
+            {/* Top metrics */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <MetricCard
+                    label="Средний балл класса"
+                    value={summary.avgGrade ?? '—'}
+                    color={
+                        summary.avgGrade !== null
+                            ? summary.avgGrade >= 4 ? 'text-green-600'
+                                : summary.avgGrade >= 3 ? 'text-yellow-600'
+                                : 'text-red-500'
+                            : 'text-gray-400'
+                    }
+                    sub={`${summary.gradedCount} проверенных работ`}
+                />
+                <MetricCard
+                    label="Сдают задания"
+                    value={`${submissionPct}%`}
+                    color={submissionPct < 60 ? 'text-red-500' : submissionPct < 80 ? 'text-yellow-600' : 'text-green-600'}
+                    sub={`${summary.submissionsCount} / ${summary.expectedSubmissions} сдач`}
+                />
+                <MetricCard
+                    label="Сдают вовремя"
+                    value={onTimePct !== null ? `${onTimePct}%` : '—'}
+                    color={onTimePct !== null && onTimePct < 60 ? 'text-red-500' : 'text-gray-900'}
+                    sub={onTimePct === null ? 'Нет дедлайнов' : ''}
+                />
+                <MetricCard
+                    label="Под наблюдением"
+                    value={atRisk.length}
+                    color={atRisk.length === 0 ? 'text-green-600' : 'text-amber-600'}
+                    sub={atRisk.length === 0 ? 'Все справляются' : 'Требуют внимания'}
+                />
+            </div>
+
+            {/* Two-column: distribution + trend */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                    <h3 className="text-base font-bold text-gray-900 mb-1">Распределение оценок</h3>
+                    <p className="text-xs text-gray-500 mb-4">Сколько каких оценок выставлено в классе</p>
+                    {summary.gradedCount === 0 ? (
+                        <div className="text-center text-gray-400 py-12 text-sm">Нет проверенных работ</div>
+                    ) : (
+                        <div className="h-56">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={distributionData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                                    <XAxis dataKey="grade" tick={{ fontSize: 12, fill: '#6b7280' }} />
+                                    <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: '#6b7280' }} />
+                                    <Tooltip
+                                        contentStyle={{ borderRadius: 8, fontSize: 12, border: '1px solid #e5e7eb' }}
+                                        formatter={(value: any) => [value, 'работ']}
+                                        labelFormatter={(label: any) => `Оценка ${label}`}
+                                    />
+                                    <Bar dataKey="count" radius={[6, 6, 0, 0]}>
+                                        {distributionData.map((d, i) => (
+                                            <Cell key={i} fill={d.color} />
+                                        ))}
+                                    </Bar>
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
+                    )}
+                </div>
+
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                    <h3 className="text-base font-bold text-gray-900 mb-1">Динамика среднего балла</h3>
+                    <p className="text-xs text-gray-500 mb-4">По неделям, за последние 8 недель</p>
+                    {trendData.every((d) => d.avgGrade === null) ? (
+                        <div className="text-center text-gray-400 py-12 text-sm">Недостаточно данных для тренда</div>
+                    ) : (
+                        <div className="h-56">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <LineChart data={trendData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                                    <XAxis dataKey="week" tick={{ fontSize: 11, fill: '#6b7280' }} />
+                                    <YAxis domain={[0, 5]} ticks={[1, 2, 3, 4, 5]} tick={{ fontSize: 11, fill: '#6b7280' }} />
+                                    <Tooltip
+                                        contentStyle={{ borderRadius: 8, fontSize: 12, border: '1px solid #e5e7eb' }}
+                                        formatter={(value: any, _name: any, item: any) => [
+                                            value === null ? 'нет работ' : value,
+                                            `Средний балл (${item?.payload?.count ?? 0} работ)`,
+                                        ]}
+                                    />
+                                    <Line
+                                        type="monotone"
+                                        dataKey="avgGrade"
+                                        stroke="#6366f1"
+                                        strokeWidth={2.5}
+                                        dot={{ r: 4, fill: '#6366f1' }}
+                                        connectNulls
+                                    />
+                                </LineChart>
+                            </ResponsiveContainer>
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {/* At-risk students */}
+            {atRisk.length > 0 && (
+                <div className="bg-white rounded-2xl shadow-sm border border-amber-200 overflow-hidden">
+                    <div className="p-5 border-b border-amber-100 bg-amber-50/40 flex items-center gap-2">
+                        <i className="fas fa-exclamation-triangle text-amber-600"></i>
+                        <h3 className="text-base font-bold text-gray-900">Кому нужна помощь ({atRisk.length})</h3>
+                    </div>
+                    <div className="divide-y divide-gray-50">
+                        {atRisk.map((s) => (
+                            <button
+                                key={s.id}
+                                onClick={() => onSelectStudent(s.id)}
+                                className="w-full text-left p-4 hover:bg-gray-50 transition flex items-center justify-between gap-3"
+                            >
+                                <div className="flex items-center gap-3 min-w-0">
+                                    <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 font-bold text-sm flex-shrink-0">
+                                        {s.avatar || s.name.charAt(0)}
+                                    </div>
+                                    <div className="min-w-0">
+                                        <p className="font-semibold text-gray-900 truncate">{s.name}</p>
+                                        <p className="text-xs text-gray-500">
+                                            Сдано {s.submitted}/{s.totalAssignments}
+                                            {s.onTimeRate !== null && ` · вовремя ${Math.round(s.onTimeRate * 100)}%`}
+                                        </p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-3 flex-shrink-0">
+                                    <span className={`text-lg font-black ${
+                                        s.avgGrade === null ? 'text-gray-400'
+                                            : s.avgGrade >= 4 ? 'text-green-600'
+                                            : s.avgGrade >= 3 ? 'text-yellow-600'
+                                            : 'text-red-500'
+                                    }`}>
+                                        {s.avgGrade ?? '—'}
+                                    </span>
+                                    <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${RISK_COLOR[s.riskLevel]}`}>
+                                        {RISK_LABEL[s.riskLevel]}
+                                    </span>
+                                    <i className="fas fa-chevron-right text-gray-400 text-xs"></i>
+                                </div>
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* Full breakdown */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                <div className="p-5 border-b border-gray-100">
+                    <h3 className="text-base font-bold text-gray-900">Все ученики</h3>
+                    <p className="text-xs text-gray-500">Сортировка: сначала те, кому нужно внимание</p>
+                </div>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                        <thead>
+                            <tr className="text-xs text-gray-500 bg-gray-50/50">
+                                <th className="text-left py-2.5 px-4 font-semibold">Ученик</th>
+                                <th className="text-center py-2.5 px-3 font-semibold">Средний балл</th>
+                                <th className="text-center py-2.5 px-3 font-semibold">Сдано</th>
+                                <th className="text-center py-2.5 px-3 font-semibold">Вовремя</th>
+                                <th className="text-center py-2.5 px-3 font-semibold">Статус</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-50">
+                            {studentBreakdown.map((s) => (
+                                <tr
+                                    key={s.id}
+                                    onClick={() => onSelectStudent(s.id)}
+                                    className="hover:bg-gray-50 transition cursor-pointer"
+                                >
+                                    <td className="py-3 px-4">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 font-bold text-xs">
+                                                {s.avatar || s.name.charAt(0)}
+                                            </div>
+                                            <span className="font-medium text-gray-900">{s.name}</span>
+                                        </div>
+                                    </td>
+                                    <td className={`text-center py-3 px-3 font-bold ${
+                                        s.avgGrade === null ? 'text-gray-400'
+                                            : s.avgGrade >= 4 ? 'text-green-600'
+                                            : s.avgGrade >= 3 ? 'text-yellow-600'
+                                            : 'text-red-500'
+                                    }`}>
+                                        {s.avgGrade ?? '—'}
+                                    </td>
+                                    <td className="text-center py-3 px-3 text-gray-700">
+                                        {s.submitted}/{s.totalAssignments}
+                                    </td>
+                                    <td className="text-center py-3 px-3 text-gray-700">
+                                        {s.onTimeRate !== null ? `${Math.round(s.onTimeRate * 100)}%` : '—'}
+                                    </td>
+                                    <td className="text-center py-3 px-3">
+                                        <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-bold ${RISK_COLOR[s.riskLevel]}`}>
+                                            {RISK_LABEL[s.riskLevel]}
+                                        </span>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    )
+}
+
+function MetricCard({
+    label,
+    value,
+    sub,
+    color = 'text-gray-900',
+}: {
+    label: string
+    value: string | number
+    sub?: string
+    color?: string
+}) {
+    return (
+        <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
+            <div className="text-gray-500 text-xs font-medium mb-1">{label}</div>
+            <div className={`text-2xl font-bold ${color}`}>{value}</div>
+            {sub && <div className="text-xs text-gray-400 mt-1">{sub}</div>}
         </div>
     )
 }

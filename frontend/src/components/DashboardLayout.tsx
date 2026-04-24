@@ -8,7 +8,7 @@ import { useMiniAppAuth } from '@/lib/hooks/useMiniAppAuth'
 import { useSubscription } from '@/lib/hooks/useSubscription'
 import { LOGO_BASE64 } from '@/constants/branding'
 import { apiClient } from '@/lib/api/client'
-import { Loader2, Menu, X, LayoutDashboard, Wand2, BookOpen, Users, Settings as SettingsIcon, Sparkles, Gift, Zap, MessageCircle } from 'lucide-react'
+import { Loader2, Menu, X, LayoutDashboard, Wand2, BookOpen, Users, Settings as SettingsIcon, Sparkles, Gift, Zap, MessageCircle, Calendar } from 'lucide-react'
 import PlanUpgradeModal from '@/components/PlanUpgradeModal'
 
 interface DashboardLayoutProps {
@@ -24,6 +24,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     const navItems = [
         { id: 'dashboard', label: 'Главная', icon: LayoutDashboard, path: '/dashboard' },
         { id: 'ai', label: 'ИИ Генератор', icon: Wand2, path: '/workspace' },
+        { id: 'calendar', label: 'Календарь', icon: Calendar, path: '/dashboard/calendar' },
         { id: 'courses', label: 'Материалы', icon: BookOpen, path: '/dashboard/courses' },
         { id: 'students', label: 'Ученики', icon: Users, path: '/dashboard/students' },
 

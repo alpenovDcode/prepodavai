@@ -50,7 +50,7 @@ export class SubmissionsController {
   }
 
   @Post(':id/ai-feedback')
-  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   generateAiFeedback(@Request() req, @Param('id') id: string) {
     return this.submissionsService.generateAiFeedback(req.user.id, id);
   }

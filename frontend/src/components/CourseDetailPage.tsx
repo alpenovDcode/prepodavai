@@ -104,6 +104,14 @@ interface Lesson {
     duration?: number
     generations: Generation[]
     createdAt: string
+    // M3: расписание
+    scheduledAt?: string | null
+    durationMinutes?: number | null
+    classId?: string | null
+    notes?: string | null
+    class?: { id: string; name: string } | null
+    // M4: теги
+    tags?: string[]
 }
 
 interface Class {
@@ -115,6 +123,15 @@ interface Student {
     id: string
     name: string
     class: { name: string }
+}
+
+// Преобразует Date/ISO в формат для <input type="datetime-local"> (YYYY-MM-DDTHH:mm в локальной зоне)
+function toDatetimeLocal(iso: string | null | undefined): string {
+    if (!iso) return ''
+    const d = new Date(iso)
+    if (isNaN(d.getTime())) return ''
+    const pad = (n: number) => String(n).padStart(2, '0')
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
 interface CourseDetailPageProps {
@@ -131,14 +148,32 @@ export default function CourseDetailPage({ id }: CourseDetailPageProps) {
     const [assignGenerationId, setAssignGenerationId] = useState<string | undefined>(undefined)
     const [downloadingId, setDownloadingId] = useState<string | null>(null)
 
+    // M3: schedule editing
+    const [classes, setClasses] = useState<{ id: string; name: string }[]>([])
+    const [scheduleOpen, setScheduleOpen] = useState(false)
+    const [scheduleSaving, setScheduleSaving] = useState(false)
+    const [scheduledAtInput, setScheduledAtInput] = useState('')
+    const [durationMinutesInput, setDurationMinutesInput] = useState<number | ''>('')
+    const [classIdInput, setClassIdInput] = useState('')
+    const [notesInput, setNotesInput] = useState('')
+
+    // M4: tags editing
+    const [tagInput, setTagInput] = useState('')
+    const [tagsSaving, setTagsSaving] = useState(false)
+    const [autoTagsLoading, setAutoTagsLoading] = useState(false)
+    const [autoTagsSuggested, setAutoTagsSuggested] = useState<string[] | null>(null)
+
     useEffect(() => {
         const fetchLesson = async () => {
             try {
                 const response = await apiClient.get(`/lessons/${id}`)
                 setLesson(response.data)
+                setScheduledAtInput(toDatetimeLocal(response.data?.scheduledAt))
+                setDurationMinutesInput(response.data?.durationMinutes ?? '')
+                setClassIdInput(response.data?.classId ?? '')
+                setNotesInput(response.data?.notes ?? '')
             } catch (error) {
                 console.error('Failed to fetch lesson:', error)
-                // Handle error (e.g. redirect to list)
             } finally {
                 setLoading(false)
             }
@@ -146,6 +181,137 @@ export default function CourseDetailPage({ id }: CourseDetailPageProps) {
 
         fetchLesson()
     }, [id])
+
+    // Подгружаем классы при первом открытии панели расписания
+    useEffect(() => {
+        if (!scheduleOpen || classes.length > 0) return
+        apiClient.get('/classes')
+            .then(r => setClasses(r.data || []))
+            .catch(e => console.error('Failed to load classes', e))
+    }, [scheduleOpen, classes.length])
+
+    const saveSchedule = async () => {
+        // Валидация перед отправкой
+        let scheduledAtIso: string | null = null
+        if (scheduledAtInput) {
+            const d = new Date(scheduledAtInput)
+            if (isNaN(d.getTime())) {
+                alert('Введите корректную дату и время')
+                return
+            }
+            scheduledAtIso = d.toISOString()
+        }
+        let durationMinutesValue: number | null = null
+        if (durationMinutesInput !== '') {
+            const m = Number(durationMinutesInput)
+            if (!Number.isInteger(m) || m < 5 || m > 480) {
+                alert('Длительность должна быть от 5 до 480 минут')
+                return
+            }
+            durationMinutesValue = m
+        }
+
+        setScheduleSaving(true)
+        try {
+            const body = {
+                scheduledAt: scheduledAtIso,
+                durationMinutes: durationMinutesValue,
+                classId: classIdInput || null,
+                notes: notesInput || null,
+            }
+            const res = await apiClient.patch(`/lessons/${id}/schedule`, body)
+            setLesson(prev => prev ? { ...prev, ...res.data } : prev)
+            setScheduleOpen(false)
+        } catch (error: any) {
+            console.error('Failed to save schedule', error)
+            alert(error?.response?.data?.message || 'Не удалось сохранить расписание')
+        } finally {
+            setScheduleSaving(false)
+        }
+    }
+
+    const saveTags = async (newTags: string[]) => {
+        setTagsSaving(true)
+        try {
+            const res = await apiClient.patch<{ id: string; tags: string[] }>(`/lessons/${id}/tags`, {
+                tags: newTags,
+            })
+            setLesson(prev => prev ? { ...prev, tags: res.data.tags } : prev)
+        } catch (error: any) {
+            console.error('Failed to save tags', error)
+            alert(error?.response?.data?.message || 'Не удалось сохранить теги')
+        } finally {
+            setTagsSaving(false)
+        }
+    }
+
+    const addTag = async (raw: string) => {
+        const t = raw.trim().toLowerCase().slice(0, 40)
+        if (!t) return
+        const current = lesson?.tags || []
+        if (current.includes(t)) {
+            setTagInput('')
+            return
+        }
+        if (current.length >= 20) {
+            alert('Максимум 20 тегов на урок')
+            return
+        }
+        await saveTags([...current, t])
+        setTagInput('')
+    }
+
+    const removeTag = async (tag: string) => {
+        const current = lesson?.tags || []
+        await saveTags(current.filter(t => t !== tag))
+    }
+
+    const requestAutoTags = async () => {
+        setAutoTagsLoading(true)
+        setAutoTagsSuggested(null)
+        try {
+            const res = await apiClient.post<{ suggested: string[] }>(`/lessons/${id}/auto-tags`)
+            const existing = new Set(lesson?.tags || [])
+            const fresh = (res.data.suggested || []).filter(t => !existing.has(t))
+            setAutoTagsSuggested(fresh)
+        } catch (error: any) {
+            console.error('Failed to get auto tags', error)
+            alert(error?.response?.data?.message || 'Не удалось получить предложения')
+        } finally {
+            setAutoTagsLoading(false)
+        }
+    }
+
+    const applySuggestedTag = async (tag: string) => {
+        await addTag(tag)
+        setAutoTagsSuggested(prev => prev?.filter(t => t !== tag) ?? null)
+    }
+
+    const applyAllSuggestedTags = async () => {
+        const suggested = autoTagsSuggested || []
+        const current = lesson?.tags || []
+        const merged: string[] = [...current]
+        for (const s of suggested) {
+            if (merged.length >= 20) break
+            if (!merged.includes(s)) merged.push(s)
+        }
+        await saveTags(merged)
+        setAutoTagsSuggested(null)
+    }
+
+    const clearSchedule = async () => {
+        if (!confirm('Убрать урок из расписания?')) return
+        setScheduleSaving(true)
+        try {
+            const res = await apiClient.patch(`/lessons/${id}/schedule`, { scheduledAt: null })
+            setLesson(prev => prev ? { ...prev, ...res.data, scheduledAt: null } : prev)
+            setScheduledAtInput('')
+        } catch (error) {
+            console.error('Failed to clear schedule', error)
+        } finally {
+            setScheduleSaving(false)
+        }
+    }
 
     const handleAssignClick = () => {
         setAssignGenerationId(undefined)
@@ -238,6 +404,239 @@ export default function CourseDetailPage({ id }: CourseDetailPageProps) {
                         </button>
                     </div>
                 </div>
+            </div>
+
+            {/* Tags widget (M4) */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-4">
+                <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
+                    <h2 className="text-base font-bold text-gray-900 flex items-center gap-2">
+                        <i className="fas fa-tags text-primary-600"></i>
+                        Теги
+                        {(lesson.tags?.length || 0) > 0 && (
+                            <span className="text-xs font-medium text-gray-400">({lesson.tags!.length}/20)</span>
+                        )}
+                    </h2>
+                    <button
+                        onClick={requestAutoTags}
+                        disabled={autoTagsLoading || tagsSaving}
+                        className="flex items-center gap-1.5 text-xs font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 px-3 py-1.5 rounded-lg transition disabled:opacity-50"
+                        title="ИИ проанализирует материалы и предложит теги"
+                    >
+                        {autoTagsLoading
+                            ? <><i className="fas fa-spinner fa-spin text-xs"></i> Подбираем...</>
+                            : <><i className="fas fa-wand-magic-sparkles text-xs"></i> Предложить теги ИИ</>}
+                    </button>
+                </div>
+
+                <div className="flex flex-wrap gap-1.5 mb-3">
+                    {(lesson.tags || []).map(t => (
+                        <span
+                            key={t}
+                            className="inline-flex items-center gap-1 text-xs font-medium bg-primary-50 text-primary-700 border border-primary-100 px-2 py-1 rounded-md"
+                        >
+                            #{t}
+                            <button
+                                onClick={() => removeTag(t)}
+                                disabled={tagsSaving}
+                                className="text-primary-400 hover:text-red-500 transition disabled:opacity-50"
+                                title="Убрать тег"
+                            >
+                                <i className="fas fa-times text-[10px]"></i>
+                            </button>
+                        </span>
+                    ))}
+                    {(lesson.tags?.length || 0) === 0 && !autoTagsSuggested && (
+                        <span className="text-xs text-gray-400 italic">
+                            Тегов пока нет — добавьте свои или попросите ИИ.
+                        </span>
+                    )}
+                </div>
+
+                {/* Add tag input */}
+                {(lesson.tags?.length || 0) < 20 && (
+                    <form
+                        onSubmit={(e) => { e.preventDefault(); addTag(tagInput) }}
+                        className="flex gap-2"
+                    >
+                        <input
+                            type="text"
+                            value={tagInput}
+                            onChange={(e) => setTagInput(e.target.value)}
+                            placeholder="Добавить тег (Enter)"
+                            maxLength={40}
+                            className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900 text-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-100 transition"
+                        />
+                        <button
+                            type="submit"
+                            disabled={!tagInput.trim() || tagsSaving}
+                            className="px-4 py-2 text-sm font-semibold bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition disabled:opacity-50"
+                        >
+                            Добавить
+                        </button>
+                    </form>
+                )}
+
+                {/* AI-suggested tags */}
+                {autoTagsSuggested && autoTagsSuggested.length > 0 && (
+                    <div className="mt-4 pt-4 border-t border-gray-100">
+                        <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
+                            <p className="text-xs font-bold text-purple-700 uppercase tracking-wider flex items-center gap-1.5">
+                                <i className="fas fa-wand-magic-sparkles"></i>
+                                ИИ предлагает
+                            </p>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={applyAllSuggestedTags}
+                                    disabled={tagsSaving}
+                                    className="text-xs font-semibold text-white bg-purple-600 hover:bg-purple-700 px-3 py-1.5 rounded-lg transition disabled:opacity-50"
+                                >
+                                    Добавить все
+                                </button>
+                                <button
+                                    onClick={() => setAutoTagsSuggested(null)}
+                                    className="text-xs font-medium text-gray-500 hover:text-gray-800 px-2"
+                                >
+                                    Скрыть
+                                </button>
+                            </div>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                            {autoTagsSuggested.map(t => (
+                                <button
+                                    key={t}
+                                    onClick={() => applySuggestedTag(t)}
+                                    disabled={tagsSaving}
+                                    className="text-xs font-medium bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 px-2.5 py-1 rounded-md transition flex items-center gap-1 disabled:opacity-50"
+                                    title="Добавить тег"
+                                >
+                                    <i className="fas fa-plus text-[10px]"></i>
+                                    {t}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
+                {autoTagsSuggested && autoTagsSuggested.length === 0 && (
+                    <div className="mt-3 p-3 bg-gray-50 border border-gray-100 rounded-lg text-xs text-gray-500">
+                        ИИ не смог предложить новых тегов — возможно, уже все покрыты.
+                    </div>
+                )}
+            </div>
+
+            {/* Schedule widget */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-6">
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <div>
+                        <h2 className="text-lg font-bold text-gray-900 mb-1 flex items-center gap-2">
+                            <i className="fas fa-calendar-check text-primary-600"></i>
+                            Расписание урока
+                        </h2>
+                        {lesson.scheduledAt ? (
+                            <p className="text-sm text-gray-700">
+                                <span className="font-semibold">
+                                    {new Date(lesson.scheduledAt).toLocaleString('ru-RU', {
+                                        weekday: 'short',
+                                        day: 'numeric',
+                                        month: 'long',
+                                        hour: '2-digit',
+                                        minute: '2-digit',
+                                    })}
+                                </span>
+                                {lesson.durationMinutes ? <span className="text-gray-500"> · {lesson.durationMinutes} мин</span> : null}
+                                {lesson.class?.name ? <span className="text-gray-500"> · {lesson.class.name}</span> : null}
+                            </p>
+                        ) : (
+                            <p className="text-sm text-gray-500">Урок ещё не запланирован. Поставьте дату — появится в календаре.</p>
+                        )}
+                        {lesson.notes && !scheduleOpen && (
+                            <p className="text-xs text-gray-600 mt-2 bg-gray-50 border border-gray-100 rounded-lg px-3 py-2 max-w-2xl">
+                                <span className="font-semibold">Заметки: </span>{lesson.notes}
+                            </p>
+                        )}
+                    </div>
+                    <div className="flex gap-2">
+                        {lesson.scheduledAt && !scheduleOpen && (
+                            <button
+                                onClick={clearSchedule}
+                                disabled={scheduleSaving}
+                                className="px-3 py-2 text-sm font-medium text-red-600 border border-red-200 hover:bg-red-50 rounded-lg transition disabled:opacity-50"
+                            >
+                                Снять с расписания
+                            </button>
+                        )}
+                        <button
+                            onClick={() => setScheduleOpen(v => !v)}
+                            className="px-4 py-2 text-sm font-semibold bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition flex items-center gap-2"
+                        >
+                            <i className={`fas ${scheduleOpen ? 'fa-times' : 'fa-calendar-plus'}`}></i>
+                            {scheduleOpen ? 'Отмена' : lesson.scheduledAt ? 'Изменить' : 'Запланировать'}
+                        </button>
+                    </div>
+                </div>
+
+                {scheduleOpen && (
+                    <div className="mt-4 pt-4 border-t border-gray-100 grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-semibold text-gray-700 mb-1">Дата и время</label>
+                            <input
+                                type="datetime-local"
+                                value={scheduledAtInput}
+                                onChange={e => setScheduledAtInput(e.target.value)}
+                                className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-semibold text-gray-700 mb-1">Длительность (мин)</label>
+                            <input
+                                type="number"
+                                min={5}
+                                max={480}
+                                value={durationMinutesInput}
+                                onChange={e => setDurationMinutesInput(e.target.value === '' ? '' : Number(e.target.value))}
+                                placeholder="45"
+                                className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-semibold text-gray-700 mb-1">Класс</label>
+                            <select
+                                value={classIdInput}
+                                onChange={e => setClassIdInput(e.target.value)}
+                                className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900"
+                            >
+                                <option value="">Не привязан</option>
+                                {classes.map(c => (
+                                    <option key={c.id} value={c.id}>{c.name}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div className="md:col-span-2">
+                            <label className="block text-sm font-semibold text-gray-700 mb-1">Заметки к уроку</label>
+                            <textarea
+                                value={notesInput}
+                                onChange={e => setNotesInput(e.target.value)}
+                                rows={2}
+                                placeholder="Что обсудить, на что обратить внимание..."
+                                className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900 resize-none"
+                            />
+                        </div>
+                        <div className="md:col-span-2 flex justify-end gap-2">
+                            <button
+                                onClick={() => setScheduleOpen(false)}
+                                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition"
+                            >
+                                Отмена
+                            </button>
+                            <button
+                                onClick={saveSchedule}
+                                disabled={scheduleSaving}
+                                className="px-5 py-2 text-sm font-semibold bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition disabled:opacity-50"
+                            >
+                                {scheduleSaving ? 'Сохранение...' : 'Сохранить'}
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Generations List */}

@@ -169,6 +169,144 @@ export class StudentsService {
     return student;
   }
 
+  /**
+   * Расширенная аналитика по ученику: тренд оценок, агрегаты, уровень риска.
+   * Используется на странице профиля ученика.
+   */
+  async getStudentAnalytics(userId: string, studentId: string) {
+    const student = await this.prisma.student.findUnique({
+      where: { id: studentId },
+      include: { class: { select: { id: true, teacherId: true, name: true } } },
+    });
+    if (!student || student.class.teacherId !== userId) {
+      throw new NotFoundException('Student not found');
+    }
+
+    // Все задания, доступные ученику (личные + классные), и его сдачи
+    const assignments = await this.prisma.assignment.findMany({
+      where: {
+        OR: [{ studentId }, { classId: student.classId }],
+      },
+      include: {
+        lesson: { select: { id: true, title: true, topic: true } },
+        submissions: { where: { studentId } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const submissions = assignments.flatMap((a) =>
+      a.submissions.map((s) => ({
+        id: s.id,
+        grade: s.grade,
+        createdAt: s.createdAt,
+        assignmentId: a.id,
+        assignmentDueDate: a.dueDate,
+        lessonTitle: a.lesson.title,
+      })),
+    );
+
+    const graded = submissions.filter((s) => s.grade !== null);
+    const avgGrade =
+      graded.length > 0
+        ? Math.round((graded.reduce((sum, s) => sum + (s.grade || 0), 0) / graded.length) * 10) /
+          10
+        : null;
+
+    // Тренд: последние 20 оценок в хронологическом порядке (по дате сдачи)
+    const trend = graded
+      .slice()
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+      .slice(-20)
+      .map((s) => ({
+        submissionId: s.id,
+        grade: s.grade as number,
+        date: s.createdAt,
+        lessonTitle: s.lessonTitle,
+      }));
+
+    const totalAssigned = assignments.length;
+    const totalSubmitted = submissions.length;
+    const totalGraded = graded.length;
+    const submissionRate = totalAssigned > 0 ? totalSubmitted / totalAssigned : 0;
+
+    // Подсчёт «вовремя» — сданных до дедлайна (если дедлайн стоял)
+    const submissionsWithDeadline = submissions.filter((s) => s.assignmentDueDate);
+    const onTimeCount = submissionsWithDeadline.filter(
+      (s) => s.createdAt <= (s.assignmentDueDate as Date),
+    ).length;
+    const onTimeRate =
+      submissionsWithDeadline.length > 0
+        ? onTimeCount / submissionsWithDeadline.length
+        : null;
+
+    // Просроченные = задание с дедлайном в прошлом, без сдачи
+    const now = new Date();
+    const overdue = assignments.filter(
+      (a) => a.dueDate && a.dueDate < now && a.submissions.length === 0,
+    ).length;
+
+    // Risk scoring (минимум 3 оценки для оценки риска)
+    let riskLevel: 'good' | 'watch' | 'risk' | 'unknown' = 'unknown';
+    const reasons: string[] = [];
+    if (graded.length >= 3) {
+      const last3 = trend.slice(-3).map((t) => t.grade);
+      const last3Avg = last3.reduce((a, b) => a + b, 0) / last3.length;
+
+      if (avgGrade !== null && avgGrade < 3) {
+        riskLevel = 'risk';
+        reasons.push(`Средний балл ${avgGrade} ниже 3`);
+      } else if (last3Avg < 3) {
+        riskLevel = 'risk';
+        reasons.push('Последние 3 работы — ниже 3 баллов');
+      } else if (submissionRate < 0.5 && totalAssigned >= 3) {
+        riskLevel = 'risk';
+        reasons.push(`Сдано меньше половины заданий (${Math.round(submissionRate * 100)}%)`);
+      } else if (avgGrade !== null && avgGrade < 3.7) {
+        riskLevel = 'watch';
+        reasons.push(`Средний балл ${avgGrade} ниже 3.7`);
+      } else if (submissionRate < 0.7 && totalAssigned >= 3) {
+        riskLevel = 'watch';
+        reasons.push(`Сдаёт нерегулярно (${Math.round(submissionRate * 100)}%)`);
+      } else if (onTimeRate !== null && onTimeRate < 0.6) {
+        riskLevel = 'watch';
+        reasons.push(`Часто сдаёт после дедлайна (${Math.round(onTimeRate * 100)}% вовремя)`);
+      } else {
+        riskLevel = 'good';
+        reasons.push('Стабильная успеваемость');
+      }
+    }
+
+    const lastActivityAt = submissions.length > 0
+      ? submissions
+          .map((s) => s.createdAt)
+          .sort((a, b) => b.getTime() - a.getTime())[0]
+      : null;
+
+    return {
+      student: {
+        id: student.id,
+        name: student.name,
+        avatar: student.avatar,
+        className: student.class.name,
+      },
+      summary: {
+        avgGrade,
+        totalAssigned,
+        totalSubmitted,
+        totalGraded,
+        overdueCount: overdue,
+        submissionRate: Math.round(submissionRate * 100) / 100,
+        onTimeRate: onTimeRate !== null ? Math.round(onTimeRate * 100) / 100 : null,
+        lastActivityAt,
+      },
+      trend,
+      risk: {
+        level: riskLevel,
+        reasons,
+      },
+    };
+  }
+
   async updateStudent(
     userId: string,
     studentId: string,

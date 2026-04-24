@@ -100,7 +100,6 @@ export default function LessonPlanner() {
         }
     }
 
-
     return (
         <div className="flex flex-col md:flex-row w-full h-full bg-[#F9FAFB] overflow-hidden">
             {/* Mobile Tab Switcher */}

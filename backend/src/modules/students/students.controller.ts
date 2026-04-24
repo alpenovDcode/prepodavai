@@ -42,6 +42,11 @@ export class StudentsController {
     return this.studentsService.getStudent(req.user.id, id);
   }
 
+  @Get(':id/analytics')
+  analytics(@Request() req, @Param('id') id: string) {
+    return this.studentsService.getStudentAnalytics(req.user.id, id);
+  }
+
   @Put(':id')
   update(
     @Request() req,

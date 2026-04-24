@@ -237,21 +237,31 @@ model UserGeneration {
 
 // Уроки (группировка генераций)
 model Lesson {
-  id          String   @id @default(uuid())
-  userId      String
-  title       String   // Обычно совпадает с темой
-  topic       String
-  grade       String?
-  duration    Int?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id              String    @id @default(uuid())
+  userId          String
+  title           String    // Обычно совпадает с темой
+  topic           String
+  grade           String?
+  duration        Int?      // legacy
+  // Расписание урока (M3)
+  scheduledAt     DateTime?
+  durationMinutes Int?
+  classId         String?
+  notes           String?
+  // Теги/библиотека (M4)
+  tags            String[]  @default([])
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   // Связи
   user        AppUser  @relation(fields: [userId], references: [id])
+  class       Class?   @relation(fields: [classId], references: [id], onDelete: SetNull)
   generations UserGeneration[]
   assignments Assignment[]
-  
+
   @@index([userId])
+  @@index([classId])
+  @@index([scheduledAt])
   @@map("lessons")
 }
 
@@ -347,6 +357,7 @@ model Class {
   students    Student[]
   assignments Assignment[]
   invites     StudentInvite[]
+  lessons     Lesson[]
 
   @@index([teacherId])
   @@map("classes")

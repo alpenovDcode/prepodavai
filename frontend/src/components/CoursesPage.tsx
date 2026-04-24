@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { apiClient } from '@/lib/api/client'
 import { useRouter } from 'next/navigation'
 
@@ -19,32 +19,77 @@ interface Lesson {
     duration?: number
     generations: Generation[]
     createdAt: string
+    tags?: string[]
+}
+
+interface TagStat {
+    tag: string
+    count: number
 }
 
 export default function CoursesPage() {
     const [lessons, setLessons] = useState<Lesson[]>([])
+    const [tags, setTags] = useState<TagStat[]>([])
     const [loading, setLoading] = useState(true)
+    const [search, setSearch] = useState('')
+    const [searchInput, setSearchInput] = useState('')
+    const [activeTag, setActiveTag] = useState<string | null>(null)
     const router = useRouter()
 
+    // Debounce ввода поиска
     useEffect(() => {
+        const t = setTimeout(() => setSearch(searchInput.trim()), 250)
+        return () => clearTimeout(t)
+    }, [searchInput])
+
+    useEffect(() => {
+        const controller = new AbortController()
         const fetchLessons = async () => {
+            setLoading(true)
             try {
-                const response = await apiClient.get('/lessons')
+                const params: Record<string, string> = {}
+                if (search) params.search = search
+                if (activeTag) params.tag = activeTag
+                const response = await apiClient.get('/lessons', {
+                    params,
+                    signal: controller.signal,
+                })
                 const sortedLessons = response.data.sort((a: Lesson, b: Lesson) => {
                     if (a.title === 'ИИ генерации') return -1
                     if (b.title === 'ИИ генерации') return 1
                     return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
                 })
                 setLessons(sortedLessons)
-            } catch (error) {
+            } catch (error: any) {
+                // Отменённый запрос (устаревший фильтр) — не считаем ошибкой
+                if (error?.code === 'ERR_CANCELED' || error?.name === 'CanceledError') return
                 console.error('Failed to fetch lessons:', error)
             } finally {
-                setLoading(false)
+                if (!controller.signal.aborted) setLoading(false)
             }
         }
 
         fetchLessons()
-    }, [])
+        return () => controller.abort()
+    }, [search, activeTag])
+
+    // Перечитываем полный список тегов при изменении набора тегов в уроках
+    // (используем сериализованное представление, а не просто length — чтобы
+    // добавление/удаление тега к существующему уроку тоже триггерило refetch)
+    const tagsSignature = useMemo(
+        () => lessons.map(l => `${l.id}:${(l.tags || []).join(',')}`).join('|'),
+        [lessons],
+    )
+    useEffect(() => {
+        const controller = new AbortController()
+        apiClient.get('/lessons/tags/all', { signal: controller.signal })
+            .then(r => setTags(r.data || []))
+            .catch(e => {
+                if (e?.code === 'ERR_CANCELED' || e?.name === 'CanceledError') return
+                console.error('Failed to load tags', e)
+            })
+        return () => controller.abort()
+    }, [tagsSignature])
 
     const getIconForLesson = (lesson: Lesson) => {
         if (lesson.title === 'ИИ генерации') return 'fas fa-wand-magic-sparkles'
@@ -65,28 +110,30 @@ export default function CoursesPage() {
         return colors[index % colors.length]
     }
 
-    if (loading) {
-        return (
-            <div className="flex justify-center items-center h-64">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
-            </div>
-        )
-    }
+    // Верхние N тегов для чипов + развёртываемый список остальных
+    const { topTags, hasMore } = useMemo(() => {
+        const top = tags.slice(0, 10)
+        return { topTags: top, hasMore: tags.length > 10 }
+    }, [tags])
+    const [showAllTags, setShowAllTags] = useState(false)
+    const visibleTags = showAllTags ? tags : topTags
 
     const totalGenerations = lessons.reduce((sum, l) => sum + l.generations.length, 0)
     const completedGenerations = lessons.reduce(
         (sum, l) => sum + l.generations.filter(g => g.status === 'completed').length, 0
     )
 
+    const hasFilter = search || activeTag
+
     return (
         <div className="max-w-7xl mx-auto">
             {/* Header */}
-            <div className="flex items-center justify-between mb-8">
+            <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
                 <div>
-                    <h1 className="text-3xl font-bold text-gray-900">Мои материалы</h1>
+                    <h1 className="text-3xl font-bold text-gray-900">Библиотека материалов</h1>
                     <div className="flex items-center gap-3 mt-1">
-                        <p className="text-gray-600">Список ваших созданных уроков и материалов.</p>
-                        {lessons.length > 0 && (
+                        <p className="text-gray-600">Все ваши уроки с тегами, поиском и фильтрами.</p>
+                        {!loading && lessons.length > 0 && (
                             <div className="flex items-center gap-2 text-sm text-gray-500">
                                 <span className="text-gray-300">·</span>
                                 <span><span className="font-semibold text-gray-700">{lessons.length}</span> уроков</span>
@@ -105,29 +152,115 @@ export default function CoursesPage() {
                 </button>
             </div>
 
+            {/* Search + Filters */}
+            <div className="bg-white rounded-2xl border border-gray-100 p-4 mb-6 space-y-3">
+                <div className="relative">
+                    <i className="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
+                    <input
+                        type="text"
+                        value={searchInput}
+                        onChange={(e) => setSearchInput(e.target.value)}
+                        placeholder="Поиск по названию или теме урока..."
+                        className="w-full pl-10 pr-10 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:border-primary-500 focus:ring-2 focus:ring-primary-100 transition"
+                    />
+                    {searchInput && (
+                        <button
+                            onClick={() => setSearchInput('')}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700"
+                            title="Очистить"
+                        >
+                            <i className="fas fa-times-circle"></i>
+                        </button>
+                    )}
+                </div>
+
+                {tags.length > 0 && (
+                    <div className="flex items-start gap-2 flex-wrap">
+                        <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider mt-1.5 shrink-0">
+                            Теги:
+                        </span>
+                        <div className="flex flex-wrap gap-1.5 flex-1">
+                            {activeTag && (
+                                <button
+                                    onClick={() => setActiveTag(null)}
+                                    className="text-xs font-medium bg-gray-100 hover:bg-gray-200 text-gray-600 px-2.5 py-1 rounded-full transition flex items-center gap-1"
+                                >
+                                    <i className="fas fa-times text-[10px]"></i>
+                                    Сбросить
+                                </button>
+                            )}
+                            {visibleTags.map((t) => (
+                                <button
+                                    key={t.tag}
+                                    onClick={() => setActiveTag(activeTag === t.tag ? null : t.tag)}
+                                    className={`text-xs font-medium px-2.5 py-1 rounded-full transition ${
+                                        activeTag === t.tag
+                                            ? 'bg-primary-600 text-white shadow-sm'
+                                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                    }`}
+                                >
+                                    {t.tag}
+                                    <span className={`ml-1 text-[10px] ${activeTag === t.tag ? 'opacity-80' : 'text-gray-400'}`}>
+                                        {t.count}
+                                    </span>
+                                </button>
+                            ))}
+                            {hasMore && (
+                                <button
+                                    onClick={() => setShowAllTags(v => !v)}
+                                    className="text-xs font-semibold text-primary-600 hover:text-primary-700 px-2 py-1"
+                                >
+                                    {showAllTags ? 'Свернуть' : `+${tags.length - topTags.length} ещё`}
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                )}
+            </div>
+
             {/* Lessons Grid */}
-            {lessons.length === 0 ? (
+            {loading ? (
+                <div className="flex justify-center items-center h-64">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+                </div>
+            ) : lessons.length === 0 ? (
                 <div className="text-center py-12 bg-white rounded-2xl shadow-sm border border-gray-100">
                     <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                         <i className="fas fa-folder-open text-gray-400 text-2xl"></i>
                     </div>
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">Нет материалов</h3>
-                    <p className="text-gray-500 mb-6">Вы еще не создали ни одного урока.</p>
-                    <button
-                        onClick={() => router.push('/dashboard')}
-                        className="text-primary-600 font-medium hover:text-primary-700"
-                    >
-                        Создать первый урок &rarr;
-                    </button>
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">
+                        {hasFilter ? 'Ничего не найдено' : 'Нет материалов'}
+                    </h3>
+                    <p className="text-gray-500 mb-6">
+                        {hasFilter
+                            ? 'Попробуйте изменить поисковый запрос или сбросить фильтры.'
+                            : 'Вы ещё не создали ни одного урока.'}
+                    </p>
+                    {hasFilter ? (
+                        <button
+                            onClick={() => { setSearchInput(''); setActiveTag(null) }}
+                            className="text-primary-600 font-medium hover:text-primary-700"
+                        >
+                            Сбросить фильтры &larr;
+                        </button>
+                    ) : (
+                        <button
+                            onClick={() => router.push('/dashboard')}
+                            className="text-primary-600 font-medium hover:text-primary-700"
+                        >
+                            Создать первый урок &rarr;
+                        </button>
+                    )}
                 </div>
             ) : (
                 <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {lessons.map((lesson, index) => {
                         const style = getIconColor(index, lesson)
-                        const completedGenerations = lesson.generations.filter(g => g.status === 'completed').length
-                        const totalGenerations = lesson.generations.length
-                        const progress = totalGenerations > 0 ? Math.round((completedGenerations / totalGenerations) * 100) : 0
+                        const lessonCompletedGens = lesson.generations.filter(g => g.status === 'completed').length
+                        const lessonTotalGens = lesson.generations.length
+                        const progress = lessonTotalGens > 0 ? Math.round((lessonCompletedGens / lessonTotalGens) * 100) : 0
                         const isPinned = lesson.title === 'ИИ генерации'
+                        const lessonTags = lesson.tags || []
 
                         return (
                             <div
@@ -151,9 +284,30 @@ export default function CoursesPage() {
                                 <h3 className="text-lg font-bold text-gray-900 mb-2 group-hover:text-primary-600 transition line-clamp-1">
                                     {lesson.title}
                                 </h3>
-                                <p className="text-sm text-gray-600 mb-4 line-clamp-2">
+                                <p className="text-sm text-gray-600 mb-3 line-clamp-2">
                                     {lesson.topic} {lesson.grade ? `• ${lesson.grade} класс` : ''}
                                 </p>
+
+                                {/* Tags */}
+                                {lessonTags.length > 0 && (
+                                    <div className="flex flex-wrap gap-1 mb-3">
+                                        {lessonTags.slice(0, 4).map((t) => (
+                                            <span
+                                                key={t}
+                                                className="text-[10px] font-medium text-primary-700 bg-primary-50 border border-primary-100 px-1.5 py-0.5 rounded"
+                                                onClick={(e) => {
+                                                    e.stopPropagation()
+                                                    setActiveTag(t)
+                                                }}
+                                            >
+                                                #{t}
+                                            </span>
+                                        ))}
+                                        {lessonTags.length > 4 && (
+                                            <span className="text-[10px] text-gray-400 px-1">+{lessonTags.length - 4}</span>
+                                        )}
+                                    </div>
+                                )}
 
                                 {/* Progress */}
                                 <div className="space-y-1">
