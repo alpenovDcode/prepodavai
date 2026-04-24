@@ -92,7 +92,9 @@ const opMap: Record<string, string> = {
     'transcription': 'transcription',
     'presentations': 'presentation',
     'assistant': 'message',
-    'homework': 'transcription'
+    // homework (Проверка ДЗ) — это интерфейс, а не операция-генерация.
+    // Никакого opType для него быть не должно: иначе при отсутствии записи
+    // в operation_credit_costs пункт пропадает из сайдбара.
 }
 
 const toolGroups: ToolGroup[] = [
