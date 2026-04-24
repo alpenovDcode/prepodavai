@@ -182,11 +182,14 @@ function stripAnswerSection(html: string): string {
   const byClass = html.replace(/<div[^>]*class="[^"]*teacher-answers-only[^"]*"[^>]*>[\s\S]*?<\/div>/gi, '')
   if (byClass !== html) return byClass
 
-  // Fallback: убираем по текстовым заголовкам
+  // Fallback: убираем по текстовым заголовкам (включая те, что начинаются
+  // со слова "ОТВЕТЫ" и продолжаются уточнением, напр. "ОТВЕТЫ И КРИТЕРИИ").
   const answerHeadings = [
     'Ответы для учителя',
     'Ответы для преподавателя',
     'Ключ ответов',
+    'ОТВЕТЫ\\b',
+    'Ответы\\b',
     'Answer Key',
     'Answers for Teacher',
   ]
