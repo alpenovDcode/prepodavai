@@ -77,8 +77,10 @@ export class VideoAnalysisProcessor extends WorkerHost {
       // 3. Format Result
       const htmlResult = `
         <!DOCTYPE html>
-        <html>
+        <html lang="ru">
         <head>
+          <meta charset="UTF-8">
+          <title>Анализ видео</title>
           <style>
             @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
             
@@ -195,11 +197,12 @@ export class VideoAnalysisProcessor extends WorkerHost {
           </style>
         </head>
         <body>
+          <div class="container">
             <div class="header">
               <img src="LOGO_PLACEHOLDER" alt="Prepodavai.ru" class="logo" />
               <h1 style="border: none; padding: 0; margin: 0; font-size: 28px;">ОТЧЕТ ОБ АНАЛИЗЕ ВИДЕО</h1>
             </div>
-            
+
             <div class="content">
               ${analysis}
             </div>

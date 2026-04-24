@@ -9,7 +9,8 @@ import {
 } from 'recharts'
 import {
   Activity, Users, TrendingUp,
-  BookOpen, Zap, BarChart2, UserX, ArrowUp, ArrowDown, Minus
+  BookOpen, Zap, BarChart2, UserX, ArrowUp, ArrowDown, Minus,
+  Sparkles, CheckCircle, Calendar, Tag
 } from 'lucide-react'
 import DateRangePicker, { daysFromRange } from '@/components/admin/DateRangePicker'
 
@@ -74,12 +75,14 @@ const TABS = [
   { id: 'churn',      label: 'Churn',          icon: <UserX className="w-4 h-4" /> },
   { id: 'onboarding', label: 'Онбординг',      icon: <BookOpen className="w-4 h-4" /> },
   { id: 'features',   label: 'Feature Adoption', icon: <Zap className="w-4 h-4" /> },
+  { id: 'm14',        label: 'Фичи M1-M4',     icon: <Sparkles className="w-4 h-4" /> },
 ]
 
 export default function ProductAnalyticsPage() {
   const [tab, setTab] = useState('dau')
   const [dauRange, setDauRange] = useState('90d')
   const [featRange, setFeatRange] = useState('30d')
+  const [m14Range, setM14Range] = useState('30d')
   const [cmpPeriod, setCmpPeriod] = useState<'week' | 'month'>('week')
 
   const { data: dau }    = useSWR(`/admin/product/dau-wau-mau?days=${daysFromRange(dauRange)}`, fetcher)
@@ -88,6 +91,10 @@ export default function ProductAnalyticsPage() {
   const { data: onb }    = useSWR('/admin/product/onboarding', fetcher)
   const { data: feat }   = useSWR(`/admin/product/features?days=${daysFromRange(featRange)}`, fetcher)
   const { data: cmp }    = useSWR(`/admin/product/comparison?period=${cmpPeriod}`, fetcher)
+  const { data: m14 }    = useSWR(
+    tab === 'm14' ? `/admin/product/m-features?days=${daysFromRange(m14Range)}` : null,
+    fetcher,
+  )
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
@@ -465,6 +472,207 @@ export default function ProductAnalyticsPage() {
                 })}
               </div>
             </div>
+          )}
+        </div>
+      )}
+
+      {/* ── M1-M4 Feature Adoption ── */}
+      {tab === 'm14' && (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="font-bold text-gray-900">Адопшн фич M1-M4</h2>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Проверка ДЗ с ИИ · Аналитика · Календарь · Библиотека с тегами
+              </p>
+            </div>
+            <DateRangePicker value={m14Range} onChange={setM14Range} />
+          </div>
+
+          {!m14 ? (
+            <div className="bg-white rounded-2xl border border-gray-200 p-10 text-center text-sm text-gray-400">
+              Считаем метрики...
+            </div>
+          ) : (
+            <>
+              <div className="text-xs text-gray-400">
+                Всего учителей в системе: <span className="font-bold text-gray-700">{m14.totalTeachers}</span>
+                {' · '}процент адопшна = уникальные учителя / всего учителей
+              </div>
+
+              {/* === M1 === */}
+              <section className="space-y-3">
+                <h3 className="flex items-center gap-2 text-base font-bold text-gray-900">
+                  <CheckCircle className="w-4 h-4 text-green-600" />
+                  M1 · Проверка работ (с ИИ-черновиком)
+                </h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <KpiCard
+                    title={`Оценок поставлено за ${m14.days}д`}
+                    value={m14.m1.gradedCount}
+                    icon={<CheckCircle className="w-5 h-5" />}
+                    color="green"
+                  />
+                  <KpiCard
+                    title="С текстовым фидбеком"
+                    value={`${m14.m1.withFeedbackCount}`}
+                    sub={`${m14.m1.withFeedbackPct}% от всех оценок`}
+                    icon={<Sparkles className="w-5 h-5" />}
+                    color="purple"
+                  />
+                  <KpiCard
+                    title="Учителя-пользователи"
+                    value={m14.m1.uniqueTeachers}
+                    sub={`${m14.m1.adoptionPct}% адопшн`}
+                    icon={<Users className="w-5 h-5" />}
+                    color={m14.m1.adoptionPct >= 30 ? 'green' : 'orange'}
+                  />
+                  <KpiCard
+                    title="Среднее/день"
+                    value={m14.days > 0 ? Math.round(m14.m1.gradedCount / m14.days) : 0}
+                    icon={<Activity className="w-5 h-5" />}
+                    color="blue"
+                  />
+                </div>
+                <div className="bg-white rounded-2xl border border-gray-200 p-5">
+                  <p className="text-sm font-bold text-gray-700 mb-4">Проверки по дням</p>
+                  {m14.m1.daily.length === 0 ? (
+                    <div className="text-center text-gray-400 text-xs py-8">Нет данных за период</div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height={180}>
+                      <BarChart data={m14.m1.daily} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                        <XAxis
+                          dataKey="day"
+                          tick={{ fontSize: 10 }}
+                          tickFormatter={(v: any) => new Date(v).toLocaleDateString('ru', { day: '2-digit', month: '2-digit' })}
+                        />
+                        <YAxis tick={{ fontSize: 10 }} width={30} allowDecimals={false} />
+                        <Tooltip
+                          formatter={(v: any) => [v, 'оценок']}
+                          labelFormatter={(v: any) => new Date(v).toLocaleDateString('ru')}
+                        />
+                        <Bar dataKey="graded" fill="#10b981" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )}
+                </div>
+              </section>
+
+              {/* === M2 === */}
+              <section className="space-y-3">
+                <h3 className="flex items-center gap-2 text-base font-bold text-gray-900">
+                  <BarChart2 className="w-4 h-4 text-indigo-600" />
+                  M2 · Аналитика ученика/класса
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <KpiCard
+                    title="Учеников готовы для risk-скоринга"
+                    value={m14.m2.eligibleStudents}
+                    sub="≥3 оценок — можно показывать тренд и статус"
+                    icon={<Users className="w-5 h-5" />}
+                    color="blue"
+                  />
+                  <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-xs text-amber-900">
+                    <p className="font-semibold mb-1">⚠ Прямого трекинга просмотров нет</p>
+                    <p className="opacity-80">{m14.m2.note}. Чтобы измерять реальное посещение страниц аналитики — нужно добавить событийный трекинг (не в этой итерации).</p>
+                  </div>
+                </div>
+              </section>
+
+              {/* === M3 === */}
+              <section className="space-y-3">
+                <h3 className="flex items-center gap-2 text-base font-bold text-gray-900">
+                  <Calendar className="w-4 h-4 text-orange-600" />
+                  M3 · Расписание и календарь
+                </h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <KpiCard
+                    title="Уроков в расписании"
+                    value={m14.m3.scheduledLessons}
+                    sub={`${m14.m3.schedulePct}% от всех уроков`}
+                    icon={<Calendar className="w-5 h-5" />}
+                    color={m14.m3.schedulePct >= 20 ? 'green' : 'orange'}
+                  />
+                  <KpiCard
+                    title="Привязано к классу"
+                    value={m14.m3.withClass}
+                    sub={`из ${m14.m3.scheduledLessons} запланированных`}
+                    icon={<Users className="w-5 h-5" />}
+                    color="blue"
+                  />
+                  <KpiCard
+                    title="Учителя-пользователи"
+                    value={m14.m3.uniqueTeachers}
+                    sub={`${m14.m3.adoptionPct}% адопшн`}
+                    icon={<Users className="w-5 h-5" />}
+                    color={m14.m3.adoptionPct >= 20 ? 'green' : 'orange'}
+                  />
+                  <KpiCard
+                    title="Ближайшие 7 дней"
+                    value={m14.m3.upcoming7d}
+                    sub={`${m14.m3.upcomingTeachers7d} учителей`}
+                    icon={<Activity className="w-5 h-5" />}
+                    color="purple"
+                  />
+                </div>
+              </section>
+
+              {/* === M4 === */}
+              <section className="space-y-3">
+                <h3 className="flex items-center gap-2 text-base font-bold text-gray-900">
+                  <Tag className="w-4 h-4 text-purple-600" />
+                  M4 · Библиотека с тегами
+                </h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <KpiCard
+                    title="Уроков с тегами"
+                    value={m14.m4.taggedLessons}
+                    sub={`${m14.m4.tagPct}% от всех уроков`}
+                    icon={<Tag className="w-5 h-5" />}
+                    color={m14.m4.tagPct >= 20 ? 'green' : 'orange'}
+                  />
+                  <KpiCard
+                    title="Тегов на урок (avg)"
+                    value={m14.m4.avgTagsPerLesson}
+                    icon={<BarChart2 className="w-5 h-5" />}
+                    color="blue"
+                  />
+                  <KpiCard
+                    title="Учителя-пользователи"
+                    value={m14.m4.uniqueTeachers}
+                    sub={`${m14.m4.adoptionPct}% адопшн`}
+                    icon={<Users className="w-5 h-5" />}
+                    color={m14.m4.adoptionPct >= 20 ? 'green' : 'orange'}
+                  />
+                  <KpiCard
+                    title="Уникальных тегов (топ)"
+                    value={m14.m4.topTags.length}
+                    sub="в топ-20"
+                    icon={<Sparkles className="w-5 h-5" />}
+                    color="purple"
+                  />
+                </div>
+                <div className="bg-white rounded-2xl border border-gray-200 p-5">
+                  <p className="text-sm font-bold text-gray-700 mb-3">Топ-20 тегов платформы</p>
+                  {m14.m4.topTags.length === 0 ? (
+                    <div className="text-center text-gray-400 text-xs py-6">Пока ни одного тега</div>
+                  ) : (
+                    <div className="flex flex-wrap gap-1.5">
+                      {m14.m4.topTags.map((t: any) => (
+                        <span
+                          key={t.tag}
+                          className="inline-flex items-center gap-1 text-xs font-medium bg-purple-50 text-purple-700 border border-purple-100 px-2 py-1 rounded-md"
+                        >
+                          #{t.tag}
+                          <span className="text-purple-400 text-[10px] font-bold ml-0.5">{t.count}</span>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </section>
+            </>
           )}
         </div>
       )}

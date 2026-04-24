@@ -12,6 +12,56 @@ import useSWR from 'swr'
 
 const fetcher = (url: string) => apiClient.get(url).then((res: any) => res.data)
 
+interface TeacherOverview {
+    pendingGrading: {
+        total: number
+        byClass: { classId: string; className: string; pending: number }[]
+    }
+    schedule: {
+        todayCount: number
+        todayLessons: {
+            id: string
+            title: string
+            scheduledAt: string
+            durationMinutes: number | null
+            className: string | null
+        }[]
+        nextLesson: {
+            id: string
+            title: string
+            scheduledAt: string
+            durationMinutes: number | null
+            className: string | null
+        } | null
+    }
+    atRisk: {
+        riskCount: number
+        watchCount: number
+        samples: {
+            id: string
+            name: string
+            classId: string
+            className: string
+            avgGrade: number | null
+            level: 'risk' | 'watch'
+        }[]
+    }
+    overdue: {
+        count: number
+        items: {
+            assignmentId: string
+            dueDate: string
+            lesson: { id: string; title: string }
+            class: { id: string; name: string } | null
+            student: { id: string; name: string } | null
+            submittedCount: number
+            gradedCount: number
+        }[]
+    }
+    upcoming: { deadlinesIn7Days: number }
+    nudges: { untaggedLessons: number; unscheduledRecent: number }
+}
+
 const typeMetadata: Record<string, { iconBg: string; iconColor: string; description: string }> = {
     lessonPlan:   { iconBg: 'bg-gradient-to-br from-violet-500 to-purple-600', iconColor: 'text-white', description: 'Создайте полный план урока с целями, заданиями и оценкой.' },
     presentation: { iconBg: 'bg-gradient-to-br from-orange-400 to-red-500',   iconColor: 'text-white', description: 'Создайте увлекательные слайды для вашего урока.' },
@@ -47,6 +97,9 @@ export default function DashboardHome() {
         },
     })
     const { data: dashboardData } = useSWR('/analytics/dashboard', fetcher)
+    const { data: overview } = useSWR<TeacherOverview>('/analytics/teacher-overview', fetcher, {
+        refreshInterval: 60000,
+    })
     const { totalCredits } = useSubscription()
     const { generateBundle, isGenerating } = useGenerations()
 
@@ -149,6 +202,199 @@ export default function DashboardHome() {
                     Готовьтесь к урокам быстрее, создавайте материалы и отслеживайте прогресс учеников — всё в одном месте.
                 </p>
             </div>
+
+            {/* Command Center */}
+            {overview && (() => {
+                const nothingUrgent =
+                    overview.pendingGrading.total === 0 &&
+                    overview.schedule.todayCount === 0 &&
+                    overview.atRisk.riskCount === 0 &&
+                    overview.atRisk.watchCount === 0 &&
+                    overview.overdue.count === 0
+
+                return (
+                    <div className="mb-6 md:mb-8">
+                        <div className="flex items-center justify-between mb-3">
+                            <h2 className="text-base md:text-lg font-bold text-gray-900">Требует внимания</h2>
+                            {nothingUrgent && (
+                                <span className="text-xs font-semibold text-green-600 bg-green-50 border border-green-100 px-2.5 py-1 rounded-full">
+                                    <i className="fas fa-check-circle mr-1"></i>
+                                    Всё под контролем
+                                </span>
+                            )}
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+                            {/* 1. Ждут проверки */}
+                            <button
+                                onClick={() => router.push('/workspace/homework')}
+                                disabled={overview.pendingGrading.total === 0}
+                                className={`text-left p-4 rounded-2xl border transition group ${
+                                    overview.pendingGrading.total > 0
+                                        ? 'bg-white border-amber-200 hover:border-amber-400 hover:shadow-md cursor-pointer'
+                                        : 'bg-gray-50 border-gray-100 opacity-60 cursor-default'
+                                }`}
+                            >
+                                <div className="flex items-center justify-between mb-2">
+                                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${
+                                        overview.pendingGrading.total > 0 ? 'bg-amber-100 text-amber-600' : 'bg-gray-100 text-gray-400'
+                                    }`}>
+                                        <i className="fas fa-clipboard-check text-sm"></i>
+                                    </div>
+                                    {overview.pendingGrading.total > 0 && (
+                                        <i className="fas fa-arrow-right text-gray-300 group-hover:text-amber-600 transition"></i>
+                                    )}
+                                </div>
+                                <p className="text-2xl font-black text-gray-900">{overview.pendingGrading.total}</p>
+                                <p className="text-xs font-semibold text-gray-600">Работ ждут проверки</p>
+                                {overview.pendingGrading.byClass.length > 0 && (
+                                    <p className="text-[11px] text-gray-400 mt-1 truncate">
+                                        {overview.pendingGrading.byClass[0].className}: {overview.pendingGrading.byClass[0].pending}
+                                        {overview.pendingGrading.byClass.length > 1 && ` · +${overview.pendingGrading.byClass.length - 1} кл.`}
+                                    </p>
+                                )}
+                            </button>
+
+                            {/* 2. Расписание сегодня / следующий урок */}
+                            <button
+                                onClick={() => router.push('/dashboard/calendar')}
+                                className="text-left p-4 rounded-2xl border bg-white border-indigo-200 hover:border-indigo-400 hover:shadow-md transition group cursor-pointer"
+                            >
+                                <div className="flex items-center justify-between mb-2">
+                                    <div className="w-9 h-9 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center">
+                                        <i className="fas fa-calendar-day text-sm"></i>
+                                    </div>
+                                    <i className="fas fa-arrow-right text-gray-300 group-hover:text-indigo-600 transition"></i>
+                                </div>
+                                {overview.schedule.todayCount > 0 ? (
+                                    <>
+                                        <p className="text-2xl font-black text-gray-900">{overview.schedule.todayCount}</p>
+                                        <p className="text-xs font-semibold text-gray-600">Уроков сегодня</p>
+                                        <p className="text-[11px] text-gray-400 mt-1 truncate">
+                                            Ближайший:{' '}
+                                            {new Date(overview.schedule.todayLessons[0].scheduledAt).toLocaleTimeString('ru-RU', {
+                                                hour: '2-digit', minute: '2-digit',
+                                            })}{' · '}
+                                            {overview.schedule.todayLessons[0].title}
+                                        </p>
+                                    </>
+                                ) : overview.schedule.nextLesson ? (
+                                    <>
+                                        <p className="text-lg font-bold text-gray-900">
+                                            {new Date(overview.schedule.nextLesson.scheduledAt).toLocaleDateString('ru-RU', {
+                                                day: 'numeric', month: 'short', weekday: 'short',
+                                            })}
+                                        </p>
+                                        <p className="text-xs font-semibold text-gray-600">Следующий урок</p>
+                                        <p className="text-[11px] text-gray-400 mt-1 truncate">{overview.schedule.nextLesson.title}</p>
+                                    </>
+                                ) : (
+                                    <>
+                                        <p className="text-2xl font-black text-gray-300">—</p>
+                                        <p className="text-xs font-semibold text-gray-600">Нет запланированных уроков</p>
+                                        <p className="text-[11px] text-indigo-600 font-semibold mt-1">Запланировать →</p>
+                                    </>
+                                )}
+                            </button>
+
+                            {/* 3. Ученики под наблюдением */}
+                            <button
+                                onClick={() => {
+                                    const firstSample = overview.atRisk.samples[0]
+                                    if (firstSample) router.push(`/dashboard/students/${firstSample.id}`)
+                                    else router.push('/dashboard/students')
+                                }}
+                                disabled={overview.atRisk.riskCount + overview.atRisk.watchCount === 0}
+                                className={`text-left p-4 rounded-2xl border transition group ${
+                                    overview.atRisk.riskCount > 0
+                                        ? 'bg-white border-red-200 hover:border-red-400 hover:shadow-md cursor-pointer'
+                                        : overview.atRisk.watchCount > 0
+                                            ? 'bg-white border-amber-200 hover:border-amber-400 hover:shadow-md cursor-pointer'
+                                            : 'bg-gray-50 border-gray-100 opacity-60 cursor-default'
+                                }`}
+                            >
+                                <div className="flex items-center justify-between mb-2">
+                                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${
+                                        overview.atRisk.riskCount > 0
+                                            ? 'bg-red-100 text-red-600'
+                                            : overview.atRisk.watchCount > 0
+                                                ? 'bg-amber-100 text-amber-600'
+                                                : 'bg-gray-100 text-gray-400'
+                                    }`}>
+                                        <i className="fas fa-user-graduate text-sm"></i>
+                                    </div>
+                                    {overview.atRisk.riskCount + overview.atRisk.watchCount > 0 && (
+                                        <i className="fas fa-arrow-right text-gray-300 group-hover:text-red-600 transition"></i>
+                                    )}
+                                </div>
+                                <p className="text-2xl font-black text-gray-900">
+                                    {overview.atRisk.riskCount + overview.atRisk.watchCount}
+                                </p>
+                                <p className="text-xs font-semibold text-gray-600">Под наблюдением</p>
+                                {overview.atRisk.samples[0] && (
+                                    <p className="text-[11px] text-gray-400 mt-1 truncate">
+                                        {overview.atRisk.samples[0].name}
+                                        {overview.atRisk.samples[0].avgGrade !== null && ` · ${overview.atRisk.samples[0].avgGrade}`}
+                                    </p>
+                                )}
+                            </button>
+
+                            {/* 4. Просроченные дедлайны */}
+                            <button
+                                onClick={() => router.push('/workspace/homework')}
+                                disabled={overview.overdue.count === 0}
+                                className={`text-left p-4 rounded-2xl border transition group ${
+                                    overview.overdue.count > 0
+                                        ? 'bg-white border-red-200 hover:border-red-400 hover:shadow-md cursor-pointer'
+                                        : 'bg-gray-50 border-gray-100 opacity-60 cursor-default'
+                                }`}
+                            >
+                                <div className="flex items-center justify-between mb-2">
+                                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${
+                                        overview.overdue.count > 0 ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-400'
+                                    }`}>
+                                        <i className="fas fa-hourglass-end text-sm"></i>
+                                    </div>
+                                    {overview.overdue.count > 0 && (
+                                        <i className="fas fa-arrow-right text-gray-300 group-hover:text-red-600 transition"></i>
+                                    )}
+                                </div>
+                                <p className="text-2xl font-black text-gray-900">{overview.overdue.count}</p>
+                                <p className="text-xs font-semibold text-gray-600">Просрочено заданий</p>
+                                {overview.upcoming.deadlinesIn7Days > 0 && (
+                                    <p className="text-[11px] text-gray-400 mt-1">
+                                        +{overview.upcoming.deadlinesIn7Days} дедлайнов в ближайшие 7д
+                                    </p>
+                                )}
+                            </button>
+                        </div>
+
+                        {/* Ненавязчивые nudges */}
+                        {(overview.nudges.untaggedLessons > 0 || overview.nudges.unscheduledRecent > 0) && (
+                            <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                                {overview.nudges.untaggedLessons > 0 && (
+                                    <button
+                                        onClick={() => router.push('/dashboard/courses')}
+                                        className="flex items-center gap-1.5 text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-100 px-3 py-1.5 rounded-full font-medium transition"
+                                    >
+                                        <i className="fas fa-tag"></i>
+                                        {overview.nudges.untaggedLessons} материалов без тегов
+                                    </button>
+                                )}
+                                {overview.nudges.unscheduledRecent > 0 && (
+                                    <button
+                                        onClick={() => router.push('/dashboard/calendar')}
+                                        className="flex items-center gap-1.5 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-100 px-3 py-1.5 rounded-full font-medium transition"
+                                    >
+                                        <i className="fas fa-calendar-plus"></i>
+                                        {overview.nudges.unscheduledRecent} уроков без расписания
+                                    </button>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                )
+            })()}
 
             {/* Quick Stats */}
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3 md:gap-4 mb-6">

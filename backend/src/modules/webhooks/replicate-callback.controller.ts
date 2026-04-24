@@ -1,6 +1,5 @@
 import { Controller, Post, Body, Logger } from '@nestjs/common';
 import { WebhooksService } from './webhooks.service';
-import { FilesService } from '../files/files.service';
 import { HtmlPostprocessorService } from '../../common/services/html-postprocessor.service';
 
 /**
@@ -14,7 +13,6 @@ export class ReplicateCallbackController {
 
   constructor(
     private readonly webhooksService: WebhooksService,
-    private readonly filesService: FilesService,
     private readonly htmlPostprocessor: HtmlPostprocessorService,
   ) {}
 
@@ -57,11 +55,14 @@ export class ReplicateCallbackController {
           // Replicate returns output as a string URL, convert to array
           const replicateUrls = Array.isArray(output) ? output : [output];
 
-          // Download each image and save locally
+          // Download each image and save locally via shared helper
           const localUrls: string[] = [];
           for (const url of replicateUrls) {
             try {
-              const saved = await this.downloadAndSaveImage(url, generationRequest.userId);
+              const saved = await this.webhooksService.persistRemoteImage(
+                url,
+                generationRequest.userId,
+              );
               localUrls.push(saved);
               this.logger.log(`Saved image locally: ${saved}`);
             } catch (err: any) {
@@ -150,30 +151,4 @@ export class ReplicateCallbackController {
     }
   }
 
-  /**
-   * Downloads an image from a URL and saves it locally via FilesService.
-   * Returns the permanent local URL.
-   */
-  private async downloadAndSaveImage(imageUrl: string, userId?: string): Promise<string> {
-    const axios = (await import('axios')).default;
-
-    const response = await axios.get(imageUrl, {
-      responseType: 'arraybuffer',
-      timeout: 30000,
-    });
-
-    const buffer = Buffer.from(response.data);
-
-    // Determine extension from content-type or URL
-    const contentType = String(response.headers['content-type'] || '');
-    let ext = '.png';
-    if (contentType.includes('jpeg') || contentType.includes('jpg')) ext = '.jpg';
-    else if (contentType.includes('webp')) ext = '.webp';
-    else if (contentType.includes('gif')) ext = '.gif';
-
-    const filename = `replicate-${Date.now()}${ext}`;
-    const saved = await this.filesService.saveBuffer(buffer, filename, userId);
-
-    return saved.url;
-  }
 }

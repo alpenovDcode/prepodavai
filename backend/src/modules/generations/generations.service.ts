@@ -1224,7 +1224,11 @@ export class GenerationsService {
       throw new NotFoundException('Результат генерации пуст');
     }
 
-    const content = (result as any)?.content ?? result;
+    // Разные процессоры хранят HTML под разными ключами: `content` (большинство
+    // стратегий), `htmlResult` (video-analysis / sales-advisor / lesson_preparation),
+    // `html`/`text` (fallback). Идём по приоритету.
+    const r = result as any;
+    const content = r?.content ?? r?.htmlResult ?? r?.html ?? r?.text ?? result;
     let htmlContent = this.htmlExportService.normalizeIncomingHtml(content);
     if (options.withAnswers === false) {
       htmlContent = stripAnswerKeyFromHtml(htmlContent);

@@ -20,4 +20,9 @@ export class AnalyticsController {
     const userId = req.user.id;
     return this.analyticsService.getQuickStats(userId);
   }
+
+  @Get('teacher-overview')
+  async getTeacherOverview(@Request() req: any) {
+    return this.analyticsService.getTeacherOverview(req.user.id);
+  }
 }

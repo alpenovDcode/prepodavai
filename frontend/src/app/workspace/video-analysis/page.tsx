@@ -2,9 +2,8 @@
 
 import { useState, useRef, useEffect } from 'react'
 import DOMPurify from 'isomorphic-dompurify'
-import { downloadPdfById } from '@/lib/utils/downloadPdf'
-import { Video, RefreshCw, Loader2, Maximize2, UploadCloud, Copy, Download, Edit3, Eye } from 'lucide-react'
-import toast from 'react-hot-toast'
+import PdfDownloadButton from '@/components/workspace/PdfDownloadButton'
+import { Video, RefreshCw, Loader2, Maximize2, UploadCloud, Copy, Edit3, Eye } from 'lucide-react'
 import { useGenerations } from '@/lib/hooks/useGenerations'
 import { useServiceCosts } from '@/lib/hooks/useServiceCosts'
 import RichTextEditor from '@/components/workspace/RichTextEditor'
@@ -100,18 +99,6 @@ export default function VideoAnalysisGenerator() {
             };
         }
     }, [editMode, localContent]);
-
-    const handleDownloadPdf = async () => {
-        if (!activeGenerationId) {
-            toast.error('Сначала сгенерируйте материал')
-            return
-        }
-        try {
-            await downloadPdfById(activeGenerationId, 'video-analysis.pdf')
-        } catch {
-            toast.error('Не удалось сформировать PDF')
-        }
-    }
 
     const handleCopy = async () => {
         if (!localContent) return
@@ -237,14 +224,11 @@ export default function VideoAnalysisGenerator() {
                                 <Copy className="w-3.5 h-3.5" />
                                 {copied ? 'Скопировано!' : 'Копировать'}
                             </button>
-                            <button
-                                onClick={handleDownloadPdf}
-                                disabled={!localContent || isGenerating}
+                            <PdfDownloadButton
+                                generationId={activeGenerationId}
+                                filename="video-analysis.pdf"
                                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg transition-all disabled:opacity-40 ml-1"
-                            >
-                                <Download className="w-3.5 h-3.5" />
-                                Скачать PDF / Печать
-                            </button>
+                            />
                             <button className="p-2 ml-1 text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded-lg transition-colors">
                                 <Maximize2 className="w-4 h-4" />
                             </button>

@@ -2032,6 +2032,160 @@ export class AdminService {
     };
   }
 
+  /**
+   * Аналитика адопшна фич M1-M4 (проверка ДЗ ИИ, аналитика, календарь, теги).
+   * Считается только по реальным данным в БД, без отдельного трекинга событий.
+   */
+  async getM14Metrics(days = 30) {
+    // === M1: проверка работ (ИИ-фидбек + обычное оценивание) ===
+    // Считаем проверки за период + число уникальных учителей
+    type GradedRow = { cnt: bigint; with_feedback: bigint; unique_teachers: bigint };
+    const [m1Overall]: GradedRow[] = await this.prisma.$queryRaw`
+      SELECT
+        COUNT(*) AS cnt,
+        COUNT(*) FILTER (WHERE s.feedback IS NOT NULL AND LENGTH(TRIM(s.feedback)) > 0) AS with_feedback,
+        COUNT(DISTINCT COALESCE(cl."teacherId", stcl."teacherId")) AS unique_teachers
+      FROM submissions s
+      INNER JOIN assignments a ON a.id = s."assignmentId"
+      LEFT JOIN classes cl ON cl.id = a."classId"
+      LEFT JOIN students st ON st.id = a."studentId"
+      LEFT JOIN classes stcl ON stcl.id = st."classId"
+      WHERE s.grade IS NOT NULL
+        AND s."updatedAt" > NOW() - (${days} || ' days')::interval
+    `;
+
+    type DailyGrading = { day: Date; graded: bigint };
+    const m1Daily: DailyGrading[] = await this.prisma.$queryRaw`
+      SELECT DATE(s."updatedAt") AS day, COUNT(*) AS graded
+      FROM submissions s
+      WHERE s.grade IS NOT NULL
+        AND s."updatedAt" > NOW() - (${days} || ' days')::interval
+      GROUP BY day
+      ORDER BY day
+    `;
+
+    // === M3: расписание уроков ===
+    type SchedRow = { scheduled: bigint; total: bigint; with_class: bigint; teachers: bigint };
+    const [m3]: SchedRow[] = await this.prisma.$queryRaw`
+      SELECT
+        COUNT(*) FILTER (WHERE "scheduledAt" IS NOT NULL) AS scheduled,
+        COUNT(*) AS total,
+        COUNT(*) FILTER (WHERE "scheduledAt" IS NOT NULL AND "classId" IS NOT NULL) AS with_class,
+        COUNT(DISTINCT "userId") FILTER (WHERE "scheduledAt" IS NOT NULL) AS teachers
+      FROM lessons
+    `;
+
+    type UpcomingRow = { cnt: bigint; teachers: bigint };
+    const [m3Upcoming]: UpcomingRow[] = await this.prisma.$queryRaw`
+      SELECT COUNT(*) AS cnt, COUNT(DISTINCT "userId") AS teachers
+      FROM lessons
+      WHERE "scheduledAt" IS NOT NULL
+        AND "scheduledAt" >= NOW()
+        AND "scheduledAt" < NOW() + INTERVAL '7 days'
+    `;
+
+    // === M4: теги в библиотеке ===
+    type TagsRow = { tagged: bigint; total: bigint; teachers: bigint; avg_tags: number };
+    const [m4]: TagsRow[] = await this.prisma.$queryRaw`
+      SELECT
+        COUNT(*) FILTER (WHERE array_length(tags, 1) > 0) AS tagged,
+        COUNT(*) AS total,
+        COUNT(DISTINCT "userId") FILTER (WHERE array_length(tags, 1) > 0) AS teachers,
+        COALESCE(AVG(array_length(tags, 1)) FILTER (WHERE array_length(tags, 1) > 0), 0) AS avg_tags
+      FROM lessons
+    `;
+
+    type TopTagRow = { tag: string; cnt: bigint };
+    const m4TopTags: TopTagRow[] = await this.prisma.$queryRaw`
+      SELECT t AS tag, COUNT(*) AS cnt
+      FROM lessons, unnest(tags) AS t
+      GROUP BY t
+      ORDER BY cnt DESC
+      LIMIT 20
+    `;
+
+    // === M2: опосредованно — наличие оценок, по которым работает risk-скоринг ===
+    // (Прямого трекинга посещений страниц аналитики нет)
+    type M2Row = { eligible_students: bigint };
+    const [m2]: M2Row[] = await this.prisma.$queryRaw`
+      SELECT COUNT(*) AS eligible_students FROM (
+        SELECT "studentId"
+        FROM submissions
+        WHERE grade IS NOT NULL
+        GROUP BY "studentId"
+        HAVING COUNT(*) >= 3
+      ) eligible
+    `;
+
+    // Totals для процентов
+    const [{ cnt: totalTeachersBig }]: { cnt: bigint }[] = await this.prisma.$queryRaw`
+      SELECT COUNT(*) AS cnt FROM app_users
+    `;
+    const totalTeachers = Number(totalTeachersBig ?? 0);
+
+    const m1GradedCount = Number(m1Overall?.cnt ?? 0);
+    const m1WithFeedback = Number(m1Overall?.with_feedback ?? 0);
+    const m1UniqueTeachers = Number(m1Overall?.unique_teachers ?? 0);
+
+    const m3Scheduled = Number(m3?.scheduled ?? 0);
+    const m3Total = Number(m3?.total ?? 0);
+    const m3Teachers = Number(m3?.teachers ?? 0);
+
+    const m4Tagged = Number(m4?.tagged ?? 0);
+    const m4Total = Number(m4?.total ?? 0);
+    const m4Teachers = Number(m4?.teachers ?? 0);
+
+    return {
+      days,
+      generatedAt: new Date(),
+      totalTeachers,
+      m1: {
+        gradedCount: m1GradedCount,
+        withFeedbackCount: m1WithFeedback,
+        withFeedbackPct: m1GradedCount > 0
+          ? Math.round((m1WithFeedback / m1GradedCount) * 100)
+          : 0,
+        uniqueTeachers: m1UniqueTeachers,
+        adoptionPct: totalTeachers > 0
+          ? Math.round((m1UniqueTeachers / totalTeachers) * 100)
+          : 0,
+        daily: m1Daily.map(r => ({
+          day: r.day,
+          graded: Number(r.graded),
+        })),
+      },
+      m2: {
+        eligibleStudents: Number(m2?.eligible_students ?? 0),
+        note: 'Минимум 3 оценки — ученик готов для risk-скоринга',
+      },
+      m3: {
+        scheduledLessons: m3Scheduled,
+        totalLessons: m3Total,
+        schedulePct: m3Total > 0 ? Math.round((m3Scheduled / m3Total) * 100) : 0,
+        withClass: Number(m3?.with_class ?? 0),
+        uniqueTeachers: m3Teachers,
+        adoptionPct: totalTeachers > 0
+          ? Math.round((m3Teachers / totalTeachers) * 100)
+          : 0,
+        upcoming7d: Number(m3Upcoming?.cnt ?? 0),
+        upcomingTeachers7d: Number(m3Upcoming?.teachers ?? 0),
+      },
+      m4: {
+        taggedLessons: m4Tagged,
+        totalLessons: m4Total,
+        tagPct: m4Total > 0 ? Math.round((m4Tagged / m4Total) * 100) : 0,
+        avgTagsPerLesson: m4Total > 0
+          ? Math.round(Number(m4?.avg_tags ?? 0) * 10) / 10
+          : 0,
+        uniqueTeachers: m4Teachers,
+        adoptionPct: totalTeachers > 0
+          ? Math.round((m4Teachers / totalTeachers) * 100)
+          : 0,
+        topTags: m4TopTags.map(r => ({ tag: r.tag, count: Number(r.cnt) })),
+      },
+    };
+  }
+
   /** Алерты: проверяем пороговые условия */
   async getAlerts() {
     const alerts: { level: 'warning' | 'critical'; title: string; description: string; value: number; threshold: number }[] = [];

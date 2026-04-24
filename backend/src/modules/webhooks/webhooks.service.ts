@@ -1,6 +1,8 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import axios from 'axios';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { GenerationHelpersService } from '../generations/generation-helpers.service';
+import { FilesService } from '../files/files.service';
 
 @Injectable()
 export class WebhooksService {
@@ -9,7 +11,49 @@ export class WebhooksService {
   constructor(
     private prisma: PrismaService,
     private generationHelpers: GenerationHelpersService,
+    private filesService: FilesService,
   ) {}
+
+  /**
+   * Скачивает картинку с удалённого URL (Replicate / Polza / любой CDN) и
+   * сохраняет её локально через FilesService. Возвращает наш постоянный URL
+   * вида `${BASE_URL}/api/files/{hash}`.
+   *
+   * Replicate хранит результаты предсказаний всего ~30 минут, после чего
+   * прямые ссылки умирают, и пользователь не может скачать картинку из
+   * истории. Перенос в FilesService решает проблему: файл живёт столько,
+   * сколько живёт UPLOAD_DIR на сервере.
+   *
+   * Идемпотентность: если URL уже наш (`/api/files/...`), просто возвращаем
+   * его без повторного скачивания.
+   */
+  async persistRemoteImage(remoteUrl: string, userId: string): Promise<string> {
+    if (!remoteUrl) throw new Error('persistRemoteImage: empty URL');
+    if (remoteUrl.includes('/api/files/')) return remoteUrl;
+
+    const response = await axios.get(remoteUrl, {
+      responseType: 'arraybuffer',
+      timeout: 30000,
+      maxContentLength: 50 * 1024 * 1024,
+    });
+    const buffer = Buffer.from(response.data);
+
+    const contentType = String(response.headers['content-type'] || '').toLowerCase();
+    let ext = '.png';
+    if (contentType.includes('jpeg') || contentType.includes('jpg')) ext = '.jpg';
+    else if (contentType.includes('webp')) ext = '.webp';
+    else if (contentType.includes('gif')) ext = '.gif';
+    else if (contentType.includes('png')) ext = '.png';
+    else {
+      // Если content-type невнятный — пробуем угадать по расширению в URL.
+      const m = remoteUrl.match(/\.(png|jpe?g|webp|gif)(?:[?#]|$)/i);
+      if (m) ext = `.${m[1].toLowerCase().replace('jpeg', 'jpg')}`;
+    }
+
+    const filename = `generated-${Date.now()}${ext}`;
+    const saved = await this.filesService.saveBuffer(buffer, filename, userId);
+    return saved.url;
+  }
 
   /**
    * Обработка callback для текстовых генераций
@@ -113,8 +157,19 @@ export class WebhooksService {
     }
 
     if (success && imageUrl) {
+      // Перекладываем картинку с CDN провайдера в локальное хранилище —
+      // иначе через ~30 минут ссылка от Replicate умрёт.
+      let persistedUrl = imageUrl;
+      try {
+        persistedUrl = await this.persistRemoteImage(imageUrl, generationRequest.userId);
+      } catch (e: any) {
+        this.logger.warn(
+          `handleImageCallback: failed to persist ${imageUrl}: ${e.message}. Saving original URL as fallback.`,
+        );
+      }
+
       const outputData = {
-        imageUrl,
+        imageUrl: persistedUrl,
         prompt: prompt || 'N/A',
         style: style || 'realistic',
         type,
@@ -186,13 +241,29 @@ export class WebhooksService {
     const finalImageUrls = imageUrls.length > 0 ? imageUrls : imageUrl ? [imageUrl] : [];
 
     if (success && finalImageUrls.length > 0) {
+      // Перекладываем все картинки с CDN провайдера в локальное хранилище.
+      // Делаем параллельно, но с fallback на оригинал, если конкретный URL
+      // не скачался (одна неудача не должна валить всю фотосессию).
+      const persistedUrls = await Promise.all(
+        finalImageUrls.map(async (url: string) => {
+          try {
+            return await this.persistRemoteImage(url, generationRequest.userId);
+          } catch (e: any) {
+            this.logger.warn(
+              `handlePhotosessionCallback: failed to persist ${url}: ${e.message}. Saving original URL as fallback.`,
+            );
+            return url;
+          }
+        }),
+      );
+
       const outputData = {
-        imageUrls: finalImageUrls,
-        imageUrl: finalImageUrls[0], // Первое изображение как основное
+        imageUrls: persistedUrls,
+        imageUrl: persistedUrls[0], // Первое изображение как основное
         prompt: prompt || 'N/A',
         style: style || 'realistic',
         photoUrl: photoUrl || null,
-        count: count || finalImageUrls.length,
+        count: count || persistedUrls.length,
         type: 'photosession',
         completedAt: new Date().toISOString(),
       };

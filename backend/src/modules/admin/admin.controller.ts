@@ -307,6 +307,11 @@ export class AdminController {
     return this.adminService.getFeatureAdoption(days ? parseInt(days) : 30);
   }
 
+  @Get('product/m-features')
+  async getM14Features(@Query('days') days?: string) {
+    return this.adminService.getM14Metrics(days ? parseInt(days) : 30);
+  }
+
   @Get('product/alerts')
   async getAlerts() {
     return this.adminService.getAlerts();
