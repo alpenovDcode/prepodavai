@@ -1,11 +1,19 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { apiClient } from '@/lib/api/client'
 import { useRouter } from 'next/navigation'
 import DOMPurify from 'isomorphic-dompurify'
 import Image from 'next/image'
 import InteractiveHtmlViewer, { extractHtmlFromOutput } from '@/components/InteractiveHtmlViewer'
+
+/** M1: Готовые шаблоны комментариев — вставляются одним кликом */
+const FEEDBACK_TEMPLATES = [
+    'Отличная работа, всё верно! Молодец!',
+    'В целом хорошо, но есть пара недочётов — обрати внимание и исправь.',
+    'Есть ошибки. Повтори тему и попробуй ещё раз.',
+    'Требуется доработка — перечитай задание и сдай повторно.',
+]
 
 /** Сравнивает ответы ученика с ключом ответов из HTML теста */
 function computeQuizScore(html: string, formData: Record<string, any>): { correct: number; total: number } | null {
@@ -242,6 +250,8 @@ export default function StudentsPage() {
     // M1: AI-черновик оценки. Кеш по submissionId.
     const [aiDrafts, setAiDrafts] = useState<Record<string, { grade: number | null; feedback: string }>>({})
     const [draftFetchingId, setDraftFetchingId] = useState<string | null>(null)
+    const [showHotkeys, setShowHotkeys] = useState(false)
+    const feedbackTextareaRef = useRef<HTMLTextAreaElement | null>(null)
 
     // Form state
     const [newClassName, setNewClassName] = useState('')
@@ -386,30 +396,49 @@ export default function StudentsPage() {
         if (draft.feedback) setFeedbackInput(draft.feedback)
     }
 
-    const handleSubmitGrade = async () => {
+    const handleSubmitGrade = async (opts?: { advance?: boolean }) => {
         if (!selectedStudent?.submission) return
         if (gradeInput === '' || gradeInput < 1 || gradeInput > 5) {
             showError('Оценка должна быть от 1 до 5')
             return
         }
+        const currentStudentId = selectedStudent.student.id
         setSubmittingGrade(true)
         try {
             await apiClient.patch(`/submissions/${selectedStudent.submission.id}/grade`, {
                 grade: Number(gradeInput),
                 feedback: feedbackInput
             })
-            // Refresh details
             if (reviewAssignment) {
                 const res = await apiClient.get(`/submissions/assignment/${reviewAssignment.id}`)
-                setReviewDetails(res.data)
-                // Update selected student
-                const updated = (res.data as AssignmentDetails).studentStatuses.find(
-                    s => s.student.id === selectedStudent.student.id
-                )
-                if (updated) {
-                    setSelectedStudent(updated)
-                    setGradeInput(updated.submission?.grade || '')
-                    setFeedbackInput(updated.submission?.feedback || '')
+                const details = res.data as AssignmentDetails
+                setReviewDetails(details)
+
+                if (opts?.advance) {
+                    // Ищем следующего ученика, который сдал, но ещё не оценён
+                    const list = details.studentStatuses
+                    const currentIdx = list.findIndex(s => s.student.id === currentStudentId)
+                    let next: StudentStatus | null = null
+                    for (let i = 1; i <= list.length; i++) {
+                        const candidate = list[(currentIdx + i + list.length) % list.length]
+                        if (candidate.status === 'submitted') {
+                            next = candidate
+                            break
+                        }
+                    }
+                    if (next) {
+                        handleSelectStudent(next)
+                    } else {
+                        setSelectedStudent(null)
+                        setNotification({ title: 'Всё проверено!', message: '🎉 Все работы этого задания оценены.' })
+                    }
+                } else {
+                    const updated = details.studentStatuses.find(s => s.student.id === currentStudentId)
+                    if (updated) {
+                        setSelectedStudent(updated)
+                        setGradeInput(updated.submission?.grade || '')
+                        setFeedbackInput(updated.submission?.feedback || '')
+                    }
                 }
             }
             fetchData()
@@ -420,6 +449,83 @@ export default function StudentsPage() {
             setSubmittingGrade(false)
         }
     }
+
+    const navigateStudent = useCallback((delta: 1 | -1) => {
+        if (!reviewDetails) return
+        const list = reviewDetails.studentStatuses
+        if (list.length === 0) return
+        const currentIdx = selectedStudent
+            ? list.findIndex(s => s.student.id === selectedStudent.student.id)
+            : -1
+        const nextIdx = currentIdx === -1
+            ? (delta === 1 ? 0 : list.length - 1)
+            : (currentIdx + delta + list.length) % list.length
+        handleSelectStudent(list[nextIdx])
+    }, [reviewDetails, selectedStudent])
+
+    const insertFeedbackTemplate = useCallback((tpl: string) => {
+        setFeedbackInput(prev => (prev.trim() ? `${prev.trim()}\n${tpl}` : tpl))
+    }, [])
+
+    // M1: глобальные горячие клавиши — активны только когда открыт modal проверки
+    useEffect(() => {
+        if (!reviewAssignment) return
+        const isEditableTarget = (el: EventTarget | null) => {
+            if (!(el instanceof HTMLElement)) return false
+            const tag = el.tagName
+            return tag === 'INPUT' || tag === 'TEXTAREA' || el.isContentEditable
+        }
+
+        const handler = (e: KeyboardEvent) => {
+            if (e.metaKey || e.ctrlKey || e.altKey) return
+            const inEditable = isEditableTarget(e.target)
+
+            if (e.key === 'Escape' && inEditable) {
+                (e.target as HTMLElement).blur()
+                return
+            }
+
+            if (inEditable) return
+            if (!selectedStudent) return
+
+            if (e.key >= '1' && e.key <= '5') {
+                e.preventDefault()
+                setGradeInput(Number(e.key))
+                return
+            }
+            if (e.key === 'a' || e.key === 'A' || e.key === 'ф' || e.key === 'Ф') {
+                e.preventDefault()
+                acceptAiDraft()
+                return
+            }
+            if (e.key === 'e' || e.key === 'E' || e.key === 'у' || e.key === 'У') {
+                e.preventDefault()
+                feedbackTextareaRef.current?.focus()
+                return
+            }
+            if (e.key === 'Enter') {
+                e.preventDefault()
+                if (gradeInput !== '' && !submittingGrade) {
+                    handleSubmitGrade({ advance: true })
+                }
+                return
+            }
+            if (e.key === 'ArrowDown') {
+                e.preventDefault()
+                navigateStudent(1)
+                return
+            }
+            if (e.key === 'ArrowUp') {
+                e.preventDefault()
+                navigateStudent(-1)
+                return
+            }
+        }
+
+        window.addEventListener('keydown', handler)
+        return () => window.removeEventListener('keydown', handler)
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [reviewAssignment, selectedStudent, gradeInput, submittingGrade, navigateStudent])
 
     const handleGenerateAiFeedback = async () => {
         if (!selectedStudent?.submission) return
@@ -1012,11 +1118,43 @@ export default function StudentsPage() {
                             <div className="flex flex-col sm:flex-row flex-1 overflow-hidden">
                                 {/* Students list — horizontal scroll on mobile, sidebar on desktop */}
                                 <div className="sm:w-64 sm:flex-shrink-0 sm:border-r border-b sm:border-b-0 border-gray-100 flex flex-col overflow-hidden">
-                                    <div className="p-2 sm:p-3 bg-gray-50 border-b border-gray-100">
-                                        <div className="flex items-center gap-2 text-xs font-semibold text-gray-500">
+                                    <div className="p-2 sm:p-3 bg-gray-50 border-b border-gray-100 space-y-2">
+                                        <div className="flex items-center gap-2 text-xs font-semibold text-gray-500 flex-wrap">
                                             <span className="bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded-full">Ждут: {reviewDetails.submittedCount - reviewDetails.gradedCount}</span>
                                             <span className="bg-green-100 text-green-800 px-2 py-0.5 rounded-full">Оценено: {reviewDetails.gradedCount}</span>
                                         </div>
+                                        {/* M1: прогресс-бар по заданию */}
+                                        {reviewDetails.submittedCount > 0 && (
+                                            <div>
+                                                <div className="flex items-center justify-between text-[10px] text-gray-500 font-semibold mb-1">
+                                                    <span>Проверено работ</span>
+                                                    <span>{reviewDetails.gradedCount} / {reviewDetails.submittedCount}</span>
+                                                </div>
+                                                <div className="h-1.5 w-full bg-gray-200 rounded-full overflow-hidden">
+                                                    <div
+                                                        className="h-full bg-gradient-to-r from-green-400 to-green-600 transition-all"
+                                                        style={{ width: `${Math.round((reviewDetails.gradedCount / reviewDetails.submittedCount) * 100)}%` }}
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
+                                        <button
+                                            onClick={() => setShowHotkeys(v => !v)}
+                                            className="w-full flex items-center justify-center gap-1.5 text-[10px] font-semibold text-gray-500 hover:text-gray-800 bg-white hover:bg-gray-50 border border-gray-200 px-2 py-1 rounded-lg transition-colors"
+                                            title="Показать горячие клавиши"
+                                        >
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M8 12h.01M12 12h.01M16 12h.01M7 16h10"/></svg>
+                                            Горячие клавиши
+                                        </button>
+                                        {showHotkeys && (
+                                            <div className="p-2 bg-indigo-50 border border-indigo-100 rounded-lg text-[10px] text-indigo-900 space-y-0.5">
+                                                <div className="flex justify-between"><kbd className="font-mono font-bold">1–5</kbd><span>Оценка</span></div>
+                                                <div className="flex justify-between"><kbd className="font-mono font-bold">A</kbd><span>Принять ИИ</span></div>
+                                                <div className="flex justify-between"><kbd className="font-mono font-bold">Enter</kbd><span>Сохранить и далее</span></div>
+                                                <div className="flex justify-between"><kbd className="font-mono font-bold">↑ / ↓</kbd><span>Пред. / След.</span></div>
+                                                <div className="flex justify-between"><kbd className="font-mono font-bold">E</kbd><span>Фокус на коммент.</span></div>
+                                            </div>
+                                        )}
                                     </div>
                                     {/* Mobile: horizontal scroll; Desktop: vertical scroll */}
                                     <div className="flex sm:flex-col overflow-x-auto sm:overflow-x-hidden sm:overflow-y-auto p-2 gap-2 sm:gap-0">
@@ -1263,7 +1401,22 @@ export default function StudentsPage() {
                                                             }
                                                         </button>
                                                     </div>
+                                                    {/* M1: быстрая вставка шаблонов */}
+                                                    <div className="flex flex-wrap gap-1.5 mb-2">
+                                                        {FEEDBACK_TEMPLATES.map((tpl, i) => (
+                                                            <button
+                                                                key={i}
+                                                                type="button"
+                                                                onClick={() => insertFeedbackTemplate(tpl)}
+                                                                className="text-[11px] font-medium text-gray-600 bg-gray-50 hover:bg-gray-100 border border-gray-200 px-2 py-1 rounded-md transition"
+                                                                title="Вставить шаблон"
+                                                            >
+                                                                {tpl.length > 35 ? tpl.slice(0, 34) + '…' : tpl}
+                                                            </button>
+                                                        ))}
+                                                    </div>
                                                     <textarea
+                                                        ref={feedbackTextareaRef}
                                                         value={feedbackInput}
                                                         onChange={(e) => setFeedbackInput(e.target.value)}
                                                         className="w-full h-28 px-4 py-3 bg-white border border-gray-300 rounded-xl focus:border-primary-500 focus:ring-2 focus:ring-primary-100 transition resize-none text-sm"
@@ -1271,18 +1424,36 @@ export default function StudentsPage() {
                                                     />
                                                 </div>
 
-                                                <div className="flex justify-end">
+                                                <div className="flex justify-between items-center pt-4 border-t border-gray-100 gap-2 flex-wrap">
                                                     <button
-                                                        onClick={handleSubmitGrade}
-                                                        disabled={submittingGrade || gradeInput === ''}
-                                                        className="flex items-center gap-2 px-6 py-3 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 transition shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                                                        onClick={() => navigateStudent(-1)}
+                                                        className="px-3 py-2.5 text-gray-500 hover:text-gray-900 bg-gray-50 hover:bg-gray-100 rounded-lg text-sm font-semibold transition flex items-center gap-1"
+                                                        title="Предыдущий ученик (↑)"
                                                     >
-                                                        {submittingGrade ? (
-                                                            <><span className="animate-spin inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full"></span> Сохранение...</>
-                                                        ) : (
-                                                            <><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Сохранить оценку</>
-                                                        )}
+                                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6"/></svg>
+                                                        Пред.
                                                     </button>
+                                                    <div className="flex gap-2">
+                                                        <button
+                                                            onClick={() => handleSubmitGrade()}
+                                                            disabled={submittingGrade || gradeInput === ''}
+                                                            className="flex items-center gap-2 px-5 py-2.5 bg-white border border-green-200 text-green-700 font-semibold rounded-lg hover:bg-green-50 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                                                        >
+                                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                                                            Сохранить
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleSubmitGrade({ advance: true })}
+                                                            disabled={submittingGrade || gradeInput === ''}
+                                                            className="flex items-center gap-2 px-6 py-2.5 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 transition shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                                                            title="Сохранить и к следующему (Enter)"
+                                                        >
+                                                            {submittingGrade
+                                                                ? <><span className="animate-spin inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full"></span> Сохранение...</>
+                                                                : <>Сохранить и далее <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6"/></svg></>
+                                                            }
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
