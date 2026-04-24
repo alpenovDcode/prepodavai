@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { apiClient } from '@/lib/api/client'
 import { useRouter } from 'next/navigation'
 import DOMPurify from 'isomorphic-dompurify'
@@ -239,6 +239,10 @@ export default function StudentsPage() {
     const [submittingGrade, setSubmittingGrade] = useState(false)
     const [generatingFeedback, setGeneratingFeedback] = useState(false)
 
+    // M1: AI-черновик оценки. Кеш по submissionId.
+    const [aiDrafts, setAiDrafts] = useState<Record<string, { grade: number | null; feedback: string }>>({})
+    const [draftFetchingId, setDraftFetchingId] = useState<string | null>(null)
+
     // Form state
     const [newClassName, setNewClassName] = useState('')
     const [newStudentName, setNewStudentName] = useState('')
@@ -342,10 +346,44 @@ export default function StudentsPage() {
         setFeedbackInput('')
     }
 
+    const fetchAiDraftFor = useCallback(async (submissionId: string) => {
+        if (aiDrafts[submissionId] || draftFetchingId === submissionId) return
+        setDraftFetchingId(submissionId)
+        try {
+            const res = await apiClient.post<{ grade: number | null; feedback: string }>(
+                `/submissions/${submissionId}/ai-feedback`
+            )
+            setAiDrafts(prev => ({
+                ...prev,
+                [submissionId]: {
+                    grade: typeof res.data?.grade === 'number' ? res.data.grade : null,
+                    feedback: (res.data?.feedback || '').trim(),
+                },
+            }))
+        } catch (error) {
+            console.error('Failed to prefetch AI draft', error)
+        } finally {
+            setDraftFetchingId(prev => (prev === submissionId ? null : prev))
+        }
+    }, [aiDrafts, draftFetchingId])
+
     const handleSelectStudent = (status: StudentStatus) => {
         setSelectedStudent(status)
         setGradeInput(status.submission?.grade || '')
         setFeedbackInput(status.submission?.feedback || '')
+        // Auto-prefetch AI draft для ещё не оценённых сдач
+        if (status.status === 'submitted' && status.submission?.id) {
+            fetchAiDraftFor(status.submission.id)
+        }
+    }
+
+    const acceptAiDraft = () => {
+        const submissionId = selectedStudent?.submission?.id
+        if (!submissionId) return
+        const draft = aiDrafts[submissionId]
+        if (!draft) return
+        if (draft.grade !== null) setGradeInput(draft.grade)
+        if (draft.feedback) setFeedbackInput(draft.feedback)
     }
 
     const handleSubmitGrade = async () => {
@@ -385,10 +423,17 @@ export default function StudentsPage() {
 
     const handleGenerateAiFeedback = async () => {
         if (!selectedStudent?.submission) return
+        const submissionId = selectedStudent.submission.id
         setGeneratingFeedback(true)
         try {
-            const res = await apiClient.post(`/submissions/${selectedStudent.submission.id}/ai-feedback`)
-            setFeedbackInput((res.data?.feedback || '').trim())
+            const res = await apiClient.post<{ grade: number | null; feedback: string }>(
+                `/submissions/${submissionId}/ai-feedback`
+            )
+            const feedback = (res.data?.feedback || '').trim()
+            const grade = typeof res.data?.grade === 'number' ? res.data.grade : null
+            setFeedbackInput(feedback)
+            if (grade !== null) setGradeInput(grade)
+            setAiDrafts(prev => ({ ...prev, [submissionId]: { grade, feedback } }))
         } catch (error: any) {
             console.error('Failed to generate AI feedback:', error)
             handleApiError(error, 'Ошибка при генерации AI комментария')
@@ -1126,6 +1171,63 @@ export default function StudentsPage() {
                                                         </div>
                                                     )
                                                 })()}
+                                                {/* M1: AI DRAFT BANNER — автогенерируется при выборе ученика */}
+                                                {(() => {
+                                                    const submissionId = selectedStudent.submission?.id
+                                                    if (!submissionId) return null
+                                                    const draft = aiDrafts[submissionId]
+                                                    const isDraftLoading = draftFetchingId === submissionId
+
+                                                    if (isDraftLoading) {
+                                                        return (
+                                                            <div className="mb-5 p-4 rounded-xl border border-purple-200 bg-gradient-to-br from-purple-50 to-indigo-50 flex items-center gap-3">
+                                                                <span className="animate-spin inline-block w-4 h-4 border-2 border-purple-300 border-t-purple-700 rounded-full" />
+                                                                <div>
+                                                                    <p className="text-sm font-bold text-purple-900">ИИ проверяет работу...</p>
+                                                                    <p className="text-xs text-purple-700">Черновик оценки и комментарий появятся через пару секунд.</p>
+                                                                </div>
+                                                            </div>
+                                                        )
+                                                    }
+
+                                                    if (!draft) return null
+
+                                                    return (
+                                                        <div className="mb-5 p-4 rounded-xl border border-purple-200 bg-gradient-to-br from-purple-50 to-indigo-50">
+                                                            <div className="flex items-start justify-between gap-3 mb-2">
+                                                                <div className="flex items-center gap-2">
+                                                                    <div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center">
+                                                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-purple-600">
+                                                                            <path d="M12 3l1.912 5.813a2 2 0 0 0 1.275 1.275L21 12l-5.813 1.912a2 2 0 0 0-1.275 1.275L12 21l-1.912-5.813a2 2 0 0 0-1.275-1.275L3 12l5.813-1.912a2 2 0 0 0 1.275-1.275L12 3z"/>
+                                                                        </svg>
+                                                                    </div>
+                                                                    <div>
+                                                                        <p className="text-xs font-semibold text-purple-600 uppercase tracking-wider">ИИ предлагает</p>
+                                                                        <p className="text-sm font-bold text-gray-900">
+                                                                            Оценка: {draft.grade !== null
+                                                                                ? <span className="text-lg">{draft.grade}</span>
+                                                                                : <span className="text-gray-400 text-xs">не определена</span>}
+                                                                        </p>
+                                                                    </div>
+                                                                </div>
+                                                                <button
+                                                                    onClick={acceptAiDraft}
+                                                                    className="flex items-center gap-1.5 text-xs font-bold text-white bg-purple-600 hover:bg-purple-700 px-3 py-2 rounded-lg transition shadow-sm"
+                                                                    title="Принять черновик"
+                                                                >
+                                                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="13 2 3 14 12 14 11 22 21 10 12 10"/></svg>
+                                                                    Принять
+                                                                </button>
+                                                            </div>
+                                                            {draft.feedback && (
+                                                                <p className="text-xs text-gray-700 bg-white/60 rounded-lg p-2.5 leading-relaxed mt-2">
+                                                                    {draft.feedback}
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                    )
+                                                })()}
+
                                                 <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">Оценка и комментарий</h3>
 
                                                 <div className="mb-5">
