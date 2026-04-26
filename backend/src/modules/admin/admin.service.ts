@@ -952,6 +952,114 @@ export class AdminService {
     };
   }
 
+  /**
+   * Список всех, кого пригласил пользователь (рефералы, где он — referrer).
+   * Подгружает имя приглашённого: AppUser для teacher_teacher, Student для
+   * teacher_student / student_student.
+   */
+  async getUserReferrals(userId: string) {
+    const referrals = await this.prisma.referral.findMany({
+      where: { referrerUserId: userId },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        referralCode: { select: { code: true } },
+      },
+    });
+
+    if (referrals.length === 0) {
+      return {
+        success: true,
+        summary: { total: 0, registered: 0, activated: 0, converted: 0 },
+        items: [],
+      };
+    }
+
+    // Разделяем referredUserId по типу, чтобы одним batch-запросом
+    // подтянуть имена учителей и учеников.
+    const teacherIds = referrals
+      .filter((r) => r.referredType === 'teacher')
+      .map((r) => r.referredUserId);
+    const studentIds = referrals
+      .filter((r) => r.referredType === 'student')
+      .map((r) => r.referredUserId);
+
+    const [teachers, students] = await Promise.all([
+      teacherIds.length > 0
+        ? this.prisma.appUser.findMany({
+            where: { id: { in: teacherIds } },
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              username: true,
+              email: true,
+            },
+          })
+        : Promise.resolve([] as any[]),
+      studentIds.length > 0
+        ? this.prisma.student.findMany({
+            where: { id: { in: studentIds } },
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              class: { select: { id: true, name: true } },
+            },
+          })
+        : Promise.resolve([] as any[]),
+    ]);
+
+    const teacherById = new Map(teachers.map((t: any) => [t.id, t]));
+    const studentById = new Map(students.map((s: any) => [s.id, s]));
+
+    const items = referrals.map((r) => {
+      const invited = r.referredType === 'teacher'
+        ? teacherById.get(r.referredUserId)
+        : studentById.get(r.referredUserId);
+      const displayName = invited
+        ? r.referredType === 'teacher'
+          ? [invited.firstName, invited.lastName].filter(Boolean).join(' ')
+            || (invited.username ? `@${invited.username}` : '') || invited.email || r.referredUserId
+          : invited.name || invited.email || r.referredUserId
+        : '(удалённый пользователь)';
+
+      return {
+        id: r.id,
+        referredUserId: r.referredUserId,
+        referredType: r.referredType,
+        referralType: r.referralType,
+        status: r.status,
+        rewardGranted: r.rewardGranted,
+        conversionRewardGranted: r.conversionRewardGranted,
+        createdAt: r.createdAt,
+        activatedAt: r.activatedAt,
+        convertedAt: r.convertedAt,
+        code: r.referralCode?.code || null,
+        invited: invited
+          ? {
+              name: displayName,
+              email: (invited as any).email || null,
+              username: (invited as any).username || null,
+              className:
+                r.referredType === 'student'
+                  ? (invited as any).class?.name || null
+                  : null,
+              exists: true,
+            }
+          : { name: displayName, exists: false },
+      };
+    });
+
+    const summary = {
+      total: referrals.length,
+      registered: referrals.filter((r) => r.status === 'registered').length,
+      activated: referrals.filter((r) => r.status === 'activated').length,
+      converted: referrals.filter((r) => r.status === 'converted').length,
+    };
+
+    return { success: true, summary, items };
+  }
+
   // ========== ANALYTICS ==========
   async getAnalytics(period: 'week' | 'month' | 'quarter' = 'month') {
     const days = period === 'week' ? 7 : period === 'month' ? 30 : 90;

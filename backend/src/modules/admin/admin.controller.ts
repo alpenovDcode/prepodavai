@@ -178,6 +178,11 @@ export class AdminController {
     return this.adminService.getUserStats(id);
   }
 
+  @Get('users/:id/referrals')
+  async getUserReferrals(@Param('id') id: string) {
+    return this.adminService.getUserReferrals(id);
+  }
+
   // ========== ANALYTICS ==========
   @Get('analytics')
   async getAnalytics(@Query('period') period?: 'week' | 'month' | 'quarter') {

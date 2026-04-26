@@ -7,7 +7,8 @@ import { apiClient } from '@/lib/api/client'
 import {
     ArrowLeft, User, Zap, Users, GitBranch, BookOpen,
     CreditCard, CheckCircle, Clock, TrendingUp, Loader2,
-    Mail, Phone, BookOpenCheck, GraduationCap, MessageSquare, Link2
+    Mail, Phone, BookOpenCheck, GraduationCap, MessageSquare, Link2,
+    UserPlus, UserCheck, UserCog
 } from 'lucide-react'
 
 const fetcher = (url: string) => apiClient.get(url).then(r => r.data)
@@ -58,6 +59,7 @@ export default function UserStatsPage({ params }: { params: { id: string } }) {
     const { id } = params
     const { data, isLoading, error, mutate } = useSWR(`/admin/users/${id}/stats`, fetcher)
     const stats = data?.stats
+    const { data: invitedData } = useSWR(`/admin/users/${id}/referrals`, fetcher)
 
     const [selectedPlan, setSelectedPlan] = useState<string>('')
     const [planSaving, setPlanSaving] = useState(false)
@@ -374,6 +376,125 @@ export default function UserStatsPage({ params }: { params: { id: string } }) {
                         </div>
                     )}
                 </div>
+            </div>
+
+            {/* Приглашённые пользователи (рефералы) */}
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                <div className="p-4 border-b border-gray-100 flex items-center justify-between flex-wrap gap-2">
+                    <h2 className="font-semibold text-gray-900 flex items-center gap-2">
+                        <UserPlus className="w-4 h-4 text-gray-400" /> Приглашённые пользователем
+                    </h2>
+                    {invitedData?.summary && (
+                        <div className="flex items-center gap-2 text-xs font-semibold flex-wrap">
+                            <span className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-700">
+                                Всего: {invitedData.summary.total}
+                            </span>
+                            <span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">
+                                Зарегистрировались: {invitedData.summary.registered}
+                            </span>
+                            <span className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">
+                                Активированы: {invitedData.summary.activated}
+                            </span>
+                            <span className="px-2 py-0.5 rounded-full bg-green-50 text-green-700">
+                                Конвертированы: {invitedData.summary.converted}
+                            </span>
+                        </div>
+                    )}
+                </div>
+
+                {!invitedData ? (
+                    <div className="p-8 text-center text-gray-400 flex items-center justify-center gap-2">
+                        <Loader2 className="w-4 h-4 animate-spin" /> Загружаем приглашённых...
+                    </div>
+                ) : invitedData.items.length === 0 ? (
+                    <div className="p-8 text-center text-gray-400">Пользователь пока никого не приглашал</div>
+                ) : (
+                    <table className="w-full text-sm">
+                        <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
+                            <tr>
+                                <th className="px-4 py-3 text-left">Кого пригласил</th>
+                                <th className="px-4 py-3 text-left">Тип</th>
+                                <th className="px-4 py-3 text-left">Статус</th>
+                                <th className="px-4 py-3 text-left">Код</th>
+                                <th className="px-4 py-3 text-left">Регистрация</th>
+                                <th className="px-4 py-3 text-left">Активирован</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-50">
+                            {invitedData.items.map((r: any) => {
+                                const isTeacher = r.referredType === 'teacher'
+                                const statusStyle =
+                                    r.status === 'converted' ? 'bg-green-100 text-green-700' :
+                                    r.status === 'activated' ? 'bg-amber-100 text-amber-700' :
+                                    'bg-blue-100 text-blue-700'
+                                const statusLabel =
+                                    r.status === 'converted' ? 'Конверсия' :
+                                    r.status === 'activated' ? 'Активирован' :
+                                    'Зарегистрирован'
+                                return (
+                                    <tr key={r.id} className="hover:bg-gray-50">
+                                        <td className="px-4 py-3">
+                                            <div className="flex items-center gap-2 min-w-0">
+                                                {isTeacher
+                                                    ? <UserCog className="w-4 h-4 text-indigo-500 flex-shrink-0" />
+                                                    : <UserCheck className="w-4 h-4 text-emerald-500 flex-shrink-0" />}
+                                                <div className="min-w-0">
+                                                    {isTeacher && r.invited.exists ? (
+                                                        <Link
+                                                            href={`/admin/users/${r.referredUserId}`}
+                                                            className="font-medium text-indigo-600 hover:underline truncate block"
+                                                        >
+                                                            {r.invited.name}
+                                                        </Link>
+                                                    ) : (
+                                                        <span className={`font-medium truncate block ${r.invited.exists ? 'text-gray-900' : 'text-gray-400 italic'}`}>
+                                                            {r.invited.name}
+                                                        </span>
+                                                    )}
+                                                    {r.invited.exists && (r.invited.email || r.invited.className) && (
+                                                        <div className="text-xs text-gray-500 truncate">
+                                                            {r.invited.email || r.invited.className}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                                                isTeacher ? 'bg-indigo-50 text-indigo-700' : 'bg-emerald-50 text-emerald-700'
+                                            }`}>
+                                                {isTeacher ? 'Учитель' : 'Ученик'}
+                                            </span>
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusStyle}`}>
+                                                {statusLabel}
+                                            </span>
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            {r.code
+                                                ? <code className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded font-mono">{r.code}</code>
+                                                : <span className="text-gray-300">—</span>}
+                                        </td>
+                                        <td className="px-4 py-3 text-gray-500 text-xs">
+                                            {new Date(r.createdAt).toLocaleString('ru-RU', {
+                                                day: '2-digit', month: '2-digit', year: '2-digit',
+                                                hour: '2-digit', minute: '2-digit',
+                                            })}
+                                        </td>
+                                        <td className="px-4 py-3 text-gray-500 text-xs">
+                                            {r.activatedAt
+                                                ? new Date(r.activatedAt).toLocaleString('ru-RU', {
+                                                    day: '2-digit', month: '2-digit', year: '2-digit',
+                                                })
+                                                : <span className="text-gray-300">—</span>}
+                                        </td>
+                                    </tr>
+                                )
+                            })}
+                        </tbody>
+                    </table>
+                )}
             </div>
 
             {/* Последние генерации */}
