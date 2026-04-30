@@ -648,7 +648,7 @@ function PresentationGeneratorContent() {
             setIsExporting(true);
             try {
                 const { apiClient } = await import('@/lib/api/client');
-                const res = await apiClient.post(`/generate/${activeGenerationId}/presentation/${format}`, null, { responseType: 'blob' });
+                const res = await apiClient.post(`/generate/${activeGenerationId}/presentation/${format}`, {}, { responseType: 'blob' });
                 const blob = res.data as Blob;
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');

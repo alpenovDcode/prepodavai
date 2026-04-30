@@ -167,13 +167,7 @@ export const SlideDocSlide: React.FC<Props> = ({ slide, theme }) => {
   return (
     <div ref={ref} className="slide-doc-slide" data-layout={slide.layout} style={cssVars}>
       {renderBody()}
-      <SlideDocStyles />
-    </div>
-  );
-};
-
-const SlideDocStyles: React.FC = () => (
-  <style jsx>{`
+      <style jsx>{`
     .slide-doc-slide {
       width: 100%;
       height: 100%;
@@ -287,4 +281,6 @@ const SlideDocStyles: React.FC = () => (
       font-weight: 600;
     }
   `}</style>
-);
+    </div>
+  );
+};

@@ -412,6 +412,28 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
         // --- Презентация ---
         if (generationType === 'presentation') {
             const data = typeof content === 'string' ? JSON.parse(content) : content
+            // SlideDoc path: re-render server-side via dedicated endpoint.
+            // Stored pdfUrl/exportUrl can be stale once the user edits and saves;
+            // hitting the endpoint always reflects the latest saved state.
+            if (data?.slideDoc && generationId) {
+                setIsDownloading(true)
+                try {
+                    const res = await apiClient.post(`/generate/${generationId}/presentation/pdf`, {}, { responseType: 'blob' })
+                    const blob = res.data as Blob
+                    const url = URL.createObjectURL(blob)
+                    const a = document.createElement('a')
+                    a.href = url
+                    a.download = `${lessonTitle || data.slideDoc.topic || 'presentation'}.pdf`
+                    a.click()
+                    URL.revokeObjectURL(url)
+                } catch (e) {
+                    console.error('Presentation PDF export failed:', e)
+                    alert('Ошибка при скачивании PDF')
+                } finally {
+                    setIsDownloading(false)
+                }
+                return
+            }
             const downloadUrl = data?.pptxUrl || data?.pdfUrl || data?.exportUrl
             if (downloadUrl) {
                 window.open(downloadUrl, '_blank')
@@ -476,9 +498,14 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
         }
     }
 
-    // Detect new HTML/CSS slide format
+    // Detect new SlideDoc format (current pipeline). Distinct from legacy
+    // HTML-string slides AND from element-based slides — has structured layouts.
+    const slideDoc = presentationData?.slideDoc;
+    const isSlideDoc = !!slideDoc && Array.isArray(slideDoc.slides) && slideDoc.slides.length > 0;
+
+    // Detect legacy HTML/CSS slide format
     const slides: any[] = presentationData?.slides || (Array.isArray(presentationData) ? presentationData : [])
-    const isHtmlSlides = slides.length > 0 && typeof slides[0]?.html === 'string'
+    const isHtmlSlides = !isSlideDoc && slides.length > 0 && typeof slides[0]?.html === 'string'
 
 
     const captureSlideAsImage = async (slide: any): Promise<string> => {
@@ -612,6 +639,44 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
                 </div>
                 <div className="flex items-center gap-3">
                     {generationType === 'presentation' ? (
+                        isSlideDoc ? (
+                            <>
+                                <button
+                                    onClick={() => handleDownload()}
+                                    disabled={isDownloading}
+                                    className="px-4 py-2 text-white bg-orange-500 hover:bg-orange-600 rounded-lg transition font-medium flex items-center gap-2 disabled:opacity-50"
+                                >
+                                    {isDownloading ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />}
+                                    <span>Скачать PDF</span>
+                                </button>
+                                <button
+                                    onClick={async () => {
+                                        if (!generationId) return;
+                                        setIsDownloading(true);
+                                        try {
+                                            const res = await apiClient.post(`/generate/${generationId}/presentation/pptx`, {}, { responseType: 'blob' });
+                                            const blob = res.data as Blob;
+                                            const url = URL.createObjectURL(blob);
+                                            const a = document.createElement('a');
+                                            a.href = url;
+                                            a.download = `${lessonTitle || slideDoc.topic || 'presentation'}.pptx`;
+                                            a.click();
+                                            URL.revokeObjectURL(url);
+                                        } catch (e) {
+                                            console.error('PPTX export failed:', e);
+                                            alert('Ошибка при скачивании PPTX');
+                                        } finally {
+                                            setIsDownloading(false);
+                                        }
+                                    }}
+                                    disabled={isDownloading}
+                                    className="px-4 py-2 text-white bg-blue-500 hover:bg-blue-600 rounded-lg transition font-medium flex items-center gap-2 disabled:opacity-50"
+                                >
+                                    <Download size={18} />
+                                    <span>PPTX</span>
+                                </button>
+                            </>
+                        ) : (
                         <>
                             <button
                                 onClick={isHtmlSlides ? handleSaveHtmlSlides : () => editorRef.current?.save()}
@@ -646,6 +711,7 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
                                 </button>
                             )}
                         </>
+                        )
                     ) : generationType === 'game_generation' && gameData?.url ? (
                         <a
                             href={gameData.url}
@@ -686,7 +752,11 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
             {/* Content Viewer */}
             <div className="flex-1 overflow-hidden relative">
                 {generationType === 'presentation' ? (
-                    isHtmlSlides && htmlSlides.length > 0 ? (
+                    isSlideDoc ? (
+                        <div className="h-full bg-gray-900">
+                            <PresentationPlayer slideDoc={slideDoc} />
+                        </div>
+                    ) : isHtmlSlides && htmlSlides.length > 0 ? (
                         // HTML/CSS slides: iframe viewer with drag-n-drop + dark backgrounds preserved
                         <div className="flex h-full">
                             {/* Thumbnail sidebar */}
