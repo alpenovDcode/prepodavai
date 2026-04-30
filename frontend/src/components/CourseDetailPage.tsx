@@ -94,6 +94,25 @@ interface Generation {
     status: string
     createdAt: string
     outputData?: any
+    inputParams?: any
+}
+
+function getGenerationSubtitle(g: Generation): string {
+    const p = g.inputParams || {}
+    const raw =
+        p.topic ||
+        p.themeName ||
+        p.subject ||
+        p.title ||
+        p.prompt ||
+        p.userPrompt ||
+        p.text ||
+        p.inputText ||
+        p.description ||
+        ''
+    const s = typeof raw === 'string' ? raw.trim() : ''
+    if (!s) return ''
+    return s.length > 80 ? s.slice(0, 80) + '…' : s
 }
 
 interface Lesson {
@@ -671,11 +690,16 @@ export default function CourseDetailPage({ id }: CourseDetailPageProps) {
                                             <i className={`fas ${getGenerationTypeIcon(generation.generationType)}`}></i>
                                         )}
                                     </div>
-                                    <div>
+                                    <div className="min-w-0">
                                         <h4 className="font-medium text-gray-900 hover:text-primary-600 transition">
                                             {getGenerationTypeLabel(generation.generationType)}
                                         </h4>
-                                        <p className="text-sm text-gray-500">
+                                        {getGenerationSubtitle(generation) && (
+                                            <p className="text-sm text-gray-700 truncate" title={getGenerationSubtitle(generation)}>
+                                                {getGenerationSubtitle(generation)}
+                                            </p>
+                                        )}
+                                        <p className="text-xs text-gray-400">
                                             {new Date(generation.createdAt).toLocaleString('ru-RU')}
                                         </p>
                                     </div>

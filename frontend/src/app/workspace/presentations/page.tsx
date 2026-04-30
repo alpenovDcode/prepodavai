@@ -12,6 +12,8 @@ import { useGenerations } from '@/lib/hooks/useGenerations'
 import GenerationCostBadge from '@/components/workspace/GenerationCostBadge'
 import AssignTaskButton from '@/components/AssignTaskButton'
 import GenerationProgress from '@/components/workspace/GenerationProgress'
+import { SlideDocEditor } from '@/components/SlideDocEditor'
+import { SlideDoc, SLIDE_THEMES, SlideThemeId } from '@/types/slide-doc'
 
 export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
@@ -81,8 +83,11 @@ function PresentationGeneratorContent() {
     const [duration, setDuration] = useState('15')
     const [style, setStyle] = useState('modern')
     const [targetAudience, setTargetAudience] = useState('students')
+    const [themeId, setThemeId] = useState<SlideThemeId>('indigo')
     const [errorMsg, setErrorMsg] = useState('')
 
+    const [slideDoc, setSlideDoc] = useState<SlideDoc | null>(null)
+    const [pdfUrl, setPdfUrl] = useState<string | null>(null)
     const [slides, setSlides] = useState<SlideData[]>([])
     const [activeSlideIndex, setActiveSlideIndex] = useState(0)
     const [isEditorMode, setIsEditorMode] = useState(false)
@@ -574,13 +579,26 @@ function PresentationGeneratorContent() {
             setErrorMsg('')
             setIsEditorMode(false)
             setSlides([])
+            setSlideDoc(null)
+            setPdfUrl(null)
             setEditMode(false)
             if (isMobile) setActiveTab('preview')
 
-            const params = { topic, duration, style, targetAudience }
+            const params = { topic, duration, style, targetAudience, themeId }
             const status = await generateAndWait({ type: 'presentation', params })
-            const resultData = status.result?.slides || status.result
+            const r = status.result
 
+            // New SlideDoc pipeline returns { slideDoc, pdfUrl, ... }
+            if (r?.slideDoc?.slides?.length > 0) {
+                setSlideDoc(r.slideDoc)
+                setPdfUrl(r.pdfUrl || null)
+                setActiveSlideIndex(0)
+                setIsEditorMode(true)
+                return
+            }
+
+            // Legacy HTML-string path (for old saved generations)
+            const resultData = r?.slides || r
             let parsed: SlideData[] = []
             if (Array.isArray(resultData) && resultData.length > 0 && resultData[0]?.html) {
                 parsed = resultData
@@ -623,6 +641,104 @@ function PresentationGeneratorContent() {
         { value: 'parents', label: 'Родители' },
         { value: 'general', label: 'Широкая аудитория' }
     ]
+
+    if (isEditorMode && slideDoc) {
+        const downloadExport = async (format: 'pdf' | 'pptx') => {
+            if (!activeGenerationId) return;
+            setIsExporting(true);
+            try {
+                const { apiClient } = await import('@/lib/api/client');
+                const res = await apiClient.post(`/generate/${activeGenerationId}/presentation/${format}`, null, { responseType: 'blob' });
+                const blob = res.data as Blob;
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${slideDoc.topic || 'presentation'}.${format}`;
+                a.click();
+                URL.revokeObjectURL(url);
+            } catch (e) {
+                console.error(`${format.toUpperCase()} export failed`, e);
+            } finally {
+                setIsExporting(false);
+            }
+        };
+
+        const saveDoc = async (next: SlideDoc) => {
+            if (!activeGenerationId) return;
+            const { apiClient } = await import('@/lib/api/client');
+            // Preserve other outputData fields (pdfUrl, exportUrl, topic) by sending the full merged object.
+            await apiClient.patch(`/generate/${activeGenerationId}`, {
+                slideDoc: next,
+                pdfUrl,
+                exportUrl: pdfUrl,
+                topic: next.topic,
+                provider: 'Replicate',
+                mode: 'presentation',
+            });
+            setSlideDoc(next);
+        };
+
+        const regenerateImage = async (_slideIdx: number, prompt: string): Promise<string | null> => {
+            try {
+                const status = await generateAndWait({ type: 'image', params: { prompt, style: 'illustration' } });
+                const r = status.result;
+                const imageData: string =
+                    (typeof r === 'string' ? r : null) ??
+                    r?.content ??
+                    r?.imageUrl ??
+                    '';
+                if (imageData && (imageData.startsWith('http') || imageData.startsWith('data:image'))) {
+                    return imageData;
+                }
+                return null;
+            } catch (e) {
+                console.error('Image regen failed', e);
+                return null;
+            }
+        };
+
+        return (
+            <div className="flex flex-col w-full h-full bg-[#F9FAFB] overflow-hidden">
+                <div className="h-14 bg-white border-b border-gray-200 flex items-center justify-between px-4 flex-shrink-0 shadow-sm">
+                    <div className="flex items-center gap-3 overflow-hidden">
+                        <button onClick={() => { setIsEditorMode(false); setSlideDoc(null); }} className="p-2 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0">
+                            <ArrowLeft className="w-5 h-5 text-gray-600" />
+                        </button>
+                        <div className="overflow-hidden">
+                            <h1 className="font-bold text-sm text-gray-900 leading-tight truncate">{slideDoc.topic || 'Презентация'}</h1>
+                            <p className="text-[10px] text-gray-400">{slideDoc.slides.length} слайдов · {SLIDE_THEMES[slideDoc.themeId]?.label}</p>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <button onClick={() => downloadExport('pdf')} disabled={isExporting || !activeGenerationId} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-colors disabled:opacity-50">
+                            {isExporting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />} PDF
+                        </button>
+                        <button onClick={() => downloadExport('pptx')} disabled={isExporting || !activeGenerationId} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors disabled:opacity-50">
+                            {isExporting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />} PPTX
+                        </button>
+                        <button onClick={generate} disabled={isLoading} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors disabled:opacity-40">
+                            {isLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                            <span className="hidden md:inline">Регенерировать</span>
+                        </button>
+                        {!isGenerating && (
+                            <AssignTaskButton
+                                generationId={activeGenerationId}
+                                topic={slideDoc.topic}
+                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition-colors disabled:opacity-60"
+                            />
+                        )}
+                    </div>
+                </div>
+                <div className="flex-1 min-h-0">
+                    <SlideDocEditor
+                        initialDoc={slideDoc}
+                        onSave={saveDoc}
+                        onRegenerateImage={regenerateImage}
+                    />
+                </div>
+            </div>
+        );
+    }
 
     if (isEditorMode) {
         const activeSlide = slides[activeSlideIndex]
@@ -893,6 +1009,27 @@ function PresentationGeneratorContent() {
                             >
                                 {styles.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                             </select>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-2 font-display">Цветовая тема</label>
+                            <div className="grid grid-cols-5 gap-2">
+                                {(Object.keys(SLIDE_THEMES) as SlideThemeId[]).map(id => {
+                                    const t = SLIDE_THEMES[id];
+                                    const selected = id === themeId;
+                                    return (
+                                        <button
+                                            key={id}
+                                            type="button"
+                                            onClick={() => setThemeId(id)}
+                                            title={t.label}
+                                            className={`aspect-square rounded-xl border-2 transition-all ${selected ? 'border-gray-900 shadow-md scale-105' : 'border-gray-200 hover:border-gray-400'}`}
+                                            style={{ background: t.accent }}
+                                            aria-label={t.label}
+                                        />
+                                    );
+                                })}
+                            </div>
+                            <p className="mt-2 text-xs text-gray-500">{SLIDE_THEMES[themeId].label}</p>
                         </div>
                     </div>
                 </div>

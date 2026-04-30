@@ -228,6 +228,33 @@ export class GenerationsController {
     return new StreamableFile(pdfBuffer);
   }
 
+  /**
+   * Export a presentation (SlideDoc) as PDF (landscape 16:9) or PPTX.
+   * Distinct from /:requestId/pdf which is for worksheet-style HTML.
+   */
+  @Post(':requestId/presentation/:format')
+  @UseGuards(JwtAuthGuard)
+  async exportPresentation(
+    @Request() req: any,
+    @Param('requestId') requestId: string,
+    @Param('format') format: string,
+  ): Promise<StreamableFile> {
+    const fmt: 'pdf' | 'pptx' = format === 'pptx' ? 'pptx' : 'pdf';
+    const buffer = await this.generationsService.exportPresentation(
+      requestId,
+      this.userId(req),
+      fmt,
+    );
+    const mime =
+      fmt === 'pptx'
+        ? 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+        : 'application/pdf';
+    return new StreamableFile(buffer, {
+      type: mime,
+      disposition: `attachment; filename="presentation.${fmt}"`,
+    });
+  }
+
   @Post('bundle')
   @UseGuards(JwtAuthGuard, GenerationsThrottlerGuard)
   async generateBundle(@Request() req: any, @Body() body: GenerationBundleDto) {

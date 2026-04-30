@@ -7,6 +7,10 @@ import { GenerationQueueService } from './generation-queue.service';
 import { TelegramSenderProcessor } from './processors/telegram-sender.processor';
 import { GammaPollingProcessor } from './processors/gamma-polling.processor';
 import { ReplicatePresentationProcessor } from './processors/replicate-presentation.processor';
+import { PresentationGeneratorService } from './presentation/presentation-generator.service';
+import { PresentationRendererService } from './presentation/presentation-renderer.service';
+import { PresentationPdfService } from './presentation/presentation-pdf.service';
+import { PresentationPptxService } from './presentation/presentation-pptx.service';
 import { LessonPreparationProcessor } from './processors/lesson-preparation.processor';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 
@@ -84,6 +88,10 @@ import { VideoAnalysisStrategy } from './strategies/video-analysis.strategy';
     TelegramSenderProcessor,
     GammaPollingProcessor,
     ReplicatePresentationProcessor,
+    PresentationGeneratorService,
+    PresentationRendererService,
+    PresentationPdfService,
+    PresentationPptxService,
     LessonPreparationProcessor,
     VideoAnalysisProcessor,
     SalesAdvisorProcessor,

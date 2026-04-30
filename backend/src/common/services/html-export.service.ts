@@ -62,9 +62,37 @@ const PDF_FORCE_STYLES = `<style>
     align-items: center;
   }
 
+  h1, h2, h3, h4, h5, h6 {
+    break-after: avoid !important;
+    page-break-after: avoid !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+  table, figure, img, svg, blockquote, pre {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+  .question-block,
+  .task,
+  .exercise,
+  .option-item,
+  .options-list,
+  .meta-info,
+  .pdf-input-box,
+  .pdf-textarea-box,
+  .pdf-inline-input,
+  li {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+  .teacher-answers-only {
+    break-before: page !important;
+    page-break-before: always !important;
+  }
+  p { orphans: 3; widows: 3; }
+
   @page {
     size: A4;
-    margin: 0;
   }
 </style>`;
 
@@ -194,11 +222,10 @@ export class HtmlExportService implements OnModuleDestroy {
       '',
     );
 
-    // 4. Нейтрализуем @media print, чтобы Playwright рендерил screen-стили
-    //    (page.pdf() внутренне переключается на print media).
-    processed = processed.replace(/@media\s+print\b/gi, '@media not all');
-
-    // 5. Инжектим PDF_FORCE_STYLES (force colors/backgrounds, SVG visible).
+    // 4. Инжектим PDF_FORCE_STYLES (force colors/backgrounds, SVG visible,
+    //    плюс правила пагинации: break-inside/break-before для смысловых
+    //    блоков). Не трогаем авторские @media print — там зашиты разрывы
+    //    страниц от стратегий (`.teacher-answers-only` и т.п.).
     if (processed.includes('</head>')) {
       processed = processed.replace('</head>', `${PDF_FORCE_STYLES}\n</head>`);
     } else if (/<html/i.test(processed)) {
@@ -229,11 +256,10 @@ export class HtmlExportService implements OnModuleDestroy {
       const processedHtml = this.prepareHtml(html);
       const hasMathJax = /<script[^>]+src=["'][^"']*mathjax[^"']*["']/i.test(processedHtml);
 
-      // A4 at 96 DPI = 794px wide — prevents content overflow/clipping
-      await page.setViewportSize({ width: 850, height: 1100 });
-
-      // Use screen media to avoid any additional print-mode overrides
-      await page.emulateMedia({ media: 'screen' });
+      // A4 at 96 DPI = 794×1123. Совпадение viewport со страницей PDF
+      // нужно, чтобы page.pdf() считал высоту страницы так же, как layout —
+      // иначе строки перед разрывом стабильно «съезжают».
+      await page.setViewportSize({ width: 794, height: 1123 });
 
       // networkidle ensures CDN scripts (MathJax, fonts) finish loading before PDF
       await page.setContent(processedHtml, { waitUntil: 'networkidle', timeout: 60000 });

@@ -1,12 +1,13 @@
-import { Processor, WorkerHost, OnWorkerEvent, InjectQueue } from '@nestjs/bullmq';
-import { Logger, BadRequestException } from '@nestjs/common';
-import { Job, Queue } from 'bullmq';
-import { ConfigService } from '@nestjs/config';
+import { Processor, WorkerHost, OnWorkerEvent } from '@nestjs/bullmq';
+import { Logger } from '@nestjs/common';
+import { Job } from 'bullmq';
 import axios from 'axios';
 import { GenerationHelpersService } from '../generation-helpers.service';
 import { PrismaService } from '../../../common/prisma/prisma.service';
-import { HtmlExportService } from '../../../common/services/html-export.service';
 import { FilesService } from '../../files/files.service';
+import { PresentationGeneratorService } from '../presentation/presentation-generator.service';
+import { PresentationPdfService } from '../presentation/presentation-pdf.service';
+import { Slide, SlideDoc, SlideThemeId } from '../presentation/slide-doc.types';
 
 export interface ReplicatePresentationJobData {
   generationRequestId: string;
@@ -15,367 +16,150 @@ export interface ReplicatePresentationJobData {
   style?: string;
   targetAudience?: string;
   numCards?: number;
+  themeId?: SlideThemeId;
 }
 
-interface Slide {
-  id: string;
-  html: string;
-  css: string;
-  js: string;
-  imagePrompt?: string;
-}
-
+/**
+ * BullMQ worker for SlideDoc-based presentation generation.
+ *
+ * Pipeline:
+ *   1. PresentationGeneratorService → SlideDoc (outline + per-slide content
+ *      + image generation, with retries and partial-failure tolerance).
+ *   2. Persist any generated images to local storage (FilesService).
+ *   3. Render SlideDoc → landscape PDF via PresentationPdfService.
+ *   4. Save outputData = { slideDoc, pdfUrl } to UserGeneration.
+ */
 @Processor('replicate-presentation')
 export class ReplicatePresentationProcessor extends WorkerHost {
   private readonly logger = new Logger(ReplicatePresentationProcessor.name);
-  private readonly replicateToken: string;
 
   constructor(
-    private readonly configService: ConfigService,
     private readonly generationHelpers: GenerationHelpersService,
     private readonly prisma: PrismaService,
-    private readonly htmlExportService: HtmlExportService,
     private readonly filesService: FilesService,
-    @InjectQueue('replicate-presentation') private readonly presentationQueue: Queue,
+    private readonly generator: PresentationGeneratorService,
+    private readonly pdf: PresentationPdfService,
   ) {
     super();
-    this.replicateToken = this.configService.get<string>('REPLICATE_API_TOKEN');
-    if (!this.replicateToken) {
-      this.logger.warn(
-        'REPLICATE_API_TOKEN is not configured. Replicate presentation generation will not work.',
-      );
-    }
   }
 
   async process(job: Job<ReplicatePresentationJobData>): Promise<void> {
-    const { generationRequestId, topic, duration, style, targetAudience, numCards = 7 } = job.data;
-    this.logger.log(
-      `Processing Replicate presentation generation for request ${generationRequestId}: topic="${topic}"`,
-    );
+    const { generationRequestId, topic, duration, targetAudience, numCards, themeId } = job.data;
+    this.logger.log(`Processing presentation request ${generationRequestId}: "${topic}"`);
 
-    // Fetch userId to comply with FilesService security requirements
     const generation = await this.prisma.userGeneration.findUnique({
       where: { generationRequestId },
       select: { userId: true },
     });
     const userId = generation?.userId;
 
+    // Buffer raw outputs from failed LLM stages so we can save them alongside
+    // the result. Lets us inspect what the model returned without rerunning.
+    const failures: Array<{ stage: string; raw: string; meta: Record<string, any>; ts: string }> = [];
+    const failureSink = {
+      capture: (stage: string, raw: string, meta: Record<string, any>) => {
+        failures.push({ stage, raw: raw?.slice(0, 4000) ?? '', meta, ts: new Date().toISOString() });
+      },
+    };
+
     try {
-      // 1. Generate text content (slides JSON)
-      const slides = await this.generatePresentationSlides(topic, {
-        duration,
-        style,
-        targetAudience,
-        numCards,
+      const doc = await this.generator.generate({
+        topic,
+        audience: targetAudience,
+        durationMinutes: duration ? parseInt(duration, 10) || undefined : undefined,
+        numSlides: numCards || 7,
+        themeId,
+        failureSink,
       });
-      this.logger.log(`Generated ${slides.length} slides for request ${generationRequestId}`);
 
-      // 2. Generate images for each slide in parallel
-      this.logger.log(`Generating images for ${slides.length} slides in parallel...`);
-      
-      await Promise.all(
-        slides.map(async (slide, i) => {
-          if (this.replicateToken && slide.imagePrompt && slide.html.includes('IMAGE_PLACEHOLDER')) {
-            try {
-              this.logger.log(`Starting image generation for slide ${i + 1}`);
-              const remoteImageUrl = await this.generateImage(slide.imagePrompt);
-              
-              // Save to local storage for faster loading and persistence
-              try {
-                const response = await axios.get(remoteImageUrl, { responseType: 'arraybuffer' });
-                const buffer = Buffer.from(response.data);
-                const localFile = await this.filesService.saveBuffer(
-                  buffer,
-                  `slide_${generationRequestId}_${i}.png`,
-                  userId
-                );
-                slide.html = slide.html.replace('IMAGE_PLACEHOLDER', localFile.url);
-                this.logger.log(`Image for slide ${i + 1} saved locally: ${localFile.url}`);
-              } catch (saveError) {
-                this.logger.warn(`Failed to save image locally for slide ${i + 1}, using remote URL: ${remoteImageUrl}`);
-                slide.html = slide.html.replace('IMAGE_PLACEHOLDER', remoteImageUrl);
-              }
-            } catch (imgError: any) {
-              this.logger.error(`Failed to generate image for slide ${i + 1}: ${imgError.message}`);
-              slide.html = slide.html.replace(
-                'IMAGE_PLACEHOLDER',
-                `https://picsum.photos/800/450?sig=${Math.random()}`,
-              );
-            }
-          } else {
-            slide.html = slide.html.replace(
-              'IMAGE_PLACEHOLDER',
-              `https://picsum.photos/800/450?sig=${Math.random()}`,
-            );
-          }
-        })
-      );
+      this.logger.log(`SlideDoc ready: ${doc.slides.length} slides, theme=${doc.themeId}`);
 
-      const finalResult = {
+      await this.persistImages(doc, userId, generationRequestId);
+
+      let pdfUrl: string | undefined;
+      try {
+        const pdfBuffer = await this.pdf.docToPdf(doc);
+        const fileData = await this.filesService.saveBuffer(
+          pdfBuffer,
+          'presentation.pdf',
+          userId,
+        );
+        pdfUrl = fileData.url;
+        this.logger.log(`Presentation PDF saved: ${pdfUrl}`);
+      } catch (pdfError: any) {
+        this.logger.error(`PDF export failed: ${pdfError.message}`, pdfError.stack);
+      }
+
+      const outputData: Record<string, any> = {
         provider: 'Replicate',
         mode: 'presentation',
-        slides: slides,
+        slideDoc: doc,
+        pdfUrl,
+        exportUrl: pdfUrl,
+        topic,
         completedAt: new Date().toISOString(),
       };
 
-      // 3. Generate PDF
-      let pdfUrl: string | undefined;
-      let exportUrl: string | undefined;
-
-      try {
-        this.logger.log(`Generating PDF for request ${generationRequestId}`);
-        const pdfHtml = `<html><head><meta charset="utf-8"></head><body style="margin:0;padding:0;">${slides.map((s) => `<div style="width:100vw;height:100vh;page-break-after:always;">${s.html}</div>`).join('')}</body></html>`;
-        const pdfBuffer = await this.htmlExportService.htmlToPdf(pdfHtml);
-
-        const fileData = await this.filesService.saveBuffer(pdfBuffer, 'presentation.pdf', userId);
-        pdfUrl = fileData.url;
-        exportUrl = fileData.url;
-        this.logger.log(`PDF generated and saved: ${pdfUrl}`);
-      } catch (pdfError: any) {
-        this.logger.error(`Failed to generate PDF: ${pdfError.message}`, pdfError.stack);
+      if (failures.length) {
+        // Persisted alongside the result so devs can debug bad-output incidents
+        // without having to re-run the generation. Safe to show in admin UI.
+        outputData._diagnostics = { failures };
+        this.logger.warn(
+          `Presentation completed with ${failures.length} stage failures: ${failures
+            .map((f) => f.stage)
+            .join(', ')}`,
+        );
       }
 
-      // 4. Save result and complete generation
-      const outputData = {
-        ...finalResult,
-        pdfUrl,
-        exportUrl,
-        topic,
-      };
-
       await this.generationHelpers.completeGeneration(generationRequestId, outputData);
-      this.logger.log(`Generation request ${generationRequestId} completed successfully`);
     } catch (error: any) {
-      this.logger.error(`Replicate presentation generation failed: ${error.message}`, error.stack);
+      this.logger.error(`Presentation generation failed: ${error.message}`, error.stack);
       await this.generationHelpers.failGeneration(
         generationRequestId,
-        error.message || 'Replicate presentation generation failed',
+        error.message || 'Presentation generation failed',
       );
       throw error;
     }
   }
 
-  private async generatePresentationSlides(topic: string, params: any): Promise<Slide[]> {
-    const numCards = params.numCards || 7;
-    const grade = params.targetAudience || 'Общая аудитория';
-    const duration = params.duration || '15';
-    const style = params.style || 'modern';
-
-    const prompt = `
-Ты — опытный методист и дизайнер образовательных презентаций. Твоя задача — создать чистую, читаемую и методически выверенную презентацию для использования на уроке.
-
-КОНТЕКСТ:
-- Язык: Русский
-- Тема урока: "${topic}"
-- Аудитория: ${grade}
-- Длительность урока: ${duration} мин
-- Количество слайдов: ровно ${numCards}
-
-═══════════════════════════════════
-ФОРМАТ ОТВЕТА (КРИТИЧНО)
-═══════════════════════════════════
-Верни СТРОГО валидный JSON-массив. Без markdown, без \`\`\`json, без текста до/после.
-Каждый объект:
-{
-  "html": "строка с HTML слайда",
-  "imagePrompt": "детальный английский промпт для изображения"
-}
-
-═══════════════════════════════════
-ТЕХНИЧЕСКИЕ ОГРАНИЧЕНИЯ
-═══════════════════════════════════
-1. ТОЛЬКО инлайн-стили через атрибут style="...". Запрещены: class, <style>, <script>, внешние шрифты через @import.
-2. Контейнер слайда обязательно: width: 100vw; height: 100vh; overflow: hidden; box-sizing: border-box; position: relative; font-family: 'Inter', -apple-system, system-ui, sans-serif;
-3. Где нужна картинка — вставляй <img src="IMAGE_PLACEHOLDER" style="...">
-
-═══════════════════════════════════
-МАТЕМАТИЧЕСКИЕ ФОРМУЛЫ (MathJax)
-═══════════════════════════════════
-Если тема требует формул, используй СТРОГИЕ правила:
-- Внутристрочные (inline): оборачивай в \\\\( и \\\\). ЗАПРЕЩЕНО использовать одинарные доллары ($...$).
-- Выделенные (display): оборачивай в \\\\[ и \\\\].
-
-═══════════════════════════════════
-ДИЗАЙН-СИСТЕМА ДЛЯ ОБРАЗОВАНИЯ
-═══════════════════════════════════
-
-🎨 ЦВЕТА — светлые, контрастные, читаемые на проекторе:
-- Фон слайдов: чистый белый #ffffff или очень светлый серый #f8f9fa
-- Акцентный цвет (выбери один подходящий под тему):
-  Математика/IT: #4f46e5 (Indigo)
-  Естественные науки: #059669 (Emerald)
-  Гуманитарные: #7c3aed (Violet)
-  История/Общее: #2563eb (Blue)
-- Текст: основной #111827, вторичный #4b5563
-- Разделители: #e5e7eb
-- Выделение блоков: цвет акцента с opacity 0.08 (background: color + "14")
-
-✨ ОФОРМЛЕНИЕ — минимализм и фокус на контенте:
-- Блоки контента: background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-- Важные акценты: border-left: 4px solid [акцентный цвет];
-- Никаких: неона, размытий, теней-свечений и отвлекающей графики.
-
-📐 ТИПОГРАФИКА — крупная и разборчивая:
-- Заголовок слайда: font-size: clamp(32px, 4vw, 48px); font-weight: 700; color: #111827; letter-spacing: -0.02em;
-- Подзаголовок: font-size: clamp(20px, 2.5vw, 28px); font-weight: 600; color: [акцентный];
-- Основной текст: font-size: clamp(20px, 2vw, 26px); line-height: 1.6;
-- Максимум 6-7 строк текста на один слайд.
-
-🧱 ЛЕЙАУТ — структурированный:
-- Заголовок всегда вверху, выровнен влево, под ним — линия-разделитель (height: 4px, width: 60px, background: [акцент]).
-- Композиции: Текст + Картинка (50/50), Список с иконками, Сетка из 2-3 карточек.
-- Отступы (Padding контейнера): 48px 64px.
-
-═══════════════════════════════════
-СТРУКТУРА ПРЕЗЕНТАЦИИ
-═══════════════════════════════════
-1. Титульный (Тема, Предмет, Автор "Имя преподавателя")
-2. Цели урока ("Сегодня на занятии...")
-3-N. Основной материал (Определения в рамках, примеры, таблицы, схемы)
-N-1. Проверка знаний (2-3 вопроса)
-N. Итоги и Домашнее задание (placeholder)
-
-═══════════════════════════════════
-IMAGE PROMPTS
-═══════════════════════════════════
-"High-quality educational illustration, [subject], clean background, professional, clear details, suitable for slide deck, 8k"
-
-Сгенерируй ровно ${numCards} слайдов. Ответ начни сразу с [.
-    `;
-
-    const prediction = await this.runReplicatePrediction('google/gemini-3-flash', {
-      prompt: prompt,
-      max_tokens: 15000,
-      system_prompt: 'You are a professional educational slide designer. Output only valid JSON array of slides.',
-    });
-
-
-    let rawOutput = '';
-    if (Array.isArray(prediction.output)) {
-      rawOutput = prediction.output.join('');
-    } else if (typeof prediction.output === 'string') {
-      rawOutput = prediction.output;
-    }
-
-    rawOutput = rawOutput
-      .replace(/```json/g, '')
-      .replace(/```/g, '')
-      .trim();
-
-    try {
-      const parsed = JSON.parse(rawOutput) as any[];
-      return parsed.map((item) => ({
-        id: 'slide_' + Math.random().toString(36).substring(2, 11),
-        html: item.html || '',
-        css: '',
-        js: '',
-        imagePrompt: item.imagePrompt || '',
-      }));
-    } catch (e) {
-      this.logger.error(`Failed to parse AI output: ${rawOutput}`);
-      throw new Error('Failed to parse generated presentation JSON');
-    }
-  }
-
-  private async generateImage(imagePrompt: string): Promise<string> {
-    const prediction = await this.runReplicatePrediction('bytedance/seedream-4', {
-      prompt: imagePrompt,
-      aspect_ratio: '4:3',
-    });
-
-    if (Array.isArray(prediction.output) && prediction.output.length > 0) {
-      return prediction.output[0];
-    }
-    if (typeof prediction.output === 'string') {
-      return prediction.output;
-    }
-
-    throw new Error('No image URL in output');
-  }
-
-  private async runReplicatePrediction(model: string, input: any): Promise<any> {
-    let attempts = 0;
-    const maxAttempts = 3;
-
-    while (attempts < maxAttempts) {
-      try {
-        const response = await axios.post(
-          `https://api.replicate.com/v1/models/${model}/predictions`,
-          {
-            input: input,
-          },
-          {
-            headers: {
-              Authorization: `Bearer ${this.replicateToken}`,
-              'Content-Type': 'application/json',
-              Prefer: 'wait',
-            },
-          },
-        );
-
-        let prediction = response.data;
-
-        if (
-          prediction.status !== 'succeeded' &&
-          prediction.status !== 'failed' &&
-          prediction.status !== 'canceled'
-        ) {
-          prediction = await this.pollPrediction(prediction.id);
+  /**
+   * Replicate image URLs are short-lived. Re-host any successfully generated
+   * images to local storage so the SlideDoc remains valid long-term.
+   */
+  private async persistImages(
+    doc: SlideDoc,
+    userId: string | undefined,
+    requestId: string,
+  ): Promise<void> {
+    await Promise.all(
+      doc.slides.map(async (slide: Slide, idx: number) => {
+        const remoteUrl = slide.image?.url;
+        if (!remoteUrl) return;
+        try {
+          const response = await axios.get(remoteUrl, { responseType: 'arraybuffer' });
+          const buffer = Buffer.from(response.data);
+          const local = await this.filesService.saveBuffer(
+            buffer,
+            `slide_${requestId}_${idx}.png`,
+            userId,
+          );
+          slide.image!.url = local.url;
+        } catch (e: any) {
+          this.logger.warn(
+            `Could not rehost image for slide ${idx + 1}: ${e.message}. Keeping remote URL.`,
+          );
         }
-
-        if (prediction.status === 'failed' || prediction.status === 'canceled') {
-          if (prediction.error && prediction.error.includes('E004')) {
-            throw new Error(`Replicate temporary error (E004): ${prediction.error}`);
-          }
-          throw new Error(`Replicate prediction failed: ${prediction.error}`);
-        }
-
-        return prediction;
-      } catch (error: any) {
-        attempts++;
-        this.logger.warn(`runReplicatePrediction attempt ${attempts} failed: ${error.message}`);
-        if (attempts >= maxAttempts) {
-          throw error;
-        }
-        await new Promise((resolve) => setTimeout(resolve, Math.pow(2, attempts) * 1000));
-      }
-    }
-    throw new Error('Replicate prediction failed after max attempts');
-  }
-
-  private async pollPrediction(predictionId: string): Promise<any> {
-    const maxAttempts = 60;
-    const delayMs = 2000;
-
-    for (let i = 0; i < maxAttempts; i++) {
-      await new Promise((resolve) => setTimeout(resolve, delayMs));
-
-      const response = await axios.get(`https://api.replicate.com/v1/predictions/${predictionId}`, {
-        headers: {
-          Authorization: `Bearer ${this.replicateToken}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      const prediction = response.data;
-      if (
-        prediction.status === 'succeeded' ||
-        prediction.status === 'failed' ||
-        prediction.status === 'canceled'
-      ) {
-        return prediction;
-      }
-    }
-    throw new Error('Prediction timed out');
+      }),
+    );
   }
 
   @OnWorkerEvent('completed')
   onCompleted(job: Job<ReplicatePresentationJobData>) {
-    this.logger.log(`Replicate presentation job completed: ${job.id}`);
+    this.logger.log(`Presentation job completed: ${job.id}`);
   }
 
   @OnWorkerEvent('failed')
   onFailed(job: Job<ReplicatePresentationJobData>, error: Error) {
-    this.logger.error(`Replicate presentation job failed: ${job.id}, error: ${error.message}`);
+    this.logger.error(`Presentation job failed: ${job.id}, error: ${error.message}`);
   }
 }

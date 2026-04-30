@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ChevronLeft, ChevronRight, Maximize, Minimize } from 'lucide-react';
 import DOMPurify from 'isomorphic-dompurify';
+import { SlideDoc, pickSlideTheme } from '@/types/slide-doc';
+import { SlideDocSlide } from './SlideDocRenderer';
 
 interface SlideElement {
     id: string;
@@ -36,7 +38,8 @@ interface Slide {
 }
 
 interface PresentationPlayerProps {
-    slides: Slide[];
+    slides?: Slide[];
+    slideDoc?: SlideDoc;
     initialSlideIndex?: number;
 }
 
@@ -116,14 +119,19 @@ const ReadOnlyText = ({ content }: { content: string }) => {
     );
 };
 
-export default function PresentationPlayer({ slides: initialSlides, initialSlideIndex = 0 }: PresentationPlayerProps) {
+export default function PresentationPlayer({ slides: initialSlides, slideDoc, initialSlideIndex = 0 }: PresentationPlayerProps) {
     const [slides, setSlides] = useState<Slide[]>([]);
     const [currentIndex, setCurrentIndex] = useState(initialSlideIndex);
     const [isFullscreen, setIsFullscreen] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
 
+    const isSlideDocMode = !!slideDoc && slideDoc.slides?.length > 0;
+    const totalSlides = isSlideDocMode ? slideDoc!.slides.length : slides.length;
+    const slideDocTheme = isSlideDocMode ? pickSlideTheme(slideDoc!.themeId) : null;
+
     // Initialize and Migrate Data
     useEffect(() => {
+        if (isSlideDocMode) return; // SlideDoc path doesn't need migration.
         if (initialSlides && initialSlides.length > 0) {
             const migrated = initialSlides.map(slide => {
                 if (slide.elements) return slide;
@@ -200,7 +208,7 @@ export default function PresentationPlayer({ slides: initialSlides, initialSlide
     }, []);
 
     const nextSlide = () => {
-        if (currentIndex < slides.length - 1) {
+        if (currentIndex < totalSlides - 1) {
             setCurrentIndex(prev => prev + 1);
         }
     };
@@ -233,7 +241,7 @@ export default function PresentationPlayer({ slides: initialSlides, initialSlide
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [currentIndex, slides.length]); // Re-bind when index changes to ensure fresh state closure if needed, though functional updates handle it.
+    }, [currentIndex, totalSlides]);
 
     useEffect(() => {
         const handleFullscreenChange = () => {
@@ -244,8 +252,31 @@ export default function PresentationPlayer({ slides: initialSlides, initialSlide
     }, []);
 
 
-    if (!slides || slides.length === 0) {
+    if (totalSlides === 0) {
         return <div className="flex justify-center items-center h-full text-gray-500">No slides available.</div>;
+    }
+
+    if (isSlideDocMode && slideDoc && slideDocTheme) {
+        const slide = slideDoc.slides[currentIndex];
+        return (
+            <div ref={containerRef} className={`flex flex-col h-full bg-gray-900 ${isFullscreen ? 'p-0' : 'p-4'}`}>
+                <div className="flex-1 flex justify-center items-center relative overflow-hidden">
+                    <div className="w-full max-w-5xl aspect-video shadow-2xl rounded-lg overflow-hidden bg-white">
+                        <SlideDocSlide slide={slide} theme={slideDocTheme} />
+                    </div>
+                </div>
+                <div className="h-16 flex items-center justify-between px-8 text-white bg-gray-900/80 backdrop-blur-sm absolute bottom-0 left-0 right-0 opacity-0 hover:opacity-100 transition-opacity duration-300">
+                    <span className="font-mono text-sm">{currentIndex + 1} / {totalSlides}</span>
+                    <div className="flex items-center gap-6">
+                        <button onClick={prevSlide} disabled={currentIndex === 0} className={`p-2 rounded-full hover:bg-white/10 transition ${currentIndex === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}><ChevronLeft size={24} /></button>
+                        <button onClick={nextSlide} disabled={currentIndex === totalSlides - 1} className={`p-2 rounded-full hover:bg-white/10 transition ${currentIndex === totalSlides - 1 ? 'opacity-50 cursor-not-allowed' : ''}`}><ChevronRight size={24} /></button>
+                    </div>
+                    <button onClick={toggleFullscreen} className="p-2 rounded-full hover:bg-white/10 transition">
+                        {isFullscreen ? <Minimize size={20} /> : <Maximize size={20} />}
+                    </button>
+                </div>
+            </div>
+        );
     }
 
     const currentSlide = slides[currentIndex];
