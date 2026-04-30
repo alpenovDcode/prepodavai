@@ -178,8 +178,29 @@ export class PresentationGeneratorService {
       topic: parsed.topic || params.topic,
       slides: parsed.slides
         .slice(0, params.numSlides)
-        .map((s) => this.coerceOutlineItem(s)),
+        .map((s) => this.coerceOutlineItem(s))
+        .map((s) => this.alignImageWithLayout(s)),
     };
+  }
+
+  /**
+   * The renderer only has an image slot in the `image-text` layout. When the
+   * model marks needsImage=true on a layout without a slot (`bullets`,
+   * `summary`, etc.), the picture gets generated and rehosted but never
+   * displayed — money down the drain. Force the two flags into sync:
+   *  needsImage=true  ⇒ layout='image-text'
+   *  layout='image-text' ⇒ needsImage=true
+   * (title/agenda/quote/quiz keep their semantics — we only flip when the
+   * intent was clearly "with image").
+   */
+  private alignImageWithLayout(item: SlideOutlineItem): SlideOutlineItem {
+    if (item.needsImage && item.layout !== 'image-text') {
+      return { ...item, layout: 'image-text' };
+    }
+    if (item.layout === 'image-text' && !item.needsImage) {
+      return { ...item, needsImage: true };
+    }
+    return item;
   }
 
   private async generateGlossary(

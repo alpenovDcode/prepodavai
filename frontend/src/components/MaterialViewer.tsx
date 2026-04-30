@@ -6,6 +6,9 @@ import { useRouter } from 'next/navigation'
 import { getGenerationTypeLabel } from '@/lib/utils/translations'
 import PresentationEditor, { PresentationEditorRef } from './PresentationEditor'
 import PresentationPlayer from './PresentationPlayer'
+import { SlideDocEditor } from './SlideDocEditor'
+import { SlideDoc } from '@/types/slide-doc'
+import { useGenerations } from '@/lib/hooks/useGenerations'
 import { Save, Download, ChevronLeft, ChevronRight, ExternalLink, ArrowLeft, Loader2 } from 'lucide-react'
 import AssignTaskButton from './AssignTaskButton'
 import Image from 'next/image'
@@ -289,10 +292,12 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
     const [isExporting, setIsExporting] = useState(false)
     const [showDownloadMenu, setShowDownloadMenu] = useState(false)
     const [showPdfModal, setShowPdfModal] = useState(false)
+    const [isSlideDocEditing, setIsSlideDocEditing] = useState(false)
     const downloadMenuRef = useRef<HTMLDivElement>(null)
     const router = useRouter()
     const editorRef = useRef<PresentationEditorRef>(null)
     const contentRef = useRef<HTMLDivElement>(null)
+    const { generateAndWait } = useGenerations()
 
     // Detect image content early so handleDownload can use it
     const isImageContent = (generationType === 'image' || generationType === 'photosession' || generationType === 'image_generation') &&
@@ -642,6 +647,12 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
                         isSlideDoc ? (
                             <>
                                 <button
+                                    onClick={() => setIsSlideDocEditing(v => !v)}
+                                    className={`px-4 py-2 rounded-lg transition font-medium flex items-center gap-2 ${isSlideDocEditing ? 'bg-gray-200 text-gray-700 hover:bg-gray-300' : 'bg-indigo-500 text-white hover:bg-indigo-600'}`}
+                                >
+                                    {isSlideDocEditing ? <span>Просмотр</span> : <span>Редактировать</span>}
+                                </button>
+                                <button
                                     onClick={() => handleDownload()}
                                     disabled={isDownloading}
                                     className="px-4 py-2 text-white bg-orange-500 hover:bg-orange-600 rounded-lg transition font-medium flex items-center gap-2 disabled:opacity-50"
@@ -753,9 +764,50 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
             <div className="flex-1 overflow-hidden relative">
                 {generationType === 'presentation' ? (
                     isSlideDoc ? (
-                        <div className="h-full bg-gray-900">
-                            <PresentationPlayer slideDoc={slideDoc} />
-                        </div>
+                        isSlideDocEditing ? (
+                            <SlideDocEditor
+                                initialDoc={slideDoc as SlideDoc}
+                                onSave={async (next) => {
+                                    if (!generationId) return;
+                                    // Wrap into outputData for the validator,
+                                    // and merge so we don't drop pdfUrl/topic/etc.
+                                    const merged = {
+                                        ...(presentationData || {}),
+                                        slideDoc: next,
+                                        topic: next.topic,
+                                    };
+                                    await apiClient.patch(`/generate/${generationId}`, { outputData: merged });
+                                    // Reflect locally so the editor's "saved" indicator is honest.
+                                    setContent(JSON.stringify(merged));
+                                }}
+                                onRegenerateImage={async (_idx, prompt) => {
+                                    try {
+                                        const status = await generateAndWait({
+                                            type: 'image',
+                                            params: { prompt, style: 'illustration', model: 'black-forest-labs/flux-2-pro' },
+                                        });
+                                        const r = status.result;
+                                        const imageData: string =
+                                            (typeof r === 'string' ? r : null) ??
+                                            r?.content ??
+                                            r?.imageUrl ??
+                                            '';
+                                        if (imageData && (imageData.startsWith('http') || imageData.startsWith('data:image'))) {
+                                            return imageData;
+                                        }
+                                        alert('Не удалось создать картинку: модель вернула пустой ответ.');
+                                        return null;
+                                    } catch (e: any) {
+                                        alert(`Не удалось создать картинку: ${e?.message || 'ошибка'}.\nПопробуйте переформулировать промпт.`);
+                                        return null;
+                                    }
+                                }}
+                            />
+                        ) : (
+                            <div className="h-full bg-gray-900">
+                                <PresentationPlayer slideDoc={slideDoc} />
+                            </div>
+                        )
                     ) : isHtmlSlides && htmlSlides.length > 0 ? (
                         // HTML/CSS slides: iframe viewer with drag-n-drop + dark backgrounds preserved
                         <div className="flex h-full">
