@@ -198,13 +198,21 @@ export const SlideDocEditor: React.FC<Props> = ({ initialDoc, onSave, onRegenera
           </div>
         </div>
 
-        {/* Preview area */}
-        <div className="flex-1 flex flex-col bg-gray-100 overflow-hidden">
-          <div className="flex-1 overflow-auto p-6 flex items-center justify-center">
+        {/* Preview area — fills the available column AND row, then derives the
+            largest 16:9 box that fits via aspect-ratio + dual max constraints.
+            min-h-0 / min-w-0 are required so flex children don't refuse to
+            shrink below their intrinsic content size. */}
+        <div className="flex-1 flex flex-col bg-gray-100 overflow-hidden min-w-0 min-h-0">
+          <div className="flex-1 min-h-0 min-w-0 p-3 flex items-center justify-center">
             {activeSlide && (
               <div
                 className="bg-white rounded-xl shadow-2xl overflow-hidden border border-gray-200"
-                style={{ width: '100%', maxWidth: '960px', aspectRatio: '16/9' }}
+                style={{
+                  aspectRatio: '16 / 9',
+                  maxWidth: '100%',
+                  maxHeight: '100%',
+                  width: '100%',
+                }}
               >
                 <SlideDocSlide slide={activeSlide} theme={theme} />
               </div>
