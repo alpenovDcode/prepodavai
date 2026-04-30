@@ -535,9 +535,12 @@ export class GenerationsService {
       throw new BadRequestException('Prompt is required for image generation');
     }
 
+    // Allow per-call override via inputParams.model — used by the presentation
+    // editor's image-regen so it can request the same flux-2-pro that the main
+    // pipeline uses, instead of the default seedream-5-lite.
     let model = generationType === 'photosession'
       ? 'google/gemini-3-pro-image-preview'
-      : (requestedModel || 'bytedance/seedream-5-lite');
+      : (inputParams.model || requestedModel || 'bytedance/seedream-5-lite');
     console.log(`[GenerationsService] Using model: ${model}, prompt: ${prompt}`);
 
     try {
@@ -645,7 +648,7 @@ export class GenerationsService {
         throw new BadRequestException('REPLICATE_API_TOKEN not configured');
       }
 
-      this.logger.log(`Sending image generation request to Replicate API (seedream-5-lite)`);
+      this.logger.log(`Sending image generation request to Replicate API (${model})`);
 
       try {
         const sizeToAspectRatio: Record<string, string> = {
@@ -668,16 +671,27 @@ export class GenerationsService {
           ? `${inputParams.prompt}. Style: ${styleSuffix}`
           : inputParams.prompt;
 
-        const input: any = {
-          prompt: finalPrompt,
-          aspect_ratio: aspectRatio,
-          size: '2K',
-          output_format: 'png',
-          max_images: 1,
-          image_input: [],
-          return_byteplus_urls: false,
-          sequential_image_generation: 'disabled',
-        };
+        // Model-specific input shape. Each Replicate model has its own schema.
+        const isFlux = /^black-forest-labs\/flux/i.test(model);
+        const input: any = isFlux
+          ? {
+              prompt: finalPrompt,
+              aspect_ratio: aspectRatio,
+              resolution: '2 MP',
+              output_format: 'png',
+              output_quality: 80,
+              safety_tolerance: 2,
+            }
+          : {
+              prompt: finalPrompt,
+              aspect_ratio: aspectRatio,
+              size: '2K',
+              output_format: 'png',
+              max_images: 1,
+              image_input: [],
+              return_byteplus_urls: false,
+              sequential_image_generation: 'disabled',
+            };
 
         const requestBody = {
           input: input,
@@ -686,7 +700,7 @@ export class GenerationsService {
         };
 
         const response = await axios.post(
-          'https://api.replicate.com/v1/models/bytedance/seedream-5-lite/predictions',
+          `https://api.replicate.com/v1/models/${model}/predictions`,
           requestBody,
           {
             headers: {

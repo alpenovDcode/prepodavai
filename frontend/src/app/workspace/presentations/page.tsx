@@ -698,7 +698,12 @@ function PresentationGeneratorContent() {
 
         const regenerateImage = async (_slideIdx: number, prompt: string): Promise<string | null> => {
             try {
-                const status = await generateAndWait({ type: 'image', params: { prompt, style: 'illustration' } });
+                const status = await generateAndWait({
+                    type: 'image',
+                    // Keep parity with the main presentation pipeline (flux-2-pro).
+                    // The legacy /generate/image route now honors inputParams.model.
+                    params: { prompt, style: 'illustration', model: 'black-forest-labs/flux-2-pro' },
+                });
                 const r = status.result;
                 const imageData: string =
                     (typeof r === 'string' ? r : null) ??
@@ -708,9 +713,16 @@ function PresentationGeneratorContent() {
                 if (imageData && (imageData.startsWith('http') || imageData.startsWith('data:image'))) {
                     return imageData;
                 }
+                alert('Не удалось создать картинку: модель вернула пустой ответ. Попробуйте уточнить промпт.');
                 return null;
-            } catch (e) {
+            } catch (e: any) {
                 console.error('Image regen failed', e);
+                // Surface the cause to the user. Replicate's safety filter (E005)
+                // and IP-related rejections are common — silent fail makes them
+                // look like a bug, but they're a model decision the user can fix
+                // by rewording the prompt.
+                const msg = e?.message || 'неизвестная ошибка';
+                alert(`Не удалось создать картинку: ${msg}\n\nПопробуйте изменить промпт (например, без имён персонажей или брендов).`);
                 return null;
             }
         };
