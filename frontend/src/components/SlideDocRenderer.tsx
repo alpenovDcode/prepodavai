@@ -167,7 +167,10 @@ export const SlideDocSlide: React.FC<Props> = ({ slide, theme }) => {
   return (
     <div ref={ref} className="slide-doc-slide" data-layout={slide.layout} style={cssVars}>
       {renderBody()}
-      <style jsx>{`
+      {/* Plain <style> (not styled-jsx). CSS classes are namespaced under
+          .slide-doc-* so global scope is safe and we avoid any compiler/tooling
+          dependency on styled-jsx that intermittently failed to apply. */}
+      <style dangerouslySetInnerHTML={{ __html: `
     .slide-doc-slide {
       width: 100%;
       height: 100%;
@@ -280,7 +283,7 @@ export const SlideDocSlide: React.FC<Props> = ({ slide, theme }) => {
       background: var(--accent-soft);
       font-weight: 600;
     }
-  `}</style>
+  ` }} />
     </div>
   );
 };

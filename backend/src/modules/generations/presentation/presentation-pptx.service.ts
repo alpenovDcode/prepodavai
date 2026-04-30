@@ -1,6 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
-import PptxGenJS from 'pptxgenjs';
 import axios from 'axios';
+// pptxgenjs ships CJS (`module.exports = PptxGenJS`). With esModuleInterop=false
+// in our tsconfig, default-import compiles to `require('pptxgenjs').default`
+// (undefined). And the .d.ts declares the export as a namespace, so TS won't
+// treat the imported binding as a constructor. Just use require + any.
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const PptxGenJS: any = require('pptxgenjs');
 import { Slide, SlideDoc } from './slide-doc.types';
 import { pickTheme, SlideTheme } from './presentation-themes';
 import { FilesService } from '../../files/files.service';
@@ -35,7 +40,7 @@ export class PresentationPptxService {
   }
 
   private async renderSlide(
-    pres: PptxGenJS,
+    pres: any,
     slide: Slide,
     theme: SlideTheme,
   ): Promise<any> {
