@@ -3,6 +3,7 @@ import PptxGenJS from 'pptxgenjs';
 import axios from 'axios';
 import { Slide, SlideDoc } from './slide-doc.types';
 import { pickTheme, SlideTheme } from './presentation-themes';
+import { FilesService } from '../../files/files.service';
 
 /**
  * Server-side PPTX export from a SlideDoc.
@@ -14,6 +15,8 @@ import { pickTheme, SlideTheme } from './presentation-themes';
 @Injectable()
 export class PresentationPptxService {
   private readonly logger = new Logger(PresentationPptxService.name);
+
+  constructor(private readonly filesService: FilesService) {}
 
   async docToPptx(doc: SlideDoc): Promise<Buffer> {
     const pres = new PptxGenJS();
@@ -261,7 +264,17 @@ export class PresentationPptxService {
     return stripHash(fallback);
   }
 
+  /**
+   * Read image bytes for embedding into PPTX. Prefer local FilesService for
+   * /api/files/{hash} URLs — avoids hairpin-NAT failures when the pod can't
+   * reach its own public domain.
+   */
   private async fetchImageBuffer(url: string): Promise<Buffer> {
+    const localMatch = url.match(/\/api\/files\/([a-f0-9]{32})/i);
+    if (localMatch) {
+      const file = await this.filesService.getFile(localMatch[1]);
+      if (file?.buffer) return file.buffer;
+    }
     const res = await axios.get(url, { responseType: 'arraybuffer', timeout: 15000 });
     return Buffer.from(res.data);
   }

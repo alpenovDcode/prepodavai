@@ -106,7 +106,11 @@ function PresentationGeneratorContent() {
 
     const canvasIframeRef = useRef<HTMLIFrameElement>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
-    const { generateAndWait, isGenerating, activeGenerationId } = useGenerations()
+    const { generate: startGeneration, pollStatus, generateAndWait, isGenerating, activeGenerationId } = useGenerations()
+    // Pinned presentation generation id. `activeGenerationId` from the hook is
+    // overwritten whenever ANY new generation runs (e.g. per-slide image regen),
+    // so we capture the presentation id once and use this ref for save/export.
+    const presentationGenerationIdRef = useRef<string | null>(null)
     const searchParams = useSearchParams()
 
     useEffect(() => {
@@ -585,7 +589,14 @@ function PresentationGeneratorContent() {
             if (isMobile) setActiveTab('preview')
 
             const params = { topic, duration, style, targetAudience, themeId }
-            const status = await generateAndWait({ type: 'presentation', params })
+            // Use generate()+pollStatus() directly (instead of generateAndWait) so we
+            // can capture the requestId synchronously. `activeGenerationId` from the
+            // hook is React state — stale inside this closure — and gets clobbered
+            // by any later image-regen call.
+            const requestId = await startGeneration({ type: 'presentation', params })
+            if (!requestId) throw new Error('Не удалось создать запрос')
+            presentationGenerationIdRef.current = requestId
+            const status = await pollStatus(requestId, 300)
             const r = status.result
 
             // New SlideDoc pipeline returns { slideDoc, pdfUrl, ... }
@@ -643,12 +654,16 @@ function PresentationGeneratorContent() {
     ]
 
     if (isEditorMode && slideDoc) {
+        // Pinned id from when the presentation generation completed. Stable
+        // across image regens (which would otherwise clobber activeGenerationId).
+        const presentationId = presentationGenerationIdRef.current;
+
         const downloadExport = async (format: 'pdf' | 'pptx') => {
-            if (!activeGenerationId) return;
+            if (!presentationId) return;
             setIsExporting(true);
             try {
                 const { apiClient } = await import('@/lib/api/client');
-                const res = await apiClient.post(`/generate/${activeGenerationId}/presentation/${format}`, {}, { responseType: 'blob' });
+                const res = await apiClient.post(`/generate/${presentationId}/presentation/${format}`, {}, { responseType: 'blob' });
                 const blob = res.data as Blob;
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
@@ -664,16 +679,19 @@ function PresentationGeneratorContent() {
         };
 
         const saveDoc = async (next: SlideDoc) => {
-            if (!activeGenerationId) return;
+            if (!presentationId) return;
             const { apiClient } = await import('@/lib/api/client');
-            // Preserve other outputData fields (pdfUrl, exportUrl, topic) by sending the full merged object.
-            await apiClient.patch(`/generate/${activeGenerationId}`, {
-                slideDoc: next,
-                pdfUrl,
-                exportUrl: pdfUrl,
-                topic: next.topic,
-                provider: 'Replicate',
-                mode: 'presentation',
+            // ValidationPipe enforces the UpdateGenerationDto whitelist — our
+            // payload must live inside the `outputData` field.
+            await apiClient.patch(`/generate/${presentationId}`, {
+                outputData: {
+                    slideDoc: next,
+                    pdfUrl,
+                    exportUrl: pdfUrl,
+                    topic: next.topic,
+                    provider: 'Replicate',
+                    mode: 'presentation',
+                },
             });
             setSlideDoc(next);
         };
@@ -710,10 +728,10 @@ function PresentationGeneratorContent() {
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
-                        <button onClick={() => downloadExport('pdf')} disabled={isExporting || !activeGenerationId} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-colors disabled:opacity-50">
+                        <button onClick={() => downloadExport('pdf')} disabled={isExporting || !presentationId} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-colors disabled:opacity-50">
                             {isExporting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />} PDF
                         </button>
-                        <button onClick={() => downloadExport('pptx')} disabled={isExporting || !activeGenerationId} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors disabled:opacity-50">
+                        <button onClick={() => downloadExport('pptx')} disabled={isExporting || !presentationId} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors disabled:opacity-50">
                             {isExporting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />} PPTX
                         </button>
                         <button onClick={generate} disabled={isLoading} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors disabled:opacity-40">
@@ -722,7 +740,7 @@ function PresentationGeneratorContent() {
                         </button>
                         {!isGenerating && (
                             <AssignTaskButton
-                                generationId={activeGenerationId}
+                                generationId={presentationId}
                                 topic={slideDoc.topic}
                                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition-colors disabled:opacity-60"
                             />

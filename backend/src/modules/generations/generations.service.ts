@@ -1391,10 +1391,15 @@ export class GenerationsService {
       throw new BadRequestException('Доступ запрещен');
     }
 
+    // The DTO declares an `outputData` field — that's the canonical wrapper.
+    // Older callers passed the payload at the top level; we keep that working
+    // by falling back to `data` itself when no `outputData` field is present.
+    const nextOutputData = data?.outputData ?? data;
+
     return this.prisma.userGeneration.update({
       where: { id: generation.id },
       data: {
-        outputData: data,
+        outputData: nextOutputData,
       },
     });
   }
