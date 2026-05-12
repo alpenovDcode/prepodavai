@@ -8,7 +8,7 @@ export class NotificationsService {
   async createNotification(data: {
     userId: string;
     userType: 'teacher' | 'student';
-    type: 'submission_received' | 'submission_graded' | 'referral_activated' | 'referral_converted' | 'referral_milestone';
+    type: 'submission_received' | 'submission_graded' | 'homework_deadline_reminder' | 'referral_activated' | 'referral_converted' | 'referral_milestone';
     title: string;
     message: string;
     metadata?: Record<string, any>;

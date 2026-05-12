@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { apiClient } from '@/lib/api/client'
-import { CheckCircle, AlertCircle, Loader2, Link2, Link2Off, CreditCard, ShieldOff, KeyRound, Eye, EyeOff } from 'lucide-react'
+import { CheckCircle, AlertCircle, Loader2, Link2, Link2Off, CreditCard, ShieldOff, KeyRound, Eye, EyeOff, Mail, X } from 'lucide-react'
 import { useSubscription } from '@/lib/hooks/useSubscription'
 
 export default function SettingsPage() {
@@ -28,10 +28,9 @@ export default function SettingsPage() {
     const fileInputRef = useRef<HTMLInputElement>(null)
 
     const [notifications, setNotifications] = useState({
-        notifyNewCourse: true,
-        notifyStudentProgress: false,
-        notifyWeeklyReport: true,
+        notifyEmail: false,
     })
+    const [emailModalOpen, setEmailModalOpen] = useState(false)
 
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
@@ -180,9 +179,7 @@ export default function SettingsPage() {
                         grades: u.grades || '',
                     })
                     setNotifications({
-                        notifyNewCourse: u.notifyNewCourse ?? true,
-                        notifyStudentProgress: u.notifyStudentProgress ?? false,
-                        notifyWeeklyReport: u.notifyWeeklyReport ?? true,
+                        notifyEmail: u.notifyWeeklyReport ?? false,
                     })
                 }
             } catch (error) {
@@ -277,9 +274,7 @@ export default function SettingsPage() {
                 bio: profile.bio,
                 subject: profile.subject,
                 grades: profile.grades,
-                notifyNewCourse: notifications.notifyNewCourse,
-                notifyStudentProgress: notifications.notifyStudentProgress,
-                notifyWeeklyReport: notifications.notifyWeeklyReport,
+                notifyWeeklyReport: notifications.notifyEmail,
             })
 
             // Re-sync local storage name if needed somewhere else
@@ -779,57 +774,24 @@ export default function SettingsPage() {
                 <h2 className="text-xl font-bold text-gray-900 mb-6">Уведомления</h2>
 
                 <div className="space-y-4">
-                    {/* New Course Content */}
-                    <div className="flex items-center justify-between py-3 border-b border-gray-50">
-                        <div>
-                            <h3 className="font-semibold text-gray-900">Новый контент</h3>
-                            <p className="text-sm text-gray-600">Уведомлять о выходе новых курсов или материалов.</p>
-                        </div>
-                        <label className="relative inline-flex items-center cursor-pointer">
-                            <input
-                                type="checkbox"
-                                checked={notifications.notifyNewCourse}
-                                onChange={(e) =>
-                                    setNotifications({ ...notifications, notifyNewCourse: e.target.checked })
-                                }
-                                className="sr-only peer"
-                            />
-                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
-                        </label>
-                    </div>
-
-                    {/* Student Progress */}
-                    <div className="flex items-center justify-between py-3 border-b border-gray-50">
-                        <div>
-                            <h3 className="font-semibold text-gray-900">Прогресс учеников</h3>
-                            <p className="text-sm text-gray-600">Получать уведомления о достижениях учеников.</p>
-                        </div>
-                        <label className="relative inline-flex items-center cursor-pointer">
-                            <input
-                                type="checkbox"
-                                checked={notifications.notifyStudentProgress}
-                                onChange={(e) =>
-                                    setNotifications({ ...notifications, notifyStudentProgress: e.target.checked })
-                                }
-                                className="sr-only peer"
-                            />
-                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
-                        </label>
-                    </div>
-
-                    {/* Weekly Report */}
+                    {/* Email notifications */}
                     <div className="flex items-center justify-between py-3">
                         <div>
                             <h3 className="font-semibold text-gray-900">Email уведомления</h3>
-                            <p className="text-sm text-gray-600">Получать ежедневные сводки на почту.</p>
+                            <p className="text-sm text-gray-600">Уведомления о ДЗ на почту: сдача, проверка, дедлайны.</p>
                         </div>
                         <label className="relative inline-flex items-center cursor-pointer">
                             <input
                                 type="checkbox"
-                                checked={notifications.notifyWeeklyReport}
-                                onChange={(e) =>
-                                    setNotifications({ ...notifications, notifyWeeklyReport: e.target.checked })
-                                }
+                                checked={notifications.notifyEmail}
+                                onChange={(e) => {
+                                    const next = e.target.checked
+                                    if (next && !profile.email.trim()) {
+                                        setEmailModalOpen(true)
+                                        return
+                                    }
+                                    setNotifications({ ...notifications, notifyEmail: next })
+                                }}
                                 className="sr-only peer"
                             />
                             <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
@@ -837,6 +799,48 @@ export default function SettingsPage() {
                     </div>
                 </div>
             </div>
+
+            {/* Email-not-connected modal */}
+            {emailModalOpen && (
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+                    onClick={() => setEmailModalOpen(false)}
+                >
+                    <div
+                        className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 relative"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <button
+                            onClick={() => setEmailModalOpen(false)}
+                            className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition"
+                            aria-label="Закрыть"
+                        >
+                            <X className="w-5 h-5" />
+                        </button>
+
+                        <div className="flex items-start gap-4 mb-4">
+                            <div className="w-12 h-12 rounded-xl bg-red-100 flex items-center justify-center flex-shrink-0">
+                                <Mail className="w-6 h-6 text-red-600" />
+                            </div>
+                            <div>
+                                <h3 className="text-lg font-bold text-gray-900 mb-1">Почта не подключена</h3>
+                                <p className="text-sm text-gray-600">
+                                    Чтобы включить email-уведомления, добавьте email в разделе «Профиль» и сохраните изменения.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="flex justify-end">
+                            <button
+                                onClick={() => setEmailModalOpen(false)}
+                                className="px-5 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-semibold hover:bg-primary-700 transition"
+                            >
+                                Понятно
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }

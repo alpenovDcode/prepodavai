@@ -12,6 +12,10 @@ export class QuizGenerationStrategy implements GenerationStrategy {
   async generate(params: GenerationRequestParams): Promise<{ systemPrompt: string; userPrompt: string }> {
     const { subject, topic, level, questionsCount, answersCount, customPrompt } = params;
 
+    const RU_LETTERS = ['А', 'Б', 'В', 'Г', 'Д', 'Е'];
+    const optionsN = Math.max(2, Math.min(6, Number(answersCount) || 4));
+    const lettersList = RU_LETTERS.slice(0, optionsN).join(', ');
+
     const systemPrompt = `
 ${DesignSystemConfig.PROMPT_MODULES.SYSTEM_INTRO}
 Генерируешь тесты с выбором одного правильного ответа в формате HTML.
@@ -22,11 +26,11 @@ ${DesignSystemConfig.PROMPT_MODULES.CRITICAL_OUTPUT_RULES}
 СТРОГИЕ ПРАВИЛА СТРУКТУРЫ ТЕСТА:
 1. Каждый вопрос — в <div class="question-block">.
 2. Текст вопроса — в <p class="question-text">.
-3. Варианты ответа — ИСКЛЮЧИТЕЛЬНО <input type="radio"> с <label>. Ровно ${answersCount || 4} варианта на вопрос.
+3. Варианты ответа — ИСКЛЮЧИТЕЛЬНО <input type="radio"> с <label>. РОВНО ${optionsN} варианта(ов) на каждый вопрос — ни больше, ни меньше. Это ЖЁСТКОЕ требование.
 4. ЗАПРЕЩЕНО добавлять любые поля для ввода текста: input[type=text], textarea, поля для записи ответа.
 5. ЗАПРЕЩЕНО добавлять поля типа "впишите ответ", "ваш ответ", открытые вопросы.
 6. Каждый вопрос имеет РОВНО ОДИН правильный ответ.
-7. Варианты ответов нумеруются: А, Б, В, Г (или А, Б, В, Г, Д если 5 вариантов).
+7. Варианты ответов нумеруются буквами строго в этом порядке: ${lettersList}. Ровно ${optionsN} букв(ы) — не используй другие буквы и не добавляй лишних вариантов.
 8. В конце — блок ответов для учителя (таблица).
 `;
 
@@ -36,10 +40,11 @@ ${DesignSystemConfig.PROMPT_MODULES.CRITICAL_OUTPUT_RULES}
 Тема: ${topic || 'Случайная тема'}  ← все вопросы строго по этой теме
 Уровень сложности: ${level || 'Средний'}
 Количество вопросов: ${questionsCount || 10}
-Вариантов ответа в каждом вопросе: ${answersCount || 4}
+Вариантов ответа в КАЖДОМ вопросе: РОВНО ${optionsN} (буквы: ${lettersList})
 
 ТРЕБОВАНИЯ К СОДЕРЖАНИЮ:
 - Все вопросы — закрытые (только выбор одного из вариантов).
+- В каждом вопросе ровно ${optionsN} вариантов — не 4 «по умолчанию», а именно ${optionsN}.
 - Вопросы охватывают разные аспекты темы «${topic || 'указанной темы'}».
 - Дистракторы (неправильные варианты) — правдоподобные.
 - Уровень сложности строго соответствует заданному параметру.
@@ -71,7 +76,7 @@ ${DesignSystemConfig.MATHJAX_SCRIPTS}
   ${DesignSystemConfig.COMPONENTS.HEADER(`Тест: ${topic || subject || 'Тест'}`)}
 
   <div class="meta-info">
-    <p><strong>Предмет:</strong> ${subject || '—'} &nbsp;|&nbsp; <strong>Тема:</strong> ${topic || '—'} &nbsp;|&nbsp; <strong>Уровень:</strong> ${level || '—'} &nbsp;|&nbsp; <strong>Вопросов:</strong> ${questionsCount || 10}</p>
+    <p><strong>Предмет:</strong> ${subject || '—'} &nbsp;|&nbsp; <strong>Тема:</strong> ${topic || '—'} &nbsp;|&nbsp; <strong>Уровень:</strong> ${level || '—'} &nbsp;|&nbsp; <strong>Вопросов:</strong> ${questionsCount || 10} &nbsp;|&nbsp; <strong>Вариантов в вопросе:</strong> ${optionsN}</p>
   </div>
 
   <!-- ВОПРОСЫ: каждый question-block содержит question-text и options-list с radio-кнопками -->
@@ -92,7 +97,10 @@ ${DesignSystemConfig.MATHJAX_SCRIPTS}
 </html>
 </html_skeleton>
 
-⚠️ ПРОВЕРЬ ПЕРЕД ВЫВОДОМ: все вопросы строго по теме «${topic || '—'}», предмет «${subject || '—'}».
+⚠️ ПРОВЕРЬ ПЕРЕД ВЫВОДОМ:
+- В каждом вопросе РОВНО ${optionsN} <input type="radio"> (буквы ${lettersList}) — пересчитай.
+- Все вопросы строго по теме «${topic || '—'}», предмет «${subject || '—'}».
+- Всего вопросов: ${questionsCount || 10}.
 ${customPrompt ? `ДОПОЛНИТЕЛЬНЫЕ ИНСТРУКЦИИ (выполни обязательно): ${customPrompt}` : ''}
 
 Начинай вывод сразу с <!DOCTYPE html>.`;

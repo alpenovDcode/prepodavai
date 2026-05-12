@@ -1,5 +1,6 @@
 import {
   Injectable,
+  Logger,
   NotFoundException,
   BadRequestException,
   ForbiddenException,
@@ -8,14 +9,18 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ReplicateService } from '../replicate/replicate.service';
 import { ReferralsService } from '../referrals/referrals.service';
+import { EmailService } from '../../common/services/email.service';
 
 @Injectable()
 export class SubmissionsService {
+  private readonly logger = new Logger(SubmissionsService.name);
+
   constructor(
     private prisma: PrismaService,
     private notificationsService: NotificationsService,
     private replicateService: ReplicateService,
     private referralsService: ReferralsService,
+    private emailService: EmailService,
   ) {}
 
   async createSubmission(
@@ -205,6 +210,21 @@ export class SubmissionsService {
       },
     });
 
+    const studentEmail = submission.student?.email?.trim();
+    if (studentEmail) {
+      this.emailService
+        .sendHomeworkGradedEmail(studentEmail, {
+          studentName: submission.student?.name || 'ученик',
+          lessonTitle: submission.assignment.lesson.title,
+          grade: data.grade,
+          feedback: data.feedback || null,
+          assignmentId: submission.assignmentId,
+        })
+        .catch((err) =>
+          this.logger.warn(`Failed to send homework-graded email to ${studentEmail}: ${err?.message}`),
+        );
+    }
+
     return updated;
   }
 
@@ -258,6 +278,24 @@ export class SubmissionsService {
         lessonTitle,
       },
     });
+
+    const teacher = await this.prisma.appUser.findUnique({
+      where: { id: teacherId },
+      select: { email: true, firstName: true, notifyWeeklyReport: true },
+    });
+    const teacherEmail = teacher?.email?.trim();
+    if (teacher?.notifyWeeklyReport && teacherEmail) {
+      this.emailService
+        .sendHomeworkSubmittedEmail(teacherEmail, {
+          teacherName: teacher.firstName || null,
+          studentName,
+          lessonTitle,
+          assignmentId: assignment.id,
+        })
+        .catch((err) =>
+          this.logger.warn(`Failed to send homework-submitted email to ${teacherEmail}: ${err?.message}`),
+        );
+    }
   }
 
   async getSubmissionsForAssignment(teacherId: string, assignmentId: string) {

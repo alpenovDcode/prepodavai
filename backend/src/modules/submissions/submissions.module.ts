@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { SubmissionsService } from './submissions.service';
 import { SubmissionsController } from './submissions.controller';
+import { HomeworkDeadlineCronService } from './homework-deadline-cron.service';
 import { PrismaModule } from '../../common/prisma/prisma.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { ReplicateModule } from '../replicate/replicate.module';
@@ -9,7 +10,7 @@ import { ReferralsModule } from '../referrals/referrals.module';
 @Module({
   imports: [PrismaModule, NotificationsModule, ReplicateModule, ReferralsModule],
   controllers: [SubmissionsController],
-  providers: [SubmissionsService],
+  providers: [SubmissionsService, HomeworkDeadlineCronService],
   exports: [SubmissionsService],
 })
 export class SubmissionsModule {}
