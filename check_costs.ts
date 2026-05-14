@@ -8,7 +8,7 @@ async function main() {
     {
       operationType: 'lesson_preparation',
       operationName: 'Вау-урок',
-      creditCost: 10,
+      creditCost: 100,
       description: 'Комплексная подготовка материалов для урока',
       isActive: true,
     },

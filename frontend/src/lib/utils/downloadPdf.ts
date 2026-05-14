@@ -14,6 +14,12 @@ export interface DownloadPdfOptions {
      * перед рендером. По умолчанию `true` — PDF со всеми ответами.
      */
     withAnswers?: boolean
+    /**
+     * Для генераций с несколькими разделами (Вау-урок): индекс раздела
+     * в `outputData.sections[]`, который надо отрендерить. Если не задан —
+     * рендерится весь документ (склейка всех секций).
+     */
+    sectionIndex?: number
 }
 
 export async function downloadPdfById(
@@ -23,7 +29,12 @@ export async function downloadPdfById(
 ): Promise<void> {
     if (!id) throw new Error('generation id is required')
 
-    const query = options.withAnswers === false ? '?withAnswers=false' : ''
+    const params = new URLSearchParams()
+    if (options.withAnswers === false) params.set('withAnswers', 'false')
+    if (typeof options.sectionIndex === 'number') {
+        params.set('sectionIndex', String(options.sectionIndex))
+    }
+    const query = params.toString() ? `?${params.toString()}` : ''
 
     const response = await apiClient.post(
         `/generate/${encodeURIComponent(id)}/pdf${query}`,

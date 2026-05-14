@@ -216,14 +216,19 @@ export class GenerationsController {
     @Request() req: any,
     @Param('requestId') requestId: string,
     @Query('withAnswers') withAnswers?: string,
+    @Query('sectionIndex') sectionIndex?: string,
   ): Promise<StreamableFile> {
     // По умолчанию PDF для учителя — с ответами. Флаг передаём только
     // если явно указан `withAnswers=false` (режим «для ученика»).
     const withAnswersFlag = withAnswers === 'false' ? false : true;
+    const parsedSectionIndex =
+      typeof sectionIndex === 'string' && /^\d+$/.test(sectionIndex)
+        ? parseInt(sectionIndex, 10)
+        : undefined;
     const pdfBuffer = await this.generationsService.exportGenerationPdf(
       requestId,
       this.userId(req),
-      { withAnswers: withAnswersFlag },
+      { withAnswers: withAnswersFlag, sectionIndex: parsedSectionIndex },
     );
     return new StreamableFile(pdfBuffer);
   }

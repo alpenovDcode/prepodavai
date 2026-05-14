@@ -2,7 +2,6 @@
 
 import { useState, useRef, useEffect, useMemo } from 'react'
 import DOMPurify from 'isomorphic-dompurify'
-import { downloadPdfById } from '@/lib/utils/downloadPdf'
 import { Sparkles, RefreshCw, Loader2, Maximize2, Download, Copy, Eye, Edit3, HelpCircle, ChevronLeft, ChevronRight } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useGenerations } from '@/lib/hooks/useGenerations'
@@ -10,7 +9,33 @@ import RichTextEditor from '@/components/workspace/RichTextEditor'
 import GenerationCostBadge from '@/components/workspace/GenerationCostBadge'
 import AssignTaskButton from '@/components/AssignTaskButton'
 import GenerationProgress from '@/components/workspace/GenerationProgress'
+import DownloadPdfModal from '@/components/workspace/DownloadPdfModal'
 import { ensureMathJaxInHtml } from '@/lib/utils/ensureMathJax'
+
+// Разделы, в конце которых лежит ключ для учителя — модалка предложит
+// выбрать «с ответами / без ответов». Совпадает с лейблами getTypeLabel в backend.
+const SECTIONS_WITH_ANSWERS = new Set(['Рабочий лист', 'Тест'])
+
+type Depth = 'short' | 'standard' | 'deep'
+
+const DEPTH_OPTIONS: { value: Depth; label: string; hint: string }[] = [
+    { value: 'short', label: 'Краткий', hint: 'Быстро, по сути' },
+    { value: 'standard', label: 'Стандарт', hint: 'Сбалансированный' },
+    { value: 'deep', label: 'Развёрнутый', hint: 'Максимум деталей' },
+]
+
+// Транслит русских названий разделов для имени PDF-файла.
+const sectionFilenameSlug = (label: string | null | undefined): string => {
+    if (!label) return 'section'
+    const map: Record<string, string> = {
+        'План урока': 'plan-uroka',
+        'Рабочий лист': 'rabochiy-list',
+        'Учебный материал': 'uchebnyy-material',
+        'Адаптация контента': 'uchebnyy-material',
+        'Тест': 'test',
+    }
+    return map[label] || label.toLowerCase().replace(/[^a-zа-я0-9]+/gi, '-').slice(0, 40) || 'section'
+}
 
 export default function LessonPrepGenerator() {
     const [subject, setSubject] = useState('')
@@ -18,6 +43,9 @@ export default function LessonPrepGenerator() {
     const [level, setLevel] = useState('5')
     const [interests, setInterests] = useState('')
     const [generationTypes, setGenerationTypes] = useState<string[]>([])
+    const [depth, setDepth] = useState<Depth>('standard')
+    const [worksheetQuestions, setWorksheetQuestions] = useState<number>(7)
+    const [questionsCount, setQuestionsCount] = useState<number>(10)
 
     const [editMode, setEditMode] = useState(false)
     const iframeRef = useRef<HTMLIFrameElement>(null)
@@ -28,6 +56,7 @@ export default function LessonPrepGenerator() {
     const [currentIndex, setCurrentIndex] = useState(0)
     const [activeTab, setActiveTab] = useState<'config' | 'preview'>('config')
     const [isMobile, setIsMobile] = useState(false)
+    const [showPdfModal, setShowPdfModal] = useState(false)
 
     const { generateAndWait, isGenerating, activeGenerationId } = useGenerations()
     const hasResult = !isGenerating && !!localContent && !localContent.startsWith('<p>Заполните')
@@ -68,7 +97,10 @@ export default function LessonPrepGenerator() {
                 topic,
                 level,
                 interests,
-                generationTypes
+                generationTypes,
+                depth,
+                worksheetQuestions: generationTypes.includes('worksheet') ? worksheetQuestions : undefined,
+                questionsCount: generationTypes.includes('quiz') ? questionsCount : undefined,
             }
 
             const response = await generateAndWait({
@@ -145,17 +177,27 @@ export default function LessonPrepGenerator() {
         setEditMode(!editMode)
     }
 
-    const exportPDF = async () => {
+    const openPdfModal = () => {
         if (!activeGenerationId) {
             toast.error('Сначала сгенерируйте материал')
             return
         }
-        try {
-            await downloadPdfById(activeGenerationId, 'lesson-prep.pdf')
-        } catch {
-            toast.error('Не удалось сформировать PDF')
+        if (!results.length) {
+            toast.error('Сначала сгенерируйте материал')
+            return
         }
+        setShowPdfModal(true)
     }
+
+    const currentSectionHasAnswers = useMemo(
+        () => SECTIONS_WITH_ANSWERS.has(currentResultType || ''),
+        [currentResultType],
+    )
+
+    const currentSectionFilename = useMemo(() => {
+        const slug = sectionFilenameSlug(currentResultType)
+        return `vau-urok-${currentIndex + 1}-${slug}.pdf`
+    }, [currentResultType, currentIndex])
 
     useEffect(() => {
         if (!editMode && iframeRef.current && localContent && !isGenerating) {
@@ -276,6 +318,57 @@ export default function LessonPrepGenerator() {
                                 ))}
                             </div>
                         </div>
+
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-2">Глубина материала</label>
+                            <div className="grid grid-cols-3 gap-2">
+                                {DEPTH_OPTIONS.map(opt => (
+                                    <button
+                                        key={opt.value}
+                                        type="button"
+                                        onClick={() => setDepth(opt.value)}
+                                        title={opt.hint}
+                                        className={`px-2 py-2.5 rounded-xl text-xs font-bold border transition-all ${depth === opt.value
+                                            ? 'bg-pink-100 border-pink-300 text-pink-700 shadow-sm'
+                                            : 'bg-gray-50 border-gray-100 text-gray-500 hover:bg-gray-100'
+                                            }`}
+                                    >
+                                        {opt.label}
+                                    </button>
+                                ))}
+                            </div>
+                            <p className="text-[11px] text-gray-400 mt-1.5">
+                                {DEPTH_OPTIONS.find(o => o.value === depth)?.hint}
+                            </p>
+                        </div>
+
+                        {generationTypes.includes('worksheet') && (
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-2">Заданий в рабочем листе</label>
+                                <input
+                                    type="number"
+                                    min={3}
+                                    max={20}
+                                    value={worksheetQuestions}
+                                    onChange={e => setWorksheetQuestions(Math.max(3, Math.min(20, parseInt(e.target.value, 10) || 7)))}
+                                    className="block w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-pink-500 transition-all text-gray-900"
+                                />
+                            </div>
+                        )}
+
+                        {generationTypes.includes('quiz') && (
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-2">Вопросов в тесте</label>
+                                <input
+                                    type="number"
+                                    min={3}
+                                    max={30}
+                                    value={questionsCount}
+                                    onChange={e => setQuestionsCount(Math.max(3, Math.min(30, parseInt(e.target.value, 10) || 10)))}
+                                    className="block w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-pink-500 transition-all text-gray-900"
+                                />
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -344,7 +437,7 @@ export default function LessonPrepGenerator() {
                                 <Copy className="w-4 h-4" />
                             </button>
                             <button
-                                onClick={exportPDF}
+                                onClick={openPdfModal}
                                 className="flex items-center gap-1.5 px-3 py-2 bg-pink-50 hover:bg-pink-100 text-pink-700 text-[11px] font-bold rounded-lg transition-all shadow-sm"
                             >
                                 <Download className="w-3.5 h-3.5" />
@@ -406,6 +499,15 @@ export default function LessonPrepGenerator() {
                     )}
                 </div>
             </div>
+
+            <DownloadPdfModal
+                isOpen={showPdfModal}
+                onClose={() => setShowPdfModal(false)}
+                generationId={activeGenerationId}
+                filename={currentSectionFilename}
+                hasAnswers={currentSectionHasAnswers}
+                sectionIndex={currentIndex}
+            />
         </div>
     )
 }

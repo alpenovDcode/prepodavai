@@ -16,6 +16,11 @@ interface DownloadPdfModalProps {
      * Если `false` — сразу триггерим скачивание со всеми ответами при открытии.
      */
     hasAnswers?: boolean
+    /**
+     * Для генераций с несколькими разделами (Вау-урок): индекс раздела,
+     * который надо скачать. Если не задан — скачивается весь документ.
+     */
+    sectionIndex?: number
 }
 
 export default function DownloadPdfModal({
@@ -24,6 +29,7 @@ export default function DownloadPdfModal({
     generationId,
     filename,
     hasAnswers = false,
+    sectionIndex,
 }: DownloadPdfModalProps) {
     const [state, setState] = useState<DownloadState>('idle')
     const [error, setError] = useState<string>('')
@@ -48,7 +54,7 @@ export default function DownloadPdfModal({
                 hasAnswers && !withAnswers
                     ? filename.replace(/\.pdf$/i, '') + '-student.pdf'
                     : filename
-            await downloadPdfById(generationId, finalName, { withAnswers })
+            await downloadPdfById(generationId, finalName, { withAnswers, sectionIndex })
             setState('success')
             // Закроемся через секунду, чтобы пользователь увидел «Готово».
             setTimeout(() => onClose(), 900)

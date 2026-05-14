@@ -269,7 +269,7 @@ ${interests ? `- Интересы аудитории (Интегрируй их 
 
     const prediction = await this.runReplicatePrediction('google/gemini-3-flash', {
       prompt: prompt,
-      max_tokens: 10000,
+      max_tokens: 20000,
       system_prompt: 'Output JSON ONLY.',
     });
 
@@ -899,6 +899,12 @@ ${interests ? `- Интересы аудитории (Интегрируй их 
     const interestsStr = interests && interests.trim() ? interests : '—';
     const typeLabel = this.getTypeLabel(targetType);
     const isInteractiveType = ['worksheet', 'quiz', 'game_generation'].includes(targetType);
+    const depthRaw = (extraData?.depth || 'standard') as string;
+    const depth: 'short' | 'standard' | 'deep' =
+      depthRaw === 'short' || depthRaw === 'deep' ? depthRaw : 'standard';
+    const depthLabel = { short: 'Краткий', standard: 'Стандартный', deep: 'Развёрнутый' }[depth];
+    const maxImages = this.getMaxImagesForSubject(subject);
+    const structureSkeleton = this.getStructureSkeleton(targetType, depth, extraData);
 
     const prompt = `
 <MAIN_TOPIC>${topic || '—'}</MAIN_TOPIC>
@@ -906,6 +912,7 @@ ${interests ? `- Интересы аудитории (Интегрируй их 
 <LEVEL>${level || '—'}</LEVEL>
 <INTERESTS>${interestsStr}</INTERESTS>
 <SECTION_TYPE>${typeLabel}</SECTION_TYPE>
+<DEPTH>${depthLabel}</DEPTH>
 
 🎯 ГЛАВНОЕ ПРАВИЛО: ВЕСЬ контент строго и исключительно по теме <MAIN_TOPIC>${topic || '—'}</MAIN_TOPIC>.
 Не уходи в смежные темы. Не подменяй на родственную. Не давай «общий обзор предмета».
@@ -941,6 +948,9 @@ ${interests ? `- Интересы аудитории (Интегрируй их 
   - Структура: контекстные примеры, аутентичные тексты, диалоги.
   - Изображения: атмосферные сцены, портреты через [IMAGE-SCENE].
 
+═══ ОБЯЗАТЕЛЬНАЯ СТРУКТУРА РАЗДЕЛА (заполни каждый блок!) ═══
+${structureSkeleton}
+
 ═══ ПОДАЧА (когнитивная нагрузка) ═══
 - Чанк = 2–4 предложения, не больше. Один концепт = один чанк.
 - Каждый новый концепт сопровождай ОДНИМ конкретным примером ПЕРЕД абстрактным определением (worked-example).
@@ -962,7 +972,7 @@ ${interests ? `- Интересы аудитории (Интегрируй их 
 - Если для понятия нет работающей аналогии в <INTERESTS> — НЕ выдумывай натянутую.
 
 ═══ ИЗОБРАЖЕНИЯ — СТРОГИЕ ПРАВИЛА ═══
-1. РОВНО 1 изображение на раздел. Если контент не требует — НЕ вставляй вообще.
+1. ${maxImages === 1 ? 'РОВНО 1 изображение на раздел' : `До ${maxImages} изображений на раздел (1–${maxImages})`}. Если контент не требует — НЕ вставляй вообще.
 2. Формат тега:
    [IMAGE-<TYPE>: краткая подпись на русском (1 строка)
    | English prompt: subject, style по режиму, composition, "no text, no labels, no numbers, no watermarks"]
@@ -979,6 +989,21 @@ ${interests ? `- Интересы аудитории (Интегрируй их 
    (contiguity principle). Не «перед разделом» и не «в конце».
 7. Если не можешь объяснить, ЗАЧЕМ нужна именно эта картинка — не вставляй её
    (coherence: декоративные картинки запрещены).
+8. ВИЗУАЛЬНЫЙ СТИЛЬ ПО <INTERESTS> (КРИТИЧЕСКИ ВАЖНО):
+   Если <INTERESTS>${interestsStr}</INTERESTS> содержит распознаваемый визуальный мир —
+   English-промпт ДОЛЖЕН отразить этот стиль, не только концепт темы.
+   Примеры маппинга:
+   - "Minecraft" / "Майнкрафт" → добавь в prompt: "pixelated voxel art style, isometric view,
+     blocky terrain, Minecraft-inspired aesthetic, cubic shapes"
+   - "Roblox" → "Roblox-style 3D characters and environment, low-poly, vibrant colors"
+   - "аниме" / "anime" / "манга" → "anime illustration style, cell-shaded, Studio Ghibli inspired"
+   - "футбол" / "soccer" → "soccer stadium scene, football-themed environment, athletic atmosphere"
+   - "Marvel" / "DC" / "комиксы" → "comic book art style, dynamic composition, bold outlines"
+   - "космос" / "sci-fi" → "sci-fi cinematic style, futuristic, neon accents"
+   - "Гарри Поттер" / "фэнтези" → "fantasy magical atmosphere, painterly, warm magical lighting"
+   Если в <INTERESTS> нет распознаваемого визуального мира — используй нейтральный стиль
+   под режим SUBJECT (фотореализм для STEM-метафор, иллюстрация для NARRATIVE и т.д.).
+   ЦЕЛЬ: ученик ${level || '—'} класса должен сразу узнать «свой мир» на картинке.
 
 ${isInteractiveType ? `═══ ИНТЕРАКТИВНЫЕ ПОЛЯ (для quiz/worksheet — ОБЯЗАТЕЛЬНО) ═══
 - Короткий ответ: <input type="text" name="q{N}" style="border:none;border-bottom:2px solid #333;width:180px;background:transparent;font-size:inherit;" />
@@ -1003,16 +1028,20 @@ ${context || '(первый раздел — без контекста)'}
 □ Каждый чанк ≤ 4 предложений, нет длинных академических абзацев.
 □ Worked-example в каждом концепте (пример ПЕРЕД определением).
 □ Когнитивный баланс ≈ 30/50/20 по Блуму.
-□ Изображение — РОВНО 1 или 0. Без текста в кадре. С figcaption-подписью.
+□ Изображений: ${maxImages === 1 ? '0 или 1' : `от 0 до ${maxImages}`}. Без текста в кадре. С figcaption-подписью у каждого.
 □ ${isInteractiveType ? 'Все поля для ответов — <input>/<textarea>, не подчёркивания.' : 'Никаких <input>/<textarea>.'}
 □ Все формулы — в MathJax \\(...\\) или \\[...\\], не в $...$.
 
 ЦЕЛЬ: ученик ${level || '—'} класса должен понять то, что вчера не понимал. Engagement — средство, не цель.
 `;
 
+    // Бюджет токенов масштабируется под depth: «развёрнутый» режим может уйти
+    // в 5–7 тыс. русских слов, чтобы избежать обрыва на полуслове закладываем запас.
+    const maxTokens = depth === 'short' ? 8000 : depth === 'deep' ? 24000 : 16000;
+
     const prediction = await this.runReplicatePrediction('google/gemini-3-flash', {
       prompt: prompt,
-      max_tokens: 10000,
+      max_tokens: maxTokens,
       system_prompt:
         'You are a creative educational genius. You create content STRICTLY IN RUSSIAN.',
     });
@@ -1038,11 +1067,13 @@ ${context || '(первый раздел — без контекста)'}
       matches.push({ full: match[0], type: match[1] || null, raw: match[2] });
     }
 
-    // Hard cap: 1 image per section (cost/time + matches the prompt instruction).
+    // Лимит зависит от предмета: STEM = 1 (схемы и формулы — через MathJax/SVG),
+    // нарративные предметы = 2 (визуальный ряд усиливает понимание).
+    const maxImages = this.getMaxImagesForSubject(subject);
     for (let i = 0; i < matches.length; i++) {
       const m = matches[i];
 
-      if (i >= 1) {
+      if (i >= maxImages) {
         newContent = newContent.replace(m.full, '');
         continue;
       }
@@ -1102,16 +1133,130 @@ ${context || '(первый раздел — без контекста)'}
       .replace(/'/g, '&#39;');
   }
 
+  private isSTEMSubject(subject?: string): boolean {
+    if (!subject) return false;
+    const s = subject.toLowerCase();
+    return ['матема', 'физи', 'информ', 'хими', 'алгебра', 'геомет', 'math', 'physic', 'chem']
+      .some((k) => s.includes(k));
+  }
+
+  private getMaxImagesForSubject(subject?: string): number {
+    // STEM — 1 картинка (чаще нужны схемы/формулы через MathJax/SVG).
+    // Остальные — 2 (нарратив выигрывает от визуального ряда).
+    return this.isSTEMSubject(subject) ? 1 : 2;
+  }
+
   private getNegativePrompt(subject?: string): string {
     const base =
       'text, letters, numbers, watermark, signature, labels, captions, low quality, distorted, deformed, blurry, ugly';
-    if (!subject) return base;
-    const s = subject.toLowerCase();
-    const isMath = ['матема', 'физи', 'информ', 'хими', 'алгебра', 'геомет', 'math', 'physic', 'chem']
-      .some((k) => s.includes(k));
-    return isMath
+    return this.isSTEMSubject(subject)
       ? `${base}, mathematical symbols, equations written, formulas, cluttered composition`
       : base;
+  }
+
+  /**
+   * Обязательная структура раздела с минимальным объёмом — главный рычаг
+   * против «жидких» генераций. Скелет задаёт, что именно должно быть заполнено,
+   * depth масштабирует требования по объёму и количеству подпунктов.
+   */
+  private getStructureSkeleton(
+    targetType: string,
+    depth: 'short' | 'standard' | 'deep',
+    extraData: any = {},
+  ): string {
+    const wordMul = depth === 'short' ? 0.6 : depth === 'deep' ? 1.5 : 1;
+
+    switch (targetType) {
+      case 'lesson-plan':
+      case 'lessonPlan':
+      case 'lessonPreparation':
+      case 'lesson_preparation':
+        return `ОБЯЗАТЕЛЬНАЯ СТРУКТУРА ПЛАНА (заполни КАЖДЫЙ блок):
+1. Тип урока (открытие нового знания / рефлексии / систематизации / контроля).
+2. Цели — РАЗДЕЛИ на три блока: предметные / метапредметные / личностные. По SMART.
+3. Планируемые УУД: познавательные / регулятивные / коммуникативные (конкретно, не «развивать мышление»).
+4. Ход урока (таблица «Этап / Время / Деятельность учителя / Деятельность учеников / Метод-приём») — МИНИМУМ 6 этапов из каркаса ФГОС:
+   мотивация → актуализация → постановка проблемы → открытие нового → первичное закрепление → самостоятельная работа → рефлексия.
+5. Для КАЖДОГО этапа укажи: время в минутах, что делает учитель, что делают ученики, какой метод/приём.
+6. Дифференциация: что предложить сильным, что — испытывающим затруднения.
+7. Критерии успеха урока (по чему понять, что урок удался).
+8. Возможные затруднения учеников и как их предупредить.
+9. Домашнее задание: базовый уровень + 1 задание повышенной сложности на выбор.
+
+МИНИМАЛЬНЫЙ ОБЪЁМ: ${Math.round(1500 * wordMul)} слов. Меньше — не сдавай, дополни недостающие блоки.`;
+
+      case 'worksheet':
+      case 'game_generation': {
+        const baseN = Number(extraData?.worksheetQuestions) || 7;
+        const N = Math.max(3, Math.round(baseN * (depth === 'short' ? 0.7 : depth === 'deep' ? 1.4 : 1)));
+        return `ОБЯЗАТЕЛЬНАЯ СТРУКТУРА РАБОЧЕГО ЛИСТА:
+1. Шапка + поля для ученика (Имя / Класс / Дата).
+2. Краткая теоретическая справка по теме — 80–150 слов.
+3. Задания: РОВНО ${N} штук, с ГРАДАЦИЕЙ сложности:
+   - Первые ~30% — [Базовый] (узнавание, воспроизведение)
+   - Средние ~40% — [Повышенный] (применение в типовой ситуации)
+   - Последние ~30% — [Высокий] (анализ, перенос, нестандартная задача)
+   Перед каждым заданием помечай уровень в квадратных скобках.
+4. МИНИМУМ 4 разных формата заданий из списка:
+   заполнение пропусков / соответствие / классификация / верно-неверно с обоснованием /
+   краткий ответ / развёрнутый ответ / исправление намеренной ошибки / работа со схемой.
+5. Перед каждым заданием — короткая курсивная пометка «Проверяем: …» (что именно проверяет задание).
+6. Баллы: рядом с каждым заданием — стоимость в баллах, в конце — шкала перевода в оценку.
+7. КЛЮЧ ОТВЕТОВ (для учителя), где для каждого задания:
+   - правильный ответ,
+   - краткое решение / обоснование (1–2 строки),
+   - типичная ошибка ученика по этой задаче.
+
+МИНИМАЛЬНЫЙ ОБЪЁМ: ${Math.round(1200 * wordMul)} слов (теория + задания + ключ).`;
+      }
+
+      case 'quiz': {
+        const baseN = Number(extraData?.questionsCount) || 10;
+        const N = Math.max(3, Math.round(baseN * (depth === 'short' ? 0.6 : depth === 'deep' ? 1.5 : 1)));
+        return `ОБЯЗАТЕЛЬНАЯ СТРУКТУРА ТЕСТА:
+1. РОВНО ${N} вопросов с одним правильным ответом из 4.
+2. КОГНИТИВНЫЙ БАЛАНС (обязателен, не делай тест из одних «вспомнить»):
+   - ~30% — «вспомнить / понять»
+   - ~50% — «применить» (использовать правило в типовой ситуации)
+   - ~20% — «проанализировать / оценить» (нестандартная задача, объяснить почему)
+3. РАЗНООБРАЗИЕ форматов вопросов (используй смесь):
+   - прямой вопрос
+   - «выбери НЕверное утверждение» (не более 20% вопросов)
+   - «выбери лучшее объяснение»
+   - на причинно-следственную связь
+   - на применение правила к новому случаю
+4. ДИСТРАКТОРЫ по принципу типичных ошибок учащихся:
+   - один — частая ошибка по неверному правилу
+   - один — поверхностно похожий на правильный (то же ключевое слово, иной смысл)
+   - один — правдоподобный, но фактически неверный
+5. ОДНОРОДНОСТЬ: варианты одной грамматической формы, одной длины (±30%), одной категории.
+6. ЗАПРЕЩЕНО: «все вышеперечисленное», «ни один из вышеперечисленных», варианты-«пустышки».
+7. РАВНОМЕРНОЕ распределение правильных ответов по буквам (не >40% на одну букву).
+8. КЛЮЧ ДЛЯ УЧИТЕЛЯ — таблица: №, Правильный ответ, Краткое обоснование, Разбор каждого дистрактора.
+
+МИНИМАЛЬНЫЙ ОБЪЁМ: ${Math.round(900 * wordMul)} слов (вопросы + ключ с разбором).`;
+      }
+
+      case 'content-adaptation':
+      case 'content':
+      default: {
+        const subCount = depth === 'short' ? 3 : depth === 'deep' ? 6 : 5;
+        return `ОБЯЗАТЕЛЬНАЯ СТРУКТУРА УЧЕБНОГО МАТЕРИАЛА (заполни КАЖДЫЙ блок):
+1. Введение и мотивация — зачем эта тема нужна сейчас (80–150 слов).
+2. Базовое определение + 1 пример из реальности (100–150 слов).
+3. РАЗВЁРНУТОЕ объяснение через ${subCount} ключевых подпонятий. Для КАЖДОГО подпонятия:
+   - короткое определение (1–2 предложения),
+   - конкретный пример ПЕРЕД абстракцией (worked-example),
+   - типичная ошибка / misconception (1 предложение),
+   - мини-проверка «остановись и подумай» — 1 вопрос для самопроверки.
+   = ~200–300 слов на каждое подпонятие.
+4. Полностью разобранный пример «от и до» — worked example (200–300 слов).
+5. Связь с другими темами и применение в реальной жизни (80–150 слов).
+6. Краткое резюме (3–5 буллитов).
+
+МИНИМАЛЬНЫЙ ОБЪЁМ: ${Math.round(1500 * wordMul)} слов.`;
+      }
+    }
   }
 
   private async generateImage(

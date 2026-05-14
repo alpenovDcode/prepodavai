@@ -1218,7 +1218,7 @@ export class GenerationsService {
   async exportGenerationPdf(
     requestId: string,
     userId: string,
-    options: { withAnswers?: boolean } = {},
+    options: { withAnswers?: boolean; sectionIndex?: number } = {},
   ): Promise<Buffer> {
     // Принимаем как generationRequestId (то, что отдаёт useGenerations.activeGenerationId),
     // так и userGeneration.id (то, что есть в списках генераций / MaterialViewer).
@@ -1248,7 +1248,19 @@ export class GenerationsService {
     // стратегий), `htmlResult` (video-analysis / sales-advisor / lesson_preparation),
     // `html`/`text` (fallback). Идём по приоритету.
     const r = result as any;
-    const content = r?.content ?? r?.htmlResult ?? r?.html ?? r?.text ?? result;
+    // Для мульти-секционных генераций (Вау-урок: outputData.sections[]) можно
+    // запросить отдельный раздел через sectionIndex. Если индекс задан и в пределах
+    // массива — берём только его content, иначе fallback на склейку (htmlResult).
+    let content: any;
+    if (
+      typeof options.sectionIndex === 'number' &&
+      Array.isArray(r?.sections) &&
+      r.sections[options.sectionIndex]?.content
+    ) {
+      content = r.sections[options.sectionIndex].content;
+    } else {
+      content = r?.content ?? r?.htmlResult ?? r?.html ?? r?.text ?? result;
+    }
     let htmlContent = this.htmlExportService.normalizeIncomingHtml(content);
     if (options.withAnswers === false) {
       htmlContent = stripAnswerKeyFromHtml(htmlContent);
