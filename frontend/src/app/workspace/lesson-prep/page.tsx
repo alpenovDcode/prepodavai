@@ -17,7 +17,7 @@ export default function LessonPrepGenerator() {
     const [topic, setTopic] = useState('')
     const [level, setLevel] = useState('5')
     const [interests, setInterests] = useState('')
-    const [generationTypes, setGenerationTypes] = useState(['lessonPlan', 'worksheet', 'quiz'])
+    const [generationTypes, setGenerationTypes] = useState<string[]>([])
 
     const [editMode, setEditMode] = useState(false)
     const iframeRef = useRef<HTMLIFrameElement>(null)
@@ -44,7 +44,6 @@ export default function LessonPrepGenerator() {
     const allGenTypes = [
         { value: 'lesson-plan', label: 'План урока' },
         { value: 'worksheet', label: 'Рабочий лист' },
-        { value: 'presentation', label: 'Структура презентации' },
         { value: 'content-adaptation', label: 'Учебный материал' },
         { value: 'quiz', label: 'Тест' }
     ]

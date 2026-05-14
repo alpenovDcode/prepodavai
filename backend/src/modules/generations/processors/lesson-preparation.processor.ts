@@ -147,7 +147,7 @@ export class LessonPreparationProcessor extends WorkerHost {
         // 2. Process images (only if not specialized HTML)
         let finalContent = sectionRawContent;
         if (!sectionRawContent.trim().startsWith('<!DOCTYPE html>')) {
-          finalContent = await this.processImageTags(sectionRawContent);
+          finalContent = await this.processImageTags(sectionRawContent, subject);
         }
 
         // 3. Format to HTML
@@ -896,59 +896,118 @@ ${interests ? `- Интересы аудитории (Интегрируй их 
       return rawOutput;
     }
 
-    const interestsStr = interests ? `Student Interests: ${interests}` : '';
+    const interestsStr = interests && interests.trim() ? interests : '—';
     const typeLabel = this.getTypeLabel(targetType);
+    const isInteractiveType = ['worksheet', 'quiz', 'game_generation'].includes(targetType);
 
     const prompt = `
-You are a WORLD-CLASS Award-Winning Educational Content Creator (History Channel / Discovery Style).
-Your name is "PrepodavAI Genius".
-Your goal is to create a **"WOW-EFFECT" ${typeLabel}** that is deeply engaging, narrative-driven, and visually structured.
+<MAIN_TOPIC>${topic || '—'}</MAIN_TOPIC>
+<SUBJECT>${subject || '—'}</SUBJECT>
+<LEVEL>${level || '—'}</LEVEL>
+<INTERESTS>${interestsStr}</INTERESTS>
+<SECTION_TYPE>${typeLabel}</SECTION_TYPE>
 
-**CRITICAL: LANGUAGE FORMULAS & IMAGES**
-1. **OUTPUT LANGUAGE: STRICTLY RUSSIAN (Русский язык).**
-2. **Formulas:** MUST use LaTeX format wrapped in \`\\(\` and \`\\)\` for inline and \`\\[\` and \`\\]\` for block equations. Example: \\(E=mc^2\\). STRICTLY FORBIDDEN: \`$\` and \`$$\`.
-3. **Images:** Generate prompts strictly relevant to the content. Images should support the narrative, not just be decoration.
+🎯 ГЛАВНОЕ ПРАВИЛО: ВЕСЬ контент строго и исключительно по теме <MAIN_TOPIC>${topic || '—'}</MAIN_TOPIC>.
+Не уходи в смежные темы. Не подменяй на родственную. Не давай «общий обзор предмета».
+Если параметры противоречат теме — приоритет за темой.
 
-DETAILS:
-- Subject: ${subject}
-- Topic: ${topic}
-- Target Level: ${level}
-${interestsStr}
+ПРОТОКОЛ ПЕРЕД ГЕНЕРАЦИЕЙ (выполни мысленно):
+1. Сформулируй 3–5 ключевых подпонятий темы «${topic || '—'}».
+2. Каждый блок / задание / пример должен проходить тест: «Это про <MAIN_TOPIC>?». Если нет — переделай.
 
-CONTEXT from previous sections:
-${context}
+═══ РОЛЬ И ЯЗЫК ═══
+Ты — методист, который создаёт раздел «${typeLabel}» учебного материала.
+ЯЗЫК ВЫВОДА: строго русский.
+Формулы: LaTeX в \\(...\\) для inline, \\[...\\] для блочных. ЗАПРЕЩЕНО $...$.
 
---------
-CREATIVE DIRECTION (THE "WOW" FACTOR):
-1. **ГЛУБОКОЕ ПОВЕСТВОВАНИЕ:** НЕ пиши короткие перечисления. Пиши насыщенные, детальные абзацы. Раскрывай тему как увлекательную историю. Используй вопросы и яркий язык.
-2. **EDUCATIONAL DEPTH:** Explain concepts thoroughly. If it's a "Worksheet", provide context before questions. If it's a "Lesson Plan", assume the teacher wants a script.
-3. **PERSONALIZATION:** Weave the student's interests (${interests || 'general'}) into the fabric of the explanation. Use analogies from their world.
+═══ РЕЖИМ ПОДАЧИ ПО ПРЕДМЕТУ ═══
+Определи режим по <SUBJECT>${subject || '—'}</SUBJECT> и строго следуй ему:
 
-IMAGE INSTRUCTIONS (CRITICAL):
-- Act as an Art Director. Insert image placeholders where they enhance the story.
-- **Format:** [IMAGE: <style description> | <detailed visual prompt>]
-- **Styles:** "Historical reconstruction", "Scientific diagram", "Atmospheric concept art", "Minimalist vector".
-- **Rule:** Images should NOT be generic. If talking about Caesar, the image must show Caesar crossing the Rubicon, not just a Roman helmet.
-- **Limit:** 2-3 high-quality images per section.
-- **Text in images:** If needed, specify "Russian text".
+[STEM] — математика, физика, информатика, химия, алгебра, геометрия:
+  - Структура: определение → разобранный пример → контрпример → практика.
+  - Ясность важнее драмы. Никаких «эпичных» сцен.
+  - Формулы — через MathJax (см. выше), НЕ картинками.
+  - Изображения вызывай ТОЛЬКО для метафор «концепт через предмет реального мира»
+    (пицца для дробей, поезд для задач на движение, исторические сцены).
+  - Если нужны формулы, графики, геометрические фигуры, таблицы, координатные плоскости —
+    используй HTML/SVG/MathJax напрямую, НЕ [IMAGE-...].
 
-STRUCTURE & FORMATTING:
-- Use Markdown.
-- **Headings:** Intriguing and descriptive.
-- **Body:** Use a mix of long-form text (story) and structured elements (tables, lists) where appropriate.
-- **Layout:** Alternate between Text and Images to create a magazine-like flow.
+[NARRATIVE] — история, обществознание, география, биология:
+  - Структура: сторителлинг + сцена + причинно-следственные связи.
+  - Изображения: реалистичные сцены, реконструкции, иллюстрации.
+  - Карты и схемы — через [IMAGE-DIAGRAM].
 
-ИНТЕРАКТИВНЫЕ ПОЛЯ (ОБЯЗАТЕЛЬНО если тип — quiz, test, worksheet, задание):
-Если создаёшь задание или тест — используй HTML <input> и <textarea> вместо ___ и пустых строк.
+[TEXTUAL] — языки, литература:
+  - Структура: контекстные примеры, аутентичные тексты, диалоги.
+  - Изображения: атмосферные сцены, портреты через [IMAGE-SCENE].
+
+═══ ПОДАЧА (когнитивная нагрузка) ═══
+- Чанк = 2–4 предложения, не больше. Один концепт = один чанк.
+- Каждый новый концепт сопровождай ОДНИМ конкретным примером ПЕРЕД абстрактным определением (worked-example).
+- Сигнальная структура: подзаголовки, маркированные списки, выделение ключевого слова через <strong>.
+- После 2–3 концептов давай мини-проверку: 1 вопрос «остановись и подумай».
+- ЗАПРЕЩЕНО: сплошные абзацы >5 предложений, обороты в духе «следует отметить, что».
+
+КОГНИТИВНЫЙ БАЛАНС (таксономия Блума):
+- ~30% — «вспомнить / понять» (определения, факты).
+- ~50% — «применить» (использовать правило в типовой ситуации).
+- ~20% — «проанализировать / оценить» (нестандартная задача, объяснить почему).
+
+═══ ПЕРСОНАЛИЗАЦИЯ через <INTERESTS> ═══
+- Используй интерес ТОЛЬКО как СТРУКТУРНУЮ АНАЛОГИЮ для незнакомого понятия,
+  и только когда аналог структурно изоморфен понятию.
+  Пример валидной: «дробь как блок Minecraft, разрезанный на части» — структура совпадает.
+  Пример невалидной: «дроби, как в Minecraft» (без объяснения связи) — это декорация, удали.
+- Максимум 1 аналогия на смысловой блок. Не превращай объяснение в фан-фик.
+- Если для понятия нет работающей аналогии в <INTERESTS> — НЕ выдумывай натянутую.
+
+═══ ИЗОБРАЖЕНИЯ — СТРОГИЕ ПРАВИЛА ═══
+1. РОВНО 1 изображение на раздел. Если контент не требует — НЕ вставляй вообще.
+2. Формат тега:
+   [IMAGE-<TYPE>: краткая подпись на русском (1 строка)
+   | English prompt: subject, style по режиму, composition, "no text, no labels, no numbers, no watermarks"]
+3. Типы:
+   - [IMAGE-DIAGRAM: ...] — схема / процесс (для NARRATIVE; для STEM — НЕ используй, делай HTML/SVG)
+   - [IMAGE-EXAMPLE: ...] — концепт через предмет реального мира
+   - [IMAGE-SCENE: ...] — нарративная сцена (для NARRATIVE / TEXTUAL)
+   - [IMAGE-COMPARISON: ...] — две сущности рядом для сравнения
+4. ЗАПРЕЩЕНО внутри изображения: любой текст, цифры, формулы, водяные знаки.
+   Все подписи — в HTML через <figcaption>, не в кадре.
+   В English prompt ВСЕГДА добавляй: "no text, no labels, no numbers, no watermarks".
+5. Composition: главный объект в правой или левой трети, минимум 30% — негативное пространство.
+6. [IMAGE-...] должен стоять В ТОМ ЖЕ смысловом блоке, что и поясняющий текст
+   (contiguity principle). Не «перед разделом» и не «в конце».
+7. Если не можешь объяснить, ЗАЧЕМ нужна именно эта картинка — не вставляй её
+   (coherence: декоративные картинки запрещены).
+
+${isInteractiveType ? `═══ ИНТЕРАКТИВНЫЕ ПОЛЯ (для quiz/worksheet — ОБЯЗАТЕЛЬНО) ═══
 - Короткий ответ: <input type="text" name="q{N}" style="border:none;border-bottom:2px solid #333;width:180px;background:transparent;font-size:inherit;" />
 - Выбор ответа: <label><input type="radio" name="q{N}" value="{x}"> вариант</label>
 - Развёрнутый ответ: <textarea name="q{N}_text" rows="3" style="width:100%;border:1px solid #ccc;padding:6px;font-family:inherit;"></textarea>
-Ответы/ключ оберни в: <div class="teacher-answers-only" style="margin-top:40px;padding-top:20px;border-top:2px dashed #999;page-break-before:always;"><h2 style="color:#cc0000;">Ответы (для учителя)</h2>...</div>
+- Подчёркивания (____) и точки (....) ЗАПРЕЩЕНЫ.
+- Ключ ответов оборачивай в: <div class="teacher-answers-only" style="margin-top:40px;padding-top:20px;border-top:2px dashed #999;page-break-before:always;"><h2 style="color:#cc0000;">Ответы (для учителя)</h2>...</div>` : `═══ БЕЗ ИНТЕРАКТИВНЫХ ПОЛЕЙ ═══
+Это материал для чтения, не рабочий лист.
+Не вставляй <input>, <textarea>, чек-боксы — ученик не будет вводить ответы в этот раздел.`}
 
-OUTPUT GOAL:
-Create the content for **${typeLabel}** in Russian.
-Make it immersive. Make it detailed. Make it beautiful.
---------
+═══ КОНТЕКСТ из предыдущих разделов ═══
+${context || '(первый раздел — без контекста)'}
+
+═══ ФОРМАТ ВЫВОДА ═══
+- Markdown с HTML-вставками (для интерактива, изображений).
+- Заголовки: ## Раздел, ### Подраздел.
+- Выделение ключевого слова: <strong>.
+
+═══ ⚠️ САМОПРОВЕРКА (перед выводом) ═══
+□ Для каждого блока: «Это именно про <MAIN_TOPIC>${topic || '—'}</MAIN_TOPIC>, а не про смежную тему?». Если нет — перепиши.
+□ ≥ 80% контента прямо опирается на ключевые понятия темы.
+□ Каждый чанк ≤ 4 предложений, нет длинных академических абзацев.
+□ Worked-example в каждом концепте (пример ПЕРЕД определением).
+□ Когнитивный баланс ≈ 30/50/20 по Блуму.
+□ Изображение — РОВНО 1 или 0. Без текста в кадре. С figcaption-подписью.
+□ ${isInteractiveType ? 'Все поля для ответов — <input>/<textarea>, не подчёркивания.' : 'Никаких <input>/<textarea>.'}
+□ Все формулы — в MathJax \\(...\\) или \\[...\\], не в $...$.
+
+ЦЕЛЬ: ученик ${level || '—'} класса должен понять то, что вчера не понимал. Engagement — средство, не цель.
 `;
 
     const prediction = await this.runReplicatePrediction('google/gemini-3-flash', {
@@ -967,51 +1026,53 @@ Make it immersive. Make it detailed. Make it beautiful.
     return rawOutput;
   }
 
-  private async processImageTags(content: string): Promise<string> {
-    const imageRegex = /\[IMAGE:\s*(.*?)\]/g;
-    let match;
+  private async processImageTags(content: string, subject?: string): Promise<string> {
+    // Supports both legacy [IMAGE: ...] and new tagged [IMAGE-TYPE: ...] formats.
+    // [\s\S] allows multi-line content inside brackets.
+    const imageRegex = /\[IMAGE(?:-([A-Z]+))?:\s*([\s\S]*?)\]/g;
+    let match: RegExpExecArray | null;
     let newContent = content;
 
-    // We find all matches first
-    const matches: { full: string; content: string }[] = [];
+    const matches: { full: string; type: string | null; raw: string }[] = [];
     while ((match = imageRegex.exec(content)) !== null) {
-      matches.push({ full: match[0], content: match[1] });
+      matches.push({ full: match[0], type: match[1] || null, raw: match[2] });
     }
 
-    // Process strictly max 1 image to save time
+    // Hard cap: 1 image per section (cost/time + matches the prompt instruction).
     for (let i = 0; i < matches.length; i++) {
       const m = matches[i];
 
       if (i >= 1) {
-        // Remove extra image tags
         newContent = newContent.replace(m.full, '');
         continue;
       }
 
       try {
-        // Handle "Style | Prompt" format
-        let finalPrompt = m.content;
-        const parts = m.content.split('|');
-        if (parts.length > 1) {
-          const style = parts[0].trim();
-          const prompt = parts.slice(1).join('|').trim();
-          finalPrompt = `${style}, ${prompt}, high quality, detailed, 4k`;
-        } else {
-          finalPrompt = `${m.content}, high quality, educational illustration`;
+        // Format: "Russian caption | English prompt" — split on FIRST pipe only.
+        const pipeIdx = m.raw.indexOf('|');
+        let caption = '';
+        let promptText = m.raw.trim();
+        if (pipeIdx !== -1) {
+          caption = m.raw.slice(0, pipeIdx).trim();
+          promptText = m.raw.slice(pipeIdx + 1).trim();
         }
 
-        const imageUrl = await this.generateImage(finalPrompt);
+        // Belt-and-suspenders: enforce "no text in image" even if the model forgets.
+        if (!/no text/i.test(promptText)) {
+          promptText = `${promptText}, no text, no labels, no numbers, no watermarks`;
+        }
 
-        // Enhanced HTML for image
-        const imageHtml = `
-                <div class="generated-image-container">
-                    <img src="${imageUrl}" alt="${finalPrompt}" />
-                </div>`;
+        const aspectRatio = this.getAspectRatioForType(m.type);
+        const imageUrl = await this.generateImage(promptText, { aspectRatio, subject });
+
+        const altText = this.escapeHtml(caption || promptText.slice(0, 120));
+        const imageHtml = caption
+          ? `<figure class="generated-image-container"><img src="${imageUrl}" alt="${altText}" /><figcaption>${this.escapeHtml(caption)}</figcaption></figure>`
+          : `<div class="generated-image-container"><img src="${imageUrl}" alt="${altText}" /></div>`;
 
         newContent = newContent.replace(m.full, imageHtml);
       } catch (e) {
-        this.logger.error(`Failed to generate image for prompt "${m.content}": ${e}`);
-        // Remove failed tags or show error (removing is cleaner for production)
+        this.logger.error(`Failed to generate image for prompt "${m.raw.slice(0, 100)}": ${e}`);
         newContent = newContent.replace(m.full, '');
       }
     }
@@ -1019,10 +1080,48 @@ Make it immersive. Make it detailed. Make it beautiful.
     return newContent;
   }
 
-  private async generateImage(imagePrompt: string): Promise<string> {
+  private getAspectRatioForType(type: string | null): string {
+    switch (type) {
+      case 'DIAGRAM':
+        return '1:1';
+      case 'SCENE':
+      case 'COMPARISON':
+        return '16:9';
+      case 'EXAMPLE':
+      default:
+        return '4:3';
+    }
+  }
+
+  private escapeHtml(str: string): string {
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  private getNegativePrompt(subject?: string): string {
+    const base =
+      'text, letters, numbers, watermark, signature, labels, captions, low quality, distorted, deformed, blurry, ugly';
+    if (!subject) return base;
+    const s = subject.toLowerCase();
+    const isMath = ['матема', 'физи', 'информ', 'хими', 'алгебра', 'геомет', 'math', 'physic', 'chem']
+      .some((k) => s.includes(k));
+    return isMath
+      ? `${base}, mathematical symbols, equations written, formulas, cluttered composition`
+      : base;
+  }
+
+  private async generateImage(
+    imagePrompt: string,
+    options?: { aspectRatio?: string; subject?: string },
+  ): Promise<string> {
     const prediction = await this.runReplicatePrediction('bytedance/seedream-4', {
       prompt: imagePrompt,
-      aspect_ratio: '4:3',
+      negative_prompt: this.getNegativePrompt(options?.subject),
+      aspect_ratio: options?.aspectRatio || '4:3',
     });
 
     if (Array.isArray(prediction.output) && prediction.output.length > 0) {
