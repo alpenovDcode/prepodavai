@@ -228,6 +228,9 @@ export class GenerationsService {
         videoUrl: videoUrl,
         videoHash: originalVideoPath, // Keep hash for deletion
         analysisType: inputParams.analysisType || 'methodological',
+        // Опционально: id записи дневника учителя, если анализ запущен из дневника —
+        // тогда после успешной генерации заполним пустые поля записи (тема/цели/...).
+        diaryEntryId: inputParams.diaryEntryId,
       });
 
       return {

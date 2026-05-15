@@ -656,6 +656,7 @@ model TeacherDiaryEntry {
   notes                String?   // Заметки / наблюдения
   recordingUrl         String?   // Ссылка на запись (Yandex.Disk)
   analysisGenerationId String?   // generationRequestId из UserGeneration — методический анализ
+  aiFilledFields       String[]  @default([]) // Какие поля заполнены AI (topic/goals/covered/homework/notes)
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 

@@ -126,6 +126,9 @@ export class TeacherDiaryService {
       inputParams: {
         fileUrl: entry.recordingUrl,
         analysisType: 'methodological',
+        // Помечаем источник, чтобы processor после анализа дозаполнил
+        // пустые поля дневника (тема/цели/что пройдено/ДЗ/заметки).
+        diaryEntryId: id,
       },
     });
 

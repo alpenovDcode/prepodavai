@@ -15,6 +15,12 @@ export interface VideoAnalysisJobData {
   videoHash: string;
   videoUrl: string; // Public URL resolved by service
   analysisType: 'sales' | 'methodological'; // 'sales' or 'methodological'
+  /**
+   * Если задано — анализ запущен из дневника учителя; после успешной транскрибации
+   * заполним пустые поля записи (тема/цели/что пройдено/ДЗ/заметки) через дополнительный
+   * LLM-вызов на транскрипте. Уже заполненные поля учителя не трогаем.
+   */
+  diaryEntryId?: string;
 }
 
 @Processor('video-analysis')
@@ -37,7 +43,7 @@ export class VideoAnalysisProcessor extends WorkerHost {
   }
 
   async process(job: Job<VideoAnalysisJobData>): Promise<void> {
-    const { generationRequestId, videoUrl, videoHash, analysisType } = job.data;
+    const { generationRequestId, videoUrl, videoHash, analysisType, diaryEntryId } = job.data;
     this.logger.log(`Processing Video Analysis for ${generationRequestId} (${analysisType})`);
 
     // Fetch userId to comply with FilesService security requirements
@@ -235,6 +241,18 @@ export class VideoAnalysisProcessor extends WorkerHost {
           { title: 'Транскрибация', content: transcript },
         ],
       });
+
+      // 4.5. Если анализ запущен из дневника учителя — попробовать дозаполнить
+      // пустые поля записи. Изолировано в try, чтобы провал не зафейлил весь анализ.
+      if (diaryEntryId) {
+        try {
+          await this.fillDiaryFromTranscript(diaryEntryId, transcript);
+        } catch (extractErr: any) {
+          this.logger.warn(
+            `Diary auto-fill failed for ${diaryEntryId}: ${extractErr.message}`,
+          );
+        }
+      }
 
       // 5. Cleanup - Delete video from server after successful analysis
       if (videoHash && !videoHash.startsWith('http')) {
@@ -438,6 +456,96 @@ return this.runReplicatePrediction('google/gemini-3-flash', {
   prompt: userPrompt,
   max_tokens: 10000,
 });
+  }
+
+  /**
+   * После успешной транскрибации заполняет пустые поля записи дневника (тема,
+   * цели, что пройдено, ДЗ, заметки), извлекая их из транскрипта одним LLM-вызовом
+   * с JSON-выходом. УЖЕ заполненные учителем поля не перезаписываются.
+   * Имена применённых полей сохраняются в `aiFilledFields`, чтобы UI мог их пометить.
+   */
+  private async fillDiaryFromTranscript(diaryEntryId: string, transcript: string): Promise<void> {
+    const entry = await this.prisma.teacherDiaryEntry.findUnique({ where: { id: diaryEntryId } });
+    if (!entry) return;
+
+    const targetFields = ['topic', 'goals', 'covered', 'homework', 'notes'] as const;
+    const emptyFields = targetFields.filter((f) => !((entry as any)[f] && String((entry as any)[f]).trim()));
+    if (emptyFields.length === 0) {
+      this.logger.log(`Diary entry ${diaryEntryId}: no empty fields to fill, skipping AI extraction`);
+      return;
+    }
+
+    const extractorPrompt = `Извлеки структурированную информацию об уроке из транскрипта ниже.
+Верни СТРОГО валидный JSON без markdown-обёрток (без \`\`\`json), без пояснений до или после.
+
+Схема JSON:
+{
+  "topic": string | null,      // тема урока — одна короткая фраза (до 80 символов)
+  "goals": string | null,      // цели урока — 1-2 предложения, чему ученик должен научиться
+  "covered": string | null,    // что было пройдено — буллит-список через перенос строки (- пункт1\\n- пункт2)
+  "homework": string | null,   // домашнее задание — если упоминалось; иначе null
+  "notes": string | null       // наблюдения о работе ученика — 1-2 предложения; что получилось, что нет
+}
+
+ВАЖНО:
+- Если поля нет в уроке — ставь null, НЕ выдумывай.
+- Пиши на русском.
+- Если урок очень короткий или это не урок — все поля могут быть null.
+- Не добавляй пояснений, только JSON.
+
+ТРАНСКРИПТ:
+${transcript.substring(0, 25000)}`;
+
+    let raw = '';
+    try {
+      raw = await this.runReplicatePrediction('google/gemini-3-flash', {
+        prompt: extractorPrompt,
+        max_tokens: 1500,
+      });
+    } catch (e: any) {
+      this.logger.warn(`Diary extractor LLM call failed: ${e.message}`);
+      return;
+    }
+
+    // Извлекаем JSON из ответа (на случай если модель прислала что-то вокруг).
+    const jsonMatch = raw.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      this.logger.warn(`Diary extractor returned no JSON block. Raw start: ${raw.slice(0, 200)}`);
+      return;
+    }
+
+    let parsed: any;
+    try {
+      parsed = JSON.parse(jsonMatch[0]);
+    } catch (e: any) {
+      this.logger.warn(`Diary extractor JSON parse failed: ${e.message}`);
+      return;
+    }
+
+    // Применяем только к пустым полям. Собираем список реально применённых.
+    const patch: Record<string, string> = {};
+    const filled: string[] = [];
+    for (const f of emptyFields) {
+      const v = parsed[f];
+      if (typeof v === 'string' && v.trim()) {
+        patch[f] = v.trim();
+        filled.push(f);
+      }
+    }
+    if (filled.length === 0) {
+      this.logger.log(`Diary entry ${diaryEntryId}: extractor returned nothing usable`);
+      return;
+    }
+
+    const existingAi = Array.isArray(entry.aiFilledFields) ? entry.aiFilledFields : [];
+    // Дедуп: если поле ранее уже было помечено AI — оставляем метку.
+    const mergedAiFlags = Array.from(new Set([...existingAi, ...filled]));
+
+    await this.prisma.teacherDiaryEntry.update({
+      where: { id: diaryEntryId },
+      data: { ...patch, aiFilledFields: mergedAiFlags },
+    });
+    this.logger.log(`Diary entry ${diaryEntryId} auto-filled fields: ${filled.join(', ')}`);
   }
 
   private async runReplicatePrediction(version: string, input: any): Promise<string> {

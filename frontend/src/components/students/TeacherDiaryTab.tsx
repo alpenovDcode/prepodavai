@@ -25,6 +25,8 @@ interface DiaryEntry {
     analysisGenerationId: string | null
     analysisStatus: 'pending' | 'completed' | 'failed' | null
     analysisError: string | null
+    /** Какие поля заполнил AI после видеоанализа — для подсветки «✨ из анализа» */
+    aiFilledFields?: string[] | null
     class?: { id: string; name: string } | null
     student?: { id: string; name: string } | null
 }
@@ -132,8 +134,18 @@ export default function TeacherDiaryTab() {
         }
     }
 
+    const AI_FILLABLE: ReadonlyArray<keyof DiaryEntry> = ['topic', 'goals', 'covered', 'homework', 'notes']
+
     const updateField = useCallback((id: string, field: keyof DiaryEntry, value: any) => {
-        setEntries(prev => prev.map(e => (e.id === id ? { ...e, [field]: value } : e)))
+        // Если учитель руками изменил поле, заполненное AI — снимаем с него значок ✨.
+        setEntries(prev => prev.map(e => {
+            if (e.id !== id) return e
+            const next: DiaryEntry = { ...e, [field]: value }
+            if (AI_FILLABLE.includes(field) && e.aiFilledFields?.includes(field as string)) {
+                next.aiFilledFields = e.aiFilledFields.filter(f => f !== field)
+            }
+            return next
+        }))
 
         const prevTimer = debounceTimers.current.get(id)
         if (prevTimer) clearTimeout(prevTimer)
@@ -267,6 +279,7 @@ function DiaryCard({
     const status = entry.analysisStatus
     const className = classes.find(c => c.id === entry.classId)?.name
     const studentName = studentsForClass(entry.classId).find(s => s.id === entry.studentId)?.name
+    const aiFilled = new Set(entry.aiFilledFields || [])
 
     return (
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
@@ -341,7 +354,7 @@ function DiaryCard({
 
                     {/* Ряд 2 — Тема + Цели */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <Field label="Тема урока" icon={<BookOpen className="w-3.5 h-3.5" />}>
+                        <Field label="Тема урока" icon={<BookOpen className="w-3.5 h-3.5" />} aiFilled={aiFilled.has('topic')}>
                             <textarea
                                 value={entry.topic || ''}
                                 onChange={e => onUpdate(entry.id, 'topic', e.target.value)}
@@ -350,7 +363,7 @@ function DiaryCard({
                                 className="diary-input resize-y"
                             />
                         </Field>
-                        <Field label="Цели урока" icon={<Target className="w-3.5 h-3.5" />}>
+                        <Field label="Цели урока" icon={<Target className="w-3.5 h-3.5" />} aiFilled={aiFilled.has('goals')}>
                             <textarea
                                 value={entry.goals || ''}
                                 onChange={e => onUpdate(entry.id, 'goals', e.target.value)}
@@ -363,7 +376,7 @@ function DiaryCard({
 
                     {/* Ряд 3 — Что пройдено + ДЗ */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <Field label="Что пройдено" icon={<ListChecks className="w-3.5 h-3.5" />}>
+                        <Field label="Что пройдено" icon={<ListChecks className="w-3.5 h-3.5" />} aiFilled={aiFilled.has('covered')}>
                             <textarea
                                 value={entry.covered || ''}
                                 onChange={e => onUpdate(entry.id, 'covered', e.target.value)}
@@ -372,7 +385,7 @@ function DiaryCard({
                                 className="diary-input resize-y"
                             />
                         </Field>
-                        <Field label="Домашнее задание" icon={<Home className="w-3.5 h-3.5" />}>
+                        <Field label="Домашнее задание" icon={<Home className="w-3.5 h-3.5" />} aiFilled={aiFilled.has('homework')}>
                             <textarea
                                 value={entry.homework || ''}
                                 onChange={e => onUpdate(entry.id, 'homework', e.target.value)}
@@ -384,7 +397,7 @@ function DiaryCard({
                     </div>
 
                     {/* Ряд 4 — Заметки на всю ширину */}
-                    <Field label="Заметки и наблюдения" icon={<FileText className="w-3.5 h-3.5" />}>
+                    <Field label="Заметки и наблюдения" icon={<FileText className="w-3.5 h-3.5" />} aiFilled={aiFilled.has('notes')}>
                         <textarea
                             value={entry.notes || ''}
                             onChange={e => onUpdate(entry.id, 'notes', e.target.value)}
@@ -451,12 +464,25 @@ function DiaryCard({
     )
 }
 
-function Field({ label, icon, children }: { label: string; icon?: React.ReactNode; children: React.ReactNode }) {
+function Field({ label, icon, children, aiFilled }: {
+    label: string
+    icon?: React.ReactNode
+    children: React.ReactNode
+    aiFilled?: boolean
+}) {
     return (
         <label className="block">
             <div className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-600 uppercase tracking-wider mb-1.5">
                 {icon}
                 <span>{label}</span>
+                {aiFilled && (
+                    <span
+                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-pink-50 text-pink-700 text-[9px] tracking-wide normal-case"
+                        title="Поле заполнено автоматически из методического анализа — проверьте и при необходимости поправьте"
+                    >
+                        <Sparkles className="w-2.5 h-2.5" /> из анализа
+                    </span>
+                )}
             </div>
             {children}
             <style jsx>{`
