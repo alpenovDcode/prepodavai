@@ -59,7 +59,8 @@
     "puppeteer": "^23.11.1",
     "reflect-metadata": "^0.1.13",
     "rxjs": "^7.8.1",
-    "sanitize-html": "^2.17.1"
+    "sanitize-html": "^2.17.1",
+    "uuid": "^10.0.0"
   },
   "devDependencies": {
     "@nestjs/cli": "^10.2.1",
@@ -78,6 +79,7 @@
     "@types/passport-jwt": "^4.0.0",
     "@types/passport-local": "^1.0.38",
     "@types/sanitize-html": "^2.16.1",
+    "@types/uuid": "^10.0.0",
     "@typescript-eslint/eslint-plugin": "^6.17.0",
     "@typescript-eslint/parser": "^6.17.0",
     "dotenv": "^17.2.3",
