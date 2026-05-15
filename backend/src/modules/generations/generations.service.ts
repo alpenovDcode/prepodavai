@@ -1092,8 +1092,8 @@ export class GenerationsService {
       sales_advisor: 'sales_advisor',
       assistant: 'message',
       game_generation: 'game_generation',
-      lessonPreparation: 'lesson_plan',
-      lesson_preparation: 'lesson_plan',
+      lessonPreparation: 'lesson_preparation',
+      lesson_preparation: 'lesson_preparation',
     };
 
     return map[generationType] || 'text_generation';

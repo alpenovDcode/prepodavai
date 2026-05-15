@@ -11,6 +11,7 @@ export type OperationType =
   | 'quiz'
   | 'vocabulary'
   | 'lesson_plan'
+  | 'lesson_preparation'
   | 'feedback'
   | 'content_adaptation'
   | 'message'

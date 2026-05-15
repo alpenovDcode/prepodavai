@@ -716,34 +716,55 @@ ${interests ? `- Интересы аудитории (Интегрируй их 
   }
 
   /**
-   * Конвертирует markdown в HTML через marked + GFM.
-   * Перед парсингом «прячет» MathJax-сегменты (\(...\), \[...\], $$...$$) под
-   * плейсхолдеры — иначе marked трактует `\(` как escape-последовательность
-   * и съедает обратные слеши, ломая формулы.
+   * Превращает вывод модели в HTML. Робастно работает с тремя сценариями:
+   *  1) Чистый markdown — рендерим через marked (GFM).
+   *  2) Markdown + inline HTML-вставки — то же.
+   *  3) Чистый HTML, который модель иногда оборачивает в ```html-fence``` —
+   *     fence снимаем и пропускаем как готовый HTML, БЕЗ marked
+   *     (иначе marked экранирует `<` и показывает голый HTML как текст).
+   * Дополнительно защищает MathJax-сегменты \(...\), \[...\], $$...$$
+   * от того, чтобы marked съел обратные слеши при escape-обработке.
    */
   private renderMarkdownToHtml(md: string): string {
     if (!md) return '';
+
+    // 0. Снимаем обёрточный markdown-fence, если модель завернула весь вывод в ```html ... ```
+    // (типичная ошибка: модель «представляет» HTML как код).
+    let cleaned = md.trim();
+    if (/^```(?:html?|HTML)?\s*\n/.test(cleaned)) {
+      cleaned = cleaned.replace(/^```(?:html?|HTML)?\s*\n/, '');
+      cleaned = cleaned.replace(/\n?```\s*$/, '');
+    }
+
+    // 1. Прячем MathJax-сегменты ДО marked — иначе `\(` будет интерпретирован
+    // как escape-последовательность и обратный слеш потеряется.
     const mathTokens: string[] = [];
     const stash = (m: string) => {
       const idx = mathTokens.length;
       mathTokens.push(m);
       return `@@MATH${idx}@@`;
     };
-    // Порядок важен: $$...$$ и \[...\] (display) ДО \(...\) и $...$ (inline),
-    // чтобы вложенные совпадения не перехватывались inline-паттерном.
-    let working = md
+    let working = cleaned
       .replace(/\$\$[\s\S]+?\$\$/g, stash)
       .replace(/\\\[[\s\S]+?\\\]/g, stash)
       .replace(/\\\([\s\S]+?\\\)/g, stash);
 
+    // 2. Если вывод начинается с HTML-тега уровня блока — модель отдала чистый HTML.
+    // НЕ прогоняем через marked: он экранирует `<` и пользователь увидит "голый" HTML.
+    const looksLikeRawHtml = /^<(?:p|div|h[1-6]|section|article|figure|svg|table|ul|ol|main|aside|nav|header|footer|details|summary|blockquote|pre)\b/i.test(working);
+
     let html: string;
-    try {
-      html = marked.parse(working) as string;
-    } catch {
-      html = working; // fallback: лучше показать «как есть», чем 500
+    if (looksLikeRawHtml) {
+      html = working;
+    } else {
+      try {
+        html = marked.parse(working) as string;
+      } catch {
+        html = working; // fallback: лучше показать «как есть», чем 500
+      }
     }
 
-    // Возвращаем формулы обратно.
+    // 3. Возвращаем формулы обратно.
     html = html.replace(/@@MATH(\d+)@@/g, (_, n) => mathTokens[parseInt(n, 10)] ?? '');
     return html;
   }
@@ -1097,6 +1118,10 @@ ${context || '(первый раздел — без контекста)'}
 - Markdown с HTML-вставками (для интерактива, изображений).
 - Заголовки: ## Раздел, ### Подраздел.
 - Выделение ключевого слова: <strong>.
+- КРИТИЧЕСКИ ВАЖНО: ЗАПРЕЩЕНО оборачивать вывод (или его части) в markdown-код-блоки \`\`\`html ... \`\`\` или \`\`\` ... \`\`\`.
+  HTML пиши прямо в тексте, БЕЗ \`\`\`-обёрток. Не «показывай» HTML как код — выводи его как готовый рабочий HTML.
+- ЗАПРЕЩЕНО начинать строки с 4+ пробелов подряд (будет интерпретировано как код-блок).
+- Если выводишь чистый HTML (без markdown) — это ОК, просто не оборачивай в \`\`\`.
 
 ═══ ⚠️ САМОПРОВЕРКА (перед выводом) ═══
 □ Для каждого блока: «Это именно про <MAIN_TOPIC>${topic || '—'}</MAIN_TOPIC>, а не про смежную тему?». Если нет — перепиши.
