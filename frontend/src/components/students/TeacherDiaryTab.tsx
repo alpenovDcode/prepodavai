@@ -4,7 +4,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { apiClient } from '@/lib/api/client'
 import {
     Plus, Trash2, Loader2, CheckCircle2, AlertTriangle,
-    Sparkles, Link as LinkIcon, X, ExternalLink,
+    Sparkles, Link as LinkIcon, X, ExternalLink, Calendar,
+    BookOpen, Users, Target, ListChecks, Home, FileText,
+    ChevronDown, ChevronUp,
 } from 'lucide-react'
 import DOMPurify from 'isomorphic-dompurify'
 import { ensureMathJaxInHtml } from '@/lib/utils/ensureMathJax'
@@ -28,7 +30,7 @@ interface DiaryEntry {
 }
 
 interface ClassOption { id: string; name: string }
-interface StudentOption { id: string; name: string; class: { name: string } }
+interface StudentOption { id: string; name: string; class: { id?: string; name: string }; classId?: string }
 
 const YANDEX_RE = /^https?:\/\/(disk\.yandex\.[a-z.]+|yadi\.sk)\//i
 
@@ -41,6 +43,7 @@ export default function TeacherDiaryTab() {
     const [analyzingIds, setAnalyzingIds] = useState<Set<string>>(new Set())
     const [viewerHtml, setViewerHtml] = useState<string | null>(null)
     const [error, setError] = useState<string | null>(null)
+    const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
     const debounceTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
 
     const fetchAll = useCallback(async () => {
@@ -64,22 +67,22 @@ export default function TeacherDiaryTab() {
         fetchAll()
     }, [fetchAll])
 
-    // Авто-поллинг записей с pending-анализами, пока они не завершатся
+    // Авто-поллинг, пока есть pending-анализы
     useEffect(() => {
         const hasPending = entries.some(e => e.analysisStatus === 'pending')
         if (!hasPending) return
         const t = setInterval(() => {
-            apiClient.get<DiaryEntry[]>('/teacher-diary').then(r => setEntries(r.data)).catch(() => {})
+            apiClient.get<DiaryEntry[]>('/teacher-diary').then(r => setEntries(r.data)).catch(() => { })
         }, 8000)
         return () => clearInterval(t)
     }, [entries])
 
     const handleCreate = async () => {
         try {
-            await apiClient.post<DiaryEntry>('/teacher-diary', {
-                date: new Date().toISOString(),
-            })
-            fetchAll()
+            const res = await apiClient.post<DiaryEntry>('/teacher-diary', { date: new Date().toISOString() })
+            // Новую запись разворачиваем сразу — учитель её будет заполнять
+            setExpandedIds(prev => new Set(prev).add(res.data.id))
+            await fetchAll()
         } catch (e: any) {
             setError(e?.response?.data?.message || 'Не удалось создать запись')
         }
@@ -121,7 +124,9 @@ export default function TeacherDiaryTab() {
             const res = await apiClient.get(`/generate/${entry.analysisGenerationId}`)
             const r = res.data as any
             const html = r?.result?.htmlResult || r?.result?.html || r?.result?.content || ''
-            setViewerHtml(html || '<p>Результат пуст.</p>')
+            setViewerHtml(typeof html === 'string' && html.trim()
+                ? html
+                : '<div style="padding:40px;font-family:sans-serif;color:#666;">Результат пуст — анализ ещё формируется или не вернул HTML.</div>')
         } catch (e: any) {
             setError('Не удалось загрузить результат')
         }
@@ -130,7 +135,6 @@ export default function TeacherDiaryTab() {
     const updateField = useCallback((id: string, field: keyof DiaryEntry, value: any) => {
         setEntries(prev => prev.map(e => (e.id === id ? { ...e, [field]: value } : e)))
 
-        // Debounce: одна запись = один таймер. Перебиваем предыдущий.
         const prevTimer = debounceTimers.current.get(id)
         if (prevTimer) clearTimeout(prevTimer)
         const timer = setTimeout(async () => {
@@ -152,9 +156,18 @@ export default function TeacherDiaryTab() {
     }, [])
 
     const studentsForClass = useCallback(
-        (classId: string | null) => students.filter(s => !classId || (s as any).class?.id === classId || (s as any).classId === classId),
+        (classId: string | null) => students.filter(s => !classId || s.classId === classId || s.class?.id === classId),
         [students],
     )
+
+    const toggleExpand = (id: string) => {
+        setExpandedIds(prev => {
+            const next = new Set(prev)
+            if (next.has(id)) next.delete(id)
+            else next.add(id)
+            return next
+        })
+    }
 
     if (loading) {
         return <div className="dashboard-card text-center py-12 text-gray-400 text-sm">Загружаем дневник…</div>
@@ -164,7 +177,7 @@ export default function TeacherDiaryTab() {
         <div className="space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div className="text-sm text-gray-600">
-                    <span className="font-semibold text-gray-900">{entries.length}</span> {entries.length === 1 ? 'запись' : 'записей'} в дневнике
+                    <span className="font-semibold text-gray-900">{entries.length}</span> {pluralize(entries.length, ['запись', 'записи', 'записей'])} в дневнике
                 </div>
                 <button
                     onClick={handleCreate}
@@ -186,51 +199,31 @@ export default function TeacherDiaryTab() {
 
             {entries.length === 0 ? (
                 <div className="dashboard-card text-center py-16">
-                    <div className="text-gray-400 text-sm mb-3">Дневник пока пуст</div>
-                    <p className="text-xs text-gray-400 max-w-md mx-auto">
+                    <FileText className="w-12 h-12 text-gray-200 mx-auto mb-3" />
+                    <div className="text-gray-700 text-base font-semibold mb-2">Дневник пока пуст</div>
+                    <p className="text-sm text-gray-500 max-w-md mx-auto">
                         Каждая запись — это один проведённый урок: тема, цели, ДЗ, заметки.
-                        Прикрепите ссылку на запись с Яндекс.Диска — и Преподавай сам проведёт методический анализ.
+                        Прикрепите ссылку на запись с Яндекс.Диска — Преподавай сам проведёт методический анализ.
                     </p>
                 </div>
             ) : (
-                <div className="dashboard-card overflow-x-auto p-0">
-                    <table className="w-full text-sm min-w-[1200px]">
-                        <thead>
-                            <tr className="text-left text-[11px] text-gray-500 uppercase tracking-wider border-b border-gray-100 bg-gray-50/50">
-                                <th className="px-3 py-3 w-28">Дата</th>
-                                <th className="px-3 py-3 w-40">Класс / Ученик</th>
-                                <th className="px-3 py-3 w-44">Тема</th>
-                                <th className="px-3 py-3 w-44">Цели</th>
-                                <th className="px-3 py-3 w-44">Что пройдено</th>
-                                <th className="px-3 py-3 w-44">Домашнее задание</th>
-                                <th className="px-3 py-3 w-44">Заметки</th>
-                                <th className="px-3 py-3 w-56">
-                                    Ссылка на запись
-                                    <div className="text-[10px] normal-case text-gray-400 font-normal mt-0.5">
-                                        Только Яндекс.Диск
-                                    </div>
-                                </th>
-                                <th className="px-3 py-3 w-40">Результат анализа</th>
-                                <th className="px-2 py-3 w-10"></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {entries.map(entry => (
-                                <DiaryRow
-                                    key={entry.id}
-                                    entry={entry}
-                                    classes={classes}
-                                    studentsForClass={studentsForClass}
-                                    saving={savingIds.has(entry.id)}
-                                    analyzing={analyzingIds.has(entry.id)}
-                                    onUpdate={updateField}
-                                    onDelete={handleDelete}
-                                    onAnalyze={handleAnalyze}
-                                    onOpenResult={handleOpenResult}
-                                />
-                            ))}
-                        </tbody>
-                    </table>
+                <div className="space-y-3">
+                    {entries.map(entry => (
+                        <DiaryCard
+                            key={entry.id}
+                            entry={entry}
+                            classes={classes}
+                            studentsForClass={studentsForClass}
+                            saving={savingIds.has(entry.id)}
+                            analyzing={analyzingIds.has(entry.id)}
+                            expanded={expandedIds.has(entry.id)}
+                            onToggle={() => toggleExpand(entry.id)}
+                            onUpdate={updateField}
+                            onDelete={handleDelete}
+                            onAnalyze={handleAnalyze}
+                            onOpenResult={handleOpenResult}
+                        />
+                    ))}
                 </div>
             )}
 
@@ -241,144 +234,273 @@ export default function TeacherDiaryTab() {
     )
 }
 
-interface RowProps {
+interface CardProps {
     entry: DiaryEntry
     classes: ClassOption[]
     studentsForClass: (classId: string | null) => StudentOption[]
     saving: boolean
     analyzing: boolean
+    expanded: boolean
+    onToggle: () => void
     onUpdate: (id: string, field: keyof DiaryEntry, value: any) => void
     onDelete: (id: string) => void
     onAnalyze: (entry: DiaryEntry) => void
     onOpenResult: (entry: DiaryEntry) => void
 }
 
-function DiaryRow({ entry, classes, studentsForClass, saving, analyzing, onUpdate, onDelete, onAnalyze, onOpenResult }: RowProps) {
+function DiaryCard({
+    entry, classes, studentsForClass,
+    saving, analyzing, expanded,
+    onToggle, onUpdate, onDelete, onAnalyze, onOpenResult,
+}: CardProps) {
     const dateStr = useMemo(() => {
+        try { return new Date(entry.date).toISOString().slice(0, 10) } catch { return '' }
+    }, [entry.date])
+
+    const dateLabel = useMemo(() => {
         try {
-            return new Date(entry.date).toISOString().slice(0, 10)
-        } catch {
-            return ''
-        }
+            return new Date(entry.date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })
+        } catch { return '—' }
     }, [entry.date])
 
     const urlValid = !entry.recordingUrl || YANDEX_RE.test(entry.recordingUrl)
     const status = entry.analysisStatus
+    const className = classes.find(c => c.id === entry.classId)?.name
+    const studentName = studentsForClass(entry.classId).find(s => s.id === entry.studentId)?.name
 
     return (
-        <tr className="border-b border-gray-50 last:border-0 hover:bg-gray-50/30 transition-colors align-top">
-            <td className="px-3 py-2.5">
-                <input
-                    type="date"
-                    value={dateStr}
-                    onChange={e => onUpdate(entry.id, 'date', e.target.value)}
-                    className="w-full text-xs px-2 py-1.5 rounded-lg border border-gray-200 focus:border-primary-400 focus:ring-1 focus:ring-primary-200 outline-none"
-                />
-            </td>
-            <td className="px-3 py-2.5">
-                <select
-                    value={entry.classId || ''}
-                    onChange={e => onUpdate(entry.id, 'classId', e.target.value || null)}
-                    className="w-full text-xs px-2 py-1.5 rounded-lg border border-gray-200 mb-1 focus:border-primary-400 focus:ring-1 focus:ring-primary-200 outline-none"
-                >
-                    <option value="">— Класс —</option>
-                    {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
-                <select
-                    value={entry.studentId || ''}
-                    onChange={e => onUpdate(entry.id, 'studentId', e.target.value || null)}
-                    className="w-full text-xs px-2 py-1.5 rounded-lg border border-gray-200 focus:border-primary-400 focus:ring-1 focus:ring-primary-200 outline-none"
-                >
-                    <option value="">— Ученик —</option>
-                    {studentsForClass(entry.classId).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                </select>
-            </td>
-            <CellTextarea value={entry.topic} onChange={v => onUpdate(entry.id, 'topic', v)} placeholder="Тема урока" />
-            <CellTextarea value={entry.goals} onChange={v => onUpdate(entry.id, 'goals', v)} placeholder="Цели" />
-            <CellTextarea value={entry.covered} onChange={v => onUpdate(entry.id, 'covered', v)} placeholder="Что пройдено" />
-            <CellTextarea value={entry.homework} onChange={v => onUpdate(entry.id, 'homework', v)} placeholder="Домашнее задание" />
-            <CellTextarea value={entry.notes} onChange={v => onUpdate(entry.id, 'notes', v)} placeholder="Наблюдения" />
-
-            {/* Ссылка на запись */}
-            <td className="px-3 py-2.5">
-                <div className="relative">
-                    <LinkIcon className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
-                    <input
-                        type="url"
-                        value={entry.recordingUrl || ''}
-                        onChange={e => onUpdate(entry.id, 'recordingUrl', e.target.value || null)}
-                        placeholder="https://disk.yandex.ru/i/..."
-                        className={`w-full text-xs pl-7 pr-2 py-1.5 rounded-lg border outline-none focus:ring-1 ${entry.recordingUrl && !urlValid
-                            ? 'border-red-300 focus:border-red-400 focus:ring-red-200'
-                            : 'border-gray-200 focus:border-primary-400 focus:ring-primary-200'}`}
-                    />
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            {/* Шапка карточки — кликабельна для сворачивания/разворачивания */}
+            <div
+                onClick={onToggle}
+                className="flex items-center justify-between px-4 sm:px-5 py-3 cursor-pointer hover:bg-gray-50 transition"
+            >
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <div className="w-10 h-10 rounded-xl bg-primary-50 text-primary-600 flex items-center justify-center flex-shrink-0">
+                        <Calendar className="w-5 h-5" />
+                    </div>
+                    <div className="min-w-0">
+                        <div className="font-semibold text-gray-900 text-sm sm:text-base truncate">
+                            {entry.topic?.trim() || <span className="text-gray-400 italic">Без темы</span>}
+                        </div>
+                        <div className="text-xs text-gray-500 flex items-center gap-2 flex-wrap mt-0.5">
+                            <span>{dateLabel}</span>
+                            {className && <><span>·</span><span>{className}</span></>}
+                            {studentName && <><span>·</span><span>{studentName}</span></>}
+                        </div>
+                    </div>
                 </div>
-                {entry.recordingUrl && !urlValid && (
-                    <p className="text-[10px] text-red-600 mt-1">Нужна ссылка с Яндекс.Диска</p>
-                )}
-                {entry.recordingUrl && urlValid && (
-                    <button
-                        onClick={() => onAnalyze(entry)}
-                        disabled={analyzing || status === 'pending'}
-                        className="mt-1.5 w-full flex items-center justify-center gap-1.5 px-2 py-1 bg-pink-50 text-pink-700 rounded-md text-[11px] font-bold hover:bg-pink-100 disabled:opacity-50 transition"
-                    >
-                        {analyzing
-                            ? <><Loader2 className="w-3 h-3 animate-spin" /> Запускаем…</>
-                            : <><Sparkles className="w-3 h-3" /> {status === 'completed' ? 'Перезапустить анализ' : 'Запустить анализ'}</>}
-                    </button>
-                )}
-            </td>
 
-            {/* Результат анализа */}
-            <td className="px-3 py-2.5">
-                <StatusCell entry={entry} onOpen={() => onOpenResult(entry)} />
-            </td>
-
-            <td className="px-2 py-2.5">
-                <div className="flex flex-col gap-1 items-center">
-                    {saving && <Loader2 className="w-3 h-3 text-gray-400 animate-spin" />}
+                <div className="flex items-center gap-2 flex-shrink-0">
+                    <StatusBadge entry={entry} compact onOpen={(e) => { e.stopPropagation(); onOpenResult(entry) }} />
+                    {saving && <Loader2 className="w-3.5 h-3.5 text-gray-400 animate-spin" />}
                     <button
-                        onClick={() => onDelete(entry.id)}
-                        className="p-1 text-gray-400 hover:text-red-600 transition"
+                        onClick={e => { e.stopPropagation(); onDelete(entry.id) }}
+                        className="p-1.5 text-gray-300 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
                         title="Удалить запись"
                     >
-                        <Trash2 className="w-3.5 h-3.5" />
+                        <Trash2 className="w-4 h-4" />
                     </button>
+                    {expanded ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
                 </div>
-            </td>
-        </tr>
+            </div>
+
+            {expanded && (
+                <div className="border-t border-gray-100 p-4 sm:p-5 space-y-4 bg-gray-50/40">
+                    {/* Ряд 1 — дата + класс + ученик */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <Field label="Дата" icon={<Calendar className="w-3.5 h-3.5" />}>
+                            <input
+                                type="date"
+                                value={dateStr}
+                                onChange={e => onUpdate(entry.id, 'date', e.target.value)}
+                                className="diary-input"
+                            />
+                        </Field>
+                        <Field label="Класс" icon={<Users className="w-3.5 h-3.5" />}>
+                            <select
+                                value={entry.classId || ''}
+                                onChange={e => onUpdate(entry.id, 'classId', e.target.value || null)}
+                                className="diary-input"
+                            >
+                                <option value="">— не выбран —</option>
+                                {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                            </select>
+                        </Field>
+                        <Field label="Ученик (если индивидуально)" icon={<Users className="w-3.5 h-3.5" />}>
+                            <select
+                                value={entry.studentId || ''}
+                                onChange={e => onUpdate(entry.id, 'studentId', e.target.value || null)}
+                                className="diary-input"
+                            >
+                                <option value="">— не выбран —</option>
+                                {studentsForClass(entry.classId).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                            </select>
+                        </Field>
+                    </div>
+
+                    {/* Ряд 2 — Тема + Цели */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <Field label="Тема урока" icon={<BookOpen className="w-3.5 h-3.5" />}>
+                            <textarea
+                                value={entry.topic || ''}
+                                onChange={e => onUpdate(entry.id, 'topic', e.target.value)}
+                                placeholder="Например: Сложение дробей с разными знаменателями"
+                                rows={2}
+                                className="diary-input resize-y"
+                            />
+                        </Field>
+                        <Field label="Цели урока" icon={<Target className="w-3.5 h-3.5" />}>
+                            <textarea
+                                value={entry.goals || ''}
+                                onChange={e => onUpdate(entry.id, 'goals', e.target.value)}
+                                placeholder="Чему ученик должен научиться к концу"
+                                rows={2}
+                                className="diary-input resize-y"
+                            />
+                        </Field>
+                    </div>
+
+                    {/* Ряд 3 — Что пройдено + ДЗ */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <Field label="Что пройдено" icon={<ListChecks className="w-3.5 h-3.5" />}>
+                            <textarea
+                                value={entry.covered || ''}
+                                onChange={e => onUpdate(entry.id, 'covered', e.target.value)}
+                                placeholder="Какие темы и упражнения разобрали"
+                                rows={3}
+                                className="diary-input resize-y"
+                            />
+                        </Field>
+                        <Field label="Домашнее задание" icon={<Home className="w-3.5 h-3.5" />}>
+                            <textarea
+                                value={entry.homework || ''}
+                                onChange={e => onUpdate(entry.id, 'homework', e.target.value)}
+                                placeholder="Что задать к следующему уроку"
+                                rows={3}
+                                className="diary-input resize-y"
+                            />
+                        </Field>
+                    </div>
+
+                    {/* Ряд 4 — Заметки на всю ширину */}
+                    <Field label="Заметки и наблюдения" icon={<FileText className="w-3.5 h-3.5" />}>
+                        <textarea
+                            value={entry.notes || ''}
+                            onChange={e => onUpdate(entry.id, 'notes', e.target.value)}
+                            placeholder="Что получилось, на что обратить внимание, как ученик реагирует"
+                            rows={3}
+                            className="diary-input resize-y"
+                        />
+                    </Field>
+
+                    {/* Блок «Запись урока + анализ» */}
+                    <div className="rounded-xl border border-dashed border-pink-200 bg-pink-50/40 p-4">
+                        <div className="flex items-center gap-2 mb-3">
+                            <Sparkles className="w-4 h-4 text-pink-600" />
+                            <h4 className="text-sm font-bold text-gray-900">Запись урока и методический анализ</h4>
+                        </div>
+                        <div className="flex flex-col lg:flex-row gap-3">
+                            <div className="flex-1 min-w-0">
+                                <label className="text-xs font-semibold text-gray-600 mb-1.5 block">
+                                    Ссылка на запись с Яндекс.Диска
+                                </label>
+                                <div className="relative">
+                                    <LinkIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                                    <input
+                                        type="url"
+                                        value={entry.recordingUrl || ''}
+                                        onChange={e => onUpdate(entry.id, 'recordingUrl', e.target.value || null)}
+                                        placeholder="https://disk.yandex.ru/i/..."
+                                        className={`w-full pl-9 pr-3 py-2.5 text-sm rounded-lg border bg-white outline-none focus:ring-2 transition ${entry.recordingUrl && !urlValid
+                                            ? 'border-red-300 focus:border-red-400 focus:ring-red-100'
+                                            : 'border-gray-200 focus:border-primary-400 focus:ring-primary-100'}`}
+                                    />
+                                </div>
+                                {entry.recordingUrl && !urlValid && (
+                                    <p className="text-[11px] text-red-600 mt-1.5">
+                                        ⚠️ Ссылка должна быть с Яндекс.Диска (disk.yandex.ru или yadi.sk)
+                                    </p>
+                                )}
+                                {!entry.recordingUrl && (
+                                    <p className="text-[11px] text-gray-500 mt-1.5">
+                                        Подсказка: загрузите видео урока на Яндекс.Диск, скопируйте публичную ссылку и вставьте сюда.
+                                    </p>
+                                )}
+                            </div>
+
+                            <div className="lg:w-64 flex-shrink-0 flex flex-col gap-2 lg:pt-[26px]">
+                                <button
+                                    onClick={() => onAnalyze(entry)}
+                                    disabled={!entry.recordingUrl || !urlValid || analyzing || status === 'pending'}
+                                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-pink-600 text-white text-sm font-bold rounded-lg hover:bg-pink-700 disabled:opacity-40 disabled:cursor-not-allowed transition shadow-sm"
+                                >
+                                    {analyzing
+                                        ? <><Loader2 className="w-4 h-4 animate-spin" /> Запускаем…</>
+                                        : status === 'completed'
+                                            ? <><Sparkles className="w-4 h-4" /> Перезапустить</>
+                                            : <><Sparkles className="w-4 h-4" /> Запустить анализ</>}
+                                </button>
+                                <StatusBadge entry={entry} onOpen={() => onOpenResult(entry)} />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
     )
 }
 
-function CellTextarea({ value, onChange, placeholder }: { value: string | null; onChange: (v: string) => void; placeholder: string }) {
+function Field({ label, icon, children }: { label: string; icon?: React.ReactNode; children: React.ReactNode }) {
     return (
-        <td className="px-3 py-2.5">
-            <textarea
-                value={value || ''}
-                onChange={e => onChange(e.target.value)}
-                placeholder={placeholder}
-                rows={2}
-                className="w-full text-xs px-2 py-1.5 rounded-lg border border-gray-200 resize-y focus:border-primary-400 focus:ring-1 focus:ring-primary-200 outline-none"
-            />
-        </td>
+        <label className="block">
+            <div className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-600 uppercase tracking-wider mb-1.5">
+                {icon}
+                <span>{label}</span>
+            </div>
+            {children}
+            <style jsx>{`
+                :global(.diary-input) {
+                    display: block;
+                    width: 100%;
+                    padding: 0.55rem 0.75rem;
+                    background: white;
+                    border: 1px solid #e5e7eb;
+                    border-radius: 0.5rem;
+                    font-size: 0.875rem;
+                    color: #111827;
+                    outline: none;
+                    transition: border-color .15s, box-shadow .15s;
+                }
+                :global(.diary-input::placeholder) {
+                    color: #9ca3af;
+                }
+                :global(.diary-input:focus) {
+                    border-color: rgb(99 102 241 / 0.6);
+                    box-shadow: 0 0 0 3px rgb(99 102 241 / 0.12);
+                }
+            `}</style>
+        </label>
     )
 }
 
-function StatusCell({ entry, onOpen }: { entry: DiaryEntry; onOpen: () => void }) {
+function StatusBadge({ entry, compact, onOpen }: { entry: DiaryEntry; compact?: boolean; onOpen: (e: React.MouseEvent) => void }) {
     if (!entry.analysisGenerationId) {
-        return <span className="text-[11px] text-gray-400">Не запущен</span>
+        if (compact) return null
+        return <span className="text-xs text-gray-400 text-center">Анализ ещё не запущен</span>
     }
+    const base = compact ? 'px-2 py-1 text-[11px]' : 'px-3 py-2 text-xs justify-center'
     if (entry.analysisStatus === 'pending') {
         return (
-            <span className="inline-flex items-center gap-1.5 px-2 py-1 bg-blue-50 text-blue-700 rounded-md text-[11px] font-bold">
-                <Loader2 className="w-3 h-3 animate-spin" /> Анализируется…
+            <span className={`inline-flex items-center gap-1.5 ${base} bg-blue-50 text-blue-700 rounded-md font-bold whitespace-nowrap`}>
+                <Loader2 className={`${compact ? 'w-3 h-3' : 'w-3.5 h-3.5'} animate-spin`} /> Анализируется…
             </span>
         )
     }
     if (entry.analysisStatus === 'failed') {
         return (
-            <span className="inline-flex items-center gap-1.5 px-2 py-1 bg-red-50 text-red-700 rounded-md text-[11px] font-bold" title={entry.analysisError || ''}>
-                <AlertTriangle className="w-3 h-3" /> Ошибка
+            <span className={`inline-flex items-center gap-1.5 ${base} bg-red-50 text-red-700 rounded-md font-bold whitespace-nowrap`} title={entry.analysisError || ''}>
+                <AlertTriangle className={compact ? 'w-3 h-3' : 'w-3.5 h-3.5'} /> Ошибка
             </span>
         )
     }
@@ -386,40 +508,52 @@ function StatusCell({ entry, onOpen }: { entry: DiaryEntry; onOpen: () => void }
         return (
             <button
                 onClick={onOpen}
-                className="inline-flex items-center gap-1.5 px-2 py-1 bg-green-50 text-green-700 rounded-md text-[11px] font-bold hover:bg-green-100 transition"
+                className={`inline-flex items-center gap-1.5 ${base} bg-green-50 text-green-700 rounded-md font-bold hover:bg-green-100 transition whitespace-nowrap`}
             >
-                <CheckCircle2 className="w-3 h-3" /> Открыть отчёт
+                <CheckCircle2 className={compact ? 'w-3 h-3' : 'w-3.5 h-3.5'} /> Открыть отчёт
             </button>
         )
     }
-    return <span className="text-[11px] text-gray-400">В очереди…</span>
+    return <span className={`inline-flex items-center gap-1.5 ${base} bg-gray-100 text-gray-600 rounded-md font-bold whitespace-nowrap`}>В очереди…</span>
 }
 
 function ResultModal({ html, onClose }: { html: string; onClose: () => void }) {
     return (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onClose}>
+        <div
+            className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 animate-fade-in"
+            onClick={onClose}
+        >
             <div
-                className="bg-white rounded-2xl w-full max-w-4xl max-h-[90vh] shadow-2xl overflow-hidden flex flex-col"
+                className="bg-white rounded-2xl w-full max-w-5xl shadow-2xl overflow-hidden flex flex-col"
+                style={{ height: 'min(90vh, 900px)' }}
                 onClick={e => e.stopPropagation()}
             >
-                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
                     <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                         <ExternalLink className="w-5 h-5 text-pink-600" />
                         Методический анализ урока
                     </h3>
-                    <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg">
-                        <X className="w-4 h-4 text-gray-500" />
+                    <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg" aria-label="Закрыть">
+                        <X className="w-5 h-5 text-gray-500" />
                     </button>
                 </div>
-                <div className="flex-1 overflow-hidden">
+                <div className="flex-1 min-h-0 bg-gray-50">
                     <iframe
-                        srcDoc={ensureMathJaxInHtml(DOMPurify.sanitize(html, { ADD_TAGS: ['iframe'] }))}
-                        className="w-full h-full border-0"
-                        sandbox="allow-scripts allow-popups"
+                        srcDoc={ensureMathJaxInHtml(DOMPurify.sanitize(html, { ADD_TAGS: ['iframe', 'style'], ADD_ATTR: ['target'] }))}
+                        className="w-full h-full border-0 block"
+                        sandbox="allow-scripts allow-popups allow-same-origin"
                         title="Анализ урока"
                     />
                 </div>
             </div>
         </div>
     )
+}
+
+function pluralize(n: number, forms: [string, string, string]) {
+    const mod10 = n % 10
+    const mod100 = n % 100
+    if (mod10 === 1 && mod100 !== 11) return forms[0]
+    if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return forms[1]
+    return forms[2]
 }

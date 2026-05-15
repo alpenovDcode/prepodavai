@@ -835,7 +835,7 @@ export default function StudentsPage() {
                         <span className="font-medium">Создать новый класс</span>
                     </button>
                 </div>
-            ) : (
+            ) : activeTab === 'assignments' ? (
                 <div className="dashboard-card overflow-hidden">
                     {assignments.length === 0 ? (
                         <div className="py-12 text-center text-gray-400">Вы ещё не выдали ни одного задания</div>
@@ -920,7 +920,7 @@ export default function StudentsPage() {
                         </>
                     )}
                 </div>
-            )}
+            ) : null}
 
             {/* Add Class Modal */}
             {showAddClassModal && (
