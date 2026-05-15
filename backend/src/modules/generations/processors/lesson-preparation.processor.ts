@@ -3,12 +3,17 @@ import { Logger } from '@nestjs/common';
 import { Job, Queue } from 'bullmq';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
+import { marked } from 'marked';
 import { GenerationHelpersService } from '../generation-helpers.service';
 import { PrismaService } from '../../../common/prisma/prisma.service';
 import { HtmlExportService } from '../../../common/services/html-export.service';
 import { FilesService } from '../../files/files.service';
 import { HtmlPostprocessorService } from '../../../common/services/html-postprocessor.service';
 import { LOGO_BASE64, SHARED_CSS, SHARED_MATHJAX_SCRIPT } from '../generation.constants';
+
+// Глобальная настройка marked: GFM (таблицы, ~~strikethrough~~, autolinks),
+// конверсия одиночных \n в <br>. HTML-вставки модели (input/figure/...) проходят как есть.
+marked.use({ gfm: true, breaks: true });
 
 export interface LessonPreparationJobData {
   generationRequestId: string;
@@ -710,14 +715,41 @@ ${interests ? `- Интересы аудитории (Интегрируй их 
     return map[type] || type;
   }
 
-  private formatToHtml(markdownContent: string, title: string): string {
-    // Basic Markdown to HTML conversion
-    const formattedBody = markdownContent
-      .replace(/^# (.*$)/gim, '<h1 class="main-title">$1</h1>')
-      .replace(/^## (.*$)/gim, '<h2 class="section-title">$1</h2>')
-      .replace(/^### (.*$)/gim, '<h3 class="subsection-title">$1</h3>')
-      .replace(/\*\*(.*)\*\*/gim, '<b>$1</b>');
+  /**
+   * Конвертирует markdown в HTML через marked + GFM.
+   * Перед парсингом «прячет» MathJax-сегменты (\(...\), \[...\], $$...$$) под
+   * плейсхолдеры — иначе marked трактует `\(` как escape-последовательность
+   * и съедает обратные слеши, ломая формулы.
+   */
+  private renderMarkdownToHtml(md: string): string {
+    if (!md) return '';
+    const mathTokens: string[] = [];
+    const stash = (m: string) => {
+      const idx = mathTokens.length;
+      mathTokens.push(m);
+      return `@@MATH${idx}@@`;
+    };
+    // Порядок важен: $$...$$ и \[...\] (display) ДО \(...\) и $...$ (inline),
+    // чтобы вложенные совпадения не перехватывались inline-паттерном.
+    let working = md
+      .replace(/\$\$[\s\S]+?\$\$/g, stash)
+      .replace(/\\\[[\s\S]+?\\\]/g, stash)
+      .replace(/\\\([\s\S]+?\\\)/g, stash);
 
+    let html: string;
+    try {
+      html = marked.parse(working) as string;
+    } catch {
+      html = working; // fallback: лучше показать «как есть», чем 500
+    }
+
+    // Возвращаем формулы обратно.
+    html = html.replace(/@@MATH(\d+)@@/g, (_, n) => mathTokens[parseInt(n, 10)] ?? '');
+    return html;
+  }
+
+  private formatToHtml(markdownContent: string, title: string): string {
+    const formattedBody = this.renderMarkdownToHtml(markdownContent);
     const logoUrl = 'LOGO_PLACEHOLDER';
 
     return `
@@ -739,18 +771,60 @@ ${interests ? `- Интересы аудитории (Интегрируй их 
                     padding: 20mm;
                     box-sizing: border-box;
                 }
-                /* Additional manual styles for generated content structure */
-                .generated-image-container {
-                    margin: 30px auto;
+                /* Markdown-таблицы: модель выдаёт GFM-таблицы, marked их рендерит как <table> */
+                .content table, body > table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin: 16px 0;
+                    font-size: 14px;
+                }
+                .content th, body > table th, table th {
+                    background: #f9fafb;
+                    font-weight: 600;
+                    text-align: left;
+                    padding: 10px 12px;
+                    border: 1px solid #d1d5db;
+                }
+                .content td, body > table td, table td {
+                    padding: 10px 12px;
+                    border: 1px solid #e5e7eb;
+                    vertical-align: top;
+                }
+                /* Заголовки разных уровней (включая h4-h6, которые модель ставит как ####) */
+                h1 { font-size: 26px; font-weight: 700; margin: 28px 0 16px; color: #111827; }
+                h2 { font-size: 22px; font-weight: 700; margin: 26px 0 14px; color: #111827; }
+                h3 { font-size: 18px; font-weight: 600; margin: 22px 0 12px; color: #1f2937; }
+                h4 { font-size: 16px; font-weight: 600; margin: 18px 0 10px; color: #374151; }
+                h5 { font-size: 14px; font-weight: 600; margin: 16px 0 8px; color: #374151; }
+                h6 { font-size: 13px; font-weight: 600; margin: 14px 0 8px; color: #4b5563; }
+                /* Горизонтальный разделитель из --- */
+                hr { border: 0; border-top: 1px solid #e5e7eb; margin: 24px 0; }
+                /* Списки */
+                ul, ol { padding-left: 24px; margin: 12px 0; }
+                li { margin: 6px 0; }
+                /* Цитаты */
+                blockquote { border-left: 4px solid #d1d5db; padding: 6px 14px; color: #4b5563; margin: 14px 0; background: #f9fafb; }
+                /* Inline-код */
+                code { background: #f3f4f6; padding: 2px 6px; border-radius: 4px; font-size: 0.9em; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+                pre code { display: block; padding: 14px; overflow-x: auto; line-height: 1.5; }
+                /* Изображения, сгенерированные через [IMAGE-...] */
+                .generated-image-container, figure.generated-image-container {
+                    margin: 24px auto;
                     text-align: center;
                     page-break-inside: avoid;
-                    max-width: 80%;
+                    max-width: 90%;
                 }
-                .generated-image-container img {
+                .generated-image-container img, figure.generated-image-container img {
                     max-width: 100%;
                     max-height: 100mm;
                     border-radius: 8px;
                     border: 1px solid #e2e8f0;
+                }
+                figure.generated-image-container figcaption {
+                    margin-top: 8px;
+                    font-size: 13px;
+                    color: #6b7280;
+                    font-style: italic;
                 }
             </style>
             ${SHARED_MATHJAX_SCRIPT}
@@ -761,7 +835,9 @@ ${interests ? `- Интересы аудитории (Интегрируй их 
                 <h1>${title}</h1>
             </div>
 
+            <div class="content">
             ${formattedBody}
+            </div>
 
             <div class="footer-logo">
                 <img src="${logoUrl}" alt="PrepodavAI Logo" />
