@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation'
 import DOMPurify from 'isomorphic-dompurify'
 import Image from 'next/image'
 import InteractiveHtmlViewer, { extractHtmlFromOutput } from '@/components/InteractiveHtmlViewer'
+import AnalyticsTab from '@/components/students/AnalyticsTab'
+import TeacherDiaryTab from '@/components/students/TeacherDiaryTab'
 
 /** M1: Готовые шаблоны комментариев — вставляются одним кликом */
 const FEEDBACK_TEMPLATES = [
@@ -137,7 +139,7 @@ interface AssignmentDetails {
 
 export default function StudentsPage() {
     const router = useRouter()
-    const [activeTab, setActiveTab] = useState<'students' | 'classes' | 'assignments'>('students')
+    const [activeTab, setActiveTab] = useState<'students' | 'classes' | 'assignments' | 'analytics' | 'diary'>('students')
     const [searchQuery, setSearchQuery] = useState('')
     const [students, setStudents] = useState<Student[]>([])
     const [classes, setClasses] = useState<Class[]>([])
@@ -625,7 +627,34 @@ export default function StudentsPage() {
                         <div className="absolute bottom-0 left-0 w-full h-0.5 bg-primary-600 rounded-t-full"></div>
                     )}
                 </button>
+                <button
+                    onClick={() => setActiveTab('analytics')}
+                    className={`pb-4 px-2 font-medium transition relative ${activeTab === 'analytics'
+                        ? 'text-primary-600'
+                        : 'text-gray-500 hover:text-gray-700'
+                        }`}
+                >
+                    Аналитика
+                    {activeTab === 'analytics' && (
+                        <div className="absolute bottom-0 left-0 w-full h-0.5 bg-primary-600 rounded-t-full"></div>
+                    )}
+                </button>
+                <button
+                    onClick={() => setActiveTab('diary')}
+                    className={`pb-4 px-2 font-medium transition relative ${activeTab === 'diary'
+                        ? 'text-primary-600'
+                        : 'text-gray-500 hover:text-gray-700'
+                        }`}
+                >
+                    Дневник учителя
+                    {activeTab === 'diary' && (
+                        <div className="absolute bottom-0 left-0 w-full h-0.5 bg-primary-600 rounded-t-full"></div>
+                    )}
+                </button>
             </div>
+
+            {activeTab === 'analytics' && <AnalyticsTab />}
+            {activeTab === 'diary' && <TeacherDiaryTab />}
 
             {activeTab === 'students' ? (
                 <>

@@ -67,6 +67,7 @@ model AppUser {
   onboardingQuestSteps  OnboardingQuestStep[]
   payments              Payment[]
   studentInvites        StudentInvite[]
+  diaryEntries          TeacherDiaryEntry[]
 
   @@index([telegramId])
   @@index([maxId])
@@ -358,6 +359,7 @@ model Class {
   assignments Assignment[]
   invites     StudentInvite[]
   lessons     Lesson[]
+  diaryEntries TeacherDiaryEntry[]
 
   @@index([teacherId])
   @@map("classes")
@@ -383,6 +385,7 @@ model Student {
   class       Class     @relation(fields: [classId], references: [id], onDelete: Cascade)
   assignments Assignment[]
   submissions Submission[]
+  diaryEntries TeacherDiaryEntry[]
 
   @@index([classId])
   @@map("students")
@@ -635,4 +638,34 @@ model UploadedFile {
   @@index([userId])
   @@index([hash])
   @@map("uploaded_files")
+}
+
+// ========== ДНЕВНИК УЧИТЕЛЯ ==========
+// Журнал проведённых уроков с возможностью прикрепить запись (Яндекс.Диск)
+// и автоматически прогнать через методический видеоанализ.
+model TeacherDiaryEntry {
+  id                   String    @id @default(uuid())
+  teacherId            String
+  date                 DateTime  @default(now())
+  classId              String?
+  studentId            String?
+  topic                String?   // Тема урока
+  goals                String?   // Цели урока
+  covered              String?   // Что пройдено
+  homework             String?   // Домашнее задание
+  notes                String?   // Заметки / наблюдения
+  recordingUrl         String?   // Ссылка на запись (Yandex.Disk)
+  analysisGenerationId String?   // generationRequestId из UserGeneration — методический анализ
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  teacher              AppUser   @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  class                Class?    @relation(fields: [classId], references: [id], onDelete: SetNull)
+  student              Student?  @relation(fields: [studentId], references: [id], onDelete: SetNull)
+
+  @@index([teacherId])
+  @@index([classId])
+  @@index([studentId])
+  @@index([date])
+  @@map("teacher_diary_entries")
 }
