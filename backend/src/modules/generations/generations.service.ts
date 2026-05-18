@@ -1351,6 +1351,8 @@ export class GenerationsService {
     if (!imageUrl) {
       throw new NotFoundException('У генерации нет ссылки на изображение');
     }
+    const generationType = userGen.generationType || 'image';
+
     if (imageUrl.startsWith('data:image')) {
       // data: URL — декодируем напрямую, без HTTP
       const match = imageUrl.match(/^data:(image\/[a-zA-Z0-9+.-]+);base64,(.*)$/);
@@ -1361,7 +1363,25 @@ export class GenerationsService {
       return {
         buffer,
         contentType,
-        filename: `photosession-${requestId}.${ext}`,
+        filename: `${generationType}-${requestId}.${ext}`,
+      };
+    }
+
+    // Если картинка уже сохранена у нас (/api/files/<hash>) — читаем с диска,
+    // минуя HTTP. Иначе self-fetch упёрся бы в JwtAuthGuard на /api/files и
+    // получал 401 (см. PrepodavAI prod-инцидент 2026-05-18).
+    const ownFileMatch = imageUrl.match(/\/api\/files\/([a-f0-9]{16,64})(?:[?#].*)?$/i);
+    if (ownFileMatch) {
+      const hash = ownFileMatch[1];
+      const file = await this.filesService.getFile(hash);
+      if (!file) {
+        throw new NotFoundException('Файл генерации не найден на диске');
+      }
+      const ext = this.mimeToExtension(file.mimeType) || this.extFromUrl(imageUrl) || 'jpg';
+      return {
+        buffer: file.buffer,
+        contentType: file.mimeType,
+        filename: `${generationType}-${requestId}.${ext}`,
       };
     }
 
@@ -1383,7 +1403,6 @@ export class GenerationsService {
         ? response.headers['content-type'].split(';')[0].trim()
         : this.guessMimeFromUrl(imageUrl);
     const ext = this.mimeToExtension(contentType) || this.extFromUrl(imageUrl) || 'jpg';
-    const generationType = userGen.generationType || 'image';
     return {
       buffer,
       contentType,
