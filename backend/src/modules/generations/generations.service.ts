@@ -773,9 +773,14 @@ export class GenerationsService {
     const { systemPrompt, userPrompt } = await this.buildGigachatPrompt(generationType, inputParams);
     const model = requestedModel || 'google/gemini-3-flash';
 
-    // Для КИМ (exam-variant) нужно больше токенов — полный HTML с SVG-графиками
+    // Для КИМ (exam-variant) и распаковки экспертности (unpacking) нужно больше
+    // токенов — полный HTML с SVG-графиками / развёрнутый структурированный материал.
     const maxTokens =
-      generationType === 'exam-variant' || generationType === 'exam_variant' ? 32000 : 16384;
+      generationType === 'exam-variant' ||
+      generationType === 'exam_variant' ||
+      generationType === 'unpacking'
+        ? 32000
+        : 16384;
 
     this.logger.log(
       `[GenerationsService] Using Replicate model: ${model}, prompt length: ${systemPrompt.length + userPrompt.length}, max_tokens: ${maxTokens}`,
