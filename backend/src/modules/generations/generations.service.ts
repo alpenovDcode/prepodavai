@@ -1306,6 +1306,119 @@ export class GenerationsService {
       : this.presentationPdfService.docToPdf(slideDoc);
   }
 
+  /**
+   * Скачивание картинки сгенерированного результата (photosession / image_generation).
+   *
+   * Зачем нужно: внешние провайдеры (replicate.delivery и пр.) отдают файлы с реальным
+   * Content-Type вроде image/jpeg или image/webp. Если фронт делает прямой `fetch + blob`
+   * и сохраняет с захардкоженным `.png`, файл становится «битым» для строгих просмотрщиков
+   * (Windows Photos, iOS Quick Look). Плюс на cross-origin ссылки атрибут `download`
+   * браузеры часто игнорируют — пользователь скачивает HTML/просмотр, а не файл.
+   *
+   * Решение: проксируем картинку через бэкенд, восстанавливаем правильный mime/extension
+   * по заголовку ответа провайдера (или по URL как fallback), отдаём как StreamableFile.
+   */
+  async streamGenerationImage(
+    requestId: string,
+    userId: string,
+  ): Promise<{ buffer: Buffer; contentType: string; filename: string }> {
+    let userGen = await this.prisma.userGeneration.findUnique({
+      where: { generationRequestId: requestId },
+      include: { generationRequest: true },
+    });
+    if (!userGen) {
+      userGen = await this.prisma.userGeneration.findUnique({
+        where: { id: requestId },
+        include: { generationRequest: true },
+      });
+    }
+    if (!userGen) throw new NotFoundException('Генерация не найдена');
+    if (userGen.userId !== userId) throw new NotFoundException('Доступ запрещён');
+
+    const result = (userGen.outputData ?? userGen.generationRequest?.result) as any;
+    if (!result) throw new NotFoundException('Результат генерации пуст');
+
+    const imageUrl: string | null =
+      (typeof result === 'string' && /^https?:\/\//.test(result) ? result : null) ||
+      result?.imageUrl ||
+      result?.imageUrls?.[0] ||
+      result?.content?.imageUrl ||
+      (typeof result?.content === 'string' && /^https?:\/\//.test(result.content)
+        ? result.content
+        : null) ||
+      null;
+
+    if (!imageUrl) {
+      throw new NotFoundException('У генерации нет ссылки на изображение');
+    }
+    if (imageUrl.startsWith('data:image')) {
+      // data: URL — декодируем напрямую, без HTTP
+      const match = imageUrl.match(/^data:(image\/[a-zA-Z0-9+.-]+);base64,(.*)$/);
+      if (!match) throw new BadRequestException('Некорректная data:image ссылка');
+      const contentType = match[1];
+      const buffer = Buffer.from(match[2], 'base64');
+      const ext = this.mimeToExtension(contentType);
+      return {
+        buffer,
+        contentType,
+        filename: `photosession-${requestId}.${ext}`,
+      };
+    }
+
+    let response;
+    try {
+      response = await axios.get<ArrayBuffer>(imageUrl, {
+        responseType: 'arraybuffer',
+        timeout: 30_000,
+        validateStatus: (s) => s >= 200 && s < 300,
+      });
+    } catch (e: any) {
+      this.logger.error(`Не удалось скачать картинку ${imageUrl}: ${e.message}`);
+      throw new BadRequestException('Не удалось загрузить изображение у провайдера');
+    }
+
+    const buffer = Buffer.from(response.data);
+    const contentType =
+      typeof response.headers['content-type'] === 'string'
+        ? response.headers['content-type'].split(';')[0].trim()
+        : this.guessMimeFromUrl(imageUrl);
+    const ext = this.mimeToExtension(contentType) || this.extFromUrl(imageUrl) || 'jpg';
+    const generationType = userGen.generationType || 'image';
+    return {
+      buffer,
+      contentType,
+      filename: `${generationType}-${requestId}.${ext}`,
+    };
+  }
+
+  private mimeToExtension(mime?: string): string {
+    if (!mime) return '';
+    const m = mime.toLowerCase();
+    if (m === 'image/jpeg' || m === 'image/jpg') return 'jpg';
+    if (m === 'image/png') return 'png';
+    if (m === 'image/webp') return 'webp';
+    if (m === 'image/gif') return 'gif';
+    if (m === 'image/avif') return 'avif';
+    if (m === 'image/heic') return 'heic';
+    if (m === 'image/svg+xml') return 'svg';
+    return '';
+  }
+
+  private guessMimeFromUrl(url: string): string {
+    const ext = this.extFromUrl(url);
+    if (ext === 'jpg' || ext === 'jpeg') return 'image/jpeg';
+    if (ext === 'png') return 'image/png';
+    if (ext === 'webp') return 'image/webp';
+    if (ext === 'gif') return 'image/gif';
+    return 'application/octet-stream';
+  }
+
+  private extFromUrl(url: string): string {
+    const clean = url.split('?')[0].split('#')[0];
+    const m = clean.match(/\.([a-zA-Z0-9]{2,5})$/);
+    return m ? m[1].toLowerCase() : '';
+  }
+
   private formatGenerationStatus(generation: any) {
     const status: 'pending' | 'completed' | 'failed' = generation.status as any;
     return {

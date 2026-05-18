@@ -87,7 +87,7 @@ export default function PhotosessionGenerator() {
     const [mood, setMood] = useState('')
     const [lighting, setLighting] = useState('')
 
-    const { generateAndWait, isGenerating } = useGenerations()
+    const { generateAndWait, isGenerating, activeGenerationId } = useGenerations()
 
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0]
@@ -166,27 +166,52 @@ export default function PhotosessionGenerator() {
 
     const handleDownload = async () => {
         if (!resultImageUrl) return;
+        setIsDownloading(true);
         try {
-            setIsDownloading(true);
+            // Если знаем id генерации — качаем через бэкенд-прокси: он восстанавливает
+            // правильный Content-Type и расширение (jpg/png/webp), чего нет при прямом
+            // fetch с replicate.delivery (там файл может быть JPEG, а сохраняется как .png
+            // и становится «битым» для некоторых просмотрщиков).
+            if (activeGenerationId) {
+                const { apiClient } = await import('@/lib/api/client')
+                const response = await apiClient.get(`/generate/${activeGenerationId}/image`, {
+                    responseType: 'blob',
+                });
+                // Бэкенд проставил Content-Disposition с filename — используем его.
+                const dispo = response.headers['content-disposition'] || ''
+                const m = dispo.match(/filename="?([^";]+)"?/i)
+                const filename = m ? m[1] : `photosession-${Date.now()}.jpg`
+                const url = window.URL.createObjectURL(response.data)
+                const link = document.createElement('a')
+                link.href = url
+                link.download = filename
+                document.body.appendChild(link)
+                link.click()
+                document.body.removeChild(link)
+                window.URL.revokeObjectURL(url)
+                return
+            }
+
+            // Fallback (на data:image URL или если id не известен): прямая загрузка
+            // с детектом расширения из URL/MIME.
             const response = await fetch(resultImageUrl);
             const blob = await response.blob();
+            const mime = blob.type || ''
+            const ext =
+                mime === 'image/jpeg' ? 'jpg' :
+                mime === 'image/png' ? 'png' :
+                mime === 'image/webp' ? 'webp' :
+                (resultImageUrl.split('?')[0].split('.').pop() || 'jpg').toLowerCase().slice(0, 5)
             const url = window.URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = url;
-            link.download = `photosession-${Date.now()}.png`;
+            link.download = `photosession-${Date.now()}.${ext}`;
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
             window.URL.revokeObjectURL(url);
         } catch (error) {
             console.error('Error downloading image:', error);
-            const link = document.createElement('a');
-            link.href = resultImageUrl;
-            link.download = `photosession-${Date.now()}.png`;
-            link.target = '_blank';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
         } finally {
             setIsDownloading(false);
         }

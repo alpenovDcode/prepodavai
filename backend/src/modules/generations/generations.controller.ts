@@ -234,6 +234,28 @@ export class GenerationsController {
   }
 
   /**
+   * Скачать оригинальное изображение генерации (photosession / image_generation).
+   * Бэкенд тянет картинку у провайдера и отдаёт фронту с правильным Content-Type
+   * и расширением в filename — это фиксит «битые» файлы при скачивании напрямую
+   * с replicate.delivery (которые на самом деле JPEG, но сохраняются как .png).
+   */
+  @Get(':requestId/image')
+  @UseGuards(JwtAuthGuard)
+  async downloadGenerationImage(
+    @Request() req: any,
+    @Param('requestId') requestId: string,
+  ): Promise<StreamableFile> {
+    const { buffer, contentType, filename } = await this.generationsService.streamGenerationImage(
+      requestId,
+      this.userId(req),
+    );
+    return new StreamableFile(buffer, {
+      type: contentType,
+      disposition: `attachment; filename="${filename}"`,
+    });
+  }
+
+  /**
    * Export a presentation (SlideDoc) as PDF (landscape 16:9) or PPTX.
    * Distinct from /:requestId/pdf which is for worksheet-style HTML.
    */

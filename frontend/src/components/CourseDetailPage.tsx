@@ -49,20 +49,51 @@ async function downloadGeneration(generation: Generation, typeLabel: string) {
         return
     }
 
-    // Image
+    // Image — качаем через бэкенд-прокси, чтобы получить правильный Content-Type
+    // и расширение (jpg/png/webp). Прямой fetch к replicate.delivery + сохранение
+    // с захардкоженным `.png` ломает файл в строгих просмотрщиках, когда провайдер
+    // отдаёт JPEG.
     const imageUrl = getImageUrl(outputData)
     if (imageUrl) {
+        // ID есть всегда (generation.generationRequestId или .id) — пробуем прокси.
+        const requestId = (generation as any).generationRequestId || generation.id
+        if (requestId) {
+            try {
+                const response = await apiClient.get(`/generate/${requestId}/image`, {
+                    responseType: 'blob',
+                })
+                const dispo: string = response.headers['content-disposition'] || ''
+                const m = dispo.match(/filename="?([^";]+)"?/i)
+                const filename = m ? m[1] : `image-${generation.id}.jpg`
+                const blobUrl = window.URL.createObjectURL(response.data)
+                const a = document.createElement('a')
+                a.href = blobUrl; a.download = filename
+                document.body.appendChild(a); a.click(); document.body.removeChild(a)
+                window.URL.revokeObjectURL(blobUrl)
+                return
+            } catch (e) {
+                // Если бэк не смог достать картинку — fallback ниже.
+                console.warn('Image proxy failed, falling back to direct fetch', e)
+            }
+        }
+
         try {
             const response = await fetch(imageUrl)
             const blob = await response.blob()
+            const mime = blob.type || ''
+            const ext =
+                mime === 'image/jpeg' ? 'jpg' :
+                mime === 'image/png' ? 'png' :
+                mime === 'image/webp' ? 'webp' :
+                (imageUrl.split('?')[0].split('.').pop() || 'jpg').toLowerCase().slice(0, 5)
             const blobUrl = window.URL.createObjectURL(blob)
             const a = document.createElement('a')
-            a.href = blobUrl; a.download = `image-${generation.id}.png`
+            a.href = blobUrl; a.download = `image-${generation.id}.${ext}`
             document.body.appendChild(a); a.click(); document.body.removeChild(a)
             window.URL.revokeObjectURL(blobUrl)
         } catch {
             const a = document.createElement('a')
-            a.href = imageUrl; a.download = `image-${generation.id}.png`; a.target = '_blank'
+            a.href = imageUrl; a.target = '_blank'
             document.body.appendChild(a); a.click(); document.body.removeChild(a)
         }
         return
