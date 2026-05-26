@@ -40,16 +40,6 @@ export class BotGenerationHandler implements OnModuleInit {
     // bot.start() sets it automatically, but we use handleUpdate() directly.
     // setup() is called from TelegramService constructor before onModuleInit runs,
     // so this.bot is already assigned here.
-    if (this.bot) {
-      try {
-        await this.bot.init();
-        this.logger.log(`[BotGen] bot initialized: @${this.bot.botInfo.username}`);
-      } catch (e: any) {
-        this.logger.error(`[BotGen] bot.init() failed: ${e?.message}`);
-      }
-    } else {
-      this.logger.warn('[BotGen] this.bot is not set in onModuleInit — setup() was not called');
-    }
 
     try {
       const { GenerationsService } = await import('../../generations/generations.service');
