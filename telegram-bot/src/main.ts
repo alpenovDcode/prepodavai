@@ -200,7 +200,7 @@ async function getApiToken(username: string, apiKey: string): Promise<string | n
 }
 
 async function callGenerationApi(token: string, generationType: string, params: Record<string, string>): Promise<any> {
-  const resp = await fetch(`${API_URL}/api/generations/${generationType}`, {
+  const resp = await fetch(`${API_URL}/api/generate/${generationType}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
     body: JSON.stringify({ ...params, _miniAppPlatform: 'telegram' }),
