@@ -196,21 +196,15 @@ const telegramSendWorker = new Worker(
         return { success: true, message: 'Already sent' };
       }
 
-      // Проверяем, что пользователь из Telegram
-      if (userGeneration.user.source !== 'telegram') {
-        console.log(`ℹ️ Not a Telegram user: ${userGeneration.userId}`);
-        // Помечаем как отправленное, чтобы не пытаться снова
+      // Проверяем, что у пользователя привязан Telegram (независимо от source)
+      const chatId = userGeneration.user.telegramChatId || userGeneration.user.chatId;
+      if (!userGeneration.user.telegramId || !chatId) {
+        console.log(`ℹ️ No Telegram linked for user: ${userGeneration.userId}`);
         await prisma.userGeneration.update({
           where: { id: userGeneration.id },
           data: { sentToTelegram: true, telegramSentAt: new Date() },
         });
-        return { success: false, message: 'Not a Telegram user' };
-      }
-
-      const chatId = userGeneration.user.chatId;
-      if (!chatId) {
-        console.error(`❌ No chatId for user: ${userGeneration.userId}`);
-        return { success: false, message: 'No chatId available' };
+        return { success: false, message: 'No Telegram linked' };
       }
 
       // Отправляем результат в Telegram

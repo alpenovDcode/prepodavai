@@ -245,10 +245,12 @@ async function uploadFileToBackend(
   const blob = new Blob([fileBuffer], { type: mimeType });
   formData.append('file', blob, originalName);
 
+  const uploadAbort = AbortSignal.timeout(30_000);
   const uploadResp = await fetch(`${API_URL}/api/files/upload`, {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${token}` },
     body: formData as any,
+    signal: uploadAbort,
   });
   if (!uploadResp.ok) {
     const err = await uploadResp.json().catch(() => ({ message: 'Upload failed' })) as any;
@@ -889,7 +891,8 @@ async function handleFileMessage(ctx: Context, receivedAs: 'photo' | 'document')
     await nextStep(ctx, session, tool);
   } catch (err: any) {
     console.error(`[Gen] File upload failed for ${telegramId}:`, err);
-    await ctx.reply('❌ Не удалось загрузить файл. Попробуйте ещё раз или отправьте другой файл.');
+    genSessions.delete(telegramId);
+    await ctx.reply('❌ Не удалось загрузить файл. Сессия сброшена — начните заново: /generate');
   }
 }
 
@@ -900,6 +903,9 @@ bot.on('message:voice', (ctx) => handleFileMessage(ctx, 'document'));
 bot.on('message:video', (ctx) => handleFileMessage(ctx, 'document'));
 
 // ── Запуск ────────────────────────────────────────────────────────────────────
+bot.catch((err) => {
+  console.error('[Bot] Uncaught middleware error:', err.error ?? err);
+});
 bot.start();
 console.log('🤖 Telegram bot started (registration + generation active)');
 
