@@ -217,7 +217,7 @@ export const TOOL_CONFIGS: ToolConfig[] = [
   },
   {
     key: 'transcription',
-    generationType: 'transcription',
+    generationType: 'transcribe-video',
     serviceType: 'generations',
     label: 'Транскрибация',
     emoji: '🎙️',

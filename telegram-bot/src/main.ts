@@ -192,7 +192,7 @@ async function getApiToken(username: string, apiKey: string): Promise<string | n
       return null;
     }
     const data = await resp.json() as any;
-    return data.access_token ?? null;
+    return data.token ?? null;
   } catch (err) {
     console.error(`[Auth] login-with-api-key network error:`, err);
     return null;
