@@ -594,6 +594,8 @@ export class TelegramService {
       }),
     ]);
 
+    this.regStates.delete(user.id.toString());
+
     await ctx.reply(
       `✅ Telegram успешно привязан к вашему аккаунту PrepodavAI!\n\n` +
       `Теперь вы будете получать результаты генерации прямо здесь.`,

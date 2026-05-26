@@ -36,6 +36,21 @@ export class BotGenerationHandler implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
+    // grammy 1.x webhook mode requires bot.me to be set before handleUpdate().
+    // bot.start() sets it automatically, but we use handleUpdate() directly.
+    // setup() is called from TelegramService constructor before onModuleInit runs,
+    // so this.bot is already assigned here.
+    if (this.bot) {
+      try {
+        await this.bot.init();
+        this.logger.log(`[BotGen] bot initialized: @${this.bot.botInfo.username}`);
+      } catch (e: any) {
+        this.logger.error(`[BotGen] bot.init() failed: ${e?.message}`);
+      }
+    } else {
+      this.logger.warn('[BotGen] this.bot is not set in onModuleInit — setup() was not called');
+    }
+
     try {
       const { GenerationsService } = await import('../../generations/generations.service');
       this.generationsService = this.moduleRef.get(GenerationsService, { strict: false });
@@ -69,7 +84,24 @@ export class BotGenerationHandler implements OnModuleInit {
   setup(bot: Bot): void {
     this.bot = bot;
 
-    bot.command('generate', (ctx) => this.onGenerate(ctx));
+    // Debug: log every update that reaches grammy middleware
+    bot.use((ctx, next) => {
+      const kind = Object.keys(ctx.update).filter(k => k !== 'update_id').join(',');
+      const text = (ctx.message as any)?.text ?? '';
+      this.logger.log(`[BotGen] update ${ctx.update.update_id}: ${kind} "${text}"`);
+      return next();
+    });
+
+    // bot.command() unreliable in webhook mode — match via entity instead
+    bot.on('message:text', async (ctx, next) => {
+      const entities = ctx.message?.entities ?? [];
+      const txt = ctx.message?.text ?? '';
+      const isGenerate = entities.some(
+        e => e.type === 'bot_command' && e.offset === 0 && txt.substring(1, e.length).split('@')[0] === 'generate',
+      );
+      if (isGenerate) return this.onGenerate(ctx);
+      return next();
+    });
 
     // callback_query: фильтруем только «наши» данные с префиксом g:
     bot.on('callback_query:data', (ctx) => this.onCallbackQuery(ctx));
