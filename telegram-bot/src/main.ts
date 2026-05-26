@@ -178,16 +178,23 @@ async function ensureApiKey(user: any): Promise<string> {
 }
 
 async function getApiToken(username: string, apiKey: string): Promise<string | null> {
+  const maskedKey = apiKey ? `${apiKey.slice(0, 4)}...${apiKey.slice(-4)}` : 'null';
+  console.log(`[Auth] login attempt: username=${username} apiKey=${maskedKey}`);
   try {
     const resp = await fetch(`${API_URL}/api/auth/login-with-api-key`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, apiKey }),
     });
-    if (!resp.ok) return null;
+    if (!resp.ok) {
+      const body = await resp.text().catch(() => '');
+      console.error(`[Auth] login-with-api-key failed: status=${resp.status} body=${body.slice(0, 200)}`);
+      return null;
+    }
     const data = await resp.json() as any;
     return data.access_token ?? null;
-  } catch {
+  } catch (err) {
+    console.error(`[Auth] login-with-api-key network error:`, err);
     return null;
   }
 }
