@@ -90,22 +90,30 @@ export class BotGenerationHandler implements OnModuleInit {
 
   private async onGenerate(ctx: Context) {
     const telegramId = ctx.from?.id.toString();
+    this.logger.log(`[onGenerate] called, telegramId=${telegramId ?? 'undefined'}`);
     if (!telegramId) return;
 
-    const user = await this.findRegisteredUser(telegramId);
-    if (!user) {
-      await ctx.reply('❌ Аккаунт не найден.\n\nЗарегистрируйтесь через /start и попробуйте снова.');
-      return;
+    try {
+      const user = await this.findRegisteredUser(telegramId);
+      this.logger.log(`[onGenerate] user found=${!!user}`);
+      if (!user) {
+        await ctx.reply('❌ Аккаунт не найден.\n\nЗарегистрируйтесь через /start и попробуйте снова.');
+        return;
+      }
+
+      this.sessions.delete(telegramId);
+
+      const kb = this.wizard.buildToolSelectionKeyboard();
+      this.logger.log(`[onGenerate] sending keyboard with ${kb.inline_keyboard?.flat().length ?? 0} buttons`);
+      await ctx.reply(
+        '🛠️ *Выберите инструмент:*',
+        { parse_mode: 'Markdown', reply_markup: kb },
+      );
+      this.logger.log(`[onGenerate] reply sent OK`);
+    } catch (err: any) {
+      this.logger.error(`[onGenerate] error: ${err?.message}`, err?.stack);
+      throw err;
     }
-
-    // Очищаем предыдущую сессию если была
-    this.sessions.delete(telegramId);
-
-    const kb = this.wizard.buildToolSelectionKeyboard();
-    await ctx.reply(
-      '🛠️ *Выберите инструмент:*',
-      { parse_mode: 'Markdown', reply_markup: kb },
-    );
   }
 
   // ── Callback queries (нажатия кнопок) ───────────────────────────────────────
