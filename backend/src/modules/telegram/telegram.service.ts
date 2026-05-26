@@ -7,6 +7,7 @@ import * as crypto from 'crypto';
 import * as bcrypt from 'bcryptjs';
 import { HtmlExportService } from '../../common/services/html-export.service';
 import { SmscService } from '../smsc/smsc.service';
+import { BotGenerationHandler } from './bot/bot-generation.handler';
 
 // ── Типы состояний диалога регистрации ──────────────────────────────────────
 type RegStep = 'awaiting_email' | 'awaiting_phone' | 'awaiting_sms_code';
@@ -55,6 +56,7 @@ export class TelegramService {
     private prisma: PrismaService,
     private readonly htmlExportService: HtmlExportService,
     private readonly smscService: SmscService,
+    private readonly botGenerationHandler: BotGenerationHandler,
   ) {
     const token = this.configService.get<string>('TELEGRAM_BOT_TOKEN');
     if (token) {
@@ -110,6 +112,9 @@ export class TelegramService {
    * Настройка обработчиков бота
    */
   private setupHandlers() {
+    // Генерация в чате — регистрируем ПЕРВЫМИ чтобы text-хэндлер мог вызвать next()
+    this.botGenerationHandler.setup(this.bot);
+
     // ── /start ──────────────────────────────────────────────────────────────
     this.bot.command('start', async (ctx: Context) => {
       const user = ctx.from;
@@ -152,27 +157,30 @@ export class TelegramService {
       await this.startRegistration(ctx, telegramId);
     });
 
-    // ── /cancel — отмена регистрации ────────────────────────────────────────
+    // ── /cancel — отмена регистрации или генерации ───────────────────────────
     this.bot.command('cancel', async (ctx: Context) => {
       const telegramId = ctx.from?.id.toString();
       if (!telegramId) return;
       if (this.regStates.has(telegramId)) {
         this.regStates.delete(telegramId);
         await ctx.reply('❌ Регистрация отменена. Чтобы начать заново, отправьте /start.');
+      } else if (this.botGenerationHandler.hasSession(telegramId)) {
+        this.botGenerationHandler.cancelSession(telegramId);
+        await ctx.reply('❌ Генерация отменена.');
       } else {
-        await ctx.reply('Нет активного процесса регистрации.');
+        await ctx.reply('Нет активного процесса.');
       }
     });
 
     // ── Текстовые сообщения — шаги регистрации ──────────────────────────────
-    this.bot.on('message:text', async (ctx: Context) => {
+    this.bot.on('message:text', async (ctx: Context, next: () => Promise<void>) => {
       const user = ctx.from;
-      if (!user) return;
+      if (!user) return next();
       const telegramId = user.id.toString();
       const state = this.regStates.get(telegramId);
 
-      // Нет активной сессии — игнорируем (не засоряем чат)
-      if (!state) return;
+      // Нет активной сессии регистрации — передаём управление следующим хэндлерам
+      if (!state) return next();
 
       const text = (ctx.message as any)?.text?.trim() ?? '';
 
