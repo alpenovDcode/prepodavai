@@ -216,6 +216,8 @@ model UserGeneration {
   generationRequestId String   @unique
   sentToTelegram      Boolean  @default(false)
   telegramSentAt      DateTime?
+  sentToMax           Boolean  @default(false)
+  maxSentAt           DateTime?
   tokensUsed          Int?     // Количество потраченных токенов
   creditCost          Int?     // Итоговая стоимость Токенов
   lessonId            String?

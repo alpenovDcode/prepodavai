@@ -29,10 +29,8 @@ export class MaxSenderProcessor extends WorkerHost {
       throw new Error(`Generation not completed: ${generationRequestId}`);
     }
 
-    const meta = (userGeneration as any).metadata as Record<string, any> | null;
-
     // Проверяем, не была ли уже отправлена
-    if (meta?.sentToMax) {
+    if (userGeneration.sentToMax) {
       return { success: true, message: 'Already sent to MAX' };
     }
 
@@ -40,7 +38,7 @@ export class MaxSenderProcessor extends WorkerHost {
     if (!userGeneration.user.maxId) {
       await this.prisma.userGeneration.update({
         where: { id: userGeneration.id },
-        data: { metadata: { ...(meta ?? {}), sentToMax: true, maxSentAt: new Date().toISOString() } } as any,
+        data: { sentToMax: true, maxSentAt: new Date() },
       });
       return { success: false, message: 'MAX not linked for this user' };
     }
@@ -64,7 +62,7 @@ export class MaxSenderProcessor extends WorkerHost {
     if (sendResult.success) {
       await this.prisma.userGeneration.update({
         where: { id: userGeneration.id },
-        data: { metadata: { ...(meta ?? {}), sentToMax: true, maxSentAt: new Date().toISOString() } } as any,
+        data: { sentToMax: true, maxSentAt: new Date() },
       });
     }
 
