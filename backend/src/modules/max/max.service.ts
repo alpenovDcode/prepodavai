@@ -382,6 +382,15 @@ export class MaxService {
           return;
         }
 
+        // Проверяем бот-кредиты
+        const botUser = await (this.prisma as any).botUser.findUnique({ where: { maxId: userId } });
+        if (!botUser || botUser.botCredits < 3) {
+          this.logger.warn(`[Gen] Insufficient botCredits for userId=${userId} credits=${botUser?.botCredits ?? 0}`);
+          await this.sendMessage(chatId, '❌ Недостаточно токенов для генерации.\n\nОбратитесь к администратору для пополнения баланса.');
+          this.genSessions.delete(userId);
+          return;
+        }
+
         this.genSessions.delete(userId);
         this.lastGenAt.set(userId, Date.now());
 
@@ -401,6 +410,15 @@ export class MaxService {
             this.logger.log(`[Gen] Calling games API: userId=${userId} type=${session.params.type} topic="${session.params.topic}"`);
             const result = await this.callGamesApi(authToken, session.params.type, session.params.topic);
             this.logger.log(`[Gen] Game created: userId=${userId} url=${result.url}`);
+            const updated = await (this.prisma as any).botUser.update({
+              where: { maxId: userId },
+              data: {
+                botCredits: { decrement: 3 },
+                totalGenerations: { increment: 1 },
+                generationsThisMonth: { increment: 1 },
+                lastGenerationAt: new Date(),
+              },
+            });
             const gameAttachment = [{
               type: 'inline_keyboard',
               payload: {
@@ -412,6 +430,7 @@ export class MaxService {
               `🎮 Игра готова!\n\nТема: ${session.params.topic}\n\nНажмите кнопку, чтобы открыть:`,
               gameAttachment,
             );
+            await this.sendMessage(chatId, `💳 Осталось токенов: ${updated.botCredits}`);
           } else {
             let apiParams: Record<string, any> = { ...session.params };
             if (tool.key === 'lesson-preparation' && typeof apiParams.generationTypes === 'string') {
@@ -419,16 +438,25 @@ export class MaxService {
             }
             this.logger.log(`[Gen] Calling generation API: userId=${userId} type=${tool.generationType}`);
             const result = await this.callGenerationApi(authToken, tool.generationType, apiParams);
-            this.logger.log(`[Gen] Generation API response: userId=${userId} status=${result.status} credits=${result.remainingCredits ?? '?'}`);
+            this.logger.log(`[Gen] Generation API response: userId=${userId} status=${result.status}`);
+            const updated = await (this.prisma as any).botUser.update({
+              where: { maxId: userId },
+              data: {
+                botCredits: { decrement: 3 },
+                totalGenerations: { increment: 1 },
+                generationsThisMonth: { increment: 1 },
+                lastGenerationAt: new Date(),
+              },
+            });
             if (result.status === 'completed') {
               await this.sendMessage(
                 chatId,
-                `✅ Готово! Отправляю ${tool.emoji} ${tool.label} в чат...\n\n💳 Осталось токенов: ${result.remainingCredits ?? '—'}`,
+                `✅ Готово! Отправляю ${tool.emoji} ${tool.label} в чат...\n\n💳 Осталось токенов: ${updated.botCredits}`,
               );
             } else {
               await this.sendMessage(
                 chatId,
-                `✅ Задача принята! Результат придёт в этот чат, как только будет готов.\n\n💳 Осталось токенов: ${result.remainingCredits ?? '—'}`,
+                `✅ Задача принята! Результат придёт в этот чат, как только будет готов.\n\n💳 Осталось токенов: ${updated.botCredits}`,
               );
             }
           }
@@ -478,6 +506,22 @@ export class MaxService {
           username: user.username || existingUser.username,
         } as any,
         include: { subscription: true },
+      });
+      // Найти или создать BotUser
+      await (this.prisma as any).botUser.upsert({
+        where: { maxId: user.id.toString() },
+        update: { lastActiveAt: new Date() },
+        create: {
+          maxId: user.id.toString(),
+          appUserId: existingUser.id,
+          firstName: user.first_name || null,
+          lastName: user.last_name || null,
+          username: user.username || null,
+          email: existingUser.email || null,
+          registrationStatus: 'linked',
+          source: 'linked_max',
+          lastActiveAt: new Date(),
+        },
       });
       await this.sendWelcomeMessage(chatIdStr, existingUser, botUserId);
     } else {
@@ -557,6 +601,24 @@ export class MaxService {
     ]);
 
     this.logger.log(`[LinkToken] Successfully linked: maxUserId=${user.id} appUserId=${linkToken.userId} as ${platformName}`);
+
+    // Create/update BotUser for this MAX account
+    await (this.prisma as any).botUser.upsert({
+      where: { maxId: user.id.toString() },
+      update: { appUserId: linkToken.userId, lastActiveAt: new Date(), registrationStatus: 'linked' },
+      create: {
+        maxId: user.id.toString(),
+        appUserId: linkToken.userId,
+        firstName: user.first_name || null,
+        lastName: user.last_name || null,
+        username: user.username || null,
+        email: webUser.email || null,
+        registrationStatus: 'linked',
+        source: 'linked_max',
+        lastActiveAt: new Date(),
+      },
+    });
+
     await this.sendMessage(
       chatId,
       `✅ MAX успешно привязан к вашему аккаунту PrepodavAI!\n\nТеперь вы будете получать результаты генерации прямо здесь.`,
@@ -564,9 +626,18 @@ export class MaxService {
   }
 
   private async sendWelcomeMessage(chatId: string, appUser: any, _botUserId?: number) {
-    const balance = appUser.subscription?.creditsBalance ?? null;
-    const text = this.getWelcomeMessage(appUser, balance);
+    let botCredits: number | null = null;
+    const maxId = appUser.maxId?.toString();
+    if (maxId) {
+      const botUserRecord = await (this.prisma as any).botUser.findUnique({ where: { maxId } });
+      botCredits = botUserRecord?.botCredits ?? null;
+    }
+    const text = this.getWelcomeMessage(appUser, botCredits);
     await this.sendMessageWithMarkup(chatId, text);
+    await this.sendMessage(
+      chatId,
+      `📌 Как пользоваться:\n\n1. Выберите инструмент из списка ниже\n2. Ответьте на несколько вопросов\n3. Получите готовый материал в PDF\n\nКаждая генерация стоит 3 токена.`,
+    );
     await this.sendMessageWithKeyboard(chatId, '🛠️ Выберите инструмент:', this.buildToolSelectionAttachment());
   }
 
@@ -1084,23 +1155,17 @@ export class MaxService {
     }
   }
 
-  private getWelcomeMessage(appUser: any, balance: number | null = null): string {
-    const balanceLine = balance !== null ? `💳 Токенов на балансе: ${balance}\n\n` : '';
+  private getWelcomeMessage(_appUser: any, balance: number | null = null): string {
+    const balanceLine = balance !== null ? `\n\n💳 Токенов на балансе: ${balance}` : '';
     return (
-      `Добро пожаловать в prepodavAI 🎓\n\n` +
-      `🔑 Ваши данные для входа в веб-версию:\n\n` +
-      `👤 Username: ${appUser.username}\n` +
-      `🔐 Пароль: ${appUser.apiKey}\n\n` +
-      `⚠️ Сохраните эти данные! Они понадобятся для входа в веб-версию.\n\n` +
-      `🌐 Веб-версия: https://prepodavai.ru/\n\n` +
-      balanceLine +
-      `Я твой интеллектуальный помощник для:\n` +
+      `Добро пожаловать в Преподавай 🎓\n\n` +
+      `Я Ваш интеллектуальный помощник для:\n` +
       `— Создания учебных материалов\n` +
       `— Планирования уроков\n` +
-      `— Проверки работ учеников\n` +
-      `— Адаптации контента\n` +
-      `— Методической поддержки\n\n` +
-      `Открой Mini App (Веб-приложение МАКС) для начала работы!`
+      `— Создания красочных презентаций\n` +
+      `— Методической поддержки\n` +
+      `— Создания интерактивных игр` +
+      balanceLine
     );
   }
 }

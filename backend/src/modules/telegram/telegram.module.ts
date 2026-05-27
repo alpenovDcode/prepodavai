@@ -5,9 +5,9 @@ import { ConfigModule } from '@nestjs/config';
 import { PrismaModule } from '../../common/prisma/prisma.module';
 import { HtmlExportService } from '../../common/services/html-export.service';
 import { HtmlPostprocessorService } from '../../common/services/html-postprocessor.service';
-import { SmscModule } from '../smsc/smsc.module';
+import { EmailModule } from '../../common/services/email.module';
 @Module({
-  imports: [ConfigModule, PrismaModule, SmscModule],
+  imports: [ConfigModule, PrismaModule, EmailModule],
   providers: [TelegramService, HtmlExportService, HtmlPostprocessorService],
   controllers: [TelegramController],
   exports: [TelegramService],

@@ -6,55 +6,33 @@ import axios from 'axios';
 import * as crypto from 'crypto';
 import * as bcrypt from 'bcryptjs';
 import { HtmlExportService } from '../../common/services/html-export.service';
-import { SmscService } from '../smsc/smsc.service';
+import { EmailService } from '../../common/services/email.service';
 
 // ── Типы состояний диалога регистрации ──────────────────────────────────────
-type RegStep = 'awaiting_email' | 'awaiting_phone' | 'awaiting_sms_code';
+type RegStep = 'awaiting_email';
 
 interface RegistrationState {
   step: RegStep;
   email?: string;
-  phone?: string;
-  // Сохраняем не сам SMS-код, а его bcrypt-хэш — чтобы не светить plaintext в памяти
-  smsCodeHash?: string;
-  smsCodeExpiresAt?: number;   // unix ms
-  // Rate-limit: счётчик неверных попыток ввода кода
-  wrongAttempts?: number;
-  // Rate-limit: когда последний раз отправляли SMS
-  smsSentAt?: number;          // unix ms
-  // Идемпотентность: блокируем повторную отправку в рамках одного шага
   locked?: boolean;
 }
+
+const MINI_APP_BTN = '📱 Открыть мини-приложение';
 
 @Injectable()
 export class TelegramService {
   private readonly logger = new Logger(TelegramService.name);
   private bot: Bot;
 
-  /**
-   * Состояния регистрации в памяти.
-   * Ключ — строковый telegramId.
-   * Очищается после успешной/отменённой регистрации.
-   * При рестарте сервиса — сбрасывается (это нормально: пользователь просто
-   * начнёт /start заново).
-   */
   private readonly regStates = new Map<string, RegistrationState>();
 
-  // ── Константы безопасности ────────────────────────────────────────────────
-  /** Максимум неверных попыток ввода SMS-кода до сброса сессии */
-  private static readonly MAX_WRONG_ATTEMPTS = 3;
-  /** Минимальный интервал между повторными отправками SMS (60 с) */
-  private static readonly SMS_RESEND_COOLDOWN_MS = 60_000;
-  /** TTL SMS-кода (5 минут) */
-  private static readonly SMS_CODE_TTL_MS = 5 * 60_000;
-  /** Максимальное число активных незавершённых сессий регистрации (DoS protection) */
   private static readonly MAX_CONCURRENT_SESSIONS = 500;
 
   constructor(
     private configService: ConfigService,
     private prisma: PrismaService,
     private readonly htmlExportService: HtmlExportService,
-    private readonly smscService: SmscService,
+    private readonly emailService: EmailService,
   ) {
     const token = this.configService.get<string>('TELEGRAM_BOT_TOKEN');
     if (token) {
@@ -110,206 +88,59 @@ export class TelegramService {
    */
   // ── Шаг 0: начало регистрации ────────────────────────────────────────────
   private async startRegistration(ctx: Context, telegramId: string) {
-    // DoS protection: не более MAX_CONCURRENT_SESSIONS незавершённых сессий
     if (this.regStates.size >= TelegramService.MAX_CONCURRENT_SESSIONS) {
       this.logger.warn(`[RegBot] Too many concurrent sessions (${this.regStates.size}), rejecting ${telegramId}`);
       await ctx.reply('⚠️ Сервис временно недоступен. Попробуйте позже.');
       return;
     }
 
-    this.regStates.set(telegramId, { step: 'awaiting_email', wrongAttempts: 0 });
+    this.regStates.set(telegramId, { step: 'awaiting_email' });
 
     await ctx.reply(
       `👋 Добро пожаловать в *PrepodavAI*!\n\n` +
       `Давайте создадим ваш аккаунт — это займёт меньше минуты.\n\n` +
-      `*Шаг 1 из 3* — Введите вашу электронную почту:`,
+      `Введите вашу электронную почту:`,
       { parse_mode: 'Markdown' },
     );
   }
 
-  // ── Шаг 1: email ─────────────────────────────────────────────────────────
   private async handleEmailInput(
     ctx: Context,
     telegramId: string,
     state: RegistrationState,
     text: string,
   ) {
-    // Валидация формата email — строгий regex
     const emailRegex = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/;
     if (!emailRegex.test(text) || text.length > 254) {
       await ctx.reply(
-        '❌ Некорректный формат email.\n\nПожалуйста, введите действительный адрес электронной почты, например: *ivan@example.com*',
+        '❌ Некорректный формат email.\n\nВведите действительный адрес, например: *ivan@example.com*',
         { parse_mode: 'Markdown' },
       );
       return;
     }
 
     const email = text.toLowerCase();
-
-    // Проверяем, не занят ли email
     const exists = await this.prisma.appUser.findFirst({ where: { email } });
     if (exists) {
-      await ctx.reply(
-        `⚠️ Этот email уже зарегистрирован.\n\nЕсли это ваш аккаунт — войдите на сайте и привяжите Telegram в настройках профиля.`,
-      );
-      // Не сбрасываем сессию — даём попробовать другой email
+      await ctx.reply('⚠️ Этот email уже зарегистрирован.\n\nЕсли это ваш аккаунт — войдите на сайте и привяжите Telegram в настройках профиля.');
       return;
     }
+
+    if (state.locked) return;
+    state.locked = true;
 
     state.email = email;
-    state.step = 'awaiting_phone';
     this.regStates.set(telegramId, state);
 
-    await ctx.reply(
-      `✅ Email принят.\n\n` +
-      `*Шаг 2 из 3* — Введите номер телефона в международном формате:\n\n` +
-      `Например: *+79991234567*\n\n` +
-      `_Отправим SMS с кодом подтверждения_`,
-      { parse_mode: 'Markdown' },
-    );
-  }
-
-  // ── Шаг 2: телефон + отправка SMS ────────────────────────────────────────
-  private async handlePhoneInput(
-    ctx: Context,
-    telegramId: string,
-    state: RegistrationState,
-    text: string,
-  ) {
-    // Нормализуем и валидируем номер
-    const phone = text.replace(/[\s\-\(\)]/g, '');
-    const phoneRegex = /^\+[1-9]\d{7,14}$/;
-    if (!phoneRegex.test(phone)) {
-      await ctx.reply(
-        '❌ Некорректный формат номера.\n\nВведите номер с кодом страны, например: *+79991234567*',
-        { parse_mode: 'Markdown' },
-      );
-      return;
-    }
-
-    // Проверяем, не занят ли номер
-    const exists = await this.prisma.appUser.findFirst({ where: { phone } });
-    if (exists) {
-      await ctx.reply(
-        `⚠️ Этот номер телефона уже зарегистрирован.\n\nЕсли это ваш аккаунт — войдите на сайте и привяжите Telegram в настройках профиля.`,
-      );
-      return;
-    }
-
-    // Rate-limit: не более 1 SMS в 60 секунд
-    const now = Date.now();
-    if (state.smsSentAt && now - state.smsSentAt < TelegramService.SMS_RESEND_COOLDOWN_MS) {
-      const secondsLeft = Math.ceil(
-        (TelegramService.SMS_RESEND_COOLDOWN_MS - (now - state.smsSentAt)) / 1000,
-      );
-      await ctx.reply(`⏳ Подождите ${secondsLeft} секунд перед повторной отправкой SMS.`);
-      return;
-    }
-
-    // Блокируем параллельные запросы (locked на время отправки)
-    if (state.locked) return;
-    state.locked = true;
-
     try {
-      // Генерируем криптографически случайный 6-значный код
-      const codeRaw = crypto.randomInt(100_000, 999_999).toString();
-
-      // Хэшируем код перед хранением в памяти
-      const codeHash = await bcrypt.hash(codeRaw, 10);
-
-      const sent = await this.smscService.sendSms(
-        phone,
-        `PrepodavAI: ваш код подтверждения ${codeRaw}. Никому не сообщайте этот код.`,
-      );
-
-      if (!sent) {
-        await ctx.reply('❌ Не удалось отправить SMS. Проверьте номер и попробуйте снова.');
-        state.locked = false;
-        return;
-      }
-
-      state.phone = phone;
-      state.step = 'awaiting_sms_code';
-      state.smsCodeHash = codeHash;
-      state.smsCodeExpiresAt = now + TelegramService.SMS_CODE_TTL_MS;
-      state.smsSentAt = now;
-      state.wrongAttempts = 0;
-      state.locked = false;
-      this.regStates.set(telegramId, state);
-
-      const maskedPhone = phone.slice(0, -4).replace(/\d/g, '•') + phone.slice(-4);
-      await ctx.reply(
-        `📱 SMS отправлено на *${maskedPhone}*\n\n` +
-        `*Шаг 3 из 3* — Введите 6-значный код из SMS:\n\n` +
-        `_Код действителен 5 минут. Для отмены — /cancel_`,
-        { parse_mode: 'Markdown' },
-      );
-    } catch (err) {
-      state.locked = false;
-      this.logger.error(`[RegBot] SMS send error for ${telegramId}:`, err);
-      await ctx.reply('❌ Внутренняя ошибка. Попробуйте позже.');
-    }
-  }
-
-  // ── Шаг 3: проверка SMS-кода и создание аккаунта ─────────────────────────
-  private async handleSmsCodeInput(
-    ctx: Context,
-    telegramId: string,
-    state: RegistrationState,
-    text: string,
-  ) {
-    // Принимаем только цифры
-    if (!/^\d{4,6}$/.test(text)) {
-      await ctx.reply('❌ Код должен состоять из 6 цифр. Попробуйте ещё раз.');
-      return;
-    }
-
-    // Проверяем TTL кода
-    if (!state.smsCodeExpiresAt || Date.now() > state.smsCodeExpiresAt) {
-      this.regStates.delete(telegramId);
-      await ctx.reply(
-        '⏰ Срок действия кода истёк.\n\nНачните регистрацию заново: /start',
-      );
-      return;
-    }
-
-    // Предотвращаем параллельные попытки (timing attack protection)
-    if (state.locked) return;
-    state.locked = true;
-
-    try {
-      const isValid = await bcrypt.compare(text, state.smsCodeHash!);
-
-      if (!isValid) {
-        state.wrongAttempts = (state.wrongAttempts ?? 0) + 1;
-        state.locked = false;
-        this.regStates.set(telegramId, state);
-
-        const attemptsLeft = TelegramService.MAX_WRONG_ATTEMPTS - state.wrongAttempts;
-
-        if (attemptsLeft <= 0) {
-          // Исчерпаны попытки — сбрасываем всю сессию
-          this.regStates.delete(telegramId);
-          this.logger.warn(`[RegBot] Too many wrong SMS attempts for telegramId=${telegramId}`);
-          await ctx.reply(
-            '🚫 Слишком много неверных попыток.\n\nРегистрация отменена. Начните заново: /start',
-          );
-        } else {
-          await ctx.reply(`❌ Неверный код. Осталось попыток: *${attemptsLeft}*`, { parse_mode: 'Markdown' });
-        }
-        return;
-      }
-
-      // Код верный — создаём аккаунт
       await this.completeRegistration(ctx, telegramId, state);
     } catch (err) {
       state.locked = false;
-      this.logger.error(`[RegBot] Code verify error for ${telegramId}:`, err);
+      this.logger.error(`[RegBot] Registration error for ${telegramId}:`, err);
       await ctx.reply('❌ Внутренняя ошибка. Попробуйте позже.');
     }
   }
 
-  // ── Финал: создание AppUser + отправка учётных данных ────────────────────
   private async completeRegistration(
     ctx: Context,
     telegramId: string,
@@ -317,26 +148,20 @@ export class TelegramService {
   ) {
     const user = ctx.from!;
 
-    // Финальная проверка уникальности (race condition protection)
-    const [emailTaken, phoneTaken, tgTaken] = await Promise.all([
+    const [emailTaken, tgTaken] = await Promise.all([
       this.prisma.appUser.findFirst({ where: { email: state.email } }),
-      this.prisma.appUser.findFirst({ where: { phone: state.phone } }),
       this.prisma.appUser.findUnique({ where: { telegramId } }),
     ]);
 
-    if (emailTaken || phoneTaken || tgTaken) {
+    if (emailTaken || tgTaken) {
       this.regStates.delete(telegramId);
-      await ctx.reply(
-        '⚠️ Аккаунт с такими данными уже существует.\n\nЕсли это ваш аккаунт — войдите на сайте.',
-      );
+      await ctx.reply('⚠️ Аккаунт с такими данными уже существует.\n\nЕсли это ваш аккаунт — войдите на сайте.');
       return;
     }
 
-    // Генерируем безопасный пароль: 12 символов, буквы + цифры
     const password = crypto.randomBytes(9).toString('base64').slice(0, 12).replace(/[^a-zA-Z0-9]/g, 'x');
     const passwordHash = await bcrypt.hash(password, 12);
 
-    // Генерируем уникальный username на основе Telegram username или first_name
     const baseUsername = user.username
       ? user.username.toLowerCase().replace(/[^a-z0-9_]/g, '')
       : `user${telegramId}`;
@@ -346,78 +171,69 @@ export class TelegramService {
     const apiKey = Array.from(crypto.randomBytes(8)).map((b: number) => pwdChars[b % pwdChars.length]).join('');
     const chatId = ctx.chat!.id.toString();
 
-    // Создаём пользователя + подписку в одной транзакции
     const newUser = await this.prisma.$transaction(async (tx) => {
       const appUser = await tx.appUser.create({
         data: {
-          username,
-          userHash: username,
-          email: state.email,
-          phone: state.phone,
-          phoneVerified: true,        // телефон подтверждён SMS-кодом
-          passwordHash,
-          apiKey,
-          telegramId,
-          chatId,
-          telegramChatId: chatId,
-          firstName: user.first_name || '',
-          lastName: user.last_name || '',
-          source: 'telegram_bot',     // ← когорта для аналитики
-          lastAccessAt: new Date(),
-          lastTelegramAppAccess: new Date(),
+          username, userHash: username, email: state.email,
+          passwordHash, apiKey, telegramId, chatId, telegramChatId: chatId,
+          firstName: user.first_name || '', lastName: user.last_name || '',
+          source: 'telegram_bot', lastAccessAt: new Date(), lastTelegramAppAccess: new Date(),
         } as any,
       });
 
-      // Создаём стартовую подписку
-      const starterPlan = await tx.subscriptionPlan.findUnique({
-        where: { planKey: 'starter' },
-      });
-
+      const starterPlan = await tx.subscriptionPlan.findUnique({ where: { planKey: 'starter' } });
       if (starterPlan) {
         const now = new Date();
         const endDate = new Date(now);
         endDate.setMonth(endDate.getMonth() + 1);
-
         await tx.userSubscription.create({
           data: {
-            userId: appUser.id,
-            planId: starterPlan.id,
-            status: 'active',
-            creditsBalance: 100,
-            extraCredits: 0,
-            creditsUsed: 0,
-            overageCreditsUsed: 0,
-            startDate: now,
-            endDate,
-            autoRenew: true,
+            userId: appUser.id, planId: starterPlan.id, status: 'active',
+            creditsBalance: 100, extraCredits: 0, creditsUsed: 0,
+            overageCreditsUsed: 0, startDate: now, endDate, autoRenew: true,
           },
         });
       }
 
+      await (tx as any).botUser.create({
+        data: {
+          telegramId, appUserId: appUser.id,
+          firstName: user.first_name || null, lastName: user.last_name || null,
+          username: user.username || null, email: state.email,
+          registrationStatus: 'registered', source: 'telegram_bot',
+          lastActiveAt: new Date(),
+        },
+      });
+
       return appUser;
     });
 
-    // Удаляем сессию регистрации
     this.regStates.delete(telegramId);
+    this.logger.log(`[RegBot] New user registered: id=${newUser.id} username=${username}`);
 
-    this.logger.log(`[RegBot] New user registered via bot: id=${newUser.id} username=${username}`);
+    // Отправляем email с данными для входа
+    this.emailService.sendWelcomeEmail(username, password, state.email!).catch((err) => {
+      this.logger.error(`[RegBot] Failed to send welcome email to ${state.email}:`, err);
+    });
 
     const webAppUrl = this.configService.get<string>('WEBAPP_URL', 'https://prepodavai.ru');
 
-    // Отправляем учётные данные — в одном сообщении, без лишних деталей
     await ctx.reply(
-      `🎉 *Регистрация завершена!*\n\n` +
+      `🎉 *Спасибо за регистрацию!*\n\n` +
+      `Данные для входа отправлены на *${state.email}*\n\n` +
       `Ваши данные для входа на сайте:\n\n` +
       `👤 Логин: \`${username}\`\n` +
       `🔑 Пароль: \`${password}\`\n\n` +
-      `⚠️ *Сохраните пароль* — он больше не будет показан.\n\n` +
+      `⚠️ *Сохраните пароль* — он больше не будет показан.`,
+      { parse_mode: 'Markdown' },
+    );
+
+    await ctx.reply(
       `Нажмите кнопку ниже, чтобы открыть PrepodavAI:`,
       {
-        parse_mode: 'Markdown',
         reply_markup: {
           inline_keyboard: [
             [{ text: '🚀 Открыть PrepodavAI', web_app: { url: `${webAppUrl}/dashboard` } }],
-            [{ text: '🌐 Войти на сайте', url: `${webAppUrl}/auth` }],
           ],
         },
       },
@@ -505,6 +321,23 @@ export class TelegramService {
     ]);
 
     this.regStates.delete(user.id.toString());
+
+    // Create/update BotUser for this Telegram account
+    await (this.prisma as any).botUser.upsert({
+      where: { telegramId: user.id.toString() },
+      update: { appUserId: linkToken.userId, lastActiveAt: new Date(), registrationStatus: 'linked' },
+      create: {
+        telegramId: user.id.toString(),
+        appUserId: linkToken.userId,
+        firstName: user.first_name || null,
+        lastName: user.last_name || null,
+        username: user.username || null,
+        email: webUser.email || null,
+        registrationStatus: 'linked',
+        source: 'linked_telegram',
+        lastActiveAt: new Date(),
+      },
+    });
 
     await ctx.reply(
       `✅ Telegram успешно привязан к вашему аккаунту PrepodavAI!\n\n` +
@@ -730,38 +563,33 @@ export class TelegramService {
    * Отправка приветствия с кнопкой WebApp
    */
 
-  private async sendWelcomeWithWebApp(ctx: Context, appUser: any) {
-    const webAppUrl = this.configService.get<string>('WEBAPP_URL', 'https://prepodavai.ru');
+  private async sendWelcomeWithWebApp(ctx: Context, _appUser: any) {
+    const telegramId = ctx.from?.id.toString();
+    let botCredits: number | null = null;
+    if (telegramId) {
+      const botUserRecord = await (this.prisma as any).botUser.findUnique({ where: { telegramId } });
+      botCredits = botUserRecord?.botCredits ?? null;
+    }
+    const balanceLine = botCredits !== null ? `\n\n💳 Токенов на балансе: ${botCredits}` : '';
 
-    const message = this.getWelcomeMessage(appUser);
-
-    await ctx.reply(message, {
-      reply_markup: {
-        inline_keyboard: [
-          [
-            {
-              text: '🚀 Открыть PrepodavAI',
-              web_app: { url: `${webAppUrl}/dashboard` },
-            },
-          ],
-        ],
-      },
-    });
-  }
-
-  /**
-   * Приветственное сообщение
-   */
-  private getWelcomeMessage(_appUser?: any): string {
-    return (
-      `Добро пожаловать в prepodavAI 🎓\n\n` +
-      `Я твой интеллектуальный помощник для:\n` +
+    await ctx.reply(
+      `Добро пожаловать в Преподавай 🎓\n\n` +
+      `Я Ваш интеллектуальный помощник для:\n` +
       `— Создания учебных материалов\n` +
       `— Планирования уроков\n` +
-      `— Проверки работ учеников\n` +
-      `— Адаптации контента\n` +
-      `— Методической поддержки\n\n` +
-      `Нажмите кнопку ниже, чтобы начать работу!`
+      `— Создания красочных презентаций\n` +
+      `— Методической поддержки\n` +
+      `— Создания интерактивных игр` +
+      balanceLine,
+    );
+
+    await ctx.reply(
+      `📌 *Как пользоваться:*\n\n` +
+      `1\\. Выберите инструмент из списка ниже\n` +
+      `2\\. Ответьте на несколько вопросов\n` +
+      `3\\. Получите готовый материал в PDF\n\n` +
+      `Каждая генерация стоит 3 токена\\.`,
+      { parse_mode: 'MarkdownV2' },
     );
   }
 }

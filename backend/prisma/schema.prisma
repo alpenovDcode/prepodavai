@@ -68,6 +68,7 @@ model AppUser {
   payments              Payment[]
   studentInvites        StudentInvite[]
   diaryEntries          TeacherDiaryEntry[]
+  botUser               BotUser?
 
   @@index([telegramId])
   @@index([maxId])
@@ -671,4 +672,45 @@ model TeacherDiaryEntry {
   @@index([studentId])
   @@index([date])
   @@map("teacher_diary_entries")
+}
+
+// Пользователи чат-ботов (Telegram и MAX)
+model BotUser {
+  id                   String    @id @default(uuid())
+
+  // Связь с аккаунтом платформы (если есть)
+  appUserId            String?   @unique
+  appUser              AppUser?  @relation(fields: [appUserId], references: [id], onDelete: SetNull)
+
+  // Идентификаторы мессенджеров
+  telegramId           String?   @unique
+  maxId                String?   @unique
+
+  // Профиль (из мессенджера)
+  firstName            String?
+  lastName             String?
+  username             String?
+  email                String?
+
+  // Статус: 'pending' | 'registered' | 'linked'
+  registrationStatus   String    @default("pending")
+  // Источник: 'telegram_bot' | 'max_bot' | 'linked_telegram' | 'linked_max'
+  source               String?
+
+  // Независимые бот-кредиты (редактируются напрямую в БД)
+  botCredits           Int       @default(100)
+
+  // Статистика
+  totalGenerations     Int       @default(0)
+  generationsThisMonth Int       @default(0)
+  lastGenerationAt     DateTime?
+  lastActiveAt         DateTime?
+
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@index([telegramId])
+  @@index([maxId])
+  @@index([appUserId])
+  @@map("bot_users")
 }
