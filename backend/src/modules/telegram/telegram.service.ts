@@ -563,6 +563,20 @@ export class TelegramService {
         await this.sendTextResult(chatId, generationType, result);
       }
 
+      await this.bot.api.sendMessage(chatId, '🛠️ *Выберите инструмент:*', {
+        parse_mode: 'Markdown',
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: '📄 Рабочий лист', callback_data: 'g:t:worksheet' }, { text: '📝 Генератор тестов', callback_data: 'g:t:quiz' }],
+            [{ text: '📖 Словарь', callback_data: 'g:t:vocabulary' }, { text: '📋 Конструктор уроков', callback_data: 'g:t:lesson-plan' }],
+            [{ text: '✨ Вау-урок', callback_data: 'g:t:lesson-preparation' }, { text: '🖼️ Генератор изображений', callback_data: 'g:t:image' }],
+            [{ text: '🎮 Обучающая игра', callback_data: 'g:t:game' }, { text: '📊 Презентация', callback_data: 'g:t:presentation' }],
+            [{ text: '🎬 Анализ видео', callback_data: 'g:t:video-analysis' }, { text: '📸 AI Фотосессия', callback_data: 'g:t:photosession' }],
+            [{ text: '📦 Распаковка Экспертности', callback_data: 'g:t:unpacking' }],
+          ],
+        },
+      }).catch(() => {/* keyboard is optional, don't fail delivery */});
+
       return { success: true, message: 'Result sent successfully' };
     } catch (error) {
       console.error('Error sending to Telegram:', error);
