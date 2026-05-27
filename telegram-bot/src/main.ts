@@ -96,7 +96,24 @@ function buildToolSelectionKeyboard(): InlineKeyboard {
   return kb;
 }
 
+function buildMultiselectKeyboard(field: FieldConfig, session: GenerationSession): InlineKeyboard {
+  const selected = new Set((session.params[field.key] || '').split(',').filter(Boolean));
+  const options = field.options ?? [];
+  const kb = new InlineKeyboard();
+  options.forEach((opt, i) => {
+    if (i > 0 && i % 2 === 0) kb.row();
+    const isSelected = selected.has(opt.value);
+    kb.text(`${isSelected ? '✅' : '☐'} ${opt.label}`, `g:ms:${i}`);
+  });
+  kb.row().text(selected.size > 0 ? `✅ Готово (${selected.size})` : '✅ Готово', 'g:msok');
+  kb.row().text('❌ Отмена', 'g:no');
+  return kb;
+}
+
 function buildFieldKeyboard(field: FieldConfig, session: GenerationSession): InlineKeyboard | null {
+  if (field.type === 'multiselect') {
+    return buildMultiselectKeyboard(field, session);
+  }
   if (field.type === 'file') {
     return new InlineKeyboard().text('❌ Отмена', 'g:no');
   }
@@ -199,7 +216,7 @@ async function getApiToken(username: string, apiKey: string): Promise<string | n
   }
 }
 
-async function callGenerationApi(token: string, generationType: string, params: Record<string, string>): Promise<any> {
+async function callGenerationApi(token: string, generationType: string, params: Record<string, any>): Promise<any> {
   const resp = await fetch(`${API_URL}/api/generate/${generationType}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
@@ -716,6 +733,55 @@ bot.on('callback_query:data', async (ctx: Context) => {
     session.fieldIndex++;
     await nextStep(ctx, session, tool);
 
+  } else if (data.startsWith('g:ms:')) {
+    // Toggle multiselect option
+    const idx = parseInt(data.slice(5), 10);
+    if (!Number.isFinite(idx) || idx < 0 || idx > 20) return;
+
+    const session = getGenSession(telegramId);
+    if (!session) { await ctx.reply('⏰ Сессия истекла. Начните заново: /generate'); return; }
+
+    const tool = getToolConfig(session.toolKey);
+    if (!tool) return;
+
+    const field = tool.fields[session.fieldIndex];
+    if (!field || field.type !== 'multiselect') return;
+
+    const options = field.options ?? [];
+    if (idx >= options.length) return;
+
+    const current = new Set((session.params[field.key] || '').split(',').filter(Boolean));
+    const optValue = options[idx].value;
+    if (current.has(optValue)) {
+      current.delete(optValue);
+    } else {
+      current.add(optValue);
+    }
+    session.params[field.key] = Array.from(current).join(',');
+
+    // Edit the keyboard in-place
+    await ctx.editMessageReplyMarkup({ reply_markup: buildMultiselectKeyboard(field, session) }).catch(() => null);
+
+  } else if (data === 'g:msok') {
+    // Confirm multiselect
+    const session = getGenSession(telegramId);
+    if (!session) { await ctx.reply('⏰ Сессия истекла. Начните заново: /generate'); return; }
+
+    const tool = getToolConfig(session.toolKey);
+    if (!tool) return;
+
+    const field = tool.fields[session.fieldIndex];
+    if (!field || field.type !== 'multiselect') return;
+
+    const selected = (session.params[field.key] || '').split(',').filter(Boolean);
+    if (selected.length === 0) {
+      await ctx.reply('⚠️ Выберите хотя бы один раздел');
+      return;
+    }
+
+    session.fieldIndex++;
+    await nextStep(ctx, session, tool);
+
   } else if (data === 'g:skip') {
     const session = getGenSession(telegramId);
     if (!session) return;
@@ -729,7 +795,11 @@ bot.on('callback_query:data', async (ctx: Context) => {
     if (field.required) { await ctx.reply('❌ Это поле обязательно — пропустить нельзя.'); return; }
 
     if (field.default !== undefined) session.params[field.key] = field.default;
-    session.fieldIndex++;
+    if ((field as any).skipToEnd) {
+      session.fieldIndex = tool.fields.length;
+    } else {
+      session.fieldIndex++;
+    }
     await nextStep(ctx, session, tool);
 
   } else if (data === 'g:ok') {
@@ -764,7 +834,11 @@ bot.on('callback_query:data', async (ctx: Context) => {
         const kb = new InlineKeyboard().url('🎮 Открыть игру', result.url);
         await ctx.reply(`🎮 *Игра готова!*\n\nТема: _${session.params.topic}_\n\nНажмите кнопку, чтобы открыть:`, { parse_mode: 'Markdown', reply_markup: kb });
       } else {
-        const result = await callGenerationApi(token, tool.generationType, session.params);
+        let apiParams: Record<string, any> = { ...session.params };
+        if (tool.key === 'lesson-preparation' && typeof apiParams.generationTypes === 'string') {
+          apiParams.generationTypes = apiParams.generationTypes.split(',').filter(Boolean);
+        }
+        const result = await callGenerationApi(token, tool.generationType, apiParams);
         if (result.status === 'completed') {
           await ctx.reply(`✅ Готово! Отправляю ${tool.emoji} *${tool.label}* в чат...\n\n💳 Осталось токенов: *${result.remainingCredits ?? '—'}*`, { parse_mode: 'Markdown' });
         } else {
@@ -799,6 +873,10 @@ bot.on('message:text', async (ctx: Context) => {
 
     if (field.type === 'file') {
       await ctx.reply('📎 Нужно отправить файл, а не текст. Прикрепите файл или нажмите «Отмена».');
+      return;
+    }
+    if (field.type === 'multiselect') {
+      await ctx.reply('👆 Нажмите на кнопки выше, чтобы выбрать разделы, затем нажмите *Готово*.',  { parse_mode: 'Markdown' });
       return;
     }
 

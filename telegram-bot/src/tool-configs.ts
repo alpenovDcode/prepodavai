@@ -6,7 +6,8 @@ export interface FieldOption {
 export interface FieldConfig {
   key: string;
   label: string;
-  type: 'text' | 'select' | 'file';
+  type: 'text' | 'select' | 'file' | 'multiselect';
+  skipToEnd?: boolean; // when skip is pressed, jump to confirmation instead of next field
   required: boolean;
   default?: string;
   options?: FieldOption[];
@@ -44,23 +45,6 @@ const CLASS_GRADES: FieldOption[] = Array.from({ length: 11 }, (_, i) => ({
   label: `${i + 1} класс`,
 }));
 
-const OGE_SUBJECTS = [
-  'Русский язык', 'Математика', 'Физика', 'Химия', 'Биология',
-  'История', 'Обществознание', 'Литература', 'Информатика',
-  'Английский язык', 'Немецкий язык', 'Французский язык', 'Испанский язык', 'География',
-];
-const EGE_SUBJECTS = [
-  ...OGE_SUBJECTS, 'Математика (профильная)', 'Математика (базовая)',
-];
-const VPR_SUBJECTS = [
-  'Русский язык', 'Математика', 'Окружающий мир', 'Физика', 'Химия', 'Биология',
-  'История', 'Обществознание', 'Литература', 'Английский язык',
-  'Немецкий язык', 'Французский язык', 'География',
-];
-
-function toOptions(arr: string[]): FieldOption[] {
-  return arr.map((s) => ({ value: s, label: s }));
-}
 
 export const TOOL_CONFIGS: ToolConfig[] = [
   {
@@ -125,25 +109,25 @@ export const TOOL_CONFIGS: ToolConfig[] = [
     ],
   },
   {
-    key: 'exam-variant',
-    generationType: 'exam-variant',
+    key: 'lesson-preparation',
+    generationType: 'lesson-preparation',
     serviceType: 'generations',
-    label: 'Вариант ОГЭ/ЕГЭ',
-    emoji: '🎓',
-    creditCost: 20,
+    label: 'Вау-урок',
+    emoji: '✨',
+    creditCost: 5,
     estimatedTime: '~60 сек',
     fields: [
-      { key: 'level', label: '📋 Тип экзамена', type: 'select', required: true, default: 'ОГЭ (9 класс)', options: [{ value: 'ОГЭ (9 класс)', label: 'ОГЭ (9 класс)' }, { value: 'ЕГЭ (11 класс)', label: 'ЕГЭ (11 класс)' }, { value: 'ВПР', label: 'ВПР' }], maxLength: 20 },
-      {
-        key: 'subject', label: '📚 Предмет', type: 'select', required: true, maxLength: 50,
-        conditionalOptions: (params) => {
-          const level = params.level ?? 'ОГЭ (9 класс)';
-          if (level.startsWith('ЕГЭ')) return toOptions(EGE_SUBJECTS);
-          if (level === 'ВПР') return toOptions(VPR_SUBJECTS);
-          return toOptions(OGE_SUBJECTS);
-        },
-      },
-      { key: 'questionsCount', label: '🔢 Количество заданий', type: 'select', required: true, default: '20', options: [{ value: '5', label: '5 заданий' }, { value: '10', label: '10 заданий' }, { value: '15', label: '15 заданий' }, { value: '20', label: '20 заданий' }, { value: '30', label: '30 заданий' }], maxLength: 3 },
+      { key: 'subject', label: '📚 Предмет (необязательно)\n\nНапример: Математика, Биология', type: 'text', required: false, maxLength: 100, skipLabel: 'Пропустить' },
+      { key: 'topic', label: '✏️ Тема урока\n\nНапример: Дроби, Фотосинтез, Первая мировая война', type: 'text', required: true, maxLength: 200 },
+      { key: 'level', label: '🎓 Класс', type: 'select', required: true, default: '5', options: Array.from({ length: 11 }, (_, i) => ({ value: String(i + 1), label: `${i + 1} класс` })), maxLength: 3 },
+      { key: 'interests', label: '🎮 Интересы ученика (необязательно)\n\nНапример: Minecraft, футбол, аниме', type: 'text', required: false, maxLength: 200, skipLabel: 'Пропустить' },
+      { key: 'generationTypes', label: '📋 Что сгенерировать?\n\nВыберите один или несколько разделов и нажмите *Готово*:', type: 'multiselect', required: true, options: [
+        { value: 'lesson-plan', label: 'План урока' },
+        { value: 'worksheet', label: 'Рабочий лист' },
+        { value: 'content-adaptation', label: 'Учебный материал' },
+        { value: 'quiz', label: 'Тест' },
+      ], maxLength: 100 },
+      { key: 'depth', label: '📊 Глубина материала', type: 'select', required: true, default: 'standard', options: [{ value: 'short', label: '⚡ Краткий' }, { value: 'standard', label: '⚖️ Стандартный' }, { value: 'deep', label: '🔬 Развёрнутый' }], maxLength: 10 },
     ],
   },
   {
@@ -216,16 +200,27 @@ export const TOOL_CONFIGS: ToolConfig[] = [
     ],
   },
   {
-    key: 'transcription',
-    generationType: 'transcribe-video',
+    key: 'unpacking',
+    generationType: 'unpacking',
     serviceType: 'generations',
-    label: 'Транскрибация',
-    emoji: '🎙️',
-    creditCost: 15,
-    estimatedTime: '~3-10 мин',
+    label: 'Распаковка Экспертности',
+    emoji: '📦',
+    creditCost: 5,
+    estimatedTime: '~50 сек',
     fields: [
-      { key: 'fileUrl', label: '🎙️ Отправьте аудио или видео файл\n\nПоддерживается: MP3, WAV, OGG, M4A, MP4, MOV\nМаксимальный размер — 20 МБ.', type: 'file', required: true, accept: 'document', maxSizeMb: 20, storeAs: 'url', maxLength: 500 },
-      { key: 'language', label: '🌍 Язык записи', type: 'select', required: true, default: 'ru', options: [{ value: 'ru', label: '🇷🇺 Русский' }, { value: 'en', label: '🇬🇧 Английский' }, { value: 'auto', label: '🔍 Определить автоматически' }], maxLength: 5 },
+      { key: 'q1', label: '1️⃣ Что вас подтолкнуло заниматься преподаванием?\n\nВозможная поворотная точка?', type: 'text', required: true, maxLength: 500 },
+      { key: 'q2', label: '2️⃣ Что вы делаете лучше всего?\n\nКакая деятельность даётся легко?', type: 'text', required: true, maxLength: 500 },
+      { key: 'q3', label: '3️⃣ За что вам чаще всего говорят «спасибо» ученики и их родители?', type: 'text', required: true, maxLength: 500 },
+      { key: 'q4', label: '4️⃣ Каким вашим знаниям или достижениям чаще всего удивляются люди?', type: 'text', required: false, maxLength: 500, skipLabel: 'Завершить и сгенерировать', skipToEnd: true },
+      { key: 'q5', label: '5️⃣ 5 достижений, которыми вы гордитесь (связанные с преподаванием)?', type: 'text', required: false, maxLength: 500, skipLabel: 'Завершить и сгенерировать', skipToEnd: true },
+      { key: 'q6', label: '6️⃣ Какие действия вы предприняли для этих достижений?', type: 'text', required: false, maxLength: 500, skipLabel: 'Завершить и сгенерировать', skipToEnd: true },
+      { key: 'q7', label: '7️⃣ Что уникального, авторского было создано вами?', type: 'text', required: false, maxLength: 500, skipLabel: 'Завершить и сгенерировать', skipToEnd: true },
+      { key: 'q8', label: '8️⃣ С какими учениками вам нравится заниматься больше всего?', type: 'text', required: false, maxLength: 500, skipLabel: 'Завершить и сгенерировать', skipToEnd: true },
+      { key: 'q9', label: '9️⃣ Почему именно с этой категорией учеников?', type: 'text', required: false, maxLength: 500, skipLabel: 'Завершить и сгенерировать', skipToEnd: true },
+      { key: 'q10', label: '🔟 Какой категории учеников вы можете дать результат самым быстрым способом?', type: 'text', required: false, maxLength: 500, skipLabel: 'Завершить и сгенерировать', skipToEnd: true },
+      { key: 'q11', label: '1️⃣1️⃣ Какие ваши личностные качества больше всего влияют на вашу деятельность?', type: 'text', required: false, maxLength: 500, skipLabel: 'Завершить и сгенерировать', skipToEnd: true },
+      { key: 'q12', label: '1️⃣2️⃣ Какие ошибки вы допускали и как исправляли их?', type: 'text', required: false, maxLength: 500, skipLabel: 'Завершить и сгенерировать', skipToEnd: true },
+      { key: 'q13', label: '1️⃣3️⃣ 3 аспекта преподавания, которые вызывают больше всего вдохновения?', type: 'text', required: false, maxLength: 500, skipLabel: 'Завершить и сгенерировать', skipToEnd: true },
     ],
   },
 ];
