@@ -1016,7 +1016,7 @@ export class MaxService {
   }
 
   private async sendTextResult(chatId: string, generationType: string, result: any) {
-    const content = result?.content || result;
+    const content = result?.htmlResult || result?.content || result;
     const filename = `${generationType}_${new Date().toISOString().split('T')[0]}.pdf`;
 
     try {

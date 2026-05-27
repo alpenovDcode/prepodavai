@@ -555,12 +555,16 @@ export class TelegramService {
 
     try {
       // Отправляем в зависимости от типа генерации
-      if (generationType === 'image' || generationType === 'photosession') {
-        await this.sendImage(chatId, result);
-      } else if (generationType === 'presentation') {
-        await this.sendPresentation(chatId, result);
-      } else {
-        await this.sendTextResult(chatId, generationType, result);
+      try {
+        if (generationType === 'image' || generationType === 'photosession') {
+          await this.sendImage(chatId, result);
+        } else if (generationType === 'presentation') {
+          await this.sendPresentation(chatId, result);
+        } else {
+          await this.sendTextResult(chatId, generationType, result);
+        }
+      } catch (deliveryError) {
+        console.error('[Telegram] Error delivering result:', deliveryError);
       }
 
       await this.bot.api.sendMessage(chatId, '🛠️ *Выберите инструмент:*', {
@@ -571,11 +575,9 @@ export class TelegramService {
             [{ text: '📖 Словарь', callback_data: 'g:t:vocabulary' }, { text: '📋 Конструктор уроков', callback_data: 'g:t:lesson-plan' }],
             [{ text: '✨ Вау-урок', callback_data: 'g:t:lesson-preparation' }, { text: '🖼️ Генератор изображений', callback_data: 'g:t:image' }],
             [{ text: '🎮 Обучающая игра', callback_data: 'g:t:game' }, { text: '📊 Презентация', callback_data: 'g:t:presentation' }],
-            [{ text: '🎬 Анализ видео', callback_data: 'g:t:video-analysis' }, { text: '📸 AI Фотосессия', callback_data: 'g:t:photosession' }],
-            [{ text: '📦 Распаковка Экспертности', callback_data: 'g:t:unpacking' }],
           ],
         },
-      }).catch(() => {/* keyboard is optional, don't fail delivery */});
+      }).catch(() => {});
 
       return { success: true, message: 'Result sent successfully' };
     } catch (error) {
@@ -698,7 +700,7 @@ export class TelegramService {
    */
   private async sendTextResult(chatId: string, generationType: string, result: any) {
     console.log(`[Telegram] sendTextResult called for ${generationType}, chatId: ${chatId}`);
-    const content = result?.content || result;
+    const content = result?.htmlResult || result?.content || result;
     const filename = `${generationType}_${new Date().toISOString().split('T')[0]}_${Date.now()}.pdf`;
 
     try {
