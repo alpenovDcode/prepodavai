@@ -638,12 +638,14 @@ bot.command('start', async (ctx: Context) => {
       } as any,
     });
     regStates.delete(telegramId);
+    genSessions.delete(telegramId);
 
     const webAppUrl = process.env.WEBAPP_URL || 'https://prepodavai.ru';
     await ctx.reply(
       `Добро пожаловать в prepodavAI 🎓\n\nЯ твой интеллектуальный помощник для:\n— Создания учебных материалов\n— Планирования уроков\n— Проверки работ учеников\n— Адаптации контента\n— Методической поддержки\n\nНажмите кнопку ниже, чтобы начать работу!`,
       { reply_markup: { inline_keyboard: [[{ text: '🚀 Открыть PrepodavAI', web_app: { url: `${webAppUrl}/dashboard` } }]] } },
     );
+    await ctx.reply('🛠️ *Выберите инструмент:*', { parse_mode: 'Markdown', reply_markup: buildToolSelectionKeyboard() });
     return;
   }
 

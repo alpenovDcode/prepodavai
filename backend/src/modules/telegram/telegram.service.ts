@@ -7,7 +7,6 @@ import * as crypto from 'crypto';
 import * as bcrypt from 'bcryptjs';
 import { HtmlExportService } from '../../common/services/html-export.service';
 import { SmscService } from '../smsc/smsc.service';
-import { BotGenerationHandler } from './bot/bot-generation.handler';
 
 // ── Типы состояний диалога регистрации ──────────────────────────────────────
 type RegStep = 'awaiting_email' | 'awaiting_phone' | 'awaiting_sms_code';
@@ -56,12 +55,10 @@ export class TelegramService {
     private prisma: PrismaService,
     private readonly htmlExportService: HtmlExportService,
     private readonly smscService: SmscService,
-    private readonly botGenerationHandler: BotGenerationHandler,
   ) {
     const token = this.configService.get<string>('TELEGRAM_BOT_TOKEN');
     if (token) {
       this.bot = new Bot(token);
-      this.setupHandlers();
     } else {
       this.logger.warn('TELEGRAM_BOT_TOKEN is not set. Telegram bot will not work.');
     }
@@ -111,93 +108,6 @@ export class TelegramService {
   /**
    * Настройка обработчиков бота
    */
-  private setupHandlers() {
-    // Генерация в чате — регистрируем ПЕРВЫМИ чтобы text-хэндлер мог вызвать next()
-    this.botGenerationHandler.setup(this.bot);
-
-    // ── /start ──────────────────────────────────────────────────────────────
-    this.bot.command('start', async (ctx: Context) => {
-      const user = ctx.from;
-      if (!user) return;
-
-      const telegramId = user.id.toString();
-
-      // 1. link_XXXXXXXX payload — привязка существующего web-аккаунта
-      const payload = ctx.match as string | undefined;
-      if (payload && payload.startsWith('link_')) {
-        const token = payload.slice(5);
-        await this.handleLinkToken(ctx, user, token);
-        return;
-      }
-
-      // 2. Уже зарегистрирован — приветствие + кнопка TMA
-      const existingUser = await this.prisma.appUser.findUnique({
-        where: { telegramId },
-      });
-
-      if (existingUser) {
-        await this.prisma.appUser.update({
-          where: { id: existingUser.id },
-          data: {
-            lastAccessAt: new Date(),
-            chatId: ctx.chat.id.toString(),
-            telegramChatId: ctx.chat.id.toString(),
-            firstName: user.first_name || existingUser.firstName,
-            lastName: user.last_name || existingUser.lastName,
-            username: user.username || existingUser.username,
-          } as any,
-        });
-        // Сбрасываем незавершённую сессию регистрации, если вдруг была
-        this.regStates.delete(telegramId);
-        await this.sendWelcomeWithWebApp(ctx, existingUser);
-        return;
-      }
-
-      // 3. Новый пользователь — начинаем регистрацию
-      await this.startRegistration(ctx, telegramId);
-    });
-
-    // ── /cancel — отмена регистрации или генерации ───────────────────────────
-    this.bot.command('cancel', async (ctx: Context) => {
-      const telegramId = ctx.from?.id.toString();
-      if (!telegramId) return;
-      if (this.regStates.has(telegramId)) {
-        this.regStates.delete(telegramId);
-        await ctx.reply('❌ Регистрация отменена. Чтобы начать заново, отправьте /start.');
-      } else if (this.botGenerationHandler.hasSession(telegramId)) {
-        this.botGenerationHandler.cancelSession(telegramId);
-        await ctx.reply('❌ Генерация отменена.');
-      } else {
-        await ctx.reply('Нет активного процесса.');
-      }
-    });
-
-    // ── Текстовые сообщения — шаги регистрации ──────────────────────────────
-    this.bot.on('message:text', async (ctx: Context, next: () => Promise<void>) => {
-      const user = ctx.from;
-      if (!user) return next();
-      const telegramId = user.id.toString();
-      const state = this.regStates.get(telegramId);
-
-      // Нет активной сессии регистрации — передаём управление следующим хэндлерам
-      if (!state) return next();
-
-      const text = (ctx.message as any)?.text?.trim() ?? '';
-
-      switch (state.step) {
-        case 'awaiting_email':
-          await this.handleEmailInput(ctx, telegramId, state, text);
-          break;
-        case 'awaiting_phone':
-          await this.handlePhoneInput(ctx, telegramId, state, text);
-          break;
-        case 'awaiting_sms_code':
-          await this.handleSmsCodeInput(ctx, telegramId, state, text);
-          break;
-      }
-    });
-  }
-
   // ── Шаг 0: начало регистрации ────────────────────────────────────────────
   private async startRegistration(ctx: Context, telegramId: string) {
     // DoS protection: не более MAX_CONCURRENT_SESSIONS незавершённых сессий
