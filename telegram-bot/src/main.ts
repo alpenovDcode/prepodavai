@@ -624,7 +624,10 @@ bot.command('start', async (ctx: Context) => {
     return;
   }
 
-  const existingUser = await prisma.appUser.findUnique({ where: { telegramId } });
+  const existingUser = await prisma.appUser.findUnique({
+    where: { telegramId },
+    include: { subscription: true },
+  });
   if (existingUser) {
     await prisma.appUser.update({
       where: { id: existingUser.id },
@@ -640,9 +643,11 @@ bot.command('start', async (ctx: Context) => {
     regStates.delete(telegramId);
     genSessions.delete(telegramId);
 
+    const balance = (existingUser as any).subscription?.creditsBalance ?? null;
+    const balanceLine = balance !== null ? `\n\n💳 Токенов на балансе: ${balance}` : '';
     const webAppUrl = process.env.WEBAPP_URL || 'https://prepodavai.ru';
     await ctx.reply(
-      `Добро пожаловать в prepodavAI 🎓\n\nЯ твой интеллектуальный помощник для:\n— Создания учебных материалов\n— Планирования уроков\n— Проверки работ учеников\n— Адаптации контента\n— Методической поддержки\n\nНажмите кнопку ниже, чтобы начать работу!`,
+      `Добро пожаловать в prepodavAI 🎓\n\nЯ твой интеллектуальный помощник для:\n— Создания учебных материалов\n— Планирования уроков\n— Проверки работ учеников\n— Адаптации контента\n— Методической поддержки\n\nНажмите кнопку ниже, чтобы начать работу!${balanceLine}`,
       { reply_markup: { inline_keyboard: [[{ text: '🚀 Открыть PrepodavAI', web_app: { url: `${webAppUrl}/dashboard` } }]] } },
     );
     await ctx.reply('🛠️ *Выберите инструмент:*', { parse_mode: 'Markdown', reply_markup: buildToolSelectionKeyboard() });

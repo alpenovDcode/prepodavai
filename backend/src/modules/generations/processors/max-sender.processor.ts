@@ -3,7 +3,8 @@ import { Job } from 'bullmq';
 import { PrismaService } from '../../../common/prisma/prisma.service';
 import { MaxService } from '../../max/max.service';
 
-@Processor('max-send')
+// lockDuration 2 min: text generations run Puppeteer (~60s cold start) inside this job
+@Processor('max-send', { lockDuration: 120_000 })
 export class MaxSenderProcessor extends WorkerHost {
   constructor(
     private prisma: PrismaService,
@@ -28,12 +29,14 @@ export class MaxSenderProcessor extends WorkerHost {
       throw new Error(`Generation not completed: ${generationRequestId}`);
     }
 
-    // Idempotency: используем metadata для флага отправки в MAX
     const meta = (userGeneration as any).metadata as Record<string, any> | null;
+
+    // Проверяем, не была ли уже отправлена
     if (meta?.sentToMax) {
       return { success: true, message: 'Already sent to MAX' };
     }
 
+    // Проверяем, что к аккаунту привязан MAX
     if (!userGeneration.user.maxId) {
       await this.prisma.userGeneration.update({
         where: { id: userGeneration.id },
@@ -47,6 +50,10 @@ export class MaxSenderProcessor extends WorkerHost {
       throw new Error(`No result data for generation: ${generationRequestId}`);
     }
 
+    console.log(
+      `[MaxSender] Sending ${userGeneration.generationType} to MAX, result type: ${typeof result}, result length: ${JSON.stringify(result).length}`,
+    );
+
     const sendResult = await this.maxService.sendGenerationResult({
       userId: userGeneration.user.id,
       generationType: userGeneration.generationType,
@@ -54,10 +61,12 @@ export class MaxSenderProcessor extends WorkerHost {
       generationRequestId,
     });
 
-    await this.prisma.userGeneration.update({
-      where: { id: userGeneration.id },
-      data: { metadata: { ...(meta ?? {}), sentToMax: true, maxSentAt: new Date().toISOString() } } as any,
-    });
+    if (sendResult.success) {
+      await this.prisma.userGeneration.update({
+        where: { id: userGeneration.id },
+        data: { metadata: { ...(meta ?? {}), sentToMax: true, maxSentAt: new Date().toISOString() } } as any,
+      });
+    }
 
     return sendResult;
   }

@@ -462,6 +462,7 @@ export class MaxService {
     // Normal /start — only greet existing linked users
     let existingUser = await this.prisma.appUser.findUnique({
       where: { maxId: user.id.toString() },
+      include: { subscription: true },
     });
 
     if (existingUser) {
@@ -476,6 +477,7 @@ export class MaxService {
           lastName: user.last_name || existingUser.lastName,
           username: user.username || existingUser.username,
         } as any,
+        include: { subscription: true },
       });
       await this.sendWelcomeMessage(chatIdStr, existingUser, botUserId);
     } else {
@@ -562,7 +564,8 @@ export class MaxService {
   }
 
   private async sendWelcomeMessage(chatId: string, appUser: any, _botUserId?: number) {
-    const text = this.getWelcomeMessage(appUser);
+    const balance = appUser.subscription?.creditsBalance ?? null;
+    const text = this.getWelcomeMessage(appUser, balance);
     await this.sendMessageWithMarkup(chatId, text);
     await this.sendMessageWithKeyboard(chatId, '🛠️ Выберите инструмент:', this.buildToolSelectionAttachment());
   }
@@ -597,6 +600,8 @@ export class MaxService {
       return { success: false, message: 'No MAX chatId available' };
     }
 
+    this.logger.log(`[MAX] Sending result: type=${generationType} userId=${userId} chatId=${chatId}`);
+
     try {
       if (generationType === 'image' || generationType === 'photosession') {
         await this.sendImage(chatId, result);
@@ -605,9 +610,10 @@ export class MaxService {
       } else {
         await this.sendTextResult(chatId, generationType, result);
       }
+      this.logger.log(`[MAX] Result delivered successfully: type=${generationType} userId=${userId}`);
       return { success: true, message: 'Result sent successfully' };
     } catch (error) {
-      this.logger.error('Error sending to MAX:', error);
+      this.logger.error(`[MAX] Failed to deliver result: type=${generationType} userId=${userId} error=${error}`);
       return { success: false, message: String(error) };
     }
   }
@@ -921,14 +927,12 @@ export class MaxService {
         payload.attachments = attachments;
       }
 
-      this.logger.log(`Attempting request to MAX: POST ${url}`);
-
       const response = await axios.post(
         url,
         payload,
         { headers: { Authorization: this.token } },
       );
-      this.logger.log(`MAX API response: ${response.status} ${JSON.stringify(response.data)}`);
+      this.logger.log(`[MAX] Message sent: status=${response.status} chatId=${chatId}`);
 
       // Extract message ID for keyboard editing
       const mid: string | undefined =
@@ -986,13 +990,17 @@ export class MaxService {
         const isPptx = exportUrl.toLowerCase().includes('.pptx') || exportUrl.toLowerCase().includes('pptx');
         const ext = isPptx ? 'pptx' : 'pdf';
         const filename = `presentation_${Date.now()}.${ext}`;
-        const fileResp = await axios.get(exportUrl, { responseType: 'arraybuffer' });
+        this.logger.log(`[MAX] Downloading presentation: ${exportUrl}`);
+        const fileResp = await axios.get(exportUrl, { responseType: 'arraybuffer', timeout: 60_000 });
         const buffer = Buffer.from(fileResp.data);
+        this.logger.log(`[MAX] Presentation downloaded: ${buffer.length} bytes, uploading to MAX...`);
         await this.uploadAndSendFile(chatId, buffer, filename, `✅ Ваша презентация готова!${topic}`);
         return;
-      } catch (error) {
-        this.logger.error('[MAX] Failed to download/upload presentation file:', error);
+      } catch (error: any) {
+        this.logger.error(`[MAX] Failed to download/upload presentation: ${error?.message ?? error}`);
       }
+    } else {
+      this.logger.warn('[MAX] sendPresentation: no exportUrl in result');
     }
 
     // Fallback
@@ -1054,20 +1062,30 @@ export class MaxService {
       uploadResp.data?.attachment?.token;
     if (!token) throw new Error('MAX did not return file token');
 
-    // 3. Отправляем сообщение с файловым вложением
-    await this.sendMessageWithMarkup(chatId, caption, [
-      { type: 'file', payload: { token } },
-    ]);
+    this.logger.log(`[MAX] File uploaded, token=${token.slice(0, 12)}... Waiting for processing...`);
+
+    // 3. Ждём пока MAX обработает файл, затем отправляем с ретраями
+    const delays = [3000, 5000, 8000]; // 3 попытки: через 3, 5, 8 секунд
+    for (let attempt = 0; attempt < delays.length; attempt++) {
+      await new Promise(resolve => setTimeout(resolve, delays[attempt]));
+      try {
+        await axios.post(
+          `${base}/messages?user_id=${chatId}`,
+          { text: caption, attachments: [{ type: 'file', payload: { token } }] },
+          { headers: { Authorization: this.token } },
+        );
+        this.logger.log(`[MAX] File sent successfully on attempt ${attempt + 1}`);
+        return;
+      } catch (err: any) {
+        const code = err?.response?.data?.code;
+        this.logger.warn(`[MAX] Send attempt ${attempt + 1} failed: ${code ?? err?.message}`);
+        if (code !== 'attachment.not.ready' || attempt === delays.length - 1) throw err;
+      }
+    }
   }
 
-  private generateApiKey(): string {
-    const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
-    return Array.from(crypto.randomBytes(8))
-      .map((b: number) => chars[b % chars.length])
-      .join('');
-  }
-
-  private getWelcomeMessage(appUser: any): string {
+  private getWelcomeMessage(appUser: any, balance: number | null = null): string {
+    const balanceLine = balance !== null ? `💳 Токенов на балансе: ${balance}\n\n` : '';
     return (
       `Добро пожаловать в prepodavAI 🎓\n\n` +
       `🔑 Ваши данные для входа в веб-версию:\n\n` +
@@ -1075,6 +1093,7 @@ export class MaxService {
       `🔐 Пароль: ${appUser.apiKey}\n\n` +
       `⚠️ Сохраните эти данные! Они понадобятся для входа в веб-версию.\n\n` +
       `🌐 Веб-версия: https://prepodavai.ru/\n\n` +
+      balanceLine +
       `Я твой интеллектуальный помощник для:\n` +
       `— Создания учебных материалов\n` +
       `— Планирования уроков\n` +
