@@ -1,4 +1,4 @@
-import { Bot, Context, InlineKeyboard } from 'grammy';
+import { Bot, Context, InlineKeyboard, BotConfig } from 'grammy';
 import * as dotenv from 'dotenv';
 import { PrismaClient } from '@prisma/client';
 import * as crypto from 'crypto';
@@ -7,9 +7,55 @@ import { TOOL_CONFIGS, ToolConfig, FieldConfig, getToolConfig } from './tool-con
 
 dotenv.config();
 
-const bot = new Bot(process.env.TELEGRAM_BOT_TOKEN || '');
 const prisma = new PrismaClient();
 const API_URL = process.env.API_URL || 'http://localhost:3001';
+
+/**
+ * Собирает client-конфиг grammY с учётом окружения:
+ *  - TELEGRAM_API_ROOT — кастомный Bot API endpoint (зеркало / локальный bot-api-server),
+ *    обход блокировки api.telegram.org.
+ *  - TELEGRAM_PROXY / HTTPS_PROXY / ALL_PROXY — HTTP(S)-прокси для egress через undici-dispatcher
+ *    (undici поставляется вместе с Node 18+, отдельная зависимость не нужна).
+ * Если ничего не задано — поведение прежнее (прямой доступ).
+ */
+function buildBotClientConfig(): BotConfig<Context>['client'] {
+  const client: NonNullable<BotConfig<Context>['client']> = {};
+
+  const apiRoot = process.env.TELEGRAM_API_ROOT?.trim();
+  if (apiRoot) {
+    client.apiRoot = apiRoot;
+    console.log(`[Bot] Using custom Bot API root: ${apiRoot}`);
+  }
+
+  const proxyUrl = (
+    process.env.TELEGRAM_PROXY ||
+    process.env.HTTPS_PROXY ||
+    process.env.https_proxy ||
+    process.env.ALL_PROXY ||
+    ''
+  ).trim();
+  if (proxyUrl) {
+    try {
+      // Ленивая загрузка undici: модуль есть в Node 18+, но не как глобал.
+      const { ProxyAgent } = require('undici');
+      const dispatcher = new ProxyAgent(proxyUrl);
+      client.baseFetchConfig = { dispatcher } as any;
+      const masked = proxyUrl.replace(/\/\/[^@]*@/, '//***@');
+      console.log(`[Bot] Routing Telegram egress through proxy: ${masked}`);
+    } catch (e) {
+      console.error(
+        `[Bot] Failed to init proxy agent for "${proxyUrl}". Установи зависимость 'undici' или проверь URL:`,
+        e,
+      );
+    }
+  }
+
+  return Object.keys(client).length ? client : undefined;
+}
+
+const bot = new Bot(process.env.TELEGRAM_BOT_TOKEN || '', {
+  client: buildBotClientConfig(),
+});
 
 // ── Типы: регистрация ─────────────────────────────────────────────────────────
 type RegStep = 'awaiting_email';
@@ -1040,11 +1086,42 @@ bot.catch((err) => {
   console.error('[Bot] Update:', JSON.stringify(err.ctx?.update ?? {}));
 });
 
-// ── Long polling mode (активен) ───────────────────────────────────────────────
-bot.start({
-  onStart: () => console.log('🤖 Telegram bot connected and polling'),
-});
-console.log('🤖 Telegram bot started (registration + generation active)');
+// ── Запуск с диагностикой связи ───────────────────────────────────────────────
+// Раньше bot.start() висел молча, если egress на api.telegram.org заблокирован
+// (контейнер «Up», апдейтов нет). Теперь сначала пробуем getMe с явным таймаутом
+// и логируем результат — причина видна сразу в `docker logs`.
+async function bootstrap() {
+  if (!process.env.TELEGRAM_BOT_TOKEN) {
+    console.error('[Bot] FATAL: TELEGRAM_BOT_TOKEN не задан. Останавливаюсь.');
+    process.exit(1);
+  }
+
+  try {
+    const me = await bot.api.getMe();
+    console.log(`[Bot] getMe OK: @${me.username} (id=${me.id}) — связь с Telegram есть.`);
+  } catch (err: any) {
+    // Самый частый кейс на РФ-хостинге: ETIMEDOUT/ECONNREFUSED — egress заблокирован.
+    console.error(
+      '[Bot] FATAL: не удалось достучаться до Telegram API (getMe). ' +
+        'Проверь egress контейнера до api.telegram.org. ' +
+        'Варианты: network_mode: host, либо TELEGRAM_PROXY / TELEGRAM_API_ROOT.',
+    );
+    console.error('[Bot] Детали ошибки:', err?.message ?? err);
+    // Падаем, чтобы restart-политика не делала вид, что всё ок, и проблема была заметна.
+    process.exit(1);
+  }
+
+  // Логируем сетевые ошибки самого поллинга (getUpdates), которых раньше не было видно.
+  bot.start({
+    onStart: () => console.log('🤖 Telegram bot connected and polling'),
+  }).catch((err) => {
+    console.error('[Bot] FATAL: polling упал:', err);
+    process.exit(1);
+  });
+  console.log('🤖 Telegram bot started (registration + generation active)');
+}
+
+bootstrap();
 
 process.on('SIGTERM', async () => { bot.stop(); await prisma.$disconnect(); process.exit(0); });
 process.on('SIGINT', async () => { bot.stop(); await prisma.$disconnect(); process.exit(0); });
