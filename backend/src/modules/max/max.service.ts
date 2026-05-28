@@ -489,9 +489,9 @@ export class MaxService {
         const isRegistered = botUser?.registrationStatus === 'registered';
         const webAppUrl = this.configService.get<string>('WEBAPP_URL', 'https://prepodavai.ru');
         if (isRegistered) {
-          await this.sendMessageWithMarkup(chatId, 'Нажмите кнопку, чтобы открыть PrepodavAI:', [{
+          await this.sendMessageWithMarkup(chatId, 'Нажмите кнопку, чтобы открыть Преподавай:', [{
             type: 'inline_keyboard',
-            payload: { buttons: [[{ type: 'link', url: `${webAppUrl}/dashboard`, text: '🚀 Открыть PrepodavAI' }]] },
+            payload: { buttons: [[{ type: 'link', url: `${webAppUrl}/dashboard`, text: '🚀 Открыть Преподавай' }]] },
           }]);
         } else {
           await this.startMaxRegistration(userId, chatId);
@@ -630,7 +630,7 @@ export class MaxService {
     const isShadowAccount = (alreadyLinked as any)?.source === 'max_bot';
     if (alreadyLinked && alreadyLinked.id !== linkToken.userId && !isShadowAccount) {
       this.logger.warn(`[LinkToken] MAX account already linked: maxUserId=${user.id} linkedTo=${alreadyLinked.id} requestedBy=${linkToken.userId}`);
-      await this.sendMessage(chatId, '⚠️ Этот аккаунт MAX уже привязан к другому профилю PrepodavAI.');
+      await this.sendMessage(chatId, '⚠️ Этот аккаунт MAX уже привязан к другому профилю Преподавай.');
       return;
     }
     if (isShadowAccount && alreadyLinked) {
@@ -687,7 +687,7 @@ export class MaxService {
       this.logger.log(`[LinkToken] Successfully linked: maxUserId=${user.id} appUserId=${linkToken.userId} as ${platformName}`);
       await this.sendMessage(
         chatId,
-        `✅ MAX успешно привязан к вашему аккаунту PrepodavAI!\n\nТеперь вы будете получать результаты генерации прямо здесь.`,
+        `✅ MAX успешно привязан к вашему аккаунту Преподавай!\n\nТеперь вы будете получать результаты генерации прямо здесь.`,
       );
     } catch (err) {
       this.logger.error(`[LinkToken] Failed to link: maxUserId=${user.id} error=${err}`);
@@ -853,7 +853,7 @@ export class MaxService {
       row.push({ type: 'callback', text: `${tool.emoji} ${tool.label}`, payload: `g:t:${tool.key}` });
     });
     if (row.length > 0) buttons.push(row);
-    buttons.push([{ type: 'callback', text: '📱 Открыть PrepodavAI', payload: 'g:webapp' }]);
+    buttons.push([{ type: 'callback', text: '📱 Открыть Преподавай', payload: 'g:webapp' }]);
     return [{ type: 'inline_keyboard', payload: { buttons } }];
   }
 
@@ -1151,7 +1151,7 @@ export class MaxService {
     // Fallback
     await this.sendMessage(
       chatId,
-      `✅ Ваша презентация готова!${topic}\n\nПросмотр доступен в веб-версии PrepodavAI.`,
+      `✅ Ваша презентация готова!${topic}\n\nПросмотр доступен в веб-версии Преподавай.`,
     );
   }
 
@@ -1175,7 +1175,7 @@ export class MaxService {
 
     const fallbackText = isBotOnlyUser
       ? `✅ Ваш материал готов!\n\n⚠️ Не удалось создать PDF. Попробуйте сгенерировать ещё раз.`
-      : `✅ Ваш материал готов!\n\nПросмотр доступен в веб-версии PrepodavAI.`;
+      : `✅ Ваш материал готов!\n\nПросмотр доступен в веб-версии Преподавай.`;
 
     await this.sendMessage(chatId, fallbackText);
   }
@@ -1256,7 +1256,7 @@ export class MaxService {
     this.regStates.set(userId, { step: 'awaiting_email' });
     await this.sendMessage(
       chatId,
-      `👋 Добро пожаловать в *Преподавай* 🎓\n\nДавайте создадим ваш аккаунт — это займёт меньше минуты.\n\nВведите вашу электронную почту:`,
+      `👋 Добро пожаловать в Преподавай 🎓\n\nДавайте создадим ваш аккаунт — это займёт меньше минуты.\n\nВведите вашу электронную почту:`,
     );
   }
 
@@ -1302,11 +1302,14 @@ export class MaxService {
     const apiKey = crypto.randomBytes(16).toString('hex');
 
     const newUser = await this.prisma.$transaction(async (tx) => {
-      // Always create a fresh web AppUser — shadow stays intact for bot-only deliveries
+      // Move maxId from shadow to web AppUser so mini-app auto-login works via validate-init-data
+      await tx.appUser.updateMany({ where: { maxId: userId }, data: { maxId: null, maxChatId: null } as any });
+
       const appUser = await tx.appUser.create({
         data: {
           username, userHash: username, email,
           passwordHash, apiKey, chatId,
+          maxId: userId, maxChatId: chatId,
           firstName: '', lastName: '',
           source: 'max_bot', lastAccessAt: new Date(), lastMaxAppAccess: new Date(),
         } as any,
@@ -1348,11 +1351,6 @@ export class MaxService {
       chatId,
       `✅ Аккаунт создан!\n\n👤 Логин: ${username}\n🔑 Пароль: ${password}\n\n💳 Токенов на платформе: 1500\n\n⚠️ Сохраните пароль — он больше не будет показан.`,
     );
-    const webAppUrl = this.configService.get<string>('WEBAPP_URL', 'https://prepodavai.ru');
-    await this.sendMessageWithMarkup(chatId, 'Нажмите кнопку, чтобы открыть PrepodavAI:', [{
-      type: 'inline_keyboard',
-      payload: { buttons: [[{ type: 'link', url: `${webAppUrl}/dashboard`, text: '🚀 Открыть PrepodavAI' }]] },
-    }]);
     await this.sendMessageWithKeyboard(chatId, '🛠️ Выберите инструмент:', this.buildToolSelectionAttachment());
   }
 

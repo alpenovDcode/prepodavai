@@ -30,7 +30,7 @@ interface GenerationSession {
 
 // ── Константы: регистрация ────────────────────────────────────────────────────
 const MAX_CONCURRENT_REG_SESSIONS = 500;
-const MINI_APP_BTN = '📱 Открыть мини-приложение';
+const MINI_APP_BTN = '📱 Открыть Преподавай';
 
 // ── Константы: генерация ──────────────────────────────────────────────────────
 const GEN_SESSION_TTL_MS = 10 * 60_000;
@@ -320,7 +320,7 @@ async function startRegistration(ctx: Context, telegramId: string) {
   }
   regStates.set(telegramId, { step: 'awaiting_email' });
   await ctx.reply(
-    `👋 Добро пожаловать в *Преподавай* 🎓\n\nДавайте создадим ваш аккаунт — это займёт меньше минуты.\n\nВведите вашу электронную почту:`,
+    `👋 Добро пожаловать в Преподавай 🎓\n\nДавайте создадим ваш аккаунт — это займёт меньше минуты.\n\nВведите вашу электронную почту:`,
     { parse_mode: 'Markdown' },
   );
 }
@@ -380,11 +380,14 @@ async function completeRegistration(ctx: Context, telegramId: string, state: Reg
 
   try {
     const newUser = await prisma.$transaction(async (tx) => {
-      // Always create a fresh web AppUser — shadow stays intact for bot-only deliveries
+      // Move telegramId from shadow to web AppUser so mini-app auto-login works via validate-init-data
+      await tx.appUser.updateMany({ where: { telegramId: user.id.toString() }, data: { telegramId: null, telegramChatId: null } as any });
+
       const appUser = await tx.appUser.create({
         data: {
           username, userHash: username, email: state.email,
           passwordHash, apiKey, chatId,
+          telegramId: user.id.toString(), telegramChatId: chatId,
           firstName: user.first_name || '', lastName: user.last_name || '',
           source: 'telegram_bot', lastAccessAt: new Date(), lastTelegramAppAccess: new Date(),
         } as any,
@@ -442,11 +445,11 @@ async function completeRegistration(ctx: Context, telegramId: string, state: Reg
     );
 
     await ctx.reply(
-      `Нажмите кнопку, чтобы открыть PrepodavAI:`,
+      `Нажмите кнопку, чтобы открыть Преподавай:`,
       {
         reply_markup: {
           inline_keyboard: [
-            [{ text: '🚀 Открыть PrepodavAI', web_app: { url: `${webAppUrl}/dashboard` } }],
+            [{ text: '🚀 Открыть Преподавай', web_app: { url: `${webAppUrl}/dashboard` } }],
           ],
         },
       },
@@ -478,7 +481,7 @@ async function handleLinkToken(ctx: Context, user: any, token: string) {
   const alreadyLinked = await prisma.appUser.findUnique({ where: { telegramId: user.id.toString() } });
   const isShadowAccount = (alreadyLinked as any)?.source === 'telegram_bot';
   if (alreadyLinked && alreadyLinked.id !== linkToken.userId && !isShadowAccount) {
-    await ctx.reply('⚠️ Этот аккаунт Telegram уже привязан к другому профилю PrepodavAI.');
+    await ctx.reply('⚠️ Этот аккаунт Telegram уже привязан к другому профилю Преподавай.');
     return;
   }
   if (isShadowAccount && alreadyLinked) {
@@ -540,7 +543,7 @@ async function handleLinkToken(ctx: Context, user: any, token: string) {
     } as any,
   });
 
-  await ctx.reply('✅ Telegram успешно привязан к вашему аккаунту PrepodavAI!\n\nТеперь вы будете получать результаты генерации прямо здесь.');
+  await ctx.reply('✅ Telegram успешно привязан к вашему аккаунту Преподавай!\n\nТеперь вы будете получать результаты генерации прямо здесь.');
 }
 
 // ── Команда /start ────────────────────────────────────────────────────────────
@@ -897,10 +900,10 @@ bot.on('message:text', async (ctx: Context) => {
     const isRegistered = botUser?.registrationStatus === 'registered';
     const webAppUrl = process.env.WEBAPP_URL || 'https://prepodavai.ru';
     if (isRegistered) {
-      await ctx.reply('Нажмите кнопку, чтобы открыть PrepodavAI:', {
+      await ctx.reply('Нажмите кнопку, чтобы открыть Преподавай:', {
         reply_markup: {
           inline_keyboard: [
-            [{ text: '🚀 Открыть PrepodavAI', web_app: { url: `${webAppUrl}/dashboard` } }],
+            [{ text: '🚀 Открыть Преподавай', web_app: { url: `${webAppUrl}/dashboard` } }],
           ],
         },
       });
