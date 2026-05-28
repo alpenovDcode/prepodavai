@@ -15,7 +15,7 @@ dotenv.config();
 // Отключается через DISABLE_FORCE_IPV4=1 на случай, если где-то нужен IPv6.
 if (process.env.DISABLE_FORCE_IPV4 !== '1') {
   try {
-    setGlobalDispatcher(new Agent({ connect: { family: 4 } }));
+    setGlobalDispatcher(new Agent({ connect: { family: 4 } as any }));
     console.log('[Bot] Global dispatcher: forcing IPv4 (connect.family=4)');
   } catch (e) {
     console.error('[Bot] Failed to set IPv4 dispatcher:', e);
