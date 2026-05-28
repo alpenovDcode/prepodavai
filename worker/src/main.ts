@@ -309,6 +309,18 @@ const telegramSendWorker = new Worker(
         },
       });
 
+      // Отправляем клавиатуру выбора инструмента
+      await bot.api.sendMessage(chatId, '🛠️ Выберите инструмент:', {
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: '📄 Рабочий лист', callback_data: 'g:t:worksheet' }, { text: '📝 Генератор тестов', callback_data: 'g:t:quiz' }],
+            [{ text: '📖 Словарь', callback_data: 'g:t:vocabulary' }, { text: '📋 Конструктор уроков', callback_data: 'g:t:lesson-plan' }],
+            [{ text: '✨ Вау-урок', callback_data: 'g:t:lesson-preparation' }, { text: '🖼️ Генератор изображений', callback_data: 'g:t:image' }],
+            [{ text: '🎮 Обучающая игра', callback_data: 'g:t:game' }, { text: '📊 Презентация', callback_data: 'g:t:presentation' }],
+          ],
+        },
+      }).catch((e: any) => console.warn('[Worker] Failed to send tool keyboard:', e?.message));
+
       console.log(`✅ Result sent to Telegram for generation: ${generationRequestId}`);
       return { success: true };
 
