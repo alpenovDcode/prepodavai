@@ -3,7 +3,7 @@ import * as dotenv from 'dotenv';
 import { PrismaClient } from '@prisma/client';
 import * as crypto from 'crypto';
 import * as bcrypt from 'bcryptjs';
-import { Agent, setGlobalDispatcher } from 'undici';
+import { Agent, ProxyAgent, setGlobalDispatcher } from 'undici';
 import { TOOL_CONFIGS, ToolConfig, FieldConfig, getToolConfig } from './tool-configs';
 
 dotenv.config();
@@ -51,9 +51,6 @@ function buildBotClientConfig(): BotConfig<Context>['client'] {
   ).trim();
   if (proxyUrl) {
     try {
-      // Ленивая загрузка undici: модуль есть в Node 18+, но не как глобал.
-      const { ProxyAgent } = require('undici');
-
       // Логин/пароль вытаскиваем из URL и передаём как явный Basic-токен:
       // undici в ряде версий НЕ подхватывает userinfo из строки прокси,
       // и аутентификация молча не отправляется → 407/таймаут.
@@ -64,11 +61,18 @@ function buildBotClientConfig(): BotConfig<Context>['client'] {
         agentOpts.token = `Basic ${Buffer.from(creds).toString('base64')}`;
       }
       const dispatcher = new ProxyAgent(agentOpts);
+
+      // КЛЮЧЕВОЕ: ставим прокси ГЛОБАЛЬНО. grammy не прокидывает dispatcher из
+      // baseFetchConfig в свой fetch (проверено: прямой fetch с dispatcher работает,
+      // а через baseFetchConfig — нет). Глобальный диспетчер перехватывает ВЕСЬ fetch,
+      // включая внутренние вызовы grammy → getMe/getUpdates пойдут через прокси.
+      setGlobalDispatcher(dispatcher);
+      // Дублируем в baseFetchConfig как ремень безопасности (если версия grammy его уважает).
       client.baseFetchConfig = { dispatcher } as any;
-      console.log(`[Bot] Routing Telegram egress through proxy: ${u.protocol}//${u.host} (auth: ${u.username ? 'yes' : 'no'})`);
+      console.log(`[Bot] Routing Telegram egress through proxy (global dispatcher): ${u.protocol}//${u.host} (auth: ${u.username ? 'yes' : 'no'})`);
     } catch (e) {
       console.error(
-        `[Bot] Failed to init proxy agent for "${proxyUrl}". Установи зависимость 'undici' или проверь URL:`,
+        `[Bot] Failed to init proxy agent for "${proxyUrl}". Проверь URL прокси:`,
         e,
       );
     }
