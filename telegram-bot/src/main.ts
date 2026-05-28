@@ -3,9 +3,24 @@ import * as dotenv from 'dotenv';
 import { PrismaClient } from '@prisma/client';
 import * as crypto from 'crypto';
 import * as bcrypt from 'bcryptjs';
+import { Agent, setGlobalDispatcher } from 'undici';
 import { TOOL_CONFIGS, ToolConfig, FieldConfig, getToolConfig } from './tool-configs';
 
 dotenv.config();
+
+// ── Форс IPv4 для всего исходящего fetch (grammY ходит через глобальный fetch/undici).
+// У api.telegram.org есть и A, и AAAA. В docker-bridge IPv6 нет, поэтому Node пытается
+// IPv6-коннект и виснет до таймаута ("Network request for 'getMe' failed"). Литеральный
+// IPv4 (1.1.1.1) при этом работал — там AAAA не запрашивается. Форсируем семейство v4.
+// Отключается через DISABLE_FORCE_IPV4=1 на случай, если где-то нужен IPv6.
+if (process.env.DISABLE_FORCE_IPV4 !== '1') {
+  try {
+    setGlobalDispatcher(new Agent({ connect: { family: 4 } }));
+    console.log('[Bot] Global dispatcher: forcing IPv4 (connect.family=4)');
+  } catch (e) {
+    console.error('[Bot] Failed to set IPv4 dispatcher:', e);
+  }
+}
 
 const prisma = new PrismaClient();
 const API_URL = process.env.API_URL || 'http://localhost:3001';
