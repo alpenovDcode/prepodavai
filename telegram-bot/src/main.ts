@@ -53,10 +53,19 @@ function buildBotClientConfig(): BotConfig<Context>['client'] {
     try {
       // Ленивая загрузка undici: модуль есть в Node 18+, но не как глобал.
       const { ProxyAgent } = require('undici');
-      const dispatcher = new ProxyAgent(proxyUrl);
+
+      // Логин/пароль вытаскиваем из URL и передаём как явный Basic-токен:
+      // undici в ряде версий НЕ подхватывает userinfo из строки прокси,
+      // и аутентификация молча не отправляется → 407/таймаут.
+      const u = new URL(proxyUrl);
+      const agentOpts: any = { uri: `${u.protocol}//${u.host}` };
+      if (u.username || u.password) {
+        const creds = `${decodeURIComponent(u.username)}:${decodeURIComponent(u.password)}`;
+        agentOpts.token = `Basic ${Buffer.from(creds).toString('base64')}`;
+      }
+      const dispatcher = new ProxyAgent(agentOpts);
       client.baseFetchConfig = { dispatcher } as any;
-      const masked = proxyUrl.replace(/\/\/[^@]*@/, '//***@');
-      console.log(`[Bot] Routing Telegram egress through proxy: ${masked}`);
+      console.log(`[Bot] Routing Telegram egress through proxy: ${u.protocol}//${u.host} (auth: ${u.username ? 'yes' : 'no'})`);
     } catch (e) {
       console.error(
         `[Bot] Failed to init proxy agent for "${proxyUrl}". Установи зависимость 'undici' или проверь URL:`,
