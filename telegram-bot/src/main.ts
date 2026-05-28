@@ -551,6 +551,7 @@ bot.command('start', async (ctx: Context) => {
   const user = ctx.from;
   if (!user) return;
   const telegramId = user.id.toString();
+  console.log(`[Bot] /start from ${telegramId} (@${user.username ?? 'no_username'})`);
 
   const payload = ctx.match as string | undefined;
   if (payload && payload.startsWith('link_')) {
@@ -652,6 +653,7 @@ bot.command('start', async (ctx: Context) => {
 bot.command('generate', async (ctx: Context) => {
   const telegramId = ctx.from?.id.toString();
   if (!telegramId) return;
+  console.log(`[Bot] /generate from ${telegramId}`);
 
   const user = await prisma.appUser.findUnique({ where: { telegramId } });
   if (!user) {
@@ -667,6 +669,7 @@ bot.command('generate', async (ctx: Context) => {
 bot.command('cancel', async (ctx: Context) => {
   const telegramId = ctx.from?.id.toString();
   if (!telegramId) return;
+  console.log(`[Bot] /cancel from ${telegramId}`);
 
   if (regStates.has(telegramId)) {
     regStates.delete(telegramId);
@@ -684,6 +687,7 @@ bot.on('callback_query:data', async (ctx: Context) => {
   const data = ctx.callbackQuery?.data ?? '';
   const telegramId = ctx.from?.id.toString();
   if (!telegramId || !data.startsWith('g:')) return;
+  console.log(`[Bot] callback from ${telegramId}: ${data}`);
 
   await ctx.answerCallbackQuery().catch(() => null);
 
@@ -893,6 +897,7 @@ bot.on('message:text', async (ctx: Context) => {
   if (!user) return;
   const telegramId = user.id.toString();
   const text = (ctx.message as any)?.text?.trim() ?? '';
+  console.log(`[Bot] text from ${telegramId}: "${text.slice(0, 80)}"`);
 
   // Кнопка мини-приложения
   if (text === MINI_APP_BTN) {
@@ -1023,17 +1028,20 @@ async function handleFileMessage(ctx: Context, receivedAs: 'photo' | 'document')
   }
 }
 
-bot.on('message:photo', (ctx) => handleFileMessage(ctx, 'photo'));
-bot.on('message:document', (ctx) => handleFileMessage(ctx, 'document'));
-bot.on('message:audio', (ctx) => handleFileMessage(ctx, 'document'));
+bot.on('message:photo', (ctx) => { console.log(`[Bot] photo from ${ctx.from?.id}`); return handleFileMessage(ctx, 'photo'); });
+bot.on('message:document', (ctx) => { console.log(`[Bot] document from ${ctx.from?.id}`); return handleFileMessage(ctx, 'document'); });
+bot.on('message:audio', (ctx) => { console.log(`[Bot] audio from ${ctx.from?.id}`); return handleFileMessage(ctx, 'document'); });
 bot.on('message:voice', (ctx) => handleFileMessage(ctx, 'document'));
 bot.on('message:video', (ctx) => handleFileMessage(ctx, 'document'));
 
 // ── Запуск ────────────────────────────────────────────────────────────────────
 bot.catch((err) => {
   console.error('[Bot] Uncaught middleware error:', err.error ?? err);
+  console.error('[Bot] Update:', JSON.stringify(err.ctx?.update ?? {}));
 });
-bot.start();
+bot.start({
+  onStart: () => console.log('🤖 Telegram bot connected and polling'),
+});
 console.log('🤖 Telegram bot started (registration + generation active)');
 
 process.on('SIGTERM', async () => { bot.stop(); await prisma.$disconnect(); process.exit(0); });
