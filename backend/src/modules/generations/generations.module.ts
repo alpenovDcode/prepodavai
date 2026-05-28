@@ -4,7 +4,6 @@ import { GenerationsController } from './generations.controller';
 import { GenerationsService } from './generations.service';
 import { GenerationHelpersService } from './generation-helpers.service';
 import { GenerationQueueService } from './generation-queue.service';
-import { TelegramSenderProcessor } from './processors/telegram-sender.processor';
 import { GammaPollingProcessor } from './processors/gamma-polling.processor';
 import { ReplicatePresentationProcessor } from './processors/replicate-presentation.processor';
 import { PresentationGeneratorService } from './presentation/presentation-generator.service';
@@ -85,7 +84,6 @@ import { VideoAnalysisStrategy } from './strategies/video-analysis.strategy';
     GenerationsService,
     GenerationHelpersService,
     GenerationQueueService,
-    TelegramSenderProcessor,
     GammaPollingProcessor,
     ReplicatePresentationProcessor,
     PresentationGeneratorService,

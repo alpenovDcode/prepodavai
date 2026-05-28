@@ -59,12 +59,14 @@ export class MaxSenderProcessor extends WorkerHost {
       generationRequestId,
     });
 
-    if (sendResult.success) {
-      await this.prisma.userGeneration.update({
-        where: { id: userGeneration.id },
-        data: { sentToMax: true, maxSentAt: new Date() },
-      });
+    if (!sendResult.success) {
+      throw new Error(sendResult.message || 'Failed to send MAX generation result');
     }
+
+    await this.prisma.userGeneration.update({
+      where: { id: userGeneration.id },
+      data: { sentToMax: true, maxSentAt: new Date() },
+    });
 
     return sendResult;
   }

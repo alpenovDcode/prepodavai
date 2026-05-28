@@ -90,6 +90,9 @@ services:
       # CloudPayments
       CLOUDPAYMENTS_PUBLIC_ID: ${CLOUDPAYMENTS_PUBLIC_ID}
       CLOUDPAYMENTS_API_SECRET: ${CLOUDPAYMENTS_API_SECRET}
+      # Откуда Подписки (tgtrack) — аналитика MAX бота
+      TGTRACK_MAX_API_KEY: ${TGTRACK_MAX_API_KEY:-}
+      TGTRACK_MAX_BASE_URL: ${TGTRACK_MAX_BASE_URL:-https://max.tgtrack.ru/v1}
     depends_on:
       postgres:
         condition: service_healthy
@@ -144,6 +147,7 @@ services:
       N8N_WEBHOOK_URL: ${N8N_WEBHOOK_URL}
       POLZA_AI_API_KEY: ${POLZA_AI_API_KEY}
       ASSEMBLYAI_API_KEY: ${ASSEMBLYAI_API_KEY}
+      TELEGRAM_PROXY: ${TELEGRAM_PROXY:-}
     depends_on:
       postgres:
         condition: service_healthy
@@ -178,6 +182,8 @@ services:
       # Формат: http://USER:PASS@HOST:PORT. Значение берётся из .env (не коммитим креды).
       TELEGRAM_PROXY: ${TELEGRAM_PROXY:-}
       DISABLE_FORCE_IPV4: "1"
+      # Откуда Подписки (tgtrack) — аналитика Telegram бота
+      TGTRACK_API_KEY: ${TGTRACK_API_KEY:-}
     depends_on:
       postgres:
         condition: service_healthy

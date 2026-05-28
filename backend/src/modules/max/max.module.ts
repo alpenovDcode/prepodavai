@@ -5,9 +5,10 @@ import { MaxController } from './max.controller';
 import { PrismaModule } from '../../common/prisma/prisma.module';
 import { HtmlExportService } from '../../common/services/html-export.service';
 import { HtmlPostprocessorService } from '../../common/services/html-postprocessor.service';
+import { EmailModule } from '../../common/services/email.module';
 
 @Module({
-  imports: [ConfigModule, PrismaModule],
+  imports: [ConfigModule, PrismaModule, EmailModule],
   providers: [MaxService, HtmlExportService, HtmlPostprocessorService],
   controllers: [MaxController],
   exports: [MaxService],

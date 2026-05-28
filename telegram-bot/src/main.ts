@@ -11,6 +11,19 @@ dotenv.config();
 const prisma = new PrismaClient();
 const API_URL = process.env.API_URL || 'http://localhost:3001';
 
+// ── Откуда Подписки (tgtrack) ─────────────────────────────────────────────────
+const TGTRACK_API_KEY = process.env.TGTRACK_API_KEY || '';
+const TGTRACK_BASE = 'https://bot-api.tgtrack.ru/v1';
+
+function tgtrack(method: string, body: Record<string, any>): void {
+  if (!TGTRACK_API_KEY) return;
+  fetch(`${TGTRACK_BASE}/${TGTRACK_API_KEY}/${method}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  }).catch((err) => console.warn(`[tgtrack] ${method} failed:`, err));
+}
+
 /**
  * Собирает client-конфиг grammY с учётом окружения:
  *  - TELEGRAM_API_ROOT — кастомный Bot API endpoint (зеркало / локальный bot-api-server).
@@ -477,6 +490,9 @@ async function completeRegistration(ctx: Context, telegramId: string, state: Reg
     regStates.delete(telegramId);
     console.log(`[RegBot] New user registered: id=${newUser.id} username=${username}`);
 
+    // Глубокая цель: регистрация (fire-and-forget)
+    tgtrack('send_reach_goal', { user_id: telegramId, target: 'registration_completed' });
+
     // Отправляем email (fire-and-forget)
     sendWelcomeEmailViaApi(username, password, state.email!).catch((err) => {
       console.error(`[RegBot] Failed to send welcome email:`, err);
@@ -505,9 +521,14 @@ async function completeRegistration(ctx: Context, telegramId: string, state: Reg
         },
       },
     );
-  } catch (err) {
+  } catch (err: any) {
     console.error(`[RegBot] Create user error for ${telegramId}:`, err);
-    await ctx.reply('❌ Не удалось создать аккаунт. Попробуйте позже или обратитесь в поддержку.');
+    if (err?.code === 'P2002') {
+      regStates.delete(telegramId);
+      await ctx.reply('⚠️ Аккаунт с таким email уже существует.\n\nЕсли это ваш аккаунт — войдите на сайте и привяжите Telegram в настройках профиля.');
+    } else {
+      await ctx.reply('❌ Не удалось создать аккаунт. Попробуйте позже или обратитесь в поддержку.');
+    }
   }
 }
 
@@ -535,10 +556,6 @@ async function handleLinkToken(ctx: Context, user: any, token: string) {
     await ctx.reply('⚠️ Этот аккаунт Telegram уже привязан к другому профилю Преподавай.');
     return;
   }
-  if (isShadowAccount && alreadyLinked) {
-    await prisma.appUser.update({ where: { id: alreadyLinked.id }, data: { telegramId: null, telegramChatId: null } as any });
-  }
-
   const telegramChatId = ctx.chat!.id.toString();
   const platformName = user.username ? `@${user.username}` : user.first_name || `id${user.id}`;
 
@@ -549,10 +566,20 @@ async function handleLinkToken(ctx: Context, user: any, token: string) {
     return;
   }
 
-  // Фикс 3: try-catch вокруг транзакции
   try {
-    await prisma.$transaction([
-      prisma.appUser.update({
+    await prisma.$transaction(async (tx) => {
+      // Переносим историю генераций shadow-аккаунта и освобождаем его telegramId
+      if (isShadowAccount && alreadyLinked) {
+        await (tx as any).userGeneration.updateMany({
+          where: { userId: alreadyLinked.id },
+          data: { userId: linkToken.userId },
+        });
+        await tx.appUser.update({
+          where: { id: alreadyLinked.id },
+          data: { telegramId: null, telegramChatId: null } as any,
+        });
+      }
+      await tx.appUser.update({
         where: { id: linkToken.userId },
         data: {
           telegramId: user.id.toString(),
@@ -562,12 +589,12 @@ async function handleLinkToken(ctx: Context, user: any, token: string) {
           ...(webUser.firstName ? {} : { firstName: user.first_name || undefined }),
           ...(webUser.lastName ? {} : { lastName: user.last_name || undefined }),
         } as any,
-      }),
-      prisma.linkToken.update({
+      });
+      await tx.linkToken.update({
         where: { id: linkToken.id },
         data: { status: 'completed', linkedId: user.id.toString(), linkedName: platformName },
-      }),
-    ]);
+      });
+    });
   } catch (err) {
     console.error(`[LinkToken] Transaction failed for userId=${linkToken.userId}:`, err);
     await ctx.reply('❌ Не удалось привязать аккаунт. Попробуйте позже.');
@@ -605,6 +632,16 @@ bot.command('start', async (ctx: Context) => {
   console.log(`[Bot] /start from ${telegramId} (@${user.username ?? 'no_username'})`);
 
   const payload = ctx.match as string | undefined;
+
+  // Фиксируем старт бота в Откуда Подписки (fire-and-forget)
+  tgtrack('user_did_start_bot', {
+    user_id: telegramId,
+    first_name: user.first_name || '',
+    ...(user.last_name && { last_name: user.last_name }),
+    ...(user.username && { username: user.username }),
+    ...(payload && { start_value: payload }),
+  });
+
   if (payload && payload.startsWith('link_')) {
     await handleLinkToken(ctx, user, payload.slice(5));
     return;
@@ -645,7 +682,7 @@ bot.command('start', async (ctx: Context) => {
       } as any,
     });
 
-    const balanceLine = `\n\n💳 Токенов на балансе: ${(botUser as any).botCredits}`;
+    const balanceLine = `\n\n💳 Токенов на балансе: ${(botUser as any).botCredits ?? 0}`;
     await ctx.reply(
       `Добро пожаловать в Преподавай 🎓\n\nЯ Ваш интеллектуальный помощник для:\n— Создания учебных материалов\n— Планирования уроков\n— Создания красочных презентаций\n— Методической поддержки\n— Создания интерактивных игр${balanceLine}`,
       { reply_markup: { keyboard: [[{ text: MINI_APP_BTN }]], resize_keyboard: true } },
@@ -685,10 +722,8 @@ bot.command('start', async (ctx: Context) => {
       source: 'telegram_bot',
     } as any,
   });
-  if (!newBotUser.appUserId) {
-    await (prisma as any).botUser.update({ where: { telegramId }, data: { appUserId: shadowAppUser.id } });
-  }
-  const newBalanceLine = `\n\n💳 Токенов на балансе: ${newBotUser.botCredits}`;
+  await (prisma as any).botUser.update({ where: { telegramId }, data: { appUserId: shadowAppUser.id } });
+  const newBalanceLine = `\n\n💳 Токенов на балансе: ${newBotUser.botCredits ?? 0}`;
   await ctx.reply(
     `Добро пожаловать в Преподавай 🎓\n\nЯ Ваш интеллектуальный помощник для:\n— Создания учебных материалов\n— Планирования уроков\n— Создания красочных презентаций\n— Методической поддержки\n— Создания интерактивных игр${newBalanceLine}`,
     { reply_markup: { keyboard: [[{ text: MINI_APP_BTN }]], resize_keyboard: true } },
@@ -749,6 +784,9 @@ bot.on('callback_query:data', async (ctx: Context) => {
     const toolKey = data.slice(4);
     const tool = getToolConfig(toolKey);
     if (!tool) return;
+
+    // Отменяем регистрацию если была активна (иначе текстовый ответ уйдёт в reg flow)
+    regStates.delete(telegramId);
 
     const user = await prisma.appUser.findUnique({ where: { telegramId } });
     if (!user) {
@@ -873,9 +911,12 @@ bot.on('callback_query:data', async (ctx: Context) => {
     const user = await prisma.appUser.findUnique({ where: { telegramId } }) as any;
     if (!user) { await ctx.reply('❌ Аккаунт не найден.'); genSessions.delete(telegramId); return; }
 
-    // Проверяем бот-кредиты
-    const botUser = await (prisma as any).botUser.findUnique({ where: { telegramId } });
-    if (!botUser || botUser.botCredits < 3) {
+    // Атомарно списываем 3 токена — защита от двойного нажатия
+    const deducted = await (prisma as any).botUser.updateMany({
+      where: { telegramId, botCredits: { gte: 3 } },
+      data: { botCredits: { decrement: 3 } },
+    });
+    if (deducted.count === 0) {
       await ctx.reply('❌ Недостаточно токенов для генерации.\n\nОбратитесь к администратору для пополнения баланса.');
       genSessions.delete(telegramId);
       return;
@@ -888,24 +929,21 @@ bot.on('callback_query:data', async (ctx: Context) => {
 
     try {
       const token = await getApiToken(user.username, await ensureApiKey(user));
-      if (!token) { await ctx.reply('❌ Ошибка авторизации. Попробуйте позже или обратитесь в поддержку.'); return; }
+      if (!token) {
+        await (prisma as any).botUser.update({ where: { telegramId }, data: { botCredits: { increment: 3 } } });
+        await ctx.reply('❌ Ошибка авторизации. Попробуйте позже или обратитесь в поддержку.');
+        return;
+      }
 
       if (tool.serviceType === 'games') {
         const result = await callGamesApi(token, session.params.type, session.params.topic);
-        // Списываем 3 бот-токена
         const updated = await (prisma as any).botUser.update({
           where: { telegramId },
-          data: {
-            botCredits: { decrement: 3 },
-            totalGenerations: { increment: 1 },
-            generationsThisMonth: { increment: 1 },
-            lastGenerationAt: new Date(),
-          },
+          data: { totalGenerations: { increment: 1 }, generationsThisMonth: { increment: 1 }, lastGenerationAt: new Date() },
         });
         const kb = new InlineKeyboard().url('🎮 Открыть игру', result.url);
         await ctx.reply(`🎮 *Игра готова!*\n\nТема: _${session.params.topic}_\n\nНажмите кнопку, чтобы открыть:`, { parse_mode: 'Markdown', reply_markup: kb });
         await ctx.reply(`💳 Осталось токенов: *${updated.botCredits}*`, { parse_mode: 'Markdown' });
-        // Игры доставляются сразу — показываем клавиатуру здесь
         await ctx.reply('🛠️ *Выберите инструмент:*', { parse_mode: 'Markdown', reply_markup: buildToolSelectionKeyboard() });
       } else {
         let apiParams: Record<string, any> = { ...session.params };
@@ -913,26 +951,28 @@ bot.on('callback_query:data', async (ctx: Context) => {
           apiParams.generationTypes = apiParams.generationTypes.split(',').filter(Boolean);
         }
         const result = await callGenerationApi(token, tool.generationType, apiParams);
-        // Списываем 3 бот-токена
+        // Глубокая цель: генерация запущена (fire-and-forget)
+        tgtrack('send_reach_goal', { user_id: telegramId, target: 'generation_created' });
+        if (result.status === 'failed') {
+          await (prisma as any).botUser.update({ where: { telegramId }, data: { botCredits: { increment: 3 } } }).catch(() => null);
+          await ctx.reply('❌ Генерация не удалась. Токены возвращены.');
+          await ctx.reply('🛠️ *Выберите инструмент:*', { parse_mode: 'Markdown', reply_markup: buildToolSelectionKeyboard() });
+          return;
+        }
         const updated = await (prisma as any).botUser.update({
           where: { telegramId },
-          data: {
-            botCredits: { decrement: 3 },
-            totalGenerations: { increment: 1 },
-            generationsThisMonth: { increment: 1 },
-            lastGenerationAt: new Date(),
-          },
+          data: { totalGenerations: { increment: 1 }, generationsThisMonth: { increment: 1 }, lastGenerationAt: new Date() },
         });
         if (result.status === 'completed') {
           await ctx.reply(`✅ Готово! Отправляю ${tool.emoji} *${tool.label}* в чат...\n\n💳 Осталось токенов: *${updated.botCredits}*`, { parse_mode: 'Markdown' });
         } else {
           await ctx.reply(`✅ Задача принята! Результат придёт в этот чат, как только будет готов.\n\n💳 Осталось токенов: *${updated.botCredits}*`, { parse_mode: 'Markdown' });
         }
-        // Клавиатура придёт после реальной доставки PDF через sendGenerationResult
       }
     } catch (err: any) {
+      // Возвращаем токены при ошибке генерации
+      await (prisma as any).botUser.update({ where: { telegramId }, data: { botCredits: { increment: 3 } } }).catch(() => null);
       await ctx.reply(humanizeError(err));
-      // При ошибке — показываем клавиатуру сразу, т.к. доставки не будет
       await ctx.reply('🛠️ *Выберите инструмент:*', { parse_mode: 'Markdown', reply_markup: buildToolSelectionKeyboard() });
     }
 
@@ -953,7 +993,8 @@ bot.on('message:text', async (ctx: Context) => {
   // Кнопка мини-приложения
   if (text === MINI_APP_BTN) {
     const botUser = await (prisma as any).botUser.findUnique({ where: { telegramId } });
-    const isRegistered = botUser?.registrationStatus === 'registered';
+    const appUser = await prisma.appUser.findUnique({ where: { telegramId } });
+    const isRegistered = ['registered', 'linked'].includes(botUser?.registrationStatus) && !!appUser?.email;
     const webAppUrl = process.env.WEBAPP_URL || 'https://prepodavai.ru';
     if (isRegistered) {
       await ctx.reply('Нажмите кнопку, чтобы открыть Преподавай:', {
@@ -1084,6 +1125,15 @@ bot.on('message:document', (ctx) => { console.log(`[Bot] document from ${ctx.fro
 bot.on('message:audio', (ctx) => { console.log(`[Bot] audio from ${ctx.from?.id}`); return handleFileMessage(ctx, 'document'); });
 bot.on('message:voice', (ctx) => handleFileMessage(ctx, 'document'));
 bot.on('message:video', (ctx) => handleFileMessage(ctx, 'document'));
+
+// Фиксируем блокировку бота пользователем → Откуда Подписки
+bot.on('my_chat_member', (ctx) => {
+  const newStatus = ctx.myChatMember?.new_chat_member?.status;
+  if (newStatus === 'kicked' || newStatus === 'left') {
+    const userId = ctx.from?.id.toString();
+    if (userId) tgtrack('my_bot_was_stopped', { user_id: userId });
+  }
+});
 
 // ── Запуск ────────────────────────────────────────────────────────────────────
 bot.catch((err) => {

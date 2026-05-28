@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { HtmlExportService } from '../../common/services/html-export.service';
+import { EmailService } from '../../common/services/email.service';
 import * as crypto from 'crypto';
 import axios from 'axios';
 import * as FormData from 'form-data';
@@ -39,6 +40,7 @@ export class MaxService {
     private configService: ConfigService,
     private prisma: PrismaService,
     private readonly htmlExportService: HtmlExportService,
+    private readonly emailService: EmailService,
   ) {
     this.token = this.configService.get<string>('MAX_BOT_TOKEN');
     this.apiUrl = this.configService.get<string>('MAX_API_URL') || 'https://platform-api.max.ru';
@@ -48,6 +50,18 @@ export class MaxService {
     if (!this.token) {
       this.logger.error('MAX_BOT_TOKEN is missing in configuration!');
     }
+  }
+
+  // ── Откуда Подписки (tgtrack) ─────────────────────────────────────────────
+  private tgtrack(method: string, body: Record<string, any>): void {
+    const apiKey = this.configService.get<string>('TGTRACK_MAX_API_KEY') || '';
+    if (!apiKey) return;
+    const base = this.configService.get<string>('TGTRACK_MAX_BASE_URL') || 'https://max.tgtrack.ru/v1';
+    fetch(`${base}/${apiKey}/${method}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }).catch((err) => this.logger.warn(`[tgtrack] ${method} failed: ${err?.message}`));
   }
 
   // ── Webhook entry point ───────────────────────────────────────────────────
@@ -227,6 +241,9 @@ export class MaxService {
           return;
         }
 
+        // Отменяем регистрацию если была активна (иначе текстовый ответ уйдёт в reg flow)
+        this.regStates.delete(userId);
+
         const appUser = await this.prisma.appUser.findUnique({ where: { maxId: userId } });
         if (!appUser) {
           this.logger.warn(`[Gen] Tool selection by unlinked user=${userId} tool=${toolKey}`);
@@ -397,10 +414,13 @@ export class MaxService {
           return;
         }
 
-        // Проверяем бот-кредиты
-        const botUser = await (this.prisma as any).botUser.findUnique({ where: { maxId: userId } });
-        if (!botUser || botUser.botCredits < 3) {
-          this.logger.warn(`[Gen] Insufficient botCredits for userId=${userId} credits=${botUser?.botCredits ?? 0}`);
+        // Атомарно списываем 3 токена — защита от двойного нажатия
+        const deducted = await (this.prisma as any).botUser.updateMany({
+          where: { maxId: userId, botCredits: { gte: 3 } },
+          data: { botCredits: { decrement: 3 } },
+        });
+        if (deducted.count === 0) {
+          this.logger.warn(`[Gen] Insufficient botCredits for userId=${userId}`);
           await this.sendMessage(chatId, '❌ Недостаточно токенов для генерации.\n\nОбратитесь к администратору для пополнения баланса.');
           this.genSessions.delete(userId);
           return;
@@ -417,6 +437,7 @@ export class MaxService {
           const authToken = await this.getApiToken(appUser.username, apiKey);
           if (!authToken) {
             this.logger.error(`[Gen] Auth failed for userId=${userId} username=${appUser.username}`);
+            await (this.prisma as any).botUser.update({ where: { maxId: userId }, data: { botCredits: { increment: 3 } } });
             await this.sendMessage(chatId, '❌ Ошибка авторизации. Попробуйте позже или обратитесь в поддержку.');
             return;
           }
@@ -427,26 +448,14 @@ export class MaxService {
             this.logger.log(`[Gen] Game created: userId=${userId} url=${result.url}`);
             const updated = await (this.prisma as any).botUser.update({
               where: { maxId: userId },
-              data: {
-                botCredits: { decrement: 3 },
-                totalGenerations: { increment: 1 },
-                generationsThisMonth: { increment: 1 },
-                lastGenerationAt: new Date(),
-              },
+              data: { totalGenerations: { increment: 1 }, generationsThisMonth: { increment: 1 }, lastGenerationAt: new Date() },
             });
             const gameAttachment = [{
               type: 'inline_keyboard',
-              payload: {
-                buttons: [[{ type: 'link', url: result.url, text: '🎮 Открыть игру' }]],
-              },
+              payload: { buttons: [[{ type: 'link', url: result.url, text: '🎮 Открыть игру' }]] },
             }];
-            await this.sendMessageWithMarkup(
-              chatId,
-              `🎮 Игра готова!\n\nТема: ${session.params.topic}\n\nНажмите кнопку, чтобы открыть:`,
-              gameAttachment,
-            );
+            await this.sendMessageWithMarkup(chatId, `🎮 Игра готова!\n\nТема: ${session.params.topic}\n\nНажмите кнопку, чтобы открыть:`, gameAttachment);
             await this.sendMessage(chatId, `💳 Осталось токенов: ${updated.botCredits}`);
-            // Игры доставляются сразу — показываем клавиатуру здесь
             await this.sendMessageWithKeyboard(chatId, '🛠️ Выберите инструмент:', this.buildToolSelectionAttachment());
           } else {
             let apiParams: Record<string, any> = { ...session.params };
@@ -456,37 +465,36 @@ export class MaxService {
             this.logger.log(`[Gen] Calling generation API: userId=${userId} type=${tool.generationType}`);
             const result = await this.callGenerationApi(authToken, tool.generationType, apiParams);
             this.logger.log(`[Gen] Generation API response: userId=${userId} status=${result.status}`);
+            // Глубокая цель: генерация запущена (fire-and-forget)
+            this.tgtrack('send_reach_goal', { user_id: userId, target: 'generation_created' });
+            if (result.status === 'failed') {
+              await (this.prisma as any).botUser.update({ where: { maxId: userId }, data: { botCredits: { increment: 3 } } }).catch(() => null);
+              await this.sendMessage(chatId, '❌ Генерация не удалась. Токены возвращены.');
+              await this.sendMessageWithKeyboard(chatId, '🛠️ Выберите инструмент:', this.buildToolSelectionAttachment());
+              return;
+            }
             const updated = await (this.prisma as any).botUser.update({
               where: { maxId: userId },
-              data: {
-                botCredits: { decrement: 3 },
-                totalGenerations: { increment: 1 },
-                generationsThisMonth: { increment: 1 },
-                lastGenerationAt: new Date(),
-              },
+              data: { totalGenerations: { increment: 1 }, generationsThisMonth: { increment: 1 }, lastGenerationAt: new Date() },
             });
             if (result.status === 'completed') {
-              await this.sendMessage(
-                chatId,
-                `✅ Готово! Отправляю ${tool.emoji} ${tool.label} в чат...\n\n💳 Осталось токенов: ${updated.botCredits}`,
-              );
+              await this.sendMessage(chatId, `✅ Готово! Отправляю ${tool.emoji} ${tool.label} в чат...\n\n💳 Осталось токенов: ${updated.botCredits}`);
             } else {
-              await this.sendMessage(
-                chatId,
-                `✅ Задача принята! Результат придёт в этот чат, как только будет готов.\n\n💳 Осталось токенов: ${updated.botCredits}`,
-              );
+              await this.sendMessage(chatId, `✅ Задача принята! Результат придёт в этот чат, как только будет готов.\n\n💳 Осталось токенов: ${updated.botCredits}`);
             }
           }
         } catch (err: any) {
           this.logger.error(`[Gen] Generation failed for userId=${userId} tool=${tool.key}: ${err?.message ?? err}`);
+          // Возвращаем токены при ошибке генерации
+          await (this.prisma as any).botUser.update({ where: { maxId: userId }, data: { botCredits: { increment: 3 } } }).catch(() => null);
           await this.sendMessage(chatId, this.humanizeError(err));
-          // При ошибке — показываем клавиатуру сразу, т.к. доставки не будет
           await this.sendMessageWithKeyboard(chatId, '🛠️ Выберите инструмент:', this.buildToolSelectionAttachment());
         }
 
       } else if (payload === 'g:webapp') {
         const botUser = await (this.prisma as any).botUser.findUnique({ where: { maxId: userId } });
-        const isRegistered = botUser?.registrationStatus === 'registered';
+        const appUser = await this.prisma.appUser.findUnique({ where: { maxId: userId } });
+        const isRegistered = ['registered', 'linked'].includes(botUser?.registrationStatus) && !!appUser?.email;
         const webAppUrl = this.configService.get<string>('WEBAPP_URL', 'https://prepodavai.ru');
         if (isRegistered) {
           await this.sendMessageWithMarkup(chatId, 'Нажмите кнопку, чтобы открыть Преподавай:', [{
@@ -510,6 +518,14 @@ export class MaxService {
   // ── Start command ─────────────────────────────────────────────────────────
   private async handleStartCommand(user: any, chatId: string | number, botUserId?: number, payload?: string) {
     const chatIdStr = chatId.toString();
+
+    // Фиксируем старт бота в Откуда Подписки (fire-and-forget)
+    this.tgtrack('user_did_start_bot', {
+      user_id: user.id?.toString() || chatIdStr,
+      ...(user.name && { first_name: user.name }),
+      ...(user.username && { username: user.username }),
+      ...(payload && { start_value: payload }),
+    });
 
     // Handle link token: /start link_TOKEN
     if (payload && payload.startsWith('link_')) {
@@ -585,9 +601,7 @@ export class MaxService {
           source: 'max_bot',
         } as any,
       });
-      if (!newBotUser.appUserId) {
-        await (this.prisma as any).botUser.update({ where: { maxId: user.id.toString() }, data: { appUserId: shadowAppUser.id } });
-      }
+      await (this.prisma as any).botUser.update({ where: { maxId: user.id.toString() }, data: { appUserId: shadowAppUser.id } });
       const text = this.getWelcomeMessage(null, newBotUser.botCredits);
       await this.sendMessageWithMarkup(chatIdStr, text);
       await this.sendMessage(
@@ -633,10 +647,6 @@ export class MaxService {
       await this.sendMessage(chatId, '⚠️ Этот аккаунт MAX уже привязан к другому профилю Преподавай.');
       return;
     }
-    if (isShadowAccount && alreadyLinked) {
-      await this.prisma.appUser.update({ where: { id: alreadyLinked.id }, data: { maxId: null, maxChatId: null } as any });
-    }
-
     // Читаем текущие данные пользователя, чтобы не затереть уже заполненные поля
     const webUser = await this.prisma.appUser.findUnique({ where: { id: linkToken.userId } });
     if (!webUser) {
@@ -648,8 +658,19 @@ export class MaxService {
     const platformName = user.username ? `@${user.username}` : user.first_name || `id${user.id}`;
 
     try {
-      await this.prisma.$transaction([
-        this.prisma.appUser.update({
+      await this.prisma.$transaction(async (tx) => {
+        // Переносим историю генераций shadow-аккаунта и освобождаем его maxId
+        if (isShadowAccount && alreadyLinked) {
+          await (tx as any).userGeneration.updateMany({
+            where: { userId: alreadyLinked.id },
+            data: { userId: linkToken.userId },
+          });
+          await tx.appUser.update({
+            where: { id: alreadyLinked.id },
+            data: { maxId: null, maxChatId: null } as any,
+          });
+        }
+        await tx.appUser.update({
           where: { id: linkToken.userId },
           data: {
             maxId: user.id.toString(),
@@ -658,12 +679,12 @@ export class MaxService {
             ...(webUser.firstName ? {} : { firstName: user.first_name || undefined }),
             ...(webUser.lastName ? {} : { lastName: user.last_name || undefined }),
           } as any,
-        }),
-        this.prisma.linkToken.update({
+        });
+        await tx.linkToken.update({
           where: { id: linkToken.id },
           data: { status: 'completed', linkedId: user.id.toString(), linkedName: platformName },
-        }),
-      ]);
+        });
+      });
 
       await (this.prisma as any).botUser.upsert({
         where: { maxId: user.id.toString() },
@@ -753,12 +774,11 @@ export class MaxService {
         await this.sendTextResult(chatId, generationType, result, isBotOnlyUser);
       }
       this.logger.log(`[MAX] Result delivered successfully: type=${generationType} userId=${userId}`);
+      await this.sendMessageWithKeyboard(chatId, '🛠️ Выберите инструмент:', this.buildToolSelectionAttachment()).catch(() => {});
       return { success: true, message: 'Result sent successfully' };
     } catch (error) {
       this.logger.error(`[MAX] Failed to deliver result: type=${generationType} userId=${userId} error=${error}`);
       return { success: false, message: String(error) };
-    } finally {
-      await this.sendMessageWithKeyboard(chatId, '🛠️ Выберите инструмент:', this.buildToolSelectionAttachment()).catch(() => {});
     }
   }
 
@@ -1280,10 +1300,15 @@ export class MaxService {
 
     try {
       await this.completeMaxRegistration(userId, chatId, state.email);
-    } catch (err) {
+    } catch (err: any) {
       state.locked = false;
       this.logger.error(`[RegBot MAX] Registration error for maxId=${userId}:`, err);
-      await this.sendMessage(chatId, '❌ Внутренняя ошибка. Попробуйте позже.');
+      if (err?.code === 'P2002') {
+        this.regStates.delete(userId);
+        await this.sendMessage(chatId, '⚠️ Аккаунт с таким email уже существует.\n\nЕсли это ваш аккаунт — войдите на сайте prepodavai.ru');
+      } else {
+        await this.sendMessage(chatId, '❌ Внутренняя ошибка. Попробуйте позже.');
+      }
     }
   }
 
@@ -1346,6 +1371,13 @@ export class MaxService {
 
     this.regStates.delete(userId);
     this.logger.log(`[RegBot MAX] New user registered: id=${newUser.id} username=${username}`);
+
+    // Глубокая цель: регистрация (fire-and-forget)
+    this.tgtrack('send_reach_goal', { user_id: userId, target: 'registration_completed' });
+
+    this.emailService.sendWelcomeEmail(username, password, email).catch((err) => {
+      this.logger.error(`[RegBot MAX] Failed to send welcome email for ${email}:`, err);
+    });
 
     await this.sendMessage(
       chatId,

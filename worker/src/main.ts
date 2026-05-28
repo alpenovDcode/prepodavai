@@ -2,8 +2,9 @@ import { Worker } from 'bullmq';
 import { PrismaClient } from '@prisma/client';
 import Redis from 'ioredis';
 import * as dotenv from 'dotenv';
-import { Bot, InputFile } from 'grammy';
+import { Bot, BotConfig, Context, InputFile } from 'grammy';
 import * as puppeteer from 'puppeteer';
+import { HttpsProxyAgent } from 'https-proxy-agent';
 
 dotenv.config();
 
@@ -17,12 +18,27 @@ if (!botToken) {
   process.exit(1);
 }
 
-const bot = new Bot(botToken);
+function buildBotConfig(): BotConfig<Context> {
+  const proxyUrl = (
+    process.env.TELEGRAM_PROXY ||
+    process.env.HTTPS_PROXY ||
+    process.env.https_proxy ||
+    ''
+  ).trim();
+  if (proxyUrl) {
+    const agent = new HttpsProxyAgent(proxyUrl);
+    console.log(`[Worker] Routing Telegram egress through proxy: ${new URL(proxyUrl).host}`);
+    return { client: { baseFetchConfig: { agent } as any } };
+  }
+  return {};
+}
+
+const bot = new Bot(botToken!, buildBotConfig());
 
 // Puppeteer browser instance (reused across PDF generations)
 let browserPromise: Promise<puppeteer.Browser> | null = null;
 
-async function getBrowser() {
+async function getBrowser(): Promise<puppeteer.Browser> {
   if (!browserPromise) {
     browserPromise = puppeteer.launch({
       headless: true,
@@ -38,6 +54,15 @@ async function getBrowser() {
         '--no-first-run',
       ],
       executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
+    }).then((browser) => {
+      browser.on('disconnected', () => {
+        console.warn('[HtmlExport] Chromium disconnected, will restart on next request');
+        browserPromise = null;
+      });
+      return browser;
+    }).catch((err) => {
+      browserPromise = null;
+      throw err;
     });
   }
   return browserPromise;
@@ -219,19 +244,28 @@ const telegramSendWorker = new Worker(
 
       if (generationType === 'image' || generationType === 'photosession') {
         const imageUrl = result?.imageUrl;
-        if (imageUrl) {
-          const messageText = `✅ Ваше изображение готово!${result?.prompt ? `\n\n📝 Промпт: ${result.prompt}` : ''
-            }${result?.style ? `\n🎨 Стиль: ${result.style}` : ''}`;
-
-          await bot.api.sendPhoto(chatId, imageUrl, { caption: messageText });
+        if (!imageUrl) {
+          console.error(`❌ No imageUrl in result for generation: ${generationRequestId}`);
+          await bot.api.sendMessage(chatId, '✅ Изображение сгенерировано! Просмотрите его в веб-версии Преподавай.');
+        } else {
+          let caption = `✅ Ваше изображение готово!`;
+          if (result?.prompt) caption += `\n\n📝 Промпт: ${result.prompt}`;
+          if (result?.style) caption += `\n🎨 Стиль: ${result.style}`;
+          if (caption.length > 1024) caption = caption.substring(0, 1021) + '...';
+          await bot.api.sendPhoto(chatId, imageUrl, { caption });
         }
       } else if (generationType === 'presentation') {
-        if (result.pdfUrl) {
-          await bot.api.sendDocument(chatId, result.pdfUrl, {
-            caption: `✅ Ваша презентация готова (PDF)!${result.inputText ? `\n\n📌 Тема: ${result.inputText}` : ''
-              }${result.gammaUrl ? `\n\n🔗 [Открыть в Gamma](${result.gammaUrl})` : ''}`,
-            parse_mode: 'Markdown',
-          });
+        const presentationUrl = result.exportUrl || result.pdfUrl || result.pptxUrl;
+        if (!presentationUrl) {
+          const gammaLink = result.gammaUrl ? `\n\n🔗 Открыть в Gamma: ${result.gammaUrl}` : '';
+          const topic = result.inputText ? `\n\n📌 Тема: ${result.inputText}` : '';
+          await bot.api.sendMessage(chatId, `✅ Ваша презентация готова!${topic}${gammaLink}`);
+        } else {
+          let caption = `✅ Ваша презентация готова!`;
+          if (result.inputText) caption += `\n\n📌 Тема: ${result.inputText}`;
+          if (result.gammaUrl) caption += `\n\n🔗 Gamma: ${result.gammaUrl}`;
+          if (caption.length > 1024) caption = caption.substring(0, 1021) + '...';
+          await bot.api.sendDocument(chatId, presentationUrl, { caption });
         }
       } else {
         // Текстовый результат - генерируем PDF
@@ -257,10 +291,12 @@ const telegramSendWorker = new Worker(
           console.log(`[Telegram] PDF sent successfully to ${chatId}`);
         } catch (error) {
           console.error(`[Telegram] Failed to render PDF for ${generationType}:`, error);
-          // Fallback: send text message
-          const fallbackText =
-            text.length > 3000 ? text.substring(0, 2900) + '\n\n... (полный текст слишком длинный).' : text;
-          await bot.api.sendMessage(chatId, fallbackText);
+          // Fallback: strip HTML tags before sending as plain text
+          const plainText = text.replace(/<[^>]+>/g, ' ').replace(/\s{2,}/g, ' ').trim();
+          const fallbackText = plainText.length > 3000
+            ? plainText.substring(0, 2900) + '\n\n... (полный текст слишком длинный).'
+            : plainText;
+          await bot.api.sendMessage(chatId, fallbackText || text.substring(0, 3000));
         }
       }
 
