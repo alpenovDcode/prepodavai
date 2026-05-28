@@ -1,4 +1,5 @@
-import { Bot, Context, InlineKeyboard } from 'grammy';
+import { Bot, Context, InlineKeyboard, webhookCallback } from 'grammy';
+import * as http from 'http';
 import * as dotenv from 'dotenv';
 import { PrismaClient } from '@prisma/client';
 import * as crypto from 'crypto';
@@ -1039,10 +1040,29 @@ bot.catch((err) => {
   console.error('[Bot] Uncaught middleware error:', err.error ?? err);
   console.error('[Bot] Update:', JSON.stringify(err.ctx?.update ?? {}));
 });
-bot.start({
-  onStart: () => console.log('🤖 Telegram bot connected and polling'),
+
+// ── Webhook mode (активен) ────────────────────────────────────────────────────
+const handleUpdate = webhookCallback(bot, 'http');
+http.createServer(async (req, res) => {
+  if (req.method === 'POST') {
+    await handleUpdate(req, res).catch((e) => {
+      console.error('[Webhook] Error handling update:', e);
+      res.writeHead(500);
+      res.end();
+    });
+  } else {
+    res.writeHead(200);
+    res.end('OK');
+  }
+}).listen(3002, () => {
+  console.log('🤖 Telegram bot webhook server listening on :3002');
 });
-console.log('🤖 Telegram bot started (registration + generation active)');
+
+// ── Long polling mode (закомментирован, раскомментировать для отката) ─────────
+// bot.start({
+//   onStart: () => console.log('🤖 Telegram bot connected and polling'),
+// });
+// console.log('🤖 Telegram bot started (registration + generation active)');
 
 process.on('SIGTERM', async () => { bot.stop(); await prisma.$disconnect(); process.exit(0); });
 process.on('SIGINT', async () => { bot.stop(); await prisma.$disconnect(); process.exit(0); });
