@@ -3,35 +3,27 @@ import * as dotenv from 'dotenv';
 import { PrismaClient } from '@prisma/client';
 import * as crypto from 'crypto';
 import * as bcrypt from 'bcryptjs';
-import { Agent, ProxyAgent, setGlobalDispatcher } from 'undici';
+import { HttpsProxyAgent } from 'https-proxy-agent';
 import { TOOL_CONFIGS, ToolConfig, FieldConfig, getToolConfig } from './tool-configs';
 
 dotenv.config();
-
-// ── Форс IPv4 для всего исходящего fetch (grammY ходит через глобальный fetch/undici).
-// У api.telegram.org есть и A, и AAAA. В docker-bridge IPv6 нет, поэтому Node пытается
-// IPv6-коннект и виснет до таймаута ("Network request for 'getMe' failed"). Литеральный
-// IPv4 (1.1.1.1) при этом работал — там AAAA не запрашивается. Форсируем семейство v4.
-// Отключается через DISABLE_FORCE_IPV4=1 на случай, если где-то нужен IPv6.
-if (process.env.DISABLE_FORCE_IPV4 !== '1') {
-  try {
-    setGlobalDispatcher(new Agent({ connect: { family: 4 } as any }));
-    console.log('[Bot] Global dispatcher: forcing IPv4 (connect.family=4)');
-  } catch (e) {
-    console.error('[Bot] Failed to set IPv4 dispatcher:', e);
-  }
-}
 
 const prisma = new PrismaClient();
 const API_URL = process.env.API_URL || 'http://localhost:3001';
 
 /**
  * Собирает client-конфиг grammY с учётом окружения:
- *  - TELEGRAM_API_ROOT — кастомный Bot API endpoint (зеркало / локальный bot-api-server),
- *    обход блокировки api.telegram.org.
- *  - TELEGRAM_PROXY / HTTPS_PROXY / ALL_PROXY — HTTP(S)-прокси для egress через undici-dispatcher
- *    (undici поставляется вместе с Node 18+, отдельная зависимость не нужна).
- * Если ничего не задано — поведение прежнее (прямой доступ).
+ *  - TELEGRAM_API_ROOT — кастомный Bot API endpoint (зеркало / локальный bot-api-server).
+ *  - TELEGRAM_PROXY / HTTPS_PROXY / ALL_PROXY — HTTP(S)-прокси для egress (РКН блокирует
+ *    прямой IPv4-путь к api.telegram.org с РФ-хостинга).
+ *
+ * ВАЖНО про реализацию прокси: grammY ходит в Telegram через node-fetch-совместимый слой
+ * (его дефолтный baseFetchConfig содержит `compress: true` — опция node-fetch). node-fetch
+ * НЕ понимает undici `dispatcher`/`setGlobalDispatcher` — ему нужен `agent`. Поэтому
+ * используем `https-proxy-agent` и кладём его в `baseFetchConfig.agent`. Проверено:
+ * undici ProxyAgent (и глобальный, и per-request) с grammy НЕ работает, а https-proxy-agent — да.
+ *
+ * Если ничего не задано — прямой доступ (прежнее поведение).
  */
 function buildBotClientConfig(): BotConfig<Context>['client'] {
   const client: NonNullable<BotConfig<Context>['client']> = {};
@@ -51,30 +43,15 @@ function buildBotClientConfig(): BotConfig<Context>['client'] {
   ).trim();
   if (proxyUrl) {
     try {
-      // Логин/пароль вытаскиваем из URL и передаём как явный Basic-токен:
-      // undici в ряде версий НЕ подхватывает userinfo из строки прокси,
-      // и аутентификация молча не отправляется → 407/таймаут.
       const u = new URL(proxyUrl);
-      const agentOpts: any = { uri: `${u.protocol}//${u.host}` };
-      if (u.username || u.password) {
-        const creds = `${decodeURIComponent(u.username)}:${decodeURIComponent(u.password)}`;
-        agentOpts.token = `Basic ${Buffer.from(creds).toString('base64')}`;
-      }
-      const dispatcher = new ProxyAgent(agentOpts);
-
-      // КЛЮЧЕВОЕ: ставим прокси ГЛОБАЛЬНО. grammy не прокидывает dispatcher из
-      // baseFetchConfig в свой fetch (проверено: прямой fetch с dispatcher работает,
-      // а через baseFetchConfig — нет). Глобальный диспетчер перехватывает ВЕСЬ fetch,
-      // включая внутренние вызовы grammy → getMe/getUpdates пойдут через прокси.
-      setGlobalDispatcher(dispatcher);
-      // Дублируем в baseFetchConfig как ремень безопасности (если версия grammy его уважает).
-      client.baseFetchConfig = { dispatcher } as any;
-      console.log(`[Bot] Routing Telegram egress through proxy (global dispatcher): ${u.protocol}//${u.host} (auth: ${u.username ? 'yes' : 'no'})`);
-    } catch (e) {
-      console.error(
-        `[Bot] Failed to init proxy agent for "${proxyUrl}". Проверь URL прокси:`,
-        e,
+      // HttpsProxyAgent сам разбирает userinfo (user:pass@host) и шлёт Proxy-Authorization.
+      const agent = new HttpsProxyAgent(proxyUrl);
+      client.baseFetchConfig = { agent } as any;
+      console.log(
+        `[Bot] Routing Telegram egress through proxy: ${u.protocol}//${u.host} (auth: ${u.username ? 'yes' : 'no'})`,
       );
+    } catch (e) {
+      console.error(`[Bot] Failed to init proxy agent for "${proxyUrl}". Проверь URL прокси:`, e);
     }
   }
 
