@@ -1120,22 +1120,38 @@ async function bootstrap() {
     process.exit(1);
   }
 
-  try {
-    const me = await bot.api.getMe();
-    console.log(`[Bot] getMe OK: @${me.username} (id=${me.id}) — связь с Telegram есть.`);
-  } catch (err: any) {
-    // Самый частый кейс на РФ-хостинге: ETIMEDOUT/ECONNREFUSED — egress заблокирован.
+  // getMe с ретраями: нестабильный egress/прокси может дать сбой на одной попытке,
+  // но восстановиться на следующей. Не валим контейнер с первого таймаута —
+  // пробуем несколько раз с нарастающей паузой. Контролируется GETME_RETRIES.
+  const maxAttempts = Number(process.env.GETME_RETRIES || 5);
+  let connected = false;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const me = await bot.api.getMe();
+      console.log(`[Bot] getMe OK: @${me.username} (id=${me.id}) — связь с Telegram есть (попытка ${attempt}).`);
+      connected = true;
+      break;
+    } catch (err: any) {
+      console.error(`[Bot] getMe не удался (попытка ${attempt}/${maxAttempts}): ${err?.message ?? err}`);
+      if (attempt < maxAttempts) {
+        const delayMs = Math.min(2000 * attempt, 10_000);
+        await new Promise((r) => setTimeout(r, delayMs));
+      }
+    }
+  }
+
+  if (!connected) {
     console.error(
-      '[Bot] FATAL: не удалось достучаться до Telegram API (getMe). ' +
-        'Проверь egress контейнера до api.telegram.org. ' +
-        'Варианты: network_mode: host, либо TELEGRAM_PROXY / TELEGRAM_API_ROOT.',
+      '[Bot] FATAL: не удалось достучаться до Telegram API после ' + maxAttempts + ' попыток. ' +
+        'Проверь egress до api.telegram.org (РКН блокирует прямой IPv4). ' +
+        'Нужен СТАБИЛЬНЫЙ прокси/туннель: TELEGRAM_PROXY / TELEGRAM_API_ROOT / network_mode: host.',
     );
-    console.error('[Bot] Детали ошибки:', err?.message ?? err);
-    // Падаем, чтобы restart-политика не делала вид, что всё ок, и проблема была заметна.
+    // Падаем, чтобы restart-политика подняла заново (и проблема была видна в логах).
     process.exit(1);
   }
 
-  // Логируем сетевые ошибки самого поллинга (getUpdates), которых раньше не было видно.
+  // grammY сам ретраит сетевые ошибки getUpdates, поэтому единичные блипы прокси
+  // переживёт без падения. Логируем фатальный обрыв поллинга, если он случится.
   bot.start({
     onStart: () => console.log('🤖 Telegram bot connected and polling'),
   }).catch((err) => {
