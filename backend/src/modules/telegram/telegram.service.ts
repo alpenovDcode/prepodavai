@@ -386,20 +386,22 @@ export class TelegramService {
       return { success: true, message: 'Skipped for test user' };
     }
 
-    try {
-      // Отправляем в зависимости от типа генерации
-      try {
-        if (generationType === 'image' || generationType === 'photosession') {
-          await this.sendImage(chatId, result);
-        } else if (generationType === 'presentation') {
-          await this.sendPresentation(chatId, result);
-        } else {
-          await this.sendTextResult(chatId, generationType, result);
-        }
-      } catch (deliveryError) {
-        console.error('[Telegram] Error delivering result:', deliveryError);
-      }
+    const isBotOnlyUser = appUser.source === 'telegram_bot' && !appUser.email;
 
+    try {
+      if (generationType === 'image' || generationType === 'photosession') {
+        await this.sendImage(chatId, result);
+      } else if (generationType === 'presentation') {
+        await this.sendPresentation(chatId, result);
+      } else {
+        await this.sendTextResult(chatId, generationType, result, isBotOnlyUser);
+      }
+      console.log(`[Telegram] Result delivered successfully: type=${generationType} userId=${userId}`);
+      return { success: true, message: 'Result sent successfully' };
+    } catch (error) {
+      console.error(`[Telegram] Failed to deliver result: type=${generationType} userId=${userId} error=${error}`);
+      return { success: false, message: String(error) };
+    } finally {
       await this.bot.api.sendMessage(chatId, '🛠️ *Выберите инструмент:*', {
         parse_mode: 'Markdown',
         reply_markup: {
@@ -411,11 +413,6 @@ export class TelegramService {
           ],
         },
       }).catch(() => {});
-
-      return { success: true, message: 'Result sent successfully' };
-    } catch (error) {
-      console.error('Error sending to Telegram:', error);
-      return { success: false, message: String(error) };
     }
   }
 
@@ -531,7 +528,7 @@ export class TelegramService {
   /**
    * Отправка текстового результата
    */
-  private async sendTextResult(chatId: string, generationType: string, result: any) {
+  private async sendTextResult(chatId: string, generationType: string, result: any, isBotOnlyUser = false) {
     console.log(`[Telegram] sendTextResult called for ${generationType}, chatId: ${chatId}`);
     const content = result?.htmlResult || result?.content || result;
     const filename = `${generationType}_${new Date().toISOString().split('T')[0]}_${Date.now()}.pdf`;
@@ -549,14 +546,13 @@ export class TelegramService {
       return;
     } catch (error) {
       console.error(`[Telegram] Failed to render PDF for ${generationType}:`, error);
-      // Fallback удален по требованию: отправляем только PDF или ошибку (в логах)
     }
 
-    // Если PDF не сгенерировался — не слать raw HTML, только дружественное сообщение
-    await this.bot.api.sendMessage(
-      chatId,
-      `✅ Ваш материал готов!\n\nПросмотр доступен в веб-версии PrepodavAI.`,
-    );
+    const fallbackText = isBotOnlyUser
+      ? `✅ Ваш материал готов!\n\n⚠️ Не удалось создать PDF. Попробуйте сгенерировать ещё раз.`
+      : `✅ Ваш материал готов!\n\nПросмотр доступен в веб-версии PrepodavAI.`;
+
+    await this.bot.api.sendMessage(chatId, fallbackText);
   }
 
   /**

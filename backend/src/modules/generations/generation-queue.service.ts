@@ -3,8 +3,8 @@ import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 
 const RETRY_OPTIONS = {
-  attempts: 3,
-  backoff: { type: 'exponential' as const, delay: 2000 },
+  attempts: 5,
+  backoff: { type: 'exponential' as const, delay: 4000 },
 };
 
 @Injectable()

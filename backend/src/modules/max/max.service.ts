@@ -129,6 +129,10 @@ export class MaxService {
           this.logger.log(`[Gen] /cancel — session cleared for user=${userIdForDb}`);
           this.genSessions.delete(userIdForDb);
           await this.sendMessage(chatId, '❌ Генерация отменена.');
+        } else if (this.regStates.has(userIdForDb)) {
+          this.logger.log(`[Reg] /cancel — registration cancelled for user=${userIdForDb}`);
+          this.regStates.delete(userIdForDb);
+          await this.sendMessage(chatId, '❌ Регистрация отменена.');
         } else {
           this.logger.log(`[Gen] /cancel — no active session for user=${userIdForDb}`);
           await this.sendMessage(chatId, 'Нет активного процесса.');
@@ -442,6 +446,8 @@ export class MaxService {
               gameAttachment,
             );
             await this.sendMessage(chatId, `💳 Осталось токенов: ${updated.botCredits}`);
+            // Игры доставляются сразу — показываем клавиатуру здесь
+            await this.sendMessageWithKeyboard(chatId, '🛠️ Выберите инструмент:', this.buildToolSelectionAttachment());
           } else {
             let apiParams: Record<string, any> = { ...session.params };
             if (tool.key === 'lesson-preparation' && typeof apiParams.generationTypes === 'string') {
@@ -474,13 +480,15 @@ export class MaxService {
         } catch (err: any) {
           this.logger.error(`[Gen] Generation failed for userId=${userId} tool=${tool.key}: ${err?.message ?? err}`);
           await this.sendMessage(chatId, this.humanizeError(err));
+          // При ошибке — показываем клавиатуру сразу, т.к. доставки не будет
+          await this.sendMessageWithKeyboard(chatId, '🛠️ Выберите инструмент:', this.buildToolSelectionAttachment());
         }
 
       } else if (payload === 'g:webapp') {
-        const appUser = await this.prisma.appUser.findUnique({ where: { maxId: userId } });
-        const isRealUser = appUser && (appUser as any).email != null;
+        const botUser = await (this.prisma as any).botUser.findUnique({ where: { maxId: userId } });
+        const isRegistered = botUser?.registrationStatus === 'registered';
         const webAppUrl = this.configService.get<string>('WEBAPP_URL', 'https://prepodavai.ru');
-        if (isRealUser) {
+        if (isRegistered) {
           await this.sendMessageWithMarkup(chatId, 'Нажмите кнопку, чтобы открыть PrepodavAI:', [{
             type: 'inline_keyboard',
             payload: { buttons: [[{ type: 'link', url: `${webAppUrl}/dashboard`, text: '🚀 Открыть PrepodavAI' }]] },
@@ -639,48 +647,52 @@ export class MaxService {
 
     const platformName = user.username ? `@${user.username}` : user.first_name || `id${user.id}`;
 
-    await this.prisma.$transaction([
-      this.prisma.appUser.update({
-        where: { id: linkToken.userId },
-        data: {
+    try {
+      await this.prisma.$transaction([
+        this.prisma.appUser.update({
+          where: { id: linkToken.userId },
+          data: {
+            maxId: user.id.toString(),
+            maxChatId: chatId,
+            chatId,
+            ...(webUser.firstName ? {} : { firstName: user.first_name || undefined }),
+            ...(webUser.lastName ? {} : { lastName: user.last_name || undefined }),
+          } as any,
+        }),
+        this.prisma.linkToken.update({
+          where: { id: linkToken.id },
+          data: { status: 'completed', linkedId: user.id.toString(), linkedName: platformName },
+        }),
+      ]);
+
+      await (this.prisma as any).botUser.upsert({
+        where: { maxId: user.id.toString() },
+        update: { appUserId: linkToken.userId, lastActiveAt: new Date(), registrationStatus: 'linked' },
+        create: {
           maxId: user.id.toString(),
-          maxChatId: chatId,
-          chatId, // backward compat
-          // Не перезаписываем username — он используется для входа на сайте
-          // Заполняем firstName/lastName только если ещё не заданы
-          ...(webUser.firstName ? {} : { firstName: user.first_name || undefined }),
-          ...(webUser.lastName ? {} : { lastName: user.last_name || undefined }),
-        } as any,
-      }),
-      this.prisma.linkToken.update({
-        where: { id: linkToken.id },
-        data: { status: 'completed', linkedId: user.id.toString(), linkedName: platformName },
-      }),
-    ]);
+          appUserId: linkToken.userId,
+          firstName: user.first_name || null,
+          lastName: user.last_name || null,
+          username: user.username || null,
+          email: webUser.email || null,
+          registrationStatus: 'linked',
+          source: 'linked_max',
+          lastActiveAt: new Date(),
+        },
+      });
 
-    this.logger.log(`[LinkToken] Successfully linked: maxUserId=${user.id} appUserId=${linkToken.userId} as ${platformName}`);
+      // Очищаем возможную незавершённую регистрацию
+      this.regStates.delete(user.id.toString());
 
-    // Create/update BotUser for this MAX account
-    await (this.prisma as any).botUser.upsert({
-      where: { maxId: user.id.toString() },
-      update: { appUserId: linkToken.userId, lastActiveAt: new Date(), registrationStatus: 'linked' },
-      create: {
-        maxId: user.id.toString(),
-        appUserId: linkToken.userId,
-        firstName: user.first_name || null,
-        lastName: user.last_name || null,
-        username: user.username || null,
-        email: webUser.email || null,
-        registrationStatus: 'linked',
-        source: 'linked_max',
-        lastActiveAt: new Date(),
-      },
-    });
-
-    await this.sendMessage(
-      chatId,
-      `✅ MAX успешно привязан к вашему аккаунту PrepodavAI!\n\nТеперь вы будете получать результаты генерации прямо здесь.`,
-    );
+      this.logger.log(`[LinkToken] Successfully linked: maxUserId=${user.id} appUserId=${linkToken.userId} as ${platformName}`);
+      await this.sendMessage(
+        chatId,
+        `✅ MAX успешно привязан к вашему аккаунту PrepodavAI!\n\nТеперь вы будете получать результаты генерации прямо здесь.`,
+      );
+    } catch (err) {
+      this.logger.error(`[LinkToken] Failed to link: maxUserId=${user.id} error=${err}`);
+      await this.sendMessage(chatId, '❌ Не удалось привязать аккаунт. Попробуйте позже.');
+    }
   }
 
   private async sendWelcomeMessage(chatId: string, appUser: any, _botUserId?: number) {
@@ -729,6 +741,7 @@ export class MaxService {
       return { success: false, message: 'No MAX chatId available' };
     }
 
+    const isBotOnlyUser = appUser.source === 'max_bot' && !appUser.email;
     this.logger.log(`[MAX] Sending result: type=${generationType} userId=${userId} chatId=${chatId}`);
 
     try {
@@ -737,7 +750,7 @@ export class MaxService {
       } else if (generationType === 'presentation') {
         await this.sendPresentation(chatId, result);
       } else {
-        await this.sendTextResult(chatId, generationType, result);
+        await this.sendTextResult(chatId, generationType, result, isBotOnlyUser);
       }
       this.logger.log(`[MAX] Result delivered successfully: type=${generationType} userId=${userId}`);
       return { success: true, message: 'Result sent successfully' };
@@ -1147,7 +1160,7 @@ export class MaxService {
     await this.sendMessage(chatId, messageText + `\n\n[Изображение доступно в веб-версии]`);
   }
 
-  private async sendTextResult(chatId: string, generationType: string, result: any) {
+  private async sendTextResult(chatId: string, generationType: string, result: any, isBotOnlyUser = false) {
     const content = result?.htmlResult || result?.content || result;
     const filename = `${generationType}_${new Date().toISOString().split('T')[0]}.pdf`;
 
@@ -1160,8 +1173,11 @@ export class MaxService {
       this.logger.error(`[MAX] PDF generation failed for ${generationType}:`, error);
     }
 
-    // Fallback — без raw HTML
-    await this.sendMessage(chatId, `✅ Ваш материал готов!\n\nПросмотр доступен в веб-версии PrepodavAI.`);
+    const fallbackText = isBotOnlyUser
+      ? `✅ Ваш материал готов!\n\n⚠️ Не удалось создать PDF. Попробуйте сгенерировать ещё раз.`
+      : `✅ Ваш материал готов!\n\nПросмотр доступен в веб-версии PrepodavAI.`;
+
+    await this.sendMessage(chatId, fallbackText);
   }
 
   /**
@@ -1272,13 +1288,8 @@ export class MaxService {
   }
 
   private async completeMaxRegistration(userId: string, chatId: string, email: string) {
-    const [emailTaken, existingMaxUser] = await Promise.all([
-      this.prisma.appUser.findFirst({ where: { email } }),
-      this.prisma.appUser.findUnique({ where: { maxId: userId } }),
-    ]);
-
-    const isShadow = (existingMaxUser as any)?.source === 'max_bot' && !(existingMaxUser as any)?.email;
-    if (emailTaken || (existingMaxUser && !isShadow)) {
+    const emailTaken = await this.prisma.appUser.findFirst({ where: { email } });
+    if (emailTaken) {
       this.regStates.delete(userId);
       await this.sendMessage(chatId, '⚠️ Аккаунт с таким email уже существует.\n\nЕсли это ваш аккаунт — войдите на сайте prepodavai.ru');
       return;
@@ -1291,36 +1302,26 @@ export class MaxService {
     const apiKey = crypto.randomBytes(16).toString('hex');
 
     const newUser = await this.prisma.$transaction(async (tx) => {
-      let appUser: any;
-      if (isShadow && existingMaxUser) {
-        appUser = await tx.appUser.update({
-          where: { id: existingMaxUser.id },
-          data: {
-            username, userHash: username, email,
-            passwordHash, apiKey, maxChatId: chatId, chatId,
-            lastAccessAt: new Date(), lastMaxAppAccess: new Date(),
-          } as any,
-        });
-      } else {
-        appUser = await tx.appUser.create({
-          data: {
-            username, userHash: username, email,
-            passwordHash, apiKey, maxId: userId,
-            maxChatId: chatId, chatId,
-            source: 'max_bot', lastAccessAt: new Date(), lastMaxAppAccess: new Date(),
-          } as any,
-        });
-      }
+      // Always create a fresh web AppUser — shadow stays intact for bot-only deliveries
+      const appUser = await tx.appUser.create({
+        data: {
+          username, userHash: username, email,
+          passwordHash, apiKey, chatId,
+          firstName: '', lastName: '',
+          source: 'max_bot', lastAccessAt: new Date(), lastMaxAppAccess: new Date(),
+        } as any,
+      });
 
-      const starterPlan = await tx.subscriptionPlan.findUnique({ where: { planKey: 'starter' } });
-      if (starterPlan) {
+      // New web users get business plan with 1500 credits
+      const businessPlan = await tx.subscriptionPlan.findUnique({ where: { planKey: 'business' } });
+      if (businessPlan) {
         const now = new Date();
         const endDate = new Date(now);
         endDate.setMonth(endDate.getMonth() + 1);
         await tx.userSubscription.create({
           data: {
-            userId: appUser.id, planId: starterPlan.id, status: 'active',
-            creditsBalance: 100, extraCredits: 0, creditsUsed: 0,
+            userId: appUser.id, planId: businessPlan.id, status: 'active',
+            creditsBalance: 1500, extraCredits: 0, creditsUsed: 0,
             overageCreditsUsed: 0, startDate: now, endDate, autoRenew: true,
           },
         });
@@ -1331,6 +1332,7 @@ export class MaxService {
         update: { appUserId: appUser.id, email, registrationStatus: 'registered' },
         create: {
           maxId: userId, appUserId: appUser.id,
+          firstName: '', lastName: '', username: `user${userId}`,
           email, registrationStatus: 'registered', source: 'max_bot',
           lastActiveAt: new Date(),
         },
@@ -1344,8 +1346,13 @@ export class MaxService {
 
     await this.sendMessage(
       chatId,
-      `✅ Аккаунт создан!\n\n👤 Логин: ${username}\n🔑 Пароль: ${password}\n\nСохраните эти данные — они нужны для входа на prepodavai.ru\n\n💳 Токенов на балансе: 100`,
+      `✅ Аккаунт создан!\n\n👤 Логин: ${username}\n🔑 Пароль: ${password}\n\n💳 Токенов на платформе: 1500\n\n⚠️ Сохраните пароль — он больше не будет показан.`,
     );
+    const webAppUrl = this.configService.get<string>('WEBAPP_URL', 'https://prepodavai.ru');
+    await this.sendMessageWithMarkup(chatId, 'Нажмите кнопку, чтобы открыть PrepodavAI:', [{
+      type: 'inline_keyboard',
+      payload: { buttons: [[{ type: 'link', url: `${webAppUrl}/dashboard`, text: '🚀 Открыть PrepodavAI' }]] },
+    }]);
     await this.sendMessageWithKeyboard(chatId, '🛠️ Выберите инструмент:', this.buildToolSelectionAttachment());
   }
 

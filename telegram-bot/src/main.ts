@@ -362,15 +362,10 @@ async function handleEmailInput(ctx: Context, telegramId: string, state: Registr
 async function completeRegistration(ctx: Context, telegramId: string, state: RegistrationState) {
   const user = ctx.from!;
 
-  const [emailTaken, existingTgUser] = await Promise.all([
-    prisma.appUser.findFirst({ where: { email: state.email } }),
-    prisma.appUser.findUnique({ where: { telegramId } }),
-  ]);
-
-  const isShadow = (existingTgUser as any)?.source === 'telegram_bot' && !existingTgUser?.email;
-  if (emailTaken || (existingTgUser && !isShadow)) {
+  const emailTaken = await prisma.appUser.findFirst({ where: { email: state.email } });
+  if (emailTaken) {
     regStates.delete(telegramId);
-    await ctx.reply('⚠️ Аккаунт с такими данными уже существует.\n\nЕсли это ваш аккаунт — войдите на сайте.');
+    await ctx.reply('⚠️ Аккаунт с таким email уже существует.\n\nЕсли это ваш аккаунт — войдите на сайте.');
     return;
   }
 
@@ -385,39 +380,26 @@ async function completeRegistration(ctx: Context, telegramId: string, state: Reg
 
   try {
     const newUser = await prisma.$transaction(async (tx) => {
-      let appUser: any;
-      if (isShadow && existingTgUser) {
-        // Upgrade shadow account to real account
-        appUser = await tx.appUser.update({
-          where: { id: existingTgUser.id },
-          data: {
-            username, userHash: username, email: state.email,
-            passwordHash, apiKey, chatId, telegramChatId: chatId,
-            firstName: user.first_name || existingTgUser.firstName || '',
-            lastName: user.last_name || existingTgUser.lastName || '',
-            lastAccessAt: new Date(), lastTelegramAppAccess: new Date(),
-          } as any,
-        });
-      } else {
-        appUser = await tx.appUser.create({
-          data: {
-            username, userHash: username, email: state.email,
-            passwordHash, apiKey, telegramId, chatId,
-            telegramChatId: chatId, firstName: user.first_name || '', lastName: user.last_name || '',
-            source: 'telegram_bot', lastAccessAt: new Date(), lastTelegramAppAccess: new Date(),
-          } as any,
-        });
-      }
+      // Always create a fresh web AppUser — shadow stays intact for bot-only deliveries
+      const appUser = await tx.appUser.create({
+        data: {
+          username, userHash: username, email: state.email,
+          passwordHash, apiKey, chatId,
+          firstName: user.first_name || '', lastName: user.last_name || '',
+          source: 'telegram_bot', lastAccessAt: new Date(), lastTelegramAppAccess: new Date(),
+        } as any,
+      });
 
-      const starterPlan = await tx.subscriptionPlan.findUnique({ where: { planKey: 'starter' } });
-      if (starterPlan) {
+      // New web users get business plan with 1500 credits
+      const businessPlan = await tx.subscriptionPlan.findUnique({ where: { planKey: 'business' } });
+      if (businessPlan) {
         const now = new Date();
         const endDate = new Date(now);
         endDate.setMonth(endDate.getMonth() + 1);
         await tx.userSubscription.create({
           data: {
-            userId: appUser.id, planId: starterPlan.id, status: 'active',
-            creditsBalance: 100, extraCredits: 0, creditsUsed: 0,
+            userId: appUser.id, planId: businessPlan.id, status: 'active',
+            creditsBalance: 1500, extraCredits: 0, creditsUsed: 0,
             overageCreditsUsed: 0, startDate: now, endDate, autoRenew: true,
           },
         });
@@ -454,6 +436,7 @@ async function completeRegistration(ctx: Context, telegramId: string, state: Reg
       `Ваши данные для входа на сайте:\n\n` +
       `👤 Логин: \`${username}\`\n` +
       `🔑 Пароль: \`${password}\`\n\n` +
+      `💳 Токенов на платформе: *1500*\n\n` +
       `⚠️ *Сохраните пароль* — он больше не будет показан.`,
       { parse_mode: 'Markdown' },
     );
@@ -864,6 +847,8 @@ bot.on('callback_query:data', async (ctx: Context) => {
         const kb = new InlineKeyboard().url('🎮 Открыть игру', result.url);
         await ctx.reply(`🎮 *Игра готова!*\n\nТема: _${session.params.topic}_\n\nНажмите кнопку, чтобы открыть:`, { parse_mode: 'Markdown', reply_markup: kb });
         await ctx.reply(`💳 Осталось токенов: *${updated.botCredits}*`, { parse_mode: 'Markdown' });
+        // Игры доставляются сразу — показываем клавиатуру здесь
+        await ctx.reply('🛠️ *Выберите инструмент:*', { parse_mode: 'Markdown', reply_markup: buildToolSelectionKeyboard() });
       } else {
         let apiParams: Record<string, any> = { ...session.params };
         if (tool.key === 'lesson-preparation' && typeof apiParams.generationTypes === 'string') {
@@ -885,12 +870,13 @@ bot.on('callback_query:data', async (ctx: Context) => {
         } else {
           await ctx.reply(`✅ Задача принята! Результат придёт в этот чат, как только будет готов.\n\n💳 Осталось токенов: *${updated.botCredits}*`, { parse_mode: 'Markdown' });
         }
+        // Клавиатура придёт после реальной доставки PDF через sendGenerationResult
       }
     } catch (err: any) {
       await ctx.reply(humanizeError(err));
+      // При ошибке — показываем клавиатуру сразу, т.к. доставки не будет
+      await ctx.reply('🛠️ *Выберите инструмент:*', { parse_mode: 'Markdown', reply_markup: buildToolSelectionKeyboard() });
     }
-
-    await ctx.reply('🛠️ *Выберите инструмент:*', { parse_mode: 'Markdown', reply_markup: buildToolSelectionKeyboard() });
 
   } else if (data === 'g:no') {
     genSessions.delete(telegramId);
@@ -907,10 +893,10 @@ bot.on('message:text', async (ctx: Context) => {
 
   // Кнопка мини-приложения
   if (text === MINI_APP_BTN) {
-    const appUser = await prisma.appUser.findUnique({ where: { telegramId } });
-    const isRealUser = appUser && (appUser as any).email != null;
+    const botUser = await (prisma as any).botUser.findUnique({ where: { telegramId } });
+    const isRegistered = botUser?.registrationStatus === 'registered';
     const webAppUrl = process.env.WEBAPP_URL || 'https://prepodavai.ru';
-    if (isRealUser) {
+    if (isRegistered) {
       await ctx.reply('Нажмите кнопку, чтобы открыть PrepodavAI:', {
         reply_markup: {
           inline_keyboard: [
