@@ -31,6 +31,10 @@ export class MaxService {
   private static readonly MAX_GEN_SESSIONS = 300;
   private static readonly MAX_CALLBACK_DATA_LEN = 32;
 
+  // ── Registration session state ────────────────────────────────────────────
+  private readonly regStates = new Map<string, { step: 'awaiting_email'; email?: string; locked?: boolean }>();
+  private static readonly MAX_CONCURRENT_REG_SESSIONS = 100;
+
   constructor(
     private configService: ConfigService,
     private prisma: PrismaService,
@@ -129,6 +133,13 @@ export class MaxService {
           this.logger.log(`[Gen] /cancel — no active session for user=${userIdForDb}`);
           await this.sendMessage(chatId, 'Нет активного процесса.');
         }
+        return;
+      }
+
+      // Registration flow — email input
+      const regState = this.regStates.get(userIdForDb);
+      if (regState && regState.step === 'awaiting_email') {
+        await this.handleMaxEmailInput(userIdForDb, chatId, regState, text);
         return;
       }
 
@@ -465,6 +476,19 @@ export class MaxService {
           await this.sendMessage(chatId, this.humanizeError(err));
         }
 
+      } else if (payload === 'g:webapp') {
+        const appUser = await this.prisma.appUser.findUnique({ where: { maxId: userId } });
+        const isRealUser = appUser && (appUser as any).email != null;
+        const webAppUrl = this.configService.get<string>('WEBAPP_URL', 'https://prepodavai.ru');
+        if (isRealUser) {
+          await this.sendMessageWithMarkup(chatId, 'Нажмите кнопку, чтобы открыть PrepodavAI:', [{
+            type: 'inline_keyboard',
+            payload: { buttons: [[{ type: 'link', url: `${webAppUrl}/dashboard`, text: '🚀 Открыть PrepodavAI' }]] },
+          }]);
+        } else {
+          await this.startMaxRegistration(userId, chatId);
+        }
+
       } else if (payload === 'g:no') {
         this.logger.log(`[Gen] Cancelled by userId=${userId}`);
         this.genSessions.delete(userId);
@@ -525,14 +549,44 @@ export class MaxService {
       });
       await this.sendWelcomeMessage(chatIdStr, existingUser, botUserId);
     } else {
-      this.logger.log(`[Start] Unlinked user: userId=${user.id} — showing registration prompt`);
-      const webAppUrl = this.configService.get<string>('WEBAPP_URL', 'https://prepodavai.ru');
+      this.logger.log(`[Start] Unlinked user: userId=${user.id} — upsert botUser and show welcome`);
+      const newBotUser = await (this.prisma as any).botUser.upsert({
+        where: { maxId: user.id.toString() },
+        update: { lastActiveAt: new Date(), firstName: user.first_name || undefined, lastName: user.last_name || undefined, username: user.username || undefined },
+        create: {
+          maxId: user.id.toString(),
+          firstName: user.first_name || null,
+          lastName: user.last_name || null,
+          username: user.username || null,
+          registrationStatus: 'pending',
+          source: 'max_bot',
+          lastActiveAt: new Date(),
+        },
+      });
+      // Create shadow appUser so bot-only users can generate without web registration
+      const shadowApiKey = crypto.randomBytes(16).toString('hex');
+      const shadowAppUser = await this.prisma.appUser.upsert({
+        where: { maxId: user.id.toString() },
+        update: { maxChatId: chatIdStr, chatId: chatIdStr, lastAccessAt: new Date() },
+        create: {
+          maxId: user.id.toString(),
+          maxChatId: chatIdStr,
+          chatId: chatIdStr,
+          username: `max_${user.id}`,
+          apiKey: shadowApiKey,
+          source: 'max_bot',
+        } as any,
+      });
+      if (!newBotUser.appUserId) {
+        await (this.prisma as any).botUser.update({ where: { maxId: user.id.toString() }, data: { appUserId: shadowAppUser.id } });
+      }
+      const text = this.getWelcomeMessage(null, newBotUser.botCredits);
+      await this.sendMessageWithMarkup(chatIdStr, text);
       await this.sendMessage(
         chatIdStr,
-        `Добро пожаловать в PrepodavAI! 🎓\n\n` +
-        `Для использования бота сначала зарегистрируйтесь на сайте, а затем привяжите MAX в настройках профиля.\n\n` +
-        `После привязки вы сможете получать результаты генерации прямо здесь:\n${webAppUrl}/auth`,
+        `📌 Как пользоваться:\n\n1. Выберите инструмент из списка ниже\n2. Ответьте на несколько вопросов\n3. Получите готовый материал в PDF\n\nКаждая генерация стоит 3 токена.`,
       );
+      await this.sendMessageWithKeyboard(chatIdStr, '🛠️ Выберите инструмент:', this.buildToolSelectionAttachment());
     }
   }
 
@@ -565,10 +619,14 @@ export class MaxService {
     const alreadyLinked = await this.prisma.appUser.findUnique({
       where: { maxId: user.id.toString() },
     });
-    if (alreadyLinked && alreadyLinked.id !== linkToken.userId) {
+    const isShadowAccount = (alreadyLinked as any)?.source === 'max_bot';
+    if (alreadyLinked && alreadyLinked.id !== linkToken.userId && !isShadowAccount) {
       this.logger.warn(`[LinkToken] MAX account already linked: maxUserId=${user.id} linkedTo=${alreadyLinked.id} requestedBy=${linkToken.userId}`);
       await this.sendMessage(chatId, '⚠️ Этот аккаунт MAX уже привязан к другому профилю PrepodavAI.');
       return;
+    }
+    if (isShadowAccount && alreadyLinked) {
+      await this.prisma.appUser.update({ where: { id: alreadyLinked.id }, data: { maxId: null, maxChatId: null } as any });
     }
 
     // Читаем текущие данные пользователя, чтобы не затереть уже заполненные поля
@@ -686,6 +744,8 @@ export class MaxService {
     } catch (error) {
       this.logger.error(`[MAX] Failed to deliver result: type=${generationType} userId=${userId} error=${error}`);
       return { success: false, message: String(error) };
+    } finally {
+      await this.sendMessageWithKeyboard(chatId, '🛠️ Выберите инструмент:', this.buildToolSelectionAttachment()).catch(() => {});
     }
   }
 
@@ -780,6 +840,7 @@ export class MaxService {
       row.push({ type: 'callback', text: `${tool.emoji} ${tool.label}`, payload: `g:t:${tool.key}` });
     });
     if (row.length > 0) buttons.push(row);
+    buttons.push([{ type: 'callback', text: '📱 Открыть PrepodavAI', payload: 'g:webapp' }]);
     return [{ type: 'inline_keyboard', payload: { buttons } }];
   }
 
@@ -1167,5 +1228,134 @@ export class MaxService {
       `— Создания интерактивных игр` +
       balanceLine
     );
+  }
+
+  // ── Registration flow ─────────────────────────────────────────────────────
+
+  private async startMaxRegistration(userId: string, chatId: string) {
+    if (this.regStates.size >= MaxService.MAX_CONCURRENT_REG_SESSIONS) {
+      await this.sendMessage(chatId, '⚠️ Сервис временно недоступен. Попробуйте позже.');
+      return;
+    }
+    this.regStates.set(userId, { step: 'awaiting_email' });
+    await this.sendMessage(
+      chatId,
+      `👋 Добро пожаловать в *Преподавай* 🎓\n\nДавайте создадим ваш аккаунт — это займёт меньше минуты.\n\nВведите вашу электронную почту:`,
+    );
+  }
+
+  private async handleMaxEmailInput(
+    userId: string,
+    chatId: string,
+    state: { step: string; email?: string; locked?: boolean },
+    text: string,
+  ) {
+    if (state.locked) return;
+
+    const emailRegex = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/;
+    if (!emailRegex.test(text) || text.length > 254) {
+      await this.sendMessage(chatId, '❌ Некорректный формат email.\n\nВведите действительный адрес, например: ivan@example.com');
+      return;
+    }
+
+    state.locked = true;
+    state.email = text.toLowerCase();
+    this.regStates.set(userId, state as any);
+
+    try {
+      await this.completeMaxRegistration(userId, chatId, state.email);
+    } catch (err) {
+      state.locked = false;
+      this.logger.error(`[RegBot MAX] Registration error for maxId=${userId}:`, err);
+      await this.sendMessage(chatId, '❌ Внутренняя ошибка. Попробуйте позже.');
+    }
+  }
+
+  private async completeMaxRegistration(userId: string, chatId: string, email: string) {
+    const [emailTaken, existingMaxUser] = await Promise.all([
+      this.prisma.appUser.findFirst({ where: { email } }),
+      this.prisma.appUser.findUnique({ where: { maxId: userId } }),
+    ]);
+
+    const isShadow = (existingMaxUser as any)?.source === 'max_bot' && !(existingMaxUser as any)?.email;
+    if (emailTaken || (existingMaxUser && !isShadow)) {
+      this.regStates.delete(userId);
+      await this.sendMessage(chatId, '⚠️ Аккаунт с таким email уже существует.\n\nЕсли это ваш аккаунт — войдите на сайте prepodavai.ru');
+      return;
+    }
+
+    const password = crypto.randomBytes(9).toString('base64').slice(0, 12).replace(/[^a-zA-Z0-9]/g, 'x');
+    const passwordHash = require('bcryptjs').hashSync(password, 12);
+    const baseUsername = `user${userId}`;
+    const username = await this.ensureUniqueMaxUsername(baseUsername);
+    const apiKey = crypto.randomBytes(16).toString('hex');
+
+    const newUser = await this.prisma.$transaction(async (tx) => {
+      let appUser: any;
+      if (isShadow && existingMaxUser) {
+        appUser = await tx.appUser.update({
+          where: { id: existingMaxUser.id },
+          data: {
+            username, userHash: username, email,
+            passwordHash, apiKey, maxChatId: chatId, chatId,
+            lastAccessAt: new Date(), lastMaxAppAccess: new Date(),
+          } as any,
+        });
+      } else {
+        appUser = await tx.appUser.create({
+          data: {
+            username, userHash: username, email,
+            passwordHash, apiKey, maxId: userId,
+            maxChatId: chatId, chatId,
+            source: 'max_bot', lastAccessAt: new Date(), lastMaxAppAccess: new Date(),
+          } as any,
+        });
+      }
+
+      const starterPlan = await tx.subscriptionPlan.findUnique({ where: { planKey: 'starter' } });
+      if (starterPlan) {
+        const now = new Date();
+        const endDate = new Date(now);
+        endDate.setMonth(endDate.getMonth() + 1);
+        await tx.userSubscription.create({
+          data: {
+            userId: appUser.id, planId: starterPlan.id, status: 'active',
+            creditsBalance: 100, extraCredits: 0, creditsUsed: 0,
+            overageCreditsUsed: 0, startDate: now, endDate, autoRenew: true,
+          },
+        });
+      }
+
+      await (tx as any).botUser.upsert({
+        where: { maxId: userId },
+        update: { appUserId: appUser.id, email, registrationStatus: 'registered' },
+        create: {
+          maxId: userId, appUserId: appUser.id,
+          email, registrationStatus: 'registered', source: 'max_bot',
+          lastActiveAt: new Date(),
+        },
+      });
+
+      return appUser;
+    });
+
+    this.regStates.delete(userId);
+    this.logger.log(`[RegBot MAX] New user registered: id=${newUser.id} username=${username}`);
+
+    await this.sendMessage(
+      chatId,
+      `✅ Аккаунт создан!\n\n👤 Логин: ${username}\n🔑 Пароль: ${password}\n\nСохраните эти данные — они нужны для входа на prepodavai.ru\n\n💳 Токенов на балансе: 100`,
+    );
+    await this.sendMessageWithKeyboard(chatId, '🛠️ Выберите инструмент:', this.buildToolSelectionAttachment());
+  }
+
+  private async ensureUniqueMaxUsername(base: string): Promise<string> {
+    const safe = base.replace(/[^a-z0-9_]/gi, '').slice(0, 20) || 'user';
+    const exists = await this.prisma.appUser.findFirst({ where: { username: safe } });
+    if (!exists) return safe;
+    const suffix = crypto.randomInt(1000, 9999).toString();
+    const candidate = `${safe}_${suffix}`.slice(0, 25);
+    const exists2 = await this.prisma.appUser.findFirst({ where: { username: candidate } });
+    return exists2 ? `${safe}_${crypto.randomInt(10_000, 99_999)}` : candidate;
   }
 }

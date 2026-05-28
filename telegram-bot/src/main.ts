@@ -362,12 +362,13 @@ async function handleEmailInput(ctx: Context, telegramId: string, state: Registr
 async function completeRegistration(ctx: Context, telegramId: string, state: RegistrationState) {
   const user = ctx.from!;
 
-  const [emailTaken, tgTaken] = await Promise.all([
+  const [emailTaken, existingTgUser] = await Promise.all([
     prisma.appUser.findFirst({ where: { email: state.email } }),
     prisma.appUser.findUnique({ where: { telegramId } }),
   ]);
 
-  if (emailTaken || tgTaken) {
+  const isShadow = (existingTgUser as any)?.source === 'telegram_bot' && !existingTgUser?.email;
+  if (emailTaken || (existingTgUser && !isShadow)) {
     regStates.delete(telegramId);
     await ctx.reply('⚠️ Аккаунт с такими данными уже существует.\n\nЕсли это ваш аккаунт — войдите на сайте.');
     return;
@@ -384,14 +385,29 @@ async function completeRegistration(ctx: Context, telegramId: string, state: Reg
 
   try {
     const newUser = await prisma.$transaction(async (tx) => {
-      const appUser = await tx.appUser.create({
-        data: {
-          username, userHash: username, email: state.email,
-          passwordHash, apiKey, telegramId, chatId,
-          telegramChatId: chatId, firstName: user.first_name || '', lastName: user.last_name || '',
-          source: 'telegram_bot', lastAccessAt: new Date(), lastTelegramAppAccess: new Date(),
-        } as any,
-      });
+      let appUser: any;
+      if (isShadow && existingTgUser) {
+        // Upgrade shadow account to real account
+        appUser = await tx.appUser.update({
+          where: { id: existingTgUser.id },
+          data: {
+            username, userHash: username, email: state.email,
+            passwordHash, apiKey, chatId, telegramChatId: chatId,
+            firstName: user.first_name || existingTgUser.firstName || '',
+            lastName: user.last_name || existingTgUser.lastName || '',
+            lastAccessAt: new Date(), lastTelegramAppAccess: new Date(),
+          } as any,
+        });
+      } else {
+        appUser = await tx.appUser.create({
+          data: {
+            username, userHash: username, email: state.email,
+            passwordHash, apiKey, telegramId, chatId,
+            telegramChatId: chatId, firstName: user.first_name || '', lastName: user.last_name || '',
+            source: 'telegram_bot', lastAccessAt: new Date(), lastTelegramAppAccess: new Date(),
+          } as any,
+        });
+      }
 
       const starterPlan = await tx.subscriptionPlan.findUnique({ where: { planKey: 'starter' } });
       if (starterPlan) {
@@ -407,8 +423,10 @@ async function completeRegistration(ctx: Context, telegramId: string, state: Reg
         });
       }
 
-      await (tx as any).botUser.create({
-        data: {
+      await (tx as any).botUser.upsert({
+        where: { telegramId },
+        update: { appUserId: appUser.id, email: state.email, registrationStatus: 'registered' },
+        create: {
           telegramId, appUserId: appUser.id,
           firstName: user.first_name || null, lastName: user.last_name || null,
           username: user.username || null, email: state.email,
@@ -475,9 +493,13 @@ async function handleLinkToken(ctx: Context, user: any, token: string) {
   }
 
   const alreadyLinked = await prisma.appUser.findUnique({ where: { telegramId: user.id.toString() } });
-  if (alreadyLinked && alreadyLinked.id !== linkToken.userId) {
+  const isShadowAccount = (alreadyLinked as any)?.source === 'telegram_bot';
+  if (alreadyLinked && alreadyLinked.id !== linkToken.userId && !isShadowAccount) {
     await ctx.reply('⚠️ Этот аккаунт Telegram уже привязан к другому профилю PrepodavAI.');
     return;
+  }
+  if (isShadowAccount && alreadyLinked) {
+    await prisma.appUser.update({ where: { id: alreadyLinked.id }, data: { telegramId: null, telegramChatId: null } as any });
   }
 
   const telegramChatId = ctx.chat!.id.toString();
@@ -588,22 +610,56 @@ bot.command('start', async (ctx: Context) => {
     const balanceLine = `\n\n💳 Токенов на балансе: ${(botUser as any).botCredits}`;
     await ctx.reply(
       `Добро пожаловать в Преподавай 🎓\n\nЯ Ваш интеллектуальный помощник для:\n— Создания учебных материалов\n— Планирования уроков\n— Создания красочных презентаций\n— Методической поддержки\n— Создания интерактивных игр${balanceLine}`,
+      { reply_markup: { keyboard: [[{ text: MINI_APP_BTN }]], resize_keyboard: true } },
     );
     await ctx.reply(
       `📌 *Как пользоваться:*\n\n1. Выберите инструмент из списка ниже\n2. Ответьте на несколько вопросов\n3. Получите готовый материал в PDF\n\nКаждая генерация стоит 3 токена.`,
       { parse_mode: 'Markdown' },
     );
     await ctx.reply('🛠️ *Выберите инструмент:*', { parse_mode: 'Markdown', reply_markup: buildToolSelectionKeyboard() });
-    await ctx.reply('Используйте кнопку ниже, чтобы открыть PrepodavAI:', {
-      reply_markup: {
-        keyboard: [[{ text: MINI_APP_BTN }]],
-        resize_keyboard: true,
-      },
-    });
     return;
   }
 
-  await startRegistration(ctx, telegramId);
+  const newBotUser = await (prisma as any).botUser.upsert({
+    where: { telegramId },
+    update: { lastActiveAt: new Date(), firstName: user.first_name || undefined, lastName: user.last_name || undefined, username: user.username || undefined },
+    create: {
+      telegramId,
+      firstName: user.first_name || null,
+      lastName: user.last_name || null,
+      username: user.username || null,
+      registrationStatus: 'pending',
+      source: 'telegram_bot',
+      lastActiveAt: new Date(),
+    } as any,
+  });
+  // Create shadow appUser so bot-only users can generate without web registration
+  const shadowApiKey = crypto.randomBytes(16).toString('hex');
+  const shadowAppUser = await prisma.appUser.upsert({
+    where: { telegramId },
+    update: { telegramChatId: ctx.chat!.id.toString(), chatId: ctx.chat!.id.toString(), lastAccessAt: new Date() },
+    create: {
+      telegramId,
+      telegramChatId: ctx.chat!.id.toString(),
+      chatId: ctx.chat!.id.toString(),
+      username: `tg_${telegramId}`,
+      apiKey: shadowApiKey,
+      source: 'telegram_bot',
+    } as any,
+  });
+  if (!newBotUser.appUserId) {
+    await (prisma as any).botUser.update({ where: { telegramId }, data: { appUserId: shadowAppUser.id } });
+  }
+  const newBalanceLine = `\n\n💳 Токенов на балансе: ${newBotUser.botCredits}`;
+  await ctx.reply(
+    `Добро пожаловать в Преподавай 🎓\n\nЯ Ваш интеллектуальный помощник для:\n— Создания учебных материалов\n— Планирования уроков\n— Создания красочных презентаций\n— Методической поддержки\n— Создания интерактивных игр${newBalanceLine}`,
+    { reply_markup: { keyboard: [[{ text: MINI_APP_BTN }]], resize_keyboard: true } },
+  );
+  await ctx.reply(
+    `📌 *Как пользоваться:*\n\n1. Выберите инструмент из списка ниже\n2. Ответьте на несколько вопросов\n3. Получите готовый материал в PDF\n\nКаждая генерация стоит 3 токена.`,
+    { parse_mode: 'Markdown' },
+  );
+  await ctx.reply('🛠️ *Выберите инструмент:*', { parse_mode: 'Markdown', reply_markup: buildToolSelectionKeyboard() });
 });
 
 // ── Команда /generate ─────────────────────────────────────────────────────────
@@ -834,6 +890,8 @@ bot.on('callback_query:data', async (ctx: Context) => {
       await ctx.reply(humanizeError(err));
     }
 
+    await ctx.reply('🛠️ *Выберите инструмент:*', { parse_mode: 'Markdown', reply_markup: buildToolSelectionKeyboard() });
+
   } else if (data === 'g:no') {
     genSessions.delete(telegramId);
     await ctx.reply('❌ Генерация отменена.');
@@ -850,8 +908,9 @@ bot.on('message:text', async (ctx: Context) => {
   // Кнопка мини-приложения
   if (text === MINI_APP_BTN) {
     const appUser = await prisma.appUser.findUnique({ where: { telegramId } });
+    const isRealUser = appUser && (appUser as any).email != null;
     const webAppUrl = process.env.WEBAPP_URL || 'https://prepodavai.ru';
-    if (appUser) {
+    if (isRealUser) {
       await ctx.reply('Нажмите кнопку, чтобы открыть PrepodavAI:', {
         reply_markup: {
           inline_keyboard: [

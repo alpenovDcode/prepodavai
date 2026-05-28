@@ -144,9 +144,11 @@ export class GenerationsService {
     let creditCheck: any = { success: true };
     const operationType = this.mapGenerationTypeToOperationType(generationType);
 
-    if (skipCreditDeduction) {
+    const isBotRequest = inputParams._miniAppPlatform === 'telegram' || inputParams._miniAppPlatform === 'max';
+
+    if (skipCreditDeduction || isBotRequest) {
       this.logger.debug(
-        `Skipping credit deduction for ${generationType} as it is part of a bundle`,
+        `Skipping credit deduction for ${generationType} — ${isBotRequest ? `bot request (${inputParams._miniAppPlatform})` : 'bundle item'}`,
       );
     } else if (generationType === 'lesson_preparation' || generationType === 'lessonPreparation') {
       const types = inputParams.generationTypes || [];

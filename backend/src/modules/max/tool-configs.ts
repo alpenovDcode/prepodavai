@@ -68,7 +68,7 @@ export const TOOL_CONFIGS: ToolConfig[] = [
     serviceType: 'generations',
     label: 'Генератор тестов',
     emoji: '📝',
-    creditCost: 2,
+    creditCost: 3,
     estimatedTime: '~30 сек',
     fields: [
       { key: 'subject', label: '📚 Предмет (необязательно)\n\nНапример: Биология, Физика', type: 'text', required: false, maxLength: 100, skipLabel: 'Пропустить' },
@@ -84,7 +84,7 @@ export const TOOL_CONFIGS: ToolConfig[] = [
     serviceType: 'generations',
     label: 'Словарь',
     emoji: '📖',
-    creditCost: 2,
+    creditCost: 3,
     estimatedTime: '~20 сек',
     fields: [
       { key: 'topic', label: '✏️ Тема словаря\n\nНапример: Путешествия, Еда, Математические термины', type: 'text', required: true, maxLength: 200 },
@@ -114,7 +114,7 @@ export const TOOL_CONFIGS: ToolConfig[] = [
     serviceType: 'generations',
     label: 'Вау-урок',
     emoji: '✨',
-    creditCost: 5,
+    creditCost: 3,
     estimatedTime: '~60 сек',
     fields: [
       { key: 'subject', label: '📚 Предмет (необязательно)\n\nНапример: Математика, Биология', type: 'text', required: false, maxLength: 100, skipLabel: 'Пропустить' },
@@ -136,7 +136,7 @@ export const TOOL_CONFIGS: ToolConfig[] = [
     serviceType: 'generations',
     label: 'Генератор изображений',
     emoji: '🖼️',
-    creditCost: 5,
+    creditCost: 3,
     estimatedTime: '~25 сек',
     fields: [
       { key: 'prompt', label: '🖼️ Опишите изображение\n\nНапример: Строение клетки с подписями на русском, Карта Древнего Рима', type: 'text', required: true, maxLength: 500 },
@@ -149,7 +149,7 @@ export const TOOL_CONFIGS: ToolConfig[] = [
     serviceType: 'games',
     label: 'Обучающая игра',
     emoji: '🎮',
-    creditCost: 15,
+    creditCost: 3,
     estimatedTime: '~25 сек',
     fields: [
       { key: 'type', label: '🎮 Тип игры', type: 'select', required: true, default: 'flashcards', options: [{ value: 'millionaire', label: '💰 Кто хочет стать миллионером' }, { value: 'flashcards', label: '📇 Флеш-карточки' }, { value: 'crossword', label: '🧩 Кроссворд' }, { value: 'memory', label: '🔍 Найди пару' }, { value: 'truefalse', label: '✅ Правда или Ложь' }], maxLength: 20 },
@@ -162,7 +162,7 @@ export const TOOL_CONFIGS: ToolConfig[] = [
     serviceType: 'generations',
     label: 'Презентация',
     emoji: '📊',
-    creditCost: 8,
+    creditCost: 3,
     estimatedTime: '~2 мин',
     fields: [
       { key: 'topic', label: '✏️ Тема презентации\n\nНапример: Фотосинтез, Первая мировая война, Python для начинающих', type: 'text', required: true, maxLength: 300 },
