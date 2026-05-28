@@ -100,10 +100,8 @@ export class AuthService {
     const telegramId = userData.id?.toString();
     let appUser = await this.prisma.appUser.findUnique({ where: { telegramId } });
 
-    if (!appUser) {
-      // Аккаунт Telegram не привязан ни к одному аккаунту.
-      // Возвращаем NOT_REGISTERED — фронтенд покажет экран с просьбой
-      // пройти регистрацию в боте (а не просто "привяжи аккаунт на сайте").
+    if (!appUser || !appUser.email) {
+      // Не зарегистрирован или теневой аккаунт (только бот, без email)
       return { success: false, error: 'NOT_REGISTERED' };
     }
 
@@ -206,9 +204,9 @@ export class AuthService {
     const maxId = userData.id?.toString();
     let appUser = await this.prisma.appUser.findUnique({ where: { maxId } });
 
-    if (!appUser) {
-      // Аккаунт MAX не привязан ни к одному веб-аккаунту
-      return { success: false, error: 'NOT_LINKED' };
+    if (!appUser || !appUser.email) {
+      // Не зарегистрирован или теневой аккаунт (только бот, без email)
+      return { success: false, error: 'NOT_REGISTERED' };
     }
 
     appUser = await this.prisma.appUser.update({

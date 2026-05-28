@@ -106,6 +106,7 @@ export default function Home() {
   const [isWebApp, setIsWebApp] = useState<boolean | null>(null)
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
   const [notLinkedPlatform, setNotLinkedPlatform] = useState<'telegram' | 'max' | null>(null)
+  const [notRegisteredPlatform, setNotRegisteredPlatform] = useState<'telegram' | 'max' | null>(null)
   const [triggerAuth, setTriggerAuth] = useState(false)
   const router = useRouter()
 
@@ -190,6 +191,7 @@ export default function Home() {
   // 3. Mini App detection + auto-login via initData
   const tryMiniAppAuth = useCallback(async () => {
     setNotLinkedPlatform(null)
+    setNotRegisteredPlatform(null)
 
     // Сразу вызываем ready() — MAX требует это как можно раньше
     // (если не вызвать в течение 15 сек, приложение закроется)
@@ -250,6 +252,8 @@ export default function Home() {
         await applyPendingReferralCode()
         setIsAuthenticated(true)
         router.push('/dashboard')
+      } else if (response.data.error === 'NOT_REGISTERED') {
+        setNotRegisteredPlatform(endpoint.includes('max') ? 'max' : 'telegram')
       } else if (response.data.error === 'NOT_LINKED') {
         setNotLinkedPlatform(endpoint.includes('max') ? 'max' : 'telegram')
       }
@@ -276,6 +280,43 @@ export default function Home() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <Loader2 className="w-10 h-10 animate-spin text-purple-600" />
+      </div>
+    )
+  }
+
+  // Пользователь открыл Mini App, но не прошёл регистрацию в боте
+  if (notRegisteredPlatform) {
+    const botName = notRegisteredPlatform === 'telegram' ? '@prepodavai_bot' : 'бота PrepodavAI'
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 px-6">
+        <div className="w-16 h-16 rounded-2xl bg-amber-100 flex items-center justify-center mb-6">
+          <svg className="w-8 h-8 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+          </svg>
+        </div>
+        <h1 className="text-2xl font-bold text-gray-900 mb-2 text-center">Пройдите регистрацию</h1>
+        <p className="text-gray-500 text-center text-sm mb-8 max-w-xs">
+          Для доступа к платформе нужно создать аккаунт через {botName}.
+        </p>
+        <ol className="w-full max-w-xs space-y-3 mb-8">
+          {[
+            `Закройте мини-приложение`,
+            `В чате с ботом нажмите кнопку «📱 Открыть мини-приложение»`,
+            `Введите email для регистрации и следуйте инструкциям`,
+            `После регистрации откройте мини-приложение снова`,
+          ].map((step, i) => (
+            <li key={i} className="flex items-start gap-3">
+              <span className="w-6 h-6 rounded-full bg-amber-500 text-white text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">{i + 1}</span>
+              <span className="text-sm text-gray-700">{step}</span>
+            </li>
+          ))}
+        </ol>
+        <button
+          onClick={tryMiniAppAuth}
+          className="mt-3 text-sm text-gray-500 hover:text-gray-700 underline"
+        >
+          Попробовать снова
+        </button>
       </div>
     )
   }
