@@ -24,6 +24,7 @@ export default function WorksheetGenerator() {
     const [isSaving, setIsSaving] = useState(false)
     const [copied, setCopied] = useState(false)
     const iframeRef = useRef<HTMLIFrameElement>(null)
+    const originalHeadRef = useRef<string>('')
 
     const { generateAndWait, isGenerating, activeGenerationId } = useGenerations()
     const hasResult = !isGenerating && !!localContent && !localContent.startsWith('<p>Введите') && !localContent.startsWith('<p>Генерируем')
@@ -39,6 +40,19 @@ export default function WorksheetGenerator() {
         window.addEventListener('resize', checkMobile)
         return () => window.removeEventListener('resize', checkMobile)
     }, [])
+
+    // Кэшируем <head> (стили) при каждой смене контента, чтобы при сохранении
+    // реконструировать полный документ, а не только body.innerHTML.
+    useEffect(() => {
+        if (!localContent || localContent.startsWith('<p>')) return
+        try {
+            const parser = new DOMParser()
+            const doc = parser.parseFromString(localContent, 'text/html')
+            originalHeadRef.current = doc.head.outerHTML
+        } catch {
+            originalHeadRef.current = ''
+        }
+    }, [localContent])
 
     const generate = async () => {
         if (!topic) return
@@ -70,14 +84,21 @@ export default function WorksheetGenerator() {
 
     const toggleEditMode = async () => {
         if (editMode) {
-            const editedHtml = iframeRef.current?.contentDocument?.body?.innerHTML ?? localContent
+            const iframeDoc = iframeRef.current?.contentDocument
+            const editedBodyHtml = iframeDoc?.body?.innerHTML
+            // Реконструируем полный HTML: оригинальный <head> со стилями + отредактированный <body>.
+            // Если body недоступен (iframe не загружен) — сохраняем localContent без изменений.
+            const fullHtml = editedBodyHtml !== undefined && editedBodyHtml !== null
+                ? `<!DOCTYPE html><html lang="ru">${originalHeadRef.current}<body>${editedBodyHtml}</body></html>`
+                : localContent
+
             if (activeGenerationId) {
                 setIsSaving(true)
                 try {
                     await apiClient.patch(`/generate/${activeGenerationId}`, {
-                        outputData: { content: editedHtml },
+                        outputData: { content: fullHtml },
                     })
-                    setLocalContent(editedHtml)
+                    setLocalContent(fullHtml)
                     toast.success('Сохранено')
                     setEditMode(false)
                 } catch {
@@ -86,7 +107,7 @@ export default function WorksheetGenerator() {
                     setIsSaving(false)
                 }
             } else {
-                setLocalContent(editedHtml)
+                setLocalContent(fullHtml)
                 setEditMode(false)
             }
         } else {
@@ -94,22 +115,40 @@ export default function WorksheetGenerator() {
         }
     }
 
+    const applyIframeState = (doc: Document) => {
+        if (!doc?.body) return
+        if (editMode) {
+            doc.body.contentEditable = 'true'
+            doc.body.style.outline = 'none'
+            doc.body.style.cursor = 'text'
+        } else {
+            doc.body.contentEditable = 'false'
+            doc.body.style.cursor = 'text'
+        }
+    }
+
+    const handleIframeLoad = () => {
+        const iframeDoc = iframeRef.current?.contentDocument
+        if (!iframeDoc?.body) return
+        applyIframeState(iframeDoc)
+        if (!editMode) {
+            const handleClick = () => setEditMode(true)
+            iframeDoc.body.addEventListener('click', handleClick)
+        }
+    }
+
+    // При смене editMode применяем состояние к уже загруженному iframe.
     useEffect(() => {
         const iframeDoc = iframeRef.current?.contentDocument
         if (!iframeDoc?.body) return
-
-        if (editMode) {
-            iframeDoc.body.contentEditable = 'true'
-            iframeDoc.body.style.outline = 'none'
-            iframeDoc.body.style.cursor = 'text'
-        } else {
-            iframeDoc.body.contentEditable = 'false'
-            iframeDoc.body.style.cursor = 'text'
+        applyIframeState(iframeDoc)
+        if (!editMode) {
             const handleClick = () => setEditMode(true)
             iframeDoc.body.addEventListener('click', handleClick)
             return () => iframeDoc.body.removeEventListener('click', handleClick)
         }
-    }, [editMode, localContent]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [editMode]);
 
     const handleCopy = async () => {
         if (!localContent) return
@@ -319,7 +358,8 @@ export default function WorksheetGenerator() {
                                 ref={iframeRef}
                                 srcDoc={ensureMathJaxInHtml(localContent)}
                                 className="w-full h-full border-0 bg-white"
-                                sandbox="allow-scripts allow-popups allow-modals"
+                                sandbox="allow-scripts allow-popups allow-modals allow-same-origin"
+                                onLoad={handleIframeLoad}
                                 title="Рабочий лист"
                             />
                         )}
