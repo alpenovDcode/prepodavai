@@ -5,7 +5,6 @@ import DOMPurify from 'isomorphic-dompurify'
 import PdfDownloadButton from '@/components/workspace/PdfDownloadButton'
 import { PenTool, Copy, RefreshCw, Loader2, Edit3, Eye } from 'lucide-react'
 import { useGenerations } from '@/lib/hooks/useGenerations'
-import RichTextEditor from '@/components/workspace/RichTextEditor'
 import { getCurrentUser } from '@/lib/utils/userIdentity'
 import GenerationCostBadge from '@/components/workspace/GenerationCostBadge'
 import AssignTaskButton from '@/components/AssignTaskButton'
@@ -70,38 +69,45 @@ export default function WorksheetGenerator() {
     }
 
     const toggleEditMode = async () => {
-        if (editMode && activeGenerationId) {
-            setIsSaving(true)
-            try {
-                await apiClient.patch(`/generate/${activeGenerationId}`, {
-                    outputData: { content: localContent },
-                })
-                toast.success('Сохранено')
+        if (editMode) {
+            const editedHtml = iframeRef.current?.contentDocument?.body?.innerHTML ?? localContent
+            if (activeGenerationId) {
+                setIsSaving(true)
+                try {
+                    await apiClient.patch(`/generate/${activeGenerationId}`, {
+                        outputData: { content: editedHtml },
+                    })
+                    setLocalContent(editedHtml)
+                    toast.success('Сохранено')
+                    setEditMode(false)
+                } catch {
+                    toast.error('Не удалось сохранить изменения')
+                } finally {
+                    setIsSaving(false)
+                }
+            } else {
+                setLocalContent(editedHtml)
                 setEditMode(false)
-            } catch {
-                toast.error('Не удалось сохранить изменения')
-            } finally {
-                setIsSaving(false)
             }
         } else {
-            setEditMode(!editMode)
+            setEditMode(true)
         }
     }
 
     useEffect(() => {
-        if (!editMode && iframeRef.current && localContent) {
-            const iframeDoc = iframeRef.current.contentDocument;
-            if (iframeDoc) {
-                const handleClick = () => {
-                    setEditMode(true);
-                };
-                iframeDoc.body.addEventListener('click', handleClick);
-                iframeDoc.body.style.cursor = 'text';
+        const iframeDoc = iframeRef.current?.contentDocument
+        if (!iframeDoc?.body) return
 
-                return () => {
-                    iframeDoc.body.removeEventListener('click', handleClick);
-                };
-            }
+        if (editMode) {
+            iframeDoc.body.contentEditable = 'true'
+            iframeDoc.body.style.outline = 'none'
+            iframeDoc.body.style.cursor = 'text'
+        } else {
+            iframeDoc.body.contentEditable = 'false'
+            iframeDoc.body.style.cursor = 'text'
+            const handleClick = () => setEditMode(true)
+            iframeDoc.body.addEventListener('click', handleClick)
+            return () => iframeDoc.body.removeEventListener('click', handleClick)
         }
     }, [editMode, localContent]);
 
@@ -308,11 +314,6 @@ export default function WorksheetGenerator() {
                                     </button>
                                 )}
                             </div>
-                        ) : editMode ? (
-                            <RichTextEditor
-                                content={localContent}
-                                onChange={setLocalContent}
-                            />
                         ) : (
                             <iframe
                                 ref={iframeRef}
@@ -321,6 +322,11 @@ export default function WorksheetGenerator() {
                                 sandbox="allow-scripts allow-popups allow-modals"
                                 title="Рабочий лист"
                             />
+                        )}
+                        {editMode && (
+                            <div className="absolute bottom-0 left-0 right-0 h-7 bg-yellow-50 border-t border-yellow-100 flex items-center justify-center pointer-events-none">
+                                <span className="text-[10px] text-yellow-700 font-bold uppercase tracking-tight">Режим редактирования — нажмите Просмотр для сохранения</span>
+                            </div>
                         )}
                     </div>
                 </div>
