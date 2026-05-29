@@ -93,7 +93,12 @@ export class MaxService {
       const userId = body?.user?.user_id?.toString() || body?.chat_id?.toString();
       const chatId = body?.chat_id?.toString() || userId;
       if (userId && chatId) {
-        await this.handleStartCommand({ id: userId, ...body.user }, chatId);
+        // MAX создаёт диалог асинхронно после bot_started — ждём 2 сек перед отправкой
+        setTimeout(() => {
+          this.handleStartCommand({ id: userId, ...body.user }, chatId).catch((err) =>
+            this.logger.error(`[Start] bot_started delayed handler failed: ${err?.message}`),
+          );
+        }, 2000);
       }
     } else if (updateType) {
       this.logger.warn(`[Webhook] Ignoring unknown update_type: ${updateType}`);
@@ -131,6 +136,14 @@ export class MaxService {
         const parts = text.split(/\s+/);
         const payload = parts.length > 1 ? parts[1] : undefined;
         await this.handleStartCommand(botUser, chatId, botUserId, payload);
+        return;
+      }
+
+      // Fallback для новых пользователей: bot_started не может отправить сообщение
+      // пока диалог не создан. При первом сообщении показываем activation flow.
+      const hasAppUser = await this.prisma.appUser.findUnique({ where: { maxId: userIdForDb }, select: { id: true } });
+      if (!hasAppUser) {
+        await this.sendActivationFlow(chatId);
         return;
       }
 
@@ -1231,7 +1244,7 @@ export class MaxService {
     const baseUrl = this.apiUrl.endsWith('/') ? this.apiUrl.slice(0, -1) : this.apiUrl;
     const url = `${baseUrl}/answers?callback_id=${callbackId}`;
     try {
-      await axios.post(url, {}, { headers: { Authorization: this.token } });
+      await axios.post(url, { notification: '' }, { headers: { Authorization: this.token } });
     } catch (error: any) {
       this.logger.error(
         'Failed to answer MAX callback: ' +
