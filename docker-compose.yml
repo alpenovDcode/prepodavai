@@ -187,6 +187,10 @@ services:
       DISABLE_FORCE_IPV4: "1"
       # Откуда Подписки (tgtrack) — аналитика Telegram бота
       TGTRACK_API_KEY: ${TGTRACK_API_KEY:-}
+      # Telegram канал для проверки подписки
+      TELEGRAM_CHANNEL_ID: ${TELEGRAM_CHANNEL_ID:-}
+      TELEGRAM_CHANNEL_URL: ${TELEGRAM_CHANNEL_URL:-https://t.me/esvasilevaru}
+      TELEGRAM_INTRO_VIDEO_ID: ${TELEGRAM_INTRO_VIDEO_ID:-}
     depends_on:
       postgres:
         condition: service_healthy

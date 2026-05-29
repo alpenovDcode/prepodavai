@@ -96,6 +96,21 @@ interface GenerationSession {
 const MAX_CONCURRENT_REG_SESSIONS = 500;
 const MINI_APP_BTN = '📱 Открыть Преподавай';
 
+// ── Подписка на канал ─────────────────────────────────────────────────────────
+const TELEGRAM_CHANNEL_ID = process.env.TELEGRAM_CHANNEL_ID || '';
+const TELEGRAM_CHANNEL_URL = process.env.TELEGRAM_CHANNEL_URL || 'https://t.me/esvasilevaru';
+
+const SUBSCRIPTION_TEXT =
+  'Преподавай — бесплатный ИИ-сервис для репетиторов.\n\n' +
+  'Он помогает быстрее готовиться к урокам:\n' +
+  '— составлять планы занятий\n' +
+  '— генерировать рабочие листы\n' +
+  '— подбирать упражнения\n' +
+  '— делать домашку\n' +
+  '— объяснять темы простым языком\n\n' +
+  'Чтобы пользоваться сервисом бесплатно, надо быть подписанным на канал «Прорыв в репетиторстве».\n' +
+  'После подписки нажмите «Я подписался» — и бот откроет доступ.';
+
 // ── Константы: генерация ──────────────────────────────────────────────────────
 const GEN_SESSION_TTL_MS = 10 * 60_000;
 const GEN_RATE_LIMIT_MS = 15_000;
@@ -624,6 +639,96 @@ async function handleLinkToken(ctx: Context, user: any, token: string) {
   await ctx.reply('✅ Telegram успешно привязан к вашему аккаунту Преподавай!\n\nТеперь вы будете получать результаты генерации прямо здесь.');
 }
 
+// ── Подписка: клавиатура ──────────────────────────────────────────────────────
+function buildSubscriptionKeyboard(): InlineKeyboard {
+  return new InlineKeyboard()
+    .url('ПОДПИСАТЬСЯ НА КАНАЛ', TELEGRAM_CHANNEL_URL)
+    .text('Я ПОДПИСАЛСЯ', 'sub:check');
+}
+
+async function checkChannelSubscription(telegramId: string): Promise<boolean> {
+  if (!TELEGRAM_CHANNEL_ID) {
+    console.warn('[Sub] TELEGRAM_CHANNEL_ID not configured — skipping check, granting access');
+    return true;
+  }
+  try {
+    const member = await bot.api.getChatMember(TELEGRAM_CHANNEL_ID, parseInt(telegramId, 10));
+    return ['member', 'administrator', 'creator'].includes(member.status);
+  } catch (err: any) {
+    console.error(`[Sub] Subscription check failed: ${err?.message}`);
+    return false;
+  }
+}
+
+async function sendActivationFlow(ctx: Context): Promise<void> {
+  await ctx.reply('Коллега, рада вас видеть 👋');
+
+  const introVideoId = process.env.TELEGRAM_INTRO_VIDEO_ID;
+  if (introVideoId) {
+    await bot.api.sendVideoNote(ctx.chat!.id, introVideoId).catch((err: any) =>
+      console.warn(`[Start] Failed to send intro video: ${err?.message}`),
+    );
+  }
+
+  await ctx.reply(SUBSCRIPTION_TEXT, { reply_markup: buildSubscriptionKeyboard() });
+}
+
+async function handleSubscriptionCheck(ctx: Context, telegramId: string): Promise<void> {
+  const isSubscribed = await checkChannelSubscription(telegramId);
+
+  if (!isSubscribed) {
+    await ctx.reply(
+      'Пока не вижу подписку на канал.\n\nЧтобы открыть бесплатный доступ к Преподавай, подпишитесь на канал «Прорыв в репетиторстве», а потом нажмите «Я подписался».',
+      { reply_markup: buildSubscriptionKeyboard() },
+    );
+    return;
+  }
+
+  await ctx.reply('Готово, доступ открыт ✅\n\nТеперь можете пользоваться Преподавай бесплатно, пока подписаны на канал «Прорыв в репетиторстве».');
+
+  const user = ctx.from!;
+  const chatId = ctx.chat!.id.toString();
+  const shadowApiKey = crypto.randomBytes(16).toString('hex');
+  const shadowAppUser = await prisma.appUser.upsert({
+    where: { telegramId },
+    update: { lastAccessAt: new Date() },
+    create: {
+      telegramId,
+      telegramChatId: chatId,
+      chatId,
+      username: `tg_${telegramId}`,
+      apiKey: shadowApiKey,
+      source: 'telegram_bot',
+    } as any,
+  });
+
+  const botUserRecord = await (prisma as any).botUser.upsert({
+    where: { telegramId },
+    update: { appUserId: shadowAppUser.id, lastActiveAt: new Date(), registrationStatus: 'subscribed' },
+    create: {
+      telegramId,
+      appUserId: shadowAppUser.id,
+      firstName: user.first_name || null,
+      lastName: user.last_name || null,
+      username: user.username || null,
+      registrationStatus: 'subscribed',
+      source: 'telegram_bot',
+      lastActiveAt: new Date(),
+    } as any,
+  });
+
+  const balanceLine = `\n\n💳 Токенов на балансе: ${botUserRecord.botCredits ?? 0}`;
+  await ctx.reply(
+    `Добро пожаловать в Преподавай 🎓\n\nЯ Ваш интеллектуальный помощник для:\n— Создания учебных материалов\n— Планирования уроков\n— Создания красочных презентаций\n— Методической поддержки\n— Создания интерактивных игр${balanceLine}`,
+    { reply_markup: { keyboard: [[{ text: MINI_APP_BTN }]], resize_keyboard: true } },
+  );
+  await ctx.reply(
+    `📌 *Как пользоваться:*\n\n1. Выберите инструмент из списка ниже\n2. Ответьте на несколько вопросов\n3. Получите готовый материал в PDF\n\nКаждая генерация стоит 3 токена.`,
+    { parse_mode: 'Markdown' },
+  );
+  await ctx.reply('🛠️ *Выберите инструмент:*', { parse_mode: 'Markdown', reply_markup: buildToolSelectionKeyboard() });
+}
+
 // ── Команда /start ────────────────────────────────────────────────────────────
 bot.command('start', async (ctx: Context) => {
   const user = ctx.from;
@@ -695,7 +800,7 @@ bot.command('start', async (ctx: Context) => {
     return;
   }
 
-  const newBotUser = await (prisma as any).botUser.upsert({
+  await (prisma as any).botUser.upsert({
     where: { telegramId },
     update: { lastActiveAt: new Date(), firstName: user.first_name || undefined, lastName: user.last_name || undefined, username: user.username || undefined },
     create: {
@@ -708,31 +813,7 @@ bot.command('start', async (ctx: Context) => {
       lastActiveAt: new Date(),
     } as any,
   });
-  // Create shadow appUser so bot-only users can generate without web registration
-  const shadowApiKey = crypto.randomBytes(16).toString('hex');
-  const shadowAppUser = await prisma.appUser.upsert({
-    where: { telegramId },
-    update: { telegramChatId: ctx.chat!.id.toString(), chatId: ctx.chat!.id.toString(), lastAccessAt: new Date() },
-    create: {
-      telegramId,
-      telegramChatId: ctx.chat!.id.toString(),
-      chatId: ctx.chat!.id.toString(),
-      username: `tg_${telegramId}`,
-      apiKey: shadowApiKey,
-      source: 'telegram_bot',
-    } as any,
-  });
-  await (prisma as any).botUser.update({ where: { telegramId }, data: { appUserId: shadowAppUser.id } });
-  const newBalanceLine = `\n\n💳 Токенов на балансе: ${newBotUser.botCredits ?? 0}`;
-  await ctx.reply(
-    `Добро пожаловать в Преподавай 🎓\n\nЯ Ваш интеллектуальный помощник для:\n— Создания учебных материалов\n— Планирования уроков\n— Создания красочных презентаций\n— Методической поддержки\n— Создания интерактивных игр${newBalanceLine}`,
-    { reply_markup: { keyboard: [[{ text: MINI_APP_BTN }]], resize_keyboard: true } },
-  );
-  await ctx.reply(
-    `📌 *Как пользоваться:*\n\n1. Выберите инструмент из списка ниже\n2. Ответьте на несколько вопросов\n3. Получите готовый материал в PDF\n\nКаждая генерация стоит 3 токена.`,
-    { parse_mode: 'Markdown' },
-  );
-  await ctx.reply('🛠️ *Выберите инструмент:*', { parse_mode: 'Markdown', reply_markup: buildToolSelectionKeyboard() });
+  await sendActivationFlow(ctx);
 });
 
 // ── Команда /generate ─────────────────────────────────────────────────────────
@@ -772,10 +853,18 @@ bot.command('cancel', async (ctx: Context) => {
 bot.on('callback_query:data', async (ctx: Context) => {
   const data = ctx.callbackQuery?.data ?? '';
   const telegramId = ctx.from?.id.toString();
-  if (!telegramId || !data.startsWith('g:')) return;
-  console.log(`[Bot] callback from ${telegramId}: ${data}`);
+  if (!telegramId) return;
 
   await ctx.answerCallbackQuery().catch(() => null);
+
+  if (data === 'sub:check') {
+    console.log(`[Bot] sub:check from ${telegramId}`);
+    await handleSubscriptionCheck(ctx, telegramId);
+    return;
+  }
+
+  if (!data.startsWith('g:')) return;
+  console.log(`[Bot] callback from ${telegramId}: ${data}`);
 
   if (data.length > MAX_CALLBACK_DATA_LEN) return;
 
