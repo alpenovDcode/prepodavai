@@ -345,7 +345,7 @@ const generate = async () => {
                         ) : (
                             <iframe
                                 ref={iframeRef}
-                                srcDoc={ensureMathJaxInHtml(localContent)}
+                                srcDoc={editMode ? localContent : ensureMathJaxInHtml(localContent)}
                                 className="w-full h-full border-0 bg-white"
                                 sandbox="allow-scripts allow-popups allow-modals allow-same-origin"
                                 onLoad={handleIframeLoad}
@@ -354,7 +354,7 @@ const generate = async () => {
                         )}
                         {editMode && (
                             <div className="absolute bottom-0 left-0 right-0 h-7 bg-yellow-50 border-t border-yellow-100 flex items-center justify-center pointer-events-none">
-                                <span className="text-[10px] text-yellow-700 font-bold uppercase tracking-tight">Режим редактирования — нажмите Просмотр для сохранения</span>
+                                <span className="text-[10px] text-yellow-700 font-bold uppercase tracking-tight">Режим редактирования — формулы видны как текст · Нажмите Просмотр для сохранения</span>
                             </div>
                         )}
                     </div>
