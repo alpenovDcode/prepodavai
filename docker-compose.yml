@@ -93,6 +93,9 @@ services:
       # Откуда Подписки (tgtrack) — аналитика MAX бота
       TGTRACK_MAX_API_KEY: ${TGTRACK_MAX_API_KEY:-}
       TGTRACK_MAX_BASE_URL: ${TGTRACK_MAX_BASE_URL:-https://max.tgtrack.ru/v1}
+      # MAX канал для проверки подписки
+      MAX_CHANNEL_ID: ${MAX_CHANNEL_ID:-}
+      MAX_INTRO_VIDEO_TOKEN: ${MAX_INTRO_VIDEO_TOKEN:-}
     depends_on:
       postgres:
         condition: service_healthy
