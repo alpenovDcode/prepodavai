@@ -11,6 +11,8 @@ import GenerationCostBadge from '@/components/workspace/GenerationCostBadge'
 import AssignTaskButton from '@/components/AssignTaskButton'
 import GenerationProgress from '@/components/workspace/GenerationProgress'
 import { ensureMathJaxInHtml } from '@/lib/utils/ensureMathJax'
+import { apiClient } from '@/lib/api/client'
+import toast from 'react-hot-toast'
 
 export default function WorksheetGenerator() {
     const [topic, setTopic] = useState('')
@@ -20,6 +22,7 @@ export default function WorksheetGenerator() {
 
     const [localContent, setLocalContent] = useState('<p>Введите тему, выберите уровень и класс, нажмите Создать Задания.</p>')
     const [editMode, setEditMode] = useState(false)
+    const [isSaving, setIsSaving] = useState(false)
     const [copied, setCopied] = useState(false)
     const iframeRef = useRef<HTMLIFrameElement>(null)
 
@@ -66,8 +69,23 @@ export default function WorksheetGenerator() {
         }
     }
 
-    const toggleEditMode = () => {
-        setEditMode(!editMode)
+    const toggleEditMode = async () => {
+        if (editMode && activeGenerationId) {
+            setIsSaving(true)
+            try {
+                await apiClient.patch(`/generate/${activeGenerationId}`, {
+                    outputData: { content: localContent },
+                })
+                toast.success('Сохранено')
+                setEditMode(false)
+            } catch {
+                toast.error('Не удалось сохранить изменения')
+            } finally {
+                setIsSaving(false)
+            }
+        } else {
+            setEditMode(!editMode)
+        }
     }
 
     useEffect(() => {
@@ -227,13 +245,18 @@ export default function WorksheetGenerator() {
                             {localContent && localContent !== '<p>Введите тему, выберите уровень и класс, нажмите Создать Задания.</p>' && localContent !== '<p>Генерируем рабочие листы...</p>' && (
                                 <button
                                     onClick={toggleEditMode}
+                                    disabled={isSaving}
                                     className={`flex items-center gap-1.5 px-3 py-2 text-[11px] font-bold rounded-lg transition-all flex-shrink-0 ${editMode
-                                        ? 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'
+                                        ? 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200 disabled:opacity-60'
                                         : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                                         }`}
                                 >
-                                    {editMode ? <Eye className="w-3.5 h-3.5" /> : <Edit3 className="w-3.5 h-3.5" />}
-                                    <span className="hidden xs:inline">{editMode ? 'Просмотр' : 'Править'}</span>
+                                    {isSaving
+                                        ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                        : editMode ? <Eye className="w-3.5 h-3.5" /> : <Edit3 className="w-3.5 h-3.5" />}
+                                    <span className="hidden xs:inline">
+                                        {isSaving ? 'Сохранение...' : editMode ? 'Просмотр' : 'Править'}
+                                    </span>
                                 </button>
                             )}
                             <button
