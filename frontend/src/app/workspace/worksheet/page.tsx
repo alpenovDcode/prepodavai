@@ -71,11 +71,15 @@ const generate = async () => {
     const toggleEditMode = async () => {
         if (editMode) {
             const iframeDoc = iframeRef.current?.contentDocument
-            // documentElement.outerHTML захватывает весь <html> (включая <head> со стилями и <body>
-            // с правками). Если iframe недоступен — сохраняем localContent без изменений.
-            const fullHtml = iframeDoc?.documentElement
-                ? `<!DOCTYPE html>${iframeDoc.documentElement.outerHTML}`
-                : localContent
+            const editedBodyHtml = iframeDoc?.body?.innerHTML ?? null
+            let fullHtml = localContent
+            if (editedBodyHtml !== null) {
+                const replaced = localContent.replace(
+                    /<body([^>]*)>[\s\S]*<\/body>/i,
+                    (_, bodyAttrs) => `<body${bodyAttrs}>${editedBodyHtml}</body>`
+                )
+                if (replaced !== localContent) fullHtml = replaced
+            }
 
             if (activeGenerationId) {
                 setIsSaving(true)
