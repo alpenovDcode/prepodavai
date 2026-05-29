@@ -8,6 +8,19 @@ import axios from 'axios';
 import * as FormData from 'form-data';
 import { TOOL_CONFIGS, ToolConfig, FieldConfig, getToolConfig } from './tool-configs';
 
+// ── Subscription flow ─────────────────────────────────────────────────────────
+const SUBSCRIPTION_TEXT =
+  'Преподавай — бесплатный ИИ-сервис для репетиторов.\n\n' +
+  'Он помогает быстрее готовиться к урокам:\n' +
+  '— составлять планы занятий\n' +
+  '— генерировать рабочие листы\n' +
+  '— подбирать упражнения\n' +
+  '— делать домашку\n' +
+  '— объяснять темы простым языком\n\n' +
+  'Чтобы пользоваться сервисом бесплатно, надо быть подписанным на канал «Прорыв в репетиторстве».\n' +
+  'После подписки нажмите «Я подписался» — и бот откроет доступ.\n\n' +
+  'Ссылка на канал: https://max.ru/esvasilevaru';
+
 // ── Generation session types ──────────────────────────────────────────────────
 interface GenSession {
   toolKey: string;
@@ -222,6 +235,11 @@ export class MaxService {
 
       // Answer the callback to dismiss loading state
       await this.answerCallback(callbackId);
+
+      if (payload === 'sub:check') {
+        await this.handleSubscriptionCheck(userId, chatId);
+        return;
+      }
 
       if (!payload.startsWith('g:')) {
         this.logger.warn(`[Callback] Ignoring non-g: payload="${payload}" from userId=${userId}`);
@@ -573,8 +591,8 @@ export class MaxService {
       });
       await this.sendWelcomeMessage(chatIdStr, existingUser, botUserId);
     } else {
-      this.logger.log(`[Start] Unlinked user: userId=${user.id} — upsert botUser and show welcome`);
-      const newBotUser = await (this.prisma as any).botUser.upsert({
+      this.logger.log(`[Start] New user: userId=${user.id} — upsert botUser and show activation flow`);
+      await (this.prisma as any).botUser.upsert({
         where: { maxId: user.id.toString() },
         update: { lastActiveAt: new Date(), firstName: user.first_name || undefined, lastName: user.last_name || undefined, username: user.username || undefined },
         create: {
@@ -587,28 +605,7 @@ export class MaxService {
           lastActiveAt: new Date(),
         },
       });
-      // Create shadow appUser so bot-only users can generate without web registration
-      const shadowApiKey = crypto.randomBytes(16).toString('hex');
-      const shadowAppUser = await this.prisma.appUser.upsert({
-        where: { maxId: user.id.toString() },
-        update: { maxChatId: chatIdStr, chatId: chatIdStr, lastAccessAt: new Date() },
-        create: {
-          maxId: user.id.toString(),
-          maxChatId: chatIdStr,
-          chatId: chatIdStr,
-          username: `max_${user.id}`,
-          apiKey: shadowApiKey,
-          source: 'max_bot',
-        } as any,
-      });
-      await (this.prisma as any).botUser.update({ where: { maxId: user.id.toString() }, data: { appUserId: shadowAppUser.id } });
-      const text = this.getWelcomeMessage(null, newBotUser.botCredits);
-      await this.sendMessageWithMarkup(chatIdStr, text);
-      await this.sendMessage(
-        chatIdStr,
-        `📌 Как пользоваться:\n\n1. Выберите инструмент из списка ниже\n2. Ответьте на несколько вопросов\n3. Получите готовый материал в PDF\n\nКаждая генерация стоит 3 токена.`,
-      );
-      await this.sendMessageWithKeyboard(chatIdStr, '🛠️ Выберите инструмент:', this.buildToolSelectionAttachment());
+      await this.sendActivationFlow(chatIdStr);
     }
   }
 
@@ -859,6 +856,104 @@ export class MaxService {
     lines.push(`⏱ Примерное время: ${tool.estimatedTime}`);
     lines.push('\nГенерировать?');
     return lines.join('\n');
+  }
+
+  // ── Subscription flow ─────────────────────────────────────────────────────
+  private buildSubscriptionKeyboard(): any[] {
+    return [{
+      type: 'inline_keyboard',
+      payload: {
+        buttons: [[
+          { type: 'link', text: 'ПОДПИСАТЬСЯ НА КАНАЛ', url: 'https://max.ru/esvasilevaru' },
+          { type: 'callback', text: 'Я ПОДПИСАЛСЯ', payload: 'sub:check' },
+        ]],
+      },
+    }];
+  }
+
+  private async checkChannelSubscription(userId: string): Promise<boolean> {
+    const channelId = this.configService.get<string>('MAX_CHANNEL_ID');
+    if (!channelId) {
+      this.logger.warn('[Sub] MAX_CHANNEL_ID not configured — skipping check, granting access');
+      return true;
+    }
+    try {
+      const base = this.apiUrl.endsWith('/') ? this.apiUrl.slice(0, -1) : this.apiUrl;
+      const resp = await axios.get(
+        `${base}/chats/${channelId}/members?user_ids=${userId}`,
+        { headers: { Authorization: this.token }, timeout: 8_000 },
+      );
+      return Array.isArray(resp.data?.members) && resp.data.members.length > 0;
+    } catch (err: any) {
+      this.logger.error(`[Sub] Subscription check failed: ${err?.message}`);
+      return false;
+    }
+  }
+
+  private async sendActivationFlow(chatId: string): Promise<void> {
+    await this.sendMessage(chatId, 'Коллега, рада вас видеть 👋');
+
+    const introVideoToken = this.configService.get<string>('MAX_INTRO_VIDEO_TOKEN');
+    if (introVideoToken) {
+      await this.sendMessageWithMarkup(chatId, '', [{
+        type: 'video',
+        payload: { token: introVideoToken },
+      }]).catch((err) => this.logger.warn(`[Start] Failed to send intro video: ${err?.message}`));
+    }
+
+    await this.sendMessageWithKeyboard(chatId, SUBSCRIPTION_TEXT, this.buildSubscriptionKeyboard());
+  }
+
+  private async handleSubscriptionCheck(userId: string, chatId: string): Promise<void> {
+    const isSubscribed = await this.checkChannelSubscription(userId);
+
+    if (!isSubscribed) {
+      await this.sendMessageWithKeyboard(
+        chatId,
+        'Пока не вижу подписку на канал.\n\nЧтобы открыть бесплатный доступ к Преподавай, подпишитесь на канал «Прорыв в репетиторстве», а потом нажмите «Я подписался».',
+        this.buildSubscriptionKeyboard(),
+      );
+      return;
+    }
+
+    await this.sendMessage(
+      chatId,
+      'Готово, доступ открыт ✅\n\nТеперь можете пользоваться Преподавай бесплатно, пока подписаны на канал «Прорыв в репетиторстве».',
+    );
+
+    const shadowApiKey = crypto.randomBytes(16).toString('hex');
+    const shadowAppUser = await this.prisma.appUser.upsert({
+      where: { maxId: userId },
+      update: { lastAccessAt: new Date() },
+      create: {
+        maxId: userId,
+        maxChatId: chatId,
+        chatId,
+        username: `max_${userId}`,
+        apiKey: shadowApiKey,
+        source: 'max_bot',
+      } as any,
+    });
+
+    const botUserRecord = await (this.prisma as any).botUser.upsert({
+      where: { maxId: userId },
+      update: { appUserId: shadowAppUser.id, lastActiveAt: new Date(), registrationStatus: 'subscribed' },
+      create: {
+        maxId: userId,
+        appUserId: shadowAppUser.id,
+        registrationStatus: 'subscribed',
+        source: 'max_bot',
+        lastActiveAt: new Date(),
+      },
+    });
+
+    const text = this.getWelcomeMessage(null, botUserRecord.botCredits);
+    await this.sendMessageWithMarkup(chatId, text);
+    await this.sendMessage(
+      chatId,
+      '📌 Как пользоваться:\n\n1. Выберите инструмент из списка ниже\n2. Ответьте на несколько вопросов\n3. Получите готовый материал в PDF\n\nКаждая генерация стоит 3 токена.',
+    );
+    await this.sendMessageWithKeyboard(chatId, '🛠️ Выберите инструмент:', this.buildToolSelectionAttachment());
   }
 
   // ── Keyboard builders ─────────────────────────────────────────────────────
