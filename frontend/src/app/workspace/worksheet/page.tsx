@@ -74,11 +74,18 @@ const generate = async () => {
             const editedBodyHtml = iframeDoc?.body?.innerHTML ?? null
             let fullHtml = localContent
             if (editedBodyHtml !== null) {
-                const replaced = localContent.replace(
-                    /<body([^>]*)>[\s\S]*<\/body>/i,
-                    (_, bodyAttrs) => `<body${bodyAttrs}>${editedBodyHtml}</body>`
-                )
-                if (replaced !== localContent) fullHtml = replaced
+                // Read head directly from the live DOM to guarantee <style> tags are
+                // preserved — more reliable than regex replacement on the raw string.
+                const headHtml = iframeDoc?.head?.outerHTML ?? ''
+                if (headHtml) {
+                    fullHtml = `<!DOCTYPE html>\n<html>\n${headHtml}\n<body>\n${editedBodyHtml}\n</body>\n</html>`
+                } else {
+                    const replaced = localContent.replace(
+                        /<body([^>]*)>[\s\S]*<\/body>/i,
+                        (_, bodyAttrs) => `<body${bodyAttrs}>${editedBodyHtml}</body>`
+                    )
+                    if (replaced !== localContent) fullHtml = replaced
+                }
             }
 
             if (activeGenerationId) {
