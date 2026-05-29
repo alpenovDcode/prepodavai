@@ -24,7 +24,6 @@ export default function WorksheetGenerator() {
     const [isSaving, setIsSaving] = useState(false)
     const [copied, setCopied] = useState(false)
     const iframeRef = useRef<HTMLIFrameElement>(null)
-    const originalHeadRef = useRef<string>('')
 
     const { generateAndWait, isGenerating, activeGenerationId } = useGenerations()
     const hasResult = !isGenerating && !!localContent && !localContent.startsWith('<p>Введите') && !localContent.startsWith('<p>Генерируем')
@@ -41,20 +40,7 @@ export default function WorksheetGenerator() {
         return () => window.removeEventListener('resize', checkMobile)
     }, [])
 
-    // Кэшируем <head> (стили) при каждой смене контента, чтобы при сохранении
-    // реконструировать полный документ, а не только body.innerHTML.
-    useEffect(() => {
-        if (!localContent || localContent.startsWith('<p>')) return
-        try {
-            const parser = new DOMParser()
-            const doc = parser.parseFromString(localContent, 'text/html')
-            originalHeadRef.current = doc.head.outerHTML
-        } catch {
-            originalHeadRef.current = ''
-        }
-    }, [localContent])
-
-    const generate = async () => {
+const generate = async () => {
         if (!topic) return
         try {
             setLocalContent('<p>Генерируем рабочие листы...</p>')
@@ -85,11 +71,10 @@ export default function WorksheetGenerator() {
     const toggleEditMode = async () => {
         if (editMode) {
             const iframeDoc = iframeRef.current?.contentDocument
-            const editedBodyHtml = iframeDoc?.body?.innerHTML
-            // Реконструируем полный HTML: оригинальный <head> со стилями + отредактированный <body>.
-            // Если body недоступен (iframe не загружен) — сохраняем localContent без изменений.
-            const fullHtml = editedBodyHtml !== undefined && editedBodyHtml !== null
-                ? `<!DOCTYPE html><html lang="ru">${originalHeadRef.current}<body>${editedBodyHtml}</body></html>`
+            // documentElement.outerHTML захватывает весь <html> (включая <head> со стилями и <body>
+            // с правками). Если iframe недоступен — сохраняем localContent без изменений.
+            const fullHtml = iframeDoc?.documentElement
+                ? `<!DOCTYPE html>${iframeDoc.documentElement.outerHTML}`
                 : localContent
 
             if (activeGenerationId) {
