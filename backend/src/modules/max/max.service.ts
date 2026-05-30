@@ -40,6 +40,9 @@ export class MaxService {
   // ── Generation session state ────────────────────────────────────────────────
   private readonly genSessions = new Map<string, GenSession>();
   private readonly lastGenAt = new Map<string, number>();
+
+  // ── bot_started retry deduplication ──────────────────────────────────────────
+  private readonly startAttemptGen = new Map<string, number>();
   private static readonly GEN_SESSION_TTL_MS = 10 * 60_000;
   private static readonly GEN_RATE_LIMIT_MS = 15_000;
   private static readonly MAX_GEN_SESSIONS = 300;
@@ -91,14 +94,26 @@ export class MaxService {
       await this.handleMessage(body.message);
     } else if (updateType === 'bot_started') {
       const userId = body?.user?.user_id?.toString() || body?.chat_id?.toString();
-      const chatId = body?.chat_id?.toString() || userId;
-      if (userId && chatId) {
-        // MAX создаёт диалог асинхронно после bot_started — ждём 2 сек перед отправкой
-        setTimeout(() => {
-          this.handleStartCommand({ id: userId, ...body.user }, chatId).catch((err) =>
-            this.logger.error(`[Start] bot_started delayed handler failed: ${err?.message}`),
-          );
-        }, 2000);
+      if (userId) {
+        const user = { id: userId, ...body.user };
+        const gen = (this.startAttemptGen.get(userId) ?? 0) + 1;
+        this.startAttemptGen.set(userId, gen);
+        const retryDelays = [500, 1000, 2000];
+        const tryStart = (attempt: number) => {
+          // Если пользователь успел написать /start вручную — счётчик уже другой, стоп
+          if (this.startAttemptGen.get(userId) !== gen) return;
+          this.handleStartCommand(user, userId)
+            .then(() => this.logger.log(`[Start] bot_started OK attempt=${attempt} userId=${userId}`))
+            .catch((err) => {
+              const isDialogNotFound = err?.response?.data?.code === 'dialog.not.found';
+              if (isDialogNotFound && attempt < retryDelays.length) {
+                setTimeout(() => tryStart(attempt + 1), retryDelays[attempt]);
+              } else {
+                this.logger.error(`[Start] bot_started failed userId=${userId}: ${err?.message}`);
+              }
+            });
+        };
+        tryStart(0);
       }
     } else if (updateType) {
       this.logger.warn(`[Webhook] Ignoring unknown update_type: ${updateType}`);
@@ -549,6 +564,12 @@ export class MaxService {
   // ── Start command ─────────────────────────────────────────────────────────
   private async handleStartCommand(user: any, chatId: string | number, botUserId?: number, payload?: string) {
     const chatIdStr = chatId.toString();
+
+    // Отменяем pending bot_started retries для этого пользователя
+    const userId = user.id?.toString();
+    if (userId) {
+      this.startAttemptGen.set(userId, (this.startAttemptGen.get(userId) ?? 0) + 1);
+    }
 
     // Фиксируем старт бота в Откуда Подписки (fire-and-forget)
     this.tgtrack('user_did_start_bot', {
@@ -1213,6 +1234,9 @@ export class MaxService {
         response.data?.id?.toString();
       return mid;
     } catch (error: any) {
+      if (error?.response?.data?.code === 'dialog.not.found') {
+        throw error; // пробрасываем — caller может сделать retry
+      }
       this.logger.error(
         'Failed to send text message to MAX: ' +
         (error?.response?.data ? JSON.stringify(error.response.data) : error.message),
