@@ -74,18 +74,15 @@ const generate = async () => {
             const editedBodyHtml = iframeDoc?.body?.innerHTML ?? null
             let fullHtml = localContent
             if (editedBodyHtml !== null) {
-                // Read head directly from the live DOM to guarantee <style> tags are
-                // preserved — more reliable than regex replacement on the raw string.
-                const headHtml = iframeDoc?.head?.outerHTML ?? ''
-                if (headHtml) {
-                    fullHtml = `<!DOCTYPE html>\n<html>\n${headHtml}\n<body>\n${editedBodyHtml}\n</body>\n</html>`
-                } else {
-                    const replaced = localContent.replace(
-                        /<body([^>]*)>[\s\S]*<\/body>/i,
-                        (_, bodyAttrs) => `<body${bodyAttrs}>${editedBodyHtml}</body>`
-                    )
-                    if (replaced !== localContent) fullHtml = replaced
-                }
+                // Use localContent as the HTML template — CSS, logo, and MathJax scripts
+                // are guaranteed correct from backend processing. Only replace the body
+                // content with what the user edited. Use a function callback to avoid
+                // treating $ in LaTeX as a regex backreference.
+                const replaced = localContent.replace(
+                    /<body([^>]*)>[\s\S]*<\/body>/i,
+                    (_, bodyAttrs) => `<body${bodyAttrs}>${editedBodyHtml}</body>`
+                )
+                if (replaced !== localContent) fullHtml = replaced
             }
 
             if (activeGenerationId) {
