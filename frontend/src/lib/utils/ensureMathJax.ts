@@ -1,5 +1,22 @@
 export const MATHJAX_CDN = 'https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js'
 
+/**
+ * Strips MathJax scripts from HTML so the browser doesn't auto-render LaTeX
+ * in edit mode. Without this, MathJax converts \(...\) to <mjx-container>
+ * CHTML elements, and saving those CHTML elements instead of the original
+ * LaTeX source breaks subsequent renders (PDF, preview).
+ */
+export function stripMathJaxScripts(html: string): string {
+    if (!html || typeof html !== 'string') return html
+    // Remove the MathJax config inline script.
+    // Use \s* (not [\s\S]*?) before window.MathJax so the regex can't skip
+    // across a preceding </script> boundary and accidentally eat other scripts.
+    let result = html.replace(/<script[^>]*>\s*window\.MathJax[\s\S]*?<\/script>/gi, '')
+    // Remove the MathJax CDN loader script
+    result = result.replace(/<script[^>]+src=["'][^"']*mathjax[^"']*["'][^>]*>[\s\S]*?<\/script>/gi, '')
+    return result
+}
+
 const MATHJAX_SCRIPT = `<script>
 window.MathJax = {
   loader: { load: ['[tex]/mhchem'] },

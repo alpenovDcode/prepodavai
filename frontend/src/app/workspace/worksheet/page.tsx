@@ -9,7 +9,7 @@ import { getCurrentUser } from '@/lib/utils/userIdentity'
 import GenerationCostBadge from '@/components/workspace/GenerationCostBadge'
 import AssignTaskButton from '@/components/AssignTaskButton'
 import GenerationProgress from '@/components/workspace/GenerationProgress'
-import { ensureMathJaxInHtml } from '@/lib/utils/ensureMathJax'
+import { ensureMathJaxInHtml, stripMathJaxScripts } from '@/lib/utils/ensureMathJax'
 import { apiClient } from '@/lib/api/client'
 import toast from 'react-hot-toast'
 
@@ -352,7 +352,7 @@ const generate = async () => {
                         ) : (
                             <iframe
                                 ref={iframeRef}
-                                srcDoc={editMode ? localContent : ensureMathJaxInHtml(localContent)}
+                                srcDoc={editMode ? stripMathJaxScripts(localContent) : ensureMathJaxInHtml(localContent)}
                                 className="w-full h-full border-0 bg-white"
                                 sandbox="allow-scripts allow-popups allow-modals allow-same-origin"
                                 onLoad={handleIframeLoad}
