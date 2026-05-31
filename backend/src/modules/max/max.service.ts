@@ -460,13 +460,10 @@ export class MaxService {
           return;
         }
 
-        // Атомарно списываем 3 токена — защита от двойного нажатия
-        const deducted = await (this.prisma as any).botUser.updateMany({
-          where: { maxId: userId, botCredits: { gte: 3 } },
-          data: { botCredits: { decrement: 3 } },
-        });
-        if (deducted.count === 0) {
-          this.logger.warn(`[Gen] Insufficient botCredits for userId=${userId}`);
+        // Атомарно списываем 3 токена: subscription если привязан, иначе botCredits
+        const tokenResult = await this.deductTokens(userId, appUser.id);
+        if (!tokenResult.success) {
+          this.logger.warn(`[Gen] Insufficient tokens for userId=${userId} source=${tokenResult.source}`);
           await this.sendMessage(chatId, '❌ Недостаточно токенов для генерации.\n\nОбратитесь к администратору для пополнения баланса.');
           this.genSessions.delete(userId);
           return;
@@ -483,7 +480,7 @@ export class MaxService {
           const authToken = await this.getApiToken(appUser.username, apiKey);
           if (!authToken) {
             this.logger.error(`[Gen] Auth failed for userId=${userId} username=${appUser.username}`);
-            await (this.prisma as any).botUser.update({ where: { maxId: userId }, data: { botCredits: { increment: 3 } } });
+            await this.refundTokens(userId, appUser.id, tokenResult.source);
             await this.sendMessage(chatId, '❌ Ошибка авторизации. Попробуйте позже или обратитесь в поддержку.');
             return;
           }
@@ -492,7 +489,7 @@ export class MaxService {
             this.logger.log(`[Gen] Calling games API: userId=${userId} type=${session.params.type} topic="${session.params.topic}"`);
             const result = await this.callGamesApi(authToken, session.params.type, session.params.topic);
             this.logger.log(`[Gen] Game created: userId=${userId} url=${result.url}`);
-            const updated = await (this.prisma as any).botUser.update({
+            await (this.prisma as any).botUser.update({
               where: { maxId: userId },
               data: { totalGenerations: { increment: 1 }, generationsThisMonth: { increment: 1 }, lastGenerationAt: new Date() },
             });
@@ -501,7 +498,7 @@ export class MaxService {
               payload: { buttons: [[{ type: 'link', url: result.url, text: '🎮 Открыть игру' }]] },
             }];
             await this.sendMessageWithMarkup(chatId, `🎮 Игра готова!\n\nТема: ${session.params.topic}\n\nНажмите кнопку, чтобы открыть:`, gameAttachment);
-            await this.sendMessage(chatId, `💳 Осталось токенов: ${updated.botCredits}`);
+            await this.sendMessage(chatId, `💳 Осталось токенов: ${tokenResult.remaining}`);
             await this.sendMessageWithKeyboard(chatId, '🛠️ Выберите инструмент:', this.buildToolSelectionAttachment());
           } else {
             let apiParams: Record<string, any> = { ...session.params };
@@ -511,28 +508,26 @@ export class MaxService {
             this.logger.log(`[Gen] Calling generation API: userId=${userId} type=${tool.generationType}`);
             const result = await this.callGenerationApi(authToken, tool.generationType, apiParams);
             this.logger.log(`[Gen] Generation API response: userId=${userId} status=${result.status}`);
-            // Глубокая цель: генерация запущена (fire-and-forget)
             this.tgtrack('send_reach_goal', { user_id: userId, target: 'generation_created' });
             if (result.status === 'failed') {
-              await (this.prisma as any).botUser.update({ where: { maxId: userId }, data: { botCredits: { increment: 3 } } }).catch(() => null);
+              await this.refundTokens(userId, appUser.id, tokenResult.source);
               await this.sendMessage(chatId, '❌ Генерация не удалась. Токены возвращены.');
               await this.sendMessageWithKeyboard(chatId, '🛠️ Выберите инструмент:', this.buildToolSelectionAttachment());
               return;
             }
-            const updated = await (this.prisma as any).botUser.update({
+            await (this.prisma as any).botUser.update({
               where: { maxId: userId },
               data: { totalGenerations: { increment: 1 }, generationsThisMonth: { increment: 1 }, lastGenerationAt: new Date() },
             });
             if (result.status === 'completed') {
-              await this.sendMessage(chatId, `✅ Готово! Отправляю ${tool.emoji} ${tool.label} в чат...\n\n💳 Осталось токенов: ${updated.botCredits}`);
+              await this.sendMessage(chatId, `✅ Готово! Отправляю ${tool.emoji} ${tool.label} в чат...\n\n💳 Осталось токенов: ${tokenResult.remaining}`);
             } else {
-              await this.sendMessage(chatId, `✅ Задача принята! Результат придёт в этот чат, как только будет готов.\n\n💳 Осталось токенов: ${updated.botCredits}`);
+              await this.sendMessage(chatId, `✅ Задача принята! Результат придёт в этот чат, как только будет готов.\n\n💳 Осталось токенов: ${tokenResult.remaining}`);
             }
           }
         } catch (err: any) {
           this.logger.error(`[Gen] Generation failed for userId=${userId} tool=${tool.key}: ${err?.message ?? err}`);
-          // Возвращаем токены при ошибке генерации
-          await (this.prisma as any).botUser.update({ where: { maxId: userId }, data: { botCredits: { increment: 3 } } }).catch(() => null);
+          await this.refundTokens(userId, appUser.id, tokenResult.source);
           await this.sendMessage(chatId, this.humanizeError(err));
           await this.sendMessageWithKeyboard(chatId, '🛠️ Выберите инструмент:', this.buildToolSelectionAttachment());
         }
@@ -748,13 +743,18 @@ export class MaxService {
   }
 
   private async sendWelcomeMessage(chatId: string, appUser: any, _botUserId?: number) {
-    let botCredits: number | null = null;
-    const maxId = appUser.maxId?.toString();
-    if (maxId) {
-      const botUserRecord = await (this.prisma as any).botUser.findUnique({ where: { maxId } });
-      botCredits = botUserRecord?.botCredits ?? null;
+    let balance: number | null = null;
+    const subscription = await this.prisma.userSubscription.findUnique({ where: { userId: appUser.id } });
+    if (subscription && subscription.status === 'active') {
+      balance = subscription.creditsBalance + subscription.extraCredits;
+    } else {
+      const maxId = appUser.maxId?.toString();
+      if (maxId) {
+        const botUserRecord = await (this.prisma as any).botUser.findUnique({ where: { maxId } });
+        balance = botUserRecord?.botCredits ?? null;
+      }
     }
-    const text = this.getWelcomeMessage(appUser, botCredits);
+    const text = this.getWelcomeMessage(appUser, balance);
     await this.sendMessageWithMarkup(chatId, text);
     await this.sendMessage(
       chatId,
@@ -1384,6 +1384,54 @@ export class MaxService {
     }
   }
 
+  private async deductTokens(
+    userId: string,
+    appUserId: string,
+  ): Promise<{ success: boolean; remaining: number; source: 'subscription' | 'bot' }> {
+    const subscription = await this.prisma.userSubscription.findUnique({ where: { userId: appUserId } });
+
+    if (subscription && subscription.status === 'active') {
+      const updated = await this.prisma.$transaction(async (tx) => {
+        const sub = await tx.userSubscription.findUnique({ where: { userId: appUserId } });
+        if (!sub || sub.creditsBalance + sub.extraCredits < 3) return null;
+        let newExtra = sub.extraCredits;
+        let newBalance = sub.creditsBalance;
+        if (newExtra >= 3) {
+          newExtra -= 3;
+        } else {
+          const remainder = 3 - newExtra;
+          newExtra = 0;
+          newBalance -= remainder;
+        }
+        return tx.userSubscription.update({ where: { id: sub.id }, data: { creditsBalance: newBalance, extraCredits: newExtra } });
+      });
+      if (!updated) {
+        const sub = await this.prisma.userSubscription.findUnique({ where: { userId: appUserId } });
+        return { success: false, remaining: (sub?.creditsBalance ?? 0) + (sub?.extraCredits ?? 0), source: 'subscription' };
+      }
+      return { success: true, remaining: updated.creditsBalance + updated.extraCredits, source: 'subscription' };
+    }
+
+    const deducted = await (this.prisma as any).botUser.updateMany({
+      where: { maxId: userId, botCredits: { gte: 3 } },
+      data: { botCredits: { decrement: 3 } },
+    });
+    if (deducted.count === 0) {
+      const bu = await (this.prisma as any).botUser.findUnique({ where: { maxId: userId }, select: { botCredits: true } });
+      return { success: false, remaining: bu?.botCredits ?? 0, source: 'bot' };
+    }
+    const bu = await (this.prisma as any).botUser.findUnique({ where: { maxId: userId }, select: { botCredits: true } });
+    return { success: true, remaining: bu?.botCredits ?? 0, source: 'bot' };
+  }
+
+  private async refundTokens(userId: string, appUserId: string, source: 'subscription' | 'bot'): Promise<void> {
+    if (source === 'subscription') {
+      await this.prisma.userSubscription.updateMany({ where: { userId: appUserId }, data: { creditsBalance: { increment: 3 } } });
+    } else {
+      await (this.prisma as any).botUser.update({ where: { maxId: userId }, data: { botCredits: { increment: 3 } } }).catch(() => null);
+    }
+  }
+
   private getWelcomeMessage(_appUser: any, balance: number | null = null): string {
     const balanceLine = balance !== null ? `\n\n💳 Токенов на балансе: ${balance}` : '';
     return (
@@ -1472,16 +1520,18 @@ export class MaxService {
         } as any,
       });
 
-      // New web users get business plan with 1500 credits
+      // New web users get business plan with 1500 credits + remaining botCredits
       const businessPlan = await tx.subscriptionPlan.findUnique({ where: { planKey: 'business' } });
       if (businessPlan) {
+        const existingBot = await (tx as any).botUser.findUnique({ where: { maxId: userId }, select: { botCredits: true } });
+        const bonusCredits = existingBot?.botCredits ?? 0;
         const now = new Date();
         const endDate = new Date(now);
         endDate.setMonth(endDate.getMonth() + 1);
         await tx.userSubscription.create({
           data: {
             userId: appUser.id, planId: businessPlan.id, status: 'active',
-            creditsBalance: 1500, extraCredits: 0, creditsUsed: 0,
+            creditsBalance: 1500 + bonusCredits, extraCredits: 0, creditsUsed: 0,
             overageCreditsUsed: 0, startDate: now, endDate, autoRenew: true,
           },
         });

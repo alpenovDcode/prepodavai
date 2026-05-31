@@ -42,6 +42,7 @@ export default function AdminUsersPage() {
         lastName: '',
         phone: '',
         creditsBalance: '',
+        botCredits: '',
         planKey: '',
     })
     const [isSubmitting, setIsSubmitting] = useState(false)
@@ -55,7 +56,7 @@ export default function AdminUsersPage() {
         try {
             await apiClient.post('/admin/users', formData)
             setIsCreateModalOpen(false)
-            setFormData({ username: '', password: '', firstName: '', lastName: '', phone: '', creditsBalance: '', planKey: '' })
+            setFormData({ username: '', password: '', firstName: '', lastName: '', phone: '', creditsBalance: '', botCredits: '', planKey: '' })
             mutate() // Refresh data
         } catch (err: any) {
             setFormError(err.response?.data?.message || 'Ошибка создания пользователя')
@@ -84,6 +85,7 @@ export default function AdminUsersPage() {
             lastName: user.lastName || '',
             phone: user.phone || '',
             creditsBalance: user.subscription?.creditsBalance?.toString() || '0',
+            botCredits: user.botUser?.botCredits?.toString() ?? '',
             planKey: user.subscription?.plan?.planKey || '',
         })
         setIsEditModalOpen(true)
@@ -101,6 +103,9 @@ export default function AdminUsersPage() {
             }
             if (dataToUpdate.creditsBalance === '') {
                 delete (dataToUpdate as any).creditsBalance
+            }
+            if (dataToUpdate.botCredits === '') {
+                delete (dataToUpdate as any).botCredits
             }
             if (!dataToUpdate.planKey) {
                 delete (dataToUpdate as any).planKey
@@ -181,7 +186,14 @@ export default function AdminUsersPage() {
                                 {users.map((user: any) => (
                                     <tr key={user.id} className="hover:bg-gray-50 transition border-b border-gray-50 last:border-0">
                                         <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="font-bold text-gray-900">{user.username || 'Без юзернейма'}</div>
+                                            <div className="font-bold text-gray-900">
+                                                {!user.subscription && user.botUser?.username
+                                                    ? `@${user.botUser.username}`
+                                                    : (user.username || 'Без юзернейма')}
+                                            </div>
+                                            {!user.subscription && user.botUser && !user.botUser.username && (
+                                                <div className="text-xs text-gray-400 mt-0.5">{user.username}</div>
+                                            )}
                                             <div className="font-mono text-xs text-gray-400 mt-1" title={user.id}>ID: <span className="font-semibold text-gray-500">{user.id.substring(0, 8)}...</span></div>
                                             <div className="flex flex-wrap gap-1 mt-1.5">
                                                 {user.hasPassword
@@ -190,8 +202,14 @@ export default function AdminUsersPage() {
                                                 {user.source === 'telegram_bot' && (
                                                     <span className="text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100 text-xs font-medium">🤖 TG Бот</span>
                                                 )}
+                                                {user.source === 'max_bot' && (
+                                                    <span className="text-violet-700 bg-violet-50 px-2 py-0.5 rounded-full border border-violet-100 text-xs font-medium">MX Бот</span>
+                                                )}
                                                 {user.source === 'telegram' && (
                                                     <span className="text-sky-700 bg-sky-50 px-2 py-0.5 rounded-full border border-sky-100 text-xs font-medium">✈️ TG TMA</span>
+                                                )}
+                                                {user.botUser && !user.subscription && (
+                                                    <span className="text-orange-700 bg-orange-50 px-2 py-0.5 rounded-full border border-orange-100 text-xs font-medium">Без регистрации</span>
                                                 )}
                                             </div>
                                         </td>
@@ -234,11 +252,17 @@ export default function AdminUsersPage() {
                                                 </div>
                                                 <div className="text-xs font-bold pl-0.5 flex items-center gap-2">
                                                     <span className="text-gray-400 uppercase tracking-widest text-[9px]">Баланс: </span>
-                                                    <span className="text-indigo-600 bg-indigo-50 px-2.5 py-0.5 rounded-lg border border-indigo-100 tabular-nums">
-                                                        {user.subscription != null
-                                                            ? (user.subscription.creditsBalance ?? 0) + (user.subscription.extraCredits ?? 0)
-                                                            : '—'}
-                                                    </span>
+                                                    {user.subscription != null ? (
+                                                        <span className="text-indigo-600 bg-indigo-50 px-2.5 py-0.5 rounded-lg border border-indigo-100 tabular-nums">
+                                                            {(user.subscription.creditsBalance ?? 0) + (user.subscription.extraCredits ?? 0)}
+                                                        </span>
+                                                    ) : user.botUser != null ? (
+                                                        <span className="text-orange-600 bg-orange-50 px-2.5 py-0.5 rounded-lg border border-orange-100 tabular-nums" title="Бот-кредиты (без подписки)">
+                                                            {user.botUser.botCredits ?? 0} 🤖
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-gray-400">—</span>
+                                                    )}
                                                 </div>
                                                 {user.subscription?.plan && (
                                                     <div className="pl-0.5">
@@ -371,9 +395,15 @@ export default function AdminUsersPage() {
                                     <input type="text" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} placeholder="+7 999 000 00 00" className="w-full border-gray-300 rounded-lg p-2 border focus:ring-2 focus:ring-blue-500 focus:outline-none" />
                                 </div>
                                 <div className="col-span-2 sm:col-span-1">
-                                    <label className="block text-sm font-medium text-indigo-700 mb-1 font-semibold">Баланс токенов</label>
+                                    <label className="block text-sm font-medium text-indigo-700 mb-1 font-semibold">Баланс токенов {isEditModalOpen && <span className="text-xs text-gray-400 font-normal">(подписка)</span>}</label>
                                     <input type="number" placeholder="100" value={formData.creditsBalance} onChange={e => setFormData({...formData, creditsBalance: e.target.value})} className="w-full border-indigo-200 bg-indigo-50/50 rounded-lg p-2 border focus:ring-2 focus:ring-indigo-500 focus:outline-none" />
                                 </div>
+                                {isEditModalOpen && selectedUser?.botUser && !selectedUser?.subscription && (
+                                    <div className="col-span-2 sm:col-span-1">
+                                        <label className="block text-sm font-medium text-orange-700 mb-1 font-semibold">Бот-кредиты 🤖</label>
+                                        <input type="number" placeholder="100" value={formData.botCredits} onChange={e => setFormData({...formData, botCredits: e.target.value})} className="w-full border-orange-200 bg-orange-50/50 rounded-lg p-2 border focus:ring-2 focus:ring-orange-500 focus:outline-none" />
+                                    </div>
+                                )}
                                 <div className="col-span-2 sm:col-span-1">
                                     <label className="block text-sm font-medium text-purple-700 mb-1 font-semibold">Тариф</label>
                                     <select value={formData.planKey} onChange={e => setFormData({...formData, planKey: e.target.value})} className="w-full border-purple-200 bg-purple-50/50 rounded-lg p-2 border focus:ring-2 focus:ring-purple-500 focus:outline-none text-sm">

@@ -472,16 +472,18 @@ async function completeRegistration(ctx: Context, telegramId: string, state: Reg
         } as any,
       });
 
-      // New web users get business plan with 1500 credits
+      // New web users get business plan with 1500 credits + remaining botCredits
       const businessPlan = await tx.subscriptionPlan.findUnique({ where: { planKey: 'business' } });
       if (businessPlan) {
+        const existingBot = await (tx as any).botUser.findUnique({ where: { telegramId }, select: { botCredits: true } });
+        const bonusCredits = existingBot?.botCredits ?? 0;
         const now = new Date();
         const endDate = new Date(now);
         endDate.setMonth(endDate.getMonth() + 1);
         await tx.userSubscription.create({
           data: {
             userId: appUser.id, planId: businessPlan.id, status: 'active',
-            creditsBalance: 1500, extraCredits: 0, creditsUsed: 0,
+            creditsBalance: 1500 + bonusCredits, extraCredits: 0, creditsUsed: 0,
             overageCreditsUsed: 0, startDate: now, endDate, autoRenew: true,
           },
         });
@@ -639,6 +641,55 @@ async function handleLinkToken(ctx: Context, user: any, token: string) {
   await ctx.reply('✅ Telegram успешно привязан к вашему аккаунту Преподавай!\n\nТеперь вы будете получать результаты генерации прямо здесь.');
 }
 
+// ── Token deduction helpers ───────────────────────────────────────────────────
+async function deductTgTokens(
+  telegramId: string,
+  appUserId: string,
+): Promise<{ success: boolean; remaining: number; source: 'subscription' | 'bot' }> {
+  const subscription = await (prisma as any).userSubscription.findUnique({ where: { userId: appUserId } });
+
+  if (subscription && subscription.status === 'active') {
+    const updated = await (prisma as any).$transaction(async (tx: any) => {
+      const sub = await tx.userSubscription.findUnique({ where: { userId: appUserId } });
+      if (!sub || sub.creditsBalance + sub.extraCredits < 3) return null;
+      let newExtra = sub.extraCredits;
+      let newBalance = sub.creditsBalance;
+      if (newExtra >= 3) {
+        newExtra -= 3;
+      } else {
+        const remainder = 3 - newExtra;
+        newExtra = 0;
+        newBalance -= remainder;
+      }
+      return tx.userSubscription.update({ where: { id: sub.id }, data: { creditsBalance: newBalance, extraCredits: newExtra } });
+    });
+    if (!updated) {
+      const sub = await (prisma as any).userSubscription.findUnique({ where: { userId: appUserId } });
+      return { success: false, remaining: (sub?.creditsBalance ?? 0) + (sub?.extraCredits ?? 0), source: 'subscription' };
+    }
+    return { success: true, remaining: updated.creditsBalance + updated.extraCredits, source: 'subscription' };
+  }
+
+  const deducted = await (prisma as any).botUser.updateMany({
+    where: { telegramId, botCredits: { gte: 3 } },
+    data: { botCredits: { decrement: 3 } },
+  });
+  if (deducted.count === 0) {
+    const bu = await (prisma as any).botUser.findUnique({ where: { telegramId }, select: { botCredits: true } });
+    return { success: false, remaining: bu?.botCredits ?? 0, source: 'bot' };
+  }
+  const bu = await (prisma as any).botUser.findUnique({ where: { telegramId }, select: { botCredits: true } });
+  return { success: true, remaining: bu?.botCredits ?? 0, source: 'bot' };
+}
+
+async function refundTgTokens(telegramId: string, appUserId: string, source: 'subscription' | 'bot'): Promise<void> {
+  if (source === 'subscription') {
+    await (prisma as any).userSubscription.updateMany({ where: { userId: appUserId }, data: { creditsBalance: { increment: 3 } } });
+  } else {
+    await (prisma as any).botUser.update({ where: { telegramId }, data: { botCredits: { increment: 3 } } }).catch(() => null);
+  }
+}
+
 // ── Подписка: клавиатура ──────────────────────────────────────────────────────
 function buildSubscriptionKeyboard(): InlineKeyboard {
   return new InlineKeyboard()
@@ -787,7 +838,11 @@ bot.command('start', async (ctx: Context) => {
       } as any,
     });
 
-    const balanceLine = `\n\n💳 Токенов на балансе: ${(botUser as any).botCredits ?? 0}`;
+    const sub = await (prisma as any).userSubscription.findUnique({ where: { userId: existingUser.id } });
+    const displayBalance = sub && sub.status === 'active'
+      ? sub.creditsBalance + sub.extraCredits
+      : ((botUser as any).botCredits ?? 0);
+    const balanceLine = `\n\n💳 Токенов на балансе: ${displayBalance}`;
     await ctx.reply(
       `Добро пожаловать в Преподавай 🎓\n\nЯ Ваш интеллектуальный помощник для:\n— Создания учебных материалов\n— Планирования уроков\n— Создания красочных презентаций\n— Методической поддержки\n— Создания интерактивных игр${balanceLine}`,
       { reply_markup: { keyboard: [[{ text: MINI_APP_BTN }]], resize_keyboard: true } },
@@ -1000,12 +1055,9 @@ bot.on('callback_query:data', async (ctx: Context) => {
     const user = await prisma.appUser.findUnique({ where: { telegramId } }) as any;
     if (!user) { await ctx.reply('❌ Аккаунт не найден.'); genSessions.delete(telegramId); return; }
 
-    // Атомарно списываем 3 токена — защита от двойного нажатия
-    const deducted = await (prisma as any).botUser.updateMany({
-      where: { telegramId, botCredits: { gte: 3 } },
-      data: { botCredits: { decrement: 3 } },
-    });
-    if (deducted.count === 0) {
+    // Атомарно списываем 3 токена: subscription если привязан, иначе botCredits
+    const tokenResult = await deductTgTokens(telegramId, user.id);
+    if (!tokenResult.success) {
       await ctx.reply('❌ Недостаточно токенов для генерации.\n\nОбратитесь к администратору для пополнения баланса.');
       genSessions.delete(telegramId);
       return;
@@ -1019,20 +1071,20 @@ bot.on('callback_query:data', async (ctx: Context) => {
     try {
       const token = await getApiToken(user.username, await ensureApiKey(user));
       if (!token) {
-        await (prisma as any).botUser.update({ where: { telegramId }, data: { botCredits: { increment: 3 } } });
+        await refundTgTokens(telegramId, user.id, tokenResult.source);
         await ctx.reply('❌ Ошибка авторизации. Попробуйте позже или обратитесь в поддержку.');
         return;
       }
 
       if (tool.serviceType === 'games') {
         const result = await callGamesApi(token, session.params.type, session.params.topic);
-        const updated = await (prisma as any).botUser.update({
+        await (prisma as any).botUser.update({
           where: { telegramId },
           data: { totalGenerations: { increment: 1 }, generationsThisMonth: { increment: 1 }, lastGenerationAt: new Date() },
         });
         const kb = new InlineKeyboard().url('🎮 Открыть игру', result.url);
         await ctx.reply(`🎮 *Игра готова!*\n\nТема: _${session.params.topic}_\n\nНажмите кнопку, чтобы открыть:`, { parse_mode: 'Markdown', reply_markup: kb });
-        await ctx.reply(`💳 Осталось токенов: *${updated.botCredits}*`, { parse_mode: 'Markdown' });
+        await ctx.reply(`💳 Осталось токенов: *${tokenResult.remaining}*`, { parse_mode: 'Markdown' });
         await ctx.reply('🛠️ *Выберите инструмент:*', { parse_mode: 'Markdown', reply_markup: buildToolSelectionKeyboard() });
       } else {
         let apiParams: Record<string, any> = { ...session.params };
@@ -1040,27 +1092,25 @@ bot.on('callback_query:data', async (ctx: Context) => {
           apiParams.generationTypes = apiParams.generationTypes.split(',').filter(Boolean);
         }
         const result = await callGenerationApi(token, tool.generationType, apiParams);
-        // Глубокая цель: генерация запущена (fire-and-forget)
         tgtrack('send_reach_goal', { user_id: telegramId, target: 'generation_created' });
         if (result.status === 'failed') {
-          await (prisma as any).botUser.update({ where: { telegramId }, data: { botCredits: { increment: 3 } } }).catch(() => null);
+          await refundTgTokens(telegramId, user.id, tokenResult.source);
           await ctx.reply('❌ Генерация не удалась. Токены возвращены.');
           await ctx.reply('🛠️ *Выберите инструмент:*', { parse_mode: 'Markdown', reply_markup: buildToolSelectionKeyboard() });
           return;
         }
-        const updated = await (prisma as any).botUser.update({
+        await (prisma as any).botUser.update({
           where: { telegramId },
           data: { totalGenerations: { increment: 1 }, generationsThisMonth: { increment: 1 }, lastGenerationAt: new Date() },
         });
         if (result.status === 'completed') {
-          await ctx.reply(`✅ Готово! Отправляю ${tool.emoji} *${tool.label}* в чат...\n\n💳 Осталось токенов: *${updated.botCredits}*`, { parse_mode: 'Markdown' });
+          await ctx.reply(`✅ Готово! Отправляю ${tool.emoji} *${tool.label}* в чат...\n\n💳 Осталось токенов: *${tokenResult.remaining}*`, { parse_mode: 'Markdown' });
         } else {
-          await ctx.reply(`✅ Задача принята! Результат придёт в этот чат, как только будет готов.\n\n💳 Осталось токенов: *${updated.botCredits}*`, { parse_mode: 'Markdown' });
+          await ctx.reply(`✅ Задача принята! Результат придёт в этот чат, как только будет готов.\n\n💳 Осталось токенов: *${tokenResult.remaining}*`, { parse_mode: 'Markdown' });
         }
       }
     } catch (err: any) {
-      // Возвращаем токены при ошибке генерации
-      await (prisma as any).botUser.update({ where: { telegramId }, data: { botCredits: { increment: 3 } } }).catch(() => null);
+      await refundTgTokens(telegramId, user.id, tokenResult.source);
       await ctx.reply(humanizeError(err));
       await ctx.reply('🛠️ *Выберите инструмент:*', { parse_mode: 'Markdown', reply_markup: buildToolSelectionKeyboard() });
     }

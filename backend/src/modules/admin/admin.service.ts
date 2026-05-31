@@ -101,6 +101,16 @@ export class AdminService {
         subscription: {
           include: { plan: true },
         },
+        botUser: {
+          select: {
+            firstName: true,
+            lastName: true,
+            username: true,
+            botCredits: true,
+            registrationStatus: true,
+            source: true,
+          },
+        },
       },
     });
 
@@ -333,6 +343,17 @@ export class AdminService {
           data: { creditsBalance: numCredits },
         });
         (user.subscription as any).creditsBalance = numCredits;
+      }
+    }
+
+    // Если передан botCredits, обновляем BotUser
+    if (data.botCredits !== undefined) {
+      const numBotCredits = parseInt(data.botCredits);
+      if (!isNaN(numBotCredits)) {
+        await (this.prisma as any).botUser.updateMany({
+          where: { appUserId: id },
+          data: { botCredits: numBotCredits },
+        });
       }
     }
 
