@@ -91,7 +91,7 @@ export default function UserStatsPage({ params }: { params: { id: string } }) {
     if (error) return <div className="text-red-500 p-6">Ошибка загрузки данных пользователя</div>
     if (!stats) return null
 
-    const { user, generations, classes, referrals, subscription, onboarding, credits } = stats
+    const { user, generations, classes, referrals, subscription, onboarding, credits, botUser } = stats
 
     const allOnboardingSteps = Object.keys(ONBOARDING_LABELS)
     const completedSet = new Set(onboarding.completedSteps)
@@ -173,7 +173,17 @@ export default function UserStatsPage({ params }: { params: { id: string } }) {
                                 <p className="text-sm text-gray-600 leading-relaxed">{user.bio}</p>
                             </div>
                         )}
-                        {!user.email && !user.phone && !user.subject && !user.grades && !user.bio && (
+                        {botUser?.firstName && (
+                            <div className="flex items-center gap-3">
+                                <User className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                                <span className="text-sm text-gray-700">
+                                    {botUser.firstName}{botUser.lastName ? ' ' + botUser.lastName : ''}
+                                    {botUser.username && <span className="text-gray-400 ml-1">@{botUser.username}</span>}
+                                    <span className="text-xs text-gray-400 ml-2">({botUser.source === 'max_bot' ? 'MAX' : 'Telegram'})</span>
+                                </span>
+                            </div>
+                        )}
+                        {!user.email && !user.phone && !user.subject && !user.grades && !user.bio && !botUser?.firstName && (
                             <p className="text-sm text-gray-400">Профиль не заполнен</p>
                         )}
                     </div>

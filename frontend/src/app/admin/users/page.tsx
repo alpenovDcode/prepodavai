@@ -191,9 +191,6 @@ export default function AdminUsersPage() {
                                                     ? `@${user.botUser.username}`
                                                     : (user.username || 'Без юзернейма')}
                                             </div>
-                                            {!user.subscription && user.botUser && !user.botUser.username && (
-                                                <div className="text-xs text-gray-400 mt-0.5">{user.username}</div>
-                                            )}
                                             <div className="font-mono text-xs text-gray-400 mt-1" title={user.id}>ID: <span className="font-semibold text-gray-500">{user.id.substring(0, 8)}...</span></div>
                                             <div className="flex flex-wrap gap-1 mt-1.5">
                                                 {user.hasPassword

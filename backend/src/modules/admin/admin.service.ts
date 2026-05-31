@@ -909,6 +909,7 @@ export class AdminService {
       creditsSpent,
       creditsGranted,
       recentGenerations,
+      botUser,
     ] = await Promise.all([
       this.prisma.userGeneration.count({ where: { userId } }),
       this.prisma.userGeneration.groupBy({
@@ -941,6 +942,10 @@ export class AdminService {
         take: 10,
         select: { id: true, generationType: true, status: true, creditCost: true, createdAt: true },
       }),
+      prismaAny.botUser.findUnique({
+        where: { appUserId: userId },
+        select: { firstName: true, lastName: true, username: true, botCredits: true, source: true, registrationStatus: true },
+      }),
     ]);
 
     return {
@@ -969,6 +974,7 @@ export class AdminService {
           spent: Math.abs(creditsSpent._sum.amount || 0),
           granted: creditsGranted._sum.amount || 0,
         },
+        botUser: botUser || null,
       },
     };
   }
