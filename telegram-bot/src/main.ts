@@ -154,15 +154,20 @@ const GEN_TYPE_LABELS: Record<string, string> = {
   'feedback': 'Отзыв',
   'presentation': 'Презентация',
   'image': 'Изображение',
+  'image_generation': 'Изображение',
   'photosession': 'Фотосессия',
   'exam-variant': 'Экзамен',
   'lesson-preparation': 'Подготовка к уроку',
+  'lesson_preparation': 'Подготовка к уроку',
   'content-adaptation': 'Адаптация контента',
   'video-analysis': 'Анализ видео',
   'transcribe-video': 'Расшифровка видео',
+  'transcription': 'Расшифровка',
   'sales-advisor': 'Советник продаж',
+  'sales_advisor': 'Советник продаж',
   'unpacking': 'Разбор темы',
   'assistant': 'Ассистент',
+  'game_generation': 'Игра',
 };
 
 // ── State ─────────────────────────────────────────────────────────────────────
@@ -836,7 +841,7 @@ async function showGenerations(ctx: Context, telegramId: string, offset: number,
 
   const lines = gens.map((g: any, i: number) => {
     const icon = genStatusIcon(g.status);
-    const label = GEN_TYPE_LABELS[g.type] ?? g.type;
+    const label = sanitizeMd(GEN_TYPE_LABELS[g.type] ?? g.type);
     const topic = extractGenTopic(g.params);
     const date = new Date(g.createdAt).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
     return `${offset + i + 1}. ${icon} ${label}${topic ? `: _${sanitizeMd(topic)}_` : ''} — ${date}`;
