@@ -92,9 +92,34 @@ interface GenerationSession {
   lastActivity: number;
 }
 
+// ── Типы: платформенные фичи ──────────────────────────────────────────────────
+interface PlatformState {
+  genOffset: number;
+  classes: Array<{ id: string; name: string; studentCount: number }>;
+  genId?: string;
+  genTopic?: string;
+}
+
 // ── Константы: регистрация ────────────────────────────────────────────────────
 const MAX_CONCURRENT_REG_SESSIONS = 500;
 const MINI_APP_BTN = '📱 Открыть Преподавай';
+
+// ── Кнопки главного меню ──────────────────────────────────────────────────────
+const BTN_CREATE = '🛠️ Создать материал';
+const BTN_MYGENS = '📋 Мои генерации';
+const BTN_CLASSES = '📚 Классы';
+const BTN_ANALYTICS = '📊 Аналитика';
+
+function buildMainMenuKeyboard() {
+  return {
+    keyboard: [
+      [{ text: BTN_CREATE }, { text: BTN_MYGENS }],
+      [{ text: BTN_CLASSES }, { text: BTN_ANALYTICS }],
+      [{ text: MINI_APP_BTN }],
+    ],
+    resize_keyboard: true,
+  };
+}
 
 // ── Подписка на канал ─────────────────────────────────────────────────────────
 const TELEGRAM_CHANNEL_ID = process.env.TELEGRAM_CHANNEL_ID || '';
@@ -117,16 +142,43 @@ const GEN_RATE_LIMIT_MS = 15_000;
 const MAX_GEN_SESSIONS = 300;
 const MAX_CALLBACK_DATA_LEN = 32;
 
+// ── Константы: платформенные фичи ─────────────────────────────────────────────
+const GEN_PAGE_SIZE = 5;
+const GEN_TYPE_LABELS: Record<string, string> = {
+  'worksheet': 'Рабочий лист',
+  'quiz': 'Тест',
+  'quiz-generation': 'Тест',
+  'lesson-plan': 'План урока',
+  'vocabulary': 'Словарный запас',
+  'message': 'Сообщение',
+  'feedback': 'Отзыв',
+  'presentation': 'Презентация',
+  'image': 'Изображение',
+  'photosession': 'Фотосессия',
+  'exam-variant': 'Экзамен',
+  'lesson-preparation': 'Подготовка к уроку',
+  'content-adaptation': 'Адаптация контента',
+  'video-analysis': 'Анализ видео',
+  'transcribe-video': 'Расшифровка видео',
+  'sales-advisor': 'Советник продаж',
+  'unpacking': 'Разбор темы',
+  'assistant': 'Ассистент',
+};
+
 // ── State ─────────────────────────────────────────────────────────────────────
 const regStates = new Map<string, RegistrationState>();
 const genSessions = new Map<string, GenerationSession>();
 const lastGenAt = new Map<string, number>();
+const platformStates = new Map<string, PlatformState>();
 
 // ── Generation session helpers ────────────────────────────────────────────────
 function createGenSession(telegramId: string, toolKey: string): GenerationSession {
   const now = Date.now();
   for (const [id, s] of genSessions) {
     if (now - s.lastActivity > GEN_SESSION_TTL_MS) genSessions.delete(id);
+  }
+  for (const [id, ts] of lastGenAt) {
+    if (now - ts > GEN_RATE_LIMIT_MS * 10) lastGenAt.delete(id);
   }
   if (genSessions.size >= MAX_GEN_SESSIONS && !genSessions.has(telegramId)) {
     throw new Error('Сервис перегружен. Попробуйте позже.');
@@ -216,7 +268,7 @@ function buildConfirmMessage(tool: ToolConfig, params: Record<string, string>): 
   const lines: string[] = [`*${tool.emoji} ${tool.label}* — подтверждение\n`];
   for (const field of tool.fields) {
     const val = params[field.key];
-    if (val !== undefined && val !== '') lines.push(`• ${val}`);
+    if (val !== undefined && val !== '') lines.push(`• ${sanitizeMd(val)}`);
   }
   lines.push(`\n💳 Стоимость: *${tool.creditCost} токена*`);
   lines.push(`⏱ Примерное время: *${tool.estimatedTime}*`);
@@ -325,7 +377,8 @@ async function uploadFileToBackend(
   const filePath = fileInfo.file_path;
   if (!filePath) throw new Error('Telegram не вернул путь к файлу');
 
-  const downloadUrl = `https://api.telegram.org/file/bot${botToken}/${filePath}`;
+  const tgApiRoot = (process.env.TELEGRAM_API_ROOT ?? 'https://api.telegram.org').replace(/\/$/, '');
+  const downloadUrl = `${tgApiRoot}/file/bot${botToken}/${filePath}`;
   const fileResp = await fetch(downloadUrl);
   if (!fileResp.ok) throw new Error('Не удалось скачать файл из Telegram');
   const fileBuffer = Buffer.from(await fileResp.arrayBuffer());
@@ -354,7 +407,7 @@ function humanizeError(err: any): string {
     return '💳 Недостаточно токенов. Пополните баланс на сайте prepodavai.ru';
   }
   if (msg.toLowerCase().includes('не найден')) {
-    return '❌ Аккаунт не найден. Используйте /start.';
+    return '❌ Аккаунт не найден. Используйте /start для перезапуска.';
   }
   console.error('[Gen] Unhandled error:', msg);
   return '❌ Произошла ошибка при генерации. Попробуйте ещё раз или обратитесь в поддержку.';
@@ -416,14 +469,16 @@ async function handleEmailInput(ctx: Context, telegramId: string, state: Registr
   }
 
   const email = text.toLowerCase();
-  const exists = await prisma.appUser.findFirst({ where: { email } });
-  if (exists) {
-    await ctx.reply('⚠️ Этот email уже зарегистрирован.\n\nЕсли это ваш аккаунт — войдите на сайте и привяжите Telegram в настройках профиля.');
-    return;
-  }
 
   if (state.locked) return;
   state.locked = true;
+
+  const exists = await prisma.appUser.findFirst({ where: { email } });
+  if (exists) {
+    state.locked = false;
+    await ctx.reply('⚠️ Этот email уже зарегистрирован.\n\nЕсли это ваш аккаунт — войдите на сайте и привяжите Telegram в настройках профиля.');
+    return;
+  }
 
   state.email = email;
   regStates.set(telegramId, state);
@@ -690,6 +745,341 @@ async function refundTgTokens(telegramId: string, appUserId: string, source: 'su
   }
 }
 
+// ── Platform features helpers ─────────────────────────────────────────────────
+
+function getPlatformState(telegramId: string): PlatformState {
+  if (platformStates.size > 2000) {
+    const toDelete = [...platformStates.keys()].slice(0, 1000);
+    toDelete.forEach((k) => platformStates.delete(k));
+  }
+  if (!platformStates.has(telegramId)) {
+    platformStates.set(telegramId, { genOffset: 0, classes: [] });
+  }
+  return platformStates.get(telegramId)!;
+}
+
+async function callApi(token: string, path: string, method = 'GET', body?: any): Promise<any> {
+  const opts: RequestInit = {
+    method,
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+  };
+  if (body) opts.body = JSON.stringify(body);
+  const resp = await fetch(`${API_URL}/api/${path}`, opts);
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({ message: `HTTP ${resp.status}` })) as any;
+    throw new Error(err.message ?? `HTTP ${resp.status}`);
+  }
+  return resp.json();
+}
+
+function genStatusIcon(status: string): string {
+  if (status === 'completed') return '✅';
+  if (status === 'failed') return '❌';
+  return '⏳';
+}
+
+function extractGenTopic(params: any): string {
+  if (!params || typeof params !== 'object') return '';
+  return (params.topic || params.subject || params.lessonTopic || params.theme || '').slice(0, 35);
+}
+
+function sanitizeMd(text: string): string {
+  return text.replace(/[_*`[\]]/g, '');
+}
+
+async function showGenerations(ctx: Context, telegramId: string, offset: number, editInPlace = false) {
+  const user = await prisma.appUser.findUnique({ where: { telegramId } }) as any;
+  if (!user) { await ctx.reply('❌ Аккаунт не найден. Используйте /start.'); return; }
+
+  const apiToken = await getApiToken(user.username, await ensureApiKey(user)).catch(() => null);
+  if (!apiToken) { await ctx.reply('❌ Ошибка авторизации.'); return; }
+
+  let data: any;
+  try {
+    data = await callApi(apiToken, `generate/history?limit=${GEN_PAGE_SIZE}&offset=${offset}`);
+  } catch {
+    await ctx.reply('❌ Не удалось загрузить генерации. Попробуйте позже.');
+    return;
+  }
+
+  const gens: any[] = data.generations ?? [];
+  const total: number = data.total ?? 0;
+  const state = getPlatformState(telegramId);
+  state.genOffset = offset;
+
+  if (!gens.length) {
+    if (offset === 0) {
+      await ctx.reply('📋 Генераций пока нет. Создайте первую с помощью кнопки «' + BTN_CREATE + '».');
+    } else {
+      state.genOffset = 0;
+      await ctx.reply('📋 Больше генераций нет.');
+    }
+    return;
+  }
+
+  const lines = gens.map((g: any, i: number) => {
+    const icon = genStatusIcon(g.status);
+    const label = GEN_TYPE_LABELS[g.type] ?? g.type;
+    const topic = extractGenTopic(g.params);
+    const date = new Date(g.createdAt).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
+    return `${offset + i + 1}. ${icon} ${label}${topic ? `: _${sanitizeMd(topic)}_` : ''} — ${date}`;
+  }).join('\n');
+
+  const kb = new InlineKeyboard();
+  gens.forEach((_: any, i: number) => {
+    if (i === 3) kb.row();
+    kb.text(`${offset + i + 1}`, `pf:gi:${i}`);
+  });
+  const hasPrev = offset > 0;
+  const hasNext = offset + GEN_PAGE_SIZE < total;
+  if (hasPrev || hasNext) {
+    kb.row();
+    if (hasPrev) kb.text('◀️', 'pf:gp');
+    if (hasNext) kb.text('▶️', 'pf:gn');
+  }
+
+  const text = `📋 *Генерации* (${offset + 1}–${Math.min(offset + GEN_PAGE_SIZE, total)} из ${total}):\n\n${lines}\n\nНажмите номер для деталей.`;
+
+  if (editInPlace) {
+    await (ctx as any).editMessageText(text, { parse_mode: 'Markdown', reply_markup: kb }).catch(async () => {
+      await ctx.reply(text, { parse_mode: 'Markdown', reply_markup: kb });
+    });
+  } else {
+    await ctx.reply(text, { parse_mode: 'Markdown', reply_markup: kb });
+  }
+}
+
+async function showGenDetail(ctx: Context, telegramId: string, idx: number) {
+  const state = getPlatformState(telegramId);
+  const user = await prisma.appUser.findUnique({ where: { telegramId } }) as any;
+  if (!user) { await ctx.reply('❌ Аккаунт не найден. Используйте /start.'); return; }
+
+  const apiToken = await getApiToken(user.username, await ensureApiKey(user)).catch(() => null);
+  if (!apiToken) { await ctx.reply('❌ Ошибка авторизации.'); return; }
+
+  let data: any;
+  try {
+    data = await callApi(apiToken, `generate/history?limit=1&offset=${state.genOffset + idx}`);
+  } catch {
+    await ctx.reply('❌ Не удалось загрузить генерацию. Попробуйте позже.');
+    return;
+  }
+
+  const gen = data.generations?.[0];
+  if (!gen) { await ctx.reply('❌ Генерация не найдена.'); return; }
+
+  state.genId = gen.id;
+  const topic = extractGenTopic(gen.params);
+  state.genTopic = topic || (GEN_TYPE_LABELS[gen.type] ?? gen.type);
+
+  const icon = genStatusIcon(gen.status);
+  const label = GEN_TYPE_LABELS[gen.type] ?? gen.type;
+  const date = new Date(gen.createdAt).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+
+  const text = `${icon} *${label}*${topic ? `\nТема: _${sanitizeMd(topic)}_` : ''}\nДата: ${date}\nСтатус: ${gen.status}`;
+
+  const kb = new InlineKeyboard();
+  if (gen.status === 'completed') kb.text('📚 Выдать классу', 'pf:hw');
+  kb.row().text('◀️ К списку', 'pf:gen');
+
+  await ctx.reply(text, { parse_mode: 'Markdown', reply_markup: kb });
+}
+
+async function showClasses(ctx: Context, telegramId: string) {
+  const user = await prisma.appUser.findUnique({ where: { telegramId } }) as any;
+  if (!user) { await ctx.reply('❌ Аккаунт не найден.'); return; }
+
+  const apiToken = await getApiToken(user.username, await ensureApiKey(user)).catch(() => null);
+  if (!apiToken) { await ctx.reply('❌ Ошибка авторизации.'); return; }
+
+  let classes: any[];
+  try {
+    classes = await callApi(apiToken, 'classes');
+  } catch {
+    await ctx.reply('❌ Не удалось загрузить классы. Попробуйте позже.');
+    return;
+  }
+
+  const state = getPlatformState(telegramId);
+  state.classes = classes.map((c: any) => ({
+    id: c.id,
+    name: c.name,
+    studentCount: c._count?.students ?? c.students?.length ?? 0,
+  }));
+
+  if (!classes.length) {
+    await ctx.reply('📚 Классов пока нет. Создайте их на prepodavai.ru.');
+    return;
+  }
+
+  const lines = classes.map((c: any, i: number) => `${i + 1}. *${sanitizeMd(c.name)}* — ${c._count?.students ?? 0} уч.`).join('\n');
+
+  const kb = new InlineKeyboard();
+  classes.forEach((_: any, i: number) => {
+    if (i > 0 && i % 3 === 0) kb.row();
+    kb.text(`${i + 1}`, `pf:ci:${i}`);
+  });
+
+  await ctx.reply(`📚 *Ваши классы:*\n\n${lines}\n\nНажмите номер для просмотра учеников.`, { parse_mode: 'Markdown', reply_markup: kb });
+}
+
+async function showClassDetail(ctx: Context, telegramId: string, idx: number) {
+  const state = getPlatformState(telegramId);
+  if (!state.classes[idx]) { await ctx.reply('❌ Класс не найден. Обновите список кнопкой «' + BTN_CLASSES + '».'); return; }
+
+  const user = await prisma.appUser.findUnique({ where: { telegramId } }) as any;
+  if (!user) { await ctx.reply('❌ Аккаунт не найден. Используйте /start.'); return; }
+
+  const apiToken = await getApiToken(user.username, await ensureApiKey(user)).catch(() => null);
+  if (!apiToken) { await ctx.reply('❌ Ошибка авторизации.'); return; }
+
+  const cls = state.classes[idx];
+  let classData: any;
+  try {
+    classData = await callApi(apiToken, `classes/${cls.id}`);
+  } catch {
+    await ctx.reply('❌ Не удалось загрузить данные класса.');
+    return;
+  }
+
+  const students: any[] = classData.students ?? [];
+  if (!students.length) {
+    await ctx.reply(`📚 *${sanitizeMd(cls.name)}*\n\nУчеников пока нет.`, { parse_mode: 'Markdown' });
+    return;
+  }
+
+  const riskMap: Record<string, string> = {};
+  try {
+    const analytics = await callApi(apiToken, `classes/${cls.id}/analytics`);
+    for (const s of analytics?.studentBreakdown ?? []) {
+      riskMap[s.id] = s.riskLevel ?? 'good';
+    }
+  } catch { /* optional */ }
+
+  const riskIcon = (id: string) => riskMap[id] === 'risk' ? ' 🔴' : riskMap[id] === 'watch' ? ' 🟡' : '';
+
+  const lines = students.map((s: any, i: number) => `${i + 1}. ${sanitizeMd(s.name)}${riskIcon(s.id)}`).join('\n');
+  const legendLine = Object.values(riskMap).some(v => v === 'risk' || v === 'watch') ? '\n\n🔴 риск  🟡 внимание' : '';
+
+  await ctx.reply(`📚 *${sanitizeMd(cls.name)}* — ${students.length} уч.\n\n${lines}${legendLine}`, { parse_mode: 'Markdown' });
+}
+
+async function showHomeworkClassPicker(ctx: Context, telegramId: string) {
+  const state = getPlatformState(telegramId);
+  if (!state.genId) { await ctx.reply('❌ Выберите генерацию из списка сначала: «' + BTN_MYGENS + '».'); return; }
+
+  const user = await prisma.appUser.findUnique({ where: { telegramId } }) as any;
+  if (!user) { await ctx.reply('❌ Аккаунт не найден. Используйте /start.'); return; }
+
+  const apiToken = await getApiToken(user.username, await ensureApiKey(user)).catch(() => null);
+  if (!apiToken) { await ctx.reply('❌ Ошибка авторизации.'); return; }
+
+  if (!state.classes.length) {
+    try {
+      const classes = await callApi(apiToken, 'classes');
+      state.classes = classes.map((c: any) => ({ id: c.id, name: c.name, studentCount: c._count?.students ?? 0 }));
+    } catch {
+      await ctx.reply('❌ Не удалось загрузить классы.');
+      return;
+    }
+  }
+
+  if (!state.classes.length) {
+    await ctx.reply('📚 Классов нет. Создайте класс на prepodavai.ru.');
+    return;
+  }
+
+  const lines = state.classes.map((c, i) => `${i + 1}. *${sanitizeMd(c.name)}*`).join('\n');
+  const kb = new InlineKeyboard();
+  state.classes.forEach((_, i) => {
+    if (i > 0 && i % 3 === 0) kb.row();
+    kb.text(`${i + 1}`, `pf:hwi:${i}`);
+  });
+
+  await ctx.reply(
+    `📚 Выдать *«${state.genTopic ?? 'материал'}»* классу:\n\n${lines}\n\nВыберите класс:`,
+    { parse_mode: 'Markdown', reply_markup: kb },
+  );
+}
+
+async function assignHomework(ctx: Context, telegramId: string, classIdx: number) {
+  const state = getPlatformState(telegramId);
+  if (!state.genId || !state.classes[classIdx]) {
+    await ctx.reply('❌ Данные устарели. Начните заново: «' + BTN_MYGENS + '».');
+    return;
+  }
+
+  const user = await prisma.appUser.findUnique({ where: { telegramId } }) as any;
+  if (!user) { await ctx.reply('❌ Аккаунт не найден. Используйте /start.'); return; }
+
+  const apiToken = await getApiToken(user.username, await ensureApiKey(user)).catch(() => null);
+  if (!apiToken) { await ctx.reply('❌ Ошибка авторизации.'); return; }
+
+  const cls = state.classes[classIdx];
+  const topicTitle = state.genTopic || 'Материал из Telegram';
+
+  await ctx.reply('⏳ Создаю задание...');
+
+  try {
+    const lesson = await callApi(apiToken, 'lessons', 'POST', { topic: topicTitle });
+    await callApi(apiToken, 'assignments', 'POST', {
+      lessonId: lesson.id,
+      classId: cls.id,
+      generationId: state.genId,
+    });
+
+    state.genId = undefined;
+    state.genTopic = undefined;
+
+    await ctx.reply(`✅ *Задание выдано классу «${sanitizeMd(cls.name)}»!*\n\nМатериал: _${sanitizeMd(topicTitle)}_`, { parse_mode: 'Markdown' });
+  } catch (err: any) {
+    console.error(`[PF] assignHomework error for ${telegramId}:`, err);
+    await ctx.reply('❌ Не удалось создать задание. Попробуйте позже.');
+  }
+}
+
+async function showAnalytics(ctx: Context, telegramId: string) {
+  const user = await prisma.appUser.findUnique({ where: { telegramId } }) as any;
+  if (!user) { await ctx.reply('❌ Аккаунт не найден.'); return; }
+
+  const apiToken = await getApiToken(user.username, await ensureApiKey(user)).catch(() => null);
+  if (!apiToken) { await ctx.reply('❌ Ошибка авторизации.'); return; }
+
+  let overview: any;
+  try {
+    overview = await callApi(apiToken, 'analytics/teacher-overview');
+  } catch {
+    await ctx.reply('❌ Не удалось загрузить аналитику. Попробуйте позже.');
+    return;
+  }
+
+  const pending = overview.pendingGrading?.total ?? 0;
+  const pendingByClass: any[] = overview.pendingGrading?.byClass ?? [];
+  const riskCount = overview.atRisk?.riskCount ?? 0;
+  const watchCount = overview.atRisk?.watchCount ?? 0;
+  const samples: any[] = overview.atRisk?.samples ?? [];
+  const todayCount = overview.schedule?.todayCount ?? 0;
+  const deadlines = overview.upcoming?.deadlinesIn7Days ?? 0;
+
+  const lines: string[] = ['📊 *Аналитика*\n'];
+
+  lines.push(`📝 *Ждут проверки:* ${pending}`);
+  for (const p of pendingByClass.slice(0, 3)) {
+    lines.push(`  • ${p.className}: ${p.pending}`);
+  }
+
+  lines.push(`\n👥 *Под наблюдением:* 🔴 ${riskCount} риск, 🟡 ${watchCount} внимание`);
+  for (const s of samples.slice(0, 3)) {
+    const icon = s.level === 'risk' ? '🔴' : '🟡';
+    lines.push(`  ${icon} ${sanitizeMd(s.name)} (${sanitizeMd(s.className)})${s.avgGrade !== null ? ` — ср. ${s.avgGrade}` : ''}`);
+  }
+
+  lines.push(`\n📅 *Уроков сегодня:* ${todayCount}`);
+  lines.push(`⏰ *Дедлайны (7 дней):* ${deadlines}`);
+
+  await ctx.reply(lines.join('\n'), { parse_mode: 'Markdown' });
+}
+
 // ── Подписка: клавиатура ──────────────────────────────────────────────────────
 function buildSubscriptionKeyboard(): InlineKeyboard {
   return new InlineKeyboard()
@@ -697,18 +1087,20 @@ function buildSubscriptionKeyboard(): InlineKeyboard {
     .text('Я ПОДПИСАЛСЯ', 'sub:check');
 }
 
-async function checkChannelSubscription(telegramId: string): Promise<boolean> {
-  if (!TELEGRAM_CHANNEL_ID) {
-    console.warn('[Sub] TELEGRAM_CHANNEL_ID not configured — skipping check, granting access');
-    return true;
-  }
-  try {
-    const member = await bot.api.getChatMember(TELEGRAM_CHANNEL_ID, parseInt(telegramId, 10));
-    return ['member', 'administrator', 'creator'].includes(member.status);
-  } catch (err: any) {
-    console.error(`[Sub] Subscription check failed: ${err?.message}`);
-    return false;
-  }
+async function checkChannelSubscription(_telegramId: string): Promise<boolean> {
+  // TODO: раскомментировать когда бот будет добавлен в канал
+  return true;
+  // if (!TELEGRAM_CHANNEL_ID) {
+  //   console.warn('[Sub] TELEGRAM_CHANNEL_ID not configured — skipping check, granting access');
+  //   return true;
+  // }
+  // try {
+  //   const member = await bot.api.getChatMember(TELEGRAM_CHANNEL_ID, parseInt(_telegramId, 10));
+  //   return ['member', 'administrator', 'creator'].includes(member.status);
+  // } catch (err: any) {
+  //   console.error(`[Sub] Subscription check failed: ${err?.message}`);
+  //   return false;
+  // }
 }
 
 async function sendActivationFlow(ctx: Context): Promise<void> {
@@ -771,13 +1163,8 @@ async function handleSubscriptionCheck(ctx: Context, telegramId: string): Promis
   const balanceLine = `\n\n💳 Токенов на балансе: ${botUserRecord.botCredits ?? 0}`;
   await ctx.reply(
     `Добро пожаловать в Преподавай 🎓\n\nЯ Ваш интеллектуальный помощник для:\n— Создания учебных материалов\n— Планирования уроков\n— Создания красочных презентаций\n— Методической поддержки\n— Создания интерактивных игр${balanceLine}`,
-    { reply_markup: { keyboard: [[{ text: MINI_APP_BTN }]], resize_keyboard: true } },
+    { reply_markup: buildMainMenuKeyboard() },
   );
-  await ctx.reply(
-    `📌 *Как пользоваться:*\n\n1. Выберите инструмент из списка ниже\n2. Ответьте на несколько вопросов\n3. Получите готовый материал в PDF\n\nКаждая генерация стоит 3 токена.`,
-    { parse_mode: 'Markdown' },
-  );
-  await ctx.reply('🛠️ *Выберите инструмент:*', { parse_mode: 'Markdown', reply_markup: buildToolSelectionKeyboard() });
 }
 
 // ── Команда /start ────────────────────────────────────────────────────────────
@@ -845,13 +1232,8 @@ bot.command('start', async (ctx: Context) => {
     const balanceLine = `\n\n💳 Токенов на балансе: ${displayBalance}`;
     await ctx.reply(
       `Добро пожаловать в Преподавай 🎓\n\nЯ Ваш интеллектуальный помощник для:\n— Создания учебных материалов\n— Планирования уроков\n— Создания красочных презентаций\n— Методической поддержки\n— Создания интерактивных игр${balanceLine}`,
-      { reply_markup: { keyboard: [[{ text: MINI_APP_BTN }]], resize_keyboard: true } },
+      { reply_markup: buildMainMenuKeyboard() },
     );
-    await ctx.reply(
-      `📌 *Как пользоваться:*\n\n1. Выберите инструмент из списка ниже\n2. Ответьте на несколько вопросов\n3. Получите готовый материал в PDF\n\nКаждая генерация стоит 3 токена.`,
-      { parse_mode: 'Markdown' },
-    );
-    await ctx.reply('🛠️ *Выберите инструмент:*', { parse_mode: 'Markdown', reply_markup: buildToolSelectionKeyboard() });
     return;
   }
 
@@ -871,38 +1253,6 @@ bot.command('start', async (ctx: Context) => {
   await sendActivationFlow(ctx);
 });
 
-// ── Команда /generate ─────────────────────────────────────────────────────────
-bot.command('generate', async (ctx: Context) => {
-  const telegramId = ctx.from?.id.toString();
-  if (!telegramId) return;
-  console.log(`[Bot] /generate from ${telegramId}`);
-
-  const user = await prisma.appUser.findUnique({ where: { telegramId } });
-  if (!user) {
-    await ctx.reply('❌ Аккаунт не найден.\n\nЗарегистрируйтесь через /start и попробуйте снова.');
-    return;
-  }
-
-  genSessions.delete(telegramId);
-  await ctx.reply('🛠️ *Выберите инструмент:*', { parse_mode: 'Markdown', reply_markup: buildToolSelectionKeyboard() });
-});
-
-// ── Команда /cancel ───────────────────────────────────────────────────────────
-bot.command('cancel', async (ctx: Context) => {
-  const telegramId = ctx.from?.id.toString();
-  if (!telegramId) return;
-  console.log(`[Bot] /cancel from ${telegramId}`);
-
-  if (regStates.has(telegramId)) {
-    regStates.delete(telegramId);
-    await ctx.reply('❌ Регистрация отменена. Чтобы начать заново, отправьте /start.');
-  } else if (genSessions.has(telegramId)) {
-    genSessions.delete(telegramId);
-    await ctx.reply('❌ Генерация отменена.');
-  } else {
-    await ctx.reply('Нет активного процесса.');
-  }
-});
 
 // ── Callback queries (нажатия кнопок генерации) ───────────────────────────────
 bot.on('callback_query:data', async (ctx: Context) => {
@@ -915,6 +1265,49 @@ bot.on('callback_query:data', async (ctx: Context) => {
   if (data === 'sub:check') {
     console.log(`[Bot] sub:check from ${telegramId}`);
     await handleSubscriptionCheck(ctx, telegramId);
+    return;
+  }
+
+  if (data.startsWith('pf:')) {
+    console.log(`[Bot] platform callback from ${telegramId}: ${data}`);
+
+    if (data === 'pf:gen') {
+      const state = getPlatformState(telegramId);
+      await showGenerations(ctx, telegramId, state.genOffset, true);
+
+    } else if (data === 'pf:gn') {
+      const state = getPlatformState(telegramId);
+      await showGenerations(ctx, telegramId, state.genOffset + GEN_PAGE_SIZE, true);
+
+    } else if (data === 'pf:gp') {
+      const state = getPlatformState(telegramId);
+      await showGenerations(ctx, telegramId, Math.max(0, state.genOffset - GEN_PAGE_SIZE), true);
+
+    } else if (data.startsWith('pf:gi:')) {
+      const idx = parseInt(data.slice(6), 10);
+      if (!Number.isFinite(idx) || idx < 0 || idx >= GEN_PAGE_SIZE) return;
+      await showGenDetail(ctx, telegramId, idx);
+
+    } else if (data === 'pf:cls') {
+      await showClasses(ctx, telegramId);
+
+    } else if (data.startsWith('pf:ci:')) {
+      const idx = parseInt(data.slice(6), 10);
+      if (!Number.isFinite(idx) || idx < 0 || idx > 49) return;
+      await showClassDetail(ctx, telegramId, idx);
+
+    } else if (data === 'pf:hw') {
+      await showHomeworkClassPicker(ctx, telegramId);
+
+    } else if (data.startsWith('pf:hwi:')) {
+      const idx = parseInt(data.slice(7), 10);
+      if (!Number.isFinite(idx) || idx < 0 || idx > 49) return;
+      await assignHomework(ctx, telegramId, idx);
+
+    } else if (data === 'pf:ana') {
+      await showAnalytics(ctx, telegramId);
+    }
+
     return;
   }
 
@@ -953,7 +1346,7 @@ bot.on('callback_query:data', async (ctx: Context) => {
     if (!Number.isFinite(idx) || idx < 0 || idx > 50) return;
 
     const session = getGenSession(telegramId);
-    if (!session) { await ctx.reply('⏰ Сессия истекла. Начните заново: /generate'); return; }
+    if (!session) { await ctx.reply('⏰ Сессия истекла. Начните заново: «' + BTN_CREATE + '».'); return; }
 
     const tool = getToolConfig(session.toolKey);
     if (!tool) return;
@@ -974,7 +1367,7 @@ bot.on('callback_query:data', async (ctx: Context) => {
     if (!Number.isFinite(idx) || idx < 0 || idx > 20) return;
 
     const session = getGenSession(telegramId);
-    if (!session) { await ctx.reply('⏰ Сессия истекла. Начните заново: /generate'); return; }
+    if (!session) { await ctx.reply('⏰ Сессия истекла. Начните заново: «' + BTN_CREATE + '».'); return; }
 
     const tool = getToolConfig(session.toolKey);
     if (!tool) return;
@@ -1000,7 +1393,7 @@ bot.on('callback_query:data', async (ctx: Context) => {
   } else if (data === 'g:msok') {
     // Confirm multiselect
     const session = getGenSession(telegramId);
-    if (!session) { await ctx.reply('⏰ Сессия истекла. Начните заново: /generate'); return; }
+    if (!session) { await ctx.reply('⏰ Сессия истекла. Начните заново: «' + BTN_CREATE + '».'); return; }
 
     const tool = getToolConfig(session.toolKey);
     if (!tool) return;
@@ -1019,7 +1412,7 @@ bot.on('callback_query:data', async (ctx: Context) => {
 
   } else if (data === 'g:skip') {
     const session = getGenSession(telegramId);
-    if (!session) return;
+    if (!session) { await ctx.reply('⏰ Сессия истекла. Начните заново: «' + BTN_CREATE + '».'); return; }
 
     const tool = getToolConfig(session.toolKey);
     if (!tool) return;
@@ -1040,7 +1433,7 @@ bot.on('callback_query:data', async (ctx: Context) => {
   } else if (data === 'g:ok') {
     // Подтверждение генерации
     const session = getGenSession(telegramId);
-    if (!session) { await ctx.reply('⏰ Сессия истекла. Начните заново: /generate'); return; }
+    if (!session) { await ctx.reply('⏰ Сессия истекла. Начните заново: «' + BTN_CREATE + '».'); return; }
 
     const lastGen = lastGenAt.get(telegramId) ?? 0;
     const waitMs = GEN_RATE_LIMIT_MS - (Date.now() - lastGen);
@@ -1146,6 +1539,29 @@ bot.on('message:text', async (ctx: Context) => {
     } else {
       await startRegistration(ctx, telegramId);
     }
+    return;
+  }
+
+  // Кнопки главного меню
+  if (text === BTN_CREATE) {
+    const user = await prisma.appUser.findUnique({ where: { telegramId } });
+    if (!user) { await ctx.reply('❌ Аккаунт не найден. Используйте /start.'); return; }
+    genSessions.delete(telegramId);
+    await ctx.reply('🛠️ *Выберите инструмент:*', { parse_mode: 'Markdown', reply_markup: buildToolSelectionKeyboard() });
+    return;
+  }
+  if (text === BTN_MYGENS) {
+    const state = getPlatformState(telegramId);
+    state.genOffset = 0;
+    await showGenerations(ctx, telegramId, 0);
+    return;
+  }
+  if (text === BTN_CLASSES) {
+    await showClasses(ctx, telegramId);
+    return;
+  }
+  if (text === BTN_ANALYTICS) {
+    await showAnalytics(ctx, telegramId);
     return;
   }
 
@@ -1255,7 +1671,7 @@ async function handleFileMessage(ctx: Context, receivedAs: 'photo' | 'document')
   } catch (err: any) {
     console.error(`[Gen] File upload failed for ${telegramId}:`, err);
     genSessions.delete(telegramId);
-    await ctx.reply('❌ Не удалось загрузить файл. Сессия сброшена — начните заново: /generate');
+    await ctx.reply('❌ Не удалось загрузить файл. Сессия сброшена — начните заново: «' + BTN_CREATE + '».');
   }
 }
 
