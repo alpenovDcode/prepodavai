@@ -1,4 +1,4 @@
-import { Bot, Context, InlineKeyboard, BotConfig } from 'grammy';
+import { Bot, Context, InlineKeyboard, InputFile, BotConfig } from 'grammy';
 import * as dotenv from 'dotenv';
 import { PrismaClient } from '@prisma/client';
 import * as crypto from 'crypto';
@@ -895,16 +895,118 @@ async function showGenDetail(ctx: Context, telegramId: string, idx: number) {
   state.genTopic = topic || (GEN_TYPE_LABELS[gen.type] ?? gen.type);
 
   const icon = genStatusIcon(gen.status);
-  const label = GEN_TYPE_LABELS[gen.type] ?? gen.type;
+  const label = sanitizeMd(GEN_TYPE_LABELS[gen.type] ?? gen.type);
   const date = new Date(gen.createdAt).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 
   const text = `${icon} *${label}*${topic ? `\nТема: _${sanitizeMd(topic)}_` : ''}\nДата: ${date}\nСтатус: ${gen.status}`;
 
   const kb = new InlineKeyboard();
-  if (gen.status === 'completed') kb.text('📚 Выдать классу', 'pf:hw');
+  if (gen.status === 'completed') {
+    kb.text('👁 Посмотреть', 'pf:gv').text('📚 Выдать классу', 'pf:hw');
+  }
   kb.row().text('◀️ К списку', 'pf:gen');
 
   await ctx.reply(text, { parse_mode: 'Markdown', reply_markup: kb });
+}
+
+async function showGenContent(ctx: Context, telegramId: string) {
+  const state = getPlatformState(telegramId);
+  if (!state.genId) { await ctx.reply('❌ Нет выбранной генерации. Вернитесь к списку.'); return; }
+
+  const user = await prisma.appUser.findUnique({ where: { telegramId } }) as any;
+  if (!user) { await ctx.reply('❌ Аккаунт не найден.'); return; }
+
+  const apiToken = await getApiToken(user.username, await ensureApiKey(user)).catch(() => null);
+  if (!apiToken) { await ctx.reply('❌ Ошибка авторизации.'); return; }
+
+  let gen: any;
+  try {
+    gen = await callApi(apiToken, `generate/${state.genId}`);
+  } catch {
+    await ctx.reply('❌ Не удалось загрузить генерацию. Попробуйте позже.');
+    return;
+  }
+
+  if (!gen || gen.status !== 'completed') {
+    await ctx.reply('⏳ Генерация ещё не завершена.');
+    return;
+  }
+
+  const type: string = gen.generationType ?? gen.type ?? '';
+  const label = GEN_TYPE_LABELS[type] ?? sanitizeMd(type);
+  const caption = `${label}${state.genTopic ? `: ${state.genTopic}` : ''}`;
+
+  // Игры — ссылка, файл не нужен
+  if (type === 'game_generation') {
+    const out = gen.outputData as any;
+    const url: string | null = out?.url ?? out?.gameUrl ?? null;
+    if (url) {
+      await ctx.reply('🎮 Игра готова!', { reply_markup: new InlineKeyboard().url('🎮 Открыть игру', url) });
+    } else {
+      await ctx.reply('❌ URL игры не найден.');
+    }
+    return;
+  }
+
+  await ctx.reply('⏳ Готовлю файл...');
+
+  const PDF_TIMEOUT = AbortSignal.timeout(90_000);
+
+  // Изображения — скачать через /image и отправить файлом
+  if (['image_generation', 'photosession', 'image'].includes(type)) {
+    try {
+      const resp = await fetch(`${API_URL}/api/generate/${state.genId}/image`, {
+        headers: { 'Authorization': `Bearer ${apiToken}` },
+        signal: AbortSignal.timeout(30_000),
+      });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const buffer = Buffer.from(await resp.arrayBuffer());
+      const ct = resp.headers.get('content-type') ?? 'image/jpeg';
+      const ext = ct.includes('png') ? 'png' : 'jpg';
+      await ctx.replyWithDocument(new InputFile(buffer, `image.${ext}`), { caption });
+    } catch (err: any) {
+      console.error(`[PF] image download error for ${telegramId}:`, err);
+      await ctx.reply('❌ Не удалось получить изображение.');
+    }
+    return;
+  }
+
+  // Презентации — PDF через /presentation/pdf
+  if (type === 'presentation') {
+    try {
+      const resp = await fetch(`${API_URL}/api/generate/${state.genId}/presentation/pdf`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${apiToken}`, 'Content-Type': 'application/json' },
+        signal: PDF_TIMEOUT,
+      });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const buffer = Buffer.from(await resp.arrayBuffer());
+      await ctx.replyWithDocument(new InputFile(buffer, 'presentation.pdf'), { caption });
+    } catch (err: any) {
+      console.error(`[PF] presentation PDF error for ${telegramId}:`, err);
+      await ctx.reply('❌ Не удалось создать PDF презентации.');
+    }
+    return;
+  }
+
+  // Все текстовые типы — PDF через /pdf
+  try {
+    const resp = await fetch(`${API_URL}/api/generate/${state.genId}/pdf`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${apiToken}`, 'Content-Type': 'application/json' },
+      signal: PDF_TIMEOUT,
+    });
+    if (!resp.ok) {
+      const errBody = await resp.json().catch(() => ({ message: `HTTP ${resp.status}` })) as any;
+      throw new Error(errBody.message ?? `HTTP ${resp.status}`);
+    }
+    const buffer = Buffer.from(await resp.arrayBuffer());
+    const filename = `${type}_${Date.now()}.pdf`;
+    await ctx.replyWithDocument(new InputFile(buffer, filename), { caption });
+  } catch (err: any) {
+    console.error(`[PF] PDF export error for ${telegramId}:`, err);
+    await ctx.reply('❌ Не удалось создать PDF. Попробуйте позже.');
+  }
 }
 
 async function showClasses(ctx: Context, telegramId: string) {
@@ -1019,7 +1121,7 @@ async function showHomeworkClassPicker(ctx: Context, telegramId: string) {
   });
 
   await ctx.reply(
-    `📚 Выдать *«${state.genTopic ?? 'материал'}»* классу:\n\n${lines}\n\nВыберите класс:`,
+    `📚 Выдать *«${sanitizeMd(state.genTopic ?? 'материал')}»* классу:\n\n${lines}\n\nВыберите класс:`,
     { parse_mode: 'Markdown', reply_markup: kb },
   );
 }
@@ -1317,6 +1419,9 @@ bot.on('callback_query:data', async (ctx: Context) => {
       const idx = parseInt(data.slice(6), 10);
       if (!Number.isFinite(idx) || idx < 0 || idx > 49) return;
       await showClassDetail(ctx, telegramId, idx);
+
+    } else if (data === 'pf:gv') {
+      await showGenContent(ctx, telegramId);
 
     } else if (data === 'pf:hw') {
       await showHomeworkClassPicker(ctx, telegramId);
