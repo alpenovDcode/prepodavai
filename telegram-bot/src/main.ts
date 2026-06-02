@@ -170,6 +170,8 @@ const regStates = new Map<string, RegistrationState>();
 const genSessions = new Map<string, GenerationSession>();
 const lastGenAt = new Map<string, number>();
 const platformStates = new Map<string, PlatformState>();
+const jwtCache = new Map<string, { token: string; expiresAt: number }>();
+const JWT_CACHE_TTL = 8 * 60_000;
 
 // ── Generation session helpers ────────────────────────────────────────────────
 function createGenSession(telegramId: string, toolKey: string): GenerationSession {
@@ -319,6 +321,11 @@ async function ensureApiKey(user: any): Promise<string> {
 }
 
 async function getApiToken(username: string, apiKey: string): Promise<string | null> {
+  const cached = jwtCache.get(username);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.token;
+  }
+
   const maskedKey = apiKey ? `${apiKey.slice(0, 4)}...${apiKey.slice(-4)}` : 'null';
   console.log(`[Auth] login attempt: username=${username} apiKey=${maskedKey}`);
   try {
@@ -333,7 +340,17 @@ async function getApiToken(username: string, apiKey: string): Promise<string | n
       return null;
     }
     const data = await resp.json() as any;
-    return data.token ?? null;
+    const token = data.token ?? null;
+    if (token) {
+      if (jwtCache.size > 1000) {
+        const now = Date.now();
+        for (const [k, v] of jwtCache) {
+          if (v.expiresAt <= now) jwtCache.delete(k);
+        }
+      }
+      jwtCache.set(username, { token, expiresAt: Date.now() + JWT_CACHE_TTL });
+    }
+    return token;
   } catch (err) {
     console.error(`[Auth] login-with-api-key network error:`, err);
     return null;
