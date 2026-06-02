@@ -97,7 +97,9 @@ interface PlatformState {
   genOffset: number;
   classes: Array<{ id: string; name: string; studentCount: number }>;
   genId?: string;
+  genType?: string;
   genTopic?: string;
+  genGameUrl?: string;
 }
 
 // ── Константы: регистрация ────────────────────────────────────────────────────
@@ -891,6 +893,8 @@ async function showGenDetail(ctx: Context, telegramId: string, idx: number) {
   if (!gen) { await ctx.reply('❌ Генерация не найдена.'); return; }
 
   state.genId = gen.id;
+  state.genType = gen.type ?? '';
+  state.genGameUrl = gen.type === 'game_generation' ? ((gen.result as any)?.url ?? (gen.result as any)?.gameUrl ?? undefined) : undefined;
   const topic = extractGenTopic(gen.params);
   state.genTopic = topic || (GEN_TYPE_LABELS[gen.type] ?? gen.type);
 
@@ -919,27 +923,13 @@ async function showGenContent(ctx: Context, telegramId: string) {
   const apiToken = await getApiToken(user.username, await ensureApiKey(user)).catch(() => null);
   if (!apiToken) { await ctx.reply('❌ Ошибка авторизации.'); return; }
 
-  let gen: any;
-  try {
-    gen = await callApi(apiToken, `generate/${state.genId}`);
-  } catch {
-    await ctx.reply('❌ Не удалось загрузить генерацию. Попробуйте позже.');
-    return;
-  }
-
-  if (!gen || gen.status !== 'completed') {
-    await ctx.reply('⏳ Генерация ещё не завершена.');
-    return;
-  }
-
-  const type: string = gen.generationType ?? gen.type ?? '';
+  const type: string = state.genType ?? '';
   const label = GEN_TYPE_LABELS[type] ?? sanitizeMd(type);
   const caption = `${label}${state.genTopic ? `: ${state.genTopic}` : ''}`;
 
   // Игры — ссылка, файл не нужен
   if (type === 'game_generation') {
-    const out = gen.outputData as any;
-    const url: string | null = out?.url ?? out?.gameUrl ?? null;
+    const url = state.genGameUrl ?? null;
     if (url) {
       await ctx.reply('🎮 Игра готова!', { reply_markup: new InlineKeyboard().url('🎮 Открыть игру', url) });
     } else {
