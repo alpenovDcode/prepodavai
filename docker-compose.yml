@@ -191,6 +191,13 @@ services:
       TELEGRAM_CHANNEL_ID: ${TELEGRAM_CHANNEL_ID:-}
       TELEGRAM_CHANNEL_URL: ${TELEGRAM_CHANNEL_URL:-https://t.me/esvasilevaru}
       TELEGRAM_INTRO_VIDEO_ID: ${TELEGRAM_INTRO_VIDEO_ID:-}
+      # Прорыв-LMS — режим «наблюдатель». На каждый Telegram-update параллельно
+      # шлём POST в LMS, чтобы там копились подписчики/теги/UTM и работал
+      # Bitrix24-синк. LMS не отвечает в Telegram, чтобы не дублировать.
+      # Если переменные пусты — middleware просто не подключается.
+      LMS_WEBHOOK_URL: ${LMS_WEBHOOK_URL:-}
+      LMS_WEBHOOK_SECRET: ${LMS_WEBHOOK_SECRET:-}
+      LMS_FORWARD_TIMEOUT_MS: ${LMS_FORWARD_TIMEOUT_MS:-3000}
     depends_on:
       postgres:
         condition: service_healthy

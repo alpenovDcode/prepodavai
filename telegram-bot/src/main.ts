@@ -75,6 +75,52 @@ const bot = new Bot(process.env.TELEGRAM_BOT_TOKEN || '', {
   client: buildBotClientConfig(),
 });
 
+// ── Форвард апдейтов в LMS (Прорыв-LMS — режим «наблюдатель») ────────────────
+//
+// Если заданы LMS_WEBHOOK_URL + LMS_WEBHOOK_SECRET, на каждый Telegram-апдейт
+// мы дополнительно отправляем POST в LMS с теми же байтами, что прислал TG.
+// LMS подключает бота в режиме connectionMode=forwarded — она НЕ ставит
+// свой webhook (наш polling остаётся главным) и НЕ отправляет ничего в TG,
+// только наблюдает: создаёт подписчиков, копит теги/UTM, синкает в Bitrix24.
+//
+// Дизайн:
+//   • fire-and-forget — не блокируем основную обработку;
+//     если LMS лежит / медленно отвечает / упал прокси — это никак не
+//     влияет на работу бота для пользователя;
+//   • AbortSignal.timeout — жёсткий потолок, чтобы запрос не висел;
+//   • ошибки логируем, но НЕ кидаем — grammy продолжит работать;
+//   • заголовок X-Telegram-Bot-Api-Secret-Token подписывает запрос,
+//     LMS сравнивает его с TgBot.webhookSecret и отбрасывает чужое.
+const LMS_WEBHOOK_URL = process.env.LMS_WEBHOOK_URL || '';
+const LMS_WEBHOOK_SECRET = process.env.LMS_WEBHOOK_SECRET || '';
+const LMS_FORWARD_TIMEOUT_MS = Number(process.env.LMS_FORWARD_TIMEOUT_MS || 3000);
+
+if (LMS_WEBHOOK_URL && LMS_WEBHOOK_SECRET) {
+  console.log(`[LMS-forward] активен → ${LMS_WEBHOOK_URL}`);
+  bot.use(async (ctx, next) => {
+    // НЕ ждём ответа — отправка идёт параллельно основной обработке.
+    void fetch(LMS_WEBHOOK_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Telegram-Bot-Api-Secret-Token': LMS_WEBHOOK_SECRET,
+      },
+      body: JSON.stringify(ctx.update),
+      signal: AbortSignal.timeout(LMS_FORWARD_TIMEOUT_MS),
+    }).catch((err) => {
+      // Логируем только нештатные ошибки, чтобы не засорять логи нормальной
+      // работой. AbortError при тайм-ауте тоже идёт сюда — это OK.
+      console.warn(
+        `[LMS-forward] не удалось переслать update ${ctx.update.update_id}:`,
+        err?.message ?? err,
+      );
+    });
+    await next();
+  });
+} else {
+  console.log('[LMS-forward] выключен (LMS_WEBHOOK_URL / LMS_WEBHOOK_SECRET не заданы)');
+}
+
 // ── Типы: регистрация ─────────────────────────────────────────────────────────
 type RegStep = 'awaiting_email';
 
