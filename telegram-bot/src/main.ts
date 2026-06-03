@@ -146,6 +146,9 @@ interface PlatformState {
   genType?: string;
   genTopic?: string;
   genGameUrl?: string;
+  classStudents?: Array<{ id: string; name: string }>;
+  selectedClassIdx?: number;
+  pendingAssignGens?: Array<{ id: string; type: string; topic: string }>;
 }
 
 // ── Константы: регистрация ────────────────────────────────────────────────────
@@ -272,6 +275,12 @@ function buildToolSelectionKeyboard(): InlineKeyboard {
     if (i > 0 && i % 2 === 0) kb.row();
     kb.text(`${tool.emoji} ${tool.label}`, `g:t:${tool.key}`);
   });
+  return kb;
+}
+
+function buildToolSelectionKeyboardWithAssign(): InlineKeyboard {
+  const kb = buildToolSelectionKeyboard();
+  kb.row().text('📚 Выдать классу/ученикам', 'pf:hw');
   return kb;
 }
 
@@ -952,7 +961,8 @@ async function showGenDetail(ctx: Context, telegramId: string, idx: number) {
 
   const kb = new InlineKeyboard();
   if (gen.status === 'completed') {
-    kb.text('👁 Посмотреть', 'pf:gv').text('📚 Выдать классу', 'pf:hw');
+    kb.text('👁 Посмотреть', 'pf:gv');
+    kb.row().text('📚 Выдать классу', 'pf:hw').text('👤 Выдать ученику', 'pf:hws');
   }
   kb.row().text('◀️ К списку', 'pf:gen');
 
@@ -1121,18 +1131,37 @@ async function showClassDetail(ctx: Context, telegramId: string, idx: number) {
   const lines = students.map((s: any, i: number) => `${i + 1}. ${sanitizeMd(s.name)}${riskIcon(s.id)}`).join('\n');
   const legendLine = Object.values(riskMap).some(v => v === 'risk' || v === 'watch') ? '\n\n🔴 риск  🟡 внимание' : '';
 
-  await ctx.reply(`📚 *${sanitizeMd(cls.name)}* — ${students.length} уч.\n\n${lines}${legendLine}`, { parse_mode: 'Markdown' });
+  const clsKb = new InlineKeyboard().text('📚 Выдать задание классу', `pf:cla:${idx}`);
+  await ctx.reply(`📚 *${sanitizeMd(cls.name)}* — ${students.length} уч.\n\n${lines}${legendLine}`, { parse_mode: 'Markdown', reply_markup: clsKb });
 }
 
 async function showHomeworkClassPicker(ctx: Context, telegramId: string) {
   const state = getPlatformState(telegramId);
-  if (!state.genId) { await ctx.reply('❌ Выберите генерацию из списка сначала: «' + BTN_MYGENS + '».'); return; }
 
   const user = await prisma.appUser.findUnique({ where: { telegramId } }) as any;
   if (!user) { await ctx.reply('❌ Аккаунт не найден. Используйте /start.'); return; }
 
   const apiToken = await getApiToken(user.username, await ensureApiKey(user)).catch(() => null);
   if (!apiToken) { await ctx.reply('❌ Ошибка авторизации.'); return; }
+
+  // Если genId не задан — берём последнюю завершённую генерацию автоматически
+  if (!state.genId) {
+    try {
+      const data = await callApi(apiToken, 'generate/history?limit=10&offset=0');
+      const gen = (data.generations ?? []).find((g: any) => g.status === 'completed');
+      if (!gen) {
+        await ctx.reply('❌ Нет завершённых генераций. Сначала создайте материал: «' + BTN_CREATE + '».');
+        return;
+      }
+      state.genId = gen.id;
+      state.genType = gen.type ?? '';
+      const topic = extractGenTopic(gen.params);
+      state.genTopic = topic || (GEN_TYPE_LABELS[gen.type] ?? gen.type);
+    } catch {
+      await ctx.reply('❌ Выберите генерацию из списка: «' + BTN_MYGENS + '».');
+      return;
+    }
+  }
 
   if (!state.classes.length) {
     try {
@@ -1158,6 +1187,62 @@ async function showHomeworkClassPicker(ctx: Context, telegramId: string) {
 
   await ctx.reply(
     `📚 Выдать *«${sanitizeMd(state.genTopic ?? 'материал')}»* классу:\n\n${lines}\n\nВыберите класс:`,
+    { parse_mode: 'Markdown', reply_markup: kb },
+  );
+}
+
+async function showHomeworkStudentClassPicker(ctx: Context, telegramId: string) {
+  const state = getPlatformState(telegramId);
+
+  const user = await prisma.appUser.findUnique({ where: { telegramId } }) as any;
+  if (!user) { await ctx.reply('❌ Аккаунт не найден. Используйте /start.'); return; }
+
+  const apiToken = await getApiToken(user.username, await ensureApiKey(user)).catch(() => null);
+  if (!apiToken) { await ctx.reply('❌ Ошибка авторизации.'); return; }
+
+  // Если genId не задан — берём последнюю завершённую генерацию автоматически
+  if (!state.genId) {
+    try {
+      const data = await callApi(apiToken, 'generate/history?limit=10&offset=0');
+      const gen = (data.generations ?? []).find((g: any) => g.status === 'completed');
+      if (!gen) {
+        await ctx.reply('❌ Нет завершённых генераций. Сначала создайте материал: «' + BTN_CREATE + '».');
+        return;
+      }
+      state.genId = gen.id;
+      state.genType = gen.type ?? '';
+      const topic = extractGenTopic(gen.params);
+      state.genTopic = topic || (GEN_TYPE_LABELS[gen.type] ?? gen.type);
+    } catch {
+      await ctx.reply('❌ Выберите генерацию из списка: «' + BTN_MYGENS + '».');
+      return;
+    }
+  }
+
+  if (!state.classes.length) {
+    try {
+      const classes = await callApi(apiToken, 'classes');
+      state.classes = classes.map((c: any) => ({ id: c.id, name: c.name, studentCount: c._count?.students ?? 0 }));
+    } catch {
+      await ctx.reply('❌ Не удалось загрузить классы.');
+      return;
+    }
+  }
+
+  if (!state.classes.length) {
+    await ctx.reply('📚 Классов нет. Создайте класс на prepodavai.ru.');
+    return;
+  }
+
+  const lines = state.classes.map((c, i) => `${i + 1}. *${sanitizeMd(c.name)}* — ${c.studentCount} уч.`).join('\n');
+  const kb = new InlineKeyboard();
+  state.classes.forEach((_, i) => {
+    if (i > 0 && i % 3 === 0) kb.row();
+    kb.text(`${i + 1}`, `pf:hwsc:${i}`);
+  });
+
+  await ctx.reply(
+    `👤 Выдать *«${sanitizeMd(state.genTopic ?? 'материал')}»* ученику\n\nВыберите класс:\n\n${lines}`,
     { parse_mode: 'Markdown', reply_markup: kb },
   );
 }
@@ -1194,6 +1279,155 @@ async function assignHomework(ctx: Context, telegramId: string, classIdx: number
     await ctx.reply(`✅ *Задание выдано классу «${sanitizeMd(cls.name)}»!*\n\nМатериал: _${sanitizeMd(topicTitle)}_`, { parse_mode: 'Markdown' });
   } catch (err: any) {
     console.error(`[PF] assignHomework error for ${telegramId}:`, err);
+    await ctx.reply('❌ Не удалось создать задание. Попробуйте позже.');
+  }
+}
+
+async function showClassGenPicker(ctx: Context, telegramId: string, classIdx: number) {
+  const state = getPlatformState(telegramId);
+  if (!state.classes[classIdx]) { await ctx.reply('❌ Класс не найден.'); return; }
+
+  const user = await prisma.appUser.findUnique({ where: { telegramId } }) as any;
+  if (!user) { await ctx.reply('❌ Аккаунт не найден.'); return; }
+
+  const apiToken = await getApiToken(user.username, await ensureApiKey(user)).catch(() => null);
+  if (!apiToken) { await ctx.reply('❌ Ошибка авторизации.'); return; }
+
+  let data: any;
+  try {
+    data = await callApi(apiToken, 'generate/history?limit=10&offset=0');
+  } catch {
+    await ctx.reply('❌ Не удалось загрузить генерации.');
+    return;
+  }
+
+  const completed = (data.generations ?? []).filter((g: any) => g.status === 'completed');
+  if (!completed.length) {
+    await ctx.reply('📋 Нет завершённых генераций. Создайте материал: «' + BTN_CREATE + '».');
+    return;
+  }
+
+  state.selectedClassIdx = classIdx;
+  state.pendingAssignGens = completed.slice(0, 5).map((g: any) => ({
+    id: g.id,
+    type: g.type ?? '',
+    topic: extractGenTopic(g.params) || (GEN_TYPE_LABELS[g.type] ?? g.type),
+  }));
+
+  const cls = state.classes[classIdx];
+  const pendingGens = state.pendingAssignGens!;
+  const lines = pendingGens.map((g, i) => {
+    const label = sanitizeMd(GEN_TYPE_LABELS[g.type] ?? g.type);
+    const topic = sanitizeMd(g.topic);
+    return `${i + 1}. ${label}${topic ? `: _${topic}_` : ''}`;
+  }).join('\n');
+
+  const kb = new InlineKeyboard();
+  pendingGens.forEach((_, i) => {
+    if (i > 0 && i % 3 === 0) kb.row();
+    kb.text(`${i + 1}`, `pf:clay:${i}`);
+  });
+
+  await ctx.reply(
+    `📚 Выдать задание классу *«${sanitizeMd(cls.name)}»*\n\nВыберите материал:\n\n${lines}`,
+    { parse_mode: 'Markdown', reply_markup: kb },
+  );
+}
+
+async function assignHomeworkFromClass(ctx: Context, telegramId: string, genIdx: number) {
+  const state = getPlatformState(telegramId);
+  const gen = state.pendingAssignGens?.[genIdx];
+  const classIdx = state.selectedClassIdx;
+
+  if (!gen || classIdx === undefined || !state.classes[classIdx]) {
+    await ctx.reply('❌ Данные устарели. Начните заново.');
+    return;
+  }
+
+  state.genId = gen.id;
+  state.genTopic = gen.topic;
+  await assignHomework(ctx, telegramId, classIdx);
+}
+
+async function showStudentPicker(ctx: Context, telegramId: string, classIdx: number) {
+  const state = getPlatformState(telegramId);
+  if (!state.classes[classIdx]) { await ctx.reply('❌ Класс не найден.'); return; }
+
+  const user = await prisma.appUser.findUnique({ where: { telegramId } }) as any;
+  if (!user) { await ctx.reply('❌ Аккаунт не найден.'); return; }
+
+  const apiToken = await getApiToken(user.username, await ensureApiKey(user)).catch(() => null);
+  if (!apiToken) { await ctx.reply('❌ Ошибка авторизации.'); return; }
+
+  const cls = state.classes[classIdx];
+  let classData: any;
+  try {
+    classData = await callApi(apiToken, `classes/${cls.id}`);
+  } catch {
+    await ctx.reply('❌ Не удалось загрузить учеников класса.');
+    return;
+  }
+
+  const allStudents: any[] = classData.students ?? [];
+  if (!allStudents.length) {
+    await ctx.reply(`📚 В классе *${sanitizeMd(cls.name)}* нет учеников.`, { parse_mode: 'Markdown' });
+    return;
+  }
+
+  const students = allStudents.slice(0, 50);
+  state.classStudents = students.map((s: any) => ({ id: s.id, name: s.name }));
+  state.selectedClassIdx = classIdx;
+
+  const lines = students.map((s: any, i: number) => `${i + 1}. ${sanitizeMd(s.name)}`).join('\n');
+  const suffix = allStudents.length > 50 ? `\n\n_Показаны первые 50 из ${allStudents.length} учеников_` : '';
+  const kb = new InlineKeyboard();
+  students.forEach((_: any, i: number) => {
+    if (i > 0 && i % 3 === 0) kb.row();
+    kb.text(`${i + 1}`, `pf:hwss:${i}`);
+  });
+
+  await ctx.reply(
+    `👤 Выдать *«${sanitizeMd(state.genTopic ?? 'материал')}»*\n\nКласс: *${sanitizeMd(cls.name)}*\n\nВыберите ученика:\n\n${lines}${suffix}`,
+    { parse_mode: 'Markdown', reply_markup: kb },
+  );
+}
+
+async function assignHomeworkToStudent(ctx: Context, telegramId: string, studentIdx: number) {
+  const state = getPlatformState(telegramId);
+  const student = state.classStudents?.[studentIdx];
+
+  if (!state.genId || !student) {
+    await ctx.reply('❌ Данные устарели. Начните заново: «' + BTN_MYGENS + '».');
+    return;
+  }
+
+  const user = await prisma.appUser.findUnique({ where: { telegramId } }) as any;
+  if (!user) { await ctx.reply('❌ Аккаунт не найден.'); return; }
+
+  const apiToken = await getApiToken(user.username, await ensureApiKey(user)).catch(() => null);
+  if (!apiToken) { await ctx.reply('❌ Ошибка авторизации.'); return; }
+
+  const topicTitle = state.genTopic || 'Материал из Telegram';
+  await ctx.reply('⏳ Создаю задание...');
+
+  try {
+    const lesson = await callApi(apiToken, 'lessons', 'POST', { topic: topicTitle });
+    await callApi(apiToken, 'assignments', 'POST', {
+      lessonId: lesson.id,
+      studentId: student.id,
+      generationId: state.genId,
+    });
+
+    state.genId = undefined;
+    state.genTopic = undefined;
+    state.classStudents = undefined;
+
+    await ctx.reply(
+      `✅ *Задание выдано ученику «${sanitizeMd(student.name)}»!*\n\nМатериал: _${sanitizeMd(topicTitle)}_`,
+      { parse_mode: 'Markdown' },
+    );
+  } catch (err: any) {
+    console.error(`[PF] assignHomeworkToStudent error for ${telegramId}:`, err);
     await ctx.reply('❌ Не удалось создать задание. Попробуйте позже.');
   }
 }
@@ -1247,20 +1481,18 @@ function buildSubscriptionKeyboard(): InlineKeyboard {
     .text('Я ПОДПИСАЛСЯ', 'sub:check');
 }
 
-async function checkChannelSubscription(_telegramId: string): Promise<boolean> {
-  // TODO: раскомментировать когда бот будет добавлен в канал
-  return true;
-  // if (!TELEGRAM_CHANNEL_ID) {
-  //   console.warn('[Sub] TELEGRAM_CHANNEL_ID not configured — skipping check, granting access');
-  //   return true;
-  // }
-  // try {
-  //   const member = await bot.api.getChatMember(TELEGRAM_CHANNEL_ID, parseInt(_telegramId, 10));
-  //   return ['member', 'administrator', 'creator'].includes(member.status);
-  // } catch (err: any) {
-  //   console.error(`[Sub] Subscription check failed: ${err?.message}`);
-  //   return false;
-  // }
+async function checkChannelSubscription(telegramId: string): Promise<boolean> {
+  if (!TELEGRAM_CHANNEL_ID) {
+    console.warn('[Sub] TELEGRAM_CHANNEL_ID not configured — skipping check, granting access');
+    return true;
+  }
+  try {
+    const member = await bot.api.getChatMember(TELEGRAM_CHANNEL_ID, parseInt(telegramId, 10));
+    return ['member', 'administrator', 'creator'].includes(member.status);
+  } catch (err: any) {
+    console.error(`[Sub] Subscription check failed: ${err?.message}`);
+    return false;
+  }
 }
 
 async function sendActivationFlow(ctx: Context): Promise<void> {
@@ -1325,6 +1557,11 @@ async function handleSubscriptionCheck(ctx: Context, telegramId: string): Promis
     `Добро пожаловать в Преподавай 🎓\n\nЯ Ваш интеллектуальный помощник для:\n— Создания учебных материалов\n— Планирования уроков\n— Создания красочных презентаций\n— Методической поддержки\n— Создания интерактивных игр${balanceLine}`,
     { reply_markup: buildMainMenuKeyboard() },
   );
+  await ctx.reply(
+    '🚀 *Как пользоваться:*\n\n1. Выберите инструмент из списка ниже\n2. Ответьте на несколько вопросов\n3. Получите готовый материал в PDF\n\nКаждая генерация стоит *3 токена*.',
+    { parse_mode: 'Markdown' },
+  );
+  await ctx.reply('🛠️ *Выберите инструмент:*', { parse_mode: 'Markdown', reply_markup: buildToolSelectionKeyboard() });
 }
 
 // ── Команда /start ────────────────────────────────────────────────────────────
@@ -1394,6 +1631,11 @@ bot.command('start', async (ctx: Context) => {
       `Добро пожаловать в Преподавай 🎓\n\nЯ Ваш интеллектуальный помощник для:\n— Создания учебных материалов\n— Планирования уроков\n— Создания красочных презентаций\n— Методической поддержки\n— Создания интерактивных игр${balanceLine}`,
       { reply_markup: buildMainMenuKeyboard() },
     );
+    await ctx.reply(
+      '🚀 *Как пользоваться:*\n\n1. Выберите инструмент из списка ниже\n2. Ответьте на несколько вопросов\n3. Получите готовый материал в PDF\n\nКаждая генерация стоит *3 токена*.',
+      { parse_mode: 'Markdown' },
+    );
+    await ctx.reply('🛠️ *Выберите инструмент:*', { parse_mode: 'Markdown', reply_markup: buildToolSelectionKeyboard() });
     return;
   }
 
@@ -1466,6 +1708,29 @@ bot.on('callback_query:data', async (ctx: Context) => {
       const idx = parseInt(data.slice(7), 10);
       if (!Number.isFinite(idx) || idx < 0 || idx > 49) return;
       await assignHomework(ctx, telegramId, idx);
+
+    } else if (data === 'pf:hws') {
+      await showHomeworkStudentClassPicker(ctx, telegramId);
+
+    } else if (data.startsWith('pf:hwsc:')) {
+      const idx = parseInt(data.slice(8), 10);
+      if (!Number.isFinite(idx) || idx < 0 || idx > 49) return;
+      await showStudentPicker(ctx, telegramId, idx);
+
+    } else if (data.startsWith('pf:hwss:')) {
+      const idx = parseInt(data.slice(8), 10);
+      if (!Number.isFinite(idx) || idx < 0 || idx > 49) return;
+      await assignHomeworkToStudent(ctx, telegramId, idx);
+
+    } else if (data.startsWith('pf:cla:')) {
+      const idx = parseInt(data.slice(7), 10);
+      if (!Number.isFinite(idx) || idx < 0 || idx > 49) return;
+      await showClassGenPicker(ctx, telegramId, idx);
+
+    } else if (data.startsWith('pf:clay:')) {
+      const idx = parseInt(data.slice(8), 10);
+      if (!Number.isFinite(idx) || idx < 0 || idx > 4) return;
+      await assignHomeworkFromClass(ctx, telegramId, idx);
 
     } else if (data === 'pf:ana') {
       await showAnalytics(ctx, telegramId);
@@ -1641,7 +1906,7 @@ bot.on('callback_query:data', async (ctx: Context) => {
         const kb = new InlineKeyboard().url('🎮 Открыть игру', result.url);
         await ctx.reply(`🎮 *Игра готова!*\n\nТема: _${session.params.topic}_\n\nНажмите кнопку, чтобы открыть:`, { parse_mode: 'Markdown', reply_markup: kb });
         await ctx.reply(`💳 Осталось токенов: *${tokenResult.remaining}*`, { parse_mode: 'Markdown' });
-        await ctx.reply('🛠️ *Выберите инструмент:*', { parse_mode: 'Markdown', reply_markup: buildToolSelectionKeyboard() });
+        await ctx.reply('🛠️ *Выберите инструмент:*', { parse_mode: 'Markdown', reply_markup: buildToolSelectionKeyboardWithAssign() });
       } else {
         let apiParams: Record<string, any> = { ...session.params };
         if (tool.key === 'lesson-preparation' && typeof apiParams.generationTypes === 'string') {

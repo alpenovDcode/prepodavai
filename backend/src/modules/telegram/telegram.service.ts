@@ -410,6 +410,7 @@ export class TelegramService {
             [{ text: '📖 Словарь', callback_data: 'g:t:vocabulary' }, { text: '📋 Конструктор уроков', callback_data: 'g:t:lesson-plan' }],
             [{ text: '✨ Вау-урок', callback_data: 'g:t:lesson-preparation' }, { text: '🖼️ Генератор изображений', callback_data: 'g:t:image' }],
             [{ text: '🎮 Обучающая игра', callback_data: 'g:t:game' }, { text: '📊 Презентация', callback_data: 'g:t:presentation' }],
+            [{ text: '📚 Выдать классу/ученикам', callback_data: 'pf:hw' }],
           ],
         },
       }).catch(() => {});
