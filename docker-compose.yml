@@ -191,6 +191,7 @@ services:
       TELEGRAM_CHANNEL_ID: ${TELEGRAM_CHANNEL_ID:-}
       TELEGRAM_CHANNEL_URL: ${TELEGRAM_CHANNEL_URL:-https://t.me/esvasilevaru}
       TELEGRAM_INTRO_VIDEO_ID: ${TELEGRAM_INTRO_VIDEO_ID:-}
+      REPLICATE_API_TOKEN: ${REPLICATE_API_TOKEN}
       # Прорыв-LMS — режим «наблюдатель». На каждый Telegram-update параллельно
       # шлём POST в LMS, чтобы там копились подписчики/теги/UTM и работал
       # Bitrix24-синк. LMS не отвечает в Telegram, чтобы не дублировать.

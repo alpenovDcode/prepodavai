@@ -139,6 +139,12 @@ interface GenerationSession {
 }
 
 // ── Типы: платформенные фичи ──────────────────────────────────────────────────
+interface NlParsedRequest {
+  action: 'generate' | 'show_history' | 'show_classes' | 'assign_homework' | 'unknown';
+  tool?: string;
+  params?: Record<string, string>;
+}
+
 interface PlatformState {
   genOffset: number;
   classes: Array<{ id: string; name: string; studentCount: number }>;
@@ -149,6 +155,8 @@ interface PlatformState {
   classStudents?: Array<{ id: string; name: string }>;
   selectedClassIdx?: number;
   pendingAssignGens?: Array<{ id: string; type: string; topic: string }>;
+  pendingNlRequest?: NlParsedRequest;
+  nlPending?: boolean;
 }
 
 // ── Константы: регистрация ────────────────────────────────────────────────────
@@ -171,6 +179,9 @@ function buildMainMenuKeyboard() {
     resize_keyboard: true,
   };
 }
+
+// ── Replicate / NL-интерфейс ──────────────────────────────────────────────────
+const REPLICATE_API_TOKEN = process.env.REPLICATE_API_TOKEN || '';
 
 // ── Подписка на канал ─────────────────────────────────────────────────────────
 const TELEGRAM_CHANNEL_ID = process.env.TELEGRAM_CHANNEL_ID || '';
@@ -362,6 +373,13 @@ async function askField(ctx: Context, tool: ToolConfig, session: GenerationSessi
 }
 
 async function nextStep(ctx: Context, session: GenerationSession, tool: ToolConfig) {
+  // Skip fields already pre-filled by NL parsing
+  while (
+    session.fieldIndex < tool.fields.length &&
+    session.params[tool.fields[session.fieldIndex].key] !== undefined
+  ) {
+    session.fieldIndex++;
+  }
   if (session.fieldIndex >= tool.fields.length) {
     const msg = buildConfirmMessage(tool, session.params);
     await ctx.reply(msg, { parse_mode: 'Markdown', reply_markup: buildConfirmKeyboard() });
@@ -752,15 +770,26 @@ async function handleLinkToken(ctx: Context, user: any, token: string) {
     return;
   }
 
-  // Очищаем незавершённую регистрацию если была активна
-  regStates.delete(user.id.toString());
+  // Очищаем любое активное состояние сессии
+  const telegramIdStr = user.id.toString();
+  regStates.delete(telegramIdStr);
+  genSessions.delete(telegramIdStr);
+  const psOnLink = platformStates.get(telegramIdStr);
+  if (psOnLink) { psOnLink.pendingNlRequest = undefined; psOnLink.nlPending = false; }
+
+  // Проверяем, был ли пользователь уже в боте ДО привязки
+  const preLinkBotUser = await (prisma as any).botUser.findUnique({
+    where: { telegramId: telegramIdStr },
+    select: { registrationStatus: true },
+  });
+  const wasOnboarded = preLinkBotUser && ['subscribed', 'linked', 'registered'].includes(preLinkBotUser.registrationStatus);
 
   // Create/update BotUser for this Telegram account
-  await (prisma as any).botUser.upsert({
-    where: { telegramId: user.id.toString() },
+  const linkedBotUser = await (prisma as any).botUser.upsert({
+    where: { telegramId: telegramIdStr },
     update: { appUserId: linkToken.userId, lastActiveAt: new Date(), registrationStatus: 'linked' },
     create: {
-      telegramId: user.id.toString(),
+      telegramId: telegramIdStr,
       appUserId: linkToken.userId,
       firstName: user.first_name || null,
       lastName: user.last_name || null,
@@ -772,7 +801,30 @@ async function handleLinkToken(ctx: Context, user: any, token: string) {
     } as any,
   });
 
-  await ctx.reply('✅ Telegram успешно привязан к вашему аккаунту Преподавай!\n\nТеперь вы будете получать результаты генерации прямо здесь.');
+  await ctx.reply('✅ Telegram успешно привязан к вашему аккаунту Преподавай!');
+
+  // Первый раз в боте → сначала проверка подписки на канал
+  if (!wasOnboarded) {
+    await sendActivationFlow(ctx);
+    return;
+  }
+
+  // Уже был в боте → сразу приветствие с меню
+  const sub = await (prisma as any).userSubscription.findUnique({ where: { userId: linkToken.userId } });
+  const displayBalance = sub && sub.status === 'active'
+    ? sub.creditsBalance + sub.extraCredits
+    : (linkedBotUser.botCredits ?? 0);
+  const balanceLine = `\n\n💳 Токенов на балансе: ${displayBalance}`;
+
+  await ctx.reply(
+    `Добро пожаловать в Преподавай 🎓\n\nЯ Ваш интеллектуальный помощник для:\n— Создания учебных материалов\n— Планирования уроков\n— Создания красочных презентаций\n— Методической поддержки\n— Создания интерактивных игр${balanceLine}`,
+    { reply_markup: buildMainMenuKeyboard() },
+  );
+  await ctx.reply(
+    '🚀 *Как пользоваться:*\n\n1. Выберите инструмент из списка ниже\n2. Ответьте на несколько вопросов\n3. Получите готовый материал в PDF\n\nКаждая генерация стоит *3 токена*.',
+    { parse_mode: 'Markdown' },
+  );
+  await ctx.reply('🛠️ *Выберите инструмент:*', { parse_mode: 'Markdown', reply_markup: buildToolSelectionKeyboard() });
 }
 
 // ── Token deduction helpers ───────────────────────────────────────────────────
@@ -1496,7 +1548,8 @@ async function checkChannelSubscription(telegramId: string): Promise<boolean> {
 }
 
 async function sendActivationFlow(ctx: Context): Promise<void> {
-  await ctx.reply('Коллега, рада вас видеть 👋');
+  // Явно убираем reply-клавиатуру — она могла остаться от предыдущей сессии
+  await ctx.reply('Коллега, рада вас видеть 👋', { reply_markup: { remove_keyboard: true } });
 
   const introVideoId = process.env.TELEGRAM_INTRO_VIDEO_ID;
   if (introVideoId) {
@@ -1604,6 +1657,8 @@ bot.command('start', async (ctx: Context) => {
     });
     regStates.delete(telegramId);
     genSessions.delete(telegramId);
+    const psOnStart = platformStates.get(telegramId);
+    if (psOnStart) { psOnStart.pendingNlRequest = undefined; psOnStart.nlPending = false; }
 
     // Найти или создать BotUser
     const botUser = await (prisma as any).botUser.upsert({
@@ -1621,6 +1676,13 @@ bot.command('start', async (ctx: Context) => {
         lastActiveAt: new Date(),
       } as any,
     });
+
+    // Первый раз в боте → сначала проверка подписки на канал
+    const ONBOARDED = ['subscribed', 'linked', 'registered'];
+    if (!ONBOARDED.includes(botUser.registrationStatus)) {
+      await sendActivationFlow(ctx);
+      return;
+    }
 
     const sub = await (prisma as any).userSubscription.findUnique({ where: { userId: existingUser.id } });
     const displayBalance = sub && sub.status === 'active'
@@ -1734,6 +1796,58 @@ bot.on('callback_query:data', async (ctx: Context) => {
 
     } else if (data === 'pf:ana') {
       await showAnalytics(ctx, telegramId);
+
+    } else if (data === 'pf:nl:go') {
+      const state = getPlatformState(telegramId);
+      const pending = state.pendingNlRequest;
+      state.pendingNlRequest = undefined; // clear before executing to avoid double-fire
+      if (!pending) return;
+      if (pending.action === 'generate' && pending.tool && pending.params) {
+        await startNlGenSession(ctx, telegramId, pending.tool, pending.params);
+      } else if (pending.action === 'show_history') {
+        state.genOffset = 0;
+        await showGenerations(ctx, telegramId, 0);
+      } else if (pending.action === 'show_classes') {
+        await showClasses(ctx, telegramId);
+      } else if (pending.action === 'assign_homework') {
+        await showHomeworkClassPicker(ctx, telegramId);
+      }
+
+    } else if (data === 'pf:nl:no') {
+      const state = getPlatformState(telegramId);
+      state.pendingNlRequest = undefined;
+      await ctx.reply('Понял, отменяю.');
+
+    } else if (data === 'pf:nl:edit') {
+      // Open the tool form from scratch (without NL pre-fill)
+      const state = getPlatformState(telegramId);
+      const pending = state.pendingNlRequest;
+      state.pendingNlRequest = undefined;
+      if (!pending?.tool) return;
+      const tool = getToolConfig(pending.tool);
+      if (!tool) return;
+      genSessions.delete(telegramId);
+      let session: GenerationSession;
+      try {
+        session = createGenSession(telegramId, pending.tool);
+      } catch (e: any) {
+        await ctx.reply(`⚠️ ${e.message}`);
+        return;
+      }
+      await askField(ctx, tool, session);
+
+    } else if (data === 'pf:nl:cont') {
+      // Continue existing gen-session (user chose to stay in the form)
+      const state = getPlatformState(telegramId);
+      state.pendingNlRequest = undefined;
+      const session = getGenSession(telegramId); // TTL-check built in
+      if (!session) {
+        await ctx.reply('⏰ Время заполнения формы истекло. Начните заново через меню.');
+        return;
+      }
+      const tool = getToolConfig(session.toolKey);
+      if (!tool) return;
+      await askField(ctx, tool, session);
     }
 
     return;
@@ -1942,6 +2056,180 @@ bot.on('callback_query:data', async (ctx: Context) => {
   }
 });
 
+// ── NL-интерфейс: парсинг запроса через Gemini Flash ─────────────────────────
+
+// Быстрая проверка: начинается ли текст с императивного глагола генерации.
+// Намеренно строго — только явные команды, чтобы "Создание атомов" как тема не триггерило.
+function looksLikeNlRequest(text: string): boolean {
+  return /^(сгенерируй|создай|сделай|составь|сделайте|создайте|сгенерируйте|составьте|хочу создать|хочу сгенерировать|мне нужн)/i.test(text.trim()) &&
+    text.trim().length > 15;
+}
+
+// Regex-фоллбек только для навигационных действий (генерацию без LLM точно не угадать)
+function nlNavFallback(text: string): NlParsedRequest {
+  const t = text.toLowerCase();
+  if (/история|мои ген|покажи ген|что я создавал|мои работы/.test(t)) return { action: 'show_history' };
+  if (/выдать|домашнее задание|задать|назначить задание/.test(t)) return { action: 'assign_homework' };
+  if (/мои классы|список классов|посмотреть классы/.test(t)) return { action: 'show_classes' };
+  return { action: 'unknown' };
+}
+
+async function parseNlRequest(text: string): Promise<NlParsedRequest> {
+  const input = text.trim().slice(0, 300);
+
+  if (!REPLICATE_API_TOKEN) return nlNavFallback(input);
+
+  const prompt =
+    'Ты классифицируешь запросы учителя для бота «Преподавай». Верни ТОЛЬКО JSON без пояснений.\n\n' +
+    'Форматы ответа:\n' +
+    '{"action":"generate","tool":"<key>","params":{<только найденные поля>}}\n' +
+    '{"action":"show_history"}\n' +
+    '{"action":"show_classes"}\n' +
+    '{"action":"assign_homework"}\n' +
+    '{"action":"unknown"}\n\n' +
+    'Инструменты:\n' +
+    'worksheet: рабочий лист. subject?(предмет), topic(тема), level("Младшие классы"|"Средняя школа"|"Старшие классы"|"Взрослые"|"Подготовка к ОГЭ"|"Подготовка к ЕГЭ"|"Студенты вузов"), questionsCount("5"|"10"|"15"|"20")\n' +
+    'quiz: тест. subject?, topic, level("1 Класс"..."11 Класс"), questionsCount("5"|"10"|"15"|"20"|"25"), answersCount("2"|"3"|"4")\n' +
+    'vocabulary: словарь. topic, language("ru"|"en"|"de"|"fr"|"es"|"it"|"zh"|"ko"|"ja"|"ar"), wordsCount("5"|"10"|"15"|"20"|"25"|"30")\n' +
+    'lesson-plan: план урока. subject?, topic, level("5 Класс"|"6 Класс"|"7 Класс"|"8 Класс"|"Старшая Школа"), duration("30"|"45"|"90"), style("Интерактивный"|"Лекция")\n' +
+    'lesson-preparation: Вау-урок. subject?, topic, level("1"..."11"), interests?, depth("short"|"standard"|"deep")\n' +
+    'image: изображение. prompt(описание), style("realistic"|"cartoon"|"sketch"|"illustration"|"3d-model"|"anime")\n' +
+    'game: игра. type("millionaire"|"flashcards"|"crossword"|"memory"|"truefalse"), topic\n' +
+    'presentation: презентация. topic, duration("5"|"15"|"30"|"45"), style("modern"|"academic"|"creative"|"corporate"), targetAudience("students"|"colleagues"|"parents"|"general")\n\n' +
+    'Правило: включай в params только поля явно упомянутые в запросе. Значения select строго из списка.\n\n' +
+    `Запрос: «${input}»`;
+
+  try {
+    const res = await fetch('https://api.replicate.com/v1/models/google/gemini-3-flash/predictions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${REPLICATE_API_TOKEN}`,
+        'Content-Type': 'application/json',
+        Prefer: 'wait',
+      },
+      body: JSON.stringify({ input: { prompt, max_new_tokens: 200, temperature: 0 } }),
+      signal: AbortSignal.timeout(15000),
+    });
+
+    if (!res.ok) return nlNavFallback(input);
+
+    const data: any = await res.json();
+    const raw: string = Array.isArray(data.output) ? data.output.join('') : (data.output ?? '');
+
+    const jsonMatch = raw.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return nlNavFallback(input);
+
+    let parsed: any;
+    try {
+      parsed = JSON.parse(jsonMatch[0]);
+    } catch {
+      return nlNavFallback(input);
+    }
+
+    if (!parsed.action) return { action: 'unknown' };
+
+    if (['show_history', 'show_classes', 'assign_homework', 'unknown'].includes(parsed.action)) {
+      return { action: parsed.action };
+    }
+
+    if (parsed.action === 'generate') {
+      const tool = getToolConfig(parsed.tool);
+      if (!tool) return { action: 'unknown' };
+
+      // Validate each param strictly against tool config to prevent injection
+      const validParams: Record<string, string> = {};
+      for (const field of tool.fields) {
+        if (field.type === 'multiselect') continue; // skip complex fields
+        const val = parsed.params?.[field.key];
+        if (val === undefined || val === null) continue;
+        const strVal = String(val).trim().slice(0, field.maxLength);
+        if (!strVal) continue;
+        if (field.type === 'select' && field.options) {
+          if (!field.options.some(o => o.value === strVal)) continue;
+        }
+        validParams[field.key] = strVal;
+      }
+
+      return { action: 'generate', tool: parsed.tool, params: validParams };
+    }
+
+    return { action: 'unknown' };
+  } catch {
+    return nlNavFallback(input);
+  }
+}
+
+// Строит сообщение подтверждения: показывает распознанные параметры + defaults
+function buildNlConfirmMessage(parsed: NlParsedRequest): string {
+  if (parsed.action === 'generate' && parsed.tool) {
+    const tool = getToolConfig(parsed.tool)!;
+    const lines: string[] = [`Понял! Вот что создам:\n\n${tool.emoji} *${tool.label}*`];
+
+    for (const field of tool.fields) {
+      if (field.type === 'multiselect') continue;
+      const fieldLabel = sanitizeMd(field.label.split('\n')[0]);
+      const detectedVal = parsed.params?.[field.key];
+      if (detectedVal !== undefined) {
+        const display = field.options?.find(o => o.value === detectedVal)?.label ?? detectedVal;
+        lines.push(`• ${fieldLabel}: ${sanitizeMd(display)}`);
+      } else if (field.default !== undefined) {
+        const display = field.options?.find(o => o.value === field.default)?.label ?? field.default;
+        lines.push(`• ${fieldLabel}: ${sanitizeMd(display)} _(по умолч.)_`);
+      }
+    }
+
+    const missingRequired = tool.fields.filter(
+      f => f.type !== 'multiselect' && f.required && parsed.params?.[f.key] === undefined && f.default === undefined,
+    );
+    if (missingRequired.length > 0) {
+      const names = missingRequired.map(f => sanitizeMd(f.label.split('\n')[0])).join(', ');
+      lines.push(`\n_Уточню дополнительно: ${names}_`);
+    }
+
+    lines.push('\nВсё верно?');
+    return lines.join('\n');
+  }
+
+  const navMessages: Record<string, string> = {
+    show_history: 'Правильно понял? Хотите посмотреть историю своих генераций.',
+    show_classes: 'Правильно понял? Хотите посмотреть свои классы и учеников.',
+    assign_homework: 'Правильно понял? Хотите выдать задание классу или ученику.',
+  };
+  return navMessages[parsed.action] ?? 'Не совсем понял запрос.';
+}
+
+// Запускает gen-сессию с уже заполненными из NL параметрами
+async function startNlGenSession(
+  ctx: Context,
+  telegramId: string,
+  toolKey: string,
+  prefilledParams: Record<string, string>,
+) {
+  const tool = getToolConfig(toolKey);
+  if (!tool) return;
+
+  let session: GenerationSession;
+  try {
+    session = createGenSession(telegramId, toolKey);
+  } catch (e: any) {
+    await ctx.reply(`⚠️ ${e.message}`);
+    return;
+  }
+
+  for (const [key, val] of Object.entries(prefilledParams)) {
+    session.params[key] = val;
+  }
+
+  // Apply defaults for missing fields so nextStep's skip-loop advances past them
+  for (const field of tool.fields) {
+    if (session.params[field.key] === undefined && field.default !== undefined) {
+      session.params[field.key] = field.default;
+    }
+  }
+
+  await nextStep(ctx, session, tool);
+}
+
 // ── Текстовые сообщения ───────────────────────────────────────────────────────
 bot.on('message:text', async (ctx: Context) => {
   const user = ctx.from;
@@ -2007,11 +2295,62 @@ bot.on('message:text', async (ctx: Context) => {
       return;
     }
     if (field.type === 'multiselect') {
-      await ctx.reply('👆 Нажмите на кнопки выше, чтобы выбрать разделы, затем нажмите *Готово*.',  { parse_mode: 'Markdown' });
+      await ctx.reply('👆 Нажмите на кнопки выше, чтобы выбрать разделы, затем нажмите *Готово*.', { parse_mode: 'Markdown' });
       return;
     }
 
     if (field.type !== 'text') return;
+
+    // Detect NL generation request inside an active gen session → show conflict dialog
+    if (looksLikeNlRequest(text)) {
+      const state = getPlatformState(telegramId);
+      if (!state.nlPending) {
+        state.nlPending = true;
+        await ctx.replyWithChatAction('typing').catch(() => null);
+        let parsed: NlParsedRequest;
+        try {
+          parsed = await parseNlRequest(text);
+        } finally {
+          state.nlPending = false;
+        }
+        if (parsed.action !== 'unknown') {
+          state.pendingNlRequest = parsed;
+          const currentToolLabel = `${tool.emoji} ${tool.label}`;
+          if (parsed.action === 'generate' && parsed.tool) {
+            const newTool = getToolConfig(parsed.tool)!;
+            const kb = new InlineKeyboard()
+              .text('▶️ Продолжить форму', 'pf:nl:cont')
+              .row()
+              .text(`✨ Создать ${newTool.emoji} ${newTool.label}`, 'pf:nl:go')
+              .row()
+              .text('❌ Отмена', 'pf:nl:no');
+            await ctx.reply(
+              `⚠️ Вы сейчас заполняете форму *${sanitizeMd(currentToolLabel)}*.\n\nХотите прервать и создать другое?\n\n${buildNlConfirmMessage(parsed)}`,
+              { parse_mode: 'Markdown', reply_markup: kb },
+            );
+          } else {
+            const navLabels: Record<string, string> = {
+              show_history: 'посмотреть историю генераций',
+              show_classes: 'посмотреть классы',
+              assign_homework: 'перейти к выдаче задания',
+            };
+            const navLabel = navLabels[parsed.action] ?? 'выполнить другое действие';
+            const kb = new InlineKeyboard()
+              .text('▶️ Продолжить форму', 'pf:nl:cont')
+              .row()
+              .text('✅ Да, перейти', 'pf:nl:go')
+              .row()
+              .text('❌ Отмена', 'pf:nl:no');
+            await ctx.reply(
+              `⚠️ Вы сейчас заполняете форму *${sanitizeMd(currentToolLabel)}*.\n\nХотите прервать и ${navLabel}?`,
+              { parse_mode: 'Markdown', reply_markup: kb },
+            );
+          }
+          return;
+        }
+        // action === 'unknown' → treat as regular field input below
+      }
+    }
 
     const sanitized = sanitize(text);
     const error = validateText(sanitized, field);
@@ -2025,11 +2364,49 @@ bot.on('message:text', async (ctx: Context) => {
 
   // Регистрация
   const regState = regStates.get(telegramId);
-  if (!regState) return;
-
-  if (regState.step === 'awaiting_email') {
-    await handleEmailInput(ctx, telegramId, regState, text);
+  if (regState) {
+    if (regState.step === 'awaiting_email') {
+      await handleEmailInput(ctx, telegramId, regState, text);
+    }
+    return;
   }
+
+  // NL-интерфейс: пробуем понять свободный текст через Gemini Flash
+  const nlState = getPlatformState(telegramId);
+
+  // Игнорируем очень короткие сообщения и приветствия
+  const GREETINGS = new Set(['привет', 'здравствуй', 'здравствуйте', 'ок', 'окей', 'хорошо', 'спасибо', 'да', 'нет', 'ладно']);
+  if (text.length < 4 || GREETINGS.has(text.toLowerCase())) {
+    await ctx.reply('Используйте кнопки меню или напишите что хотите сделать — например: «создай тест по биологии для 8 класса».');
+    return;
+  }
+
+  if (nlState.nlPending) {
+    await ctx.reply('⏳ Обрабатываю ваш предыдущий запрос, подождите...');
+    return;
+  }
+
+  nlState.nlPending = true;
+  await ctx.replyWithChatAction('typing').catch(() => null);
+  let nlParsed: NlParsedRequest;
+  try {
+    nlParsed = await parseNlRequest(text);
+  } finally {
+    nlState.nlPending = false;
+  }
+
+  if (nlParsed.action === 'unknown') {
+    await ctx.reply('Не совсем понял. Напишите что хотите — например: «создай тест по биологии для 8 класса», «покажи мои генерации», «выдай задание классу».');
+    return;
+  }
+
+  nlState.pendingNlRequest = nlParsed;
+  const confirmMsg = buildNlConfirmMessage(nlParsed);
+  const confirmKb = nlParsed.action === 'generate'
+    ? new InlineKeyboard().text('✅ Создать', 'pf:nl:go').text('✏️ Изменить', 'pf:nl:edit').row().text('❌ Отмена', 'pf:nl:no')
+    : new InlineKeyboard().text('✅ Да', 'pf:nl:go').text('❌ Нет', 'pf:nl:no');
+
+  await ctx.reply(confirmMsg, { parse_mode: 'Markdown', reply_markup: confirmKb });
 });
 
 // ── Файлы (фото / документ / аудио / видео) ──────────────────────────────────
