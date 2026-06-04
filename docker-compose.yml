@@ -189,7 +189,7 @@ services:
       TGTRACK_API_KEY: ${TGTRACK_API_KEY:-}
       # Telegram канал для проверки подписки
       TELEGRAM_CHANNEL_ID: ${TELEGRAM_CHANNEL_ID:-}
-      TELEGRAM_CHANNEL_URL: ${TELEGRAM_CHANNEL_URL:-https://t.me/esvasilevaru}
+      TELEGRAM_CHANNEL_URL: ${TELEGRAM_CHANNEL_URL:-https://t.me/gotoChannelBot?startapp=TLc4259d96973fc7}
       TELEGRAM_INTRO_VIDEO_ID: ${TELEGRAM_INTRO_VIDEO_ID:-}
       REPLICATE_API_TOKEN: ${REPLICATE_API_TOKEN}
       # Прорыв-LMS — режим «наблюдатель». На каждый Telegram-update параллельно

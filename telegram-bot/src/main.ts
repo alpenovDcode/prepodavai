@@ -190,7 +190,7 @@ const REPLICATE_API_TOKEN = process.env.REPLICATE_API_TOKEN || '';
 
 // ── Подписка на канал ─────────────────────────────────────────────────────────
 const TELEGRAM_CHANNEL_ID = process.env.TELEGRAM_CHANNEL_ID || '';
-const TELEGRAM_CHANNEL_URL = process.env.TELEGRAM_CHANNEL_URL || 'https://t.me/esvasilevaru';
+const TELEGRAM_CHANNEL_URL = process.env.TELEGRAM_CHANNEL_URL || 'https://t.me/gotoChannelBot?startapp=TLc4259d96973fc7';
 
 const SUBSCRIPTION_TEXT =
   'Преподавай — бесплатный ИИ-сервис для репетиторов.\n\n' +
