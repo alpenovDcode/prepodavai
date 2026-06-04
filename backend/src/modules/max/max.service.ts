@@ -905,7 +905,7 @@ export class MaxService {
       type: 'inline_keyboard',
       payload: {
         buttons: [[
-          { type: 'link', text: 'ПОДПИСАТЬСЯ НА КАНАЛ', url: 'https://max.ru/esvasilevaru' },
+          { type: 'link', text: 'ПОДПИСАТЬСЯ НА КАНАЛ', url: 'https://max.ru/id503501079307_1_bot?startapp=TL24a54e3010c7' },
           { type: 'callback', text: 'Я ПОДПИСАЛСЯ', payload: 'sub:check' },
         ]],
       },
