@@ -712,9 +712,16 @@ export class MaxService {
         });
       });
 
+      const existingBotUserForLink = await (this.prisma as any).botUser.findUnique({
+        where: { maxId: user.id.toString() },
+        select: { registrationStatus: true },
+      });
+      const preservedLinkStatus =
+        existingBotUserForLink?.registrationStatus === 'registered' ? 'registered' : 'linked';
+
       await (this.prisma as any).botUser.upsert({
         where: { maxId: user.id.toString() },
-        update: { appUserId: linkToken.userId, lastActiveAt: new Date(), registrationStatus: 'linked' },
+        update: { appUserId: linkToken.userId, lastActiveAt: new Date(), registrationStatus: preservedLinkStatus },
         create: {
           maxId: user.id.toString(),
           appUserId: linkToken.userId,
@@ -969,9 +976,14 @@ export class MaxService {
       } as any,
     });
 
+    const existingBotUserForSub = await (this.prisma as any).botUser.findUnique({ where: { maxId: userId }, select: { registrationStatus: true } });
+    const preservedStatus = existingBotUserForSub && ['linked', 'registered'].includes(existingBotUserForSub.registrationStatus)
+      ? existingBotUserForSub.registrationStatus
+      : 'subscribed';
+
     const botUserRecord = await (this.prisma as any).botUser.upsert({
       where: { maxId: userId },
-      update: { appUserId: shadowAppUser.id, lastActiveAt: new Date(), registrationStatus: 'subscribed' },
+      update: { appUserId: shadowAppUser.id, lastActiveAt: new Date(), registrationStatus: preservedStatus },
       create: {
         maxId: userId,
         appUserId: shadowAppUser.id,
@@ -1426,7 +1438,7 @@ export class MaxService {
 
   private async refundTokens(userId: string, appUserId: string, source: 'subscription' | 'bot'): Promise<void> {
     if (source === 'subscription') {
-      await this.prisma.userSubscription.updateMany({ where: { userId: appUserId }, data: { creditsBalance: { increment: 3 } } });
+      await this.prisma.userSubscription.updateMany({ where: { userId: appUserId }, data: { extraCredits: { increment: 3 } } });
     } else {
       await (this.prisma as any).botUser.update({ where: { maxId: userId }, data: { botCredits: { increment: 3 } } }).catch(() => null);
     }
