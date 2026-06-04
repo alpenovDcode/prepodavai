@@ -143,6 +143,8 @@ interface NlParsedRequest {
   action: 'generate' | 'show_history' | 'show_classes' | 'assign_homework' | 'unknown';
   tool?: string;
   params?: Record<string, string>;
+  target?: 'student' | 'class';
+  dueDate?: string;
 }
 
 interface PlatformState {
@@ -157,6 +159,9 @@ interface PlatformState {
   pendingAssignGens?: Array<{ id: string; type: string; topic: string }>;
   pendingNlRequest?: NlParsedRequest;
   nlPending?: boolean;
+  pendingDueDate?: string;
+  skipDueDatePicker?: boolean;
+  pendingAssignTarget?: { type: 'class' | 'student'; idx: number };
 }
 
 // ── Константы: регистрация ────────────────────────────────────────────────────
@@ -677,7 +682,7 @@ async function completeRegistration(ctx: Context, telegramId: string, state: Reg
       `🔑 Пароль: \`${password}\`\n\n` +
       `💳 Токенов на платформе: *1500*\n\n` +
       `⚠️ *Сохраните пароль* — он больше не будет показан.`,
-      { parse_mode: 'Markdown' },
+      { parse_mode: 'Markdown', reply_markup: buildMainMenuKeyboard() },
     );
 
     await ctx.reply(
@@ -690,13 +695,14 @@ async function completeRegistration(ctx: Context, telegramId: string, state: Reg
         },
       },
     );
+    await ctx.reply('🛠️ *Выберите инструмент:*', { parse_mode: 'Markdown', reply_markup: buildToolSelectionKeyboard() });
   } catch (err: any) {
     console.error(`[RegBot] Create user error for ${telegramId}:`, err);
+    regStates.delete(telegramId);
     if (err?.code === 'P2002') {
-      regStates.delete(telegramId);
       await ctx.reply('⚠️ Аккаунт с таким email уже существует.\n\nЕсли это ваш аккаунт — войдите на сайте и привяжите Telegram в настройках профиля.');
     } else {
-      await ctx.reply('❌ Не удалось создать аккаунт. Попробуйте позже или обратитесь в поддержку.');
+      await ctx.reply('❌ Не удалось создать аккаунт. Попробуйте позже или используйте /start для повтора.');
     }
   }
 }
@@ -774,8 +780,7 @@ async function handleLinkToken(ctx: Context, user: any, token: string) {
   const telegramIdStr = user.id.toString();
   regStates.delete(telegramIdStr);
   genSessions.delete(telegramIdStr);
-  const psOnLink = platformStates.get(telegramIdStr);
-  if (psOnLink) { psOnLink.pendingNlRequest = undefined; psOnLink.nlPending = false; }
+  platformStates.delete(telegramIdStr);
 
   // Проверяем, был ли пользователь уже в боте ДО привязки
   const preLinkBotUser = await (prisma as any).botUser.findUnique({
@@ -785,9 +790,10 @@ async function handleLinkToken(ctx: Context, user: any, token: string) {
   const wasOnboarded = preLinkBotUser && ['subscribed', 'linked', 'registered'].includes(preLinkBotUser.registrationStatus);
 
   // Create/update BotUser for this Telegram account
+  const preservedLinkStatus = preLinkBotUser?.registrationStatus === 'registered' ? 'registered' : 'linked';
   const linkedBotUser = await (prisma as any).botUser.upsert({
     where: { telegramId: telegramIdStr },
-    update: { appUserId: linkToken.userId, lastActiveAt: new Date(), registrationStatus: 'linked' },
+    update: { appUserId: linkToken.userId, lastActiveAt: new Date(), registrationStatus: preservedLinkStatus },
     create: {
       telegramId: telegramIdStr,
       appUserId: linkToken.userId,
@@ -821,7 +827,7 @@ async function handleLinkToken(ctx: Context, user: any, token: string) {
     { reply_markup: buildMainMenuKeyboard() },
   );
   await ctx.reply(
-    '🚀 *Как пользоваться:*\n\n1. Выберите инструмент из списка ниже\n2. Ответьте на несколько вопросов\n3. Получите готовый материал в PDF\n\nКаждая генерация стоит *3 токена*.',
+    '🚀 *Как пользоваться:*\n\n1. Выберите инструмент из меню *или просто напишите запрос* — например: «создай тест по биологии для 8 класса»\n2. Ответьте на несколько вопросов\n3. Получите готовый материал в PDF\n\nКаждая генерация стоит *3 токена*.',
     { parse_mode: 'Markdown' },
   );
   await ctx.reply('🛠️ *Выберите инструмент:*', { parse_mode: 'Markdown', reply_markup: buildToolSelectionKeyboard() });
@@ -870,7 +876,8 @@ async function deductTgTokens(
 
 async function refundTgTokens(telegramId: string, appUserId: string, source: 'subscription' | 'bot'): Promise<void> {
   if (source === 'subscription') {
-    await (prisma as any).userSubscription.updateMany({ where: { userId: appUserId }, data: { creditsBalance: { increment: 3 } } });
+    // Возврат в extraCredits — зеркало списания (deductTgTokens берёт сначала extraCredits)
+    await (prisma as any).userSubscription.updateMany({ where: { userId: appUserId }, data: { extraCredits: { increment: 3 } } });
   } else {
     await (prisma as any).botUser.update({ where: { telegramId }, data: { botCredits: { increment: 3 } } }).catch(() => null);
   }
@@ -1314,6 +1321,8 @@ async function assignHomework(ctx: Context, telegramId: string, classIdx: number
 
   const cls = state.classes[classIdx];
   const topicTitle = state.genTopic || 'Материал из Telegram';
+  const dueDate = state.pendingDueDate;
+  state.pendingDueDate = undefined;
 
   await ctx.reply('⏳ Создаю задание...');
 
@@ -1323,12 +1332,16 @@ async function assignHomework(ctx: Context, telegramId: string, classIdx: number
       lessonId: lesson.id,
       classId: cls.id,
       generationId: state.genId,
+      ...(dueDate ? { dueDate } : {}),
     });
 
     state.genId = undefined;
     state.genTopic = undefined;
 
-    await ctx.reply(`✅ *Задание выдано классу «${sanitizeMd(cls.name)}»!*\n\nМатериал: _${sanitizeMd(topicTitle)}_`, { parse_mode: 'Markdown' });
+    const dueLine = dueDate
+      ? `\nСрок сдачи: _${sanitizeMd(new Date(dueDate).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' }))}_`
+      : '';
+    await ctx.reply(`✅ *Задание выдано классу «${sanitizeMd(cls.name)}»!*\n\nМатериал: _${sanitizeMd(topicTitle)}_${dueLine}`, { parse_mode: 'Markdown' });
   } catch (err: any) {
     console.error(`[PF] assignHomework error for ${telegramId}:`, err);
     await ctx.reply('❌ Не удалось создать задание. Попробуйте позже.');
@@ -1398,7 +1411,37 @@ async function assignHomeworkFromClass(ctx: Context, telegramId: string, genIdx:
 
   state.genId = gen.id;
   state.genTopic = gen.topic;
-  await assignHomework(ctx, telegramId, classIdx);
+  state.pendingAssignTarget = { type: 'class', idx: classIdx };
+  await showDueDatePicker(ctx, telegramId);
+}
+
+async function showDueDatePicker(ctx: Context, telegramId: string): Promise<void> {
+  const state = getPlatformState(telegramId);
+  if (!state.genId) {
+    state.pendingAssignTarget = undefined;
+    state.skipDueDatePicker = false;
+    state.pendingDueDate = undefined;
+    await ctx.reply('❌ Данные устарели. Начните заново через «' + BTN_MYGENS + '».');
+    return;
+  }
+  const topic = sanitizeMd(state.genTopic ?? 'материал');
+
+  const today = new Date();
+  const fmt = (d: Date) => d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
+  const d1 = new Date(today); d1.setDate(today.getDate() + 1);
+  const d3 = new Date(today); d3.setDate(today.getDate() + 3);
+  const d7 = new Date(today); d7.setDate(today.getDate() + 7);
+
+  const kb = new InlineKeyboard()
+    .text(`Завтра, ${fmt(d1)}`, 'pf:hwd:1').row()
+    .text(`Через 3 дня, ${fmt(d3)}`, 'pf:hwd:3').row()
+    .text(`Через неделю, ${fmt(d7)}`, 'pf:hwd:7').row()
+    .text('📵 Без срока', 'pf:hwd:skip');
+
+  await ctx.reply(
+    `📅 Укажите срок сдачи для *«${topic}»*:`,
+    { parse_mode: 'Markdown', reply_markup: kb },
+  );
 }
 
 async function showStudentPicker(ctx: Context, telegramId: string, classIdx: number) {
@@ -1460,6 +1503,9 @@ async function assignHomeworkToStudent(ctx: Context, telegramId: string, student
   if (!apiToken) { await ctx.reply('❌ Ошибка авторизации.'); return; }
 
   const topicTitle = state.genTopic || 'Материал из Telegram';
+  const dueDate = state.pendingDueDate;
+  state.pendingDueDate = undefined;
+
   await ctx.reply('⏳ Создаю задание...');
 
   try {
@@ -1468,14 +1514,18 @@ async function assignHomeworkToStudent(ctx: Context, telegramId: string, student
       lessonId: lesson.id,
       studentId: student.id,
       generationId: state.genId,
+      ...(dueDate ? { dueDate } : {}),
     });
 
     state.genId = undefined;
     state.genTopic = undefined;
     state.classStudents = undefined;
 
+    const dueLine = dueDate
+      ? `\nСрок сдачи: _${sanitizeMd(new Date(dueDate).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' }))}_`
+      : '';
     await ctx.reply(
-      `✅ *Задание выдано ученику «${sanitizeMd(student.name)}»!*\n\nМатериал: _${sanitizeMd(topicTitle)}_`,
+      `✅ *Задание выдано ученику «${sanitizeMd(student.name)}»!*\n\nМатериал: _${sanitizeMd(topicTitle)}_${dueLine}`,
       { parse_mode: 'Markdown' },
     );
   } catch (err: any) {
@@ -1590,9 +1640,15 @@ async function handleSubscriptionCheck(ctx: Context, telegramId: string): Promis
     } as any,
   });
 
+  // Не понижаем статус: linked/registered должны оставаться linked/registered
+  const existingBotUserForSub = await (prisma as any).botUser.findUnique({ where: { telegramId }, select: { registrationStatus: true } });
+  const preservedStatus = existingBotUserForSub && ['linked', 'registered'].includes(existingBotUserForSub.registrationStatus)
+    ? existingBotUserForSub.registrationStatus
+    : 'subscribed';
+
   const botUserRecord = await (prisma as any).botUser.upsert({
     where: { telegramId },
-    update: { appUserId: shadowAppUser.id, lastActiveAt: new Date(), registrationStatus: 'subscribed' },
+    update: { appUserId: shadowAppUser.id, lastActiveAt: new Date(), registrationStatus: preservedStatus },
     create: {
       telegramId,
       appUserId: shadowAppUser.id,
@@ -1611,7 +1667,7 @@ async function handleSubscriptionCheck(ctx: Context, telegramId: string): Promis
     { reply_markup: buildMainMenuKeyboard() },
   );
   await ctx.reply(
-    '🚀 *Как пользоваться:*\n\n1. Выберите инструмент из списка ниже\n2. Ответьте на несколько вопросов\n3. Получите готовый материал в PDF\n\nКаждая генерация стоит *3 токена*.',
+    '🚀 *Как пользоваться:*\n\n1. Выберите инструмент из меню *или просто напишите запрос* — например: «создай тест по биологии для 8 класса»\n2. Ответьте на несколько вопросов\n3. Получите готовый материал в PDF\n\nКаждая генерация стоит *3 токена*.',
     { parse_mode: 'Markdown' },
   );
   await ctx.reply('🛠️ *Выберите инструмент:*', { parse_mode: 'Markdown', reply_markup: buildToolSelectionKeyboard() });
@@ -1657,8 +1713,7 @@ bot.command('start', async (ctx: Context) => {
     });
     regStates.delete(telegramId);
     genSessions.delete(telegramId);
-    const psOnStart = platformStates.get(telegramId);
-    if (psOnStart) { psOnStart.pendingNlRequest = undefined; psOnStart.nlPending = false; }
+    platformStates.delete(telegramId);
 
     // Найти или создать BotUser
     const botUser = await (prisma as any).botUser.upsert({
@@ -1694,7 +1749,7 @@ bot.command('start', async (ctx: Context) => {
       { reply_markup: buildMainMenuKeyboard() },
     );
     await ctx.reply(
-      '🚀 *Как пользоваться:*\n\n1. Выберите инструмент из списка ниже\n2. Ответьте на несколько вопросов\n3. Получите готовый материал в PDF\n\nКаждая генерация стоит *3 токена*.',
+      '🚀 *Как пользоваться:*\n\n1. Выберите инструмент из меню *или просто напишите запрос* — например: «создай тест по биологии для 8 класса»\n2. Ответьте на несколько вопросов\n3. Получите готовый материал в PDF\n\nКаждая генерация стоит *3 токена*.',
       { parse_mode: 'Markdown' },
     );
     await ctx.reply('🛠️ *Выберите инструмент:*', { parse_mode: 'Markdown', reply_markup: buildToolSelectionKeyboard() });
@@ -1714,6 +1769,9 @@ bot.command('start', async (ctx: Context) => {
       lastActiveAt: new Date(),
     } as any,
   });
+  regStates.delete(telegramId);
+  genSessions.delete(telegramId);
+  platformStates.delete(telegramId);
   await sendActivationFlow(ctx);
 });
 
@@ -1769,7 +1827,14 @@ bot.on('callback_query:data', async (ctx: Context) => {
     } else if (data.startsWith('pf:hwi:')) {
       const idx = parseInt(data.slice(7), 10);
       if (!Number.isFinite(idx) || idx < 0 || idx > 49) return;
-      await assignHomework(ctx, telegramId, idx);
+      const stHwi = getPlatformState(telegramId);
+      if (stHwi.skipDueDatePicker) {
+        stHwi.skipDueDatePicker = false;
+        await assignHomework(ctx, telegramId, idx);
+      } else {
+        stHwi.pendingAssignTarget = { type: 'class', idx };
+        await showDueDatePicker(ctx, telegramId);
+      }
 
     } else if (data === 'pf:hws') {
       await showHomeworkStudentClassPicker(ctx, telegramId);
@@ -1782,7 +1847,39 @@ bot.on('callback_query:data', async (ctx: Context) => {
     } else if (data.startsWith('pf:hwss:')) {
       const idx = parseInt(data.slice(8), 10);
       if (!Number.isFinite(idx) || idx < 0 || idx > 49) return;
-      await assignHomeworkToStudent(ctx, telegramId, idx);
+      const stHwss = getPlatformState(telegramId);
+      if (stHwss.skipDueDatePicker) {
+        stHwss.skipDueDatePicker = false;
+        await assignHomeworkToStudent(ctx, telegramId, idx);
+      } else {
+        stHwss.pendingAssignTarget = { type: 'student', idx };
+        await showDueDatePicker(ctx, telegramId);
+      }
+
+    } else if (data.startsWith('pf:hwd:')) {
+      const part = data.slice(7);
+      const stHwd = getPlatformState(telegramId);
+      const target = stHwd.pendingAssignTarget;
+      if (!target) { await ctx.reply('❌ Данные устарели. Начните заново.'); return; }
+      if (part === 'skip') {
+        stHwd.pendingAssignTarget = undefined;
+        stHwd.pendingDueDate = undefined;
+      } else {
+        const days = parseInt(part, 10);
+        if (!Number.isFinite(days) || days < 0 || days > 365) {
+          await ctx.reply('❌ Недопустимый срок. Начните заново через «' + BTN_MYGENS + '».');
+          return;
+        }
+        stHwd.pendingAssignTarget = undefined;
+        const d = new Date();
+        d.setDate(d.getDate() + days);
+        stHwd.pendingDueDate = d.toISOString().split('T')[0];
+      }
+      if (target.type === 'class') {
+        await assignHomework(ctx, telegramId, target.idx);
+      } else {
+        await assignHomeworkToStudent(ctx, telegramId, target.idx);
+      }
 
     } else if (data.startsWith('pf:cla:')) {
       const idx = parseInt(data.slice(7), 10);
@@ -1800,8 +1897,9 @@ bot.on('callback_query:data', async (ctx: Context) => {
     } else if (data === 'pf:nl:go') {
       const state = getPlatformState(telegramId);
       const pending = state.pendingNlRequest;
-      state.pendingNlRequest = undefined; // clear before executing to avoid double-fire
+      state.pendingNlRequest = undefined;
       if (!pending) return;
+      genSessions.delete(telegramId); // always clear old session before any NL action
       if (pending.action === 'generate' && pending.tool && pending.params) {
         await startNlGenSession(ctx, telegramId, pending.tool, pending.params);
       } else if (pending.action === 'show_history') {
@@ -1810,13 +1908,30 @@ bot.on('callback_query:data', async (ctx: Context) => {
       } else if (pending.action === 'show_classes') {
         await showClasses(ctx, telegramId);
       } else if (pending.action === 'assign_homework') {
-        await showHomeworkClassPicker(ctx, telegramId);
+        state.skipDueDatePicker = false;
+        state.pendingDueDate = undefined;
+        if (pending.dueDate) {
+          state.pendingDueDate = pending.dueDate;
+          state.skipDueDatePicker = true;
+        }
+        if (pending.target === 'student') {
+          await showHomeworkStudentClassPicker(ctx, telegramId);
+        } else {
+          await showHomeworkClassPicker(ctx, telegramId);
+        }
       }
 
     } else if (data === 'pf:nl:no') {
       const state = getPlatformState(telegramId);
       state.pendingNlRequest = undefined;
       await ctx.reply('Понял, отменяю.');
+      const noSession = getGenSession(telegramId);
+      if (noSession) {
+        const noTool = getToolConfig(noSession.toolKey);
+        if (noTool) await askField(ctx, noTool, noSession);
+      } else {
+        await ctx.reply('⏰ Время заполнения формы истекло. Начните заново через меню.');
+      }
 
     } else if (data === 'pf:nl:edit') {
       // Open the tool form from scratch (without NL pre-fill)
@@ -2013,6 +2128,12 @@ bot.on('callback_query:data', async (ctx: Context) => {
 
       if (tool.serviceType === 'games') {
         const result = await callGamesApi(token, session.params.type, session.params.topic);
+        if (!result.url) {
+          await refundTgTokens(telegramId, user.id, tokenResult.source);
+          await ctx.reply('❌ Игра не создана: сервер не вернул ссылку. Токены возвращены.');
+          await ctx.reply('🛠️ *Выберите инструмент:*', { parse_mode: 'Markdown', reply_markup: buildToolSelectionKeyboardWithAssign() });
+          return;
+        }
         await (prisma as any).botUser.update({
           where: { telegramId },
           data: { totalGenerations: { increment: 1 }, generationsThisMonth: { increment: 1 }, lastGenerationAt: new Date() },
@@ -2047,7 +2168,7 @@ bot.on('callback_query:data', async (ctx: Context) => {
     } catch (err: any) {
       await refundTgTokens(telegramId, user.id, tokenResult.source);
       await ctx.reply(humanizeError(err));
-      await ctx.reply('🛠️ *Выберите инструмент:*', { parse_mode: 'Markdown', reply_markup: buildToolSelectionKeyboard() });
+      await ctx.reply('🛠️ *Выберите инструмент:*', { parse_mode: 'Markdown', reply_markup: buildToolSelectionKeyboardWithAssign() });
     }
 
   } else if (data === 'g:no') {
@@ -2069,7 +2190,10 @@ function looksLikeNlRequest(text: string): boolean {
 function nlNavFallback(text: string): NlParsedRequest {
   const t = text.toLowerCase();
   if (/история|мои ген|покажи ген|что я создавал|мои работы/.test(t)) return { action: 'show_history' };
-  if (/выдать|домашнее задание|задать|назначить задание/.test(t)) return { action: 'assign_homework' };
+  if (/выдать|домашнее задание|задать|назначить задание/.test(t)) {
+    const target: 'student' | 'class' = /ученик|ученице|ученику|ученика/.test(t) ? 'student' : 'class';
+    return { action: 'assign_homework', target };
+  }
   if (/мои классы|список классов|посмотреть классы/.test(t)) return { action: 'show_classes' };
   return { action: 'unknown' };
 }
@@ -2085,7 +2209,7 @@ async function parseNlRequest(text: string): Promise<NlParsedRequest> {
     '{"action":"generate","tool":"<key>","params":{<только найденные поля>}}\n' +
     '{"action":"show_history"}\n' +
     '{"action":"show_classes"}\n' +
-    '{"action":"assign_homework"}\n' +
+    '{"action":"assign_homework","target":"class","dueDate":"YYYY-MM-DD"}\n' +
     '{"action":"unknown"}\n\n' +
     'Инструменты:\n' +
     'worksheet: рабочий лист. subject?(предмет), topic(тема), level("Младшие классы"|"Средняя школа"|"Старшие классы"|"Взрослые"|"Подготовка к ОГЭ"|"Подготовка к ЕГЭ"|"Студенты вузов"), questionsCount("5"|"10"|"15"|"20")\n' +
@@ -2096,7 +2220,8 @@ async function parseNlRequest(text: string): Promise<NlParsedRequest> {
     'image: изображение. prompt(описание), style("realistic"|"cartoon"|"sketch"|"illustration"|"3d-model"|"anime")\n' +
     'game: игра. type("millionaire"|"flashcards"|"crossword"|"memory"|"truefalse"), topic\n' +
     'presentation: презентация. topic, duration("5"|"15"|"30"|"45"), style("modern"|"academic"|"creative"|"corporate"), targetAudience("students"|"colleagues"|"parents"|"general")\n\n' +
-    'Правило: включай в params только поля явно упомянутые в запросе. Значения select строго из списка.\n\n' +
+    'Правило: включай в params только поля явно упомянутые в запросе. Значения select строго из списка.\n' +
+    'Для assign_homework: target="student" если упомянут ученик/ему, target="class" если класс (по умолчанию "class"). dueDate — дата в ISO (YYYY-MM-DD) если явно указана, иначе не включай.\n\n' +
     `Запрос: «${input}»`;
 
   try {
@@ -2128,8 +2253,16 @@ async function parseNlRequest(text: string): Promise<NlParsedRequest> {
 
     if (!parsed.action) return { action: 'unknown' };
 
-    if (['show_history', 'show_classes', 'assign_homework', 'unknown'].includes(parsed.action)) {
+    if (['show_history', 'show_classes', 'unknown'].includes(parsed.action)) {
       return { action: parsed.action };
+    }
+
+    if (parsed.action === 'assign_homework') {
+      const target: 'student' | 'class' = parsed.target === 'student' ? 'student' : 'class';
+      const dueDate = typeof parsed.dueDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(parsed.dueDate)
+        ? parsed.dueDate
+        : undefined;
+      return { action: 'assign_homework', target, dueDate };
     }
 
     if (parsed.action === 'generate') {
@@ -2162,7 +2295,8 @@ async function parseNlRequest(text: string): Promise<NlParsedRequest> {
 // Строит сообщение подтверждения: показывает распознанные параметры + defaults
 function buildNlConfirmMessage(parsed: NlParsedRequest): string {
   if (parsed.action === 'generate' && parsed.tool) {
-    const tool = getToolConfig(parsed.tool)!;
+    const tool = getToolConfig(parsed.tool);
+    if (!tool) return 'Не совсем понял запрос.';
     const lines: string[] = [`Понял! Вот что создам:\n\n${tool.emoji} *${tool.label}*`];
 
     for (const field of tool.fields) {
@@ -2190,10 +2324,17 @@ function buildNlConfirmMessage(parsed: NlParsedRequest): string {
     return lines.join('\n');
   }
 
+  if (parsed.action === 'assign_homework') {
+    const targetLabel = parsed.target === 'student' ? 'ученику' : 'классу';
+    const dueDateLine = parsed.dueDate
+      ? `\nСрок сдачи: _${sanitizeMd(new Date(parsed.dueDate).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' }))}_`
+      : '';
+    return `Правильно понял? Хотите выдать задание ${targetLabel}.${dueDateLine}`;
+  }
+
   const navMessages: Record<string, string> = {
     show_history: 'Правильно понял? Хотите посмотреть историю своих генераций.',
     show_classes: 'Правильно понял? Хотите посмотреть свои классы и учеников.',
-    assign_homework: 'Правильно понял? Хотите выдать задание классу или ученику.',
   };
   return navMessages[parsed.action] ?? 'Не совсем понял запрос.';
 }
@@ -2317,7 +2458,8 @@ bot.on('message:text', async (ctx: Context) => {
           state.pendingNlRequest = parsed;
           const currentToolLabel = `${tool.emoji} ${tool.label}`;
           if (parsed.action === 'generate' && parsed.tool) {
-            const newTool = getToolConfig(parsed.tool)!;
+            const newTool = getToolConfig(parsed.tool);
+            if (!newTool) return;
             const kb = new InlineKeyboard()
               .text('▶️ Продолжить форму', 'pf:nl:cont')
               .row()
@@ -2368,6 +2510,13 @@ bot.on('message:text', async (ctx: Context) => {
     if (regState.step === 'awaiting_email') {
       await handleEmailInput(ctx, telegramId, regState, text);
     }
+    return;
+  }
+
+  // Гейт: pending-пользователи должны сначала подтвердить подписку
+  const botUserForNl = await (prisma as any).botUser.findUnique({ where: { telegramId }, select: { registrationStatus: true } });
+  if (!botUserForNl || botUserForNl.registrationStatus === 'pending') {
+    await ctx.reply('Для доступа к инструментам сначала подпишитесь на канал.', { reply_markup: buildSubscriptionKeyboard() });
     return;
   }
 
