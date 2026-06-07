@@ -281,7 +281,7 @@ export class SubmissionsService {
 
     const teacher = await this.prisma.appUser.findUnique({
       where: { id: teacherId },
-      select: { email: true, firstName: true, notifyWeeklyReport: true },
+      select: { email: true, firstName: true, notifyWeeklyReport: true, telegramChatId: true, maxChatId: true },
     });
     const teacherEmail = teacher?.email?.trim();
     if (teacher?.notifyWeeklyReport && teacherEmail) {
@@ -295,6 +295,51 @@ export class SubmissionsService {
         .catch((err) =>
           this.logger.warn(`Failed to send homework-submitted email to ${teacherEmail}: ${err?.message}`),
         );
+    }
+
+    // Уведомление в Telegram-бот (fire-and-forget)
+    const botNotifyUrl = process.env.BOT_NOTIFY_URL;
+    const botNotifySecret = process.env.BOT_NOTIFY_SECRET || '';
+    if (botNotifyUrl && teacher?.telegramChatId) {
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://prepodavai.ru';
+      fetch(`${botNotifyUrl}/notify/submission`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(botNotifySecret ? { 'x-bot-secret': botNotifySecret } : {}),
+        },
+        body: JSON.stringify({
+          telegramChatId: teacher.telegramChatId,
+          studentName,
+          lessonTitle,
+          assignmentId: assignment.id,
+          appUrl,
+        }),
+      }).catch((err) =>
+        this.logger.warn(`[TG notify] Failed to notify bot: ${err?.message}`),
+      );
+    }
+
+    // Уведомление в MAX-бот (fire-and-forget)
+    const maxChatId = (teacher as any)?.maxChatId;
+    const maxToken = process.env.MAX_BOT_TOKEN;
+    const maxApiUrl = (process.env.MAX_API_URL || 'https://platform-api.max.ru').replace(/\/$/, '');
+    if (maxChatId && maxToken) {
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://prepodavai.ru';
+      const msgText = `📥 Ученик ${studentName} сдал(а) работу по теме «${lessonTitle}»`;
+      const attachment = {
+        type: 'inline_keyboard',
+        payload: {
+          buttons: [[{ type: 'link', text: '👀 Посмотреть', url: `${appUrl}/dashboard/assignments/${assignment.id}` }]],
+        },
+      };
+      fetch(`${maxApiUrl}/messages?user_id=${maxChatId}`, {
+        method: 'POST',
+        headers: { Authorization: maxToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: msgText, attachments: [attachment] }),
+      }).catch((err) =>
+        this.logger.warn(`[MAX notify] Failed to notify MAX bot: ${err?.message}`),
+      );
     }
   }
 

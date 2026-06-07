@@ -30,6 +30,33 @@ interface GenSession {
   lastKeyboardMessageId?: string; // for editing multiselect keyboards
 }
 
+// ── NL-interface parsed request ────────────────────────────────────────────────
+interface NlParsedRequest {
+  action: 'generate' | 'show_history' | 'show_classes' | 'assign_homework' | 'unknown';
+  tool?: string;
+  params?: Record<string, string>;
+  target?: 'student' | 'class';
+  dueDate?: string;
+}
+
+// ── Platform state (history, classes, pending homework) ───────────────────────
+interface MaxPlatformState {
+  genHistoryIds: string[];       // IDs генераций на текущей странице истории
+  genOffset: number;             // текущий offset истории
+  classes: Array<{ id: string; name: string; studentCount: number }>;
+  classStudents: Array<{ id: string; name: string }>;
+  pendingHwGenId: string | null;    // ID генерации для назначения ДЗ
+  pendingHwGenTopic: string | null; // тема генерации (для создания урока)
+  pendingHwTarget: 'class' | 'student' | null;
+  pendingHwClassIdx: number | null;   // выбранный класс
+  pendingHwStudentIdx: number | null; // выбранный ученик
+  pendingViewGenType: string | null;  // тип генерации для просмотра файла
+  pendingGameUrl?: string | null;     // URL игры для просмотра (кешируем как в TG боте)
+  classGenList?: Array<{ id: string; type: string; topic: string }>; // список генераций для назначения из класса
+  pendingNlRequest?: NlParsedRequest; // распознанный NL-запрос ожидает подтверждения
+  nlPending?: boolean;                // запрос к Gemini Flash в процессе
+}
+
 @Injectable()
 export class MaxService {
   private readonly logger = new Logger(MaxService.name);
@@ -41,6 +68,14 @@ export class MaxService {
   private readonly genSessions = new Map<string, GenSession>();
   private readonly lastGenAt = new Map<string, number>();
 
+  // ── Platform state (history / classes / homework flow) ───────────────────────
+  private readonly platformStates = new Map<string, MaxPlatformState>();
+  private static readonly GEN_HISTORY_PAGE_SIZE = 5;
+
+  // ── JWT token cache (username → {token, expiresAt}) ──────────────────────────
+  private readonly jwtCache = new Map<string, { token: string; expiresAt: number }>();
+  private static readonly JWT_CACHE_TTL_MS = 8 * 60_000;
+
   // ── bot_started retry deduplication ──────────────────────────────────────────
   private readonly startAttemptGen = new Map<string, number>();
   private static readonly GEN_SESSION_TTL_MS = 10 * 60_000;
@@ -49,7 +84,7 @@ export class MaxService {
   private static readonly MAX_CALLBACK_DATA_LEN = 32;
 
   // ── Registration session state ────────────────────────────────────────────
-  private readonly regStates = new Map<string, { step: 'awaiting_email'; email?: string; locked?: boolean }>();
+  private readonly regStates = new Map<string, { step: 'awaiting_email'; email?: string; locked?: boolean; maxUsername?: string }>();
   private static readonly MAX_CONCURRENT_REG_SESSIONS = 100;
 
   constructor(
@@ -114,6 +149,12 @@ export class MaxService {
             });
         };
         tryStart(0);
+      }
+    } else if (updateType === 'bot_stopped') {
+      const userId = body?.user?.user_id?.toString() || body?.chat_id?.toString();
+      if (userId) {
+        this.logger.log(`[Webhook] bot_stopped userId=${userId}`);
+        this.tgtrack('my_bot_was_stopped', { user_id: userId });
       }
     } else if (updateType) {
       this.logger.warn(`[Webhook] Ignoring unknown update_type: ${updateType}`);
@@ -227,6 +268,57 @@ export class MaxService {
 
         if (field.type !== 'text') return;
 
+        // NL-запрос внутри активной сессии — показываем диалог конфликта
+        if (this.looksLikeNlRequest(text)) {
+          const nlInSessionState = this.getMaxPlatformState(userIdForDb);
+          if (!nlInSessionState.nlPending) {
+            nlInSessionState.nlPending = true;
+            let inSessionParsed: NlParsedRequest;
+            try {
+              inSessionParsed = await this.parseNlRequest(text);
+            } finally {
+              nlInSessionState.nlPending = false;
+            }
+            if (inSessionParsed.action !== 'unknown') {
+              nlInSessionState.pendingNlRequest = inSessionParsed;
+              const currentLabel = `${tool.emoji} ${tool.label}`;
+              if (inSessionParsed.action === 'generate' && inSessionParsed.tool) {
+                const newTool = getToolConfig(inSessionParsed.tool);
+                if (newTool) {
+                  await this.sendMessageWithKeyboard(
+                    chatId,
+                    `⚠️ Вы заполняете форму «${currentLabel}».\n\nХотите прервать и создать ${newTool.emoji} ${newTool.label}?\n\n${this.buildNlConfirmMessage(inSessionParsed)}`,
+                    [{ type: 'inline_keyboard', payload: { buttons: [
+                      [{ type: 'callback', text: '▶ Продолжить форму', payload: 'pf:nl:cont' }],
+                      [{ type: 'callback', text: `✨ Создать ${newTool.label}`.slice(0, 20), payload: 'pf:nl:go' }],
+                      [{ type: 'callback', text: '❌ Отмена', payload: 'pf:nl:no' }],
+                    ]}}],
+                  );
+                  return;
+                }
+              } else {
+                const navLabels: Record<string, string> = {
+                  show_history: 'посмотреть историю генераций',
+                  show_classes: 'посмотреть классы',
+                  assign_homework: 'перейти к выдаче задания',
+                };
+                const navLabel = navLabels[inSessionParsed.action] ?? 'выполнить другое действие';
+                await this.sendMessageWithKeyboard(
+                  chatId,
+                  `⚠️ Вы заполняете форму «${currentLabel}».\n\nХотите прервать и ${navLabel}?`,
+                  [{ type: 'inline_keyboard', payload: { buttons: [
+                    [{ type: 'callback', text: '▶ Продолжить форму', payload: 'pf:nl:cont' }],
+                    [{ type: 'callback', text: '✅ Да, перейти', payload: 'pf:nl:go' }],
+                    [{ type: 'callback', text: '❌ Отмена', payload: 'pf:nl:no' }],
+                  ]}}],
+                );
+                return;
+              }
+            }
+            // action === 'unknown' → воспринимаем как обычный ввод поля
+          }
+        }
+
         const sanitized = this.sanitize(text);
         const error = this.validateText(sanitized, field);
         if (error) {
@@ -239,6 +331,52 @@ export class MaxService {
         await this.nextStep(chatId, genSession, tool, botUserId);
         return;
       }
+
+      // Пользователь пишет текст вне активной сессии — NL-интерфейс
+      const GREETINGS = new Set(['привет', 'здравствуй', 'здравствуйте', 'ок', 'окей', 'хорошо', 'спасибо', 'да', 'нет', 'ладно']);
+      if (!text || text.length < 4 || GREETINGS.has(text.toLowerCase())) {
+        await this.sendMessageWithKeyboard(chatId, '🏠 Используйте кнопки меню:', this.buildMainMenuAttachment());
+        return;
+      }
+
+      const nlState = this.getMaxPlatformState(userIdForDb);
+      if (nlState.nlPending) {
+        await this.sendMessage(chatId, '⏳ Обрабатываю ваш предыдущий запрос, подождите...');
+        return;
+      }
+
+      nlState.nlPending = true;
+      let nlParsed: NlParsedRequest;
+      try {
+        nlParsed = await this.parseNlRequest(text);
+      } finally {
+        nlState.nlPending = false;
+      }
+
+      if (nlParsed.action === 'unknown') {
+        await this.sendMessageWithKeyboard(
+          chatId,
+          'Не совсем понял. Напишите что хотите — например: «создай тест по биологии для 8 класса», «покажи мои генерации».',
+          this.buildMainMenuAttachment(),
+        );
+        return;
+      }
+
+      nlState.pendingNlRequest = nlParsed;
+      const isGenAction = nlParsed.action === 'generate';
+      const confirmButtons = isGenAction
+        ? [
+            [{ type: 'callback', text: '✅ Создать', payload: 'pf:nl:go' }, { type: 'callback', text: '✏️ Изменить', payload: 'pf:nl:edit' }],
+            [{ type: 'callback', text: '❌ Отмена', payload: 'pf:nl:no' }],
+          ]
+        : [
+            [{ type: 'callback', text: '✅ Да', payload: 'pf:nl:go' }, { type: 'callback', text: '❌ Нет', payload: 'pf:nl:no' }],
+          ];
+      await this.sendMessageWithKeyboard(
+        chatId,
+        this.buildNlConfirmMessage(nlParsed),
+        [{ type: 'inline_keyboard', payload: { buttons: confirmButtons } }],
+      );
     } catch (error) {
       this.logger.error('Error handling MAX message:', error);
     }
@@ -266,6 +404,182 @@ export class MaxService {
 
       if (payload === 'sub:check') {
         await this.handleSubscriptionCheck(userId, chatId);
+        return;
+      }
+
+      // ── Navigation & feature callbacks ────────────────────────────────────────
+      if (payload === 'm:menu') {
+        await this.showMainMenu(chatId, userId);
+        return;
+      }
+      if (payload === 'm:tools') {
+        await this.sendMessageWithKeyboard(chatId, '🛠️ Выберите инструмент:', this.buildToolSelectionAttachment());
+        return;
+      }
+      if (payload === 'm:classes') {
+        await this.showClasses(chatId, userId);
+        return;
+      }
+      if (payload === 'm:gview') {
+        await this.showGenContent(chatId, userId);
+        return;
+      }
+      if (payload === 'm:analytics') {
+        await this.showAnalytics(chatId, userId);
+        return;
+      }
+      if (payload.startsWith('m:hist:')) {
+        const offset = parseInt(payload.slice(7), 10);
+        if (!Number.isFinite(offset) || offset < 0) return;
+        await this.showHistory(chatId, userId, offset, messageId);
+        return;
+      }
+      if (payload.startsWith('m:gen:')) {
+        const idx = parseInt(payload.slice(6), 10);
+        if (!Number.isFinite(idx) || idx < 0) return;
+        await this.showGenDetail(chatId, userId, idx);
+        return;
+      }
+      if (payload.startsWith('m:cls:')) {
+        const idx = parseInt(payload.slice(6), 10);
+        if (!Number.isFinite(idx) || idx < 0) return;
+        await this.showClassDetail(chatId, userId, idx);
+        return;
+      }
+      if (payload.startsWith('m:cgp:')) {
+        const idx = parseInt(payload.slice(6), 10);
+        if (!Number.isFinite(idx) || idx < 0) return;
+        await this.showClassGenPicker(chatId, userId, idx);
+        return;
+      }
+      if (payload.startsWith('hw:cg:')) {
+        const idx = parseInt(payload.slice(6), 10);
+        if (!Number.isFinite(idx) || idx < 0) return;
+        await this.pickClassGen(chatId, userId, idx);
+        return;
+      }
+
+      // ── Homework assignment callbacks ─────────────────────────────────────────
+      if (payload === 'hw:who') {
+        await this.showHwWho(chatId, userId);
+        return;
+      }
+      if (payload === 'hw:wc') {
+        await this.showHwClassPicker(chatId, userId, 'class');
+        return;
+      }
+      if (payload === 'hw:ws') {
+        await this.showHwClassPicker(chatId, userId, 'student');
+        return;
+      }
+      if (payload.startsWith('hw:c:')) {
+        const idx = parseInt(payload.slice(5), 10);
+        if (!Number.isFinite(idx) || idx < 0) return;
+        const state = this.getMaxPlatformState(userId);
+        state.pendingHwClassIdx = idx;
+        await this.sendMessageWithKeyboard(chatId, '📅 Выберите срок сдачи:', this.buildDueDateAttachment());
+        return;
+      }
+      if (payload.startsWith('hw:sc:')) {
+        const idx = parseInt(payload.slice(6), 10);
+        if (!Number.isFinite(idx) || idx < 0) return;
+        await this.showHwStudentList(chatId, userId, idx);
+        return;
+      }
+      if (payload.startsWith('hw:s:')) {
+        const idx = parseInt(payload.slice(5), 10);
+        if (!Number.isFinite(idx) || idx < 0) return;
+        const state = this.getMaxPlatformState(userId);
+        state.pendingHwStudentIdx = idx;
+        await this.sendMessageWithKeyboard(chatId, '📅 Выберите срок сдачи:', this.buildDueDateAttachment());
+        return;
+      }
+      if (payload.startsWith('hw:d:')) {
+        const days = parseInt(payload.slice(5), 10);
+        if (!Number.isFinite(days) || days < 0) return;
+        await this.doAssignHomework(chatId, userId, days);
+        return;
+      }
+
+      // ── NL-interface callbacks ────────────────────────────────────────────────
+      if (payload === 'pf:nl:go') {
+        const nlState = this.getMaxPlatformState(userId);
+        const pending = nlState.pendingNlRequest;
+        nlState.pendingNlRequest = undefined;
+        if (!pending) return;
+        this.genSessions.delete(userId);
+        if (pending.action === 'generate' && pending.tool && pending.params) {
+          await this.startNlGenSession(chatId, userId, pending.tool, pending.params);
+        } else if (pending.action === 'show_history') {
+          nlState.genOffset = 0;
+          await this.showHistory(chatId, userId, 0);
+        } else if (pending.action === 'show_classes') {
+          await this.showClasses(chatId, userId);
+        } else if (pending.action === 'assign_homework') {
+          // Если нет выбранной генерации — берём последнюю завершённую
+          if (!nlState.pendingHwGenId) {
+            const auth = await this.getAuthForUser(userId, chatId);
+            if (!auth) return;
+            try {
+              const data = await this.callApi(auth.token, 'generate/history?limit=10&offset=0');
+              const gen = (data.generations ?? []).find((g: any) => g.status === 'completed');
+              if (!gen) {
+                await this.sendMessage(chatId, '❌ Нет завершённых генераций. Сначала создайте материал.');
+                return;
+              }
+              nlState.pendingHwGenId = gen.id;
+              const p = (typeof gen.params === 'object' && gen.params) ? gen.params as Record<string, any> : {};
+              const topic = (p.topic || p.subject || p.lessonTopic || p.theme || '').toString().slice(0, 60);
+              nlState.pendingHwGenTopic = topic || gen.type || 'Материал из MAX';
+              nlState.pendingViewGenType = gen.type || '';
+            } catch {
+              await this.sendMessage(chatId, '❌ Выберите генерацию из списка «📋 Мои генерации».');
+              return;
+            }
+          }
+          if (pending.target === 'student') {
+            await this.showHwClassPicker(chatId, userId, 'student');
+          } else {
+            await this.showHwClassPicker(chatId, userId, 'class');
+          }
+        }
+        return;
+      }
+      if (payload === 'pf:nl:no') {
+        const nlState = this.getMaxPlatformState(userId);
+        nlState.pendingNlRequest = undefined;
+        await this.sendMessageWithKeyboard(chatId, 'Понял, отменяю.', this.buildMainMenuAttachment());
+        return;
+      }
+      if (payload === 'pf:nl:edit') {
+        const nlState = this.getMaxPlatformState(userId);
+        const pending = nlState.pendingNlRequest;
+        nlState.pendingNlRequest = undefined;
+        if (!pending?.tool) return;
+        const editTool = getToolConfig(pending.tool);
+        if (!editTool) return;
+        this.genSessions.delete(userId);
+        let editSession: GenSession;
+        try {
+          editSession = this.createGenSession(userId, pending.tool);
+        } catch (e: any) {
+          await this.sendMessage(chatId, `⚠️ ${e.message}`);
+          return;
+        }
+        await this.askField(chatId, editTool, editSession);
+        return;
+      }
+      if (payload === 'pf:nl:cont') {
+        const nlState = this.getMaxPlatformState(userId);
+        nlState.pendingNlRequest = undefined;
+        const contSession = this.getGenSession(userId);
+        if (!contSession) {
+          await this.sendMessage(chatId, '⏰ Время заполнения формы истекло. Начните заново через меню.');
+          return;
+        }
+        const contTool = getToolConfig(contSession.toolKey);
+        if (!contTool) return;
+        await this.askField(chatId, contTool, contSession);
         return;
       }
 
@@ -499,7 +813,7 @@ export class MaxService {
             }];
             await this.sendMessageWithMarkup(chatId, `🎮 Игра готова!\n\nТема: ${session.params.topic}\n\nНажмите кнопку, чтобы открыть:`, gameAttachment);
             await this.sendMessage(chatId, `💳 Осталось токенов: ${tokenResult.remaining}`);
-            await this.sendMessageWithKeyboard(chatId, '🛠️ Выберите инструмент:', this.buildToolSelectionAttachment());
+            await this.sendMessageWithKeyboard(chatId, '🏠 Главное меню:', this.buildMainMenuAttachment());
           } else {
             let apiParams: Record<string, any> = { ...session.params };
             if (tool.key === 'lesson-preparation' && typeof apiParams.generationTypes === 'string') {
@@ -512,7 +826,7 @@ export class MaxService {
             if (result.status === 'failed') {
               await this.refundTokens(userId, appUser.id, tokenResult.source);
               await this.sendMessage(chatId, '❌ Генерация не удалась. Токены возвращены.');
-              await this.sendMessageWithKeyboard(chatId, '🛠️ Выберите инструмент:', this.buildToolSelectionAttachment());
+              await this.sendMessageWithKeyboard(chatId, '🏠 Главное меню:', this.buildMainMenuAttachment());
               return;
             }
             await (this.prisma as any).botUser.update({
@@ -529,7 +843,7 @@ export class MaxService {
           this.logger.error(`[Gen] Generation failed for userId=${userId} tool=${tool.key}: ${err?.message ?? err}`);
           await this.refundTokens(userId, appUser.id, tokenResult.source);
           await this.sendMessage(chatId, this.humanizeError(err));
-          await this.sendMessageWithKeyboard(chatId, '🛠️ Выберите инструмент:', this.buildToolSelectionAttachment());
+          await this.sendMessageWithKeyboard(chatId, '🏠 Главное меню:', this.buildMainMenuAttachment());
         }
 
       } else if (payload === 'g:webapp') {
@@ -543,7 +857,7 @@ export class MaxService {
             payload: { buttons: [[{ type: 'link', url: `${webAppUrl}/dashboard`, text: '🚀 Открыть Преподавай' }]] },
           }]);
         } else {
-          await this.startMaxRegistration(userId, chatId);
+          await this.startMaxRegistration(userId, chatId, botUser?.username);
         }
 
       } else if (payload === 'g:no') {
@@ -590,6 +904,11 @@ export class MaxService {
 
     if (existingUser) {
       this.logger.log(`[Start] Linked user: userId=${user.id} appUserId=${existingUser.id}`);
+      // Очищаем незавершённые сессии — /start всегда начинает с чистого листа
+      const uidStr = user.id.toString();
+      this.genSessions.delete(uidStr);
+      this.regStates.delete(uidStr);
+      this.platformStates.delete(uidStr);
       existingUser = await this.prisma.appUser.update({
         where: { id: existingUser.id },
         data: {
@@ -763,11 +1082,7 @@ export class MaxService {
     }
     const text = this.getWelcomeMessage(appUser, balance);
     await this.sendMessageWithMarkup(chatId, text);
-    await this.sendMessage(
-      chatId,
-      `📌 Как пользоваться:\n\n1. Выберите инструмент из списка ниже\n2. Ответьте на несколько вопросов\n3. Получите готовый материал в PDF\n\nКаждая генерация стоит 3 токена.`,
-    );
-    await this.sendMessageWithKeyboard(chatId, '🛠️ Выберите инструмент:', this.buildToolSelectionAttachment());
+    await this.sendMessageWithKeyboard(chatId, '🏠 Главное меню:', this.buildMainMenuAttachment());
   }
 
   // ── Generation result delivery ────────────────────────────────────────────
@@ -784,7 +1099,7 @@ export class MaxService {
     result: any;
     generationRequestId: string;
   }): Promise<{ success: boolean; message?: string }> {
-    const { userId, generationType, result } = params;
+    const { userId, generationType, result, generationRequestId } = params;
 
     const appUser = await this.prisma.appUser.findUnique({
       where: { id: userId },
@@ -812,7 +1127,24 @@ export class MaxService {
         await this.sendTextResult(chatId, generationType, result, isBotOnlyUser);
       }
       this.logger.log(`[MAX] Result delivered successfully: type=${generationType} userId=${userId}`);
-      await this.sendMessageWithKeyboard(chatId, '🛠️ Выберите инструмент:', this.buildToolSelectionAttachment()).catch(() => {});
+
+      // Store the delivered generation in platformState so "Назначить ДЗ" works immediately
+      const maxUserId = String(appUser.maxId);
+      const userGeneration = await this.prisma.userGeneration.findUnique({
+        where: { generationRequestId },
+        select: { id: true, inputParams: true, generationType: true },
+      });
+      if (userGeneration) {
+        const state = this.getMaxPlatformState(maxUserId);
+        state.pendingHwGenId = userGeneration.id;
+        const p = (typeof userGeneration.inputParams === 'object' && userGeneration.inputParams)
+          ? userGeneration.inputParams as Record<string, any>
+          : {};
+        const topic = (p.topic || p.subject || p.lessonTopic || p.theme || '').toString().slice(0, 60);
+        state.pendingHwGenTopic = topic || userGeneration.generationType || 'Материал из MAX';
+      }
+
+      await this.sendMessageWithKeyboard(chatId, '🏠 Главное меню:', this.buildAfterDeliveryAttachment()).catch(() => {});
       return { success: true, message: 'Result sent successfully' };
     } catch (error) {
       this.logger.error(`[MAX] Failed to deliver result: type=${generationType} userId=${userId} error=${error}`);
@@ -834,7 +1166,7 @@ export class MaxService {
 
     const payload = {
       url,
-      update_types: ['message_created', 'bot_started', 'message_callback'],
+      update_types: ['message_created', 'bot_started', 'message_callback', 'bot_stopped'],
     };
 
     this.logger.log(`Registering webhook at MAX: POST ${subscriptionUrl} with URL ${url}`);
@@ -995,11 +1327,18 @@ export class MaxService {
 
     const text = this.getWelcomeMessage(null, botUserRecord.botCredits);
     await this.sendMessageWithMarkup(chatId, text);
+
     await this.sendMessage(
       chatId,
-      '📌 Как пользоваться:\n\n1. Выберите инструмент из списка ниже\n2. Ответьте на несколько вопросов\n3. Получите готовый материал в PDF\n\nКаждая генерация стоит 3 токена.',
+      'Как пользоваться:\n\n' +
+      '🛠 Создать материал — выберите инструмент (тест, план урока, рабочий лист и др.) и заполните форму\n' +
+      '📋 Мои генерации — история ваших материалов, можно посмотреть и назначить как ДЗ\n' +
+      '📚 Классы — список классов и учеников\n' +
+      '📊 Аналитика — прогресс учеников и статистика\n\n' +
+      'Попробуйте прямо сейчас — нажмите «🛠 Создать материал»!',
     );
-    await this.sendMessageWithKeyboard(chatId, '🛠️ Выберите инструмент:', this.buildToolSelectionAttachment());
+
+    await this.sendMessageWithKeyboard(chatId, '🏠 Главное меню:', this.buildMainMenuAttachment());
   }
 
   // ── Keyboard builders ─────────────────────────────────────────────────────
@@ -1014,7 +1353,7 @@ export class MaxService {
       row.push({ type: 'callback', text: `${tool.emoji} ${tool.label}`, payload: `g:t:${tool.key}` });
     });
     if (row.length > 0) buttons.push(row);
-    buttons.push([{ type: 'callback', text: '📱 Открыть Преподавай', payload: 'g:webapp' }]);
+    buttons.push([{ type: 'callback', text: '◀ Меню', payload: 'm:menu' }]);
     return [{ type: 'inline_keyboard', payload: { buttons } }];
   }
 
@@ -1091,6 +1430,902 @@ export class MaxService {
     }];
   }
 
+  // ── Platform state helper ─────────────────────────────────────────────────
+  private getMaxPlatformState(userId: string): MaxPlatformState {
+    if (!this.platformStates.has(userId)) {
+      this.platformStates.set(userId, {
+        genHistoryIds: [], genOffset: 0,
+        classes: [], classStudents: [],
+        pendingHwGenId: null, pendingHwGenTopic: null,
+        pendingHwTarget: null,
+        pendingHwClassIdx: null, pendingHwStudentIdx: null,
+        pendingViewGenType: null,
+      });
+    }
+    return this.platformStates.get(userId)!;
+  }
+
+  // ── Generic backend API caller ────────────────────────────────────────────
+  private async callApi(token: string, path: string, method = 'GET', body?: any): Promise<any> {
+    const resp = await axios.request({
+      method,
+      url: `${this.internalApiUrl}/api/${path}`,
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      ...(body ? { data: body } : {}),
+    });
+    return resp.data;
+  }
+
+  // Получить appUser + authToken или вернуть null (с сообщением об ошибке пользователю)
+  private async getAuthForUser(userId: string, chatId?: string): Promise<{ appUser: any; token: string } | null> {
+    const appUser = await this.prisma.appUser.findUnique({ where: { maxId: userId } }) as any;
+    if (!appUser) {
+      if (chatId) await this.sendMessage(chatId, '❌ Аккаунт не найден. Используйте /start.');
+      return null;
+    }
+    const apiKey = await this.ensureApiKey(appUser);
+    const token = await this.getApiToken(appUser.username, apiKey);
+    if (!token) {
+      if (chatId) await this.sendMessage(chatId, '❌ Ошибка авторизации. Попробуйте позже.');
+      return null;
+    }
+    return { appUser, token };
+  }
+
+  // ── Main menu ─────────────────────────────────────────────────────────────
+  private async showMainMenu(chatId: string, userId: string): Promise<void> {
+    const botUser = await (this.prisma as any).botUser.findUnique({
+      where: { maxId: userId }, select: { botCredits: true },
+    });
+    const sub = await this.prisma.appUser.findUnique({
+      where: { maxId: userId }, select: { id: true },
+    });
+    let balance: number | null = null;
+    if (sub?.id) {
+      const userSub = await this.prisma.userSubscription.findUnique({ where: { userId: sub.id } });
+      if (userSub?.status === 'active') {
+        balance = userSub.creditsBalance + userSub.extraCredits;
+      }
+    }
+    if (balance === null) balance = botUser?.botCredits ?? null;
+    const balanceLine = balance !== null ? `\n💳 Токенов: ${balance}` : '';
+    await this.sendMessageWithKeyboard(
+      chatId,
+      `🏠 Главное меню${balanceLine}`,
+      this.buildMainMenuAttachment(),
+    );
+  }
+
+  private buildMainMenuAttachment(): any[] {
+    const webAppUrl = this.configService.get<string>('WEBAPP_URL', 'https://prepodavai.ru');
+    return [{
+      type: 'inline_keyboard',
+      payload: {
+        buttons: [
+          [{ type: 'callback', text: '🛠 Создать материал', payload: 'm:tools' }],
+          [
+            { type: 'callback', text: '📋 Мои генерации', payload: 'm:hist:0' },
+            { type: 'callback', text: '📚 Классы', payload: 'm:classes' },
+          ],
+          [{ type: 'callback', text: '📊 Аналитика', payload: 'm:analytics' }],
+          [{ type: 'link', text: '📱 Открыть сайт', url: `${webAppUrl}/dashboard` }],
+        ],
+      },
+    }];
+  }
+
+  private buildAfterDeliveryAttachment(): any[] {
+    return [{
+      type: 'inline_keyboard',
+      payload: {
+        buttons: [
+          [
+            { type: 'callback', text: '📚 Назначить как ДЗ', payload: 'hw:who' },
+            { type: 'callback', text: '📋 Мои генерации', payload: 'm:hist:0' },
+          ],
+          [{ type: 'callback', text: '🛠 Создать ещё', payload: 'm:tools' }],
+        ],
+      },
+    }];
+  }
+
+  // ── NL-interface helpers ──────────────────────────────────────────────────
+  private looksLikeNlRequest(text: string): boolean {
+    return /^(сгенерируй|создай|сделай|составь|сделайте|создайте|сгенерируйте|составьте|хочу создать|хочу сгенерировать|мне нужн)/i.test(text.trim()) &&
+      text.trim().length > 15;
+  }
+
+  private nlNavFallback(text: string): NlParsedRequest {
+    const t = text.toLowerCase();
+    if (/история|мои ген|покажи ген|что я создавал|мои работы/.test(t)) return { action: 'show_history' };
+    if (/выдать|домашнее задание|задать|назначить задание/.test(t)) {
+      const target: 'student' | 'class' = /ученик|ученице|ученику|ученика/.test(t) ? 'student' : 'class';
+      return { action: 'assign_homework', target };
+    }
+    if (/мои классы|список классов|посмотреть классы/.test(t)) return { action: 'show_classes' };
+    return { action: 'unknown' };
+  }
+
+  private async parseNlRequest(text: string): Promise<NlParsedRequest> {
+    const input = text.trim().slice(0, 300);
+    const replicateToken = this.configService.get<string>('REPLICATE_API_TOKEN') || '';
+    if (!replicateToken) return this.nlNavFallback(input);
+
+    const prompt =
+      'Ты классифицируешь запросы учителя для бота «Преподавай». Верни ТОЛЬКО JSON без пояснений.\n\n' +
+      'Форматы ответа:\n' +
+      '{"action":"generate","tool":"<key>","params":{<только найденные поля>}}\n' +
+      '{"action":"show_history"}\n' +
+      '{"action":"show_classes"}\n' +
+      '{"action":"assign_homework","target":"class","dueDate":"YYYY-MM-DD"}\n' +
+      '{"action":"unknown"}\n\n' +
+      'Инструменты:\n' +
+      'worksheet: рабочий лист. subject?(предмет), topic(тема), level("Младшие классы"|"Средняя школа"|"Старшие классы"|"Взрослые"|"Подготовка к ОГЭ"|"Подготовка к ЕГЭ"|"Студенты вузов"), questionsCount("5"|"10"|"15"|"20")\n' +
+      'quiz: тест. subject?, topic, level("1 Класс"..."11 Класс"), questionsCount("5"|"10"|"15"|"20"|"25"), answersCount("2"|"3"|"4")\n' +
+      'vocabulary: словарь. topic, language("ru"|"en"|"de"|"fr"|"es"|"it"|"zh"|"ko"|"ja"|"ar"), wordsCount("5"|"10"|"15"|"20"|"25"|"30")\n' +
+      'lesson-plan: план урока. subject?, topic, level("5 Класс"|"6 Класс"|"7 Класс"|"8 Класс"|"Старшая Школа"), duration("30"|"45"|"90"), style("Интерактивный"|"Лекция")\n' +
+      'lesson-preparation: Вау-урок. subject?, topic, level("1"..."11"), interests?, depth("short"|"standard"|"deep")\n' +
+      'image: изображение. prompt(описание), style("realistic"|"cartoon"|"sketch"|"illustration"|"3d-model"|"anime")\n' +
+      'game: игра. type("millionaire"|"flashcards"|"crossword"|"memory"|"truefalse"), topic\n' +
+      'presentation: презентация. topic, duration("5"|"15"|"30"|"45"), style("modern"|"academic"|"creative"|"corporate"), targetAudience("students"|"colleagues"|"parents"|"general")\n\n' +
+      'Правило: включай в params только поля явно упомянутые в запросе. Значения select строго из списка.\n' +
+      'Для assign_homework: target="student" если упомянут ученик/ему, target="class" если класс (по умолчанию "class"). dueDate — дата в ISO (YYYY-MM-DD) если явно указана, иначе не включай.\n\n' +
+      `Запрос: «${input}»`;
+
+    try {
+      const res = await fetch('https://api.replicate.com/v1/models/google/gemini-3-flash/predictions', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${replicateToken}`, 'Content-Type': 'application/json', Prefer: 'wait' },
+        body: JSON.stringify({ input: { prompt, max_new_tokens: 200, temperature: 0 } }),
+        signal: AbortSignal.timeout(15000),
+      });
+      if (!res.ok) return this.nlNavFallback(input);
+
+      const data: any = await res.json();
+      const raw: string = Array.isArray(data.output) ? data.output.join('') : (data.output ?? '');
+      const jsonMatch = raw.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) return this.nlNavFallback(input);
+
+      let parsed: any;
+      try { parsed = JSON.parse(jsonMatch[0]); } catch { return this.nlNavFallback(input); }
+
+      if (!parsed.action) return { action: 'unknown' };
+      if (['show_history', 'show_classes', 'unknown'].includes(parsed.action)) return { action: parsed.action };
+
+      if (parsed.action === 'assign_homework') {
+        const target: 'student' | 'class' = parsed.target === 'student' ? 'student' : 'class';
+        const dueDate = typeof parsed.dueDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(parsed.dueDate)
+          ? parsed.dueDate : undefined;
+        return { action: 'assign_homework', target, dueDate };
+      }
+
+      if (parsed.action === 'generate') {
+        const tool = getToolConfig(parsed.tool);
+        if (!tool) return { action: 'unknown' };
+        const validParams: Record<string, string> = {};
+        for (const field of tool.fields) {
+          if (field.type === 'multiselect') continue;
+          const val = parsed.params?.[field.key];
+          if (val === undefined || val === null) continue;
+          const strVal = String(val).trim().slice(0, field.maxLength);
+          if (!strVal) continue;
+          if (field.type === 'select' && field.options) {
+            if (!field.options.some(o => o.value === strVal)) continue;
+          }
+          validParams[field.key] = strVal;
+        }
+        return { action: 'generate', tool: parsed.tool, params: validParams };
+      }
+
+      return { action: 'unknown' };
+    } catch {
+      return this.nlNavFallback(input);
+    }
+  }
+
+  private buildNlConfirmMessage(parsed: NlParsedRequest): string {
+    if (parsed.action === 'generate' && parsed.tool) {
+      const tool = getToolConfig(parsed.tool);
+      if (!tool) return 'Не совсем понял запрос.';
+      const lines: string[] = [`Понял! Вот что создам:\n\n${tool.emoji} ${tool.label}`];
+      for (const field of tool.fields) {
+        if (field.type === 'multiselect') continue;
+        const fieldLabel = field.label.split('\n')[0];
+        const detectedVal = parsed.params?.[field.key];
+        if (detectedVal !== undefined) {
+          const display = field.options?.find(o => o.value === detectedVal)?.label ?? detectedVal;
+          lines.push(`• ${fieldLabel}: ${display}`);
+        } else if (field.default !== undefined) {
+          const display = field.options?.find(o => o.value === field.default)?.label ?? field.default;
+          lines.push(`• ${fieldLabel}: ${display} (по умолч.)`);
+        }
+      }
+      const missingRequired = tool.fields.filter(
+        f => f.type !== 'multiselect' && f.required && parsed.params?.[f.key] === undefined && f.default === undefined,
+      );
+      if (missingRequired.length > 0) {
+        lines.push(`\nУточню дополнительно: ${missingRequired.map(f => f.label.split('\n')[0]).join(', ')}`);
+      }
+      lines.push('\nВсё верно?');
+      return lines.join('\n');
+    }
+    if (parsed.action === 'assign_homework') {
+      const targetLabel = parsed.target === 'student' ? 'ученику' : 'классу';
+      const dueLine = parsed.dueDate
+        ? `\nСрок: ${new Date(parsed.dueDate).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}`
+        : '';
+      return `Правильно понял? Хотите выдать задание ${targetLabel}.${dueLine}`;
+    }
+    const navMessages: Record<string, string> = {
+      show_history: 'Правильно понял? Хотите посмотреть историю своих генераций.',
+      show_classes: 'Правильно понял? Хотите посмотреть свои классы и учеников.',
+    };
+    return navMessages[parsed.action] ?? 'Не совсем понял запрос.';
+  }
+
+  private async startNlGenSession(chatId: string, userId: string, toolKey: string, prefilledParams: Record<string, string>): Promise<void> {
+    const tool = getToolConfig(toolKey);
+    if (!tool) return;
+    let session: GenSession;
+    try {
+      session = this.createGenSession(userId, toolKey);
+    } catch (e: any) {
+      await this.sendMessage(chatId, `⚠️ ${e.message}`);
+      return;
+    }
+    for (const [key, val] of Object.entries(prefilledParams)) {
+      session.params[key] = val;
+    }
+    for (const field of tool.fields) {
+      if (session.params[field.key] === undefined && field.default !== undefined) {
+        session.params[field.key] = field.default;
+      }
+    }
+    await this.nextStep(chatId, session, tool);
+  }
+
+  // ── History ───────────────────────────────────────────────────────────────
+  private async showHistory(chatId: string, userId: string, offset: number, editMessageId?: string): Promise<void> {
+    const auth = await this.getAuthForUser(userId, chatId);
+    if (!auth) return;
+
+    const PAGE = MaxService.GEN_HISTORY_PAGE_SIZE;
+    let data: any;
+    try {
+      data = await this.callApi(auth.token, `generate/history?limit=${PAGE}&offset=${offset}`);
+    } catch {
+      await this.sendMessage(chatId, '❌ Не удалось загрузить историю. Попробуйте позже.');
+      return;
+    }
+
+    const gens: any[] = data.generations ?? [];
+    const total: number = data.total ?? 0;
+    const state = this.getMaxPlatformState(userId);
+    state.genHistoryIds = gens.map((g: any) => g.id);
+    state.genOffset = offset;
+
+    if (!gens.length) {
+      await this.sendMessageWithKeyboard(
+        chatId,
+        offset === 0
+          ? '📋 Генераций пока нет. Создайте первую!'
+          : '📋 Больше генераций нет.',
+        this.buildMainMenuAttachment(),
+      );
+      return;
+    }
+
+    const typeEmoji: Record<string, string> = {
+      worksheet: '📄', quiz: '📝', vocabulary: '📖', 'lesson-plan': '📋',
+      'lesson-preparation': '✨', image: '🖼️', game_generation: '🎮', presentation: '📊',
+    };
+    const lines = gens.map((g: any, i: number) => {
+      const emoji = typeEmoji[g.type] || '📄';
+      const params = (typeof g.params === 'object' && g.params) ? g.params : {};
+      const topic = (params.topic || params.subject || params.lessonTopic || '').slice(0, 28);
+      const date = g.createdAt
+        ? new Date(g.createdAt).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })
+        : '';
+      return `${offset + i + 1}. ${emoji} ${topic || g.generationType}${date ? ' · ' + date : ''}`;
+    });
+
+    const header = total > PAGE
+      ? `📋 Генерации (${offset + 1}–${Math.min(offset + PAGE, total)} из ${total}):`
+      : '📋 Мои генерации:';
+
+    const numLabels = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣'];
+    const numButtons = gens.map((_, i) => ({
+      type: 'callback', text: numLabels[i] ?? `${i + 1}`, payload: `m:gen:${i}`,
+    }));
+
+    const navRow: any[] = [];
+    if (offset > 0) navRow.push({ type: 'callback', text: '◀ Назад', payload: `m:hist:${offset - PAGE}` });
+    if (offset + PAGE < total) navRow.push({ type: 'callback', text: 'Вперёд ▶', payload: `m:hist:${offset + PAGE}` });
+
+    const buttons: any[][] = [numButtons];
+    if (navRow.length) buttons.push(navRow);
+    buttons.push([{ type: 'callback', text: '◀ Меню', payload: 'm:menu' }]);
+
+    const msgText = `${header}\n\n${lines.join('\n')}\n\nНажмите номер для деталей.`;
+    const msgAttachments = [{ type: 'inline_keyboard', payload: { buttons } }];
+
+    if (editMessageId) {
+      await this.editMessageKeyboard(editMessageId, msgText, msgAttachments).catch(() =>
+        this.sendMessageWithKeyboard(chatId, msgText, msgAttachments),
+      );
+    } else {
+      await this.sendMessageWithKeyboard(chatId, msgText, msgAttachments);
+    }
+  }
+
+  private async showGenDetail(chatId: string, userId: string, idx: number): Promise<void> {
+    const state = this.getMaxPlatformState(userId);
+    const genId = state.genHistoryIds[idx];
+    if (!genId) {
+      await this.sendMessage(chatId, '❌ Генерация не найдена. Обновите список.');
+      return;
+    }
+
+    // Загружаем полные данные генерации чтобы получить тему для создания урока
+    const auth = await this.getAuthForUser(userId, chatId);
+    if (!auth) return;
+
+    let topic = '';
+    let genLabel = '';
+    let genGameUrl: string | null = null;
+    try {
+      const data = await this.callApi(auth.token, `generate/history?limit=1&offset=${state.genOffset + idx}`);
+      const gen = data.generations?.[0];
+      if (gen) {
+        const params = (typeof gen.params === 'object' && gen.params) ? gen.params : {};
+        topic = (params.topic || params.subject || params.lessonTopic || params.theme || '').slice(0, 60);
+        genLabel = gen.type || '';
+        if (genLabel === 'game_generation') {
+          genGameUrl = gen.result?.gameUrl || gen.result?.url || null;
+        }
+      }
+    } catch {
+      // fallback — назначение всё равно сработает, тема будет пустой
+    }
+
+    state.pendingHwGenId = genId;
+    state.pendingHwGenTopic = topic || genLabel || 'Материал из MAX';
+    state.pendingViewGenType = genLabel;
+    state.pendingGameUrl = genGameUrl;
+
+    const displayTopic = topic || genLabel || 'Генерация';
+    await this.sendMessageWithKeyboard(
+      chatId,
+      `📄 ${displayTopic}\n\nЧто сделать с этой генерацией?`,
+      [{
+        type: 'inline_keyboard',
+        payload: {
+          buttons: [
+            [
+              { type: 'callback', text: '👁 Посмотреть', payload: 'm:gview' },
+              { type: 'callback', text: '📚 Назначить как ДЗ', payload: 'hw:who' },
+            ],
+            [
+              { type: 'callback', text: '◀ К списку', payload: `m:hist:${state.genOffset}` },
+              { type: 'callback', text: '◀ Меню', payload: 'm:menu' },
+            ],
+          ],
+        },
+      }],
+    );
+  }
+
+  // ── Classes ───────────────────────────────────────────────────────────────
+  private async showClasses(chatId: string, userId: string): Promise<void> {
+    const auth = await this.getAuthForUser(userId, chatId);
+    if (!auth) return;
+
+    let classes: any[];
+    try {
+      classes = await this.callApi(auth.token, 'classes');
+    } catch {
+      await this.sendMessage(chatId, '❌ Не удалось загрузить классы. Попробуйте позже.');
+      return;
+    }
+
+    const state = this.getMaxPlatformState(userId);
+    state.classes = (classes ?? []).map((c: any) => ({
+      id: c.id,
+      name: c.name,
+      studentCount: c._count?.students ?? c.students?.length ?? 0,
+    }));
+
+    if (!state.classes.length) {
+      await this.sendMessageWithKeyboard(
+        chatId,
+        '📚 У вас нет классов.\n\nСоздайте класс на сайте prepodavai.ru и пригласите учеников.',
+        this.buildMainMenuAttachment(),
+      );
+      return;
+    }
+
+    const lines = state.classes.map((c, i) => `${i + 1}. ${c.name} — ${c.studentCount} уч.`).join('\n');
+
+    const buttons: any[][] = [];
+    let row: any[] = [];
+    state.classes.forEach((c, i) => {
+      if (i > 0 && i % 2 === 0) { buttons.push(row); row = []; }
+      row.push({ type: 'callback', text: `${c.name} · ${c.studentCount} уч.`.slice(0, 20), payload: `m:cls:${i}` });
+    });
+    if (row.length) buttons.push(row);
+    buttons.push([{ type: 'callback', text: '◀ Меню', payload: 'm:menu' }]);
+
+    await this.sendMessageWithKeyboard(
+      chatId,
+      `📚 Мои классы:\n\n${lines}`,
+      [{ type: 'inline_keyboard', payload: { buttons } }],
+    );
+  }
+
+  private async showClassDetail(chatId: string, userId: string, idx: number): Promise<void> {
+    const state = this.getMaxPlatformState(userId);
+    const cls = state.classes[idx];
+    if (!cls) {
+      await this.sendMessage(chatId, '❌ Класс не найден. Обновите список кнопкой «📚 Классы».');
+      return;
+    }
+
+    const auth = await this.getAuthForUser(userId, chatId);
+    if (!auth) return;
+
+    let classData: any;
+    try {
+      classData = await this.callApi(auth.token, `classes/${cls.id}`);
+    } catch {
+      await this.sendMessage(chatId, '❌ Не удалось загрузить данные класса.');
+      return;
+    }
+
+    const students: any[] = classData.students ?? [];
+    state.classStudents = students.slice(0, 50).map((s: any) => ({ id: s.id, name: s.name }));
+
+    if (!students.length) {
+      await this.sendMessageWithKeyboard(
+        chatId,
+        `📚 ${cls.name} — учеников нет.\n\nПригласите учеников через сайт prepodavai.ru.`,
+        [{ type: 'inline_keyboard', payload: { buttons: [[{ type: 'callback', text: '◀ Классы', payload: 'm:classes' }]] } }],
+      );
+      return;
+    }
+
+    // Загружаем аналитику рисков (B4)
+    const riskMap: Record<string, 'risk' | 'watch' | 'good'> = {};
+    try {
+      const analytics = await this.callApi(auth.token, `classes/${cls.id}/analytics`);
+      for (const s of analytics?.studentBreakdown ?? []) {
+        riskMap[s.id] = s.riskLevel ?? 'good';
+      }
+    } catch { /* аналитика опциональна */ }
+
+    const riskIcon = (id: string) => riskMap[id] === 'risk' ? ' 🔴' : riskMap[id] === 'watch' ? ' 🟡' : '';
+    const hasRisk = Object.values(riskMap).some(v => v === 'risk' || v === 'watch');
+
+    const shown = students.slice(0, 50);
+    const overflowNote = students.length > 50 ? `\n_Показаны первые 50 из ${students.length} учеников_` : '';
+    const lines = shown.map((s: any, i: number) => `${i + 1}. ${s.name}${riskIcon(s.id)}`).join('\n');
+    const legend = hasRisk ? '\n\n🔴 риск  🟡 внимание' : '';
+
+    await this.sendMessageWithKeyboard(
+      chatId,
+      `📚 ${cls.name} — ${students.length} уч.:\n\n${lines}${legend}${overflowNote}`,
+      [{ type: 'inline_keyboard', payload: { buttons: [
+        [{ type: 'callback', text: '📚 Выдать задание классу', payload: `m:cgp:${idx}` }],
+        [{ type: 'callback', text: '◀ Классы', payload: 'm:classes' }],
+      ]}}],
+    );
+  }
+
+  // ── Class gen picker (B3) ─────────────────────────────────────────────────
+  private async showClassGenPicker(chatId: string, userId: string, classIdx: number): Promise<void> {
+    const state = this.getMaxPlatformState(userId);
+    const cls = state.classes[classIdx];
+    if (!cls) {
+      await this.sendMessage(chatId, '❌ Класс не найден. Обновите список кнопкой «📚 Классы».');
+      return;
+    }
+
+    const auth = await this.getAuthForUser(userId, chatId);
+    if (!auth) return;
+
+    let gens: any[];
+    try {
+      const data = await this.callApi(auth.token, 'generate/history?limit=10&offset=0');
+      gens = (data.generations ?? []).filter((g: any) => g.status === 'completed');
+    } catch {
+      await this.sendMessage(chatId, '❌ Не удалось загрузить генерации. Попробуйте позже.');
+      return;
+    }
+
+    if (!gens.length) {
+      await this.sendMessageWithKeyboard(
+        chatId,
+        '❌ Нет завершённых генераций. Сначала создайте материал.',
+        [{ type: 'inline_keyboard', payload: { buttons: [
+          [{ type: 'callback', text: '🛠 Создать материал', payload: 'm:tools' }],
+          [{ type: 'callback', text: '◀ Назад', payload: `m:cls:${classIdx}` }],
+        ]}}],
+      );
+      return;
+    }
+
+    state.pendingHwClassIdx = classIdx;
+    state.pendingHwTarget = 'class';
+    state.classGenList = gens.slice(0, 10).map((g: any) => {
+      const p = (typeof g.params === 'object' && g.params) ? g.params as Record<string, any> : {};
+      const topic = (p.topic || p.subject || p.lessonTopic || p.theme || '').toString().slice(0, 40);
+      return { id: g.id, type: g.type || '', topic };
+    });
+
+    const typeEmoji: Record<string, string> = {
+      worksheet: '📄', quiz: '📝', vocabulary: '📖', 'lesson-plan': '📋',
+      'lesson-preparation': '✨', image: '🖼️', game_generation: '🎮', presentation: '📊',
+    };
+
+    const lines = state.classGenList.map((g, i) => {
+      const emoji = typeEmoji[g.type] || '📄';
+      return `${i + 1}. ${emoji} ${g.topic || g.type}`;
+    });
+
+    const numLabels = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟'];
+    const numButtons: any[] = [];
+    let row: any[] = [];
+    state.classGenList.forEach((_, i) => {
+      if (i > 0 && i % 5 === 0) { numButtons.push(row); row = []; }
+      row.push({ type: 'callback', text: numLabels[i] ?? `${i + 1}`, payload: `hw:cg:${i}` });
+    });
+    if (row.length) numButtons.push(row);
+    numButtons.push([{ type: 'callback', text: '◀ Назад', payload: `m:cls:${classIdx}` }]);
+
+    await this.sendMessageWithKeyboard(
+      chatId,
+      `📚 Выберите материал для ${cls.name}:\n\n${lines.join('\n')}`,
+      [{ type: 'inline_keyboard', payload: { buttons: numButtons } }],
+    );
+  }
+
+  private async pickClassGen(chatId: string, userId: string, genIdx: number): Promise<void> {
+    const state = this.getMaxPlatformState(userId);
+    const gen = state.classGenList?.[genIdx];
+    if (!gen) {
+      await this.sendMessage(chatId, '❌ Генерация не найдена. Попробуйте ещё раз.');
+      return;
+    }
+
+    state.pendingHwGenId = gen.id;
+    state.pendingHwGenTopic = gen.topic || gen.type || 'Материал из MAX';
+    state.pendingViewGenType = gen.type;
+
+    await this.sendMessageWithKeyboard(chatId, '📅 Выберите срок сдачи:', this.buildDueDateAttachment());
+  }
+
+  // ── Homework assignment ───────────────────────────────────────────────────
+  private async showHwWho(chatId: string, userId: string): Promise<void> {
+    const state = this.getMaxPlatformState(userId);
+    if (!state.pendingHwGenId) {
+      await this.sendMessage(chatId, '❌ Сначала выберите генерацию из списка.');
+      await this.showHistory(chatId, userId, 0);
+      return;
+    }
+    await this.sendMessageWithKeyboard(chatId, '📚 Кому назначить задание?', [{
+      type: 'inline_keyboard',
+      payload: {
+        buttons: [
+          [
+            { type: 'callback', text: '👥 Классу', payload: 'hw:wc' },
+            { type: 'callback', text: '👤 Ученику', payload: 'hw:ws' },
+          ],
+          [{ type: 'callback', text: '❌ Отмена', payload: 'm:menu' }],
+        ],
+      },
+    }]);
+  }
+
+  private async showHwClassPicker(chatId: string, userId: string, mode: 'class' | 'student'): Promise<void> {
+    const state = this.getMaxPlatformState(userId);
+    state.pendingHwTarget = mode;
+
+    if (!state.classes.length) {
+      const auth = await this.getAuthForUser(userId, chatId);
+      if (!auth) return;
+      try {
+        const classes = await this.callApi(auth.token, 'classes');
+        state.classes = (classes ?? []).map((c: any) => ({
+          id: c.id, name: c.name,
+          studentCount: c._count?.students ?? 0,
+        }));
+      } catch {
+        await this.sendMessage(chatId, '❌ Не удалось загрузить классы.');
+        return;
+      }
+    }
+
+    if (!state.classes.length) {
+      await this.sendMessage(chatId, '❌ Классов нет. Создайте класс на сайте prepodavai.ru.');
+      return;
+    }
+
+    const payloadPrefix = mode === 'class' ? 'hw:c' : 'hw:sc';
+    const buttons: any[][] = [];
+    let row: any[] = [];
+    state.classes.forEach((c, i) => {
+      if (i > 0 && i % 2 === 0) { buttons.push(row); row = []; }
+      row.push({ type: 'callback', text: `${c.name} · ${c.studentCount} уч.`.slice(0, 20), payload: `${payloadPrefix}:${i}` });
+    });
+    if (row.length) buttons.push(row);
+    buttons.push([{ type: 'callback', text: '❌ Отмена', payload: 'm:menu' }]);
+
+    const prompt = mode === 'class' ? 'Выберите класс:' : 'Выберите класс (для выбора ученика):';
+    await this.sendMessageWithKeyboard(chatId, prompt, [{ type: 'inline_keyboard', payload: { buttons } }]);
+  }
+
+  private async showHwStudentList(chatId: string, userId: string, classIdx: number): Promise<void> {
+    const state = this.getMaxPlatformState(userId);
+    const cls = state.classes[classIdx];
+    if (!cls) {
+      await this.sendMessage(chatId, '❌ Класс не найден.');
+      return;
+    }
+    state.pendingHwClassIdx = classIdx;
+
+    const auth = await this.getAuthForUser(userId, chatId);
+    if (!auth) return;
+
+    let classData: any;
+    try {
+      classData = await this.callApi(auth.token, `classes/${cls.id}`);
+    } catch {
+      await this.sendMessage(chatId, '❌ Не удалось загрузить учеников.');
+      return;
+    }
+
+    const students: any[] = (classData.students ?? []).slice(0, 50);
+    state.classStudents = students.map((s: any) => ({ id: s.id, name: s.name }));
+
+    if (!students.length) {
+      await this.sendMessage(chatId, `❌ В классе ${cls.name} нет учеников.`);
+      return;
+    }
+
+    const buttons: any[][] = students.map((s: any, i: number) => ([
+      { type: 'callback', text: s.name.slice(0, 28), payload: `hw:s:${i}` },
+    ]));
+    buttons.push([{ type: 'callback', text: '❌ Отмена', payload: 'm:menu' }]);
+
+    await this.sendMessageWithKeyboard(
+      chatId,
+      `Выберите ученика из ${cls.name}:`,
+      [{ type: 'inline_keyboard', payload: { buttons } }],
+    );
+  }
+
+  private buildDueDateAttachment(): any[] {
+    const fmt = (days: number) => {
+      const d = new Date(Date.now() + days * 86_400_000);
+      return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
+    };
+    return [{
+      type: 'inline_keyboard',
+      payload: {
+        buttons: [
+          [
+            { type: 'callback', text: `Завтра, ${fmt(1)}`, payload: 'hw:d:1' },
+            { type: 'callback', text: `${fmt(3)}`, payload: 'hw:d:3' },
+          ],
+          [
+            { type: 'callback', text: `${fmt(7)}`, payload: 'hw:d:7' },
+            { type: 'callback', text: `${fmt(14)}`, payload: 'hw:d:14' },
+          ],
+          [{ type: 'callback', text: 'Без срока', payload: 'hw:d:0' }],
+        ],
+      },
+    }];
+  }
+
+  private async doAssignHomework(chatId: string, userId: string, daysUntilDue: number): Promise<void> {
+    const state = this.getMaxPlatformState(userId);
+    const { pendingHwGenId, pendingHwTarget, pendingHwClassIdx, pendingHwStudentIdx } = state;
+
+    if (!pendingHwGenId || !pendingHwTarget || pendingHwClassIdx === null) {
+      await this.sendMessage(chatId, '❌ Нет данных для назначения. Начните заново.');
+      return;
+    }
+
+    const auth = await this.getAuthForUser(userId, chatId);
+    if (!auth) return;
+
+    const cls = state.classes[pendingHwClassIdx];
+    if (!cls) { await this.sendMessage(chatId, '❌ Класс не найден.'); return; }
+
+    let assignTarget: Record<string, string>;
+    let targetLabel: string;
+
+    if (pendingHwTarget === 'class') {
+      assignTarget = { classId: cls.id };
+      targetLabel = `класс ${cls.name}`;
+    } else {
+      if (pendingHwStudentIdx === null || !state.classStudents[pendingHwStudentIdx]) {
+        await this.sendMessage(chatId, '❌ Ученик не найден.');
+        return;
+      }
+      const student = state.classStudents[pendingHwStudentIdx];
+      assignTarget = { studentId: student.id };
+      targetLabel = student.name;
+    }
+
+    const dueDate = daysUntilDue > 0
+      ? new Date(Date.now() + daysUntilDue * 86_400_000).toISOString()
+      : undefined;
+
+    const topicTitle = state.pendingHwGenTopic || 'Материал из MAX';
+
+    try {
+      // Создаём урок (backend требует lessonId в assignments)
+      const lesson = await this.callApi(auth.token, 'lessons', 'POST', { topic: topicTitle });
+      if (!lesson?.id) throw new Error('Lesson creation returned no id');
+
+      await this.callApi(auth.token, 'assignments', 'POST', {
+        lessonId: lesson.id,
+        generationId: pendingHwGenId,
+        ...assignTarget,
+        ...(dueDate ? { dueDate } : {}),
+      });
+
+      // Сбрасываем состояние
+      state.pendingHwGenId = null;
+      state.pendingHwGenTopic = null;
+      state.pendingHwTarget = null;
+      state.pendingHwClassIdx = null;
+      state.pendingHwStudentIdx = null;
+
+      const dueDateStr = dueDate
+        ? `\n📅 Срок: ${new Date(dueDate).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}`
+        : '\n📅 Без срока';
+
+      await this.sendMessageWithKeyboard(
+        chatId,
+        `✅ Задание назначено!\n\n${pendingHwTarget === 'class' ? '👥' : '👤'} ${targetLabel}${dueDateStr}`,
+        this.buildMainMenuAttachment(),
+      );
+    } catch (err: any) {
+      this.logger.error(`[HW] Assignment failed for userId=${userId}: ${err?.message}`);
+      await this.sendMessage(chatId, '❌ Не удалось назначить задание. Попробуйте позже.');
+      await this.sendMessageWithKeyboard(chatId, '🏠 Главное меню:', this.buildMainMenuAttachment());
+    }
+  }
+
+  // ── Analytics ─────────────────────────────────────────────────────────────
+  private async showAnalytics(chatId: string, userId: string): Promise<void> {
+    const auth = await this.getAuthForUser(userId, chatId);
+    if (!auth) return;
+
+    let overview: any;
+    try {
+      overview = await this.callApi(auth.token, 'analytics/teacher-overview');
+    } catch {
+      await this.sendMessage(chatId, '❌ Не удалось загрузить аналитику. Попробуйте позже.');
+      return;
+    }
+
+    const pending = overview.pendingGrading?.total ?? 0;
+    const pendingByClass: any[] = overview.pendingGrading?.byClass ?? [];
+    const riskCount = overview.atRisk?.riskCount ?? 0;
+    const watchCount = overview.atRisk?.watchCount ?? 0;
+    const samples: any[] = overview.atRisk?.samples ?? [];
+    const todayCount = overview.schedule?.todayCount ?? 0;
+    const deadlines = overview.upcoming?.deadlinesIn7Days ?? 0;
+
+    const lines: string[] = ['📊 Аналитика\n'];
+    lines.push(`📝 Ждут проверки: ${pending}`);
+    for (const p of pendingByClass.slice(0, 3)) {
+      lines.push(`  • ${p.className}: ${p.pending}`);
+    }
+    lines.push(`\n👥 Под наблюдением: 🔴 ${riskCount} риск, 🟡 ${watchCount} внимание`);
+    for (const s of samples.slice(0, 3)) {
+      const icon = s.level === 'risk' ? '🔴' : '🟡';
+      lines.push(`  ${icon} ${s.name} (${s.className})${s.avgGrade !== null ? ` — ср. ${s.avgGrade}` : ''}`);
+    }
+    lines.push(`\n📅 Уроков сегодня: ${todayCount}`);
+    lines.push(`⏰ Дедлайны (7 дней): ${deadlines}`);
+
+    await this.sendMessageWithKeyboard(chatId, lines.join('\n'), this.buildMainMenuAttachment());
+  }
+
+  // ── View generation content ───────────────────────────────────────────────
+  private async showGenContent(chatId: string, userId: string): Promise<void> {
+    const state = this.getMaxPlatformState(userId);
+    const genId = state.pendingHwGenId;
+    if (!genId) {
+      await this.sendMessage(chatId, '❌ Нет выбранной генерации. Выберите из списка.');
+      await this.showHistory(chatId, userId, 0);
+      return;
+    }
+
+    const auth = await this.getAuthForUser(userId, chatId);
+    if (!auth) return;
+
+    const genType = state.pendingViewGenType || '';
+    const caption = state.pendingHwGenTopic || genType || 'Материал';
+
+    // Games — show cached link (cached in showGenDetail, avoids wrong-offset re-fetch)
+    if (genType === 'game_generation') {
+      const gameUrl = state.pendingGameUrl ?? null;
+      if (gameUrl) {
+        await this.sendMessageWithKeyboard(chatId, '🎮 Игра готова!', [{
+          type: 'inline_keyboard',
+          payload: { buttons: [[{ type: 'link', text: '🎮 Открыть игру', url: gameUrl }]] },
+        }]);
+      } else {
+        await this.sendMessage(chatId, '❌ URL игры не найден. Попробуйте открыть на сайте prepodavai.ru');
+      }
+      return;
+    }
+
+    await this.sendMessage(chatId, '⏳ Готовлю файл...');
+    const PDF_TIMEOUT = 90_000;
+
+    // Images
+    if (['image_generation', 'photosession', 'image'].includes(genType)) {
+      try {
+        const resp = await axios.get(
+          `${this.internalApiUrl}/api/generate/${genId}/image`,
+          { headers: { Authorization: `Bearer ${auth.token}` }, responseType: 'arraybuffer', timeout: 30_000 },
+        );
+        const ct: string = resp.headers['content-type'] ?? 'image/jpeg';
+        const ext = ct.includes('png') ? 'png' : 'jpg';
+        await this.uploadAndSendFile(chatId, Buffer.from(resp.data), `image.${ext}`, `✅ ${caption}`);
+      } catch (err: any) {
+        this.logger.error(`[View] Image download failed genId=${genId}: ${err?.message}`);
+        await this.sendMessage(chatId, '❌ Не удалось получить изображение. Попробуйте позже.');
+      }
+      return;
+    }
+
+    // Presentations
+    if (genType === 'presentation') {
+      try {
+        const resp = await axios.post(
+          `${this.internalApiUrl}/api/generate/${genId}/presentation/pdf`,
+          {},
+          { headers: { Authorization: `Bearer ${auth.token}`, 'Content-Type': 'application/json' }, responseType: 'arraybuffer', timeout: PDF_TIMEOUT },
+        );
+        await this.uploadAndSendFile(chatId, Buffer.from(resp.data), `presentation_${Date.now()}.pdf`, `✅ ${caption}`);
+      } catch (err: any) {
+        this.logger.error(`[View] Presentation PDF failed genId=${genId}: ${err?.message}`);
+        await this.sendMessage(chatId, '❌ Не удалось создать PDF презентации. Попробуйте позже.');
+      }
+      return;
+    }
+
+    // All text types — generic PDF
+    try {
+      const resp = await axios.post(
+        `${this.internalApiUrl}/api/generate/${genId}/pdf`,
+        {},
+        { headers: { Authorization: `Bearer ${auth.token}`, 'Content-Type': 'application/json' }, responseType: 'arraybuffer', timeout: PDF_TIMEOUT },
+      );
+      const filename = `${genType || 'doc'}_${Date.now()}.pdf`;
+      await this.uploadAndSendFile(chatId, Buffer.from(resp.data), filename, `✅ ${caption}`);
+    } catch (err: any) {
+      this.logger.error(`[View] PDF failed genId=${genId}: ${err?.message}`);
+      await this.sendMessage(chatId, '❌ Не удалось создать файл. Откройте prepodavai.ru для просмотра.');
+    }
+  }
+
+  // ── Direct message (for submission notifications) ─────────────────────────
+  async sendDirectMessage(chatId: string, text: string, linkButton?: { label: string; url: string }): Promise<void> {
+    const attachments = linkButton
+      ? [{ type: 'inline_keyboard', payload: { buttons: [[{ type: 'link', text: linkButton.label, url: linkButton.url }]] } }]
+      : undefined;
+    await this.sendMessageWithMarkup(chatId, text, attachments).catch((err: any) =>
+      this.logger.warn(`[sendDirectMessage] chatId=${chatId}: ${err?.message}`),
+    );
+  }
+
   // ── Wizard step helpers ───────────────────────────────────────────────────
   private async askField(chatId: string, tool: ToolConfig, session: GenSession, _botUserId?: number): Promise<void> {
     const field = tool.fields[session.fieldIndex];
@@ -1128,6 +2363,11 @@ export class MaxService {
 
   // ── Backend API helpers ───────────────────────────────────────────────────
   private async getApiToken(username: string, apiKey: string): Promise<string | null> {
+    const cached = this.jwtCache.get(username);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.token;
+    }
+
     const maskedKey = apiKey ? `${apiKey.slice(0, 4)}...${apiKey.slice(-4)}` : 'null';
     this.logger.log(`[Auth] login attempt: username=${username} apiKey=${maskedKey}`);
     try {
@@ -1136,7 +2376,17 @@ export class MaxService {
         { username, apiKey },
         { headers: { 'Content-Type': 'application/json' } },
       );
-      return resp.data?.token ?? null;
+      const token: string | null = resp.data?.token ?? null;
+      if (token) {
+        if (this.jwtCache.size > 1000) {
+          const now = Date.now();
+          for (const [k, v] of this.jwtCache) {
+            if (v.expiresAt <= now) this.jwtCache.delete(k);
+          }
+        }
+        this.jwtCache.set(username, { token, expiresAt: Date.now() + MaxService.JWT_CACHE_TTL_MS });
+      }
+      return token;
     } catch (err: any) {
       const status = err?.response?.status;
       const body = err?.response?.data ? JSON.stringify(err.response.data).slice(0, 200) : err.message;
@@ -1460,12 +2710,12 @@ export class MaxService {
 
   // ── Registration flow ─────────────────────────────────────────────────────
 
-  private async startMaxRegistration(userId: string, chatId: string) {
+  private async startMaxRegistration(userId: string, chatId: string, maxUsername?: string) {
     if (this.regStates.size >= MaxService.MAX_CONCURRENT_REG_SESSIONS) {
       await this.sendMessage(chatId, '⚠️ Сервис временно недоступен. Попробуйте позже.');
       return;
     }
-    this.regStates.set(userId, { step: 'awaiting_email' });
+    this.regStates.set(userId, { step: 'awaiting_email', maxUsername });
     await this.sendMessage(
       chatId,
       `👋 Добро пожаловать в Преподавай 🎓\n\nДавайте создадим ваш аккаунт — это займёт меньше минуты.\n\nВведите вашу электронную почту:`,
@@ -1514,8 +2764,11 @@ export class MaxService {
 
     const password = crypto.randomBytes(9).toString('base64').slice(0, 12).replace(/[^a-zA-Z0-9]/g, 'x');
     const passwordHash = require('bcryptjs').hashSync(password, 12);
-    const baseUsername = `user${userId}`;
-    const username = await this.ensureUniqueMaxUsername(baseUsername);
+    const storedRegState = this.regStates.get(userId);
+    const rawUsername = storedRegState?.maxUsername
+      ? storedRegState.maxUsername.replace(/[^a-zA-Z0-9_]/g, '').slice(0, 30) || `user${userId}`
+      : `user${userId}`;
+    const username = await this.ensureUniqueMaxUsername(rawUsername);
     const apiKey = crypto.randomBytes(16).toString('hex');
 
     const newUser = await this.prisma.$transaction(async (tx) => {
@@ -1577,7 +2830,7 @@ export class MaxService {
       chatId,
       `✅ Аккаунт создан!\n\n👤 Логин: ${username}\n🔑 Пароль: ${password}\n\n💳 Токенов на платформе: 1500\n\n⚠️ Сохраните пароль — он больше не будет показан.`,
     );
-    await this.sendMessageWithKeyboard(chatId, '🛠️ Выберите инструмент:', this.buildToolSelectionAttachment());
+    await this.sendMessageWithKeyboard(chatId, '🏠 Главное меню:', this.buildMainMenuAttachment());
   }
 
   private async ensureUniqueMaxUsername(base: string): Promise<string> {

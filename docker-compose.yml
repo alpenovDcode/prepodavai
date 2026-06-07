@@ -96,6 +96,9 @@ services:
       # MAX канал для проверки подписки
       MAX_CHANNEL_ID: ${MAX_CHANNEL_ID:-}
       MAX_INTRO_VIDEO_TOKEN: ${MAX_INTRO_VIDEO_TOKEN:-}
+      # Внутренний HTTP-сервер Telegram-бота для уведомлений
+      BOT_NOTIFY_URL: http://telegram-bot:3002
+      BOT_NOTIFY_SECRET: ${BOT_NOTIFY_SECRET:-}
     depends_on:
       postgres:
         condition: service_healthy
@@ -199,6 +202,8 @@ services:
       LMS_WEBHOOK_URL: ${LMS_WEBHOOK_URL:-}
       LMS_WEBHOOK_SECRET: ${LMS_WEBHOOK_SECRET:-}
       LMS_FORWARD_TIMEOUT_MS: ${LMS_FORWARD_TIMEOUT_MS:-3000}
+      # Секрет для внутреннего сервера уведомлений
+      BOT_NOTIFY_SECRET: ${BOT_NOTIFY_SECRET:-}
     depends_on:
       postgres:
         condition: service_healthy

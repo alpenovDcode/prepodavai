@@ -3,6 +3,7 @@ import * as dotenv from 'dotenv';
 import { PrismaClient } from '@prisma/client';
 import * as crypto from 'crypto';
 import * as bcrypt from 'bcryptjs';
+import * as http from 'http';
 import { HttpsProxyAgent } from 'https-proxy-agent';
 import { TOOL_CONFIGS, ToolConfig, FieldConfig, getToolConfig } from './tool-configs';
 
@@ -10,6 +11,10 @@ dotenv.config();
 
 const prisma = new PrismaClient();
 const API_URL = process.env.API_URL || 'http://localhost:3001';
+
+// ── Внутренний сервер уведомлений (от backend → бот) ─────────────────────────
+const BOT_NOTIFY_SECRET = process.env.BOT_NOTIFY_SECRET || '';
+const BOT_NOTIFY_PORT = Number(process.env.BOT_NOTIFY_PORT || 3002);
 
 // ── Откуда Подписки (tgtrack) ─────────────────────────────────────────────────
 const TGTRACK_API_KEY = process.env.TGTRACK_API_KEY || '';
@@ -2701,7 +2706,63 @@ async function bootstrap() {
   console.log('🤖 Telegram bot started (registration + generation active)');
 }
 
+// ── Внутренний HTTP-сервер для уведомлений от backend ────────────────────────
+// Backend вызывает POST /notify/submission, бот шлёт сообщение учителю.
+// Сервер слушает только внутри Docker-сети (порт не проброшен наружу).
+function startNotifyServer(): http.Server {
+  const server = http.createServer((req, res) => {
+    if (req.method !== 'POST' || req.url !== '/notify/submission') {
+      res.writeHead(404).end();
+      return;
+    }
+
+    if (BOT_NOTIFY_SECRET) {
+      const incoming = req.headers['x-bot-secret'];
+      if (incoming !== BOT_NOTIFY_SECRET) {
+        res.writeHead(403).end();
+        return;
+      }
+    }
+
+    let body = '';
+    req.on('data', (chunk) => { body += chunk; });
+    req.on('end', async () => {
+      try {
+        const { telegramChatId, studentName, lessonTitle, assignmentId } = JSON.parse(body);
+        if (!telegramChatId) { res.writeHead(400).end('missing telegramChatId'); return; }
+
+        const webAppUrl = process.env.WEBAPP_URL || 'https://prepodavai.ru';
+        const assignmentUrl = `${webAppUrl}/dashboard/assignments/${assignmentId}`;
+
+        await bot.api.sendMessage(
+          telegramChatId,
+          `📩 *Новая работа на проверку*\n\n👤 ${studentName} сдал(а) работу\n📖 *${lessonTitle}*`,
+          {
+            parse_mode: 'Markdown',
+            reply_markup: {
+              inline_keyboard: [[{ text: '👀 Посмотреть работу', url: assignmentUrl }]],
+            },
+          },
+        );
+
+        res.writeHead(200).end('ok');
+      } catch (err: any) {
+        console.error('[notify-server] Ошибка при отправке уведомления:', err?.message ?? err);
+        res.writeHead(500).end();
+      }
+    });
+  });
+
+  server.listen(BOT_NOTIFY_PORT, () => {
+    console.log(`[notify-server] Слушает на :${BOT_NOTIFY_PORT}`);
+  });
+
+  return server;
+}
+
+const notifyServer = startNotifyServer();
+
 bootstrap();
 
-process.on('SIGTERM', async () => { bot.stop(); await prisma.$disconnect(); process.exit(0); });
-process.on('SIGINT', async () => { bot.stop(); await prisma.$disconnect(); process.exit(0); });
+process.on('SIGTERM', async () => { notifyServer.close(); bot.stop(); await prisma.$disconnect(); process.exit(0); });
+process.on('SIGINT', async () => { notifyServer.close(); bot.stop(); await prisma.$disconnect(); process.exit(0); });
