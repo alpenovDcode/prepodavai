@@ -2275,7 +2275,7 @@ export class MaxService {
           `${this.internalApiUrl}/api/generate/${genId}/image`,
           { headers: { Authorization: `Bearer ${auth.token}` }, responseType: 'arraybuffer', timeout: 30_000 },
         );
-        const ct: string = resp.headers['content-type'] ?? 'image/jpeg';
+        const ct = String(resp.headers['content-type'] ?? 'image/jpeg');
         const ext = ct.includes('png') ? 'png' : 'jpg';
         await this.uploadAndSendFile(chatId, Buffer.from(resp.data), `image.${ext}`, `✅ ${caption}`);
       } catch (err: any) {
