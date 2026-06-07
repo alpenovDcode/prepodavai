@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { getGenerationTypeLabel } from '@/lib/utils/translations'
 import ImageResultDisplay from './ImageResultDisplay'
 import { apiClient } from '@/lib/api/client'
-import { getUserGenerations, removeCachedGeneration, CachedGeneration } from '@/lib/utils/generationsCache'
+import { getUserGenerations, removeCachedGeneration, cacheGeneration, CachedGeneration } from '@/lib/utils/generationsCache'
 import { getCurrentUser } from '@/lib/utils/userIdentity'
 import { downloadPdfById } from '@/lib/utils/downloadPdf'
 import DownloadPdfModal from './workspace/DownloadPdfModal'
@@ -168,6 +168,12 @@ export default function GenerationHistory() {
   const [loadingMore, setLoadingMore] = useState(false)
   const [isDownloading, setIsDownloading] = useState(false)
   const [showPdfModal, setShowPdfModal] = useState(false)
+  const [titleDraft, setTitleDraft] = useState('')
+  const [isSavingTitle, setIsSavingTitle] = useState(false)
+  const [menuOpenId, setMenuOpenId] = useState<string | null>(null)
+  const [editInstruction, setEditInstruction] = useState('')
+  const [isEditingImage, setIsEditingImage] = useState(false)
+  const [editStatus, setEditStatus] = useState('')
   const [hasMore, setHasMore] = useState(true)
   const [offset, setOffset] = useState(0)
   const limit = 20
@@ -176,6 +182,20 @@ export default function GenerationHistory() {
     loadGenerations()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Синхронизируем черновик названия при открытии карточки
+  useEffect(() => {
+    if (selectedGeneration) {
+      setTitleDraft(
+        selectedGeneration.title && String(selectedGeneration.title).trim()
+          ? String(selectedGeneration.title)
+          : ''
+      )
+      setEditInstruction('')
+      setEditStatus('')
+      setIsEditingImage(false)
+    }
+  }, [selectedGeneration?.id])  // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadGenerations = async (currentOffset: number = offset) => {
     try {
@@ -279,6 +299,7 @@ export default function GenerationHistory() {
   }
 
   const getGenerationTitle = (gen: CachedGeneration) => {
+    if (gen.title && String(gen.title).trim()) return String(gen.title)
     if (gen.params?.topic) return gen.params.topic
     if (gen.params?.prompt) return String(gen.params.prompt).substring(0, 60)
     if (gen.params?.text) return String(gen.params.text).substring(0, 60)
@@ -300,21 +321,101 @@ export default function GenerationHistory() {
     })
   }
 
-  const deleteGeneration = async () => {
-    if (!selectedGeneration) return
+  const deleteGenerationById = async (genId: string) => {
     if (!confirm('Вы уверены, что хотите удалить эту генерацию?')) return
 
-    const genId = selectedGeneration.id
     removeCachedGeneration(genId)
     setGenerations(prev => prev.filter(g => g.id !== genId))
+    setMenuOpenId(null)
+    if (selectedGeneration?.id === genId) setSelectedGeneration(null)
 
     try {
       await apiClient.delete(`/generate/${genId}`)
     } catch (error) {
       console.error('Failed to delete generation:', error)
     }
+  }
 
-    setSelectedGeneration(null)
+  const deleteGeneration = async () => {
+    if (!selectedGeneration) return
+    await deleteGenerationById(selectedGeneration.id)
+  }
+
+  const saveTitle = async () => {
+    if (!selectedGeneration || isSavingTitle) return
+    const id = selectedGeneration.id
+    const newTitle = titleDraft.trim()
+
+    // Оптимистично обновляем список, карточку и кэш
+    setGenerations(prev => prev.map(g => (g.id === id ? { ...g, title: newTitle } : g)))
+    const updated = { ...selectedGeneration, title: newTitle }
+    setSelectedGeneration(updated)
+    cacheGeneration(updated)
+
+    setIsSavingTitle(true)
+    try {
+      await apiClient.patch(`/generate/${id}`, { title: newTitle })
+    } catch (error) {
+      console.error('Failed to rename generation:', error)
+      alert('Не удалось сохранить название. Попробуйте позже.')
+    } finally {
+      setIsSavingTitle(false)
+    }
+  }
+
+  const editImage = async () => {
+    if (!selectedGeneration || isEditingImage) return
+    const instruction = editInstruction.trim()
+    if (!instruction) return
+
+    const sourceId = selectedGeneration.id
+    setIsEditingImage(true)
+    setEditStatus('Применяю правку…')
+    try {
+      const start = await apiClient.post(`/generate/${sourceId}/edit-image`, { instruction })
+      const newRequestId: string | undefined = start.data?.requestId
+      if (!newRequestId) throw new Error('Не удалось запустить правку')
+
+      // Поллим статус новой генерации до готовности
+      let result: any = null
+      for (let attempt = 0; attempt < 60; attempt++) {
+        await new Promise((r) => setTimeout(r, 3000))
+        const resp = await apiClient.get(`/generate/${newRequestId}?_t=${Date.now()}`)
+        const status = resp.data?.status?.status ?? resp.data?.status
+        if (status === 'completed') {
+          result = resp.data?.result ?? resp.data?.status?.result
+          break
+        }
+        if (status === 'failed') {
+          throw new Error(resp.data?.error || 'Правка не удалась')
+        }
+        setEditStatus(`Применяю правку… (${attempt + 1})`)
+      }
+
+      if (!result) throw new Error('Превышено время ожидания. Загляните в историю чуть позже.')
+
+      const newGen: CachedGeneration = {
+        id: newRequestId,
+        userId: selectedGeneration.userId,
+        type: 'image_edit',
+        status: 'completed',
+        params: { prompt: instruction, _editOf: sourceId },
+        result,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }
+      cacheGeneration(newGen)
+      setGenerations((prev) => [newGen, ...prev.filter((g) => g.id !== newRequestId)])
+      setSelectedGeneration(newGen)
+      setEditStatus('')
+      setEditInstruction('')
+    } catch (error: any) {
+      console.error('Failed to edit image:', error)
+      setEditStatus('')
+      alert(error?.response?.data?.message || error?.message || 'Не удалось отредактировать изображение')
+    } finally {
+      setIsEditingImage(false)
+    }
   }
 
   const typeHasAnswers = (t: string) =>
@@ -512,8 +613,45 @@ export default function GenerationHistory() {
                     <p className="text-xs text-gray-600 line-clamp-2">{getGenerationTitle(gen)}</p>
                     <p className="text-xs text-gray-400 mt-2">{formatDate(gen.createdAt)}</p>
                   </div>
-                  <div className="ml-2">
-                    <i className="fas fa-chevron-right text-gray-400"></i>
+                  <div className="ml-2 relative">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setMenuOpenId(menuOpenId === gen.id ? null : gen.id) }}
+                      className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400"
+                      aria-label="Действия"
+                    >
+                      <i className="fas fa-ellipsis-v"></i>
+                    </button>
+                    {menuOpenId === gen.id && (
+                      <>
+                        <div
+                          className="fixed inset-0 z-10"
+                          onClick={(e) => { e.stopPropagation(); setMenuOpenId(null) }}
+                        />
+                        <div
+                          className="absolute right-0 top-9 z-20 w-48 bg-white rounded-xl shadow-lg border border-gray-100 py-1 text-sm"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <button
+                            onClick={() => { setSelectedGeneration(gen); setMenuOpenId(null) }}
+                            className="w-full text-left px-4 py-2.5 hover:bg-gray-50 flex items-center gap-2.5 text-gray-700"
+                          >
+                            <i className="fas fa-pen text-gray-400 w-4"></i>Переименовать
+                          </button>
+                          <button
+                            onClick={() => { setSelectedGeneration(gen); setMenuOpenId(null) }}
+                            className="w-full text-left px-4 py-2.5 hover:bg-gray-50 flex items-center gap-2.5 text-gray-700"
+                          >
+                            <i className="fas fa-up-right-from-square text-gray-400 w-4"></i>Открыть
+                          </button>
+                          <button
+                            onClick={() => deleteGenerationById(gen.id)}
+                            className="w-full text-left px-4 py-2.5 hover:bg-red-50 text-red-600 flex items-center gap-2.5"
+                          >
+                            <i className="fas fa-trash w-4"></i>Удалить
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
@@ -555,6 +693,28 @@ export default function GenerationHistory() {
             <h3 className="text-lg font-bold text-gray-900 mb-4">{getTypeLabel(selectedGeneration.type)}</h3>
 
             <div className="space-y-4">
+              {/* Название (переименование) */}
+              <div>
+                <p className="text-xs text-gray-500 mb-1">Название</p>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={titleDraft}
+                    onChange={(e) => setTitleDraft(e.target.value)}
+                    placeholder={getGenerationTitle({ ...selectedGeneration, title: null } as CachedGeneration)}
+                    maxLength={200}
+                    className="flex-1 min-w-0 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-[#FF7E58]"
+                  />
+                  <button
+                    onClick={saveTitle}
+                    disabled={isSavingTitle || titleDraft.trim() === (selectedGeneration.title ?? '').trim()}
+                    className="px-4 py-2 bg-[#FF7E58] text-white text-sm rounded-lg font-medium disabled:opacity-40 whitespace-nowrap"
+                  >
+                    {isSavingTitle ? 'Сохранение...' : 'Сохранить'}
+                  </button>
+                </div>
+              </div>
+
               {/* Status */}
               <div>
                 <p className="text-xs text-gray-500 mb-1">Статус</p>
@@ -589,6 +749,32 @@ export default function GenerationHistory() {
                   metadata={{ style: selectedGeneration.params?.style as string }}
                   showDebug={false}
                 />
+              )}
+
+              {/* Редактирование изображения */}
+              {selectedGeneration.status === 'completed' && !!getImageUrl(selectedGeneration) && (
+                <div className="rounded-xl border border-gray-200 p-3 bg-gray-50">
+                  <p className="text-sm font-semibold text-gray-900 mb-1">Изменить изображение</p>
+                  <p className="text-xs text-gray-500 mb-2">
+                    Опишите, что поправить — например: «перенеси чемодан в левую руку». Персонаж и композиция сохранятся. Дешевле полной генерации.
+                  </p>
+                  <textarea
+                    value={editInstruction}
+                    onChange={(e) => setEditInstruction(e.target.value)}
+                    placeholder="Что изменить на изображении?"
+                    rows={2}
+                    maxLength={1000}
+                    disabled={isEditingImage}
+                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-[#FF7E58] resize-none disabled:opacity-60"
+                  />
+                  <button
+                    onClick={editImage}
+                    disabled={isEditingImage || !editInstruction.trim()}
+                    className="mt-2 w-full py-2.5 bg-[#FF7E58] text-white text-sm rounded-lg font-medium disabled:opacity-40"
+                  >
+                    {isEditingImage ? (editStatus || 'Применяю правку…') : 'Применить правку'}
+                  </button>
+                </div>
               )}
 
               {/* Audio Result */}

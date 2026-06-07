@@ -210,6 +210,7 @@ model UserGeneration {
   userId              String
   generationType      String   // Тип генерации
   status              String   // 'pending', 'completed', 'failed'
+  title               String?  // Пользовательское название генерации (переименование в истории)
   inputParams         Json?    // Параметры запроса
   outputData          Json?    // Полный результат генерации
   errorMessage        String?

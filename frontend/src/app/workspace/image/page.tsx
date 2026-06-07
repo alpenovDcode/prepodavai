@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Image as ImageIcon, RefreshCw, Loader2, Maximize2, Download, Sparkles } from 'lucide-react'
+import { Image as ImageIcon, RefreshCw, Loader2, Maximize2, Download, Sparkles, FlipHorizontal } from 'lucide-react'
 import { useGenerations } from '@/lib/hooks/useGenerations'
+import { apiClient } from '@/lib/api/client'
 import GenerationCostBadge from '@/components/workspace/GenerationCostBadge'
 import GenerationProgress from '@/components/workspace/GenerationProgress'
 
@@ -66,7 +67,16 @@ export default function ImageGenerator() {
     const [activeTab, setActiveTab] = useState<'config' | 'preview'>('config')
     const [isMobile, setIsMobile] = useState(false)
 
-    const { generateAndWait, isGenerating } = useGenerations()
+    // Редактирование готового изображения
+    const [currentGenId, setCurrentGenId] = useState<string | null>(null)
+    const [editInstruction, setEditInstruction] = useState('')
+    const [isEditingImage, setIsEditingImage] = useState(false)
+    const [editStatus, setEditStatus] = useState('')
+    const [isFlipped, setIsFlipped] = useState(false)
+    const [keepSeed, setKeepSeed] = useState(false)
+    const [seed, setSeed] = useState<number | null>(null)
+
+    const { generateAndWait, isGenerating, activeGenerationId } = useGenerations()
 
     useEffect(() => {
         const checkMobile = () => {
@@ -77,12 +87,30 @@ export default function ImageGenerator() {
         return () => window.removeEventListener('resize', checkMobile)
     }, [])
 
+    const flipImageBlob = async (srcBlob: Blob): Promise<Blob> => {
+        const bitmap = await createImageBitmap(srcBlob)
+        const canvas = document.createElement('canvas')
+        canvas.width = bitmap.width
+        canvas.height = bitmap.height
+        const ctx = canvas.getContext('2d')
+        if (!ctx) return srcBlob
+        ctx.translate(canvas.width, 0)
+        ctx.scale(-1, 1)
+        ctx.drawImage(bitmap, 0, 0)
+        return await new Promise<Blob>((resolve) =>
+            canvas.toBlob((b) => resolve(b || srcBlob), 'image/png'),
+        )
+    }
+
     const handleDownload = async () => {
         if (!resultImageUrl) return;
         try {
             setIsDownloading(true);
             const response = await fetch(resultImageUrl);
-            const blob = await response.blob();
+            let blob = await response.blob();
+            if (isFlipped) {
+                try { blob = await flipImageBlob(blob) } catch { /* отдаём оригинал */ }
+            }
             const url = window.URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = url;
@@ -111,11 +139,21 @@ export default function ImageGenerator() {
         try {
             setErrorMsg('')
             setResultImageUrl(null)
+            setCurrentGenId(null)
+            setEditInstruction('')
+            setEditStatus('')
+            setIsFlipped(false)
             if (isMobile) setActiveTab('preview')
+
+            // «Сохранять основу» — переиспользуем тот же seed, чтобы новые варианты
+            // были стабильнее. Иначе — новый случайный seed на каждую генерацию.
+            const seedToUse = keepSeed && seed != null ? seed : Math.floor(Math.random() * 1_000_000_000)
+            setSeed(seedToUse)
 
             const params = {
                 prompt,
-                style
+                style,
+                seed: seedToUse,
             }
 
             const status = await generateAndWait({ type: 'image_generation', params })
@@ -136,6 +174,54 @@ export default function ImageGenerator() {
         } catch (e: any) {
             console.error('Generation failed:', e)
             setErrorMsg(`Ошибка при создании изображения: ${e.message}`)
+        }
+    }
+
+    const editImage = async () => {
+        const baseId = currentGenId || activeGenerationId
+        if (!baseId || isEditingImage) return
+        const instruction = editInstruction.trim()
+        if (!instruction) return
+
+        setIsEditingImage(true)
+        setEditStatus('Применяю правку…')
+        setErrorMsg('')
+        try {
+            const start = await apiClient.post(`/generate/${baseId}/edit-image`, { instruction })
+            const newRequestId: string | undefined = start.data?.requestId
+            if (!newRequestId) throw new Error('Не удалось запустить правку')
+
+            let imageUrl: string | null = null
+            for (let i = 0; i < 60; i++) {
+                await new Promise((r) => setTimeout(r, 3000))
+                const resp = await apiClient.get(`/generate/${newRequestId}?_t=${Date.now()}`)
+                const status = resp.data?.status?.status ?? resp.data?.status
+                if (status === 'completed') {
+                    const rd: any = resp.data?.result ?? resp.data?.status?.result
+                    imageUrl =
+                        rd?.imageUrl ||
+                        (Array.isArray(rd?.imageUrls) && rd.imageUrls[0]) ||
+                        (typeof rd?.content === 'string' ? rd.content : null) ||
+                        (typeof rd === 'string' ? rd : null)
+                    break
+                }
+                if (status === 'failed') throw new Error(resp.data?.error || 'Правка не удалась')
+                setEditStatus(`Применяю правку… (${i + 1})`)
+            }
+
+            if (!imageUrl) throw new Error('Превышено время ожидания. Загляните в историю чуть позже.')
+
+            setResultImageUrl(imageUrl)
+            setCurrentGenId(newRequestId)
+            setEditInstruction('')
+            setEditStatus('')
+            setIsFlipped(false)
+        } catch (e: any) {
+            console.error('Image edit failed:', e)
+            setEditStatus('')
+            setErrorMsg(e?.response?.data?.message || e?.message || 'Не удалось отредактировать изображение')
+        } finally {
+            setIsEditingImage(false)
         }
     }
 
@@ -231,6 +317,19 @@ export default function ImageGenerator() {
                                 ))}
                             </select>
                         </div>
+
+                        <label className="flex items-start gap-2.5 cursor-pointer select-none">
+                            <input
+                                type="checkbox"
+                                checked={keepSeed}
+                                onChange={(e) => setKeepSeed(e.target.checked)}
+                                className="mt-0.5 w-4 h-4 accent-indigo-600 rounded"
+                            />
+                            <span className="text-xs text-gray-600 leading-snug">
+                                <span className="font-semibold text-gray-800">Сохранять основу</span> — новые генерации
+                                будут ближе к текущей (тот же seed). Удобно, чтобы доработать промпт без полной смены картинки.
+                            </span>
+                        </label>
                     </div>
                 </div>
 
@@ -262,6 +361,16 @@ export default function ImageGenerator() {
                         <div className="flex items-center gap-1.5 md:gap-2">
                             {resultImageUrl && (
                                 <button
+                                    onClick={() => setIsFlipped((f) => !f)}
+                                    title="Отразить по горизонтали — меняет лево/право"
+                                    className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-all flex items-center gap-1.5 text-[11px] font-bold active:scale-95"
+                                >
+                                    <FlipHorizontal className="w-3.5 h-3.5" />
+                                    <span>{isFlipped ? 'Вернуть' : 'Отразить'}</span>
+                                </button>
+                            )}
+                            {resultImageUrl && (
+                                <button
                                     onClick={handleDownload}
                                     disabled={isDownloading}
                                     className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-all flex items-center gap-1.5 text-[11px] font-bold disabled:opacity-50 active:scale-95"
@@ -279,12 +388,57 @@ export default function ImageGenerator() {
                         {isGenerating ? (
                             <GenerationProgress active={isGenerating} title="Создаём изображение..." accentClassName="bg-blue-500" estimatedSeconds={60} />
                         ) : resultImageUrl ? (
-                            <div className="relative group max-w-full rounded-2xl overflow-hidden shadow-2xl border border-gray-100 bg-white p-2">
-                                <img
-                                    src={resultImageUrl}
-                                    alt="Generated Image"
-                                    className="object-contain max-h-[calc(100vh-18rem)] md:max-h-[calc(100vh-20rem)] w-auto rounded-xl"
-                                />
+                            <div className="flex flex-col items-center gap-4 w-full max-w-full">
+                                <div className="relative group max-w-full rounded-2xl overflow-hidden shadow-2xl border border-gray-100 bg-white p-2">
+                                    <img
+                                        src={resultImageUrl}
+                                        alt="Generated Image"
+                                        className={`object-contain max-h-[calc(100vh-26rem)] md:max-h-[calc(100vh-26rem)] w-auto rounded-xl transition-all ${isEditingImage ? 'opacity-50' : ''} ${isFlipped ? '-scale-x-100' : ''}`}
+                                    />
+                                    {isEditingImage && (
+                                        <div className="absolute inset-0 flex items-center justify-center">
+                                            <div className="flex items-center gap-2 bg-white/90 px-4 py-2 rounded-full shadow text-sm font-semibold text-gray-700">
+                                                <Loader2 className="w-4 h-4 animate-spin" />
+                                                {editStatus || 'Применяю правку…'}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Изменить объекты на изображении */}
+                                <div className="w-full max-w-xl rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
+                                    <div className="flex items-center gap-1.5 mb-1">
+                                        <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
+                                        <p className="text-sm font-semibold text-gray-900">Изменить изображение</p>
+                                    </div>
+                                    <p className="text-xs text-gray-500 mb-2">
+                                        Опишите, что поправить — например: «перенеси чемодан в левую руку». Персонаж и композиция сохранятся. Дешевле полной генерации.
+                                    </p>
+                                    <textarea
+                                        value={editInstruction}
+                                        onChange={(e) => setEditInstruction(e.target.value)}
+                                        placeholder="Что изменить на изображении?"
+                                        rows={2}
+                                        maxLength={1000}
+                                        disabled={isEditingImage}
+                                        className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-indigo-500 resize-none disabled:opacity-60"
+                                    />
+                                    <button
+                                        onClick={editImage}
+                                        disabled={isEditingImage || !editInstruction.trim()}
+                                        className="mt-2 w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-lg font-bold disabled:opacity-40 active:scale-95 transition-all flex items-center justify-center gap-2"
+                                    >
+                                        {isEditingImage ? (
+                                            <>
+                                                <Loader2 className="w-4 h-4 animate-spin" />
+                                                {editStatus || 'Применяю правку…'}
+                                            </>
+                                        ) : (
+                                            'Применить правку'
+                                        )}
+                                    </button>
+                                    {errorMsg && <p className="text-xs text-red-600 mt-2">{errorMsg}</p>}
+                                </div>
                             </div>
                         ) : (
                             <div className="w-full h-full overflow-y-auto p-6">

@@ -9,6 +9,7 @@ export interface CachedGeneration {
   id: string
   userId: string
   type: string
+  title?: string | null
   status: 'pending' | 'completed' | 'failed'
   params: any
   result?: any

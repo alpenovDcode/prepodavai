@@ -30,6 +30,7 @@ export const generationTypeLabels: Record<string, string> = {
   'game_generation': '🎮 Мини-игра',
   'image': '🎨 Изображение',
   'image_generation': '🎨 Изображение',
+  'image_edit': '🖌️ Правка изображения',
   'assistant': '🤖 ИИ-ассистент',
 };
 

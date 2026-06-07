@@ -19,6 +19,7 @@ import {
   GenerationBundleDto,
   UpdateGenerationDto,
   LinkToLessonDto,
+  EditImageDto,
 } from './dto/generation.dto';
 
 @Controller('generate')
@@ -334,6 +335,21 @@ export class GenerationsController {
     @Body() body: UpdateGenerationDto,
   ) {
     return this.generationsService.updateGeneration(id, this.userId(req), body);
+  }
+
+  // Редактирование готового изображения по текстовой инструкции
+  @Post(':requestId/edit-image')
+  @UseGuards(JwtAuthGuard)
+  async editImage(
+    @Request() req: any,
+    @Param('requestId') requestId: string,
+    @Body() body: EditImageDto,
+  ) {
+    return this.generationsService.startImageEdit(
+      requestId,
+      this.userId(req),
+      body.instruction,
+    );
   }
 
   @Post(':id/link-lesson')

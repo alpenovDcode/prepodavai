@@ -389,7 +389,12 @@ export class TelegramService {
     const isBotOnlyUser = appUser.source === 'telegram_bot' && !appUser.email;
 
     try {
-      if (generationType === 'image' || generationType === 'photosession') {
+      if (
+        generationType === 'image' ||
+        generationType === 'image_generation' ||
+        generationType === 'image_edit' ||
+        generationType === 'photosession'
+      ) {
         await this.sendImage(chatId, result);
       } else if (generationType === 'presentation') {
         await this.sendPresentation(chatId, result);
@@ -421,8 +426,27 @@ export class TelegramService {
    * Отправка изображения
    */
   private async sendImage(chatId: string, result: any) {
-    const imageUrl = result?.imageUrl;
-    if (!imageUrl) return;
+    // Извлекаем URL картинки из всех возможных форм результата (как в /image),
+    // иначе изображение «приходило кодом» (HTML/JSON уходил текстом/в PDF).
+    const imageUrl: string | null =
+      (typeof result === 'string' && /^(https?:\/\/|data:image)/.test(result) ? result : null) ||
+      result?.imageUrl ||
+      result?.imageUrls?.[0] ||
+      result?.content?.imageUrl ||
+      (typeof result?.content === 'string' && /^(https?:\/\/|data:image)/.test(result.content)
+        ? result.content
+        : null) ||
+      null;
+
+    if (!imageUrl) {
+      await this.bot.api
+        .sendMessage(
+          chatId,
+          '⚠️ Изображение сгенерировано, но не удалось получить ссылку. Оно доступно в истории на сайте.',
+        )
+        .catch(() => {});
+      return;
+    }
 
     const messageText = `✅ Ваше изображение готово!${
       result?.prompt ? `\n\n📝 Промпт: ${result.prompt}` : ''

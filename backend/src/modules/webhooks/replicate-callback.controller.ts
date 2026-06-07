@@ -49,7 +49,8 @@ export class ReplicateCallbackController {
         const isImageGen =
           generationRequest.type === 'photosession' ||
           generationRequest.type === 'image' ||
-          generationRequest.type === 'image_generation';
+          generationRequest.type === 'image_generation' ||
+          generationRequest.type === 'image_edit';
 
         if (isImageGen) {
           // Replicate returns output as a string URL, convert to array

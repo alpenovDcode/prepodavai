@@ -42,14 +42,25 @@ export class GenerationBundleDto {
  * DTO для обновления генерации (patch).
  */
 export class UpdateGenerationDto {
+  // Пустая строка допустима — это сброс названия на авто-заголовок.
   @IsString()
-  @IsNotEmpty()
   @IsOptional()
+  @MaxLength(200)
   title?: string;
 
   @IsObject()
   @IsOptional()
   outputData?: Record<string, unknown>;
+}
+
+/**
+ * DTO для редактирования готового изображения по текстовой инструкции.
+ */
+export class EditImageDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(1000)
+  instruction: string;
 }
 
 /**

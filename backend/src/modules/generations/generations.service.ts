@@ -52,7 +52,8 @@ export type GenerationType =
   | 'unpacking'
   | 'sales-advisor'
   | 'sales_advisor'
-  | 'assistant';
+  | 'assistant'
+  | 'image_edit';
 
 export interface GenerationRequest {
   userId: string;
@@ -398,6 +399,7 @@ export class GenerationsService {
       'feedback',
       'image',
       'image_generation',
+      'image_edit',
       'photosession',
       'exam-variant',
       'exam_variant',
@@ -425,6 +427,7 @@ export class GenerationsService {
       if (
         generationType === 'image' ||
         generationType === 'image_generation' ||
+        generationType === 'image_edit' ||
         generationType === 'photosession'
       ) {
         return await this.generateImageViaReplicate(
@@ -538,6 +541,92 @@ export class GenerationsService {
 
     if (!prompt) {
       throw new BadRequestException('Prompt is required for image generation');
+    }
+
+    // === Редактирование готового изображения (img2img через flux-2-pro) ===
+    // Берём исходное изображение пользователя и применяем ТОЛЬКО запрошенную
+    // правку, сохраняя персонажа/композицию — это решает «нет возможности
+    // изменить готовое изображение» и «каждый раз другой персонаж».
+    if (generationType === 'image_edit') {
+      const replicateToken = this.configService.get<string>('REPLICATE_API_TOKEN');
+      if (!replicateToken) {
+        throw new BadRequestException('REPLICATE_API_TOKEN not configured');
+      }
+
+      const sourceUrl: string | undefined = inputParams.sourceImageUrl;
+      if (!sourceUrl) {
+        throw new BadRequestException('Не указано исходное изображение для редактирования');
+      }
+
+      let sourceDataUri: string;
+      try {
+        sourceDataUri = await this.resolveImageAsDataUri(sourceUrl);
+      } catch (e: any) {
+        this.logger.error(`image_edit: не удалось загрузить исходное изображение: ${e.message}`);
+        throw new BadRequestException('Не удалось загрузить исходное изображение для редактирования');
+      }
+
+      const editPrompt =
+        `Edit the provided image. Apply ONLY this change: ${prompt}. ` +
+        `Keep the same character(s), composition, framing, background and art style identical — ` +
+        `change nothing except what is explicitly requested. ` +
+        `Carefully respect any left/right placement described.`;
+
+      const baseUrl = this.configService.get<string>('BASE_URL', 'https://api.prepodavai.ru');
+      const callbackUrl = `${baseUrl}/api/webhooks/replicate-callback`;
+
+      const sizeToAspectRatio: Record<string, string> = {
+        '1024x1024': '1:1',
+        '1024x1792': '9:16',
+        '1792x1024': '16:9',
+      };
+      const aspectRatio = sizeToAspectRatio[inputParams.size] || '1:1';
+
+      try {
+        const response = await axios.post(
+          'https://api.replicate.com/v1/models/black-forest-labs/flux-2-pro/predictions',
+          {
+            input: {
+              prompt: editPrompt,
+              resolution: '2 MP',
+              aspect_ratio: aspectRatio,
+              input_images: [sourceDataUri],
+              output_format: 'png',
+              output_quality: 90,
+              safety_tolerance: 2,
+              prompt_upsampling: false,
+            },
+            webhook: callbackUrl,
+            webhook_events_filter: ['completed'],
+          },
+          {
+            headers: {
+              Authorization: `Bearer ${replicateToken}`,
+              'Content-Type': 'application/json',
+            },
+          },
+        );
+
+        const predictionId = response.data.id;
+        this.logger.log(`Replicate image_edit prediction created: ${predictionId}`);
+
+        await this.prisma.generationRequest.update({
+          where: { id: generationRequestId },
+          data: { metadata: { replicatePredictionId: predictionId } },
+        });
+
+        return {
+          provider: 'Replicate',
+          mode: generationType,
+          status: 'pending',
+          predictionId,
+          requestId: generationRequestId,
+          completedAt: new Date().toISOString(),
+        };
+      } catch (error: any) {
+        this.logger.error(`Failed to start image_edit: ${error.message}`);
+        throw new BadRequestException(`Failed to start image edit: ${error.message}`);
+      }
     }
 
     // Allow per-call override via inputParams.model — used by the presentation
@@ -697,6 +786,12 @@ export class GenerationsService {
               return_byteplus_urls: false,
               sequential_image_generation: 'disabled',
             };
+
+        // Проброс seed для «сохранения основы» (стабильная база при доработке промпта).
+        if (inputParams.seed !== undefined && inputParams.seed !== null && `${inputParams.seed}` !== '') {
+          const seedNum = Number(inputParams.seed);
+          if (Number.isFinite(seedNum)) input.seed = Math.trunc(seedNum);
+        }
 
         const requestBody = {
           input: input,
@@ -952,6 +1047,7 @@ export class GenerationsService {
       feedback: `${baseUrl}/chatgpt-hook`,
       image: `${baseUrl}/generate-image`,
       image_generation: `${baseUrl}/generate-image`,
+      image_edit: `${baseUrl}/generate-image`,
       photosession: `${baseUrl}/generate-image`,
       // presentation generation is handled by ReplicatePresentationProcessor — no webhook
       presentation: '',
@@ -990,6 +1086,7 @@ export class GenerationsService {
       feedback: `${apiUrl}/api/webhooks/feedback-callback`,
       image: `${apiUrl}/api/webhooks/image-callback`,
       image_generation: `${apiUrl}/api/webhooks/image-callback`,
+      image_edit: `${apiUrl}/api/webhooks/image-callback`,
       photosession: `${apiUrl}/api/webhooks/photosession-callback`,
       presentation: `${apiUrl}/api/webhooks/presentation-callback`,
       transcription: `${apiUrl}/api/webhooks/transcription-callback`,
@@ -1087,6 +1184,7 @@ export class GenerationsService {
       feedback: 'feedback',
       image: 'image_generation',
       image_generation: 'image_generation',
+      image_edit: 'image_edit',
       photosession: 'photosession',
       presentation: 'presentation',
       transcription: 'transcription',
@@ -1122,6 +1220,7 @@ export class GenerationsService {
       feedback: 'chatgpt-webhook',
       image: 'bytedance/seedream-5-lite',
       image_generation: 'bytedance/seedream-5-lite',
+      image_edit: 'black-forest-labs/flux-2-pro',
       photosession: 'google/gemini-3-pro-image-preview',
       presentation: 'Gamma AI',
       transcription: 'Whisper AI',
@@ -1142,15 +1241,142 @@ export class GenerationsService {
   }
 
   /**
-   * Получить статус генерации
+   * Привести изображение (наш /api/files/<hash>, data: или внешний URL) к data-URI
+   * для передачи в Replicate как input_images.
    */
-  async getGenerationStatus(requestId: string, userId: string) {
-    const generation = await this.prisma.generationRequest.findUnique({
-      where: { id: requestId },
-      include: {
-        userGeneration: true,
+  private async resolveImageAsDataUri(imageUrl: string): Promise<string> {
+    if (imageUrl.startsWith('data:image')) return imageUrl;
+
+    const ownFileMatch = imageUrl.match(/\/api\/files\/([a-f0-9]{16,64})(?:[?#].*)?$/i);
+    if (ownFileMatch) {
+      const file = await this.filesService.getFile(ownFileMatch[1]);
+      if (!file) throw new Error('Файл исходного изображения не найден на диске');
+      return `data:${file.mimeType};base64,${file.buffer.toString('base64')}`;
+    }
+
+    const resp = await axios.get<ArrayBuffer>(imageUrl, {
+      responseType: 'arraybuffer',
+      timeout: 30_000,
+    });
+    const contentType =
+      typeof resp.headers['content-type'] === 'string'
+        ? resp.headers['content-type'].split(';')[0].trim()
+        : 'image/png';
+    return `data:${contentType};base64,${Buffer.from(resp.data).toString('base64')}`;
+  }
+
+  /**
+   * Запустить редактирование готового изображения по текстовой инструкции.
+   * Создаёт новую (более дешёвую) генерацию типа image_edit, которая прогоняет
+   * исходное изображение через модель с поддержкой input_images.
+   */
+  async startImageEdit(
+    sourceIdOrRequestId: string,
+    userId: string,
+    instruction: string,
+  ) {
+    if (!instruction || !instruction.trim()) {
+      throw new BadRequestException('Опишите, что нужно изменить на изображении');
+    }
+
+    // Источник принимаем по любому из ID (userGeneration.id или generationRequest.id)
+    const request = await this.resolveGenerationByAnyId(sourceIdOrRequestId);
+    if (!request) {
+      throw new NotFoundException('Исходная генерация не найдена');
+    }
+    if (request.userId !== userId) {
+      throw new NotFoundException('Доступ запрещён');
+    }
+
+    const result = (request.userGeneration?.outputData ?? request.result) as any;
+    const sourceImageUrl: string | null =
+      (typeof result === 'string' && /^https?:\/\//.test(result) ? result : null) ||
+      result?.imageUrl ||
+      result?.imageUrls?.[0] ||
+      result?.content?.imageUrl ||
+      null;
+    if (!sourceImageUrl) {
+      throw new BadRequestException('У исходной генерации нет изображения для редактирования');
+    }
+
+    const srcParams = (request.userGeneration?.inputParams as any) ?? {};
+
+    return this.createGeneration({
+      userId,
+      generationType: 'image_edit',
+      inputParams: {
+        prompt: instruction.trim(),
+        sourceImageUrl,
+        style: srcParams.style,
+        size: srcParams.size,
+        _editOf: request.id,
       },
     });
+  }
+
+  /**
+   * Получить статус генерации
+   */
+  /**
+   * Единый резолвер генерации по ЛЮБОМУ ID (generationRequest.id или
+   * userGeneration.id). История отдаёт userGeneration.id, а создание —
+   * generationRequest.id; этот helper устраняет класс ошибок «не найдено».
+   * Возвращает generationRequest (+userGeneration) или null.
+   */
+  private async resolveGenerationByAnyId(id: string) {
+    let request = await this.prisma.generationRequest.findUnique({
+      where: { id },
+      include: { userGeneration: true },
+    });
+    if (!request) {
+      const ug = await this.prisma.userGeneration.findUnique({ where: { id } });
+      if (ug) {
+        request = await this.prisma.generationRequest.findUnique({
+          where: { id: ug.generationRequestId },
+          include: { userGeneration: true },
+        });
+      }
+    }
+    return request;
+  }
+
+  /**
+   * Скачивает изображения с внешних (например, Replicate) URL и сохраняет их
+   * в наше файловое хранилище, чтобы ссылки не протухали (Replicate ~30 мин).
+   * Уже локальные ссылки возвращаются как есть. При ошибке — фолбэк на исходный URL.
+   */
+  private async persistRemoteImages(urls: string[], userId: string): Promise<string[]> {
+    const out: string[] = [];
+    for (const url of urls) {
+      if (!url || typeof url !== 'string') continue;
+      if (url.includes('/api/files/') || url.startsWith('data:image')) {
+        out.push(url);
+        continue;
+      }
+      try {
+        const resp = await axios.get<ArrayBuffer>(url, {
+          responseType: 'arraybuffer',
+          timeout: 30000,
+          maxContentLength: 50 * 1024 * 1024,
+        });
+        const buffer = Buffer.from(resp.data);
+        const ct = String(resp.headers['content-type'] || '').toLowerCase();
+        let ext = '.png';
+        if (ct.includes('jpeg') || ct.includes('jpg')) ext = '.jpg';
+        else if (ct.includes('webp')) ext = '.webp';
+        else if (ct.includes('gif')) ext = '.gif';
+        const saved = await this.filesService.saveBuffer(buffer, `generated-${Date.now()}${ext}`, userId);
+        out.push(saved.url);
+      } catch (e: any) {
+        this.logger.error(`persistRemoteImages: не удалось сохранить ${url}: ${e.message}`);
+        out.push(url);
+      }
+    }
+    return out;
+  }
+
+  async getGenerationStatus(requestId: string, userId: string) {
+    const generation = await this.resolveGenerationByAnyId(requestId);
 
     if (!generation) {
       throw new NotFoundException('Запрос генерации не найден');
@@ -1180,27 +1406,34 @@ export class GenerationsService {
 
             if (data.status === 'succeeded' && data.output) {
               const urls = Array.isArray(data.output) ? data.output : [data.output];
+              const isImageGen = ['image', 'image_generation', 'image_edit', 'photosession'].includes(
+                generation.type,
+              );
+              // Сохраняем картинки локально, чтобы ссылка не протухла (durability).
+              const finalUrls = isImageGen
+                ? await this.persistRemoteImages(urls, generation.userId)
+                : urls;
               const outputData = {
-                imageUrls: urls,
-                imageUrl: urls[0],
+                imageUrls: finalUrls,
+                imageUrl: finalUrls[0],
                 type: generation.type,
                 provider: 'Replicate',
                 predictionId: replicatePredictionId,
                 completedAt: new Date().toISOString(),
               };
-              await this.generationHelpers.completeGeneration(requestId, outputData);
+              await this.generationHelpers.completeGeneration(generation.id, outputData);
 
               const updated = await this.prisma.generationRequest.findUnique({
-                where: { id: requestId },
+                where: { id: generation.id },
                 include: { userGeneration: true },
               });
               return this.formatGenerationStatus(updated);
             } else if (data.status === 'failed') {
               const errorMsg = data.error || 'Replicate prediction failed';
-              await this.generationHelpers.failGeneration(requestId, errorMsg);
+              await this.generationHelpers.failGeneration(generation.id, errorMsg);
 
               const updated = await this.prisma.generationRequest.findUnique({
-                where: { id: requestId },
+                where: { id: generation.id },
                 include: { userGeneration: true },
               });
               return this.formatGenerationStatus(updated);
@@ -1447,15 +1680,21 @@ export class GenerationsService {
 
   private formatGenerationStatus(generation: any) {
     const status: 'pending' | 'completed' | 'failed' = generation.status as any;
+    // Отредактированный пользователем результат лежит в userGeneration.outputData.
+    // Читаем его в приоритете, чтобы правки реально отображались, а не
+    // подменялись исходным generationRequest.result.
+    const ug = generation.userGeneration;
+    const result = ug?.outputData ?? generation.result;
     return {
       success: true,
       requestId: generation.id,
+      title: ug?.title ?? null,
       status: {
         status,
-        result: generation.result,
+        result,
         error: generation.error,
       },
-      result: generation.result,
+      result,
       error: generation.error,
       createdAt: generation.createdAt,
       updatedAt: generation.updatedAt,
@@ -1486,6 +1725,7 @@ export class GenerationsService {
         id: gen.id,
         userId: gen.userId,
         type: gen.generationType,
+        title: (gen as any).title ?? null,
         status: gen.status,
         params: gen.inputParams,
         result: gen.outputData || gen.generationRequest?.result,
@@ -1505,13 +1745,9 @@ export class GenerationsService {
   /**
    * Удалить генерацию
    */
-  async deleteGeneration(requestId: string, userId: string) {
-    const generation = await this.prisma.generationRequest.findUnique({
-      where: { id: requestId },
-      include: {
-        userGeneration: true,
-      },
-    });
+  async deleteGeneration(idOrRequestId: string, userId: string) {
+    // Принимаем оба ID (userGeneration.id / generationRequest.id) через общий резолвер.
+    const generation = await this.resolveGenerationByAnyId(idOrRequestId);
 
     if (!generation) {
       throw new NotFoundException('Запрос генерации не найден');
@@ -1529,7 +1765,7 @@ export class GenerationsService {
     }
 
     await this.prisma.generationRequest.delete({
-      where: { id: requestId },
+      where: { id: generation.id },
     });
 
     return {
@@ -1559,16 +1795,48 @@ export class GenerationsService {
       throw new BadRequestException('Доступ запрещен');
     }
 
-    // The DTO declares an `outputData` field — that's the canonical wrapper.
-    // Older callers passed the payload at the top level; we keep that working
-    // by falling back to `data` itself when no `outputData` field is present.
-    const nextOutputData = data?.outputData ?? data;
+    const updateData: any = {};
+
+    // Переименование результата (история генераций).
+    if (typeof data?.title === 'string') {
+      const trimmed = data.title.trim().slice(0, 200);
+      updateData.title = trimmed.length > 0 ? trimmed : null;
+    }
+
+    // Контент-payload. Канонично приходит в `outputData`; старые вызовы клали
+    // содержимое на верхний уровень тела. Чисто-переименовательный запрос
+    // ({ title }) контент НЕ трогает.
+    let contentPayload: any;
+    if (data && Object.prototype.hasOwnProperty.call(data, 'outputData')) {
+      contentPayload = data.outputData;
+    } else if (data && !('title' in data)) {
+      contentPayload = data;
+    }
+
+    if (contentPayload !== undefined) {
+      const existing = (generation.outputData as any) ?? {};
+      const canMerge =
+        existing && typeof existing === 'object' && !Array.isArray(existing) &&
+        contentPayload && typeof contentPayload === 'object' && !Array.isArray(contentPayload);
+      const merged = canMerge ? { ...existing, ...contentPayload } : contentPayload;
+      updateData.outputData = merged;
+
+      // Держим legacy-поле generationRequest.result в синхроне, чтобы ВСЕ пути
+      // чтения (статус, история, экспорт PDF/изображения) видели одну и ту же
+      // отредактированную версию — иначе правка «не сохраняется».
+      await this.prisma.generationRequest.update({
+        where: { id: generation.generationRequestId },
+        data: { result: merged },
+      });
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return generation;
+    }
 
     return this.prisma.userGeneration.update({
       where: { id: generation.id },
-      data: {
-        outputData: nextOutputData,
-      },
+      data: updateData,
     });
   }
 

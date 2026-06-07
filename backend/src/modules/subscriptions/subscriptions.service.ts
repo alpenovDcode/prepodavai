@@ -4,6 +4,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 export type OperationType =
   | 'text_generation'
   | 'image_generation'
+  | 'image_edit'
   | 'photosession'
   | 'presentation'
   | 'transcription'
@@ -32,7 +33,7 @@ export const PLAN_OPERATION_RESTRICTIONS: Record<string, string[]> = {
   // starter и выше
   starter: ['lesson_preparation', 'transcription', 'sales_advisor'],
   // pro и выше (включает все операции free + starter)
-  pro: ['expert_unpacking', 'unpacking', 'video_analysis', 'image_generation', 'photosession'],
+  pro: ['expert_unpacking', 'unpacking', 'video_analysis', 'image_generation', 'image_edit', 'photosession'],
   // business — включает все операции pro + starter + free (накопительно)
   business: [],
 };
@@ -194,6 +195,7 @@ export class SubscriptionsService {
       { operationType: 'transcription', operationName: 'Транскрибация видео', creditCost: 15, description: 'Себест. ~5р', isActive: true, isUnderMaintenance: false },
       { operationType: 'presentation', operationName: 'Презентация', creditCost: 50, description: 'Себест. ~3–15р', isActive: true, isUnderMaintenance: false },
       { operationType: 'image_generation', operationName: 'ИИ Генератор фото', creditCost: 15, description: 'Себест. ~12р', isActive: true, isUnderMaintenance: false },
+      { operationType: 'image_edit', operationName: 'Правка изображения', creditCost: 6, description: 'Дешевле полной генерации', isActive: true, isUnderMaintenance: false },
       { operationType: 'photosession', operationName: 'ИИ Фотосессия', creditCost: 25, description: 'Себест. ~18р', isActive: true, isUnderMaintenance: false },
       { operationType: 'sales_advisor', operationName: 'ИИ-продажник', creditCost: 10, description: 'Себест. ~2р', isActive: true, isUnderMaintenance: false },
     ];
