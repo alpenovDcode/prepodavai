@@ -145,7 +145,7 @@ interface GenerationSession {
 
 // ── Типы: платформенные фичи ──────────────────────────────────────────────────
 interface NlParsedRequest {
-  action: 'generate' | 'show_history' | 'show_classes' | 'assign_homework' | 'unknown';
+  action: 'generate' | 'show_history' | 'show_classes' | 'assign_homework' | 'show_balance' | 'show_menu' | 'show_tools' | 'show_analytics' | 'cancel' | 'unknown';
   tool?: string;
   params?: Record<string, string>;
   target?: 'student' | 'class';
@@ -1925,6 +1925,26 @@ bot.on('callback_query:data', async (ctx: Context) => {
         } else {
           await showHomeworkClassPicker(ctx, telegramId);
         }
+      } else if (pending.action === 'show_balance') {
+        const balanceUser = await (prisma as any).botUser.findUnique({ where: { telegramId }, select: { botCredits: true } });
+        const appSub = await prisma.appUser.findUnique({ where: { telegramId }, select: { id: true } });
+        let bal: number | null = null;
+        if (appSub?.id) {
+          const sub = await (prisma as any).userSubscription.findUnique({ where: { userId: appSub.id } });
+          if (sub?.status === 'active') bal = sub.creditsBalance + sub.extraCredits;
+        }
+        if (bal === null) bal = balanceUser?.botCredits ?? null;
+        const balText = bal !== null ? `💳 Ваш баланс: *${bal}* токенов` : '💳 Баланс недоступен';
+        await ctx.reply(balText, { parse_mode: 'Markdown' });
+      } else if (pending.action === 'show_menu') {
+        await ctx.reply('🏠 Главное меню:', { reply_markup: buildMainMenuKeyboard() });
+      } else if (pending.action === 'show_tools') {
+        await ctx.reply('🛠️ *Выберите инструмент:*', { parse_mode: 'Markdown', reply_markup: buildToolSelectionKeyboard() });
+      } else if (pending.action === 'show_analytics') {
+        await showAnalytics(ctx, telegramId);
+      } else if (pending.action === 'cancel') {
+        genSessions.delete(telegramId);
+        await ctx.reply('✅ Готово.', { reply_markup: buildMainMenuKeyboard() });
       }
 
     } else if (data === 'pf:nl:no') {
@@ -2188,20 +2208,51 @@ bot.on('callback_query:data', async (ctx: Context) => {
 // Быстрая проверка: начинается ли текст с императивного глагола генерации.
 // Намеренно строго — только явные команды, чтобы "Создание атомов" как тема не триггерило.
 function looksLikeNlRequest(text: string): boolean {
-  return /^(сгенерируй|создай|сделай|составь|сделайте|создайте|сгенерируйте|составьте|хочу создать|хочу сгенерировать|мне нужн)/i.test(text.trim()) &&
-    text.trim().length > 15;
+  return /^(сгенерируй|создай|сделай|составь|сделайте|создайте|сгенерируйте|составьте|хочу создать|хочу сгенерировать|мне нужн|придумай|подготовь|генерируй|покажи|посмотреть|сколько|мой баланс|мои токены|отмени|стоп$|хватит$|аналитика|статистика|главное меню|инструменты|что умеешь|что можешь|выдать|назначить|задать дом)/i.test(text.trim()) &&
+    text.trim().length > 3;
 }
 
 // Regex-фоллбек только для навигационных действий (генерацию без LLM точно не угадать)
 function nlNavFallback(text: string): NlParsedRequest {
   const t = text.toLowerCase();
-  if (/история|мои ген|покажи ген|что я создавал|мои работы/.test(t)) return { action: 'show_history' };
-  if (/выдать|домашнее задание|задать|назначить задание/.test(t)) {
+  if (/история|мои ген|покажи ген|что я создавал|мои работы|мои материалы/.test(t)) return { action: 'show_history' };
+  if (/выдать|домашнее задание|задать дом|назначить задание/.test(t)) {
     const target: 'student' | 'class' = /ученик|ученице|ученику|ученика/.test(t) ? 'student' : 'class';
     return { action: 'assign_homework', target };
   }
-  if (/мои классы|список классов|посмотреть классы/.test(t)) return { action: 'show_classes' };
+  if (/мои классы|список классов|посмотреть классы|мои ученики/.test(t)) return { action: 'show_classes' };
+  if (/баланс|токен|сколько осталось|мой счёт|остаток/.test(t)) return { action: 'show_balance' };
+  if (/главное меню|^меню$|на главную|домой|в начало|назад в меню/.test(t)) return { action: 'show_menu' };
+  if (/инструменты|что умеешь|что можешь|доступные функции|список инструм/.test(t)) return { action: 'show_tools' };
+  if (/аналитика|статистика|в риске|на проверку|дедлайн|успеваемость/.test(t)) return { action: 'show_analytics' };
+  if (/^отмени|^стоп$|^хватит$|не надо/.test(t)) return { action: 'cancel' };
   return { action: 'unknown' };
+}
+
+async function transcribeVoice(fileId: string): Promise<string | null> {
+  if (!REPLICATE_API_TOKEN) return null;
+  try {
+    const fileInfo = await bot.api.getFile(fileId);
+    const filePath = fileInfo.file_path;
+    if (!filePath) return null;
+    const tgApiRoot = (process.env.TELEGRAM_API_ROOT ?? 'https://api.telegram.org').replace(/\/$/, '');
+    const audioUrl = `${tgApiRoot}/file/bot${process.env.TELEGRAM_BOT_TOKEN || ''}/${filePath}`;
+    const res = await fetch('https://api.replicate.com/v1/models/openai/whisper/predictions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${REPLICATE_API_TOKEN}`,
+        'Content-Type': 'application/json',
+        Prefer: 'wait',
+      },
+      body: JSON.stringify({ input: { audio: audioUrl, language: 'ru', transcription: 'plain text' } }),
+      signal: AbortSignal.timeout(30000),
+    });
+    if (!res.ok) return null;
+    const data: any = await res.json();
+    return (data.output?.transcription ?? '').trim() || null;
+  } catch {
+    return null;
+  }
 }
 
 async function parseNlRequest(text: string): Promise<NlParsedRequest> {
@@ -2216,6 +2267,11 @@ async function parseNlRequest(text: string): Promise<NlParsedRequest> {
     '{"action":"show_history"}\n' +
     '{"action":"show_classes"}\n' +
     '{"action":"assign_homework","target":"class","dueDate":"YYYY-MM-DD"}\n' +
+    '{"action":"show_balance"}\n' +
+    '{"action":"show_menu"}\n' +
+    '{"action":"show_tools"}\n' +
+    '{"action":"show_analytics"}\n' +
+    '{"action":"cancel"}\n' +
     '{"action":"unknown"}\n\n' +
     'Инструменты:\n' +
     'worksheet: рабочий лист. subject?(предмет), topic(тема), level("Младшие классы"|"Средняя школа"|"Старшие классы"|"Взрослые"|"Подготовка к ОГЭ"|"Подготовка к ЕГЭ"|"Студенты вузов"), questionsCount("5"|"10"|"15"|"20")\n' +
@@ -2227,7 +2283,17 @@ async function parseNlRequest(text: string): Promise<NlParsedRequest> {
     'game: игра. type("millionaire"|"flashcards"|"crossword"|"memory"|"truefalse"), topic\n' +
     'presentation: презентация. topic, duration("5"|"15"|"30"|"45"), style("modern"|"academic"|"creative"|"corporate"), targetAudience("students"|"colleagues"|"parents"|"general")\n\n' +
     'Правило: включай в params только поля явно упомянутые в запросе. Значения select строго из списка.\n' +
-    'Для assign_homework: target="student" если упомянут ученик/ему, target="class" если класс (по умолчанию "class"). dueDate — дата в ISO (YYYY-MM-DD) если явно указана, иначе не включай.\n\n' +
+    'Для assign_homework: target="student" если упомянут ученик/ему, target="class" если класс (по умолчанию "class"). dueDate — дата в ISO (YYYY-MM-DD) если явно указана, иначе не включай.\n' +
+    'Примеры триггеров:\n' +
+    'generate: "создай тест", "придумай задание", "сделай рабочий лист", "составь план урока", "хочу тест по математике", "нужен кроссворд", "подготовь словарный диктант", "сгенерируй игру", "сделай словарь"\n' +
+    'show_history: "мои генерации", "история", "что я создавал", "покажи мои работы", "мои материалы"\n' +
+    'show_classes: "мои классы", "список классов", "мои ученики", "покажи классы"\n' +
+    'assign_homework: "выдать дз", "задать домашнее", "назначить задание", "отправить задание ученику"\n' +
+    'show_balance: "баланс", "сколько токенов", "мой счёт", "сколько у меня", "остаток токенов", "сколько осталось", "мои токены"\n' +
+    'show_menu: "главное меню", "меню", "домой", "на главную", "в начало", "назад в меню"\n' +
+    'show_tools: "список инструментов", "что умеешь", "что можешь", "покажи инструменты", "доступные функции", "что есть"\n' +
+    'show_analytics: "аналитика", "статистика", "кто в риске", "работы на проверку", "дедлайны", "успеваемость"\n' +
+    'cancel: "отмени", "отменить", "стоп", "хватит", "не надо", "выйти"\n\n' +
     `Запрос: «${input}»`;
 
   try {
@@ -2259,7 +2325,7 @@ async function parseNlRequest(text: string): Promise<NlParsedRequest> {
 
     if (!parsed.action) return { action: 'unknown' };
 
-    if (['show_history', 'show_classes', 'unknown'].includes(parsed.action)) {
+    if (['show_history', 'show_classes', 'show_balance', 'show_menu', 'show_tools', 'show_analytics', 'cancel', 'unknown'].includes(parsed.action)) {
       return { action: parsed.action };
     }
 
@@ -2341,6 +2407,11 @@ function buildNlConfirmMessage(parsed: NlParsedRequest): string {
   const navMessages: Record<string, string> = {
     show_history: 'Правильно понял? Хотите посмотреть историю своих генераций.',
     show_classes: 'Правильно понял? Хотите посмотреть свои классы и учеников.',
+    show_balance: 'Правильно понял? Хотите посмотреть баланс токенов.',
+    show_menu: 'Правильно понял? Хотите перейти в главное меню.',
+    show_tools: 'Правильно понял? Хотите посмотреть список инструментов.',
+    show_analytics: 'Правильно понял? Хотите посмотреть аналитику по классам.',
+    cancel: 'Правильно понял? Хотите отменить текущее действие и вернуться в меню.',
   };
   return navMessages[parsed.action] ?? 'Не совсем понял запрос.';
 }
@@ -2482,6 +2553,11 @@ bot.on('message:text', async (ctx: Context) => {
               show_history: 'посмотреть историю генераций',
               show_classes: 'посмотреть классы',
               assign_homework: 'перейти к выдаче задания',
+              show_balance: 'посмотреть баланс',
+              show_menu: 'перейти в главное меню',
+              show_tools: 'посмотреть инструменты',
+              show_analytics: 'посмотреть аналитику',
+              cancel: 'отменить и выйти в меню',
             };
             const navLabel = navLabels[parsed.action] ?? 'выполнить другое действие';
             const kb = new InlineKeyboard()
@@ -2639,7 +2715,119 @@ async function handleFileMessage(ctx: Context, receivedAs: 'photo' | 'document')
 bot.on('message:photo', (ctx) => { if (ctx.chat?.type !== 'private') return; console.log(`[Bot] photo from ${ctx.from?.id}`); return handleFileMessage(ctx, 'photo'); });
 bot.on('message:document', (ctx) => { if (ctx.chat?.type !== 'private') return; console.log(`[Bot] document from ${ctx.from?.id}`); return handleFileMessage(ctx, 'document'); });
 bot.on('message:audio', (ctx) => { if (ctx.chat?.type !== 'private') return; console.log(`[Bot] audio from ${ctx.from?.id}`); return handleFileMessage(ctx, 'document'); });
-bot.on('message:voice', (ctx) => { if (ctx.chat?.type !== 'private') return; return handleFileMessage(ctx, 'document'); });
+bot.on('message:voice', async (ctx) => {
+  if (ctx.chat?.type !== 'private') return;
+  const telegramId = ctx.from?.id.toString();
+  if (!telegramId) return;
+
+  const voice = (ctx.message as any).voice;
+  if (!voice?.file_id) return;
+
+  const session = getGenSession(telegramId);
+  if (session) {
+    const tool = getToolConfig(session.toolKey);
+    const field = tool?.fields[session.fieldIndex];
+    // Поле типа file — старое поведение (загрузка файла)
+    if (field?.type === 'file') {
+      return handleFileMessage(ctx, 'document');
+    }
+    // Поле типа text — транскрибируем и вставляем
+    if (field?.type === 'text') {
+      const vState = getPlatformState(telegramId);
+      if (vState.nlPending) { await ctx.reply('⏳ Обрабатываю предыдущий запрос...'); return; }
+      vState.nlPending = true;
+      await ctx.replyWithChatAction('typing').catch(() => null);
+      let transcript: string | null = null;
+      try { transcript = await transcribeVoice(voice.file_id); } finally { vState.nlPending = false; }
+      if (!transcript) { await ctx.reply('❌ Не удалось распознать. Напишите текстом.'); return; }
+      await ctx.reply(`🎤 _Распознал:_ "${sanitizeMd(transcript)}"`, { parse_mode: 'Markdown' });
+      // Проверяем: может быть это NL-запрос (пользователь переключается на другое действие)
+      if (looksLikeNlRequest(transcript)) {
+        const parsed = await parseNlRequest(transcript);
+        if (parsed.action !== 'unknown') {
+          vState.pendingNlRequest = parsed;
+          const navLabels: Record<string, string> = {
+            show_history: 'посмотреть историю генераций', show_classes: 'посмотреть классы',
+            assign_homework: 'перейти к выдаче задания', show_balance: 'посмотреть баланс',
+            show_menu: 'перейти в главное меню', show_tools: 'посмотреть инструменты',
+            show_analytics: 'посмотреть аналитику', cancel: 'отменить и выйти в меню',
+          };
+          if (parsed.action === 'generate' && parsed.tool) {
+            const newTool = getToolConfig(parsed.tool);
+            if (newTool) {
+              const kb = new InlineKeyboard()
+                .text('▶️ Продолжить форму', 'pf:nl:cont').row()
+                .text(`✨ Создать ${newTool.emoji} ${newTool.label}`, 'pf:nl:go').row()
+                .text('❌ Отмена', 'pf:nl:no');
+              const currentLabel = `${tool!.emoji} ${tool!.label}`;
+              await ctx.reply(`⚠️ Вы заполняете *${sanitizeMd(currentLabel)}*.\n\nХотите прервать и создать другое?\n\n${buildNlConfirmMessage(parsed)}`, { parse_mode: 'Markdown', reply_markup: kb });
+              return;
+            }
+          } else {
+            const navLabel = navLabels[parsed.action] ?? 'выполнить другое действие';
+            const kb = new InlineKeyboard()
+              .text('▶️ Продолжить форму', 'pf:nl:cont').row()
+              .text('✅ Да, перейти', 'pf:nl:go').row()
+              .text('❌ Отмена', 'pf:nl:no');
+            await ctx.reply(`⚠️ Вы заполняете форму.\n\nХотите прервать и ${navLabel}?`, { parse_mode: 'Markdown', reply_markup: kb });
+            return;
+          }
+        }
+      }
+      // Обычный ввод поля
+      const sanitized = sanitize(transcript);
+      const err = validateText(sanitized, field);
+      if (err) { await ctx.reply(err); return; }
+      session.params[field.key] = sanitized;
+      session.fieldIndex++;
+      await nextStep(ctx, session, tool!);
+      return;
+    }
+    // select / multiselect — нужны кнопки
+    await ctx.reply('👆 На этот вопрос нужно ответить кнопкой, не голосом.');
+    return;
+  }
+
+  // Вне сессии — NL через транскрипцию
+  const botUserForVoice = await (prisma as any).botUser.findUnique({
+    where: { telegramId }, select: { registrationStatus: true },
+  });
+  if (!botUserForVoice || botUserForVoice.registrationStatus === 'pending') {
+    await ctx.reply('Для доступа к инструментам сначала подпишитесь на канал.', { reply_markup: buildSubscriptionKeyboard() });
+    return;
+  }
+
+  const nlState = getPlatformState(telegramId);
+  if (nlState.nlPending) { await ctx.reply('⏳ Обрабатываю предыдущий запрос...'); return; }
+
+  nlState.nlPending = true;
+  await ctx.replyWithChatAction('typing').catch(() => null);
+  let transcript: string | null = null;
+  let nlParsed: NlParsedRequest = { action: 'unknown' };
+  try {
+    transcript = await transcribeVoice(voice.file_id);
+    if (!transcript) {
+      await ctx.reply('❌ Не удалось распознать голосовое сообщение. Попробуйте написать текстом.');
+      return;
+    }
+    await ctx.reply(`🎤 _Распознал:_ "${sanitizeMd(transcript)}"`, { parse_mode: 'Markdown' });
+    nlParsed = await parseNlRequest(transcript);
+  } finally {
+    nlState.nlPending = false;
+  }
+
+  if (nlParsed.action === 'unknown') {
+    await ctx.reply('Не совсем понял. Попробуйте ещё раз или напишите текстом.');
+    return;
+  }
+
+  nlState.pendingNlRequest = nlParsed;
+  const confirmMsg = buildNlConfirmMessage(nlParsed);
+  const confirmKb = nlParsed.action === 'generate'
+    ? new InlineKeyboard().text('✅ Создать', 'pf:nl:go').text('✏️ Изменить', 'pf:nl:edit').row().text('❌ Отмена', 'pf:nl:no')
+    : new InlineKeyboard().text('✅ Да', 'pf:nl:go').text('❌ Нет', 'pf:nl:no');
+  await ctx.reply(confirmMsg, { parse_mode: 'Markdown', reply_markup: confirmKb });
+});
 bot.on('message:video', (ctx) => { if (ctx.chat?.type !== 'private') return; return handleFileMessage(ctx, 'document'); });
 
 // Фиксируем блокировку бота пользователем → Откуда Подписки

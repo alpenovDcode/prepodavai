@@ -33,7 +33,7 @@ interface GenSession {
 
 // ── NL-interface parsed request ────────────────────────────────────────────────
 interface NlParsedRequest {
-  action: 'generate' | 'show_history' | 'show_classes' | 'assign_homework' | 'unknown';
+  action: 'generate' | 'show_history' | 'show_classes' | 'assign_homework' | 'show_balance' | 'show_menu' | 'show_tools' | 'show_analytics' | 'cancel' | 'unknown';
   tool?: string;
   params?: Record<string, string>;
   target?: 'student' | 'class';
@@ -180,7 +180,7 @@ export class MaxService {
       }
 
       const user = message.from || message.sender;
-      const text: string = (message.text || message.content || message.body?.text || '').trim();
+      let text: string = (message.text || message.content || message.body?.text || '').trim();
 
       // Reverting to using the user's ID as the primary chatId for the URL,
       // as it was the only one that didn't give 'dialog.not.found'.
@@ -193,6 +193,36 @@ export class MaxService {
       if (!user || !chatId || !userIdForDb) {
         this.logger.warn('Could not extract user or chatId from MAX message');
         return;
+      }
+
+      // Голосовое / аудио-сообщение → транскрибируем в текст
+      if (!text) {
+        const attachments: any[] = message.body?.attachments ?? message.attachments ?? [];
+        const audioAttach = attachments.find((a: any) => a.type === 'audio' || a.type === 'voice');
+        const audioUrl: string | undefined = audioAttach?.payload?.url;
+        if (audioUrl) {
+          const voiceState = this.getMaxPlatformState(userIdForDb);
+          if (voiceState.nlPending) {
+            await this.sendMessage(chatId, '⏳ Обрабатываю предыдущий запрос, подождите...');
+            return;
+          }
+          voiceState.nlPending = true;
+          let transcript: string | null = null;
+          try {
+            transcript = await this.transcribeVoice(audioUrl);
+          } finally {
+            voiceState.nlPending = false;
+          }
+          if (!transcript) {
+            await this.sendMessage(chatId, '❌ Не удалось распознать голосовое сообщение. Попробуйте написать текстом.');
+            return;
+          }
+          await this.sendMessage(chatId, `🎤 Распознал: «${transcript}»`);
+          text = transcript;
+        } else if (!text) {
+          // Не текст и не аудио (стикер, фото и т.д.) — игнорируем
+          return;
+        }
       }
 
       const botUser = { ...user, id: userIdForDb };
@@ -315,6 +345,11 @@ export class MaxService {
                   show_history: 'посмотреть историю генераций',
                   show_classes: 'посмотреть классы',
                   assign_homework: 'перейти к выдаче задания',
+                  show_balance: 'посмотреть баланс',
+                  show_menu: 'перейти в главное меню',
+                  show_tools: 'посмотреть инструменты',
+                  show_analytics: 'посмотреть аналитику',
+                  cancel: 'отменить и выйти в меню',
                 };
                 const navLabel = navLabels[inSessionParsed.action] ?? 'выполнить другое действие';
                 await this.sendMessageWithKeyboard(
@@ -568,6 +603,16 @@ export class MaxService {
           } else {
             await this.showHwClassPicker(chatId, userId, 'class');
           }
+        } else if (pending.action === 'show_balance') {
+          await this.showMainMenu(chatId, userId);
+        } else if (pending.action === 'show_menu') {
+          await this.showMainMenu(chatId, userId);
+        } else if (pending.action === 'show_tools') {
+          await this.sendMessageWithKeyboard(chatId, '🛠️ Выберите инструмент:', this.buildToolSelectionAttachment());
+        } else if (pending.action === 'show_analytics') {
+          await this.showAnalytics(chatId, userId);
+        } else if (pending.action === 'cancel') {
+          await this.sendMessageWithKeyboard(chatId, '✅ Готово.', this.buildMainMenuAttachment());
         }
         return;
       }
@@ -1562,19 +1607,47 @@ export class MaxService {
 
   // ── NL-interface helpers ──────────────────────────────────────────────────
   private looksLikeNlRequest(text: string): boolean {
-    return /^(сгенерируй|создай|сделай|составь|сделайте|создайте|сгенерируйте|составьте|хочу создать|хочу сгенерировать|мне нужн)/i.test(text.trim()) &&
-      text.trim().length > 15;
+    return /^(сгенерируй|создай|сделай|составь|сделайте|создайте|сгенерируйте|составьте|хочу создать|хочу сгенерировать|мне нужн|придумай|подготовь|генерируй|покажи|посмотреть|сколько|мой баланс|мои токены|отмени|стоп$|хватит$|аналитика|статистика|главное меню|инструменты|что умеешь|что можешь|выдать|назначить|задать дом)/i.test(text.trim()) &&
+      text.trim().length > 3;
   }
 
   private nlNavFallback(text: string): NlParsedRequest {
     const t = text.toLowerCase();
-    if (/история|мои ген|покажи ген|что я создавал|мои работы/.test(t)) return { action: 'show_history' };
-    if (/выдать|домашнее задание|задать|назначить задание/.test(t)) {
+    if (/история|мои ген|покажи ген|что я создавал|мои работы|мои материалы/.test(t)) return { action: 'show_history' };
+    if (/выдать|домашнее задание|задать дом|назначить задание/.test(t)) {
       const target: 'student' | 'class' = /ученик|ученице|ученику|ученика/.test(t) ? 'student' : 'class';
       return { action: 'assign_homework', target };
     }
-    if (/мои классы|список классов|посмотреть классы/.test(t)) return { action: 'show_classes' };
+    if (/мои классы|список классов|посмотреть классы|мои ученики/.test(t)) return { action: 'show_classes' };
+    if (/баланс|токен|сколько осталось|мой счёт|остаток/.test(t)) return { action: 'show_balance' };
+    if (/главное меню|^меню$|на главную|домой|в начало|назад в меню/.test(t)) return { action: 'show_menu' };
+    if (/инструменты|что умеешь|что можешь|доступные функции|список инструм/.test(t)) return { action: 'show_tools' };
+    if (/аналитика|статистика|в риске|на проверку|дедлайн|успеваемость/.test(t)) return { action: 'show_analytics' };
+    if (/^отмени|^стоп$|^хватит$|не надо/.test(t)) return { action: 'cancel' };
     return { action: 'unknown' };
+  }
+
+  private async transcribeVoice(audioUrl: string): Promise<string | null> {
+    const replicateToken = this.configService.get<string>('REPLICATE_API_TOKEN') || '';
+    if (!replicateToken) return null;
+    try {
+      const res = await fetch('https://api.replicate.com/v1/models/openai/whisper/predictions', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${replicateToken}`,
+          'Content-Type': 'application/json',
+          Prefer: 'wait',
+        },
+        body: JSON.stringify({ input: { audio: audioUrl, language: 'ru', transcription: 'plain text' } }),
+        signal: AbortSignal.timeout(30000),
+      });
+      if (!res.ok) return null;
+      const data: any = await res.json();
+      const transcript = (data.output?.transcription ?? '').trim();
+      return transcript || null;
+    } catch {
+      return null;
+    }
   }
 
   private async parseNlRequest(text: string): Promise<NlParsedRequest> {
@@ -1589,6 +1662,11 @@ export class MaxService {
       '{"action":"show_history"}\n' +
       '{"action":"show_classes"}\n' +
       '{"action":"assign_homework","target":"class","dueDate":"YYYY-MM-DD"}\n' +
+      '{"action":"show_balance"}\n' +
+      '{"action":"show_menu"}\n' +
+      '{"action":"show_tools"}\n' +
+      '{"action":"show_analytics"}\n' +
+      '{"action":"cancel"}\n' +
       '{"action":"unknown"}\n\n' +
       'Инструменты:\n' +
       'worksheet: рабочий лист. subject?(предмет), topic(тема), level("Младшие классы"|"Средняя школа"|"Старшие классы"|"Взрослые"|"Подготовка к ОГЭ"|"Подготовка к ЕГЭ"|"Студенты вузов"), questionsCount("5"|"10"|"15"|"20")\n' +
@@ -1600,7 +1678,17 @@ export class MaxService {
       'game: игра. type("millionaire"|"flashcards"|"crossword"|"memory"|"truefalse"), topic\n' +
       'presentation: презентация. topic, duration("5"|"15"|"30"|"45"), style("modern"|"academic"|"creative"|"corporate"), targetAudience("students"|"colleagues"|"parents"|"general")\n\n' +
       'Правило: включай в params только поля явно упомянутые в запросе. Значения select строго из списка.\n' +
-      'Для assign_homework: target="student" если упомянут ученик/ему, target="class" если класс (по умолчанию "class"). dueDate — дата в ISO (YYYY-MM-DD) если явно указана, иначе не включай.\n\n' +
+      'Для assign_homework: target="student" если упомянут ученик/ему, target="class" если класс (по умолчанию "class"). dueDate — дата в ISO (YYYY-MM-DD) если явно указана, иначе не включай.\n' +
+      'Примеры триггеров:\n' +
+      'generate: "создай тест", "придумай задание", "сделай рабочий лист", "составь план урока", "хочу тест по математике", "нужен кроссворд", "подготовь словарный диктант", "сгенерируй игру", "сделай словарь"\n' +
+      'show_history: "мои генерации", "история", "что я создавал", "покажи мои работы", "мои материалы"\n' +
+      'show_classes: "мои классы", "список классов", "мои ученики", "покажи классы"\n' +
+      'assign_homework: "выдать дз", "задать домашнее", "назначить задание", "отправить задание ученику"\n' +
+      'show_balance: "баланс", "сколько токенов", "мой счёт", "сколько у меня", "остаток токенов", "сколько осталось", "мои токены"\n' +
+      'show_menu: "главное меню", "меню", "домой", "на главную", "в начало", "назад в меню"\n' +
+      'show_tools: "список инструментов", "что умеешь", "что можешь", "покажи инструменты", "доступные функции", "что есть"\n' +
+      'show_analytics: "аналитика", "статистика", "кто в риске", "работы на проверку", "дедлайны", "успеваемость"\n' +
+      'cancel: "отмени", "отменить", "стоп", "хватит", "не надо", "выйти"\n\n' +
       `Запрос: «${input}»`;
 
     try {
@@ -1621,7 +1709,7 @@ export class MaxService {
       try { parsed = JSON.parse(jsonMatch[0]); } catch { return this.nlNavFallback(input); }
 
       if (!parsed.action) return { action: 'unknown' };
-      if (['show_history', 'show_classes', 'unknown'].includes(parsed.action)) return { action: parsed.action };
+      if (['show_history', 'show_classes', 'show_balance', 'show_menu', 'show_tools', 'show_analytics', 'cancel', 'unknown'].includes(parsed.action)) return { action: parsed.action };
 
       if (parsed.action === 'assign_homework') {
         const target: 'student' | 'class' = parsed.target === 'student' ? 'student' : 'class';
@@ -1690,6 +1778,11 @@ export class MaxService {
     const navMessages: Record<string, string> = {
       show_history: 'Правильно понял? Хотите посмотреть историю своих генераций.',
       show_classes: 'Правильно понял? Хотите посмотреть свои классы и учеников.',
+      show_balance: 'Правильно понял? Хотите посмотреть баланс токенов.',
+      show_menu: 'Правильно понял? Хотите перейти в главное меню.',
+      show_tools: 'Правильно понял? Хотите посмотреть список инструментов.',
+      show_analytics: 'Правильно понял? Хотите посмотреть аналитику по классам.',
+      cancel: 'Правильно понял? Хотите отменить текущее действие и вернуться в меню.',
     };
     return navMessages[parsed.action] ?? 'Не совсем понял запрос.';
   }
