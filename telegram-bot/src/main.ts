@@ -2232,11 +2232,18 @@ function nlNavFallback(text: string): NlParsedRequest {
 async function transcribeVoice(fileId: string): Promise<string | null> {
   if (!REPLICATE_API_TOKEN) return null;
   try {
+    // Скачиваем файл сами — Replicate не может обращаться к Telegram напрямую
     const fileInfo = await bot.api.getFile(fileId);
     const filePath = fileInfo.file_path;
     if (!filePath) return null;
     const tgApiRoot = (process.env.TELEGRAM_API_ROOT ?? 'https://api.telegram.org').replace(/\/$/, '');
-    const audioUrl = `${tgApiRoot}/file/bot${process.env.TELEGRAM_BOT_TOKEN || ''}/${filePath}`;
+    const downloadUrl = `${tgApiRoot}/file/bot${process.env.TELEGRAM_BOT_TOKEN || ''}/${filePath}`;
+    const fileResp = await fetch(downloadUrl, { signal: AbortSignal.timeout(15000) });
+    if (!fileResp.ok) { console.error(`[Voice] Failed to download audio: ${fileResp.status}`); return null; }
+    const audioBuffer = Buffer.from(await fileResp.arrayBuffer());
+    // Передаём как base64 data URI — Replicate принимает inline-аудио
+    const base64Audio = `data:audio/ogg;base64,${audioBuffer.toString('base64')}`;
+
     const res = await fetch('https://api.replicate.com/v1/models/openai/whisper/predictions', {
       method: 'POST',
       headers: {
@@ -2244,13 +2251,22 @@ async function transcribeVoice(fileId: string): Promise<string | null> {
         'Content-Type': 'application/json',
         Prefer: 'wait',
       },
-      body: JSON.stringify({ input: { audio: audioUrl, language: 'ru', transcription: 'plain text' } }),
+      body: JSON.stringify({ input: { audio: base64Audio, language: 'ru', transcription: 'plain text' } }),
       signal: AbortSignal.timeout(30000),
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '');
+      console.error(`[Voice] Replicate error ${res.status}: ${errText.slice(0, 200)}`);
+      return null;
+    }
     const data: any = await res.json();
-    return (data.output?.transcription ?? '').trim() || null;
-  } catch {
+    // Whisper может вернуть объект { transcription: "..." } или строку напрямую
+    const transcript = typeof data.output === 'string'
+      ? data.output
+      : (data.output?.transcription ?? data.output?.text ?? '');
+    return transcript.trim() || null;
+  } catch (err: any) {
+    console.error(`[Voice] transcribeVoice error: ${err?.message}`);
     return null;
   }
 }

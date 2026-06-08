@@ -1631,6 +1631,13 @@ export class MaxService {
     const replicateToken = this.configService.get<string>('REPLICATE_API_TOKEN') || '';
     if (!replicateToken) return null;
     try {
+      // Скачиваем аудио сами — надёжнее, чем давать URL Replicate
+      const dlResp = await axios.get<Buffer>(audioUrl, {
+        responseType: 'arraybuffer',
+        timeout: 15000,
+      });
+      const base64Audio = `data:audio/ogg;base64,${Buffer.from(dlResp.data).toString('base64')}`;
+
       const res = await fetch('https://api.replicate.com/v1/models/openai/whisper/predictions', {
         method: 'POST',
         headers: {
@@ -1638,14 +1645,21 @@ export class MaxService {
           'Content-Type': 'application/json',
           Prefer: 'wait',
         },
-        body: JSON.stringify({ input: { audio: audioUrl, language: 'ru', transcription: 'plain text' } }),
+        body: JSON.stringify({ input: { audio: base64Audio, language: 'ru', transcription: 'plain text' } }),
         signal: AbortSignal.timeout(30000),
       });
-      if (!res.ok) return null;
+      if (!res.ok) {
+        const errText = await res.text().catch(() => '');
+        this.logger.error(`[Voice] Replicate error ${res.status}: ${errText.slice(0, 200)}`);
+        return null;
+      }
       const data: any = await res.json();
-      const transcript = (data.output?.transcription ?? '').trim();
-      return transcript || null;
-    } catch {
+      const transcript = typeof data.output === 'string'
+        ? data.output
+        : (data.output?.transcription ?? data.output?.text ?? '');
+      return transcript.trim() || null;
+    } catch (err: any) {
+      this.logger.error(`[Voice] transcribeVoice error: ${err?.message}`);
       return null;
     }
   }
