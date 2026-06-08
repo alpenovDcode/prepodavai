@@ -1,6 +1,7 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { chromium, Browser, Page } from 'playwright';
 import { HtmlPostprocessorService } from './html-postprocessor.service';
+import { DesignSystemConfig } from '../../modules/generations/config/design-system.config';
 
 // MathJax configuration is now managed via HtmlPostprocessorService
 
@@ -203,12 +204,22 @@ export class HtmlExportService implements OnModuleDestroy {
   private prepareHtml(html: string): string {
     let processed = html;
 
-    // 1. Если пришёл фрагмент без <html>/<body> — оборачиваем в минимальный каркас.
+    // 1. Если пришёл фрагмент без <html>/<body> — оборачиваем в шаблон с
+    //    дизайн-системой (CSS, шрифты, контейнер), чтобы PDF не выходил
+    //    «голым текстом». Это типичный кейс после правки в редакторе, когда
+    //    в outputData.content попадает body innerHTML без head/style.
     if (!/<html/i.test(processed) || !/<body/i.test(processed)) {
+      // Если фрагмент уже обёрнут в .container — не дублируем.
+      const innerWrapped = /class\s*=\s*["'][^"']*\bcontainer\b/i.test(processed)
+        ? processed
+        : `<div class="container">${processed}</div>`;
       processed = `<!DOCTYPE html>
 <html lang="ru">
-<head><meta charset="UTF-8"></head>
-<body>${processed}</body>
+<head>
+  <meta charset="UTF-8">
+  ${DesignSystemConfig.STYLES}
+</head>
+<body>${innerWrapped}</body>
 </html>`;
     }
 

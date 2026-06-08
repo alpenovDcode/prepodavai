@@ -24,6 +24,11 @@ export default function WorksheetGenerator() {
     const [isSaving, setIsSaving] = useState(false)
     const [copied, setCopied] = useState(false)
     const iframeRef = useRef<HTMLIFrameElement>(null)
+    // srcDoc меняем ТОЛЬКО когда реально пришёл новый контент с сервера / новая
+    // генерация. Тогл режима правки и сохранение iframe НЕ перезагружают —
+    // иначе MathJax/CDN-скрипты загружаются заново и мы видим белый экран.
+    const lastSrcDocRef = useRef<string>('')
+    const [srcDoc, setSrcDoc] = useState<string>('')
 
     const { generateAndWait, isGenerating, activeGenerationId } = useGenerations()
     const hasResult = !isGenerating && !!localContent && !localContent.startsWith('<p>Введите') && !localContent.startsWith('<p>Генерируем')
@@ -39,6 +44,18 @@ export default function WorksheetGenerator() {
         window.addEventListener('resize', checkMobile)
         return () => window.removeEventListener('resize', checkMobile)
     }, [])
+
+    // Перезагружаем iframe (srcDoc) ТОЛЬКО когда контент реально изменился со
+    // стороны источника (новая генерация / первая загрузка). При сохранении
+    // правки контент в iframe уже актуален, перезагрузка не нужна.
+    useEffect(() => {
+        if (!localContent) return
+        if (localContent === lastSrcDocRef.current) return
+        lastSrcDocRef.current = localContent
+        // В режиме правки скрипты MathJax/CDN убираем (см. ensureMathJax.ts).
+        setSrcDoc(editMode ? stripMathJaxScripts(localContent) : ensureMathJaxInHtml(localContent))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [localContent])
 
 const generate = async () => {
         if (!topic) return
@@ -93,11 +110,20 @@ const generate = async () => {
                 // are guaranteed correct from backend processing. Only replace the body
                 // content with what the user edited. Use a function callback to avoid
                 // treating $ in LaTeX as a regex backreference.
-                const replaced = localContent.replace(
-                    /<body([^>]*)>[\s\S]*<\/body>/i,
-                    (_, bodyAttrs) => `<body${bodyAttrs}>${editedBodyHtml}</body>`
-                )
-                if (replaced !== localContent) fullHtml = replaced
+                const hasBody = /<body[^>]*>[\s\S]*<\/body>/i.test(localContent)
+                if (hasBody) {
+                    fullHtml = localContent.replace(
+                        /<body([^>]*)>[\s\S]*<\/body>/i,
+                        (_, bodyAttrs) => `<body${bodyAttrs}>${editedBodyHtml}</body>`
+                    )
+                } else {
+                    // localContent — фрагмент без body. Берём <head> (со всеми <style>)
+                    // из исходника и оборачиваем отредактированное тело в полный HTML.
+                    // Иначе сохранённый PDF выходит «голым текстом» без оформления.
+                    const headMatch = localContent.match(/<head[\s\S]*?<\/head>/i)
+                    const head = headMatch ? headMatch[0] : '<head><meta charset="UTF-8"></head>'
+                    fullHtml = `<!DOCTYPE html><html lang="ru">${head}<body>${editedBodyHtml}</body></html>`
+                }
             }
 
             if (activeGenerationId) {
@@ -106,6 +132,9 @@ const generate = async () => {
                     await apiClient.patch(`/generate/${activeGenerationId}`, {
                         outputData: { content: fullHtml },
                     })
+                    // Контент в iframe уже актуален — НЕ дергаем srcDoc, иначе
+                    // iframe перезагрузится и MathJax будет тянуться заново.
+                    lastSrcDocRef.current = fullHtml
                     setLocalContent(fullHtml)
                     toast.success('Сохранено')
                     setEditMode(false)
@@ -115,6 +144,7 @@ const generate = async () => {
                     setIsSaving(false)
                 }
             } else {
+                lastSrcDocRef.current = fullHtml
                 setLocalContent(fullHtml)
                 setEditMode(false)
             }
@@ -131,7 +161,25 @@ const generate = async () => {
             doc.body.style.cursor = 'text'
         } else {
             doc.body.contentEditable = 'false'
-            doc.body.style.cursor = 'text'
+            doc.body.style.cursor = ''
+            // Если вышли из правки и в iframe нет MathJax — догружаем без перезагрузки.
+            // Иначе после сохранения LaTeX (\(...\)) остался бы «сырым».
+            const win = iframeRef.current?.contentWindow as any
+            if (win) {
+                if (win.MathJax?.typesetPromise) {
+                    win.MathJax.typesetPromise([doc.body]).catch(() => {})
+                } else if (!doc.querySelector('script[data-mathjax-injected]')) {
+                    const cfg = doc.createElement('script')
+                    cfg.setAttribute('data-mathjax-injected', 'cfg')
+                    cfg.textContent = "window.MathJax={loader:{load:['[tex]/mhchem']},tex:{inlineMath:[['$','$'],['\\\\(','\\\\)']],displayMath:[['$$','$$'],['\\\\[','\\\\]']],processEscapes:true,packages:{'[+]':['mhchem']}},options:{enableMenu:false},startup:{typeset:true}};"
+                    doc.head.appendChild(cfg)
+                    const s = doc.createElement('script')
+                    s.setAttribute('data-mathjax-injected', 'src')
+                    s.async = true
+                    s.src = 'https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js'
+                    doc.head.appendChild(s)
+                }
+            }
         }
     }
 
@@ -139,10 +187,8 @@ const generate = async () => {
         const iframeDoc = iframeRef.current?.contentDocument
         if (!iframeDoc?.body) return
         applyIframeState(iframeDoc)
-        if (!editMode) {
-            const handleClick = () => setEditMode(true)
-            iframeDoc.body.addEventListener('click', handleClick)
-        }
+        // Раньше любой клик в iframe включал режим правки — пользователи жаловались,
+        // что он «включается сам по себе». Теперь правка только по явной кнопке.
     }
 
     // При смене editMode применяем состояние к уже загруженному iframe.
@@ -150,11 +196,6 @@ const generate = async () => {
         const iframeDoc = iframeRef.current?.contentDocument
         if (!iframeDoc?.body) return
         applyIframeState(iframeDoc)
-        if (!editMode) {
-            const handleClick = () => setEditMode(true)
-            iframeDoc.body.addEventListener('click', handleClick)
-            return () => iframeDoc.body.removeEventListener('click', handleClick)
-        }
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [editMode]);
 
@@ -364,7 +405,7 @@ const generate = async () => {
                         ) : (
                             <iframe
                                 ref={iframeRef}
-                                srcDoc={editMode ? stripMathJaxScripts(localContent) : ensureMathJaxInHtml(localContent)}
+                                srcDoc={srcDoc}
                                 className="w-full h-full border-0 bg-white"
                                 sandbox="allow-scripts allow-popups allow-modals allow-same-origin"
                                 onLoad={handleIframeLoad}

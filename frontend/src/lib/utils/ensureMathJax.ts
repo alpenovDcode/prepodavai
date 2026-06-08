@@ -14,6 +14,11 @@ export function stripMathJaxScripts(html: string): string {
     let result = html.replace(/<script[^>]*>\s*window\.MathJax[\s\S]*?<\/script>/gi, '')
     // Remove the MathJax CDN loader script
     result = result.replace(/<script[^>]+src=["'][^"']*mathjax[^"']*["'][^>]*>[\s\S]*?<\/script>/gi, '')
+    // Полифилл polyfill.io мёртв и блокирует загрузку iframe.
+    result = result.replace(
+        /<script[^>]+src=["'][^"']*polyfill\.io[^"']*["'][^>]*>[\s\S]*?<\/script>/gi,
+        '',
+    )
     return result
 }
 
@@ -39,8 +44,21 @@ const COMMANDS = /\\(?:frac|sqrt|sum|int|prod|lim|cdot|times|pm|mp|leq|geq|neq|a
  * Если HTML содержит LaTeX-формулы и в нём ещё нет <script src="...mathjax...">,
  * инжектит MathJax в <head> (не в </body>) — чтобы скрипт загружался как можно раньше.
  */
+/**
+ * Удаляем ссылки на мёртвый polyfill.io — он завершился, и попытка его
+ * загрузить блокирует iframe (ERR_CONNECTION_CLOSED) и тормозит появление
+ * результата. Если он попал в HTML от старой генерации — выпиливаем.
+ */
+function stripDeadPolyfills(html: string): string {
+    return html.replace(
+        /<script[^>]+src=["'][^"']*polyfill\.io[^"']*["'][^>]*>[\s\S]*?<\/script>/gi,
+        '',
+    )
+}
+
 export function ensureMathJaxInHtml(html: string): string {
     if (!html || typeof html !== 'string') return html
+    html = stripDeadPolyfills(html)
     const hasFormulas = WRAPPERS.test(html) || COMMANDS.test(html)
     if (!hasFormulas) return html
     const hasMathJax = /<script[^>]+src=["'][^"']*mathjax[^"']*["']/i.test(html)
