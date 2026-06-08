@@ -1782,6 +1782,22 @@ bot.command('start', async (ctx: Context) => {
 });
 
 
+// Показывает главное меню + инструменты для уже зарегистрированного пользователя
+async function showMainMenuFull(ctx: Context, telegramId: string) {
+  const appUser = await prisma.appUser.findUnique({ where: { telegramId } });
+  const botUser = await (prisma as any).botUser.findUnique({ where: { telegramId } });
+  let balance = botUser?.botCredits ?? 0;
+  if (appUser?.id) {
+    const sub = await (prisma as any).userSubscription.findUnique({ where: { userId: appUser.id } });
+    if (sub?.status === 'active') balance = sub.creditsBalance + sub.extraCredits;
+  }
+  await ctx.reply(
+    `🏠 Главное меню\n\n💳 Токенов на балансе: ${balance}`,
+    { reply_markup: buildMainMenuKeyboard() },
+  );
+  await ctx.reply('🛠️ *Выберите инструмент:*', { parse_mode: 'Markdown', reply_markup: buildToolSelectionKeyboard() });
+}
+
 // ── Callback queries (нажатия кнопок генерации) ───────────────────────────────
 bot.on('callback_query:data', async (ctx: Context) => {
   const data = ctx.callbackQuery?.data ?? '';
@@ -1938,7 +1954,7 @@ bot.on('callback_query:data', async (ctx: Context) => {
         const balText = bal !== null ? `💳 Ваш баланс: *${bal}* токенов` : '💳 Баланс недоступен';
         await ctx.reply(balText, { parse_mode: 'Markdown' });
       } else if (pending.action === 'show_menu') {
-        await ctx.reply('🏠 Главное меню:', { reply_markup: buildMainMenuKeyboard() });
+        await showMainMenuFull(ctx, telegramId);
       } else if (pending.action === 'show_tools') {
         await ctx.reply('🛠️ *Выберите инструмент:*', { parse_mode: 'Markdown', reply_markup: buildToolSelectionKeyboard() });
       } else if (pending.action === 'show_analytics') {
@@ -2669,8 +2685,15 @@ bot.on('message:text', async (ctx: Context) => {
   // NL-интерфейс: пробуем понять свободный текст через Gemini Flash
   const nlState = getPlatformState(telegramId);
 
+  // Текстовые триггеры главного меню — ведут себя как /start для уже онбордированного пользователя
+  const MENU_TRIGGERS = new Set(['старт', 'start', 'начало', 'заново', 'сначала', 'сначало', 'поехали', 'погнали', '/start']);
+  if (MENU_TRIGGERS.has(text.toLowerCase())) {
+    await showMainMenuFull(ctx, telegramId);
+    return;
+  }
+
   // Игнорируем очень короткие сообщения и приветствия
-  const GREETINGS = new Set(['привет', 'здравствуй', 'здравствуйте', 'ок', 'окей', 'хорошо', 'спасибо', 'да', 'нет', 'ладно']);
+  const GREETINGS = new Set(['привет', 'здравствуй', 'здравствуйте', 'ок', 'окей', 'хорошо', 'спасибо', 'да', 'нет', 'ладно', 'пока', 'стоп', 'stop']);
   if (text.length < 4 || GREETINGS.has(text.toLowerCase())) {
     await ctx.reply('Используйте кнопки меню или напишите что хотите сделать — например: «создай тест по биологии для 8 класса».');
     return;

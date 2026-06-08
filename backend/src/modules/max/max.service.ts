@@ -383,6 +383,13 @@ export class MaxService {
       }
 
       // Пользователь пишет текст вне активной сессии — NL-интерфейс
+      const MENU_TRIGGERS = new Set(['старт', 'start', 'начало', 'заново', 'сначала', 'сначало', 'поехали', 'погнали']);
+      if (text && MENU_TRIGGERS.has(text.toLowerCase())) {
+        await this.showMainMenu(chatId, userIdForDb);
+        await this.sendMessageWithKeyboard(chatId, '🛠️ Выберите инструмент:', this.buildToolSelectionAttachment());
+        return;
+      }
+
       const GREETINGS = new Set(['привет', 'здравствуй', 'здравствуйте', 'ок', 'окей', 'хорошо', 'спасибо', 'да', 'нет', 'ладно']);
       if (!text || text.length < 4 || GREETINGS.has(text.toLowerCase())) {
         await this.sendMessageWithKeyboard(chatId, '🏠 Используйте кнопки меню:', this.buildMainMenuAttachment());
@@ -608,6 +615,7 @@ export class MaxService {
           await this.showMainMenu(chatId, userId);
         } else if (pending.action === 'show_menu') {
           await this.showMainMenu(chatId, userId);
+          await this.sendMessageWithKeyboard(chatId, '🛠️ Выберите инструмент:', this.buildToolSelectionAttachment());
         } else if (pending.action === 'show_tools') {
           await this.sendMessageWithKeyboard(chatId, '🛠️ Выберите инструмент:', this.buildToolSelectionAttachment());
         } else if (pending.action === 'show_analytics') {
