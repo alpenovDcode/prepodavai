@@ -2269,14 +2269,18 @@ async function transcribeVoice(fileId: string): Promise<string | null> {
     // Передаём как base64 data URI — Replicate принимает inline-аудио
     const base64Audio = `data:audio/ogg;base64,${audioBuffer.toString('base64')}`;
 
-    const res = await fetch('https://api.replicate.com/v1/models/openai/whisper/predictions', {
+    // Используем стандартный endpoint с версией — /v1/models/ работает только для official-моделей
+    const res = await fetch('https://api.replicate.com/v1/predictions', {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${REPLICATE_API_TOKEN}`,
         'Content-Type': 'application/json',
         Prefer: 'wait',
       },
-      body: JSON.stringify({ input: { audio: base64Audio, language: 'ru', transcription: 'plain text' } }),
+      body: JSON.stringify({
+        version: 'cdd97b257f93cb89dede1c7584e3f45d9780103c23710b7c4aafbd24ca15a27',
+        input: { audio: base64Audio, language: 'ru', transcription: 'plain text' },
+      }),
       signal: AbortSignal.timeout(30000),
     });
     if (!res.ok) {
@@ -2285,9 +2289,11 @@ async function transcribeVoice(fileId: string): Promise<string | null> {
       return null;
     }
     const data: any = await res.json();
-    const transcript = typeof data.output === 'string'
-      ? data.output
-      : (data.output?.transcription ?? data.output?.text ?? '');
+    // Разные версии Whisper возвращают output по-разному
+    const out = data.output;
+    const transcript = typeof out === 'string'
+      ? out
+      : (out?.transcription ?? out?.text ?? (Array.isArray(out) ? out.join('') : ''));
     return transcript.trim() || null;
   } catch (err: any) {
     console.error(`[Voice] transcribeVoice error: ${err?.message}`);
