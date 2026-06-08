@@ -138,8 +138,15 @@ const generate = async () => {
                     setLocalContent(fullHtml)
                     toast.success('Сохранено')
                     setEditMode(false)
-                } catch {
-                    toast.error('Не удалось сохранить изменения')
+                } catch (err: any) {
+                    // Показываем серверный текст ошибки — раньше всегда был
+                    // обобщённый «Не удалось сохранить», что усложняло диагностику.
+                    const resp = err?.response?.data
+                    const msg = (Array.isArray(resp?.message) ? resp.message.join('; ') : resp?.message)
+                        || err?.message
+                        || 'Не удалось сохранить изменения'
+                    console.error('[worksheet save] failed:', err?.response?.status, resp)
+                    toast.error(msg)
                 } finally {
                     setIsSaving(false)
                 }

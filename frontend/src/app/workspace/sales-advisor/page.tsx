@@ -98,19 +98,12 @@ export default function SalesAdvisorGenerator() {
         setEditMode(!editMode)
     }
 
+    // Авто-вход в правку по клику в iframe убран — режим только по явной кнопке.
     useEffect(() => {
         if (!editMode && iframeRef.current && localContent) {
             const iframeDoc = iframeRef.current.contentDocument;
-            if (iframeDoc) {
-                const handleClick = () => {
-                    setEditMode(true);
-                };
-                iframeDoc.body.addEventListener('click', handleClick);
-                iframeDoc.body.style.cursor = 'text';
-
-                return () => {
-                    iframeDoc.body.removeEventListener('click', handleClick);
-                };
+            if (iframeDoc?.body) {
+                iframeDoc.body.style.cursor = '';
             }
         }
     }, [editMode, localContent]);

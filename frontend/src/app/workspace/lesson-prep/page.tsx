@@ -199,19 +199,14 @@ export default function LessonPrepGenerator() {
         return `vau-urok-${currentIndex + 1}-${slug}.pdf`
     }, [currentResultType, currentIndex])
 
+    // Авто-вход в режим правки по клику в iframe убран — пользователи
+    // жаловались, что режим включается «сам по себе». Правка теперь только
+    // по явной кнопке.
     useEffect(() => {
         if (!editMode && iframeRef.current && localContent && !isGenerating) {
             const iframeDoc = iframeRef.current.contentDocument;
-            if (iframeDoc) {
-                const handleClick = () => {
-                    setEditMode(true);
-                };
-                iframeDoc.body.addEventListener('click', handleClick);
-                iframeDoc.body.style.cursor = 'text';
-
-                return () => {
-                    iframeDoc.body.removeEventListener('click', handleClick);
-                };
+            if (iframeDoc?.body) {
+                iframeDoc.body.style.cursor = '';
             }
         }
     }, [editMode, localContent, isGenerating]);

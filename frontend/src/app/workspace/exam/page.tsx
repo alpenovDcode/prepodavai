@@ -90,19 +90,14 @@ export default function ExamGeneratorPage() {
         setEditMode(!editMode)
     }
 
+    // Авто-вход в режим правки по клику в iframe убран — пользователи
+    // жаловались, что режим включается «сам по себе» при попытке прочитать
+    // или выделить текст. Правка теперь только по явной кнопке.
     useEffect(() => {
         if (!editMode && iframeRef.current && localContent) {
             const iframeDoc = iframeRef.current.contentDocument;
-            if (iframeDoc) {
-                const handleClick = () => {
-                    setEditMode(true);
-                };
-                iframeDoc.body.addEventListener('click', handleClick);
-                iframeDoc.body.style.cursor = 'text';
-
-                return () => {
-                    iframeDoc.body.removeEventListener('click', handleClick);
-                };
+            if (iframeDoc?.body) {
+                iframeDoc.body.style.cursor = '';
             }
         }
     }, [editMode, localContent]);

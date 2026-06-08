@@ -2,6 +2,7 @@ import {
   Injectable,
   BadRequestException,
   NotFoundException,
+  ForbiddenException,
   Logger,
 } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
@@ -1792,7 +1793,9 @@ export class GenerationsService {
     }
 
     if (generation.userId !== userId) {
-      throw new BadRequestException('Доступ запрещен');
+      // Раньше тут бросался 400 — это путало пользователей с «не удалось сохранить»
+      // на их же материале; теперь корректный 403.
+      throw new ForbiddenException('Доступ запрещён');
     }
 
     const updateData: any = {};
@@ -1814,16 +1817,21 @@ export class GenerationsService {
     }
 
     if (contentPayload !== undefined) {
-      // Защита от «исчезновения»: не даём затереть материал пустым контентом.
+      // Защита от пустого контента живёт на фронте (там понятный toast).
+      // Не дублируем её на бэке — иначе на больших/специфичных HTML легко
+      // получить ложный 400. Если совсем пусто/null — просто не сохраняем content.
       const incoming = (contentPayload as any)?.content;
-      if (typeof incoming === 'string') {
-        const textOnly = incoming
-          .replace(/<[^>]*>/g, '')
-          .replace(/&nbsp;/gi, ' ')
-          .trim();
-        if (!textOnly) {
-          throw new BadRequestException('Пустой результат не сохранён — изменения отклонены.');
-        }
+      const onlyContentField =
+        contentPayload &&
+        typeof contentPayload === 'object' &&
+        !Array.isArray(contentPayload) &&
+        Object.keys(contentPayload).length === 1 &&
+        'content' in contentPayload;
+      if (onlyContentField && (incoming === undefined || incoming === null || incoming === '')) {
+        this.logger.warn(`updateGeneration: skipping empty content for ${generation.id}`);
+        // Молча пропускаем — пользователь увидит, что ничего не изменилось.
+        if (Object.keys(updateData).length === 0) return generation;
+        return this.prisma.userGeneration.update({ where: { id: generation.id }, data: updateData });
       }
 
       const existing = (generation.outputData as any) ?? {};
