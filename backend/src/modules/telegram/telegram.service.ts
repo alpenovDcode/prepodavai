@@ -7,6 +7,7 @@ import * as crypto from 'crypto';
 import * as bcrypt from 'bcryptjs';
 import { HtmlExportService } from '../../common/services/html-export.service';
 import { EmailService } from '../../common/services/email.service';
+import { FilesService } from '../files/files.service';
 
 // ── Типы состояний диалога регистрации ──────────────────────────────────────
 type RegStep = 'awaiting_email';
@@ -33,6 +34,7 @@ export class TelegramService {
     private prisma: PrismaService,
     private readonly htmlExportService: HtmlExportService,
     private readonly emailService: EmailService,
+    private readonly filesService: FilesService,
   ) {
     const token = this.configService.get<string>('TELEGRAM_BOT_TOKEN');
     if (token) {
@@ -455,8 +457,23 @@ export class TelegramService {
     try {
       let photo: string | InputFile = imageUrl;
 
+      // Наш собственный файл (/api/files/<hash>): читаем напрямую с диска через
+      // FilesService — URL защищён JwtAuthGuard, Telegram сам его не скачает.
+      const ownMatch = typeof imageUrl === 'string'
+        ? imageUrl.match(/\/api\/files\/([a-f0-9]{32})(?:[?#].*)?$/i)
+        : null;
+      if (ownMatch) {
+        const file = await this.filesService.getFile(ownMatch[1]);
+        if (file) {
+          const ext = file.mimeType.includes('png') ? 'png'
+                    : file.mimeType.includes('webp') ? 'webp'
+                    : file.mimeType.includes('gif') ? 'gif'
+                    : 'jpg';
+          photo = new InputFile(file.buffer, `image.${ext}`);
+        }
+      }
       // Если это data URL (base64), конвертируем в Buffer
-      if (typeof imageUrl === 'string' && imageUrl.startsWith('data:image')) {
+      else if (typeof imageUrl === 'string' && imageUrl.startsWith('data:image')) {
         const base64Data = imageUrl.split(',')[1];
         if (base64Data) {
           const buffer = Buffer.from(base64Data, 'base64');
@@ -469,7 +486,6 @@ export class TelegramService {
         (imageUrl.startsWith('http://') || imageUrl.startsWith('https://'))
       ) {
         try {
-          const axios = (await import('axios')).default;
           const response = await axios.get(imageUrl, { responseType: 'arraybuffer' });
           const buffer = Buffer.from(response.data);
           photo = new InputFile(buffer, 'image.png');

@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { HtmlExportService } from '../../common/services/html-export.service';
 import { EmailService } from '../../common/services/email.service';
+import { FilesService } from '../files/files.service';
 import * as crypto from 'crypto';
 import axios from 'axios';
 import * as FormData from 'form-data';
@@ -92,6 +93,7 @@ export class MaxService {
     private prisma: PrismaService,
     private readonly htmlExportService: HtmlExportService,
     private readonly emailService: EmailService,
+    private readonly filesService: FilesService,
   ) {
     this.token = this.configService.get<string>('MAX_BOT_TOKEN');
     this.apiUrl = this.configService.get<string>('MAX_API_URL') || 'https://platform-api.max.ru';
@@ -2588,13 +2590,52 @@ export class MaxService {
       null;
 
     const head = `✅ Ваше изображение готово!${result?.prompt ? `\n\n📝 Промпт: ${result.prompt}` : ''}`;
-    if (imageUrl) {
-      // MAX API пока не поддерживает inline-фото для бот-сообщений, поэтому
-      // шлём ссылку на наш файл-хост — пользователь кликнет и откроет картинку.
-      await this.sendMessage(chatId, `${head}\n\n🖼️ ${imageUrl}`);
-    } else {
+    if (!imageUrl) {
       await this.sendMessage(chatId, `${head}\n\n[Изображение доступно в веб-версии]`);
+      return;
     }
+
+    // Пытаемся скачать буфер картинки и загрузить в MAX как attachment.
+    // Это даёт настоящую картинку в чате, а не ссылку под auth-guard.
+    try {
+      let buffer: Buffer | null = null;
+      let ext = '.png';
+
+      // Наш собственный файл (/api/files/<hash>) — читаем напрямую с диска,
+      // минуя HTTP (там JwtAuthGuard).
+      const own = imageUrl.match(/\/api\/files\/([a-f0-9]{32})(?:[?#].*)?$/i);
+      if (own) {
+        const file = await this.filesService.getFile(own[1]);
+        if (file) {
+          buffer = file.buffer;
+          ext = file.mimeType.includes('png') ? '.png'
+              : file.mimeType.includes('webp') ? '.webp'
+              : file.mimeType.includes('gif') ? '.gif'
+              : '.jpg';
+        }
+      } else if (imageUrl.startsWith('data:image')) {
+        const m = imageUrl.match(/^data:(image\/[a-zA-Z0-9+.-]+);base64,(.*)$/);
+        if (m) {
+          buffer = Buffer.from(m[2], 'base64');
+          ext = m[1].includes('png') ? '.png' : m[1].includes('webp') ? '.webp' : '.jpg';
+        }
+      } else if (/^https?:\/\//.test(imageUrl)) {
+        const resp = await axios.get<ArrayBuffer>(imageUrl, { responseType: 'arraybuffer', timeout: 30_000 });
+        buffer = Buffer.from(resp.data);
+        const ct = String(resp.headers['content-type'] ?? '');
+        ext = ct.includes('png') ? '.png' : ct.includes('webp') ? '.webp' : '.jpg';
+      }
+
+      if (buffer && buffer.length > 0) {
+        await this.uploadAndSendFile(chatId, buffer, `image${ext}`, head);
+        return;
+      }
+    } catch (err: any) {
+      this.logger.error(`[MAX] sendImage: failed to deliver as attachment: ${err?.message}`);
+    }
+
+    // Фолбэк — текст со ссылкой (для отладки/если MAX upload временно недоступен).
+    await this.sendMessage(chatId, `${head}\n\n🖼️ ${imageUrl}`);
   }
 
   private async sendTextResult(chatId: string, generationType: string, result: any, isBotOnlyUser = false) {

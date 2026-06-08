@@ -5,6 +5,38 @@ import * as dotenv from 'dotenv';
 import { Bot, BotConfig, Context, InputFile } from 'grammy';
 import * as puppeteer from 'puppeteer';
 import { HttpsProxyAgent } from 'https-proxy-agent';
+import * as fs from 'fs/promises';
+import * as path from 'path';
+
+// Тот же uploadDir, что у backend (UPLOAD_DIR). См. docker-compose.yml —
+// worker монтирует uploads_data в /app/uploads read-only, чтобы читать
+// сгенерированные картинки и слать их в Telegram буфером (URL /api/files/:hash
+// защищён JwtAuthGuard и Telegram сам скачать его не может).
+const UPLOAD_DIR = path.resolve(process.env.UPLOAD_DIR || './uploads');
+
+const EXT_BY_MIME: Record<string, string> = {
+  'image/png': '.png',
+  'image/jpeg': '.jpg',
+  'image/gif': '.gif',
+  'image/webp': '.webp',
+};
+
+async function readLocalImageBuffer(url: string): Promise<{ buffer: Buffer; mimeType: string } | null> {
+  const m = url.match(/\/api\/files\/([a-f0-9]{32})(?:[?#].*)?$/i);
+  if (!m) return null;
+  const hash = m[1];
+  try {
+    const dbFile = await prisma.uploadedFile.findUnique({ where: { hash } });
+    if (!dbFile) return null;
+    const ext = EXT_BY_MIME[dbFile.mimeType] || path.extname(dbFile.filename || '') || '';
+    const filePath = path.join(UPLOAD_DIR, `${hash}${ext}`);
+    const buffer = await fs.readFile(filePath);
+    return { buffer, mimeType: dbFile.mimeType };
+  } catch (e) {
+    console.warn(`[TelegramSender] readLocalImageBuffer failed for ${url}:`, e);
+    return null;
+  }
+}
 
 dotenv.config();
 
@@ -269,22 +301,35 @@ const telegramSendWorker = new Worker(
           if (result?.prompt) caption += `\n\n📝 Промпт: ${result.prompt}`;
           if (result?.style) caption += `\n🎨 Стиль: ${result.style}`;
           if (caption.length > 1024) caption = caption.substring(0, 1021) + '...';
-          try {
-            await bot.api.sendPhoto(chatId, imageUrl, { caption });
-          } catch (err) {
-            // Если Telegram не смог сам скачать URL — скачиваем сами и шлём буфером.
-            console.warn(`[TelegramSender] sendPhoto by URL failed, fallback to buffer:`, err);
+          // Если это наш собственный файл (/api/files/<hash>) — читаем с диска
+          // и шлём буфером: URL под JwtAuthGuard, Telegram сам не скачает.
+          const local = await readLocalImageBuffer(imageUrl);
+          if (local) {
+            const ext = EXT_BY_MIME[local.mimeType] || '.png';
             try {
-              const ctrl = new AbortController();
-              const timer = setTimeout(() => ctrl.abort(), 30_000);
-              const resp = await fetch(imageUrl, { signal: ctrl.signal });
-              clearTimeout(timer);
-              if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-              const buf = Buffer.from(await resp.arrayBuffer());
-              await bot.api.sendPhoto(chatId, new InputFile(buf, 'image.png'), { caption });
-            } catch (err2) {
-              console.error(`[TelegramSender] image fallback failed:`, err2);
-              await bot.api.sendMessage(chatId, `✅ Изображение готово, ссылка: ${imageUrl}`);
+              await bot.api.sendPhoto(chatId, new InputFile(local.buffer, `image${ext}`), { caption });
+            } catch (err) {
+              console.error(`[TelegramSender] sendPhoto by buffer failed:`, err);
+              await bot.api.sendMessage(chatId, `✅ Изображение готово, откройте в веб-версии.`);
+            }
+          } else {
+            // Внешний URL (Replicate, data:image и т.п.) — пытаемся отправить как раньше.
+            try {
+              await bot.api.sendPhoto(chatId, imageUrl, { caption });
+            } catch (err) {
+              console.warn(`[TelegramSender] sendPhoto by URL failed, fallback to buffer:`, err);
+              try {
+                const ctrl = new AbortController();
+                const timer = setTimeout(() => ctrl.abort(), 30_000);
+                const resp = await fetch(imageUrl, { signal: ctrl.signal });
+                clearTimeout(timer);
+                if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                const buf = Buffer.from(await resp.arrayBuffer());
+                await bot.api.sendPhoto(chatId, new InputFile(buf, 'image.png'), { caption });
+              } catch (err2) {
+                console.error(`[TelegramSender] image fallback failed:`, err2);
+                await bot.api.sendMessage(chatId, `✅ Изображение готово, ссылка: ${imageUrl}`);
+              }
             }
           }
         }

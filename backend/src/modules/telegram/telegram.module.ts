@@ -6,8 +6,9 @@ import { PrismaModule } from '../../common/prisma/prisma.module';
 import { HtmlExportService } from '../../common/services/html-export.service';
 import { HtmlPostprocessorService } from '../../common/services/html-postprocessor.service';
 import { EmailModule } from '../../common/services/email.module';
+import { FilesModule } from '../files/files.module';
 @Module({
-  imports: [ConfigModule, PrismaModule, EmailModule],
+  imports: [ConfigModule, PrismaModule, EmailModule, FilesModule],
   providers: [TelegramService, HtmlExportService, HtmlPostprocessorService],
   controllers: [TelegramController],
   exports: [TelegramService],

@@ -154,6 +154,12 @@ services:
       POLZA_AI_API_KEY: ${POLZA_AI_API_KEY}
       ASSEMBLYAI_API_KEY: ${ASSEMBLYAI_API_KEY}
       TELEGRAM_PROXY: ${TELEGRAM_PROXY:-}
+      # Тот же путь, что у backend (UPLOAD_DIR), чтобы worker мог читать
+      # сгенерированные изображения с диска и слать их в Telegram буфером.
+      # Иначе sendPhoto по URL валится на JwtAuthGuard у /api/files/:hash.
+      UPLOAD_DIR: /app/uploads
+    volumes:
+      - uploads_data:/app/uploads:ro
     depends_on:
       postgres:
         condition: service_healthy
