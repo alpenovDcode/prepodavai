@@ -33,7 +33,7 @@ interface GenSession {
 
 // ── NL-interface parsed request ────────────────────────────────────────────────
 interface NlParsedRequest {
-  action: 'generate' | 'show_history' | 'show_classes' | 'assign_homework' | 'show_balance' | 'show_menu' | 'show_tools' | 'show_analytics' | 'cancel' | 'unknown';
+  action: 'generate' | 'show_history' | 'show_classes' | 'assign_homework' | 'show_balance' | 'show_menu' | 'show_tools' | 'show_analytics' | 'cancel' | 'register' | 'unknown';
   tool?: string;
   params?: Record<string, string>;
   target?: 'student' | 'class';
@@ -350,6 +350,7 @@ export class MaxService {
                   show_tools: 'посмотреть инструменты',
                   show_analytics: 'посмотреть аналитику',
                   cancel: 'отменить и выйти в меню',
+                  register: 'зарегистрироваться на сайте',
                 };
                 const navLabel = navLabels[inSessionParsed.action] ?? 'выполнить другое действие';
                 await this.sendMessageWithKeyboard(
@@ -613,6 +614,9 @@ export class MaxService {
           await this.showAnalytics(chatId, userId);
         } else if (pending.action === 'cancel') {
           await this.sendMessageWithKeyboard(chatId, '✅ Готово.', this.buildMainMenuAttachment());
+        } else if (pending.action === 'register') {
+          const appUrl = this.configService.get<string>('NEXT_PUBLIC_APP_URL') || 'https://prepodavai.ru';
+          await this.sendMessageWithKeyboard(chatId, `Для создания полного аккаунта перейдите на сайт: ${appUrl}\n\nТам можно зарегистрироваться и получить 1500 токенов.`, this.buildMainMenuAttachment());
         }
         return;
       }
@@ -1407,10 +1411,12 @@ export class MaxService {
     await this.sendMessage(
       chatId,
       'Как пользоваться:\n\n' +
-      '🛠 Создать материал — выберите инструмент (тест, план урока, рабочий лист и др.) и заполните форму\n' +
+      '🛠 Создать материал — выберите инструмент (тест, план урока, рабочий лист и др.) или просто напишите запрос своими словами — бот поймёт\n' +
       '📋 Мои генерации — история ваших материалов, можно посмотреть и назначить как ДЗ\n' +
       '📚 Классы — список классов и учеников\n' +
-      '📊 Аналитика — прогресс учеников и статистика\n\n' +
+      '📊 Аналитика — прогресс учеников и статистика\n' +
+      '🎤 Голосовые сообщения — тоже принимаю\n\n' +
+      '💳 1 генерация = 3 токена\n\n' +
       'Попробуйте прямо сейчас — нажмите «🛠 Создать материал»!',
     );
 
@@ -1624,6 +1630,7 @@ export class MaxService {
     if (/инструменты|что умеешь|что можешь|доступные функции|список инструм/.test(t)) return { action: 'show_tools' };
     if (/аналитика|статистика|в риске|на проверку|дедлайн|успеваемость/.test(t)) return { action: 'show_analytics' };
     if (/^отмени|^стоп$|^хватит$|не надо/.test(t)) return { action: 'cancel' };
+    if (/регистр|зарегистр|создать аккаунт|создай аккаунт/.test(t)) return { action: 'register' };
     return { action: 'unknown' };
   }
 
@@ -1638,14 +1645,17 @@ export class MaxService {
       });
       const base64Audio = `data:audio/ogg;base64,${Buffer.from(dlResp.data).toString('base64')}`;
 
-      const res = await fetch('https://api.replicate.com/v1/models/openai/whisper/predictions', {
+      const res = await fetch('https://api.replicate.com/v1/predictions', {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${replicateToken}`,
           'Content-Type': 'application/json',
           Prefer: 'wait',
         },
-        body: JSON.stringify({ input: { audio: base64Audio, language: 'ru', transcription: 'plain text' } }),
+        body: JSON.stringify({
+          version: '8099696689d249cf8b122d833c36ac3f75505c666a395ca40ef26f68e7d3d16e',
+          input: { audio: base64Audio, language: 'ru', transcription: 'plain text' },
+        }),
         signal: AbortSignal.timeout(30000),
       });
       if (!res.ok) {
@@ -1654,9 +1664,10 @@ export class MaxService {
         return null;
       }
       const data: any = await res.json();
-      const transcript = typeof data.output === 'string'
-        ? data.output
-        : (data.output?.transcription ?? data.output?.text ?? '');
+      const out = data.output;
+      const transcript = typeof out === 'string'
+        ? out
+        : (out?.transcription ?? out?.text ?? (Array.isArray(out) ? out.join('') : ''));
       return transcript.trim() || null;
     } catch (err: any) {
       this.logger.error(`[Voice] transcribeVoice error: ${err?.message}`);
@@ -1681,6 +1692,7 @@ export class MaxService {
       '{"action":"show_tools"}\n' +
       '{"action":"show_analytics"}\n' +
       '{"action":"cancel"}\n' +
+      '{"action":"register"}\n' +
       '{"action":"unknown"}\n\n' +
       'Инструменты:\n' +
       'worksheet: рабочий лист. subject?(предмет), topic(тема), level("Младшие классы"|"Средняя школа"|"Старшие классы"|"Взрослые"|"Подготовка к ОГЭ"|"Подготовка к ЕГЭ"|"Студенты вузов"), questionsCount("5"|"10"|"15"|"20")\n' +
@@ -1702,7 +1714,8 @@ export class MaxService {
       'show_menu: "главное меню", "меню", "домой", "на главную", "в начало", "назад в меню"\n' +
       'show_tools: "список инструментов", "что умеешь", "что можешь", "покажи инструменты", "доступные функции", "что есть"\n' +
       'show_analytics: "аналитика", "статистика", "кто в риске", "работы на проверку", "дедлайны", "успеваемость"\n' +
-      'cancel: "отмени", "отменить", "стоп", "хватит", "не надо", "выйти"\n\n' +
+      'cancel: "отмени", "отменить", "стоп", "хватит", "не надо", "выйти"\n' +
+      'register: "регистрация", "зарегистрироваться", "создать аккаунт", "пройти регистрацию", "хочу зарегистрироваться", "регистрируюсь"\n\n' +
       `Запрос: «${input}»`;
 
     try {
@@ -1723,7 +1736,7 @@ export class MaxService {
       try { parsed = JSON.parse(jsonMatch[0]); } catch { return this.nlNavFallback(input); }
 
       if (!parsed.action) return { action: 'unknown' };
-      if (['show_history', 'show_classes', 'show_balance', 'show_menu', 'show_tools', 'show_analytics', 'cancel', 'unknown'].includes(parsed.action)) return { action: parsed.action };
+      if (['show_history', 'show_classes', 'show_balance', 'show_menu', 'show_tools', 'show_analytics', 'cancel', 'register', 'unknown'].includes(parsed.action)) return { action: parsed.action };
 
       if (parsed.action === 'assign_homework') {
         const target: 'student' | 'class' = parsed.target === 'student' ? 'student' : 'class';
@@ -1797,6 +1810,7 @@ export class MaxService {
       show_tools: 'Правильно понял? Хотите посмотреть список инструментов.',
       show_analytics: 'Правильно понял? Хотите посмотреть аналитику по классам.',
       cancel: 'Правильно понял? Хотите отменить текущее действие и вернуться в меню.',
+      register: 'Правильно понял? Хотите зарегистрироваться на сайте Преподавай.',
     };
     return navMessages[parsed.action] ?? 'Не совсем понял запрос.';
   }

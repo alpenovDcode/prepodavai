@@ -146,7 +146,7 @@ interface GenerationSession {
 
 // ── Типы: платформенные фичи ──────────────────────────────────────────────────
 interface NlParsedRequest {
-  action: 'generate' | 'show_history' | 'show_classes' | 'assign_homework' | 'show_balance' | 'show_menu' | 'show_tools' | 'show_analytics' | 'cancel' | 'unknown';
+  action: 'generate' | 'show_history' | 'show_classes' | 'assign_homework' | 'show_balance' | 'show_menu' | 'show_tools' | 'show_analytics' | 'cancel' | 'register' | 'unknown';
   tool?: string;
   params?: Record<string, string>;
   target?: 'student' | 'class';
@@ -1673,7 +1673,7 @@ async function handleSubscriptionCheck(ctx: Context, telegramId: string): Promis
     { reply_markup: buildMainMenuKeyboard() },
   );
   await ctx.reply(
-    '🚀 *Как пользоваться:*\n\n1. Выберите инструмент из меню *или просто напишите запрос* — например: «создай тест по биологии для 8 класса»\n2. Ответьте на несколько вопросов\n3. Получите готовый материал в PDF\n\nКаждая генерация стоит *3 токена*.',
+    'Как пользоваться:\n\n🛠️ *Создать материал* — выберите инструмент (тест, план урока, рабочий лист и др.) или просто напишите запрос своими словами — бот поймёт\n📋 *Мои генерации* — история ваших материалов, можно посмотреть и назначить как ДЗ\n📚 *Классы* — список классов и учеников\n📊 *Аналитика* — прогресс учеников и статистика\n🎤 Голосовые сообщения — тоже принимаю\n\n💳 *1 генерация = 3 токена*\n\nПопробуйте прямо сейчас — нажмите *«🛠️ Создать материал»*!',
     { parse_mode: 'Markdown' },
   );
   await ctx.reply('🛠️ *Выберите инструмент:*', { parse_mode: 'Markdown', reply_markup: buildToolSelectionKeyboard() });
@@ -1755,7 +1755,7 @@ bot.command('start', async (ctx: Context) => {
       { reply_markup: buildMainMenuKeyboard() },
     );
     await ctx.reply(
-      '🚀 *Как пользоваться:*\n\n1. Выберите инструмент из меню *или просто напишите запрос* — например: «создай тест по биологии для 8 класса»\n2. Ответьте на несколько вопросов\n3. Получите готовый материал в PDF\n\nКаждая генерация стоит *3 токена*.',
+      'Как пользоваться:\n\n🛠️ *Создать материал* — выберите инструмент (тест, план урока, рабочий лист и др.) или просто напишите запрос своими словами — бот поймёт\n📋 *Мои генерации* — история ваших материалов, можно посмотреть и назначить как ДЗ\n📚 *Классы* — список классов и учеников\n📊 *Аналитика* — прогресс учеников и статистика\n🎤 Голосовые сообщения — тоже принимаю\n\n💳 *1 генерация = 3 токена*\n\nПопробуйте прямо сейчас — нажмите *«🛠️ Создать материал»*!',
       { parse_mode: 'Markdown' },
     );
     await ctx.reply('🛠️ *Выберите инструмент:*', { parse_mode: 'Markdown', reply_markup: buildToolSelectionKeyboard() });
@@ -1946,6 +1946,18 @@ bot.on('callback_query:data', async (ctx: Context) => {
       } else if (pending.action === 'cancel') {
         genSessions.delete(telegramId);
         await ctx.reply('✅ Готово.', { reply_markup: buildMainMenuKeyboard() });
+      } else if (pending.action === 'register') {
+        const regAppUser = await prisma.appUser.findUnique({ where: { telegramId } });
+        const regBotUser = await (prisma as any).botUser.findUnique({ where: { telegramId } });
+        const alreadyRegistered = ['registered', 'linked'].includes(regBotUser?.registrationStatus) && !!regAppUser?.email;
+        if (alreadyRegistered) {
+          const webAppUrl = process.env.WEBAPP_URL || 'https://prepodavai.ru';
+          await ctx.reply('У вас уже есть аккаунт. Нажмите кнопку, чтобы войти:', {
+            reply_markup: { inline_keyboard: [[{ text: '🚀 Открыть Преподавай', web_app: { url: `${webAppUrl}/dashboard` } }]] },
+          });
+        } else {
+          await startRegistration(ctx, telegramId);
+        }
       }
 
     } else if (data === 'pf:nl:no') {
@@ -2227,6 +2239,7 @@ function nlNavFallback(text: string): NlParsedRequest {
   if (/инструменты|что умеешь|что можешь|доступные функции|список инструм/.test(t)) return { action: 'show_tools' };
   if (/аналитика|статистика|в риске|на проверку|дедлайн|успеваемость/.test(t)) return { action: 'show_analytics' };
   if (/^отмени|^стоп$|^хватит$|не надо/.test(t)) return { action: 'cancel' };
+  if (/регистр|зарегистр|создать аккаунт|создай аккаунт/.test(t)) return { action: 'register' };
   return { action: 'unknown' };
 }
 
@@ -2278,7 +2291,7 @@ async function transcribeVoice(fileId: string): Promise<string | null> {
         Prefer: 'wait',
       },
       body: JSON.stringify({
-        version: 'cdd97b257f93cb89dede1c7584e3f45d9780103c23710b7c4aafbd24ca15a27',
+        version: '8099696689d249cf8b122d833c36ac3f75505c666a395ca40ef26f68e7d3d16e',
         input: { audio: base64Audio, language: 'ru', transcription: 'plain text' },
       }),
       signal: AbortSignal.timeout(30000),
@@ -2318,6 +2331,7 @@ async function parseNlRequest(text: string): Promise<NlParsedRequest> {
     '{"action":"show_tools"}\n' +
     '{"action":"show_analytics"}\n' +
     '{"action":"cancel"}\n' +
+    '{"action":"register"}\n' +
     '{"action":"unknown"}\n\n' +
     'Инструменты:\n' +
     'worksheet: рабочий лист. subject?(предмет), topic(тема), level("Младшие классы"|"Средняя школа"|"Старшие классы"|"Взрослые"|"Подготовка к ОГЭ"|"Подготовка к ЕГЭ"|"Студенты вузов"), questionsCount("5"|"10"|"15"|"20")\n' +
@@ -2339,7 +2353,8 @@ async function parseNlRequest(text: string): Promise<NlParsedRequest> {
     'show_menu: "главное меню", "меню", "домой", "на главную", "в начало", "назад в меню"\n' +
     'show_tools: "список инструментов", "что умеешь", "что можешь", "покажи инструменты", "доступные функции", "что есть"\n' +
     'show_analytics: "аналитика", "статистика", "кто в риске", "работы на проверку", "дедлайны", "успеваемость"\n' +
-    'cancel: "отмени", "отменить", "стоп", "хватит", "не надо", "выйти"\n\n' +
+    'cancel: "отмени", "отменить", "стоп", "хватит", "не надо", "выйти"\n' +
+    'register: "регистрация", "зарегистрироваться", "создать аккаунт", "пройти регистрацию", "хочу зарегистрироваться", "регистрируюсь"\n\n' +
     `Запрос: «${input}»`;
 
   try {
@@ -2371,7 +2386,7 @@ async function parseNlRequest(text: string): Promise<NlParsedRequest> {
 
     if (!parsed.action) return { action: 'unknown' };
 
-    if (['show_history', 'show_classes', 'show_balance', 'show_menu', 'show_tools', 'show_analytics', 'cancel', 'unknown'].includes(parsed.action)) {
+    if (['show_history', 'show_classes', 'show_balance', 'show_menu', 'show_tools', 'show_analytics', 'cancel', 'register', 'unknown'].includes(parsed.action)) {
       return { action: parsed.action };
     }
 
@@ -2458,6 +2473,7 @@ function buildNlConfirmMessage(parsed: NlParsedRequest): string {
     show_tools: 'Правильно понял? Хотите посмотреть список инструментов.',
     show_analytics: 'Правильно понял? Хотите посмотреть аналитику по классам.',
     cancel: 'Правильно понял? Хотите отменить текущее действие и вернуться в меню.',
+    register: 'Правильно понял? Хотите пройти регистрацию и создать аккаунт.',
   };
   return navMessages[parsed.action] ?? 'Не совсем понял запрос.';
 }
@@ -2604,6 +2620,7 @@ bot.on('message:text', async (ctx: Context) => {
               show_tools: 'посмотреть инструменты',
               show_analytics: 'посмотреть аналитику',
               cancel: 'отменить и выйти в меню',
+              register: 'пройти регистрацию',
             };
             const navLabel = navLabels[parsed.action] ?? 'выполнить другое действие';
             const kb = new InlineKeyboard()
@@ -2797,6 +2814,7 @@ bot.on('message:voice', async (ctx) => {
             assign_homework: 'перейти к выдаче задания', show_balance: 'посмотреть баланс',
             show_menu: 'перейти в главное меню', show_tools: 'посмотреть инструменты',
             show_analytics: 'посмотреть аналитику', cancel: 'отменить и выйти в меню',
+            register: 'пройти регистрацию',
           };
           if (parsed.action === 'generate' && parsed.tool) {
             const newTool = getToolConfig(parsed.tool);
