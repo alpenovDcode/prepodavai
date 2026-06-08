@@ -1879,6 +1879,42 @@ export class GenerationsService {
   }
 
   /**
+   * Сбросить ручные правки и вернуться к исходному результату генерации.
+   * outputData перезаписывается значением generationRequest.result, который
+   * остаётся неизменным при правках (см. updateGeneration). Если бэкап
+   * отсутствует — отклоняем (без него восстановить нечего).
+   */
+  async resetGenerationEdits(idOrRequestId: string, userId: string) {
+    const generation = await this.resolveGenerationByAnyId(idOrRequestId);
+    if (!generation) {
+      throw new NotFoundException('Генерация не найдена');
+    }
+    if (generation.userId !== userId) {
+      throw new ForbiddenException('Доступ запрещён');
+    }
+    const backup = generation.result as any;
+    if (!backup) {
+      throw new BadRequestException(
+        'Резервная версия отсутствует — сбросить правки нельзя. Пересоздайте материал.',
+      );
+    }
+    if (!generation.userGeneration) {
+      // Нечего сбрасывать на стороне UserGeneration — просто отдаём исходник.
+      return this.formatGenerationStatus(generation);
+    }
+    await this.prisma.userGeneration.update({
+      where: { id: generation.userGeneration.id },
+      data: { outputData: backup },
+    });
+    this.logger.log(`[resetEdits] ${generation.id}: reverted to original result`);
+    const updated = await this.prisma.generationRequest.findUnique({
+      where: { id: generation.id },
+      include: { userGeneration: true },
+    });
+    return this.formatGenerationStatus(updated);
+  }
+
+  /**
    * Привязать генерацию к уроку
    */
   async linkToLesson(generationId: string, userId: string, lessonId: string) {

@@ -337,6 +337,15 @@ export class GenerationsController {
     return this.generationsService.updateGeneration(id, this.userId(req), body);
   }
 
+  // Сбросить ручные правки результата — вернуться к исходной AI-версии
+  // (берётся из generationRequest.result, который мы намеренно не перезаписываем
+  // при сохранении правок, см. updateGeneration).
+  @Post(':id/reset-edits')
+  @UseGuards(JwtAuthGuard)
+  async resetEdits(@Request() req: any, @Param('id') id: string) {
+    return this.generationsService.resetGenerationEdits(id, this.userId(req));
+  }
+
   // Редактирование готового изображения по текстовой инструкции
   @Post(':requestId/edit-image')
   @UseGuards(JwtAuthGuard)

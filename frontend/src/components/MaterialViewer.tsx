@@ -414,6 +414,7 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
     const [isSlideDocEditing, setIsSlideDocEditing] = useState(false)
     const [htmlEditMode, setHtmlEditMode] = useState(false)
     const [isSavingHtml, setIsSavingHtml] = useState(false)
+    const [isResetting, setIsResetting] = useState(false)
     const htmlPreviewRef = useRef<FullHtmlPreviewHandle>(null)
     const downloadMenuRef = useRef<HTMLDivElement>(null)
     const router = useRouter()
@@ -550,6 +551,30 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
         // Чтобы не усложнять, дёргаем re-render через setContent: если изменения
         // в iframe были, они отображаются до перезагрузки страницы. Это известный
         // компромисс; в worksheet/page.tsx ровно та же логика.
+    }
+
+    const resetEdits = async () => {
+        if (!generationId || isResetting) return
+        if (!confirm('Сбросить все ручные правки и вернуться к исходной AI-версии? Действие необратимо.')) return
+        setIsResetting(true)
+        try {
+            const resp = await apiClient.post<{ result?: any }>(`/generate/${generationId}/reset-edits`)
+            const restored = resp.data?.result
+            const restoredContent = typeof restored === 'string' ? restored : (restored?.content ?? restored?.htmlResult ?? restored?.html ?? restored?.text)
+            if (typeof restoredContent === 'string' && restoredContent.length > 0) {
+                setContent(restoredContent)
+                setIsHtmlResult(looksLikeFullHtmlDocument(restoredContent))
+                setHtmlEditMode(false)
+                alert('Правки сброшены. Материал восстановлен к исходному.')
+            } else {
+                alert('Резервной версии нет — нечего восстанавливать.')
+            }
+        } catch (err: any) {
+            const msg = err?.response?.data?.message || err?.message || 'Не удалось сбросить правки'
+            alert(msg)
+        } finally {
+            setIsResetting(false)
+        }
     }
 
     const saveHtmlEdit = async () => {
@@ -905,14 +930,25 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
                         <>
                             {/* Кнопки редактирования HTML-результата (worksheet/quiz/...). */}
                             {isEditable && isHtmlResult && !htmlEditMode && (
-                                <button
-                                    onClick={startHtmlEdit}
-                                    className="px-4 py-2 text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 rounded-lg transition font-medium flex items-center gap-2 active:scale-95"
-                                    title="Редактировать материал"
-                                >
-                                    <Edit3 size={18} />
-                                    <span>Редактировать</span>
-                                </button>
+                                <>
+                                    <button
+                                        onClick={resetEdits}
+                                        disabled={isResetting}
+                                        className="px-3 py-2 text-gray-500 bg-white border border-gray-200 hover:bg-gray-50 hover:text-gray-700 rounded-lg transition text-sm flex items-center gap-2 active:scale-95 disabled:opacity-50"
+                                        title="Вернуть материал к исходной AI-версии (откатить ручные правки)"
+                                    >
+                                        {isResetting ? <Loader2 size={16} className="animate-spin" /> : <ArrowLeft size={16} />}
+                                        <span>Сбросить правки</span>
+                                    </button>
+                                    <button
+                                        onClick={startHtmlEdit}
+                                        className="px-4 py-2 text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 rounded-lg transition font-medium flex items-center gap-2 active:scale-95"
+                                        title="Редактировать материал"
+                                    >
+                                        <Edit3 size={18} />
+                                        <span>Редактировать</span>
+                                    </button>
+                                </>
                             )}
                             {isEditable && isHtmlResult && htmlEditMode && (
                                 <>
