@@ -334,35 +334,39 @@ const FullHtmlPreview = forwardRef<FullHtmlPreviewHandle, FullHtmlPreviewProps>(
     useImperativeHandle(ref, () => ({
         getEditedFullHtml: () => {
             const doc = iframeRef.current?.contentDocument
-            let edited = doc?.body?.innerHTML ?? ''
-            // Стрипаем скрипты и отрендеренный MathJax (mjx-container), иначе
-            // сохранённый HTML ломает следующий просмотр (about:srcdoc SyntaxError)
-            // и теряет исходный LaTeX.
-            edited = edited
+            const root = doc?.documentElement
+            if (!root) {
+                console.error('[FullHtmlPreview] getEditedFullHtml: iframe не готов')
+                return null
+            }
+
+            // Берём ПОЛНУЮ структуру iframe (html → head + body): это надёжнее,
+            // чем парсить baseline regex'ом и подменять body — там легко
+            // потерять CSS или сломать инлайн-атрибуты body.
+            let fullHtml = `<!DOCTYPE html>${root.outerHTML}`
+
+            // Стрипаем скрипты (вкл. MathJax CDN и IFRAME_READY_SCRIPT) и
+            // отрендеренный MathJax (mjx-container/mjx-assistive-mml): иначе
+            // в БД попадёт CHTML вместо исходного LaTeX, и следующий просмотр
+            // потеряет формулы / получит about:srcdoc SyntaxError.
+            fullHtml = fullHtml
                 .replace(/<script[\s\S]*?<\/script>/gi, '')
                 .replace(/<mjx-container[\s\S]*?<\/mjx-container>/gi, '')
                 .replace(/<mjx-assistive-mml[\s\S]*?<\/mjx-assistive-mml>/gi, '')
-            const textOnly = edited.replace(/<[^>]*>/g, '').replace(/&nbsp;/gi, ' ').trim()
+
+            // Проверяем, что в body вообще что-то есть (защита от «всё пропало»).
+            const bodyMatch = fullHtml.match(/<body[^>]*>([\s\S]*?)<\/body>/i)
+            const bodyInner = bodyMatch ? bodyMatch[1] : ''
+            const textOnly = bodyInner.replace(/<[^>]*>/g, '').replace(/&nbsp;/gi, ' ').trim()
+            console.log('[FullHtmlPreview] save: fullHtml.length=', fullHtml.length, 'bodyInner.length=', bodyInner.length, 'textOnly.length=', textOnly.length)
             if (!textOnly) return null
 
-            const hasBody = /<body[^>]*>[\s\S]*<\/body>/i.test(html)
-            let fullHtml: string
-            if (hasBody) {
-                fullHtml = html.replace(
-                    /<body([^>]*)>[\s\S]*<\/body>/i,
-                    (_, bodyAttrs) => `<body${bodyAttrs}>${edited}</body>`,
-                )
-            } else {
-                const headMatch = html.match(/<head[\s\S]*?<\/head>/i)
-                const head = headMatch ? headMatch[0] : '<head><meta charset="UTF-8"></head>'
-                fullHtml = `<!DOCTYPE html><html lang="ru">${head}<body>${edited}</body></html>`
-            }
             // Помечаем, что эта версия HTML уже в iframe — useEffect не должен
             // перезагружать srcDoc, когда родитель сделает setContent(fullHtml).
             lastHtmlRef.current = fullHtml
             return fullHtml
         },
-    }), [html])
+    }), [])
 
     return (
         <div className="relative w-full border border-[#D8E6FF] rounded-2xl overflow-hidden bg-white min-h-[600px] flex items-center justify-center">
@@ -547,6 +551,7 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
             alert('Пустой результат не сохранён — изменения отклонены.')
             return
         }
+        console.log('[MaterialViewer] saving HTML, length =', fullHtml.length, 'preview:', fullHtml.slice(0, 200))
         setIsSavingHtml(true)
         try {
             await apiClient.patch(`/generate/${generationId}`, {

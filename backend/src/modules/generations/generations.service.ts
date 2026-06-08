@@ -1509,6 +1509,27 @@ export class GenerationsService {
     if (options.withAnswers === false) {
       htmlContent = stripAnswerKeyFromHtml(htmlContent);
     }
+    // Диагностика «пустого PDF»: если после нормализации в html нет body или
+    // body пустой по тексту — логируем причину и берём фолбэк-источник
+    // (generationRequest.result), чтобы не отдать заведомо пустую страницу.
+    const hasBody = /<body[\s\S]*<\/body>/i.test(htmlContent);
+    const bodyMatch = htmlContent.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+    const bodyText = bodyMatch ? bodyMatch[1].replace(/<[^>]*>/g, '').replace(/&nbsp;/gi, ' ').trim() : htmlContent.replace(/<[^>]*>/g, '').trim();
+    if (htmlContent.length < 50 || !bodyText) {
+      this.logger.warn(
+        `[exportPdf] htmlContent suspiciously short for ${requestId}: total=${htmlContent.length} hasBody=${hasBody} bodyText=${bodyText.length}. Trying fallback to generationRequest.result.`,
+      );
+      const backupResult = userGen.generationRequest?.result as any;
+      const backupContent = backupResult?.content ?? backupResult?.htmlResult ?? backupResult?.html ?? backupResult?.text ?? backupResult;
+      if (backupContent) {
+        const fallback = this.htmlExportService.normalizeIncomingHtml(backupContent);
+        if (fallback && fallback.length > htmlContent.length) {
+          this.logger.warn(`[exportPdf] using backup result for ${requestId}: ${fallback.length} chars`);
+          htmlContent = options.withAnswers === false ? stripAnswerKeyFromHtml(fallback) : fallback;
+        }
+      }
+    }
+    this.logger.log(`[exportPdf] ${requestId}: htmlContent length=${htmlContent.length}`);
     return this.htmlExportService.htmlToPdf(htmlContent);
   }
 
