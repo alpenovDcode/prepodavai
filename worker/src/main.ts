@@ -242,8 +242,25 @@ const telegramSendWorker = new Worker(
 
       const generationType = userGeneration.generationType;
 
-      if (generationType === 'image' || generationType === 'photosession') {
-        const imageUrl = result?.imageUrl;
+      if (
+        generationType === 'image' ||
+        generationType === 'image_generation' ||
+        generationType === 'image_edit' ||
+        generationType === 'photosession'
+      ) {
+        // Извлекаем URL из всех возможных форм результата (как в каноничном
+        // /image эндпоинте). Раньше брался только result.imageUrl — для
+        // image_generation/image_edit/string-результата он пуст, и пользователь
+        // получал JSON-PDF вместо картинки.
+        const imageUrl: string | null =
+          (typeof result === 'string' && /^(https?:\/\/|data:image)/.test(result) ? result : null) ||
+          result?.imageUrl ||
+          (Array.isArray(result?.imageUrls) ? result.imageUrls[0] : null) ||
+          result?.content?.imageUrl ||
+          (typeof result?.content === 'string' && /^(https?:\/\/|data:image)/.test(result.content)
+            ? result.content
+            : null) ||
+          null;
         if (!imageUrl) {
           console.error(`❌ No imageUrl in result for generation: ${generationRequestId}`);
           await bot.api.sendMessage(chatId, '✅ Изображение сгенерировано! Просмотрите его в веб-версии Преподавай.');
@@ -252,7 +269,21 @@ const telegramSendWorker = new Worker(
           if (result?.prompt) caption += `\n\n📝 Промпт: ${result.prompt}`;
           if (result?.style) caption += `\n🎨 Стиль: ${result.style}`;
           if (caption.length > 1024) caption = caption.substring(0, 1021) + '...';
-          await bot.api.sendPhoto(chatId, imageUrl, { caption });
+          try {
+            await bot.api.sendPhoto(chatId, imageUrl, { caption });
+          } catch (err) {
+            // Если Telegram не смог сам скачать URL — скачиваем сами и шлём буфером.
+            console.warn(`[TelegramSender] sendPhoto by URL failed, fallback to buffer:`, err);
+            try {
+              const axios = (await import('axios')).default;
+              const resp = await axios.get<ArrayBuffer>(imageUrl, { responseType: 'arraybuffer', timeout: 30_000 });
+              const buf = Buffer.from(resp.data);
+              await bot.api.sendPhoto(chatId, new InputFile(buf, 'image.png'), { caption });
+            } catch (err2) {
+              console.error(`[TelegramSender] image fallback failed:`, err2);
+              await bot.api.sendMessage(chatId, `✅ Изображение готово, ссылка: ${imageUrl}`);
+            }
+          }
         }
       } else if (generationType === 'presentation') {
         const presentationUrl = result.exportUrl || result.pdfUrl || result.pptxUrl;

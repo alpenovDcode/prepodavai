@@ -1119,7 +1119,12 @@ export class MaxService {
     this.logger.log(`[MAX] Sending result: type=${generationType} userId=${userId} chatId=${chatId}`);
 
     try {
-      if (generationType === 'image' || generationType === 'photosession') {
+      if (
+        generationType === 'image' ||
+        generationType === 'image_generation' ||
+        generationType === 'image_edit' ||
+        generationType === 'photosession'
+      ) {
         await this.sendImage(chatId, result);
       } else if (generationType === 'presentation') {
         await this.sendPresentation(chatId, result);
@@ -2570,8 +2575,26 @@ export class MaxService {
   }
 
   private async sendImage(chatId: string, result: any) {
-    const messageText = `✅ Ваше изображение готово!${result?.prompt ? `\n\n📝 Промпт: ${result.prompt}` : ''}`;
-    await this.sendMessage(chatId, messageText + `\n\n[Изображение доступно в веб-версии]`);
+    // Извлекаем URL картинки из всех возможных форм результата (для
+    // image/image_generation/image_edit/photosession).
+    const imageUrl: string | null =
+      (typeof result === 'string' && /^https?:\/\//.test(result) ? result : null) ||
+      result?.imageUrl ||
+      result?.imageUrls?.[0] ||
+      result?.content?.imageUrl ||
+      (typeof result?.content === 'string' && /^https?:\/\//.test(result.content)
+        ? result.content
+        : null) ||
+      null;
+
+    const head = `✅ Ваше изображение готово!${result?.prompt ? `\n\n📝 Промпт: ${result.prompt}` : ''}`;
+    if (imageUrl) {
+      // MAX API пока не поддерживает inline-фото для бот-сообщений, поэтому
+      // шлём ссылку на наш файл-хост — пользователь кликнет и откроет картинку.
+      await this.sendMessage(chatId, `${head}\n\n🖼️ ${imageUrl}`);
+    } else {
+      await this.sendMessage(chatId, `${head}\n\n[Изображение доступно в веб-версии]`);
+    }
   }
 
   private async sendTextResult(chatId: string, generationType: string, result: any, isBotOnlyUser = false) {
