@@ -313,6 +313,7 @@ export class SubmissionsService {
           studentName,
           lessonTitle,
           assignmentId: assignment.id,
+          studentId: submission.student?.id,
           appUrl,
         }),
       }).catch((err) =>
@@ -330,7 +331,7 @@ export class SubmissionsService {
       const attachment = {
         type: 'inline_keyboard',
         payload: {
-          buttons: [[{ type: 'link', text: '👀 Посмотреть', url: `${appUrl}/student/assignments/${assignment.id}` }]],
+          buttons: [[{ type: 'link', text: '👀 Посмотреть', url: `${appUrl}/dashboard/students/${submission.student?.id}` }]],
         },
       };
       fetch(`${maxApiUrl}/messages?user_id=${maxChatId}`, {

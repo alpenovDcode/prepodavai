@@ -3005,7 +3005,7 @@ function startNotifyServer(): http.Server {
     req.on('data', (chunk) => { body += chunk; });
     req.on('end', async () => {
       try {
-        const { telegramChatId, studentName, lessonTitle, assignmentId } = JSON.parse(body);
+        const { telegramChatId, studentName, lessonTitle, studentId } = JSON.parse(body);
         if (!telegramChatId) { res.writeHead(400).end('missing telegramChatId'); return; }
         if (TELEGRAM_CHANNEL_ID && telegramChatId.toString() === TELEGRAM_CHANNEL_ID.toString()) {
           console.warn('[notify-server] Blocked attempt to send to channel');
@@ -3014,7 +3014,7 @@ function startNotifyServer(): http.Server {
         }
 
         const webAppUrl = process.env.WEBAPP_URL || 'https://prepodavai.ru';
-        const assignmentUrl = `${webAppUrl}/student/assignments/${assignmentId}`;
+        const assignmentUrl = studentId ? `${webAppUrl}/dashboard/students/${studentId}` : `${webAppUrl}/dashboard/students`;
 
         await bot.api.sendMessage(
           telegramChatId,
