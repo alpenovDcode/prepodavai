@@ -275,9 +275,12 @@ const telegramSendWorker = new Worker(
             // Если Telegram не смог сам скачать URL — скачиваем сами и шлём буфером.
             console.warn(`[TelegramSender] sendPhoto by URL failed, fallback to buffer:`, err);
             try {
-              const axios = (await import('axios')).default;
-              const resp = await axios.get<ArrayBuffer>(imageUrl, { responseType: 'arraybuffer', timeout: 30_000 });
-              const buf = Buffer.from(resp.data);
+              const ctrl = new AbortController();
+              const timer = setTimeout(() => ctrl.abort(), 30_000);
+              const resp = await fetch(imageUrl, { signal: ctrl.signal });
+              clearTimeout(timer);
+              if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+              const buf = Buffer.from(await resp.arrayBuffer());
               await bot.api.sendPhoto(chatId, new InputFile(buf, 'image.png'), { caption });
             } catch (err2) {
               console.error(`[TelegramSender] image fallback failed:`, err2);
