@@ -3014,7 +3014,7 @@ function startNotifyServer(): http.Server {
         }
 
         const webAppUrl = process.env.WEBAPP_URL || 'https://prepodavai.ru';
-        const assignmentUrl = `${webAppUrl}/dashboard/assignments/${assignmentId}`;
+        const assignmentUrl = `${webAppUrl}/student/assignments/${assignmentId}`;
 
         await bot.api.sendMessage(
           telegramChatId,

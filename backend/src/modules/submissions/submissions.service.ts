@@ -330,7 +330,7 @@ export class SubmissionsService {
       const attachment = {
         type: 'inline_keyboard',
         payload: {
-          buttons: [[{ type: 'link', text: '👀 Посмотреть', url: `${appUrl}/dashboard/assignments/${assignment.id}` }]],
+          buttons: [[{ type: 'link', text: '👀 Посмотреть', url: `${appUrl}/student/assignments/${assignment.id}` }]],
         },
       };
       fetch(`${maxApiUrl}/messages?user_id=${maxChatId}`, {

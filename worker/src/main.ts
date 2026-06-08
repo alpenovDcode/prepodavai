@@ -349,7 +349,7 @@ const telegramSendWorker = new Worker(
       } else {
         // Текстовый результат - генерируем PDF
         console.log(`[TelegramSender] Sending ${generationType} to Telegram, result type: ${typeof result}`);
-        const content = result?.content || result;
+        const content = result?.htmlResult || result?.content || result;
         const text = typeof content === 'string' ? content : JSON.stringify(content, null, 2);
 
         console.log(`[Telegram] sendTextResult called for ${generationType}, chatId: ${chatId}`);
