@@ -17,6 +17,7 @@ import jsPDF from 'jspdf'
 import html2canvas from 'html2canvas'
 import { downloadPdfById } from '@/lib/utils/downloadPdf'
 import DownloadPdfModal from './workspace/DownloadPdfModal'
+import { LOGO_BASE64 } from '@/constants/branding'
 
 interface MaterialViewerProps {
     lessonId?: string
@@ -76,9 +77,36 @@ const buildEditSrc = (slide: any): string => {
 }
 
 const MATHJAX_SCRIPT = `<script>window.MathJax={tex:{inlineMath:[['$','$'],['\\\\(','\\\\)']],displayMath:[['$$','$$'],['\\\\[','\\\\]']],processEscapes:true},chtml:{fontCache:'global'},startup:{typeset:true}};</script><script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>`
+// Полная дизайн-система (синхронизирована с DesignSystemConfig.STYLES в backend
+// и с тем, что бэк вставляет в свежие генерации). Нужно, чтобы при сохранении
+// правки HTML-фрагментом без <head> результат не выглядел «голым текстом».
 const IFRAME_STYLES = `<style>
-  body { margin: 0; padding: 32px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, sans-serif; background: white; color: #1a1a1a; }
-  .container { max-width: 820px; margin: 0 auto; }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #f9fafb; font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: #111827; line-height: 1.6; padding: 20px; }
+  .container { max-width: 800px; margin: 0 auto; background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+  .header { display: flex; align-items: center; gap: 20px; margin-bottom: 30px; border-bottom: 2px solid #f3f4f6; padding-bottom: 20px; }
+  .header-logo { width: auto; height: 40px; }
+  h1 { font-size: 28px; font-weight: 700; color: #111827; }
+  h2 { font-size: 20px; font-weight: 600; margin-top: 32px; margin-bottom: 16px; color: #374151; }
+  h3 { font-size: 17px; font-weight: 600; margin-top: 24px; margin-bottom: 12px; color: #374151; }
+  p { margin-bottom: 16px; }
+  ul, ol { padding-left: 24px; margin-bottom: 20px; }
+  li { margin-bottom: 8px; }
+  input[type="text"], textarea {
+    width: 100%; border: 1px solid #d1d5db; border-radius: 6px; padding: 8px 12px;
+    font-family: inherit; font-size: inherit; background: white;
+  }
+  input[type="text"]:focus, textarea:focus { outline: none; border-color: #4f46e5; }
+  .inline-input { display: inline-block; width: 150px; border: none; border-bottom: 1px solid #9ca3af; border-radius: 0; padding: 0 4px; background: transparent; }
+  .footer-logo { text-align: right; margin-top: 40px; padding-top: 20px; border-top: 1px solid #f3f4f6; }
+  .footer-logo img { width: 120px; opacity: 0.5; }
+  table { width: 100%; border-collapse: collapse; margin-top: 20px; margin-bottom: 20px; font-size: 14px; }
+  th { background-color: #f9fafb; font-weight: 600; text-align: left; padding: 12px; border: 1px solid #d1d5db; }
+  td { padding: 12px; border: 1px solid #e5e7eb; vertical-align: top; }
+  .meta-info { margin-bottom: 30px; background: #fafafa; padding: 15px; border-radius: 8px; border: 1px solid #e5e7eb; }
+  .callout { background: #f0f9ff; border-left: 4px solid #0ea5e9; padding: 16px; margin: 20px 0; border-radius: 0 8px 8px 0; }
+  .teacher-answers-only { margin-top: 40px; padding-top: 20px; border-top: 2px dashed #d1d5db; }
+  .teacher-answers-only h2 { color: #dc2626; }
 </style>`
 const IFRAME_READY_SCRIPT = `<script>
   window.addEventListener('load', function() {
@@ -240,13 +268,20 @@ function FullHtmlPreview({ html }: { html: string }) {
     const INJECTED_HEAD = `${IFRAME_STYLES}${alreadyHasMathJax ? '' : MATHJAX_SCRIPT}`
     const INJECTED_BODY = `${IFRAME_READY_SCRIPT}`
 
-    let finalHtml = html
+    // Логотип хранится как LOGO_PLACEHOLDER (backend заменяет на base64 при
+    // экспорте). В просмотре подменяем на фронте — иначе видно alt-текст «Logo».
+    let finalHtml = html.replace(/LOGO_PLACEHOLDER/g, LOGO_BASE64)
+    // Мёртвый polyfill.io блокирует загрузку iframe — выпиливаем.
+    finalHtml = finalHtml.replace(
+        /<script[^>]+src=["'][^"']*polyfill\.io[^"']*["'][^>]*>[\s\S]*?<\/script>/gi,
+        '',
+    )
     if (hasHead) {
-        finalHtml = html.replace(/<head([^>]*)>/i, `<head$1>${INJECTED_HEAD}`)
+        finalHtml = finalHtml.replace(/<head([^>]*)>/i, `<head$1>${INJECTED_HEAD}`)
     } else if (hasBody) {
-        finalHtml = html.replace(/<body([^>]*)>/i, `<head>${INJECTED_HEAD}</head><body$1`)
+        finalHtml = finalHtml.replace(/<body([^>]*)>/i, `<head>${INJECTED_HEAD}</head><body$1`)
     } else {
-        finalHtml = `<!DOCTYPE html><html><head>${INJECTED_HEAD}</head><body><div class="container">${html}</div>${INJECTED_BODY}</body></html>`
+        finalHtml = `<!DOCTYPE html><html><head>${INJECTED_HEAD}</head><body><div class="container">${finalHtml}</div>${INJECTED_BODY}</body></html>`
     }
 
     if (hasHead || hasBody) {
