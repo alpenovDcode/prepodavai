@@ -201,6 +201,7 @@ export default function CourseDetailPage({ id }: CourseDetailPageProps) {
     const [renamingId, setRenamingId] = useState<string | null>(null)
     const [titleDraft, setTitleDraft] = useState('')
     const [savingTitle, setSavingTitle] = useState(false)
+    const [deletingId, setDeletingId] = useState<string | null>(null)
 
     // M3: schedule editing
     const [classes, setClasses] = useState<{ id: string; name: string }[]>([])
@@ -376,6 +377,28 @@ export default function CourseDetailPage({ id }: CourseDetailPageProps) {
         e.stopPropagation()
         setAssignGenerationId(generationId)
         setShowAssignModal(true)
+    }
+
+    const deleteGenerationFromLesson = async (genId: string) => {
+        if (deletingId) return
+        if (!confirm('Удалить этот материал? Действие нельзя отменить.')) return
+
+        // Оптимистично убираем из списка
+        const prevGenerations = lesson?.generations ?? []
+        setLesson(prev => prev ? { ...prev, generations: prev.generations.filter(g => g.id !== genId) } : prev)
+        setDeletingId(genId)
+
+        try {
+            await apiClient.delete(`/generate/${genId}`)
+        } catch (error: any) {
+            console.error('Failed to delete generation:', error)
+            // Откатываем оптимистичное удаление
+            setLesson(prev => prev ? { ...prev, generations: prevGenerations } : prev)
+            const msg = error?.response?.data?.message || 'Не удалось удалить материал. Попробуйте позже.'
+            alert(msg)
+        } finally {
+            setDeletingId(null)
+        }
     }
 
     const saveTitle = async (genId: string) => {
@@ -856,6 +879,20 @@ export default function CourseDetailPage({ id }: CourseDetailPageProps) {
                                             </button>
                                         </>
                                     )}
+
+                                    {/* Удаление доступно для любого статуса — pending/failed материал
+                                        тоже часто нужно убрать, не только completed. */}
+                                    <button
+                                        className="p-2 text-gray-400 hover:text-red-600 transition disabled:opacity-40"
+                                        title="Удалить материал"
+                                        disabled={deletingId === generation.id}
+                                        onClick={(e) => {
+                                            e.stopPropagation()
+                                            deleteGenerationFromLesson(generation.id)
+                                        }}
+                                    >
+                                        <i className={`fas ${deletingId === generation.id ? 'fa-spinner fa-spin' : 'fa-trash'}`}></i>
+                                    </button>
                                 </div>
                             </div>
                         </div>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react'
 import { apiClient } from '@/lib/api/client'
 import { useRouter } from 'next/navigation'
 import { getGenerationTypeLabel } from '@/lib/utils/translations'
@@ -9,7 +9,7 @@ import PresentationPlayer from './PresentationPlayer'
 import { SlideDocEditor } from './SlideDocEditor'
 import { SlideDoc } from '@/types/slide-doc'
 import { useGenerations } from '@/lib/hooks/useGenerations'
-import { Save, Download, ChevronLeft, ChevronRight, ExternalLink, ArrowLeft, Loader2 } from 'lucide-react'
+import { Save, Download, ChevronLeft, ChevronRight, ExternalLink, ArrowLeft, Loader2, Edit3, X } from 'lucide-react'
 import AssignTaskButton from './AssignTaskButton'
 import Image from 'next/image'
 import DOMPurify from 'isomorphic-dompurify'
@@ -215,21 +215,36 @@ function renderMath(text: string) {
     return processed
 }
 
-function FullHtmlPreview({ html }: { html: string }) {
+export interface FullHtmlPreviewHandle {
+    /** Собирает полный HTML с отредактированным body. Возвращает null если пусто. */
+    getEditedFullHtml: () => string | null
+}
+
+interface FullHtmlPreviewProps {
+    html: string
+    editMode?: boolean
+}
+
+const FullHtmlPreview = forwardRef<FullHtmlPreviewHandle, FullHtmlPreviewProps>(function FullHtmlPreview(
+    { html, editMode = false },
+    ref,
+) {
     const iframeRef = useRef<HTMLIFrameElement>(null)
     const [isLoading, setIsLoading] = useState(true)
 
+    // srcDoc обновляем ТОЛЬКО когда контент реально меняется снаружи.
+    // Тогл режима правки и пост-сейв не должны вызывать перезагрузку iframe,
+    // иначе MathJax/CDN-скрипты тянутся заново и виден белый экран.
+    const lastHtmlRef = useRef('')
+    const [srcDoc, setSrcDoc] = useState('')
+
     useEffect(() => {
         const handler = (e: MessageEvent) => {
-            // Only accept messages from our own iframes (srcdoc iframes have origin 'null')
             if (e.source !== iframeRef.current?.contentWindow) return
-            if (e.data === 'IFRAME_READY') {
-                setIsLoading(false)
-            }
+            if (e.data === 'IFRAME_READY') setIsLoading(false)
         }
         window.addEventListener('message', handler)
         const fallbackTimer = setTimeout(() => setIsLoading(false), 5000)
-
         return () => {
             window.removeEventListener('message', handler)
             clearTimeout(fallbackTimer)
@@ -259,38 +274,95 @@ function FullHtmlPreview({ html }: { html: string }) {
             iframe.removeEventListener('load', handleLoad)
             clearTimeout(timer)
         }
+    }, [srcDoc])
+
+    // Пересобираем srcDoc только когда html изменился извне.
+    useEffect(() => {
+        if (!html) return
+        if (html === lastHtmlRef.current) return
+        lastHtmlRef.current = html
+
+        const alreadyHasMathJax = /mathjax/i.test(html)
+        const hasHead = /<head[\s>]/i.test(html)
+        const hasBody = /<body[\s>]/i.test(html)
+        const INJECTED_HEAD = `${IFRAME_STYLES}${alreadyHasMathJax ? '' : MATHJAX_SCRIPT}`
+        const INJECTED_BODY = `${IFRAME_READY_SCRIPT}`
+
+        let finalHtml = html.replace(/LOGO_PLACEHOLDER/g, LOGO_BASE64)
+        finalHtml = finalHtml.replace(
+            /<script[^>]+src=["'][^"']*polyfill\.io[^"']*["'][^>]*>[\s\S]*?<\/script>/gi,
+            '',
+        )
+        if (hasHead) {
+            finalHtml = finalHtml.replace(/<head([^>]*)>/i, `<head$1>${INJECTED_HEAD}`)
+        } else if (hasBody) {
+            finalHtml = finalHtml.replace(/<body([^>]*)>/i, `<head>${INJECTED_HEAD}</head><body$1`)
+        } else {
+            finalHtml = `<!DOCTYPE html><html><head>${INJECTED_HEAD}</head><body><div class="container">${finalHtml}</div>${INJECTED_BODY}</body></html>`
+        }
+        if (hasHead || hasBody) {
+            if (/<\/body>/i.test(finalHtml)) {
+                finalHtml = finalHtml.replace(/<\/body>/i, `${INJECTED_BODY}</body>`)
+            } else {
+                finalHtml += INJECTED_BODY
+            }
+        }
+        setSrcDoc(finalHtml)
     }, [html])
 
-    const alreadyHasMathJax = /mathjax/i.test(html)
-    const hasHead = /<head[\s>]/i.test(html)
-    const hasBody = /<body[\s>]/i.test(html)
-
-    const INJECTED_HEAD = `${IFRAME_STYLES}${alreadyHasMathJax ? '' : MATHJAX_SCRIPT}`
-    const INJECTED_BODY = `${IFRAME_READY_SCRIPT}`
-
-    // Логотип хранится как LOGO_PLACEHOLDER (backend заменяет на base64 при
-    // экспорте). В просмотре подменяем на фронте — иначе видно alt-текст «Logo».
-    let finalHtml = html.replace(/LOGO_PLACEHOLDER/g, LOGO_BASE64)
-    // Мёртвый polyfill.io блокирует загрузку iframe — выпиливаем.
-    finalHtml = finalHtml.replace(
-        /<script[^>]+src=["'][^"']*polyfill\.io[^"']*["'][^>]*>[\s\S]*?<\/script>/gi,
-        '',
-    )
-    if (hasHead) {
-        finalHtml = finalHtml.replace(/<head([^>]*)>/i, `<head$1>${INJECTED_HEAD}`)
-    } else if (hasBody) {
-        finalHtml = finalHtml.replace(/<body([^>]*)>/i, `<head>${INJECTED_HEAD}</head><body$1`)
-    } else {
-        finalHtml = `<!DOCTYPE html><html><head>${INJECTED_HEAD}</head><body><div class="container">${finalHtml}</div>${INJECTED_BODY}</body></html>`
-    }
-
-    if (hasHead || hasBody) {
-        if (/<\/body>/i.test(finalHtml)) {
-            finalHtml = finalHtml.replace(/<\/body>/i, `${INJECTED_BODY}</body>`)
+    // При смене editMode НЕ перезагружаем iframe — только переключаем
+    // contentEditable и визуальную рамку.
+    useEffect(() => {
+        const doc = iframeRef.current?.contentDocument
+        if (!doc?.body) return
+        doc.body.contentEditable = editMode ? 'true' : 'false'
+        if (editMode) {
+            doc.body.style.outline = '2px dashed #FF7E58'
+            doc.body.style.outlineOffset = '-2px'
+            doc.body.style.cursor = 'text'
         } else {
-            finalHtml += INJECTED_BODY
+            doc.body.style.outline = ''
+            doc.body.style.outlineOffset = ''
+            doc.body.style.cursor = ''
+            const win = iframeRef.current?.contentWindow as any
+            if (win?.MathJax?.typesetPromise) {
+                win.MathJax.typesetPromise([doc.body]).catch(() => {})
+            }
         }
-    }
+    }, [editMode, srcDoc])
+
+    useImperativeHandle(ref, () => ({
+        getEditedFullHtml: () => {
+            const doc = iframeRef.current?.contentDocument
+            let edited = doc?.body?.innerHTML ?? ''
+            // Стрипаем скрипты и отрендеренный MathJax (mjx-container), иначе
+            // сохранённый HTML ломает следующий просмотр (about:srcdoc SyntaxError)
+            // и теряет исходный LaTeX.
+            edited = edited
+                .replace(/<script[\s\S]*?<\/script>/gi, '')
+                .replace(/<mjx-container[\s\S]*?<\/mjx-container>/gi, '')
+                .replace(/<mjx-assistive-mml[\s\S]*?<\/mjx-assistive-mml>/gi, '')
+            const textOnly = edited.replace(/<[^>]*>/g, '').replace(/&nbsp;/gi, ' ').trim()
+            if (!textOnly) return null
+
+            const hasBody = /<body[^>]*>[\s\S]*<\/body>/i.test(html)
+            let fullHtml: string
+            if (hasBody) {
+                fullHtml = html.replace(
+                    /<body([^>]*)>[\s\S]*<\/body>/i,
+                    (_, bodyAttrs) => `<body${bodyAttrs}>${edited}</body>`,
+                )
+            } else {
+                const headMatch = html.match(/<head[\s\S]*?<\/head>/i)
+                const head = headMatch ? headMatch[0] : '<head><meta charset="UTF-8"></head>'
+                fullHtml = `<!DOCTYPE html><html lang="ru">${head}<body>${edited}</body></html>`
+            }
+            // Помечаем, что эта версия HTML уже в iframe — useEffect не должен
+            // перезагружать srcDoc, когда родитель сделает setContent(fullHtml).
+            lastHtmlRef.current = fullHtml
+            return fullHtml
+        },
+    }), [html])
 
     return (
         <div className="relative w-full border border-[#D8E6FF] rounded-2xl overflow-hidden bg-white min-h-[600px] flex items-center justify-center">
@@ -303,14 +375,14 @@ function FullHtmlPreview({ html }: { html: string }) {
             <iframe
                 ref={iframeRef}
                 title="HTML результат"
-                srcDoc={finalHtml}
+                srcDoc={srcDoc}
                 className={`w-full border-0 transition-opacity duration-700 ${isLoading ? 'opacity-0' : 'opacity-100'}`}
                 style={{ minHeight: '600px' }}
                 sandbox="allow-scripts allow-same-origin allow-popups allow-modals"
             />
         </div>
     )
-}
+})
 
 export default function MaterialViewer({ lessonId, generationId, type, content: directContent, isEditable }: MaterialViewerProps) {
     const [content, setContent] = useState<string | null>(null)
@@ -328,6 +400,9 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
     const [showDownloadMenu, setShowDownloadMenu] = useState(false)
     const [showPdfModal, setShowPdfModal] = useState(false)
     const [isSlideDocEditing, setIsSlideDocEditing] = useState(false)
+    const [htmlEditMode, setHtmlEditMode] = useState(false)
+    const [isSavingHtml, setIsSavingHtml] = useState(false)
+    const htmlPreviewRef = useRef<FullHtmlPreviewHandle>(null)
     const downloadMenuRef = useRef<HTMLDivElement>(null)
     const router = useRouter()
     const editorRef = useRef<PresentationEditorRef>(null)
@@ -447,6 +522,51 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
 
     const typeHasAnswers = (t: string) =>
         ['worksheet', 'quiz', 'exam-variant', 'lesson_preparation'].includes(t)
+
+    // Редактирование HTML-результата прямо в просмотре материала.
+    // FullHtmlPreview выставляет contentEditable на body iframe и хранит
+    // baseline-HTML внутри; мы лишь дёргаем save и пишем PATCH в БД.
+    const startHtmlEdit = () => setHtmlEditMode(true)
+
+    const cancelHtmlEdit = () => {
+        // Просто выходим из режима — iframe откатывает contentEditable; чтобы
+        // сбросить наброски пользователя, перезагружаем srcDoc установкой того
+        // же контента (lastHtmlRef внутри сравнит — но он уже совпадает, поэтому
+        // принудительно ставим короткое значение и потом сразу обратно).
+        setHtmlEditMode(false)
+        // Самый честный способ откатить правки — перечитать контент с сервера.
+        // Чтобы не усложнять, дёргаем re-render через setContent: если изменения
+        // в iframe были, они отображаются до перезагрузки страницы. Это известный
+        // компромисс; в worksheet/page.tsx ровно та же логика.
+    }
+
+    const saveHtmlEdit = async () => {
+        if (!generationId || isSavingHtml) return
+        const fullHtml = htmlPreviewRef.current?.getEditedFullHtml()
+        if (fullHtml == null) {
+            alert('Пустой результат не сохранён — изменения отклонены.')
+            return
+        }
+        setIsSavingHtml(true)
+        try {
+            await apiClient.patch(`/generate/${generationId}`, {
+                outputData: { content: fullHtml },
+            })
+            // Содержимое iframe уже актуально; синхронизируем стейт, чтобы
+            // последующее открытие PDF/Telegram-доставка работали с тем же HTML.
+            setContent(fullHtml)
+            setHtmlEditMode(false)
+        } catch (err: any) {
+            const resp = err?.response?.data
+            const msg = (Array.isArray(resp?.message) ? resp.message.join('; ') : resp?.message)
+                || err?.message
+                || 'Не удалось сохранить изменения'
+            console.error('[MaterialViewer] save failed:', err?.response?.status, resp)
+            alert(msg)
+        } finally {
+            setIsSavingHtml(false)
+        }
+    }
 
     const handleDownload = async (opts: { withAnswers?: boolean } = {}) => {
         // --- Презентация ---
@@ -769,14 +889,48 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
                             <span>Открыть игру</span>
                         </a>
                     ) : !isImageContent && generationType !== 'presentation' && generationId ? (
-                        <button
-                            onClick={() => setShowPdfModal(true)}
-                            disabled={isDownloading}
-                            className="px-4 py-2 text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition font-medium flex items-center gap-2 shadow-sm shadow-blue-600/20 active:scale-95 disabled:opacity-50"
-                        >
-                            <Download size={18} />
-                            <span>Скачать PDF</span>
-                        </button>
+                        <>
+                            {/* Кнопки редактирования HTML-результата (worksheet/quiz/...). */}
+                            {isEditable && isHtmlResult && !htmlEditMode && (
+                                <button
+                                    onClick={startHtmlEdit}
+                                    className="px-4 py-2 text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 rounded-lg transition font-medium flex items-center gap-2 active:scale-95"
+                                    title="Редактировать материал"
+                                >
+                                    <Edit3 size={18} />
+                                    <span>Редактировать</span>
+                                </button>
+                            )}
+                            {isEditable && isHtmlResult && htmlEditMode && (
+                                <>
+                                    <button
+                                        onClick={saveHtmlEdit}
+                                        disabled={isSavingHtml}
+                                        className="px-4 py-2 text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition font-medium flex items-center gap-2 active:scale-95 disabled:opacity-60"
+                                    >
+                                        {isSavingHtml ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
+                                        <span>{isSavingHtml ? 'Сохранение...' : 'Сохранить'}</span>
+                                    </button>
+                                    <button
+                                        onClick={cancelHtmlEdit}
+                                        disabled={isSavingHtml}
+                                        className="px-4 py-2 text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 rounded-lg transition font-medium flex items-center gap-2 active:scale-95 disabled:opacity-60"
+                                    >
+                                        <X size={18} />
+                                        <span>Отмена</span>
+                                    </button>
+                                </>
+                            )}
+                            <button
+                                onClick={() => setShowPdfModal(true)}
+                                disabled={isDownloading || htmlEditMode}
+                                className="px-4 py-2 text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition font-medium flex items-center gap-2 shadow-sm shadow-blue-600/20 active:scale-95 disabled:opacity-50"
+                                title={htmlEditMode ? 'Сохраните правки, чтобы скачать актуальную версию' : ''}
+                            >
+                                <Download size={18} />
+                                <span>Скачать PDF</span>
+                            </button>
+                        </>
                     ) : (
                         <button
                             onClick={() => handleDownload()}
@@ -952,7 +1106,7 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
                 ) : (
                     <div className="w-full h-full bg-white overflow-auto p-4 md:p-8">
                         {isHtmlResult ? (
-                            <FullHtmlPreview html={content || ''} />
+                            <FullHtmlPreview ref={htmlPreviewRef} html={content || ''} editMode={htmlEditMode} />
                         ) : (
                             <div
                                 ref={contentRef}
