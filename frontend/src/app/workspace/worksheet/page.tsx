@@ -71,9 +71,24 @@ const generate = async () => {
     const toggleEditMode = async () => {
         if (editMode) {
             const iframeDoc = iframeRef.current?.contentDocument
-            const editedBodyHtml = iframeDoc?.body?.innerHTML ?? null
+            let editedBodyHtml = iframeDoc?.body?.innerHTML ?? null
             let fullHtml = localContent
             if (editedBodyHtml !== null) {
+                // Чистим возможные <script> и отрендеренный MathJax (mjx-container),
+                // чтобы сохранённый HTML не ломал предпросмотр (about:srcdoc SyntaxError)
+                // и сохранял исходный LaTeX, а не CHTML.
+                editedBodyHtml = editedBodyHtml
+                    .replace(/<script[\s\S]*?<\/script>/gi, '')
+                    .replace(/<mjx-container[\s\S]*?<\/mjx-container>/gi, '')
+                    .replace(/<mjx-assistive-mml[\s\S]*?<\/mjx-assistive-mml>/gi, '')
+
+                // Защита от «всё пропало»: пустой результат не сохраняем.
+                const textOnly = editedBodyHtml.replace(/<[^>]*>/g, '').replace(/&nbsp;/gi, ' ').trim()
+                if (!textOnly) {
+                    toast.error('Пустой результат не сохранён')
+                    return
+                }
+
                 // Use localContent as the HTML template — CSS, logo, and MathJax scripts
                 // are guaranteed correct from backend processing. Only replace the body
                 // content with what the user edited. Use a function callback to avoid

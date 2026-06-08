@@ -1814,6 +1814,18 @@ export class GenerationsService {
     }
 
     if (contentPayload !== undefined) {
+      // Защита от «исчезновения»: не даём затереть материал пустым контентом.
+      const incoming = (contentPayload as any)?.content;
+      if (typeof incoming === 'string') {
+        const textOnly = incoming
+          .replace(/<[^>]*>/g, '')
+          .replace(/&nbsp;/gi, ' ')
+          .trim();
+        if (!textOnly) {
+          throw new BadRequestException('Пустой результат не сохранён — изменения отклонены.');
+        }
+      }
+
       const existing = (generation.outputData as any) ?? {};
       const canMerge =
         existing && typeof existing === 'object' && !Array.isArray(existing) &&
@@ -1821,13 +1833,10 @@ export class GenerationsService {
       const merged = canMerge ? { ...existing, ...contentPayload } : contentPayload;
       updateData.outputData = merged;
 
-      // Держим legacy-поле generationRequest.result в синхроне, чтобы ВСЕ пути
-      // чтения (статус, история, экспорт PDF/изображения) видели одну и ту же
-      // отредактированную версию — иначе правка «не сохраняется».
-      await this.prisma.generationRequest.update({
-        where: { id: generation.generationRequestId },
-        data: { result: merged },
-      });
+      // ВАЖНО: generationRequest.result НЕ перезаписываем — он остаётся исходной
+      // (резервной) версией. Все пути чтения предпочитают outputData, поэтому
+      // правка отображается, но оригинал не теряется и материал нельзя случайно
+      // «обнулить» битым сохранением (это и есть источник «всё пропало»).
     }
 
     if (Object.keys(updateData).length === 0) {
