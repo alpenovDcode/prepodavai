@@ -276,23 +276,34 @@ const FullHtmlPreview = forwardRef<FullHtmlPreviewHandle, FullHtmlPreviewProps>(
         }
     }, [srcDoc])
 
-    // Пересобираем srcDoc только когда html изменился извне.
+    // Пересобираем srcDoc при изменении html ИЛИ переключении editMode.
+    // В режиме edit убираем MathJax-скрипт — иначе MathJax типсечит LaTeX в
+    // <mjx-container>, и при сохранении мы получаем CHTML вместо исходных
+    // \(...\). Стрип mjx-container в этом случае удаляет формулы совсем.
     useEffect(() => {
         if (!html) return
-        if (html === lastHtmlRef.current) return
-        lastHtmlRef.current = html
+        const key = `${editMode ? 'edit' : 'view'}|${html}`
+        if (key === lastHtmlRef.current) return
+        lastHtmlRef.current = key
 
-        const alreadyHasMathJax = /mathjax/i.test(html)
         const hasHead = /<head[\s>]/i.test(html)
         const hasBody = /<body[\s>]/i.test(html)
-        const INJECTED_HEAD = `${IFRAME_STYLES}${alreadyHasMathJax ? '' : MATHJAX_SCRIPT}`
+
+        // Базовый html — без polyfill.io и (в edit-режиме) без MathJax-скриптов.
+        let baseHtml = html
+            .replace(/LOGO_PLACEHOLDER/g, LOGO_BASE64)
+            .replace(/<script[^>]+src=["'][^"']*polyfill\.io[^"']*["'][^>]*>[\s\S]*?<\/script>/gi, '')
+        if (editMode) {
+            baseHtml = baseHtml
+                .replace(/<script[^>]*>\s*window\.MathJax[\s\S]*?<\/script>/gi, '')
+                .replace(/<script[^>]+src=["'][^"']*mathjax[^"']*["'][^>]*>[\s\S]*?<\/script>/gi, '')
+        }
+
+        const alreadyHasMathJax = /mathjax/i.test(baseHtml)
+        const INJECTED_HEAD = `${IFRAME_STYLES}${editMode || alreadyHasMathJax ? '' : MATHJAX_SCRIPT}`
         const INJECTED_BODY = `${IFRAME_READY_SCRIPT}`
 
-        let finalHtml = html.replace(/LOGO_PLACEHOLDER/g, LOGO_BASE64)
-        finalHtml = finalHtml.replace(
-            /<script[^>]+src=["'][^"']*polyfill\.io[^"']*["'][^>]*>[\s\S]*?<\/script>/gi,
-            '',
-        )
+        let finalHtml = baseHtml
         if (hasHead) {
             finalHtml = finalHtml.replace(/<head([^>]*)>/i, `<head$1>${INJECTED_HEAD}`)
         } else if (hasBody) {
@@ -308,10 +319,9 @@ const FullHtmlPreview = forwardRef<FullHtmlPreviewHandle, FullHtmlPreviewProps>(
             }
         }
         setSrcDoc(finalHtml)
-    }, [html])
+    }, [html, editMode])
 
-    // При смене editMode НЕ перезагружаем iframe — только переключаем
-    // contentEditable и визуальную рамку.
+    // Применяем contentEditable после смены srcDoc (после перезагрузки iframe).
     useEffect(() => {
         const doc = iframeRef.current?.contentDocument
         if (!doc?.body) return
@@ -324,10 +334,6 @@ const FullHtmlPreview = forwardRef<FullHtmlPreviewHandle, FullHtmlPreviewProps>(
             doc.body.style.outline = ''
             doc.body.style.outlineOffset = ''
             doc.body.style.cursor = ''
-            const win = iframeRef.current?.contentWindow as any
-            if (win?.MathJax?.typesetPromise) {
-                win.MathJax.typesetPromise([doc.body]).catch(() => {})
-            }
         }
     }, [editMode, srcDoc])
 
@@ -361,9 +367,11 @@ const FullHtmlPreview = forwardRef<FullHtmlPreviewHandle, FullHtmlPreviewProps>(
             console.log('[FullHtmlPreview] save: fullHtml.length=', fullHtml.length, 'bodyInner.length=', bodyInner.length, 'textOnly.length=', textOnly.length)
             if (!textOnly) return null
 
-            // Помечаем, что эта версия HTML уже в iframe — useEffect не должен
-            // перезагружать srcDoc, когда родитель сделает setContent(fullHtml).
-            lastHtmlRef.current = fullHtml
+            // Помечаем edit-baseline под новым fullHtml — чтобы повторное
+            // нажатие «Сохранить» без изменений не дёргало iframe. Когда
+            // editMode сбросится в false, useEffect соберёт view-вариант
+            // (с MathJax) — это OK и нужно, чтобы формулы заново отрисовались.
+            lastHtmlRef.current = `edit|${fullHtml}`
             return fullHtml
         },
     }), [])

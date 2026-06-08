@@ -45,17 +45,18 @@ export default function WorksheetGenerator() {
         return () => window.removeEventListener('resize', checkMobile)
     }, [])
 
-    // Перезагружаем iframe (srcDoc) ТОЛЬКО когда контент реально изменился со
-    // стороны источника (новая генерация / первая загрузка). При сохранении
-    // правки контент в iframe уже актуален, перезагрузка не нужна.
+    // Перезагружаем iframe (srcDoc) при изменении контента ИЛИ при переключении
+    // режима правки. В edit-режиме нужна версия без MathJax-скрипта, чтобы
+    // \(...\) оставался обычным текстом, а не отрисовывался в <mjx-container>.
+    // Иначе при сохранении мы получим CHTML и потеряем исходный LaTeX.
     useEffect(() => {
         if (!localContent) return
-        if (localContent === lastSrcDocRef.current) return
-        lastSrcDocRef.current = localContent
-        // В режиме правки скрипты MathJax/CDN убираем (см. ensureMathJax.ts).
+        const key = `${editMode ? 'edit' : 'view'}|${localContent}`
+        if (key === lastSrcDocRef.current) return
+        lastSrcDocRef.current = key
         setSrcDoc(editMode ? stripMathJaxScripts(localContent) : ensureMathJaxInHtml(localContent))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [localContent])
+    }, [localContent, editMode])
 
 const generate = async () => {
         if (!topic) return
@@ -132,9 +133,10 @@ const generate = async () => {
                     await apiClient.patch(`/generate/${activeGenerationId}`, {
                         outputData: { content: fullHtml },
                     })
-                    // Контент в iframe уже актуален — НЕ дергаем srcDoc, иначе
-                    // iframe перезагрузится и MathJax будет тянуться заново.
-                    lastSrcDocRef.current = fullHtml
+                    // Контент в iframe уже актуален — НЕ дергаем srcDoc на этом
+                    // шаге. Ключ под edit-режим: когда родитель потом сбросит
+                    // editMode → false, useEffect соберёт view-вариант с MathJax.
+                    lastSrcDocRef.current = `edit|${fullHtml}`
                     setLocalContent(fullHtml)
                     toast.success('Сохранено')
                     setEditMode(false)
@@ -151,7 +153,7 @@ const generate = async () => {
                     setIsSaving(false)
                 }
             } else {
-                lastSrcDocRef.current = fullHtml
+                lastSrcDocRef.current = `edit|${fullHtml}`
                 setLocalContent(fullHtml)
                 setEditMode(false)
             }
