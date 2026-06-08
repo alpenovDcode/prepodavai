@@ -185,7 +185,7 @@ function wrapPlainTextAsHtml(text: string): string {
 <html lang="ru">
 <head>
   <meta charset="utf-8" />
-  <title>PrepodavAI Result</title>
+  <title>ПреподаваИИ Result</title>
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, sans-serif;

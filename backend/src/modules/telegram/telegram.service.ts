@@ -99,7 +99,7 @@ export class TelegramService {
     this.regStates.set(telegramId, { step: 'awaiting_email' });
 
     await ctx.reply(
-      `👋 Добро пожаловать в *PrepodavAI*!\n\n` +
+      `👋 Добро пожаловать в *ПреподаваИИ*!\n\n` +
       `Давайте создадим ваш аккаунт — это займёт меньше минуты.\n\n` +
       `Введите вашу электронную почту:`,
       { parse_mode: 'Markdown' },
@@ -231,11 +231,11 @@ export class TelegramService {
     );
 
     await ctx.reply(
-      `Нажмите кнопку ниже, чтобы открыть PrepodavAI:`,
+      `Нажмите кнопку ниже, чтобы открыть ПреподаваИИ:`,
       {
         reply_markup: {
           inline_keyboard: [
-            [{ text: '🚀 Открыть PrepodavAI', web_app: { url: `${webAppUrl}/dashboard` } }],
+            [{ text: '🚀 Открыть ПреподаваИИ', web_app: { url: `${webAppUrl}/dashboard` } }],
           ],
         },
       },
@@ -288,7 +288,7 @@ export class TelegramService {
       where: { telegramId: user.id.toString() },
     });
     if (alreadyLinked && alreadyLinked.id !== linkToken.userId) {
-      await ctx.reply('⚠️ Этот аккаунт Telegram уже привязан к другому профилю PrepodavAI.');
+      await ctx.reply('⚠️ Этот аккаунт Telegram уже привязан к другому профилю ПреподаваИИ.');
       return;
     }
 
@@ -342,7 +342,7 @@ export class TelegramService {
     });
 
     await ctx.reply(
-      `✅ Telegram успешно привязан к вашему аккаунту PrepodavAI!\n\n` +
+      `✅ Telegram успешно привязан к вашему аккаунту ПреподаваИИ!\n\n` +
       `Теперь вы будете получать результаты генерации прямо здесь.`,
     );
   }
@@ -591,7 +591,7 @@ export class TelegramService {
 
     const fallbackText = isBotOnlyUser
       ? `✅ Ваш материал готов!\n\n⚠️ Не удалось создать PDF. Попробуйте сгенерировать ещё раз.`
-      : `✅ Ваш материал готов!\n\nПросмотр доступен в веб-версии PrepodavAI.`;
+      : `✅ Ваш материал готов!\n\nПросмотр доступен в веб-версии ПреподаваИИ.`;
 
     await this.bot.api.sendMessage(chatId, fallbackText);
   }

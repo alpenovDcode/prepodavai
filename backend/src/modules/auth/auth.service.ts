@@ -415,7 +415,7 @@ export class AuthService {
     });
 
     // 3. Отправляем SMS
-    const message = `Ваш код подтверждения PrepodavAI: ${code}`;
+    const message = `Ваш код подтверждения ПреподаваИИ: ${code}`;
     const sent = await this.smscService.sendSms(phone, message);
 
     if (!sent) {
