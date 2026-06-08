@@ -4,6 +4,7 @@ import { PrismaClient } from '@prisma/client';
 import * as crypto from 'crypto';
 import * as bcrypt from 'bcryptjs';
 import * as http from 'http';
+import * as https from 'https';
 import { HttpsProxyAgent } from 'https-proxy-agent';
 import { TOOL_CONFIGS, ToolConfig, FieldConfig, getToolConfig } from './tool-configs';
 
@@ -2229,18 +2230,42 @@ function nlNavFallback(text: string): NlParsedRequest {
   return { action: 'unknown' };
 }
 
+// Скачивает URL через https.get с опциональным прокси-агентом (нативный fetch не поддерживает agent)
+function downloadBuffer(url: string, agent?: any): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const lib: any = url.startsWith('https') ? https : http;
+    const options: any = agent ? { agent } : {};
+    lib.get(url, options, (res: any) => {
+      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+        downloadBuffer(res.headers.location, agent).then(resolve).catch(reject);
+        return;
+      }
+      if (res.statusCode !== 200) { reject(new Error(`HTTP ${res.statusCode}`)); return; }
+      const chunks: Buffer[] = [];
+      res.on('data', (c: Buffer) => chunks.push(c));
+      res.on('end', () => resolve(Buffer.concat(chunks)));
+      res.on('error', reject);
+    }).on('error', reject);
+  });
+}
+
 async function transcribeVoice(fileId: string): Promise<string | null> {
   if (!REPLICATE_API_TOKEN) return null;
   try {
-    // Скачиваем файл сами — Replicate не может обращаться к Telegram напрямую
     const fileInfo = await bot.api.getFile(fileId);
     const filePath = fileInfo.file_path;
     if (!filePath) return null;
     const tgApiRoot = (process.env.TELEGRAM_API_ROOT ?? 'https://api.telegram.org').replace(/\/$/, '');
     const downloadUrl = `${tgApiRoot}/file/bot${process.env.TELEGRAM_BOT_TOKEN || ''}/${filePath}`;
-    const fileResp = await fetch(downloadUrl, { signal: AbortSignal.timeout(15000) });
-    if (!fileResp.ok) { console.error(`[Voice] Failed to download audio: ${fileResp.status}`); return null; }
-    const audioBuffer = Buffer.from(await fileResp.arrayBuffer());
+
+    // Используем тот же прокси что и grammy — нативный fetch его не знает
+    const proxyUrl = (
+      process.env.TELEGRAM_PROXY || process.env.HTTPS_PROXY ||
+      process.env.https_proxy || process.env.ALL_PROXY || ''
+    ).trim();
+    const agent = proxyUrl ? new HttpsProxyAgent(proxyUrl) : undefined;
+    const audioBuffer = await downloadBuffer(downloadUrl, agent);
+
     // Передаём как base64 data URI — Replicate принимает inline-аудио
     const base64Audio = `data:audio/ogg;base64,${audioBuffer.toString('base64')}`;
 
@@ -2260,7 +2285,6 @@ async function transcribeVoice(fileId: string): Promise<string | null> {
       return null;
     }
     const data: any = await res.json();
-    // Whisper может вернуть объект { transcription: "..." } или строку напрямую
     const transcript = typeof data.output === 'string'
       ? data.output
       : (data.output?.transcription ?? data.output?.text ?? '');
