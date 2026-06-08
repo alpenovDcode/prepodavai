@@ -124,6 +124,7 @@ interface Generation {
     generationType: string
     status: string
     createdAt: string
+    title?: string | null
     outputData?: any
     inputParams?: any
 }
@@ -197,6 +198,9 @@ export default function CourseDetailPage({ id }: CourseDetailPageProps) {
     const [showAssignModal, setShowAssignModal] = useState(false)
     const [assignGenerationId, setAssignGenerationId] = useState<string | undefined>(undefined)
     const [downloadingId, setDownloadingId] = useState<string | null>(null)
+    const [renamingId, setRenamingId] = useState<string | null>(null)
+    const [titleDraft, setTitleDraft] = useState('')
+    const [savingTitle, setSavingTitle] = useState(false)
 
     // M3: schedule editing
     const [classes, setClasses] = useState<{ id: string; name: string }[]>([])
@@ -372,6 +376,26 @@ export default function CourseDetailPage({ id }: CourseDetailPageProps) {
         e.stopPropagation()
         setAssignGenerationId(generationId)
         setShowAssignModal(true)
+    }
+
+    const saveTitle = async (genId: string) => {
+        if (savingTitle) return
+        const newTitle = titleDraft.trim()
+        setSavingTitle(true)
+        // Оптимистично обновляем список материалов
+        setLesson(prev => prev ? {
+            ...prev,
+            generations: prev.generations.map(g => g.id === genId ? { ...g, title: newTitle } : g),
+        } : prev)
+        setRenamingId(null)
+        try {
+            await apiClient.patch(`/generate/${genId}`, { title: newTitle })
+        } catch (error) {
+            console.error('Failed to rename generation:', error)
+            alert('Не удалось сохранить название. Попробуйте позже.')
+        } finally {
+            setSavingTitle(false)
+        }
     }
 
     if (loading) {
@@ -722,9 +746,52 @@ export default function CourseDetailPage({ id }: CourseDetailPageProps) {
                                         )}
                                     </div>
                                     <div className="min-w-0">
-                                        <h4 className="font-medium text-gray-900 hover:text-primary-600 transition">
-                                            {getGenerationTypeLabel(generation.generationType)}
-                                        </h4>
+                                        {renamingId === generation.id ? (
+                                            <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                                                <input
+                                                    value={titleDraft}
+                                                    onChange={(e) => setTitleDraft(e.target.value)}
+                                                    autoFocus
+                                                    maxLength={200}
+                                                    placeholder={getGenerationTypeLabel(generation.generationType)}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter') saveTitle(generation.id)
+                                                        if (e.key === 'Escape') setRenamingId(null)
+                                                    }}
+                                                    className="px-2 py-1 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-primary-500 w-48 sm:w-64"
+                                                />
+                                                <button
+                                                    onClick={() => saveTitle(generation.id)}
+                                                    disabled={savingTitle}
+                                                    className="text-primary-600 text-sm font-medium disabled:opacity-50"
+                                                >
+                                                    Сохранить
+                                                </button>
+                                                <button
+                                                    onClick={() => setRenamingId(null)}
+                                                    className="text-gray-400 text-sm"
+                                                >
+                                                    Отмена
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <div className="flex items-center gap-2">
+                                                <h4 className="font-medium text-gray-900 hover:text-primary-600 transition truncate">
+                                                    {(generation.title && generation.title.trim()) || getGenerationTypeLabel(generation.generationType)}
+                                                </h4>
+                                                <button
+                                                    title="Переименовать"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation()
+                                                        setRenamingId(generation.id)
+                                                        setTitleDraft((generation.title || '').trim())
+                                                    }}
+                                                    className="p-1 text-gray-300 hover:text-primary-600 transition flex-shrink-0"
+                                                >
+                                                    <i className="fas fa-pen text-xs"></i>
+                                                </button>
+                                            </div>
+                                        )}
                                         {getGenerationSubtitle(generation) && (
                                             <p className="text-sm text-gray-700 truncate" title={getGenerationSubtitle(generation)}>
                                                 {getGenerationSubtitle(generation)}
