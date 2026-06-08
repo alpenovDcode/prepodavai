@@ -167,6 +167,18 @@ export class MaxService {
   private async handleMessage(message: any) {
     if (!message) return;
     try {
+      // Ignore non-personal messages (channels, groups, channel DMs)
+      const chatType = message.recipient?.chat_type;
+      if (chatType && chatType !== 'dialog') {
+        this.logger.log(`[Message] Ignoring non-dialog message chat_type=${chatType}`);
+        return;
+      }
+      const channelId = this.configService.get<string>('MAX_CHANNEL_ID');
+      if (channelId && message.recipient?.chat_id?.toString() === channelId) {
+        this.logger.log(`[Message] Ignoring message addressed to channel ${channelId}`);
+        return;
+      }
+
       const user = message.from || message.sender;
       const text: string = (message.text || message.content || message.body?.text || '').trim();
 
@@ -393,6 +405,18 @@ export class MaxService {
       const chatId: string = (callback.user?.user_id || callback.message?.recipient?.user_id)?.toString();
       const payload: string = callback.payload || '';
       const messageId: string | undefined = callback.message?.body?.mid?.toString();
+
+      // Ignore callbacks from channels — only process personal dialogs
+      const cbChatType = callback.message?.recipient?.chat_type;
+      if (cbChatType && cbChatType !== 'dialog') {
+        this.logger.log(`[Callback] Ignoring non-dialog callback chat_type=${cbChatType}`);
+        return;
+      }
+      const cbChannelId = this.configService.get<string>('MAX_CHANNEL_ID');
+      if (cbChannelId && callback.message?.recipient?.chat_id?.toString() === cbChannelId) {
+        this.logger.log(`[Callback] Ignoring callback addressed to channel ${cbChannelId}`);
+        return;
+      }
 
       if (!userId || !chatId) {
         this.logger.warn('Could not extract userId or chatId from MAX callback');
@@ -2476,6 +2500,12 @@ export class MaxService {
   private async sendMessageWithMarkup(chatId: string, text: string, attachments?: any[]): Promise<string | undefined> {
     if (!this.token) {
       this.logger.error('MAX_BOT_TOKEN is not defined! Cannot send message.');
+      return undefined;
+    }
+    // Never send to the subscription channel — it's for membership checks only
+    const channelId = this.configService.get<string>('MAX_CHANNEL_ID');
+    if (channelId && chatId === channelId) {
+      this.logger.error(`[MAX] Blocked attempt to send message to channel ${channelId}`);
       return undefined;
     }
 

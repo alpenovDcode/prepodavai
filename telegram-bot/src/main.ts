@@ -1786,6 +1786,7 @@ bot.on('callback_query:data', async (ctx: Context) => {
   const data = ctx.callbackQuery?.data ?? '';
   const telegramId = ctx.from?.id.toString();
   if (!telegramId) return;
+  if (ctx.chat?.type !== 'private') return;
 
   await ctx.answerCallbackQuery().catch(() => null);
 
@@ -2378,6 +2379,7 @@ async function startNlGenSession(
 
 // ── Текстовые сообщения ───────────────────────────────────────────────────────
 bot.on('message:text', async (ctx: Context) => {
+  if (ctx.chat?.type !== 'private') return;
   const user = ctx.from;
   if (!user) return;
   const telegramId = user.id.toString();
@@ -2634,11 +2636,11 @@ async function handleFileMessage(ctx: Context, receivedAs: 'photo' | 'document')
   }
 }
 
-bot.on('message:photo', (ctx) => { console.log(`[Bot] photo from ${ctx.from?.id}`); return handleFileMessage(ctx, 'photo'); });
-bot.on('message:document', (ctx) => { console.log(`[Bot] document from ${ctx.from?.id}`); return handleFileMessage(ctx, 'document'); });
-bot.on('message:audio', (ctx) => { console.log(`[Bot] audio from ${ctx.from?.id}`); return handleFileMessage(ctx, 'document'); });
-bot.on('message:voice', (ctx) => handleFileMessage(ctx, 'document'));
-bot.on('message:video', (ctx) => handleFileMessage(ctx, 'document'));
+bot.on('message:photo', (ctx) => { if (ctx.chat?.type !== 'private') return; console.log(`[Bot] photo from ${ctx.from?.id}`); return handleFileMessage(ctx, 'photo'); });
+bot.on('message:document', (ctx) => { if (ctx.chat?.type !== 'private') return; console.log(`[Bot] document from ${ctx.from?.id}`); return handleFileMessage(ctx, 'document'); });
+bot.on('message:audio', (ctx) => { if (ctx.chat?.type !== 'private') return; console.log(`[Bot] audio from ${ctx.from?.id}`); return handleFileMessage(ctx, 'document'); });
+bot.on('message:voice', (ctx) => { if (ctx.chat?.type !== 'private') return; return handleFileMessage(ctx, 'document'); });
+bot.on('message:video', (ctx) => { if (ctx.chat?.type !== 'private') return; return handleFileMessage(ctx, 'document'); });
 
 // Фиксируем блокировку бота пользователем → Откуда Подписки
 bot.on('my_chat_member', (ctx) => {
@@ -2730,6 +2732,11 @@ function startNotifyServer(): http.Server {
       try {
         const { telegramChatId, studentName, lessonTitle, assignmentId } = JSON.parse(body);
         if (!telegramChatId) { res.writeHead(400).end('missing telegramChatId'); return; }
+        if (TELEGRAM_CHANNEL_ID && telegramChatId.toString() === TELEGRAM_CHANNEL_ID.toString()) {
+          console.warn('[notify-server] Blocked attempt to send to channel');
+          res.writeHead(400).end('cannot send to channel');
+          return;
+        }
 
         const webAppUrl = process.env.WEBAPP_URL || 'https://prepodavai.ru';
         const assignmentUrl = `${webAppUrl}/dashboard/assignments/${assignmentId}`;
