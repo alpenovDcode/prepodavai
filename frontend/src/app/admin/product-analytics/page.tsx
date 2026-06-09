@@ -10,7 +10,7 @@ import {
 import {
   Activity, Users, TrendingUp,
   BookOpen, Zap, BarChart2, UserX, ArrowUp, ArrowDown, Minus,
-  Sparkles, CheckCircle, Calendar, Tag
+  Sparkles, CheckCircle, Calendar, Tag, Bot, Send, MessageSquare
 } from 'lucide-react'
 import DateRangePicker, { daysFromRange } from '@/components/admin/DateRangePicker'
 
@@ -76,6 +76,7 @@ const TABS = [
   { id: 'onboarding', label: 'Онбординг',      icon: <BookOpen className="w-4 h-4" /> },
   { id: 'features',   label: 'Feature Adoption', icon: <Zap className="w-4 h-4" /> },
   { id: 'm14',        label: 'Фичи M1-M4',     icon: <Sparkles className="w-4 h-4" /> },
+  { id: 'bots',       label: 'Боты',           icon: <Bot className="w-4 h-4" /> },
 ]
 
 export default function ProductAnalyticsPage() {
@@ -84,6 +85,7 @@ export default function ProductAnalyticsPage() {
   const [featRange, setFeatRange] = useState('30d')
   const [m14Range, setM14Range] = useState('30d')
   const [cmpPeriod, setCmpPeriod] = useState<'week' | 'month'>('week')
+  const [botsRange, setBotsRange] = useState('30d')
 
   const { data: dau }    = useSWR(`/admin/product/dau-wau-mau?days=${daysFromRange(dauRange)}`, fetcher)
   const { data: ret }    = useSWR('/admin/product/retention', fetcher)
@@ -93,6 +95,10 @@ export default function ProductAnalyticsPage() {
   const { data: cmp }    = useSWR(`/admin/product/comparison?period=${cmpPeriod}`, fetcher)
   const { data: m14 }    = useSWR(
     tab === 'm14' ? `/admin/product/m-features?days=${daysFromRange(m14Range)}` : null,
+    fetcher,
+  )
+  const { data: bots }   = useSWR(
+    tab === 'bots' ? `/admin/bots?days=${daysFromRange(botsRange)}` : null,
     fetcher,
   )
 
@@ -670,6 +676,311 @@ export default function ProductAnalyticsPage() {
                       ))}
                     </div>
                   )}
+                </div>
+              </section>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ── Боты ── */}
+      {tab === 'bots' && (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="font-bold text-gray-900">Аналитика ботов</h2>
+              <p className="text-xs text-gray-500 mt-0.5">Telegram Bot и MAX Bot — пользователи, регистрации, генерации</p>
+            </div>
+            <DateRangePicker value={botsRange} onChange={setBotsRange} />
+          </div>
+
+          {!bots ? (
+            <div className="bg-white rounded-2xl border border-gray-200 p-10 text-center text-sm text-gray-400">
+              Считаем метрики...
+            </div>
+          ) : (
+            <>
+              {/* === Общий обзор === */}
+              <section className="space-y-3">
+                <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide">Общий обзор</h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <KpiCard
+                    title="Всего бот-пользователей"
+                    value={bots.overview.totalBotUsers}
+                    icon={<Bot className="w-5 h-5" />}
+                    color="purple"
+                  />
+                  <KpiCard
+                    title="Из Telegram"
+                    value={bots.overview.telegramUsers}
+                    sub={bots.overview.totalBotUsers > 0 ? `${Math.round((bots.overview.telegramUsers / bots.overview.totalBotUsers) * 100)}% от всех` : '—'}
+                    icon={<Send className="w-5 h-5" />}
+                    color="blue"
+                  />
+                  <KpiCard
+                    title="Из MAX"
+                    value={bots.overview.maxUsers}
+                    sub={bots.overview.totalBotUsers > 0 ? `${Math.round((bots.overview.maxUsers / bots.overview.totalBotUsers) * 100)}% от всех` : '—'}
+                    icon={<MessageSquare className="w-5 h-5" />}
+                    color="green"
+                  />
+                  <KpiCard
+                    title="Оба мессенджера"
+                    value={bots.overview.bothPlatforms}
+                    sub="Telegram + MAX"
+                    icon={<Users className="w-5 h-5" />}
+                    color="orange"
+                  />
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <KpiCard
+                    title="Зарегистрировались"
+                    value={bots.overview.registered}
+                    sub="через бота"
+                    icon={<CheckCircle className="w-5 h-5" />}
+                    color="green"
+                  />
+                  <KpiCard
+                    title="Привязали аккаунт"
+                    value={bots.overview.linked}
+                    sub="существующий web-аккаунт"
+                    icon={<TrendingUp className="w-5 h-5" />}
+                    color="blue"
+                  />
+                  <KpiCard
+                    title="Только нажали старт"
+                    value={bots.overview.pending}
+                    sub="не завершили регистрацию"
+                    icon={<UserX className="w-5 h-5" />}
+                    color="orange"
+                  />
+                  <KpiCard
+                    title="Без генераций"
+                    value={bots.overview.usersWithoutGenerations}
+                    sub={`из ${bots.overview.totalBotUsers} всего`}
+                    icon={<Activity className="w-5 h-5" />}
+                    color="red"
+                  />
+                </div>
+              </section>
+
+              {/* === Генерации === */}
+              <section className="space-y-3">
+                <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide">Генерации</h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <KpiCard
+                    title="Всего через Telegram"
+                    value={bots.overview.totalGensTelegram}
+                    icon={<Send className="w-5 h-5" />}
+                    color="blue"
+                  />
+                  <KpiCard
+                    title="Всего через MAX"
+                    value={bots.overview.totalGensMax}
+                    icon={<MessageSquare className="w-5 h-5" />}
+                    color="green"
+                  />
+                  <KpiCard
+                    title="Сделали хотя бы 1"
+                    value={bots.overview.usersWithGenerations}
+                    sub={`${bots.overview.totalBotUsers > 0 ? Math.round((bots.overview.usersWithGenerations / bots.overview.totalBotUsers) * 100) : 0}% пользователей`}
+                    icon={<Zap className="w-5 h-5" />}
+                    color="purple"
+                  />
+                  <KpiCard
+                    title="Итого через боты"
+                    value={bots.overview.totalGensAnyBot}
+                    sub="уникальных генераций"
+                    icon={<Sparkles className="w-5 h-5" />}
+                    color="orange"
+                  />
+                </div>
+              </section>
+
+              {/* === Воронки по платформам === */}
+              <section className="space-y-3">
+                <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide">Воронки по платформам</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  {([
+                    { key: 'telegram' as const, label: 'Telegram', barColor: 'bg-blue-500', lightBg: 'bg-blue-50', textColor: 'text-blue-700', icon: <Send className="w-4 h-4 text-blue-500" /> },
+                    { key: 'max' as const,      label: 'MAX',      barColor: 'bg-green-500', lightBg: 'bg-green-50', textColor: 'text-green-700', icon: <MessageSquare className="w-4 h-4 text-green-500" /> },
+                  ]).map(({ key, label, barColor, lightBg, textColor, icon }) => {
+                    const f = bots.funnel[key]
+                    const steps = [
+                      { label: 'Нажали Старт', value: f.pressedStart },
+                      { label: 'Зарегистрировались', value: f.registered },
+                      { label: 'Первая генерация', value: f.firstGeneration },
+                      { label: '5+ генераций', value: f.fivePlusGenerations },
+                      { label: '20+ генераций', value: f.twentyPlusGenerations },
+                    ]
+                    const base = f.pressedStart || 1
+                    return (
+                      <div key={key} className="bg-white rounded-2xl border border-gray-200 p-5">
+                        <div className="flex items-center gap-2 mb-4">
+                          {icon}
+                          <p className="text-sm font-bold text-gray-700">{label}</p>
+                          <span className={`ml-auto text-xs font-semibold px-2 py-0.5 rounded-full ${lightBg} ${textColor}`}>
+                            {f.pressedStart} польз.
+                          </span>
+                        </div>
+                        <div className="space-y-3">
+                          {steps.map((step, i) => {
+                            const pct = Math.round((step.value / base) * 100)
+                            return (
+                              <div key={i}>
+                                <div className="flex justify-between text-xs mb-1">
+                                  <span className="text-gray-600 font-medium">{step.label}</span>
+                                  <span className="font-bold text-gray-900">
+                                    {step.value} <span className="text-gray-400 font-normal">({pct}%)</span>
+                                  </span>
+                                </div>
+                                <div className="bg-gray-100 rounded-full h-2">
+                                  <div className={`${barColor} rounded-full h-2 transition-all`} style={{ width: `${pct}%` }} />
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </section>
+
+              {/* === Графики за период === */}
+              <section className="space-y-3">
+                <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide">Динамика за период</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <div className="bg-white rounded-2xl border border-gray-200 p-5">
+                    <p className="text-sm font-bold text-gray-700 mb-4">Новые пользователи по дням</p>
+                    {bots.charts.dailyNew.length === 0 ? (
+                      <div className="text-center text-gray-400 text-xs py-8">Нет данных за период</div>
+                    ) : (
+                      <ResponsiveContainer width="100%" height={200}>
+                        <LineChart data={bots.charts.dailyNew} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                          <XAxis dataKey="day" tick={{ fontSize: 10 }} tickFormatter={(v: any) => new Date(v).toLocaleDateString('ru', { day: '2-digit', month: '2-digit' })} />
+                          <YAxis tick={{ fontSize: 10 }} width={30} allowDecimals={false} />
+                          <Tooltip
+                            formatter={(v: any, name: any) => [v, name === 'telegram' ? 'Telegram' : 'MAX']}
+                            labelFormatter={(v: any) => new Date(v).toLocaleDateString('ru')}
+                          />
+                          <Line type="monotone" dataKey="telegram" stroke="#3b82f6" strokeWidth={2} dot={false} name="telegram" />
+                          <Line type="monotone" dataKey="max" stroke="#10b981" strokeWidth={2} dot={false} name="max" />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    )}
+                    <div className="flex gap-4 mt-2 justify-end">
+                      <span className="flex items-center gap-1 text-xs text-blue-600 font-medium"><span className="w-3 h-0.5 bg-blue-500 inline-block rounded" />Telegram</span>
+                      <span className="flex items-center gap-1 text-xs text-green-600 font-medium"><span className="w-3 h-0.5 bg-green-500 inline-block rounded" />MAX</span>
+                    </div>
+                  </div>
+
+                  <div className="bg-white rounded-2xl border border-gray-200 p-5">
+                    <p className="text-sm font-bold text-gray-700 mb-4">Генерации по дням</p>
+                    {bots.charts.dailyGenerations.length === 0 ? (
+                      <div className="text-center text-gray-400 text-xs py-8">Нет данных за период</div>
+                    ) : (
+                      <ResponsiveContainer width="100%" height={200}>
+                        <BarChart data={bots.charts.dailyGenerations} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                          <XAxis dataKey="day" tick={{ fontSize: 10 }} tickFormatter={(v: any) => new Date(v).toLocaleDateString('ru', { day: '2-digit', month: '2-digit' })} />
+                          <YAxis tick={{ fontSize: 10 }} width={30} allowDecimals={false} />
+                          <Tooltip
+                            formatter={(v: any, name: any) => [v, name === 'telegram' ? 'Telegram' : 'MAX']}
+                            labelFormatter={(v: any) => new Date(v).toLocaleDateString('ru')}
+                          />
+                          <Bar dataKey="telegram" fill="#3b82f6" radius={[3, 3, 0, 0]} name="telegram" stackId="a" />
+                          <Bar dataKey="max" fill="#10b981" radius={[3, 3, 0, 0]} name="max" stackId="a" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    )}
+                    <div className="flex gap-4 mt-2 justify-end">
+                      <span className="flex items-center gap-1 text-xs text-blue-600 font-medium"><span className="w-3 h-2 bg-blue-500 inline-block rounded-sm" />Telegram</span>
+                      <span className="flex items-center gap-1 text-xs text-green-600 font-medium"><span className="w-3 h-2 bg-green-500 inline-block rounded-sm" />MAX</span>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              {/* === Топ инструментов === */}
+              <section className="space-y-3">
+                <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide">Популярные инструменты</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  {([
+                    { key: 'topTypesTelegram' as const, label: 'Telegram', barColor: 'bg-blue-500', icon: <Send className="w-4 h-4 text-blue-500" /> },
+                    { key: 'topTypesMax' as const,      label: 'MAX',      barColor: 'bg-green-500', icon: <MessageSquare className="w-4 h-4 text-green-500" /> },
+                  ]).map(({ key, label, barColor, icon }) => {
+                    const rows: { type: string; count: number }[] = bots.charts[key] || []
+                    const maxCount = rows[0]?.count || 1
+                    return (
+                      <div key={key} className="bg-white rounded-2xl border border-gray-200 p-5">
+                        <div className="flex items-center gap-2 mb-4">
+                          {icon}
+                          <p className="text-sm font-bold text-gray-700">{label} — топ инструменты</p>
+                        </div>
+                        {rows.length === 0 ? (
+                          <div className="text-center text-gray-400 text-xs py-6">Нет данных</div>
+                        ) : (
+                          <div className="space-y-2">
+                            {rows.slice(0, 8).map((row) => (
+                              <div key={row.type} className="flex items-center gap-2">
+                                <span className="text-xs text-gray-600 w-36 shrink-0 truncate">{ftLabel(row.type)}</span>
+                                <div className="flex-1 bg-gray-100 rounded-full h-2">
+                                  <div className={`${barColor} rounded-full h-2`} style={{ width: `${Math.round((row.count / maxCount) * 100)}%` }} />
+                                </div>
+                                <span className="text-xs font-bold text-gray-700 w-8 text-right">{row.count}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </section>
+
+              {/* === Активность и кредиты === */}
+              <section className="space-y-3">
+                <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide">Активность и кредиты</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  {([
+                    { key: 'telegram' as const, label: 'Telegram', totalUsers: bots.overview.telegramUsers, icon: <Send className="w-4 h-4 text-blue-500" />, accentBg: 'bg-blue-50', accentText: 'text-blue-700' },
+                    { key: 'max' as const,      label: 'MAX',      totalUsers: bots.overview.maxUsers,      icon: <MessageSquare className="w-4 h-4 text-green-500" />, accentBg: 'bg-green-50', accentText: 'text-green-700' },
+                  ]).map(({ key, label, totalUsers, icon, accentBg, accentText }) => {
+                    const a = bots.activity[key]
+                    return (
+                      <div key={key} className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
+                        <div className="flex items-center gap-2">
+                          {icon}
+                          <p className="text-sm font-bold text-gray-700">{label}</p>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className={`${accentBg} rounded-xl p-3`}>
+                            <p className={`text-xl font-bold ${accentText}`}>{a.active7d}</p>
+                            <p className="text-xs text-gray-500 mt-0.5">Активны 7 дней</p>
+                            <p className="text-xs text-gray-400">{totalUsers > 0 ? Math.round((a.active7d / totalUsers) * 100) : 0}% от всех</p>
+                          </div>
+                          <div className={`${accentBg} rounded-xl p-3`}>
+                            <p className={`text-xl font-bold ${accentText}`}>{a.active30d}</p>
+                            <p className="text-xs text-gray-500 mt-0.5">Активны 30 дней</p>
+                            <p className="text-xs text-gray-400">{totalUsers > 0 ? Math.round((a.active30d / totalUsers) * 100) : 0}% от всех</p>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3 pt-1 border-t border-gray-100">
+                          <div>
+                            <p className="text-lg font-bold text-gray-900">{totalUsers > 0 ? a.avgCredits : '—'}</p>
+                            <p className="text-xs text-gray-500">Avg кредитов</p>
+                          </div>
+                          <div>
+                            <p className="text-lg font-bold text-red-500">{a.zeroCredits}</p>
+                            <p className="text-xs text-gray-500">0 кредитов</p>
+                            <p className="text-xs text-gray-400">{totalUsers > 0 ? Math.round((a.zeroCredits / totalUsers) * 100) : 0}% польз.</p>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
               </section>
             </>

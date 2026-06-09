@@ -2538,4 +2538,230 @@ export class AdminService {
 
     return { success: true };
   }
+
+  // ========== BOT ANALYTICS ==========
+  async getBotAnalytics(days = 30) {
+    const [
+      totalBotUsers,
+      telegramUsers,
+      maxUsers,
+      bothPlatforms,
+      pending,
+      registered,
+      linked,
+      usersWithGenerations,
+      usersWithoutGenerations,
+      totalGensTelegram,
+      totalGensMax,
+      telegramActive7d,
+      telegramActive30d,
+      maxActive7d,
+      maxActive30d,
+      telegramZeroCredits,
+      maxZeroCredits,
+      totalGensAnyBot,
+    ] = await Promise.all([
+      this.prisma.botUser.count(),
+      this.prisma.botUser.count({ where: { telegramId: { not: null } } }),
+      this.prisma.botUser.count({ where: { maxId: { not: null } } }),
+      this.prisma.botUser.count({ where: { telegramId: { not: null }, maxId: { not: null } } }),
+      this.prisma.botUser.count({ where: { registrationStatus: 'pending' } }),
+      this.prisma.botUser.count({ where: { registrationStatus: 'registered' } }),
+      this.prisma.botUser.count({ where: { registrationStatus: 'linked' } }),
+      this.prisma.botUser.count({ where: { totalGenerations: { gt: 0 } } }),
+      this.prisma.botUser.count({ where: { totalGenerations: 0 } }),
+      this.prisma.userGeneration.count({ where: { sentToTelegram: true } }),
+      this.prisma.userGeneration.count({ where: { sentToMax: true } }),
+      this.prisma.botUser.count({ where: { telegramId: { not: null }, lastActiveAt: { gte: new Date(Date.now() - 7 * 86400000) } } }),
+      this.prisma.botUser.count({ where: { telegramId: { not: null }, lastActiveAt: { gte: new Date(Date.now() - 30 * 86400000) } } }),
+      this.prisma.botUser.count({ where: { maxId: { not: null }, lastActiveAt: { gte: new Date(Date.now() - 7 * 86400000) } } }),
+      this.prisma.botUser.count({ where: { maxId: { not: null }, lastActiveAt: { gte: new Date(Date.now() - 30 * 86400000) } } }),
+      this.prisma.botUser.count({ where: { telegramId: { not: null }, botCredits: 0 } }),
+      this.prisma.botUser.count({ where: { maxId: { not: null }, botCredits: 0 } }),
+      this.prisma.userGeneration.count({ where: { OR: [{ sentToTelegram: true }, { sentToMax: true }] } }),
+    ]);
+
+    // Avg credits per platform
+    type AvgRow = { avg: number | null };
+    const [telegramAvgCreditsRow, maxAvgCreditsRow] = await Promise.all([
+      this.prisma.$queryRaw<AvgRow[]>`
+        SELECT ROUND(AVG("botCredits")::numeric, 1)::float AS avg FROM bot_users WHERE "telegramId" IS NOT NULL
+      `,
+      this.prisma.$queryRaw<AvgRow[]>`
+        SELECT ROUND(AVG("botCredits")::numeric, 1)::float AS avg FROM bot_users WHERE "maxId" IS NOT NULL
+      `,
+    ]);
+
+    // Daily new bot users (last N days)
+    type DailyNewRow = { day: Date; telegram: bigint; max: bigint };
+    const dailyNew: DailyNewRow[] = await this.prisma.$queryRaw`
+      SELECT
+        DATE("createdAt") AS day,
+        COUNT(*) FILTER (WHERE "telegramId" IS NOT NULL) AS telegram,
+        COUNT(*) FILTER (WHERE "maxId" IS NOT NULL) AS max
+      FROM bot_users
+      WHERE "createdAt" > NOW() - (${days} || ' days')::interval
+      GROUP BY day
+      ORDER BY day
+    `;
+
+    // Daily generations per platform (last N days)
+    type DailyGenRow = { day: Date; telegram: bigint; max: bigint };
+    const dailyGenerations: DailyGenRow[] = await this.prisma.$queryRaw`
+      SELECT
+        DATE("createdAt") AS day,
+        COUNT(*) FILTER (WHERE "sentToTelegram" = true) AS telegram,
+        COUNT(*) FILTER (WHERE "sentToMax" = true) AS max
+      FROM user_generations
+      WHERE "createdAt" > NOW() - (${days} || ' days')::interval
+      GROUP BY day
+      ORDER BY day
+    `;
+
+    // Top generation types per platform
+    type TopTypeRow = { type: string; cnt: bigint };
+    const [topTypesTelegram, topTypesMax] = await Promise.all([
+      this.prisma.$queryRaw<TopTypeRow[]>`
+        SELECT "generationType" AS type, COUNT(*) AS cnt
+        FROM user_generations
+        WHERE "sentToTelegram" = true
+        GROUP BY "generationType"
+        ORDER BY cnt DESC
+        LIMIT 10
+      `,
+      this.prisma.$queryRaw<TopTypeRow[]>`
+        SELECT "generationType" AS type, COUNT(*) AS cnt
+        FROM user_generations
+        WHERE "sentToMax" = true
+        GROUP BY "generationType"
+        ORDER BY cnt DESC
+        LIMIT 10
+      `,
+    ]);
+
+    // Funnel: точные данные по платформе из UserGeneration (не из totalGenerations, который суммарный)
+    type FunnelRow = { cnt: bigint };
+    const [
+      tgUsersWithGen,
+      tgUsers5plus,
+      tgUsers20plus,
+      maxUsersWithGen,
+      maxUsers5plus,
+      maxUsers20plus,
+    ] = await Promise.all([
+      this.prisma.$queryRaw<FunnelRow[]>`
+        SELECT COUNT(DISTINCT "userId") AS cnt
+        FROM user_generations
+        WHERE "sentToTelegram" = true
+      `,
+      this.prisma.$queryRaw<FunnelRow[]>`
+        SELECT COUNT(*) AS cnt FROM (
+          SELECT u."userId", COUNT(*) AS gens
+          FROM user_generations u
+          WHERE u."sentToTelegram" = true
+          GROUP BY u."userId" HAVING COUNT(*) >= 5
+        ) t
+      `,
+      this.prisma.$queryRaw<FunnelRow[]>`
+        SELECT COUNT(*) AS cnt FROM (
+          SELECT u."userId", COUNT(*) AS gens
+          FROM user_generations u
+          WHERE u."sentToTelegram" = true
+          GROUP BY u."userId" HAVING COUNT(*) >= 20
+        ) t
+      `,
+      this.prisma.$queryRaw<FunnelRow[]>`
+        SELECT COUNT(DISTINCT u."userId") AS cnt
+        FROM user_generations u
+        WHERE u."sentToMax" = true
+      `,
+      this.prisma.$queryRaw<FunnelRow[]>`
+        SELECT COUNT(*) AS cnt FROM (
+          SELECT u."userId", COUNT(*) AS gens
+          FROM user_generations u
+          WHERE u."sentToMax" = true
+          GROUP BY u."userId" HAVING COUNT(*) >= 5
+        ) t
+      `,
+      this.prisma.$queryRaw<FunnelRow[]>`
+        SELECT COUNT(*) AS cnt FROM (
+          SELECT u."userId", COUNT(*) AS gens
+          FROM user_generations u
+          WHERE u."sentToMax" = true
+          GROUP BY u."userId" HAVING COUNT(*) >= 20
+        ) t
+      `,
+    ]);
+
+    // Registration status per platform
+    type RegRow = { status: string; cnt: bigint };
+    const [telegramByStatus, maxByStatus] = await Promise.all([
+      this.prisma.$queryRaw<RegRow[]>`
+        SELECT "registrationStatus" AS status, COUNT(*) AS cnt
+        FROM bot_users WHERE "telegramId" IS NOT NULL
+        GROUP BY "registrationStatus"
+      `,
+      this.prisma.$queryRaw<RegRow[]>`
+        SELECT "registrationStatus" AS status, COUNT(*) AS cnt
+        FROM bot_users WHERE "maxId" IS NOT NULL
+        GROUP BY "registrationStatus"
+      `,
+    ]);
+
+    const toStatusMap = (rows: RegRow[]) =>
+      Object.fromEntries(rows.map(r => [r.status, Number(r.cnt)]));
+
+    return {
+      overview: {
+        totalBotUsers,
+        telegramUsers,
+        maxUsers,
+        bothPlatforms,
+        pending,
+        registered,
+        linked,
+        usersWithGenerations,
+        usersWithoutGenerations,
+        totalGensTelegram,
+        totalGensMax,
+        totalGensAnyBot,
+      },
+      funnel: {
+        telegram: {
+          pressedStart: telegramUsers,
+          registered: (toStatusMap(telegramByStatus)['registered'] ?? 0) + (toStatusMap(telegramByStatus)['linked'] ?? 0),
+          firstGeneration: Number(tgUsersWithGen[0]?.cnt ?? 0),
+          fivePlusGenerations: Number(tgUsers5plus[0]?.cnt ?? 0),
+          twentyPlusGenerations: Number(tgUsers20plus[0]?.cnt ?? 0),
+        },
+        max: {
+          pressedStart: maxUsers,
+          registered: (toStatusMap(maxByStatus)['registered'] ?? 0) + (toStatusMap(maxByStatus)['linked'] ?? 0),
+          firstGeneration: Number(maxUsersWithGen[0]?.cnt ?? 0),
+          fivePlusGenerations: Number(maxUsers5plus[0]?.cnt ?? 0),
+          twentyPlusGenerations: Number(maxUsers20plus[0]?.cnt ?? 0),
+        },
+      },
+      activity: {
+        telegram: {
+          active7d: telegramActive7d,
+          active30d: telegramActive30d,
+          avgCredits: telegramAvgCreditsRow[0]?.avg ?? 0,
+          zeroCredits: telegramZeroCredits,
+        },
+        max: {
+          active7d: maxActive7d,
+          active30d: maxActive30d,
+          avgCredits: maxAvgCreditsRow[0]?.avg ?? 0,
+          zeroCredits: maxZeroCredits,
+        },
+      },
+      charts: {
+        dailyNew: dailyNew.map(r => ({ day: r.day, telegram: Number(r.telegram), max: Number(r.max) })),
+        dailyGenerations: dailyGenerations.map(r => ({ day: r.day, telegram: Number(r.telegram), max: Number(r.max) })),
+        topTypesTelegram: topTypesTelegram.map(r => ({ type: r.type, count: Number(r.cnt) })),
+        topTypesMax: topTypesMax.map(r => ({ type: r.type, count: Number(r.cnt) })),
+      },
+    };
+  }
 }

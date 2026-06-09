@@ -327,6 +327,12 @@ export class AdminController {
     return this.adminService.getPeriodComparison(period || 'week');
   }
 
+  // ========== BOT ANALYTICS ==========
+  @Get('bots')
+  async getBotAnalytics(@Query('days') days?: string) {
+    return this.adminService.getBotAnalytics(days ? parseInt(days) : 30);
+  }
+
   // ========== ADMIN MANAGEMENT ==========
   @Get('admins')
   async getAdmins() {
