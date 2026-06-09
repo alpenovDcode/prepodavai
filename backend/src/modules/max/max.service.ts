@@ -382,6 +382,18 @@ export class MaxService {
         return;
       }
 
+      // Ввод произвольной даты срока сдачи домашнего задания
+      const hwState = this.getMaxPlatformState(userIdForDb);
+      if (text && hwState.pendingHwTarget) {
+        const iso = this.parseRuDate(text);
+        if (iso) {
+          await this.doAssignHomework(chatId, userIdForDb, 0, iso);
+        } else {
+          await this.sendMessage(chatId, '❌ Не удалось распознать дату. Попробуйте: *20 июня*, *20.06* или *20/06/2026*.');
+        }
+        return;
+      }
+
       // Пользователь пишет текст вне активной сессии — NL-интерфейс
       const MENU_TRIGGERS = new Set(['старт', 'start', 'начало', 'заново', 'сначала', 'сначало', 'поехали', 'погнали']);
       if (text && MENU_TRIGGERS.has(text.toLowerCase())) {
@@ -546,7 +558,7 @@ export class MaxService {
         if (!Number.isFinite(idx) || idx < 0) return;
         const state = this.getMaxPlatformState(userId);
         state.pendingHwClassIdx = idx;
-        await this.sendMessageWithKeyboard(chatId, '📅 Выберите срок сдачи:', this.buildDueDateAttachment());
+        await this.sendMessageWithKeyboard(chatId, '📅 Выберите срок сдачи или напишите дату текстом (например: *20 июня*, *20.06*):', this.buildDueDateAttachment());
         return;
       }
       if (payload.startsWith('hw:sc:')) {
@@ -560,7 +572,7 @@ export class MaxService {
         if (!Number.isFinite(idx) || idx < 0) return;
         const state = this.getMaxPlatformState(userId);
         state.pendingHwStudentIdx = idx;
-        await this.sendMessageWithKeyboard(chatId, '📅 Выберите срок сдачи:', this.buildDueDateAttachment());
+        await this.sendMessageWithKeyboard(chatId, '📅 Выберите срок сдачи или напишите дату текстом (например: *20 июня*, *20.06*):', this.buildDueDateAttachment());
         return;
       }
       if (payload.startsWith('hw:d:')) {
@@ -1712,6 +1724,7 @@ export class MaxService {
       'game: игра. type("millionaire"|"flashcards"|"crossword"|"memory"|"truefalse"), topic\n' +
       'presentation: презентация. topic, duration("5"|"15"|"30"|"45"), style("modern"|"academic"|"creative"|"corporate"), targetAudience("students"|"colleagues"|"parents"|"general")\n\n' +
       'Правило: включай в params только поля явно упомянутые в запросе. Значения select строго из списка.\n' +
+      `Сегодняшняя дата: ${new Date().toISOString().split('T')[0]}. Используй текущий год при указании дат без года.\n` +
       'Для assign_homework: target="student" если упомянут ученик/ему, target="class" если класс (по умолчанию "class"). dueDate — дата в ISO (YYYY-MM-DD) если явно указана, иначе не включай.\n' +
       'Примеры триггеров:\n' +
       'generate: "создай тест", "придумай задание", "сделай рабочий лист", "составь план урока", "хочу тест по математике", "нужен кроссворд", "подготовь словарный диктант", "сгенерируй игру", "сделай словарь"\n' +
@@ -1748,8 +1761,16 @@ export class MaxService {
 
       if (parsed.action === 'assign_homework') {
         const target: 'student' | 'class' = parsed.target === 'student' ? 'student' : 'class';
-        const dueDate = typeof parsed.dueDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(parsed.dueDate)
-          ? parsed.dueDate : undefined;
+        let dueDate: string | undefined;
+        if (typeof parsed.dueDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(parsed.dueDate)) {
+          const d = new Date(parsed.dueDate);
+          const today = new Date(); today.setHours(0, 0, 0, 0);
+          if (d < today) {
+            // Gemini gave a past date — advance year by year until it's in the future
+            while (d < today) d.setFullYear(d.getFullYear() + 1);
+          }
+          dueDate = d.toISOString().split('T')[0];
+        }
         return { action: 'assign_homework', target, dueDate };
       }
 
@@ -2160,7 +2181,7 @@ export class MaxService {
     state.pendingHwGenTopic = gen.topic || gen.type || 'Материал из MAX';
     state.pendingViewGenType = gen.type;
 
-    await this.sendMessageWithKeyboard(chatId, '📅 Выберите срок сдачи:', this.buildDueDateAttachment());
+    await this.sendMessageWithKeyboard(chatId, '📅 Выберите срок сдачи или напишите дату текстом (например: *20 июня*, *20.06*):', this.buildDueDateAttachment());
   }
 
   // ── Homework assignment ───────────────────────────────────────────────────
@@ -2286,7 +2307,32 @@ export class MaxService {
     }];
   }
 
-  private async doAssignHomework(chatId: string, userId: string, daysUntilDue: number): Promise<void> {
+  private parseRuDate(text: string): string | null {
+    const t = text.trim().toLowerCase();
+    const RU_MONTHS: Record<string, number> = {
+      'января': 1, 'февраля': 2, 'марта': 3, 'апреля': 4, 'мая': 5, 'июня': 6,
+      'июля': 7, 'августа': 8, 'сентября': 9, 'октября': 10, 'ноября': 11, 'декабря': 12,
+      'янв': 1, 'фев': 2, 'мар': 3, 'апр': 4, 'май': 5, 'июн': 6,
+      'июл': 7, 'авг': 8, 'сен': 9, 'окт': 10, 'ноя': 11, 'дек': 12,
+    };
+    const now = new Date(); now.setHours(0, 0, 0, 0);
+    const year = now.getFullYear();
+    const tryBuild = (d: number, m: number, y: number): string | null => {
+      if (m < 1 || m > 12 || d < 1 || d > 31) return null;
+      const date = new Date(y, m - 1, d);
+      if (date < now) return null;
+      return date.toISOString().split('T')[0];
+    };
+    const ru = t.match(/^(\d{1,2})\s+([а-яёa-z]+)(?:\s+(\d{4}))?$/);
+    if (ru) { const m = RU_MONTHS[ru[2]]; if (m) return tryBuild(+ru[1], m, ru[3] ? +ru[3] : year); }
+    const dot = t.match(/^(\d{1,2})\.(\d{1,2})(?:\.(\d{2,4}))?$/);
+    if (dot) { let y = dot[3] ? +dot[3] : year; if (y < 100) y += 2000; return tryBuild(+dot[1], +dot[2], y); }
+    const sl = t.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?$/);
+    if (sl) { let y = sl[3] ? +sl[3] : year; if (y < 100) y += 2000; return tryBuild(+sl[1], +sl[2], y); }
+    return null;
+  }
+
+  private async doAssignHomework(chatId: string, userId: string, daysUntilDue: number, isoDate?: string): Promise<void> {
     const state = this.getMaxPlatformState(userId);
     const { pendingHwGenId, pendingHwTarget, pendingHwClassIdx, pendingHwStudentIdx } = state;
 
@@ -2317,9 +2363,11 @@ export class MaxService {
       targetLabel = student.name;
     }
 
-    const dueDate = daysUntilDue > 0
-      ? new Date(Date.now() + daysUntilDue * 86_400_000).toISOString()
-      : undefined;
+    const dueDate = isoDate
+      ? new Date(isoDate).toISOString()
+      : daysUntilDue > 0
+        ? new Date(Date.now() + daysUntilDue * 86_400_000).toISOString()
+        : undefined;
 
     const topicTitle = state.pendingHwGenTopic || 'Материал из MAX';
 
