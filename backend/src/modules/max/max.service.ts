@@ -166,6 +166,15 @@ export class MaxService {
   // ── Message handler ───────────────────────────────────────────────────────
   private async handleMessage(message: any) {
     if (!message) return;
+    // MAX API: chat_type='dialog' — приватный чат с ботом; 'chat'/'channel' —
+    // групповой чат или канал. Бот должен реагировать ТОЛЬКО в личке, иначе
+    // в чатах сообществ он отвечал бы на каждое сообщение участников.
+    const chatType: string | undefined =
+      message.recipient?.chat_type ?? message.chat?.type ?? message.chat_type;
+    if (chatType && chatType !== 'dialog' && chatType !== 'private') {
+      this.logger.log(`[Webhook] skipping non-private chat: chat_type=${chatType}`);
+      return;
+    }
     try {
       // Ignore non-personal messages (channels, groups, channel DMs)
       const chatType = message.recipient?.chat_type;

@@ -715,3 +715,43 @@ model BotUser {
   @@index([appUserId])
   @@map("bot_users")
 }
+
+// ────────────────────────────────────────────────────────────────────────────
+// Всплывающие модальные окна на главной странице (опросы, анонсы, реклама).
+// Создаются админом через /admin/popups. На фронте показывается активный popup
+// с наибольшим priority через N секунд после загрузки dashboard.
+// ────────────────────────────────────────────────────────────────────────────
+model DashboardPopup {
+  id            String   @id @default(uuid())
+  title         String?  // Заголовок модалки (опционально)
+  body          String   // Текст. Поддерживает переносы строк и автоопределение URL.
+  ctaText       String?  // Подпись основной кнопки. Если null — только «Закрыть».
+  ctaUrl        String?  // URL для основной кнопки.
+  delaySeconds  Int      @default(5)   // Задержка показа после загрузки страницы.
+  isActive      Boolean  @default(true)
+  priority      Int      @default(0)   // Чем больше — тем приоритетнее, если активно несколько.
+  startsAt      DateTime?
+  endsAt        DateTime?
+  createdBy     String?  // appUser.id админа
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  dismissals    DashboardPopupDismissal[]
+
+  @@index([isActive, priority])
+  @@map("dashboard_popups")
+}
+
+// Кто и когда закрыл popup — чтобы не показывать одному пользователю повторно.
+model DashboardPopupDismissal {
+  id        String   @id @default(uuid())
+  popupId   String
+  userId    String
+  createdAt DateTime @default(now())
+
+  popup     DashboardPopup @relation(fields: [popupId], references: [id], onDelete: Cascade)
+
+  @@unique([popupId, userId])
+  @@index([userId])
+  @@map("dashboard_popup_dismissals")
+}

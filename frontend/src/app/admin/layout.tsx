@@ -67,6 +67,7 @@ export default function AdminLayout({
         { name: 'Классы', href: '/admin/classes', icon: BookOpen },
         { name: 'Финансы', href: '/admin/finances', icon: CreditCard },
         { name: 'Маркетинг', href: '/admin/marketing', icon: Megaphone },
+        { name: 'Popup-окна', href: '/admin/popups', icon: Megaphone },
         { name: 'UTM-ссылки', href: '/admin/utm', icon: Link2 },
         { name: 'Тарифы', href: '/admin/tariffs', icon: CrownIcon },
         { name: 'Продукт', href: '/admin/product-analytics', icon: FlaskConical },

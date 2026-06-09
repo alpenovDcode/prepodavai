@@ -1679,6 +1679,18 @@ async function handleSubscriptionCheck(ctx: Context, telegramId: string): Promis
   await ctx.reply('🛠️ *Выберите инструмент:*', { parse_mode: 'Markdown', reply_markup: buildToolSelectionKeyboard() });
 }
 
+// ── Глобальный фильтр: бот работает ТОЛЬКО в личных чатах ────────────────────
+// Иначе при добавлении в группу/канал/супергруппу бот реагирует на каждое
+// сообщение участников (классификация intent, /start, файлы и т.п.) — это
+// пугает пользователей и ломает чаты сообществ. Из группы/канала ничего не
+// отвечаем; уходить НЕ заставляем — бот может быть там оставлен сознательно
+// (например, для deep-link приглашений или мониторинга).
+bot.use(async (ctx, next) => {
+  const chat = ctx.chat;
+  if (chat && chat.type !== 'private') return; // silent in groups/channels/supergroups
+  await next();
+});
+
 // ── Команда /start ────────────────────────────────────────────────────────────
 bot.command('start', async (ctx: Context) => {
   const user = ctx.from;

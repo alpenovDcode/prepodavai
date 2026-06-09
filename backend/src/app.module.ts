@@ -40,6 +40,7 @@ import { ReferralsModule } from './modules/referrals/referrals.module';
 import { OnboardingQuestModule } from './modules/onboarding-quest/onboarding-quest.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { TeacherDiaryModule } from './modules/teacher-diary/teacher-diary.module';
+import { PopupsModule } from './modules/popups/popups.module';
 
 @Module({
   imports: [
@@ -109,6 +110,7 @@ import { TeacherDiaryModule } from './modules/teacher-diary/teacher-diary.module
     OnboardingQuestModule,
     PaymentsModule,
     TeacherDiaryModule,
+    PopupsModule,
   ],
   controllers: [AppController],
   providers: [
