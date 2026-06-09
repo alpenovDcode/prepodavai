@@ -64,6 +64,9 @@ export default function UserStatsPage({ params }: { params: { id: string } }) {
     const [selectedPlan, setSelectedPlan] = useState<string>('')
     const [planSaving, setPlanSaving] = useState(false)
     const [planMessage, setPlanMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+    const [newEndDate, setNewEndDate] = useState<string>('')
+    const [dateSaving, setDateSaving] = useState(false)
+    const [dateMessage, setDateMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
     const currentPlanKey = stats?.subscription?.planKey ?? ''
 
@@ -80,6 +83,23 @@ export default function UserStatsPage({ params }: { params: { id: string } }) {
             setPlanMessage({ type: 'error', text: e.response?.data?.message || 'Ошибка изменения тарифа' })
         } finally {
             setPlanSaving(false)
+        }
+    }
+
+    const handleEndDateChange = async () => {
+        if (!newEndDate || !stats?.subscription?.id) return
+        setDateSaving(true)
+        setDateMessage(null)
+        try {
+            await apiClient.put(`/admin/subscriptions/${stats.subscription.id}`, { endDate: new Date(newEndDate).toISOString() })
+            setDateMessage({ type: 'success', text: 'Дата подписки обновлена' })
+            setNewEndDate('')
+            mutate()
+            setTimeout(() => setDateMessage(null), 3000)
+        } catch (e: any) {
+            setDateMessage({ type: 'error', text: e.response?.data?.message || 'Ошибка обновления даты' })
+        } finally {
+            setDateSaving(false)
         }
     }
 
@@ -297,6 +317,32 @@ export default function UserStatsPage({ params }: { params: { id: string } }) {
                                 {planMessage && (
                                     <p className={`text-xs mt-1 font-medium ${planMessage.type === 'success' ? 'text-emerald-600' : 'text-red-600'}`}>
                                         {planMessage.text}
+                                    </p>
+                                )}
+                            </div>
+
+                            {/* Продление подписки */}
+                            <div className="pt-3 border-t border-gray-100">
+                                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Продлить до</p>
+                                <div className="flex items-center gap-2 mb-1">
+                                    <input
+                                        type="date"
+                                        value={newEndDate}
+                                        onChange={(e) => setNewEndDate(e.target.value)}
+                                        className="flex-1 text-sm border border-gray-200 rounded-lg px-2 py-1.5 focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white"
+                                    />
+                                    <button
+                                        onClick={handleEndDateChange}
+                                        disabled={dateSaving || !newEndDate}
+                                        className="px-3 py-1.5 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700 transition disabled:opacity-40 flex items-center gap-1.5"
+                                    >
+                                        {dateSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+                                        Сохранить
+                                    </button>
+                                </div>
+                                {dateMessage && (
+                                    <p className={`text-xs mt-1 font-medium ${dateMessage.type === 'success' ? 'text-emerald-600' : 'text-red-600'}`}>
+                                        {dateMessage.text}
                                     </p>
                                 )}
                             </div>
