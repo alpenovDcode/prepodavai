@@ -961,6 +961,7 @@ export class AdminService {
         referrals: { invited: referralsInvited, converted: referralsConverted },
         subscription: subscription
           ? {
+              id: subscription.id,
               plan: subscription.plan.planName,
               planKey: subscription.plan.planKey,
               status: subscription.status,
