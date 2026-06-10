@@ -955,13 +955,22 @@ export class GenerationsService {
       throw new BadRequestException('No topic provided for presentation generation');
     }
 
+    const parsedNumCards = numCards ? Math.max(3, parseInt(String(numCards), 10) || 3) : 0;
+    const parsedDuration = duration ? parseInt(String(duration), 10) || 0 : 0;
+    // Точное соответствие подписям в UI: 5→5, 15→10, 30→20, 45→30
+    const DURATION_TO_SLIDES: Record<number, number> = { 5: 5, 15: 10, 30: 20, 45: 30 };
+    const slidesFromDuration = parsedDuration
+      ? (DURATION_TO_SLIDES[parsedDuration] ?? Math.max(3, Math.round(parsedDuration / 1.5)))
+      : 0;
+    const computedNumCards = parsedNumCards || slidesFromDuration || 7;
+
     await this.replicatePresentationQueue.add('generate', {
       generationRequestId,
       topic,
       duration,
       style,
       targetAudience,
-      numCards: numCards || 7,
+      numCards: computedNumCards,
     });
 
     this.logger.log(`Enqueued Replicate presentation job for ${generationRequestId}`);

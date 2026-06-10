@@ -2860,7 +2860,7 @@ export class MaxService {
 
     try {
       const htmlContent = this.htmlExportService.normalizeIncomingHtml(content);
-      const pdfBuffer = await this.htmlExportService.htmlToPdf(htmlContent);
+      const pdfBuffer = await this.htmlExportService.htmlToPdf(htmlContent, { blockExternalRequests: true });
       await this.uploadAndSendFile(chatId, pdfBuffer, filename, '✅ Ваш материал готов!');
       return;
     } catch (error) {

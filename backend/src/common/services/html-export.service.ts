@@ -139,7 +139,16 @@ export class HtmlExportService implements OnModuleDestroy {
       /<body[\s>]/i.test(processed) ||
       /<\/?[a-z][\s\S]*>/i.test(processed);
 
-    return looksLikeHtml ? processed : this.wrapPlainTextAsHtml(text);
+    return looksLikeHtml ? this.ensureHtmlDocument(processed) : this.wrapPlainTextAsHtml(text);
+  }
+
+  private ensureHtmlDocument(html: string): string {
+    const trimmed = html.trim();
+    if (/<!DOCTYPE html/i.test(trimmed)) return trimmed;
+    if (/<html[\s>]/i.test(trimmed)) return `<!DOCTYPE html>\n${trimmed}`;
+    const styleBlocks: string[] = [];
+    const body = trimmed.replace(/<style[\s\S]*?<\/style>/gi, (m) => { styleBlocks.push(m); return ''; });
+    return `<!DOCTYPE html>\n<html lang="ru">\n<head>\n<meta charset="utf-8"/>\n${styleBlocks.join('\n')}\n</head>\n<body>\n${body.trim()}\n</body>\n</html>`;
   }
 
   private wrapPlainTextAsHtml(text: string): string {
@@ -249,7 +258,7 @@ export class HtmlExportService implements OnModuleDestroy {
   }
 
 
-  async htmlToPdf(html: string): Promise<Buffer> {
+  async htmlToPdf(html: string, options?: { blockExternalRequests?: boolean }): Promise<Buffer> {
     console.log(`[HtmlExport] Starting PDF generation, HTML length: ${html.length}`);
 
     let browser: Browser;
@@ -272,8 +281,21 @@ export class HtmlExportService implements OnModuleDestroy {
       // иначе строки перед разрывом стабильно «съезжают».
       await page.setViewportSize({ width: 794, height: 1123 });
 
-      // networkidle ensures CDN scripts (MathJax, fonts) finish loading before PDF
-      await page.setContent(processedHtml, { waitUntil: 'networkidle', timeout: 60000 });
+      if (options?.blockExternalRequests) {
+        // Bot context: block external HTTP requests (Google Fonts, CDNs) to prevent
+        // setContent from hanging until timeout. Fonts fall back to system fonts.
+        await page.route('**/*', (route) => {
+          const url = route.request().url();
+          if (url.startsWith('http://') || url.startsWith('https://')) {
+            route.abort().catch(() => {});
+          } else {
+            route.continue().catch(() => {});
+          }
+        });
+        await page.setContent(processedHtml, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      } else {
+        await page.setContent(processedHtml, { waitUntil: 'networkidle', timeout: 60000 });
+      }
 
       // Pre-PDF DOM transformation:
       //   SVGs  → ensure explicit dims for PDF engine

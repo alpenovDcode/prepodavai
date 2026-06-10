@@ -106,6 +106,19 @@ async function htmlToPdf(html: string): Promise<Buffer> {
   const page = await browser.newPage();
 
   try {
+    // Block external HTTP requests (Google Fonts, CDNs) — they cause setContent
+    // to hang until timeout because the container has no reliable internet access.
+    // Fonts fall back to system fonts; content is unaffected.
+    await page.setRequestInterception(true);
+    page.on('request', (req) => {
+      const url = req.url();
+      if (url.startsWith('http://') || url.startsWith('https://')) {
+        req.abort().catch(() => {});
+      } else {
+        req.continue().catch(() => {});
+      }
+    });
+
     await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 30000 });
 
     // Try to render formulas with MathJax
@@ -171,6 +184,19 @@ function extractHtmlPayload(value: string): { isHtml: boolean; html: string } {
 
   const isHtml = looksLikeHtml(processed) || /<\/?[a-z][\s\S]*>/i.test(processed);
   return { isHtml, html: processed };
+}
+
+// Гарантирует что HTML-строка является валидным документом с DOCTYPE.
+// Если контент уже начинается с <!DOCTYPE html> — возвращаем as-is.
+// Если есть <html> тег но нет DOCTYPE — добавляем.
+// Если нет обёртки — извлекаем <style> блоки в <head>, остальное в <body>.
+function ensureHtmlDocument(html: string): string {
+  const trimmed = html.trim();
+  if (/<!DOCTYPE html/i.test(trimmed)) return trimmed;
+  if (/<html[\s>]/i.test(trimmed)) return `<!DOCTYPE html>\n${trimmed}`;
+  const styleBlocks: string[] = [];
+  const body = trimmed.replace(/<style[\s\S]*?<\/style>/gi, (m) => { styleBlocks.push(m); return ''; });
+  return `<!DOCTYPE html>\n<html lang="ru">\n<head>\n<meta charset="utf-8"/>\n${styleBlocks.join('\n')}\n</head>\n<body>\n${body.trim()}\n</body>\n</html>`;
 }
 
 function wrapPlainTextAsHtml(text: string): string {
@@ -358,7 +384,9 @@ const telegramSendWorker = new Worker(
 
         try {
           console.log(`[Telegram] Generating PDF for ${generationType}, text length: ${text.length}`);
-          const htmlContent = htmlPayload.isHtml ? htmlPayload.html : wrapPlainTextAsHtml(text);
+          const htmlContent = htmlPayload.isHtml
+            ? ensureHtmlDocument(htmlPayload.html)
+            : wrapPlainTextAsHtml(text);
           console.log(`[Telegram] HTML content prepared, length: ${htmlContent.length}`);
 
           const pdfBuffer = await htmlToPdf(htmlContent);
@@ -370,8 +398,13 @@ const telegramSendWorker = new Worker(
           console.log(`[Telegram] PDF sent successfully to ${chatId}`);
         } catch (error) {
           console.error(`[Telegram] Failed to render PDF for ${generationType}:`, error);
-          // Fallback: strip HTML tags before sending as plain text
-          const plainText = text.replace(/<[^>]+>/g, ' ').replace(/\s{2,}/g, ' ').trim();
+          // Fallback: strip style/script blocks entirely, then remaining tags
+          const plainText = text
+            .replace(/<style[\s\S]*?<\/style>/gi, '')
+            .replace(/<script[\s\S]*?<\/script>/gi, '')
+            .replace(/<[^>]+>/g, ' ')
+            .replace(/\s{2,}/g, ' ')
+            .trim();
           const fallbackText = plainText.length > 3000
             ? plainText.substring(0, 2900) + '\n\n... (полный текст слишком длинный).'
             : plainText;

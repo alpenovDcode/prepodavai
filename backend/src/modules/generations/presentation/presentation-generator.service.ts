@@ -104,7 +104,7 @@ export class PresentationGeneratorService {
   constructor(private readonly replicate: ReplicateService) {}
 
   async generate(params: GenerateDocParams): Promise<SlideDoc> {
-    const numSlides = Math.max(3, Math.min(params.numSlides ?? 7, 15));
+    const numSlides = Math.max(3, Math.min(params.numSlides ?? 7, 40));
 
     const outline = await this.generateOutline(
       { topic: params.topic, audience: params.audience, durationMinutes: params.durationMinutes, numSlides },
