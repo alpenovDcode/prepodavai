@@ -29,6 +29,22 @@ const IMAGE_MODEL_FALLBACK = 'black-forest-labs/flux-schnell';
 const safeId = (prefix: string) =>
   `${prefix}_${Math.random().toString(36).slice(2, 10)}`;
 
+async function batchMap<T, R>(
+  items: T[],
+  batchSize: number,
+  fn: (item: T, idx: number) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = [];
+  for (let i = 0; i < items.length; i += batchSize) {
+    const batch = items.slice(i, i + batchSize);
+    const batchResults = await Promise.all(
+      batch.map((item, j) => fn(item, i + j)),
+    );
+    results.push(...batchResults);
+  }
+  return results;
+}
+
 const stripJsonFence = (raw: string): string =>
   raw
     .replace(/```json/gi, '')
@@ -127,8 +143,10 @@ export class PresentationGeneratorService {
       this.logger.log(`Glossary fixed ${glossary.length} terms`);
     }
 
-    const slides: Slide[] = await Promise.all(
-      outline.slides.map(async (item, idx) => {
+    const slides: Slide[] = await batchMap(
+      outline.slides,
+      5,
+      async (item, idx) => {
         const slide = await this.generateSlideContent(
           params.topic,
           params.audience,
@@ -140,7 +158,7 @@ export class PresentationGeneratorService {
         );
         params.onSlideReady?.(idx, slide);
         return slide;
-      }),
+      },
     );
 
     await this.populateImages(slides, params.failureSink);
@@ -300,18 +318,20 @@ export class PresentationGeneratorService {
   }
 
   private async populateImages(slides: Slide[], sink?: RawFailureSink): Promise<void> {
-    await Promise.all(
-      slides.map(async (slide) => {
-        if (!slide.image?.prompt) return;
+    const slidesWithImages = slides.filter((s) => s.image?.prompt);
+    await batchMap(
+      slidesWithImages,
+      3,
+      async (slide) => {
         const aspect = aspectForLayout(slide.layout);
-        const url = await this.fetchImageWithCache(slide.image.prompt, aspect, sink);
+        const url = await this.fetchImageWithCache(slide.image!.prompt, aspect, sink);
         if (url) {
-          slide.image.url = url;
+          slide.image!.url = url;
         } else {
           this.logger.warn(`No image URL for slide ${slide.id}; clearing image.`);
           slide.image = undefined;
         }
-      }),
+      },
     );
   }
 
