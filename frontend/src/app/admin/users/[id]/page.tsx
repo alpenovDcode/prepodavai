@@ -8,7 +8,8 @@ import {
     ArrowLeft, User, Zap, Users, GitBranch, BookOpen,
     CreditCard, CheckCircle, Clock, TrendingUp, Loader2,
     Mail, Phone, BookOpenCheck, GraduationCap, MessageSquare, Link2,
-    UserPlus, UserCheck, UserCog
+    UserPlus, UserCheck, UserCog, MapPin, Shield, AlertTriangle,
+    Flame, Download, Send, Globe, ChevronRight
 } from 'lucide-react'
 
 const fetcher = (url: string) => apiClient.get(url).then(r => r.data)
@@ -61,12 +62,31 @@ export default function UserStatsPage({ params }: { params: { id: string } }) {
     const stats = data?.stats
     const { data: invitedData } = useSWR(`/admin/users/${id}/referrals`, fetcher)
 
+    const { data: cjmData } = useSWR(`/admin/users/${id}/cjm`, fetcher)
+    const cjm = cjmData
+
     const [selectedPlan, setSelectedPlan] = useState<string>('')
     const [planSaving, setPlanSaving] = useState(false)
     const [planMessage, setPlanMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
     const [newEndDate, setNewEndDate] = useState<string>('')
     const [dateSaving, setDateSaving] = useState(false)
     const [dateMessage, setDateMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+    const [cjmExporting, setCjmExporting] = useState(false)
+
+    const handleExportCjm = async () => {
+        setCjmExporting(true)
+        try {
+            const res = await apiClient.get(`/admin/users/${id}/cjm/export`, { responseType: 'blob' })
+            const url = URL.createObjectURL(new Blob([res.data], { type: 'text/csv' }))
+            const a = document.createElement('a')
+            a.href = url
+            a.download = `cjm_${id}.csv`
+            a.click()
+            URL.revokeObjectURL(url)
+        } finally {
+            setCjmExporting(false)
+        }
+    }
 
     const currentPlanKey = stats?.subscription?.planKey ?? ''
 
@@ -552,6 +572,247 @@ export default function UserStatsPage({ params }: { params: { id: string } }) {
                     </table>
                 )}
             </div>
+
+            {/* CJM */}
+            {cjm && (
+                <div className="space-y-4">
+                    {/* Заголовок + экспорт */}
+                    <div className="flex items-center justify-between">
+                        <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                            <MapPin className="w-5 h-5 text-indigo-500" /> CJM пользователя
+                        </h2>
+                        <button
+                            onClick={handleExportCjm}
+                            disabled={cjmExporting}
+                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition disabled:opacity-40"
+                        >
+                            {cjmExporting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />}
+                            Экспорт CSV
+                        </button>
+                    </div>
+
+                    {/* Этап + churn risk */}
+                    <div className="flex flex-wrap gap-3">
+                        {(() => {
+                            const stageLabels: Record<string, string> = {
+                                registered_only: 'Только зарегистрирован',
+                                generating_free: 'Генерирует (free)',
+                                subscribed_active: 'Активная подписка',
+                                subscribed_expired: 'Подписка истекла',
+                                churned: 'Отток',
+                            }
+                            const stageColors: Record<string, string> = {
+                                registered_only: 'bg-gray-100 text-gray-700',
+                                generating_free: 'bg-blue-100 text-blue-700',
+                                subscribed_active: 'bg-emerald-100 text-emerald-700',
+                                subscribed_expired: 'bg-amber-100 text-amber-700',
+                                churned: 'bg-red-100 text-red-700',
+                            }
+                            const riskColors: Record<string, string> = {
+                                low: 'bg-emerald-100 text-emerald-700',
+                                medium: 'bg-amber-100 text-amber-700',
+                                high: 'bg-red-100 text-red-700',
+                            }
+                            const riskIcons: Record<string, JSX.Element> = {
+                                low: <Shield className="w-3 h-3" />,
+                                medium: <AlertTriangle className="w-3 h-3" />,
+                                high: <Flame className="w-3 h-3" />,
+                            }
+                            return (
+                                <>
+                                    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${stageColors[cjm.currentStage] || 'bg-gray-100 text-gray-700'}`}>
+                                        {stageLabels[cjm.currentStage] || cjm.currentStage}
+                                    </span>
+                                    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${riskColors[cjm.churnRisk]}`}>
+                                        {riskIcons[cjm.churnRisk]} Churn-риск: {cjm.churnRisk === 'low' ? 'низкий' : cjm.churnRisk === 'medium' ? 'средний' : 'высокий'}
+                                    </span>
+                                    {cjm.churnSignals.map((s: string) => (
+                                        <span key={s} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs bg-red-50 text-red-600 font-medium">
+                                            <AlertTriangle className="w-3 h-3" /> {s}
+                                        </span>
+                                    ))}
+                                </>
+                            )
+                        })()}
+                    </div>
+
+                    {/* Горизонтальный таймлайн */}
+                    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+                        <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">Путь пользователя</h3>
+                        <div className="flex items-start gap-2 flex-wrap">
+                            {[
+                                { label: 'Старт бота', date: cjm.journey.botStartedAt, color: 'bg-blue-500' },
+                                { label: 'Регистрация', date: cjm.journey.platformRegisteredAt, color: 'bg-indigo-500' },
+                                { label: 'Первая генерация', date: cjm.journey.firstGenerationAt, color: 'bg-emerald-500' },
+                                { label: 'Первый платёж', date: cjm.journey.firstPaymentAt, color: 'bg-amber-500' },
+                            ].filter(e => e.date).map((e, i, arr) => (
+                                <div key={e.label} className="flex items-center gap-2">
+                                    <div className="flex flex-col items-center">
+                                        <div className={`w-2.5 h-2.5 rounded-full ${e.color}`} />
+                                        <p className="text-[10px] text-gray-500 mt-1 whitespace-nowrap">{e.label}</p>
+                                        <p className="text-[10px] font-medium text-gray-700 whitespace-nowrap">
+                                            {new Date(e.date).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: '2-digit' })}
+                                        </p>
+                                    </div>
+                                    {i < arr.length - 1 && <ChevronRight className="w-3 h-3 text-gray-300 flex-shrink-0 mb-4" />}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        {/* Аквизиция */}
+                        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+                            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                                <Globe className="w-3.5 h-3.5" /> Привлечение
+                            </h3>
+                            <div className="space-y-2 text-sm">
+                                {[
+                                    ['Источник (web)', cjm.acquisition.source],
+                                    ['UTM Source', cjm.acquisition.utmSource],
+                                    ['UTM Medium', cjm.acquisition.utmMedium],
+                                    ['UTM Campaign', cjm.acquisition.utmCampaign],
+                                    ['UTM Content', cjm.acquisition.utmContent],
+                                    ['UTM Term', cjm.acquisition.utmTerm],
+                                    ['Landing Page', cjm.acquisition.utmLandingPage],
+                                    ['UTM Link', cjm.acquisition.utmLinkName],
+                                    ['Реферал', cjm.acquisition.referredByCode],
+                                ].map(([k, v]) => v ? (
+                                    <div key={k} className="flex justify-between gap-2">
+                                        <span className="text-gray-400 flex-shrink-0">{k}</span>
+                                        <span className="text-gray-800 font-medium text-right truncate max-w-[180px]">{v}</span>
+                                    </div>
+                                ) : null)}
+                            </div>
+                            {cjm.acquisition.botStartPayload && (
+                                <div className="mt-3 pt-3 border-t border-gray-100 space-y-2 text-sm">
+                                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1">
+                                        <Send className="w-3 h-3" /> Бот-привлечение
+                                    </p>
+                                    {[
+                                        ['Start payload', cjm.acquisition.botStartPayload],
+                                        ['UTM Source (бот)', cjm.acquisition.botUtmSource],
+                                        ['UTM Medium (бот)', cjm.acquisition.botUtmMedium],
+                                        ['UTM Campaign (бот)', cjm.acquisition.botUtmCampaign],
+                                    ].map(([k, v]) => v ? (
+                                        <div key={k} className="flex justify-between gap-2">
+                                            <span className="text-gray-400 flex-shrink-0">{k}</span>
+                                            <span className="text-gray-800 font-medium text-right truncate max-w-[160px]">{v}</span>
+                                        </div>
+                                    ) : null)}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Тайминги + активность */}
+                        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
+                            <div>
+                                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Тайминги</h3>
+                                <div className="grid grid-cols-2 gap-3">
+                                    {[
+                                        ['До первой генерации', cjm.timings.daysToFirstGen, 'дн.'],
+                                        ['До первого платежа', cjm.timings.daysToFirstPayment, 'дн.'],
+                                        ['Дней с регистрации', cjm.timings.daysSinceRegistration, 'дн.'],
+                                        ['Дней без активности', cjm.timings.daysSinceLastActivity, 'дн.'],
+                                    ].map(([label, val, unit]) => (
+                                        <div key={label as string} className="bg-gray-50 rounded-xl p-3">
+                                            <p className="text-xs text-gray-400 mb-0.5">{label}</p>
+                                            <p className="text-xl font-bold text-gray-900">
+                                                {val !== null && val !== undefined ? val : '—'}
+                                                {val !== null && val !== undefined && <span className="text-xs text-gray-400 ml-1">{unit}</span>}
+                                            </p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                            <div>
+                                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Откуда инициировано</h3>
+                                <div className="grid grid-cols-3 gap-2">
+                                    {[
+                                        ['Web', cjm.activity.generationsBySource.web, 'bg-blue-50 text-blue-700'],
+                                        ['TG бот', cjm.activity.generationsBySource.telegram_bot, 'bg-sky-50 text-sky-700'],
+                                        ['MAX бот', cjm.activity.generationsBySource.max_bot, 'bg-purple-50 text-purple-700'],
+                                    ].map(([label, val, cls]) => (
+                                        <div key={label as string} className={`rounded-xl p-3 text-center ${cls}`}>
+                                            <p className="text-xl font-bold">{val ?? 0}</p>
+                                            <p className="text-[11px] font-medium mt-0.5">{label}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                            <div>
+                                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Доставка результатов</h3>
+                                <div className="grid grid-cols-3 gap-2">
+                                    {[
+                                        ['Web', cjm.activity.generationsByPlatform.web, 'bg-gray-50 text-gray-700'],
+                                        ['Telegram', cjm.activity.generationsByPlatform.telegram, 'bg-blue-50 text-blue-700'],
+                                        ['MAX', cjm.activity.generationsByPlatform.max, 'bg-purple-50 text-purple-700'],
+                                    ].map(([label, val, cls]) => (
+                                        <div key={label as string} className={`rounded-xl p-3 text-center ${cls}`}>
+                                            <p className="text-xl font-bold">{val ?? 0}</p>
+                                            <p className="text-[11px] font-medium mt-0.5">{label}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* История бот-кредитов */}
+                    {cjm.botCreditHistory && cjm.botCreditHistory.length > 0 && (
+                        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                            <div className="p-4 border-b border-gray-100">
+                                <h3 className="font-semibold text-gray-900 text-sm flex items-center gap-2">
+                                    <Send className="w-4 h-4 text-gray-400" /> История бот-кредитов
+                                    <span className="ml-auto text-xs text-gray-400">{cjm.botCreditHistory.length} записей</span>
+                                </h3>
+                            </div>
+                            <table className="w-full text-xs">
+                                <thead className="bg-gray-50 text-[11px] text-gray-500 uppercase">
+                                    <tr>
+                                        <th className="px-4 py-2 text-left">Дата</th>
+                                        <th className="px-4 py-2 text-left">Причина</th>
+                                        <th className="px-4 py-2 text-left">Тип</th>
+                                        <th className="px-4 py-2 text-right">Сумма</th>
+                                        <th className="px-4 py-2 text-right">Баланс до → после</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-50">
+                                    {cjm.botCreditHistory.slice(0, 20).map((t: any, i: number) => (
+                                        <tr key={i} className="hover:bg-gray-50">
+                                            <td className="px-4 py-2 text-gray-500 whitespace-nowrap">
+                                                {new Date(t.createdAt).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                                            </td>
+                                            <td className="px-4 py-2">
+                                                <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                                                    t.reason === 'initial_grant' ? 'bg-emerald-100 text-emerald-700' :
+                                                    t.reason === 'generation_deduct' ? 'bg-red-100 text-red-700' :
+                                                    t.reason === 'generation_refund' ? 'bg-amber-100 text-amber-700' :
+                                                    'bg-blue-100 text-blue-700'
+                                                }`}>
+                                                    {t.reason === 'initial_grant' ? 'Начальный' :
+                                                     t.reason === 'generation_deduct' ? 'Генерация' :
+                                                     t.reason === 'generation_refund' ? 'Возврат' :
+                                                     t.reason === 'admin_set' ? 'Админ' : t.reason}
+                                                </span>
+                                            </td>
+                                            <td className="px-4 py-2 text-gray-500">
+                                                {t.generationType ? (GENERATION_TYPE_LABELS[t.generationType] || t.generationType) : '—'}
+                                            </td>
+                                            <td className={`px-4 py-2 text-right font-bold ${t.amount >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                                                {t.amount >= 0 ? '+' : ''}{t.amount}
+                                            </td>
+                                            <td className="px-4 py-2 text-right text-gray-500 font-mono">
+                                                {t.balanceBefore} → {t.balanceAfter}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </div>
+            )}
 
             {/* Последние генерации */}
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
