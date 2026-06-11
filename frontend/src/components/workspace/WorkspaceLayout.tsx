@@ -461,7 +461,7 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
                 {/* User Profile */}
                 <div className="p-4 border-t border-gray-100 bg-gray-50/30">
                     <div className="flex items-center justify-between mb-4 px-2">
-                        <NotificationBell userType="teacher" />
+                        <NotificationBell userType="teacher" dropDirection="up" />
                         <button
                             onClick={() => router.push('/dashboard/settings')}
                             className="p-2 text-gray-400 hover:text-gray-600 hover:bg-white rounded-lg border border-transparent hover:border-gray-100 transition-all"

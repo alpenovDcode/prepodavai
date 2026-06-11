@@ -22,10 +22,11 @@ interface Notification {
 
 interface NotificationBellProps {
     userType: 'teacher' | 'student'
-    studentId?: string // required when userType === 'student'
+    studentId?: string
+    dropDirection?: 'up' | 'down'
 }
 
-export default function NotificationBell({ userType, studentId }: NotificationBellProps) {
+export default function NotificationBell({ userType, studentId, dropDirection = 'down' }: NotificationBellProps) {
     const [notifications, setNotifications] = useState<Notification[]>([])
     const [unreadCount, setUnreadCount] = useState(0)
     const [isOpen, setIsOpen] = useState(false)
@@ -116,7 +117,7 @@ export default function NotificationBell({ userType, studentId }: NotificationBe
             </button>
 
             {isOpen && (
-                <div className="absolute right-0 top-11 w-80 bg-white rounded-2xl shadow-xl border border-gray-100 z-50 overflow-hidden">
+                <div className={`absolute right-0 w-80 bg-white rounded-2xl shadow-xl border border-gray-100 z-50 overflow-hidden ${dropDirection === 'up' ? 'bottom-full mb-2' : 'top-11'}`}>
                     {/* Header */}
                     <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
                         <h3 className="font-bold text-gray-900 text-sm">Уведомления</h3>

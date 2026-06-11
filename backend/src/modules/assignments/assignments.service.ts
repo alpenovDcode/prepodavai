@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { ClassesService } from '../classes/classes.service';
 import { StudentsService } from '../students/students.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { stripAnswerKeyFromHtml } from '../../common/utils/strip-answer-key.util';
 
 /**
@@ -33,6 +34,7 @@ export class AssignmentsService {
     private prisma: PrismaService,
     private classesService: ClassesService,
     private studentsService: StudentsService,
+    private notificationsService: NotificationsService,
   ) {}
 
   async createAssignment(
@@ -89,7 +91,7 @@ export class AssignmentsService {
     // The current schema has `Assignment` linking to `Class` OR `Student`.
     // Let's create one Assignment record.
 
-    return this.prisma.assignment.create({
+    const assignment = await this.prisma.assignment.create({
       data: {
         lessonId: data.lessonId,
         classId: data.classId,
@@ -99,6 +101,46 @@ export class AssignmentsService {
         status: 'assigned',
       },
     });
+
+    this._notifyStudentsOnAssignment(assignment, lesson).catch(() => {});
+
+    return assignment;
+  }
+
+  private async _notifyStudentsOnAssignment(
+    assignment: { id: string; classId?: string | null; studentId?: string | null; dueDate?: Date | null },
+    lesson: { title: string },
+  ) {
+    let students: Array<{ id: string; name: string; email?: string | null }> = [];
+
+    if (assignment.classId) {
+      students = await this.prisma.student.findMany({
+        where: { classId: assignment.classId },
+        select: { id: true, name: true, email: true },
+      });
+    } else if (assignment.studentId) {
+      const student = await this.prisma.student.findUnique({
+        where: { id: assignment.studentId },
+        select: { id: true, name: true, email: true },
+      });
+      if (student) students = [student];
+    }
+
+    for (const student of students) {
+      const dueSuffix = assignment.dueDate
+        ? ` Срок сдачи: ${assignment.dueDate.toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}.`
+        : '';
+
+      await this.notificationsService.createNotification({
+        userId: student.id,
+        userType: 'student',
+        type: 'homework_assigned',
+        title: 'Новое домашнее задание',
+        message: `Учитель задал вам домашнее задание «${lesson.title}».${dueSuffix}`,
+        metadata: { assignmentId: assignment.id, lessonTitle: lesson.title, dueDate: assignment.dueDate },
+      });
+
+    }
   }
 
   async getAssignments(

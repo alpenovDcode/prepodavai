@@ -10,6 +10,7 @@ import { LOGO_BASE64 } from '@/constants/branding'
 import { apiClient } from '@/lib/api/client'
 import { Loader2, Menu, X, LayoutDashboard, Wand2, BookOpen, Users, Settings as SettingsIcon, Sparkles, Gift, Zap, MessageCircle, Calendar } from 'lucide-react'
 import PlanUpgradeModal from '@/components/PlanUpgradeModal'
+import NotificationBell from '@/components/NotificationBell'
 
 interface DashboardLayoutProps {
     children: ReactNode
@@ -292,7 +293,10 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
                 {/* Bottom Section: Profile */}
                 <div className="p-4 border-t border-gray-100 bg-gray-50/30">
-                    <div 
+                    <div className="flex items-center justify-between mb-3 px-1">
+                        <NotificationBell userType="teacher" dropDirection="up" />
+                    </div>
+                    <div
                         className="flex items-center justify-between p-3 rounded-2xl bg-white border border-gray-100 shadow-sm hover:shadow-md hover:border-primary-100 transition-all cursor-pointer group"
                         onClick={() => router.push('/dashboard/settings')}
                     >
