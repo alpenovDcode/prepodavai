@@ -23,8 +23,9 @@ export class StudentsService {
   ) {
     if (!data.password) throw new BadRequestException('Пароль обязателен');
     if (!data.name?.trim()) throw new BadRequestException('Имя обязательно');
+    if (!data.email?.trim()) throw new BadRequestException('Email обязателен');
 
-    const email = data.email?.trim() || null;
+    const email = data.email.trim();
     const phone = data.phone?.trim() || null;
 
     // Verify class ownership
@@ -65,7 +66,7 @@ export class StudentsService {
       data: {
         classId: data.classId,
         name: data.name,
-        email: email ?? undefined,
+        email,
         avatar: this.getInitials(data.name),
       },
     });
@@ -75,8 +76,22 @@ export class StudentsService {
       UPDATE students SET "passwordHash" = ${passwordHash}, "phone" = ${phone} WHERE id = ${student.id}
     `;
 
-    // Реферальная система: автоматически создаём реферал учитель→ученик
     this.referralsService.createTeacherStudentReferral(userId, student.id).catch(() => {});
+
+    if (email) {
+      const teacher = await this.prisma.appUser.findUnique({
+        where: { id: userId },
+        select: { firstName: true, lastName: true },
+      });
+      const teacherName = [teacher?.firstName, teacher?.lastName].filter(Boolean).join(' ') || null;
+      this.emailService
+        .sendStudentCredentialsEmail(email, {
+          studentName: data.name,
+          password: data.password,
+          teacherName,
+        })
+        .catch((err) => this.logger.warn(`Failed to send credentials email to ${email}: ${err?.message}`));
+    }
 
     return student;
   }

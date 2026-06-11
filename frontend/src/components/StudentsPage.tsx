@@ -299,6 +299,10 @@ export default function StudentsPage() {
 
     const handleCreateStudent = async (e: React.FormEvent) => {
         e.preventDefault()
+        if (!newStudentEmail.trim()) {
+            showError('Укажите email ученика')
+            return
+        }
         if (!selectedClassId) {
             showError('Выберите класс')
             return
@@ -982,13 +986,14 @@ export default function StudentsPage() {
                             </div>
                             <div className="mb-4">
                                 <label className="block text-sm font-semibold text-gray-700 mb-2">
-                                    Email <span className="text-gray-400 font-normal">(необязательно)</span>
+                                    Email
                                 </label>
                                 <input
                                     type="email"
                                     value={newStudentEmail}
                                     onChange={(e) => setNewStudentEmail(e.target.value)}
                                     placeholder="ivan@example.com"
+                                    required
                                     className="w-full px-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-primary-500 focus:bg-white transition text-gray-900"
                                 />
                             </div>
