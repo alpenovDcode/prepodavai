@@ -1,8 +1,9 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { ClassesService } from '../classes/classes.service';
 import { StudentsService } from '../students/students.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { EmailService } from '../../common/services/email.service';
 import { stripAnswerKeyFromHtml } from '../../common/utils/strip-answer-key.util';
 
 /**
@@ -30,11 +31,14 @@ function stripAnswerKeyFromOutput(outputData: any): any {
 
 @Injectable()
 export class AssignmentsService {
+  private readonly logger = new Logger(AssignmentsService.name);
+
   constructor(
     private prisma: PrismaService,
     private classesService: ClassesService,
     private studentsService: StudentsService,
     private notificationsService: NotificationsService,
+    private emailService: EmailService,
   ) {}
 
   async createAssignment(
@@ -102,7 +106,7 @@ export class AssignmentsService {
       },
     });
 
-    this._notifyStudentsOnAssignment(assignment, lesson).catch(() => {});
+    this._notifyStudentsOnAssignment(assignment, lesson, userId).catch(() => {});
 
     return assignment;
   }
@@ -110,6 +114,7 @@ export class AssignmentsService {
   private async _notifyStudentsOnAssignment(
     assignment: { id: string; classId?: string | null; studentId?: string | null; dueDate?: Date | null },
     lesson: { title: string },
+    teacherId: string,
   ) {
     let students: Array<{ id: string; name: string; email?: string | null }> = [];
 
@@ -126,6 +131,11 @@ export class AssignmentsService {
       if (student) students = [student];
     }
 
+    const teacher = await this.prisma.appUser.findUnique({
+      where: { id: teacherId },
+      select: { notifyWeeklyReport: true },
+    });
+
     for (const student of students) {
       const dueSuffix = assignment.dueDate
         ? ` Срок сдачи: ${assignment.dueDate.toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}.`
@@ -140,6 +150,19 @@ export class AssignmentsService {
         metadata: { assignmentId: assignment.id, lessonTitle: lesson.title, dueDate: assignment.dueDate },
       });
 
+      const studentEmail = student.email?.trim();
+      if (teacher?.notifyWeeklyReport && studentEmail) {
+        this.emailService
+          .sendHomeworkAssignedEmail(studentEmail, {
+            studentName: student.name,
+            lessonTitle: lesson.title,
+            dueDate: assignment.dueDate ?? null,
+            assignmentId: assignment.id,
+          })
+          .catch((err) =>
+            this.logger.warn(`Failed to send homework-assigned email to ${studentEmail}: ${err?.message}`),
+          );
+      }
     }
   }
 

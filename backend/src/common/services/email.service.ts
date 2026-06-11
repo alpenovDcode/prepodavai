@@ -171,6 +171,32 @@ export class EmailService {
     return this.sendEmail(email, `Работа проверена: ${params.lessonTitle}`, html);
   }
 
+  async sendHomeworkAssignedEmail(
+    email: string,
+    params: { studentName: string; lessonTitle: string; dueDate?: Date | null; assignmentId: string },
+  ) {
+    const appUrl = this.configService.get<string>('NEXT_PUBLIC_APP_URL', 'https://prepodavai.ru');
+    const link = `${appUrl}/student/assignments/${encodeURIComponent(params.assignmentId)}`;
+    const dueLine = params.dueDate
+      ? `<p>Срок сдачи: <strong>${params.dueDate.toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</strong></p>`
+      : '';
+
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #1a1a1a;">
+        <h2 style="color: #2563eb;">Новое домашнее задание</h2>
+        <p>Здравствуйте, ${sanitizeHtml(params.studentName)}!</p>
+        <p>Учитель задал вам домашнее задание по теме <strong>«${sanitizeHtml(params.lessonTitle)}»</strong>.</p>
+        ${dueLine}
+        <p style="margin-top: 24px;">
+          <a href="${link}" style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
+            Открыть задание
+          </a>
+        </p>
+      </div>
+    `;
+    return this.sendEmail(email, `Новое задание: ${params.lessonTitle}`, html);
+  }
+
   async sendHomeworkDeadlineReminderEmail(
     email: string,
     params: { studentName: string; lessonTitle: string; dueDate: Date; assignmentId: string },
