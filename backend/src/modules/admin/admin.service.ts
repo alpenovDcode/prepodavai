@@ -350,10 +350,26 @@ export class AdminService {
     if (data.botCredits !== undefined) {
       const numBotCredits = parseInt(data.botCredits);
       if (!isNaN(numBotCredits)) {
+        const existingBot = await (this.prisma as any).botUser.findUnique({
+          where: { appUserId: id },
+          select: { id: true, botCredits: true },
+        });
         await (this.prisma as any).botUser.updateMany({
           where: { appUserId: id },
           data: { botCredits: numBotCredits },
         });
+        if (existingBot?.id) {
+          await (this.prisma as any).botCreditTransaction.create({
+            data: {
+              botUserId: existingBot.id,
+              amount: numBotCredits - existingBot.botCredits,
+              balanceBefore: existingBot.botCredits,
+              balanceAfter: numBotCredits,
+              reason: 'admin_set',
+              description: `Установлено администратором (adminId=${adminId ?? 'unknown'})`,
+            },
+          }).catch(() => null);
+        }
       }
     }
 
@@ -980,6 +996,257 @@ export class AdminService {
     };
   }
 
+  // ========== CJM ==========
+
+  async getUserCjm(userId: string) {
+    const db = this.prisma as any;
+
+    const [user, botUser, subscription, firstGen, firstPayment, genStats, botCredHistory, generationsCount] = await Promise.all([
+      this.prisma.appUser.findUnique({
+        where: { id: userId },
+        select: {
+          id: true, source: true, createdAt: true,
+          utmSource: true, utmMedium: true, utmCampaign: true,
+          utmContent: true, utmTerm: true, utmLandingPage: true, utmLinkId: true,
+          referredByCode: true,
+          lastAccessAt: true, lastTelegramAppAccess: true, lastMaxAppAccess: true,
+        },
+      }),
+      db.botUser.findUnique({
+        where: { appUserId: userId },
+        select: {
+          createdAt: true, source: true, registrationStatus: true, lastActiveAt: true, botCredits: true,
+          startPayload: true, utmSource: true, utmMedium: true, utmCampaign: true,
+          totalGenerations: true, generationsThisMonth: true, lastGenerationAt: true,
+        },
+      }),
+      this.prisma.userSubscription.findUnique({
+        where: { userId },
+        select: { status: true, endDate: true, creditsBalance: true, creditsUsed: true, plan: { select: { planName: true, planKey: true } } },
+      }),
+      this.prisma.userGeneration.findFirst({
+        where: { userId },
+        orderBy: { createdAt: 'asc' },
+        select: { createdAt: true, generationType: true, creditCost: true },
+      }),
+      this.prisma.payment.findFirst({
+        where: { userId, status: 'completed' },
+        orderBy: { createdAt: 'asc' },
+        select: { createdAt: true, planKey: true, amount: true },
+      }),
+      this.prisma.userGeneration.groupBy({
+        by: ['sentToTelegram', 'sentToMax'],
+        where: { userId },
+        _count: { id: true },
+      }),
+      // История бот-кредитов (последние 50 транзакций)
+      db.botCreditTransaction.findMany({
+        where: { botUser: { appUserId: userId } },
+        orderBy: { createdAt: 'desc' },
+        take: 50,
+        select: { amount: true, balanceBefore: true, balanceAfter: true, reason: true, generationType: true, createdAt: true },
+      }).catch(() => []),
+      // Разбивка генераций по initiatedSource
+      this.prisma.userGeneration.groupBy({
+        by: ['initiatedSource' as any],
+        where: { userId },
+        _count: { id: true },
+      }),
+    ]);
+
+    if (!user) throw new NotFoundException('User not found');
+
+    // UTM-ссылка
+    let utmLinkName: string | null = null;
+    let utmLinkUrl: string | null = null;
+    if (user.utmLinkId) {
+      try {
+        const link = await db.utmLink.findUnique({ where: { id: user.utmLinkId }, select: { name: true, fullUrl: true } });
+        utmLinkName = link?.name ?? null;
+        utmLinkUrl = link?.fullUrl ?? null;
+      } catch (_) {}
+    }
+
+    // Подсчёт генераций по платформе
+    let genWeb = 0, genTelegram = 0, genMax = 0;
+    for (const row of genStats) {
+      const cnt = (row._count as any).id ?? 0;
+      if ((row as any).sentToTelegram) { genTelegram += cnt; continue; }
+      if ((row as any).sentToMax) { genMax += cnt; continue; }
+      genWeb += cnt;
+    }
+    const totalGenerations = genWeb + genTelegram + genMax;
+
+    // Даты ключевых событий
+    const registeredAt = user.createdAt;
+    const botStartedAt: Date | null = botUser?.createdAt ?? null;
+    const firstGenAt: Date | null = firstGen?.createdAt ?? null;
+    const firstPaymentAt: Date | null = firstPayment?.createdAt ?? null;
+
+    // Последняя активность
+    const activityDates = [user.lastAccessAt, user.lastTelegramAppAccess, user.lastMaxAppAccess, botUser?.lastActiveAt]
+      .filter((d): d is Date => d instanceof Date);
+    const lastActiveAt = activityDates.length > 0 ? new Date(Math.max(...activityDates.map(d => d.getTime()))) : null;
+    const now = new Date();
+
+    // Временные дельты (в днях)
+    const daysBetween = (a: Date, b: Date) => Math.floor(Math.abs(b.getTime() - a.getTime()) / 86400000);
+    const daysToFirstGen = firstGenAt ? daysBetween(registeredAt, firstGenAt) : null;
+    const daysToFirstPayment = firstPaymentAt ? daysBetween(registeredAt, firstPaymentAt) : null;
+    const daysSinceRegistration = daysBetween(registeredAt, now);
+    const daysSinceLastActivity = lastActiveAt ? daysBetween(lastActiveAt, now) : null;
+
+    // Текущий этап CJM
+    let currentStage: string;
+    const subActive = subscription?.status === 'active';
+    const subExpired = subscription && !subActive;
+    if (!subscription && totalGenerations === 0) currentStage = 'registered_only';
+    else if (!subscription && totalGenerations > 0) currentStage = 'generating_free';
+    else if (subActive) currentStage = 'subscribed_active';
+    else if (subExpired && daysSinceLastActivity !== null && daysSinceLastActivity <= 30) currentStage = 'subscribed_expired';
+    else currentStage = 'churned';
+
+    // Churn risk
+    const churnSignals: string[] = [];
+    if (daysSinceLastActivity !== null && daysSinceLastActivity > 30) churnSignals.push('Нет активности 30+ дней');
+    if (daysSinceLastActivity !== null && daysSinceLastActivity > 7 && daysSinceLastActivity <= 30) churnSignals.push('Нет активности 7–30 дней');
+    if (subscription?.creditsBalance === 0) churnSignals.push('Баланс 0 кредитов');
+    if (subExpired) churnSignals.push('Подписка истекла');
+    if (totalGenerations === 0) churnSignals.push('Ни одной генерации');
+
+    let churnRisk: 'low' | 'medium' | 'high';
+    if (churnSignals.some(s => s.includes('30+') || s === 'Подписка истекла')) churnRisk = 'high';
+    else if (churnSignals.length >= 2 || churnSignals.some(s => s.includes('7–30'))) churnRisk = 'medium';
+    else churnRisk = 'low';
+
+    // Разбивка по initiatedSource
+    const byInitiated: Record<string, number> = {};
+    for (const row of (generationsCount as any[])) {
+      const src = (row as any).initiatedSource ?? 'web';
+      byInitiated[src] = Number((row._count as any).id ?? 0);
+    }
+
+    return {
+      acquisition: {
+        // Веб-регистрация
+        source: user.source,
+        utmSource: user.utmSource,
+        utmMedium: user.utmMedium,
+        utmCampaign: user.utmCampaign,
+        utmContent: user.utmContent,
+        utmTerm: user.utmTerm,
+        utmLandingPage: user.utmLandingPage,
+        utmLinkName,
+        utmLinkUrl,
+        referredByCode: user.referredByCode,
+        // Бот-атрибуция
+        botStartPayload: botUser?.startPayload ?? null,
+        botUtmSource: botUser?.utmSource ?? null,
+        botUtmMedium: botUser?.utmMedium ?? null,
+        botUtmCampaign: botUser?.utmCampaign ?? null,
+      },
+      journey: {
+        botStartedAt,
+        botPlatform: botUser?.source ?? null,
+        botRegistrationStatus: botUser?.registrationStatus ?? null,
+        botCredits: botUser?.botCredits ?? null,
+        botTotalGenerations: botUser?.totalGenerations ?? null,
+        botGenerationsThisMonth: botUser?.generationsThisMonth ?? null,
+        botLastGenerationAt: botUser?.lastGenerationAt ?? null,
+        platformRegisteredAt: registeredAt,
+        firstGenerationAt: firstGenAt,
+        firstGenerationType: firstGen?.generationType ?? null,
+        firstGenerationCreditCost: firstGen?.creditCost ?? null,
+        firstPaymentAt,
+        firstPaymentPlan: firstPayment?.planKey ?? null,
+        firstPaymentAmount: firstPayment?.amount?.toString() ?? null,
+      },
+      timings: {
+        daysToFirstGen,
+        daysToFirstPayment,
+        daysSinceRegistration,
+        daysSinceLastActivity,
+      },
+      currentStage,
+      churnRisk,
+      churnSignals,
+      activity: {
+        totalGenerations,
+        generationsByPlatform: { web: genWeb, telegram: genTelegram, max: genMax },
+        generationsBySource: {
+          web: byInitiated['web'] ?? 0,
+          telegram_bot: byInitiated['telegram_bot'] ?? 0,
+          max_bot: byInitiated['max_bot'] ?? 0,
+        },
+        creditsBalance: subscription?.creditsBalance ?? null,
+        creditsUsed: subscription?.creditsUsed ?? null,
+        subscriptionPlan: subscription?.plan?.planName ?? null,
+        subscriptionPlanKey: subscription?.plan?.planKey ?? null,
+        subscriptionStatus: subscription?.status ?? null,
+        subscriptionEndDate: subscription?.endDate ?? null,
+        lastActiveAt,
+        lastBotActiveAt: botUser?.lastActiveAt ?? null,
+      },
+      botCreditHistory: (botCredHistory as any[]).map(t => ({
+        amount: t.amount,
+        balanceBefore: t.balanceBefore,
+        balanceAfter: t.balanceAfter,
+        reason: t.reason,
+        generationType: t.generationType,
+        createdAt: t.createdAt,
+      })),
+    };
+  }
+
+  async exportUserCjmCsv(userId: string): Promise<string> {
+    const cjm = await this.getUserCjm(userId);
+    const user = await this.prisma.appUser.findUnique({
+      where: { id: userId },
+      select: { id: true, username: true, firstName: true, lastName: true, email: true, phone: true },
+    });
+    if (!user) throw new NotFoundException('User not found');
+
+    const fmt = (v: any) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const fmtDate = (d: Date | null) => d ? new Date(d).toISOString() : '';
+
+    const header = [
+      'ID', 'Username', 'Имя', 'Фамилия', 'Email', 'Телефон',
+      'Источник', 'UTM Source', 'UTM Medium', 'UTM Campaign', 'UTM Content', 'UTM Term',
+      'UTM Landing Page', 'UTM Link Name', 'UTM Link URL', 'Реферальный код',
+      'Бот: платформа', 'Бот: старт', 'Бот: статус регистрации', 'Бот: кредиты',
+      'Регистрация на платформе',
+      'Первая генерация: дата', 'Первая генерация: тип', 'Первая генерация: стоимость',
+      'Первая оплата: дата', 'Первая оплата: тариф', 'Первая оплата: сумма',
+      'Дней до первой генерации', 'Дней до первой оплаты', 'Дней с регистрации', 'Дней без активности',
+      'Текущий этап', 'Churn Risk', 'Сигналы оттока',
+      'Всего генераций', 'Генерации Web', 'Генерации Telegram', 'Генерации MAX',
+      'Тариф', 'Статус подписки', 'Окончание подписки', 'Баланс кредитов', 'Потрачено кредитов',
+      'Последняя активность', 'Последняя активность в боте',
+    ].map(fmt).join(',');
+
+    const row = [
+      user.id, user.username, user.firstName, user.lastName, user.email, user.phone,
+      cjm.acquisition.source, cjm.acquisition.utmSource, cjm.acquisition.utmMedium,
+      cjm.acquisition.utmCampaign, cjm.acquisition.utmContent, cjm.acquisition.utmTerm,
+      cjm.acquisition.utmLandingPage, cjm.acquisition.utmLinkName, cjm.acquisition.utmLinkUrl,
+      cjm.acquisition.referredByCode,
+      cjm.journey.botPlatform, fmtDate(cjm.journey.botStartedAt), cjm.journey.botRegistrationStatus, cjm.journey.botCredits,
+      fmtDate(cjm.journey.platformRegisteredAt),
+      fmtDate(cjm.journey.firstGenerationAt), cjm.journey.firstGenerationType, cjm.journey.firstGenerationCreditCost,
+      fmtDate(cjm.journey.firstPaymentAt), cjm.journey.firstPaymentPlan, cjm.journey.firstPaymentAmount,
+      cjm.timings.daysToFirstGen, cjm.timings.daysToFirstPayment,
+      cjm.timings.daysSinceRegistration, cjm.timings.daysSinceLastActivity,
+      cjm.currentStage, cjm.churnRisk, cjm.churnSignals.join('; '),
+      cjm.activity.totalGenerations, cjm.activity.generationsByPlatform.web,
+      cjm.activity.generationsByPlatform.telegram, cjm.activity.generationsByPlatform.max,
+      cjm.activity.subscriptionPlan, cjm.activity.subscriptionStatus,
+      fmtDate(cjm.activity.subscriptionEndDate), cjm.activity.creditsBalance, cjm.activity.creditsUsed,
+      fmtDate(cjm.activity.lastActiveAt), fmtDate(cjm.activity.lastBotActiveAt),
+    ].map(fmt).join(',');
+
+    return `${header}\n${row}`;
+  }
+
   /**
    * Список всех, кого пригласил пользователь (рефералы, где он — referrer).
    * Подгружает имя приглашённого: AppUser для teacher_teacher, Student для
@@ -1435,72 +1702,158 @@ export class AdminService {
 
   // ========== CSV EXPORT ==========
   async exportUsersCsv() {
+    const db = this.prisma as any;
+    const now = new Date();
+    const daysBetween = (a: Date, b: Date) => Math.floor(Math.abs(b.getTime() - a.getTime()) / 86400000);
+
     const users = await this.prisma.appUser.findMany({
       orderBy: { createdAt: 'desc' },
       select: {
-        id: true,
-        username: true,
-        firstName: true,
-        lastName: true,
-        phone: true,
-        email: true,
-        source: true,
-        telegramId: true,
-        createdAt: true,
-        lastAccessAt: true,
+        id: true, username: true, firstName: true, lastName: true,
+        phone: true, email: true, source: true, telegramId: true, maxId: true,
+        createdAt: true, lastAccessAt: true, lastTelegramAppAccess: true, lastMaxAppAccess: true,
+        utmSource: true, utmMedium: true, utmCampaign: true,
+        utmContent: true, utmTerm: true, utmLandingPage: true, utmLinkId: true,
+        referredByCode: true,
         subscription: {
           select: {
-            creditsBalance: true,
-            creditsUsed: true,
-            status: true,
-            plan: { select: { planName: true } },
+            creditsBalance: true, creditsUsed: true, status: true, endDate: true,
+            plan: { select: { planName: true, planKey: true } },
           },
         },
         _count: { select: { generations: true, classes: true } },
       },
     });
 
-    const rows = [
-      [
-        'ID',
-        'Username',
-        'Имя',
-        'Фамилия',
-        'Телефон',
-        'Email',
-        'Источник',
-        'Telegram ID',
-        'Дата регистрации',
-        'Последний вход',
-        'План',
-        'Статус подписки',
-        'Баланс токенов',
-        'Потрачено токенов',
-        'Генерации',
-        'Классы',
-      ],
-      ...users.map((u) => [
-        u.id,
-        u.username || '',
-        u.firstName || '',
-        u.lastName || '',
-        u.phone || '',
-        u.email || '',
-        u.source || '',
-        u.telegramId || '',
-        u.createdAt.toISOString(),
-        u.lastAccessAt?.toISOString() || '',
-        u.subscription?.plan?.planName || '',
-        u.subscription?.status || '',
-        u.subscription?.creditsBalance ?? 0,
-        u.subscription?.creditsUsed ?? 0,
-        u._count.generations,
-        u._count.classes,
-      ]),
-    ];
+    // Для каждого пользователя подгружаем BotUser, первую генерацию, первый платёж
+    const userIds = users.map(u => u.id);
+    const [botUsers, firstGens, firstPayments, genPlatforms] = await Promise.all([
+      db.botUser.findMany({
+        where: { appUserId: { in: userIds } },
+        select: { appUserId: true, source: true, registrationStatus: true, createdAt: true, lastActiveAt: true, botCredits: true },
+      }),
+      // Первая генерация на пользователя (ROW_NUMBER)
+      this.prisma.$queryRaw<{ userId: string; createdAt: Date; generationType: string }[]>`
+        SELECT DISTINCT ON ("userId") "userId", "createdAt", "generationType"
+        FROM user_generations ORDER BY "userId", "createdAt" ASC
+      `,
+      this.prisma.payment.findMany({
+        where: { userId: { in: userIds }, status: 'completed' },
+        orderBy: { createdAt: 'asc' },
+        select: { userId: true, createdAt: true, planKey: true, amount: true },
+        distinct: ['userId'],
+      }),
+      // Генерации по платформам для всех пользователей
+      this.prisma.$queryRaw<{ userId: string; sentToTelegram: boolean; sentToMax: boolean; cnt: bigint }[]>`
+        SELECT "userId",
+          "sentToTelegram",
+          "sentToMax",
+          COUNT(*) AS cnt
+        FROM user_generations
+        GROUP BY "userId", "sentToTelegram", "sentToMax"
+      `,
+    ]);
 
-    const csv = rows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
-    return csv;
+    const botByUser = new Map((botUsers as any[]).map((b: any) => [b.appUserId, b]));
+    const firstGenByUser = new Map((firstGens as any[]).map((g: any) => [g.userId, g]));
+    const firstPayByUser = new Map((firstPayments as any[]).map((p: any) => [p.userId, p]));
+
+    // Генерации по платформам
+    const genPlatByUser = new Map<string, { web: number; telegram: number; max: number }>();
+    for (const row of genPlatforms as any[]) {
+      const uid = row.userId;
+      if (!genPlatByUser.has(uid)) genPlatByUser.set(uid, { web: 0, telegram: 0, max: 0 });
+      const g = genPlatByUser.get(uid)!;
+      const cnt = Number(row.cnt);
+      if (row.sentToTelegram) g.telegram += cnt;
+      else if (row.sentToMax) g.max += cnt;
+      else g.web += cnt;
+    }
+
+    const fmt = (v: any) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const fmtDate = (d: Date | null | undefined) => d ? new Date(d).toISOString() : '';
+
+    const computeLastActive = (u: any, bot: any): Date | null => {
+      const dates = [u.lastAccessAt, u.lastTelegramAppAccess, u.lastMaxAppAccess, bot?.lastActiveAt]
+        .filter((d: any): d is Date => d instanceof Date);
+      return dates.length > 0 ? new Date(Math.max(...dates.map((d: Date) => d.getTime()))) : null;
+    };
+
+    const computeStage = (u: any, totalGens: number): string => {
+      const sub = u.subscription;
+      const subActive = sub?.status === 'active';
+      const subExpired = sub && !subActive;
+      const lastActive = computeLastActive(u, botByUser.get(u.id));
+      const daysSinceLast = lastActive ? daysBetween(lastActive, now) : null;
+      if (!sub && totalGens === 0) return 'registered_only';
+      if (!sub && totalGens > 0) return 'generating_free';
+      if (subActive) return 'subscribed_active';
+      if (subExpired && daysSinceLast !== null && daysSinceLast <= 30) return 'subscribed_expired';
+      return 'churned';
+    };
+
+    const computeChurnRisk = (u: any, totalGens: number): string => {
+      const sub = u.subscription;
+      const lastActive = computeLastActive(u, botByUser.get(u.id));
+      const daysSinceLast = lastActive ? daysBetween(lastActive, now) : null;
+      if ((daysSinceLast !== null && daysSinceLast > 30) || (sub && sub.status !== 'active')) return 'high';
+      if (daysSinceLast !== null && daysSinceLast > 7) return 'medium';
+      if (sub?.creditsBalance === 0 || totalGens === 0) return 'medium';
+      return 'low';
+    };
+
+    const header = [
+      'ID', 'Username', 'Имя', 'Фамилия', 'Телефон', 'Email',
+      'Источник', 'Telegram ID', 'MAX ID',
+      // UTM
+      'UTM Source', 'UTM Medium', 'UTM Campaign', 'UTM Content', 'UTM Term', 'UTM Landing Page', 'UTM Link ID', 'Реферальный код',
+      // Бот
+      'Бот: платформа', 'Бот: старт', 'Бот: статус', 'Бот: кредиты',
+      // Этапы
+      'Дата регистрации',
+      'Первая генерация: дата', 'Первая генерация: тип',
+      'Первая оплата: дата', 'Первая оплата: тариф',
+      // Тайминги
+      'Дней до первой генерации', 'Дней до первой оплаты', 'Дней с регистрации', 'Дней без активности',
+      // Активность
+      'Генерации всего', 'Генерации Web', 'Генерации Telegram', 'Генерации MAX', 'Классы',
+      // Подписка
+      'Тариф', 'Статус подписки', 'Окончание подписки', 'Баланс кредитов', 'Потрачено кредитов',
+      // CJM
+      'Текущий этап', 'Churn Risk',
+      'Последняя активность',
+    ].map(fmt).join(',');
+
+    const dataRows = users.map((u) => {
+      const bot = botByUser.get(u.id);
+      const fg = firstGenByUser.get(u.id);
+      const fp = firstPayByUser.get(u.id);
+      const gp = genPlatByUser.get(u.id) ?? { web: 0, telegram: 0, max: 0 };
+      const totalGens = gp.web + gp.telegram + gp.max;
+      const lastActive = computeLastActive(u, bot);
+      const daysToFg = fg ? daysBetween(u.createdAt, fg.createdAt) : null;
+      const daysToFp = fp ? daysBetween(u.createdAt, fp.createdAt) : null;
+      const daysSinceReg = daysBetween(u.createdAt, now);
+      const daysSinceLast = lastActive ? daysBetween(lastActive, now) : null;
+
+      return [
+        u.id, u.username, u.firstName, u.lastName, u.phone, u.email,
+        u.source, u.telegramId, u.maxId,
+        u.utmSource, u.utmMedium, u.utmCampaign, u.utmContent, u.utmTerm, u.utmLandingPage, u.utmLinkId, u.referredByCode,
+        bot?.source, fmtDate(bot?.createdAt), bot?.registrationStatus, bot?.botCredits,
+        fmtDate(u.createdAt),
+        fmtDate(fg?.createdAt), fg?.generationType,
+        fmtDate(fp?.createdAt), fp?.planKey,
+        daysToFg, daysToFp, daysSinceReg, daysSinceLast,
+        totalGens, gp.web, gp.telegram, gp.max, u._count.classes,
+        u.subscription?.plan?.planName, u.subscription?.status,
+        fmtDate(u.subscription?.endDate), u.subscription?.creditsBalance, u.subscription?.creditsUsed,
+        computeStage(u, totalGens), computeChurnRisk(u, totalGens),
+        fmtDate(lastActive),
+      ].map(fmt).join(',');
+    });
+
+    return [header, ...dataRows].join('\n');
   }
 
   // ========== UTM LINKS ==========
@@ -2762,6 +3115,197 @@ export class AdminService {
         topTypesTelegram: topTypesTelegram.map(r => ({ type: r.type, count: Number(r.cnt) })),
         topTypesMax: topTypesMax.map(r => ({ type: r.type, count: Number(r.cnt) })),
       },
+    };
+  }
+
+  // ========== AGGREGATE CJM ANALYTICS ==========
+
+  async getCjmAnalytics() {
+    type Row = { [key: string]: any };
+
+    const [stageRows, churnRows, genTimingRows, payTimingRows, acqRows, platformRows, initiatedRows, botUtmRows] = await Promise.all([
+      // Stage distribution
+      this.prisma.$queryRaw<Row[]>`
+        WITH gen_counts AS (
+          SELECT "userId", COUNT(*) AS cnt FROM user_generations GROUP BY "userId"
+        )
+        SELECT
+          CASE
+            WHEN s.id IS NULL AND COALESCE(g.cnt, 0) = 0 THEN 'registered_only'
+            WHEN s.id IS NULL AND COALESCE(g.cnt, 0) > 0 THEN 'generating_free'
+            WHEN s.status = 'active' THEN 'subscribed_active'
+            WHEN s.id IS NOT NULL AND s.status != 'active'
+                 AND GREATEST(u."lastAccessAt", u."lastTelegramAppAccess", u."lastMaxAppAccess") >= NOW() - INTERVAL '30 days'
+                 THEN 'subscribed_expired'
+            ELSE 'churned'
+          END AS stage,
+          COUNT(*) AS cnt
+        FROM app_users u
+        LEFT JOIN user_subscriptions s ON s."userId" = u.id
+        LEFT JOIN gen_counts g ON g."userId" = u.id
+        GROUP BY 1
+      `,
+      // Churn risk distribution
+      this.prisma.$queryRaw<Row[]>`
+        WITH user_data AS (
+          SELECT
+            GREATEST(u."lastAccessAt", u."lastTelegramAppAccess", u."lastMaxAppAccess") AS last_active,
+            s.id AS sub_id,
+            s.status AS sub_status
+          FROM app_users u
+          LEFT JOIN user_subscriptions s ON s."userId" = u.id
+        )
+        SELECT
+          CASE
+            WHEN last_active IS NULL OR last_active < NOW() - INTERVAL '30 days'
+                 OR (sub_id IS NOT NULL AND sub_status != 'active') THEN 'high'
+            WHEN last_active < NOW() - INTERVAL '7 days' THEN 'medium'
+            ELSE 'low'
+          END AS risk,
+          COUNT(*) AS cnt
+        FROM user_data
+        GROUP BY 1
+      `,
+      // Avg + median days to first generation
+      this.prisma.$queryRaw<Row[]>`
+        SELECT
+          ROUND(AVG(EXTRACT(EPOCH FROM (fg.first_gen - u."createdAt")) / 86400)::numeric, 1) AS avg_days,
+          ROUND(PERCENTILE_CONT(0.5) WITHIN GROUP (
+            ORDER BY EXTRACT(EPOCH FROM (fg.first_gen - u."createdAt")) / 86400
+          )::numeric, 1) AS p50_days
+        FROM app_users u
+        JOIN (
+          SELECT "userId", MIN("createdAt") AS first_gen
+          FROM user_generations
+          GROUP BY "userId"
+        ) fg ON fg."userId" = u.id
+      `,
+      // Avg + median days to first payment
+      this.prisma.$queryRaw<Row[]>`
+        SELECT
+          ROUND(AVG(EXTRACT(EPOCH FROM (fp.first_pay - u."createdAt")) / 86400)::numeric, 1) AS avg_days,
+          ROUND(PERCENTILE_CONT(0.5) WITHIN GROUP (
+            ORDER BY EXTRACT(EPOCH FROM (fp.first_pay - u."createdAt")) / 86400
+          )::numeric, 1) AS p50_days
+        FROM app_users u
+        JOIN (
+          SELECT "userId", MIN("createdAt") AS first_pay
+          FROM payments
+          WHERE status = 'completed'
+          GROUP BY "userId"
+        ) fp ON fp."userId" = u.id
+      `,
+      // Acquisition source breakdown
+      this.prisma.$queryRaw<Row[]>`
+        SELECT
+          COALESCE(NULLIF(u."utmSource", ''), NULLIF(u.source, ''), 'direct') AS source,
+          COUNT(*) AS total,
+          COUNT(fp."userId") AS paid,
+          COUNT(ga."userId") AS generated
+        FROM app_users u
+        LEFT JOIN (SELECT DISTINCT "userId" FROM payments WHERE status = 'completed') fp ON fp."userId" = u.id
+        LEFT JOIN (SELECT DISTINCT "userId" FROM user_generations) ga ON ga."userId" = u.id
+        GROUP BY 1
+        ORDER BY total DESC
+        LIMIT 20
+      `,
+      // Platform mix
+      this.prisma.$queryRaw<Row[]>`
+        WITH bot_platforms AS (
+          SELECT
+            CASE
+              WHEN "telegramId" IS NOT NULL AND "maxId" IS NOT NULL THEN 'both'
+              WHEN "telegramId" IS NOT NULL THEN 'telegram'
+              WHEN "maxId" IS NOT NULL THEN 'max'
+            END AS platform,
+            COUNT(*) AS cnt
+          FROM bot_users
+          GROUP BY 1
+        ),
+        web_count AS (
+          SELECT COUNT(*) AS cnt
+          FROM app_users u
+          WHERE NOT EXISTS (SELECT 1 FROM bot_users b WHERE b."appUserId" = u.id)
+        )
+        SELECT 'web' AS platform, cnt FROM web_count
+        UNION ALL
+        SELECT platform, cnt FROM bot_platforms WHERE platform IS NOT NULL
+      `,
+      // Разбивка генераций по initiatedSource
+      this.prisma.$queryRaw<Row[]>`
+        SELECT
+          COALESCE("initiatedSource", 'web') AS source,
+          COUNT(*) AS cnt
+        FROM user_generations
+        GROUP BY 1
+      `,
+      // Топ UTM-источников для бот-пользователей (startPayload / botUtmSource)
+      this.prisma.$queryRaw<Row[]>`
+        SELECT
+          COALESCE(NULLIF("utmSource", ''), NULLIF("startPayload", ''), 'unknown') AS bot_source,
+          COUNT(*) AS cnt
+        FROM bot_users
+        GROUP BY 1
+        ORDER BY cnt DESC
+        LIMIT 15
+      `,
+    ]);
+
+    const toMap = (rows: Row[], key: string): Record<string, number> =>
+      Object.fromEntries(rows.map(r => [r[key], Number(r.cnt)]));
+
+    const stageMap = toMap(stageRows, 'stage');
+    const churnMap = toMap(churnRows, 'risk');
+    const platformMap = toMap(platformRows, 'platform');
+
+    const totalUsers = Object.values(stageMap).reduce((a, b) => a + b, 0);
+
+    const genTiming = genTimingRows[0] ?? {};
+    const payTiming = payTimingRows[0] ?? {};
+
+    return {
+      totalUsers,
+      stages: {
+        registered_only: stageMap['registered_only'] ?? 0,
+        generating_free: stageMap['generating_free'] ?? 0,
+        subscribed_active: stageMap['subscribed_active'] ?? 0,
+        subscribed_expired: stageMap['subscribed_expired'] ?? 0,
+        churned: stageMap['churned'] ?? 0,
+      },
+      churnRisk: {
+        low: churnMap['low'] ?? 0,
+        medium: churnMap['medium'] ?? 0,
+        high: churnMap['high'] ?? 0,
+      },
+      timings: {
+        avgDaysToFirstGen: genTiming.avg_days != null ? Number(genTiming.avg_days) : null,
+        medianDaysToFirstGen: genTiming.p50_days != null ? Number(genTiming.p50_days) : null,
+        avgDaysToFirstPayment: payTiming.avg_days != null ? Number(payTiming.avg_days) : null,
+        medianDaysToFirstPayment: payTiming.p50_days != null ? Number(payTiming.p50_days) : null,
+      },
+      acquisition: acqRows.map(r => ({
+        source: String(r.source),
+        total: Number(r.total),
+        paid: Number(r.paid),
+        generated: Number(r.generated),
+        conversionRate: Number(r.total) > 0 ? Math.round((Number(r.paid) / Number(r.total)) * 100) : 0,
+        activationRate: Number(r.total) > 0 ? Math.round((Number(r.generated) / Number(r.total)) * 100) : 0,
+      })),
+      platforms: {
+        web: platformMap['web'] ?? 0,
+        telegram: platformMap['telegram'] ?? 0,
+        max: platformMap['max'] ?? 0,
+        both: platformMap['both'] ?? 0,
+      },
+      generationsBySource: {
+        web: Number((initiatedRows as Row[]).find(r => r.source === 'web')?.cnt ?? 0),
+        telegram_bot: Number((initiatedRows as Row[]).find(r => r.source === 'telegram_bot')?.cnt ?? 0),
+        max_bot: Number((initiatedRows as Row[]).find(r => r.source === 'max_bot')?.cnt ?? 0),
+      },
+      botAcquisition: (botUtmRows as Row[]).map(r => ({
+        source: String(r.bot_source),
+        count: Number(r.cnt),
+      })),
     };
   }
 }

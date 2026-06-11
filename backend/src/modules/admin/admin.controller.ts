@@ -183,6 +183,18 @@ export class AdminController {
     return this.adminService.getUserReferrals(id);
   }
 
+  // ========== CJM ==========
+  @Get('users/:id/cjm')
+  async getUserCjm(@Param('id') id: string) {
+    return this.adminService.getUserCjm(id);
+  }
+
+  @Get('users/:id/export-cjm')
+  async exportUserCjm(@Param('id') id: string) {
+    const csv = await this.adminService.exportUserCjmCsv(id);
+    return { success: true, csv };
+  }
+
   // ========== ANALYTICS ==========
   @Get('analytics')
   async getAnalytics(@Query('period') period?: 'week' | 'month' | 'quarter') {
@@ -331,6 +343,12 @@ export class AdminController {
   @Get('bots')
   async getBotAnalytics(@Query('days') days?: string) {
     return this.adminService.getBotAnalytics(days ? parseInt(days) : 30);
+  }
+
+  // ========== AGGREGATE CJM ANALYTICS ==========
+  @Get('cjm')
+  async getCjmAnalytics() {
+    return this.adminService.getCjmAnalytics();
   }
 
   // ========== ADMIN MANAGEMENT ==========

@@ -1044,7 +1044,7 @@ export class MaxService {
       await this.sendWelcomeMessage(chatIdStr, existingUser, botUserId);
     } else {
       this.logger.log(`[Start] New user: userId=${user.id} — upsert botUser and show activation flow`);
-      await (this.prisma as any).botUser.upsert({
+      const newBotUser = await (this.prisma as any).botUser.upsert({
         where: { maxId: user.id.toString() },
         update: { lastActiveAt: new Date(), firstName: user.first_name || undefined, lastName: user.last_name || undefined, username: user.username || undefined },
         create: {
@@ -1055,8 +1055,22 @@ export class MaxService {
           registrationStatus: 'pending',
           source: 'max_bot',
           lastActiveAt: new Date(),
+          startPayload: payload || null,
         },
       });
+      // Логируем начальный грант кредитов только для новых пользователей
+      if (newBotUser.botCredits === 100 && newBotUser.totalGenerations === 0) {
+        (this.prisma as any).botCreditTransaction.create({
+          data: {
+            botUserId: newBotUser.id,
+            amount: 100,
+            balanceBefore: 0,
+            balanceAfter: 100,
+            reason: 'initial_grant',
+            description: 'Начальный баланс при старте бота',
+          },
+        }).catch(() => null);
+      }
       await this.sendActivationFlow(chatIdStr);
     }
   }
@@ -2959,10 +2973,21 @@ export class MaxService {
       data: { botCredits: { decrement: 3 } },
     });
     if (deducted.count === 0) {
-      const bu = await (this.prisma as any).botUser.findUnique({ where: { maxId: userId }, select: { botCredits: true } });
+      const bu = await (this.prisma as any).botUser.findUnique({ where: { maxId: userId }, select: { id: true, botCredits: true } });
       return { success: false, remaining: bu?.botCredits ?? 0, source: 'bot' };
     }
-    const bu = await (this.prisma as any).botUser.findUnique({ where: { maxId: userId }, select: { botCredits: true } });
+    const bu = await (this.prisma as any).botUser.findUnique({ where: { maxId: userId }, select: { id: true, botCredits: true } });
+    if (bu?.id) {
+      (this.prisma as any).botCreditTransaction.create({
+        data: {
+          botUserId: bu.id,
+          amount: -3,
+          balanceBefore: bu.botCredits + 3,
+          balanceAfter: bu.botCredits,
+          reason: 'generation_deduct',
+        },
+      }).catch(() => null);
+    }
     return { success: true, remaining: bu?.botCredits ?? 0, source: 'bot' };
   }
 
@@ -2970,7 +2995,20 @@ export class MaxService {
     if (source === 'subscription') {
       await this.prisma.userSubscription.updateMany({ where: { userId: appUserId }, data: { extraCredits: { increment: 3 } } });
     } else {
+      const updated = await (this.prisma as any).botUser.findUnique({ where: { maxId: userId }, select: { id: true, botCredits: true } }).catch(() => null);
       await (this.prisma as any).botUser.update({ where: { maxId: userId }, data: { botCredits: { increment: 3 } } }).catch(() => null);
+      if (updated?.id) {
+        (this.prisma as any).botCreditTransaction.create({
+          data: {
+            botUserId: updated.id,
+            amount: 3,
+            balanceBefore: updated.botCredits,
+            balanceAfter: updated.botCredits + 3,
+            reason: 'generation_refund',
+            description: 'Возврат кредитов при ошибке генерации',
+          },
+        }).catch(() => null);
+      }
     }
   }
 

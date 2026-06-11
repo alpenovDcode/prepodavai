@@ -10,7 +10,8 @@ import {
 import {
   Activity, Users, TrendingUp,
   BookOpen, Zap, BarChart2, UserX, ArrowUp, ArrowDown, Minus,
-  Sparkles, CheckCircle, Calendar, Tag, Bot, Send, MessageSquare
+  Sparkles, CheckCircle, Calendar, Tag, Bot, Send, MessageSquare, MapPin,
+  Shield, AlertTriangle, Flame, Globe, ChevronRight
 } from 'lucide-react'
 import DateRangePicker, { daysFromRange } from '@/components/admin/DateRangePicker'
 
@@ -77,6 +78,7 @@ const TABS = [
   { id: 'features',   label: 'Feature Adoption', icon: <Zap className="w-4 h-4" /> },
   { id: 'm14',        label: 'Фичи M1-M4',     icon: <Sparkles className="w-4 h-4" /> },
   { id: 'bots',       label: 'Боты',           icon: <Bot className="w-4 h-4" /> },
+  { id: 'cjm',        label: 'CJM',            icon: <MapPin className="w-4 h-4" /> },
 ]
 
 export default function ProductAnalyticsPage() {
@@ -86,6 +88,7 @@ export default function ProductAnalyticsPage() {
   const [m14Range, setM14Range] = useState('30d')
   const [cmpPeriod, setCmpPeriod] = useState<'week' | 'month'>('week')
   const [botsRange, setBotsRange] = useState('30d')
+  const [cjmExporting, setCjmExporting] = useState(false)
 
   const { data: dau }    = useSWR(`/admin/product/dau-wau-mau?days=${daysFromRange(dauRange)}`, fetcher)
   const { data: ret }    = useSWR('/admin/product/retention', fetcher)
@@ -101,6 +104,23 @@ export default function ProductAnalyticsPage() {
     tab === 'bots' ? `/admin/bots?days=${daysFromRange(botsRange)}` : null,
     fetcher,
   )
+  const { data: cjm }    = useSWR(tab === 'cjm' ? '/admin/cjm' : null, fetcher)
+
+  const handleExportAllCjm = async () => {
+    setCjmExporting(true)
+    try {
+      const res = await apiClient.get('/admin/export/users')
+      const blob = new Blob([res.data.csv], { type: 'text/csv;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `cjm-all-users-${new Date().toISOString().slice(0, 10)}.csv`
+      a.click()
+      URL.revokeObjectURL(url)
+    } finally {
+      setCjmExporting(false)
+    }
+  }
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
@@ -983,6 +1003,255 @@ export default function ProductAnalyticsPage() {
                   })}
                 </div>
               </section>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ── CJM ── */}
+      {tab === 'cjm' && (
+        <div className="space-y-5">
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div>
+              <h2 className="font-bold text-gray-900">Customer Journey Map</h2>
+              <p className="text-sm text-gray-500">
+                {cjm ? `${cjm.totalUsers.toLocaleString('ru')} пользователей` : 'Загружаем...'}
+              </p>
+            </div>
+            <button
+              onClick={handleExportAllCjm}
+              disabled={cjmExporting}
+              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 transition disabled:opacity-50"
+            >
+              {cjmExporting ? '⏳ Экспорт...' : '⬇ Экспорт всех (CSV)'}
+            </button>
+          </div>
+
+          {!cjm ? (
+            <div className="flex items-center justify-center h-40 text-gray-400">Загружаем данные...</div>
+          ) : (
+            <>
+              {/* Воронка этапов */}
+              <div className="bg-white rounded-2xl border border-gray-200 p-5">
+                <p className="text-sm font-bold text-gray-700 mb-4">Воронка CJM этапов</p>
+                <div className="space-y-3">
+                  {([
+                    { key: 'registered_only',   label: 'Только зарегистрированы',  color: 'bg-gray-400' },
+                    { key: 'generating_free',   label: 'Генерируют (бесплатно)',    color: 'bg-blue-500' },
+                    { key: 'subscribed_active', label: 'Активная подписка',         color: 'bg-green-500' },
+                    { key: 'subscribed_expired',label: 'Подписка истекла',          color: 'bg-orange-400' },
+                    { key: 'churned',           label: 'Отток',                     color: 'bg-red-400' },
+                  ] as const).map(({ key, label, color }) => {
+                    const cnt = cjm.stages[key] ?? 0
+                    const pct = cjm.totalUsers > 0 ? Math.round((cnt / cjm.totalUsers) * 100) : 0
+                    return (
+                      <div key={key}>
+                        <div className="flex items-center justify-between text-sm mb-1.5">
+                          <span className="text-gray-700 font-medium">{label}</span>
+                          <span className="text-gray-500 font-semibold">{cnt.toLocaleString('ru')} <span className="text-gray-400 font-normal">({pct}%)</span></span>
+                        </div>
+                        <div className="h-2 bg-gray-100 rounded-full">
+                          <div className={`h-2 ${color} rounded-full transition-all`} style={{ width: `${pct}%` }} />
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                {/* Риск оттока */}
+                <div className="bg-white rounded-2xl border border-gray-200 p-5">
+                  <p className="text-sm font-bold text-gray-700 mb-4">Риск оттока</p>
+                  <div className="space-y-3">
+                    {([
+                      { key: 'low' as const,    label: 'Низкий',   icon: <Shield className="w-4 h-4" />, bg: 'bg-green-50', text: 'text-green-700', bar: 'bg-green-500' },
+                      { key: 'medium' as const, label: 'Средний',  icon: <AlertTriangle className="w-4 h-4" />, bg: 'bg-orange-50', text: 'text-orange-700', bar: 'bg-orange-400' },
+                      { key: 'high' as const,   label: 'Высокий',  icon: <Flame className="w-4 h-4" />, bg: 'bg-red-50', text: 'text-red-700', bar: 'bg-red-500' },
+                    ]).map(({ key, label, icon, bg, text, bar }) => {
+                      const cnt = cjm.churnRisk[key] ?? 0
+                      const total = (cjm.churnRisk.low ?? 0) + (cjm.churnRisk.medium ?? 0) + (cjm.churnRisk.high ?? 0)
+                      const pct = total > 0 ? Math.round((cnt / total) * 100) : 0
+                      return (
+                        <div key={key} className={`${bg} rounded-xl p-3 flex items-center gap-3`}>
+                          <span className={text}>{icon}</span>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex justify-between items-center mb-1">
+                              <span className={`text-sm font-semibold ${text}`}>{label}</span>
+                              <span className={`text-sm font-bold ${text}`}>{cnt.toLocaleString('ru')} <span className="font-normal opacity-70">({pct}%)</span></span>
+                            </div>
+                            <div className="h-1.5 bg-white/70 rounded-full">
+                              <div className={`h-1.5 ${bar} rounded-full`} style={{ width: `${pct}%` }} />
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {/* Тайминги */}
+                <div className="bg-white rounded-2xl border border-gray-200 p-5">
+                  <p className="text-sm font-bold text-gray-700 mb-4">Тайминги конверсии</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-blue-50 rounded-xl p-3">
+                      <p className="text-xs text-gray-500 mb-1">До первой генерации</p>
+                      <p className="text-lg font-bold text-blue-700">
+                        {cjm.timings.avgDaysToFirstGen != null ? `${cjm.timings.avgDaysToFirstGen}д` : '—'}
+                      </p>
+                      <p className="text-xs text-gray-400">среднее</p>
+                    </div>
+                    <div className="bg-blue-50 rounded-xl p-3">
+                      <p className="text-xs text-gray-500 mb-1">Медиана (генерация)</p>
+                      <p className="text-lg font-bold text-blue-700">
+                        {cjm.timings.medianDaysToFirstGen != null ? `${cjm.timings.medianDaysToFirstGen}д` : '—'}
+                      </p>
+                      <p className="text-xs text-gray-400">медиана</p>
+                    </div>
+                    <div className="bg-green-50 rounded-xl p-3">
+                      <p className="text-xs text-gray-500 mb-1">До первой оплаты</p>
+                      <p className="text-lg font-bold text-green-700">
+                        {cjm.timings.avgDaysToFirstPayment != null ? `${cjm.timings.avgDaysToFirstPayment}д` : '—'}
+                      </p>
+                      <p className="text-xs text-gray-400">среднее</p>
+                    </div>
+                    <div className="bg-green-50 rounded-xl p-3">
+                      <p className="text-xs text-gray-500 mb-1">Медиана (оплата)</p>
+                      <p className="text-lg font-bold text-green-700">
+                        {cjm.timings.medianDaysToFirstPayment != null ? `${cjm.timings.medianDaysToFirstPayment}д` : '—'}
+                      </p>
+                      <p className="text-xs text-gray-400">медиана</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Платформы */}
+              <div className="bg-white rounded-2xl border border-gray-200 p-5">
+                <p className="text-sm font-bold text-gray-700 mb-4">Распределение по платформам</p>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {([
+                    { key: 'web' as const,      label: 'Только Web',        icon: <Globe className="w-5 h-5" />,          bg: 'bg-gray-50',    text: 'text-gray-700' },
+                    { key: 'telegram' as const, label: 'Только Telegram',   icon: <Send className="w-5 h-5" />,           bg: 'bg-blue-50',    text: 'text-blue-700' },
+                    { key: 'max' as const,      label: 'Только MAX',        icon: <MessageSquare className="w-5 h-5" />, bg: 'bg-green-50',   text: 'text-green-700' },
+                    { key: 'both' as const,     label: 'TG + MAX',          icon: <ChevronRight className="w-5 h-5" />,  bg: 'bg-purple-50',  text: 'text-purple-700' },
+                  ]).map(({ key, label, icon, bg, text }) => {
+                    const cnt = cjm.platforms[key] ?? 0
+                    const totalPlatform = (cjm.platforms.web ?? 0) + (cjm.platforms.telegram ?? 0) + (cjm.platforms.max ?? 0) + (cjm.platforms.both ?? 0)
+                    const pct = totalPlatform > 0 ? Math.round((cnt / totalPlatform) * 100) : 0
+                    return (
+                      <div key={key} className={`${bg} rounded-xl p-4 text-center`}>
+                        <div className={`flex justify-center mb-2 ${text}`}>{icon}</div>
+                        <p className={`text-2xl font-bold ${text}`}>{cnt.toLocaleString('ru')}</p>
+                        <p className="text-xs text-gray-500 mt-0.5">{label}</p>
+                        <p className="text-xs text-gray-400">{pct}%</p>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Генерации по источнику инициации */}
+              <div className="bg-white rounded-2xl border border-gray-200 p-5">
+                <p className="text-sm font-bold text-gray-700 mb-4">Генерации по каналу инициации</p>
+                <p className="text-xs text-gray-400 mb-3">Откуда была запущена генерация — из браузера, бота Telegram или бота MAX</p>
+                <div className="grid grid-cols-3 gap-3">
+                  {([
+                    { key: 'web',           label: 'Веб-платформа',   icon: <Globe className="w-5 h-5" />,          bg: 'bg-gray-50',   text: 'text-gray-700' },
+                    { key: 'telegram_bot',  label: 'Telegram бот',    icon: <Send className="w-5 h-5" />,           bg: 'bg-blue-50',   text: 'text-blue-700' },
+                    { key: 'max_bot',       label: 'MAX бот',         icon: <MessageSquare className="w-5 h-5" />, bg: 'bg-green-50',  text: 'text-green-700' },
+                  ] as const).map(({ key, label, icon, bg, text }) => {
+                    const cnt = cjm.generationsBySource?.[key] ?? 0
+                    const total = (cjm.generationsBySource?.web ?? 0) + (cjm.generationsBySource?.telegram_bot ?? 0) + (cjm.generationsBySource?.max_bot ?? 0)
+                    const pct = total > 0 ? Math.round((cnt / total) * 100) : 0
+                    return (
+                      <div key={key} className={`${bg} rounded-xl p-4 text-center`}>
+                        <div className={`flex justify-center mb-2 ${text}`}>{icon}</div>
+                        <p className={`text-2xl font-bold ${text}`}>{cnt.toLocaleString('ru')}</p>
+                        <p className="text-xs text-gray-500 mt-0.5">{label}</p>
+                        <p className="text-xs text-gray-400">{pct}%</p>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Источники бот-привлечения */}
+              {(cjm.botAcquisition?.length ?? 0) > 0 && (
+                <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+                  <div className="p-4 border-b border-gray-100">
+                    <p className="text-sm font-bold text-gray-700">Откуда приходят в бот</p>
+                    <p className="text-xs text-gray-400 mt-0.5">UTM-источник или raw payload из /start команды</p>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
+                        <tr>
+                          <th className="px-4 py-3 text-left">Источник (payload / UTM)</th>
+                          <th className="px-4 py-3 text-right">Пользователей</th>
+                          <th className="px-4 py-3 text-right">Доля</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-50">
+                        {(cjm.botAcquisition ?? []).map((row: any) => {
+                          const total = (cjm.botAcquisition ?? []).reduce((s: number, r: any) => s + r.count, 0)
+                          return (
+                            <tr key={row.source} className="hover:bg-gray-50">
+                              <td className="px-4 py-3 font-mono text-gray-800 font-medium">{row.source}</td>
+                              <td className="px-4 py-3 text-right text-gray-700">{row.count.toLocaleString('ru')}</td>
+                              <td className="px-4 py-3 text-right text-gray-500">
+                                {total > 0 ? Math.round((row.count / total) * 100) : 0}%
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Источники привлечения (веб) */}
+              <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+                <div className="p-4 border-b border-gray-100">
+                  <p className="text-sm font-bold text-gray-700">Источники привлечения (платформа)</p>
+                  <p className="text-xs text-gray-400 mt-0.5">Activation Rate = хотя бы одна генерация • Conversion Rate = первая оплата</p>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
+                      <tr>
+                        <th className="px-4 py-3 text-left">Источник</th>
+                        <th className="px-4 py-3 text-right">Всего</th>
+                        <th className="px-4 py-3 text-right">Активированы</th>
+                        <th className="px-4 py-3 text-right">Activation %</th>
+                        <th className="px-4 py-3 text-right">Оплатили</th>
+                        <th className="px-4 py-3 text-right">Conversion %</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {(cjm.acquisition ?? []).map((row: any) => (
+                        <tr key={row.source} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 font-mono text-gray-800 font-medium">{row.source}</td>
+                          <td className="px-4 py-3 text-right text-gray-700">{row.total.toLocaleString('ru')}</td>
+                          <td className="px-4 py-3 text-right text-blue-700">{row.generated.toLocaleString('ru')}</td>
+                          <td className="px-4 py-3 text-right">
+                            <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${row.activationRate >= 50 ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'}`}>
+                              {row.activationRate}%
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-right text-green-700">{row.paid.toLocaleString('ru')}</td>
+                          <td className="px-4 py-3 text-right">
+                            <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${row.conversionRate >= 10 ? 'bg-green-100 text-green-700' : row.conversionRate >= 5 ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-600'}`}>
+                              {row.conversionRate}%
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </>
           )}
         </div>

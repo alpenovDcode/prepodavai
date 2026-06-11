@@ -32,6 +32,10 @@ export class GenerationHelpersService {
       },
     });
 
+    // Определяем источник инициации генерации по _miniAppPlatform
+    const platform = (inputParams as any)?._miniAppPlatform;
+    const initiatedSource = platform === 'telegram' ? 'telegram_bot' : platform === 'max' ? 'max_bot' : 'web';
+
     // Создаем запись в новой таблице
     const userGeneration = await this.prisma.userGeneration.create({
       data: {
@@ -43,6 +47,7 @@ export class GenerationHelpersService {
         generationRequestId: generationRequest.id,
         sentToTelegram: false,
         lessonId,
+        initiatedSource,
       } as any,
     });
 

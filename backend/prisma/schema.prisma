@@ -220,6 +220,7 @@ model UserGeneration {
   telegramSentAt      DateTime?
   sentToMax           Boolean  @default(false)
   maxSentAt           DateTime?
+  initiatedSource     String?  // 'web' | 'telegram_bot' | 'max_bot' — откуда инициирована генерация
   tokensUsed          Int?     // Количество потраченных токенов
   creditCost          Int?     // Итоговая стоимость Токенов
   lessonId            String?
@@ -707,13 +708,40 @@ model BotUser {
   lastGenerationAt     DateTime?
   lastActiveAt         DateTime?
 
+  // Атрибуция: откуда пришёл в бот
+  startPayload         String?   // raw payload из /start (deep-link параметр)
+  utmSource            String?   // распарсенный источник (instagram, vk, telegram_channel, и т.д.)
+  utmMedium            String?
+  utmCampaign          String?
+
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
+
+  // Связи
+  botCreditTransactions BotCreditTransaction[]
 
   @@index([telegramId])
   @@index([maxId])
   @@index([appUserId])
   @@map("bot_users")
+}
+
+// История транзакций бот-кредитов
+model BotCreditTransaction {
+  id            String   @id @default(uuid())
+  botUserId     String
+  botUser       BotUser  @relation(fields: [botUserId], references: [id], onDelete: Cascade)
+  amount        Int      // отрицательное = списание, положительное = начисление
+  balanceBefore Int
+  balanceAfter  Int
+  reason        String   // 'initial_grant' | 'generation_deduct' | 'generation_refund' | 'admin_grant' | 'admin_set'
+  generationType String? // тип генерации, если reason = generation_*
+  description   String?
+  createdAt     DateTime @default(now())
+
+  @@index([botUserId])
+  @@index([createdAt])
+  @@map("bot_credit_transactions")
 }
 
 // ────────────────────────────────────────────────────────────────────────────
