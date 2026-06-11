@@ -83,6 +83,34 @@ export class EmailService {
     return this.sendEmail(email, 'Код подтверждения PrepodavAI', html);
   }
 
+  async sendStudentCredentialsEmail(
+    email: string,
+    params: { studentName: string; password: string; teacherName?: string | null },
+  ) {
+    const appUrl = this.configService.get<string>('NEXT_PUBLIC_APP_URL', 'https://prepodavai.ru');
+    const loginUrl = `${appUrl}/student/login`;
+    const from = params.teacherName ? `Ваш преподаватель ${sanitizeHtml(params.teacherName)}` : 'Ваш преподаватель';
+
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #1a1a1a;">
+        <h2 style="color: #2563eb;">Доступ к платформе Преподавай</h2>
+        <p>Здравствуйте, ${sanitizeHtml(params.studentName)}!</p>
+        <p>${from} создал(а) вам доступ к платформе. Используйте эти данные для входа:</p>
+        <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <p style="margin: 0 0 10px 0;"><strong>Логин:</strong> ${sanitizeHtml(email)}</p>
+          <p style="margin: 0;"><strong>Пароль:</strong> <code style="background: #e5e7eb; padding: 2px 6px; border-radius: 4px;">${sanitizeHtml(params.password)}</code></p>
+        </div>
+        <p style="margin-top: 24px;">
+          <a href="${loginUrl}" style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
+            Войти на платформу
+          </a>
+        </p>
+        <p style="font-size: 13px; color: #6b7280; margin-top: 20px;">Сохраните этот пароль в надёжном месте.</p>
+      </div>
+    `;
+    return this.sendEmail(email, 'Ваши данные для входа в Преподавай', html);
+  }
+
   async sendWelcomeEmail(username: string, apiKey: string, email: string) {
     const appUrl = this.configService.get<string>('NEXT_PUBLIC_APP_URL', 'https://prepodavai.ru');
 

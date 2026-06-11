@@ -1,16 +1,20 @@
-import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException, Logger } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { ClassesService } from '../classes/classes.service';
 import { ReferralsService } from '../referrals/referrals.service';
+import { EmailService } from '../../common/services/email.service';
 
 @Injectable()
 export class StudentsService {
+  private readonly logger = new Logger(StudentsService.name);
+
   constructor(
     private prisma: PrismaService,
     private classesService: ClassesService,
     private referralsService: ReferralsService,
+    private emailService: EmailService,
   ) {}
 
   async createStudent(
@@ -333,6 +337,22 @@ export class StudentsService {
       await this.prisma.$executeRaw`
         UPDATE students SET "passwordHash" = ${passwordHash} WHERE id = ${studentId}
       `;
+
+      const studentEmail = (data.email ?? student.email)?.trim();
+      if (studentEmail) {
+        const teacher = await this.prisma.appUser.findUnique({
+          where: { id: userId },
+          select: { firstName: true, lastName: true },
+        });
+        const teacherName = [teacher?.firstName, teacher?.lastName].filter(Boolean).join(' ') || null;
+        this.emailService
+          .sendStudentCredentialsEmail(studentEmail, {
+            studentName: student.name,
+            password: data.password,
+            teacherName,
+          })
+          .catch((err) => this.logger.warn(`Failed to send credentials email to ${studentEmail}: ${err?.message}`));
+      }
     }
 
     return this.prisma.student.findUnique({ where: { id: studentId } });
