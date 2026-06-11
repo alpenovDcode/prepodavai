@@ -48,9 +48,15 @@ export class HomeworkDeadlineCronService implements OnModuleInit, OnModuleDestro
         },
         include: {
           lesson: { select: { title: true } },
-          student: { select: { id: true, name: true, email: true } },
+          student: {
+            select: {
+              id: true, name: true, email: true,
+              class: { select: { teacher: { select: { notifyWeeklyReport: true } } } },
+            },
+          },
           class: {
             select: {
+              teacher: { select: { notifyWeeklyReport: true } },
               students: { select: { id: true, name: true, email: true } },
             },
           },
@@ -68,10 +74,13 @@ export class HomeworkDeadlineCronService implements OnModuleInit, OnModuleDestro
           : (assignment.class?.students ?? []);
         const submittedIds = new Set(assignment.submissions.map((s) => s.studentId));
 
+        const teacherNotifyEnabled =
+          assignment.class?.teacher?.notifyWeeklyReport ??
+          (assignment.student as any)?.class?.teacher?.notifyWeeklyReport ??
+          false;
+
         for (const student of recipients) {
           if (submittedIds.has(student.id)) continue;
-          const email = student.email?.trim();
-          if (!email) continue;
 
           const alreadySent = await this.prisma.notification.findFirst({
             where: {
@@ -85,12 +94,6 @@ export class HomeworkDeadlineCronService implements OnModuleInit, OnModuleDestro
           if (alreadySent) continue;
 
           try {
-            await this.emailService.sendHomeworkDeadlineReminderEmail(email, {
-              studentName: student.name,
-              lessonTitle: assignment.lesson.title,
-              dueDate,
-              assignmentId: assignment.id,
-            });
             await this.notificationsService.createNotification({
               userId: student.id,
               userType: 'student',
@@ -103,9 +106,20 @@ export class HomeworkDeadlineCronService implements OnModuleInit, OnModuleDestro
                 dueDate: dueDate.toISOString(),
               },
             });
+
+            const email = student.email?.trim();
+            if (teacherNotifyEnabled && email) {
+              await this.emailService.sendHomeworkDeadlineReminderEmail(email, {
+                studentName: student.name,
+                lessonTitle: assignment.lesson.title,
+                dueDate,
+                assignmentId: assignment.id,
+              });
+            }
+
             sent++;
           } catch (err: any) {
-            this.logger.warn(`Failed to send deadline reminder to ${email}: ${err?.message}`);
+            this.logger.warn(`Failed to send deadline reminder to student ${student.id}: ${err?.message}`);
           }
         }
       }

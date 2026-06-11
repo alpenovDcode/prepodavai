@@ -210,8 +210,12 @@ export class SubmissionsService {
       },
     });
 
+    const teacher = await this.prisma.appUser.findUnique({
+      where: { id: teacherId },
+      select: { notifyWeeklyReport: true },
+    });
     const studentEmail = submission.student?.email?.trim();
-    if (studentEmail) {
+    if (teacher?.notifyWeeklyReport && studentEmail) {
       this.emailService
         .sendHomeworkGradedEmail(studentEmail, {
           studentName: submission.student?.name || 'ученик',

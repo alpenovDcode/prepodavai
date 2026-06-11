@@ -1,12 +1,12 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Bell, CheckCheck, GraduationCap, Send, X } from 'lucide-react'
+import { Bell, CheckCheck, GraduationCap, Send, X, BookOpen, Clock } from 'lucide-react'
 import { apiClient } from '@/lib/api/client'
 
 interface Notification {
     id: string
-    type: 'submission_received' | 'submission_graded'
+    type: 'submission_received' | 'submission_graded' | 'homework_assigned' | 'homework_deadline_reminder'
     title: string
     message: string
     isRead: boolean
@@ -86,6 +86,8 @@ export default function NotificationBell({ userType, studentId, dropDirection = 
     const getIcon = (type: string) => {
         if (type === 'submission_received') return <Send size={14} className="text-blue-500" />
         if (type === 'submission_graded') return <GraduationCap size={14} className="text-green-500" />
+        if (type === 'homework_assigned') return <BookOpen size={14} className="text-purple-500" />
+        if (type === 'homework_deadline_reminder') return <Clock size={14} className="text-orange-500" />
         return <Bell size={14} className="text-gray-400" />
     }
 
@@ -117,7 +119,7 @@ export default function NotificationBell({ userType, studentId, dropDirection = 
             </button>
 
             {isOpen && (
-                <div className={`absolute right-0 w-80 bg-white rounded-2xl shadow-xl border border-gray-100 z-50 overflow-hidden ${dropDirection === 'up' ? 'bottom-full mb-2' : 'top-11'}`}>
+                <div className={`absolute left-0 w-80 bg-white rounded-2xl shadow-xl border border-gray-100 z-50 overflow-hidden ${dropDirection === 'up' ? 'bottom-full mb-2' : 'top-11'}`}>
                     {/* Header */}
                     <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
                         <h3 className="font-bold text-gray-900 text-sm">Уведомления</h3>
