@@ -282,11 +282,14 @@ export class HtmlExportService implements OnModuleDestroy {
       await page.setViewportSize({ width: 794, height: 1123 });
 
       if (options?.blockExternalRequests) {
-        // Bot context: block external HTTP requests (Google Fonts, CDNs) to prevent
-        // setContent from hanging until timeout. Fonts fall back to system fonts.
+        // Bot context: block external HTTP requests to prevent hanging.
+        // Allow cdn.jsdelivr.net for MathJax (needed to render LaTeX formulas in PDFs).
         await page.route('**/*', (route) => {
           const url = route.request().url();
-          if (url.startsWith('http://') || url.startsWith('https://')) {
+          if (
+            (url.startsWith('http://') || url.startsWith('https://')) &&
+            !url.includes('cdn.jsdelivr.net')
+          ) {
             route.abort().catch(() => {});
           } else {
             route.continue().catch(() => {});

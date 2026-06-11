@@ -112,7 +112,11 @@ async function htmlToPdf(html: string): Promise<Buffer> {
     await page.setRequestInterception(true);
     page.on('request', (req) => {
       const url = req.url();
-      if (url.startsWith('http://') || url.startsWith('https://')) {
+      // Block external CDNs to prevent hanging — except cdn.jsdelivr.net (needed for MathJax)
+      if (
+        (url.startsWith('http://') || url.startsWith('https://')) &&
+        !url.includes('cdn.jsdelivr.net')
+      ) {
         req.abort().catch(() => {});
       } else {
         req.continue().catch(() => {});
@@ -370,7 +374,16 @@ const telegramSendWorker = new Worker(
           if (result.inputText) caption += `\n\n📌 Тема: ${result.inputText}`;
           if (result.gammaUrl) caption += `\n\n🔗 Gamma: ${result.gammaUrl}`;
           if (caption.length > 1024) caption = caption.substring(0, 1021) + '...';
-          await bot.api.sendDocument(chatId, presentationUrl, { caption });
+          // /api/files/<hash> requires JWT auth — Telegram can't download it directly.
+          // Read from disk the same way images are handled.
+          const local = await readLocalImageBuffer(presentationUrl);
+          if (local) {
+            const isPptx = local.mimeType.includes('pptx') || presentationUrl.includes('pptx');
+            const ext = isPptx ? 'pptx' : 'pdf';
+            await bot.api.sendDocument(chatId, new InputFile(local.buffer, `presentation.${ext}`), { caption });
+          } else {
+            await bot.api.sendMessage(chatId, `${caption}${result.gammaUrl ? '' : `\n\n📥 ${presentationUrl}`}`);
+          }
         }
       } else {
         // Текстовый результат - генерируем PDF

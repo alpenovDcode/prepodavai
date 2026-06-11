@@ -1568,7 +1568,15 @@ export class GenerationsService {
 
     const result = (userGen.outputData ?? userGen.generationRequest?.result) as any;
     const slideDoc: SlideDoc | undefined = result?.slideDoc;
+
     if (!slideDoc?.slides?.length) {
+      // Gamma-generated presentations have no slideDoc — return the stored PDF file directly
+      const fileUrl: string | undefined = result?.exportUrl || result?.pdfUrl;
+      const hashMatch = fileUrl?.match(/\/api\/files\/([a-f0-9]{32})/i);
+      if (hashMatch) {
+        const file = await this.filesService.getFile(hashMatch[1]);
+        if (file) return file.buffer;
+      }
       throw new NotFoundException('SlideDoc не найден в результате генерации');
     }
 
