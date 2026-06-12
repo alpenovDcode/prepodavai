@@ -3679,9 +3679,9 @@ export class AdminService {
       `.catch(() => [] as Row[]),
       // Feature adoption per tool type
       this.prisma.$queryRaw<Row[]>`
-        SELECT generation_type, COUNT(DISTINCT "userId")::int AS unique_users
+        SELECT "generationType" AS generation_type, COUNT(DISTINCT "userId")::int AS unique_users
         FROM user_generations
-        GROUP BY generation_type
+        GROUP BY "generationType"
         ORDER BY unique_users DESC
       `,
       // User segmentation by activity level
@@ -3783,10 +3783,10 @@ export class AdminService {
       `.catch(() => [{ total_referrers: 0, total_invited: 0, activated: 0, converted_paid: 0 }] as Row[]),
       // Content type distribution
       this.prisma.$queryRaw<Row[]>`
-        SELECT generation_type, COUNT(*)::int AS total_gens, COUNT(DISTINCT "userId")::int AS unique_users
+        SELECT "generationType" AS generation_type, COUNT(*)::int AS total_gens, COUNT(DISTINCT "userId")::int AS unique_users
         FROM user_generations
         WHERE status = 'completed'
-        GROUP BY generation_type
+        GROUP BY "generationType"
         ORDER BY total_gens DESC
       `,
       // Daily new registrations (last 90 days)
