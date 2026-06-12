@@ -70,28 +70,28 @@ export default function SettingsPage() {
 
     // subscription section removed
     // const { subscription, refetch: refetchSubscription } = useSubscription()
-    const [cancellingSubscription, setCancellingSubscription] = useState(false)
-    const [cancelConfirm, setCancelConfirm] = useState(false)
-    const [subscriptionMsg, setSubscriptionMsg] = useState<{ type: 'success' | 'error', text: string } | null>(null)
+    // const [cancellingSubscription, setCancellingSubscription] = useState(false)
+    // const [cancelConfirm, setCancelConfirm] = useState(false)
+    // const [subscriptionMsg, setSubscriptionMsg] = useState<{ type: 'success' | 'error', text: string } | null>(null)
 
-    const handleCancelSubscription = async () => {
-        setCancellingSubscription(true)
-        setSubscriptionMsg(null)
-        try {
-            const res = await apiClient.delete('/payments/subscription')
-            if (res.data.success) {
-                setSubscriptionMsg({ type: 'success', text: 'Автопродление отменено. Доступ сохраняется до конца периода.' })
-                setCancelConfirm(false)
-                refetchSubscription()
-            } else {
-                setSubscriptionMsg({ type: 'error', text: res.data.message || 'Не удалось отменить подписку' })
-            }
-        } catch (err: any) {
-            setSubscriptionMsg({ type: 'error', text: err?.response?.data?.message || 'Ошибка при отмене подписки' })
-        } finally {
-            setCancellingSubscription(false)
-        }
-    }
+    // const handleCancelSubscription = async () => {
+    //     setCancellingSubscription(true)
+    //     setSubscriptionMsg(null)
+    //     try {
+    //         const res = await apiClient.delete('/payments/subscription')
+    //         if (res.data.success) {
+    //             setSubscriptionMsg({ type: 'success', text: 'Автопродление отменено. Доступ сохраняется до конца периода.' })
+    //             setCancelConfirm(false)
+    //             refetchSubscription()
+    //         } else {
+    //             setSubscriptionMsg({ type: 'error', text: res.data.message || 'Не удалось отменить подписку' })
+    //         }
+    //     } catch (err: any) {
+    //         setSubscriptionMsg({ type: 'error', text: err?.response?.data?.message || 'Ошибка при отмене подписки' })
+    //     } finally {
+    //         setCancellingSubscription(false)
+    //     }
+    // }
 
     // Платформы
     type PlatformInfo = { linked: boolean; platformId: string | null; platformName: string | null }

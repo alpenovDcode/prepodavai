@@ -696,7 +696,7 @@ ${autoPrintScript}</head><body>${bodyContent}</body></html>`
                 onValuesChange={onComposerUpdate}
                 onFunctionChange={onFunctionChange}
                 onGenerate={generateMaterial}
-                generationsCount={(subscription as any)?.generationsCount || 0}
+                generationsCount={0}
                 hideNavigation={topLevelTab === 'wow'}
               />
 

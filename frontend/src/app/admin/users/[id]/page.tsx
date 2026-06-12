@@ -64,7 +64,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 export default function UserStatsPage({ params }: { params: { id: string } }) {
     const { id } = params
-    const { data, isLoading, error, mutate } = useSWR(`/admin/users/${id}/stats`, fetcher)
+    const { data, isLoading, error } = useSWR(`/admin/users/${id}/stats`, fetcher)
     const stats = data?.stats
     const { data: invitedData } = useSWR(`/admin/users/${id}/referrals`, fetcher)
 
