@@ -45,11 +45,6 @@ export class SubmissionsService {
       throw new NotFoundException('Assignment not found');
     }
 
-    // Check deadline
-    if (assignment.dueDate && new Date() > assignment.dueDate) {
-      throw new BadRequestException('Срок сдачи задания истёк');
-    }
-
     // Check if student is allowed to submit
     const isDirectlyAssigned = assignment.studentId === studentId;
     const isClassAssigned =
@@ -111,13 +106,6 @@ export class SubmissionsService {
     if (submission.studentId !== studentId) throw new ForbiddenException('Access denied');
     if (submission.grade !== null) {
       throw new BadRequestException('Работа уже проверена учителем. Редактирование недоступно.');
-    }
-
-    const assignment = await this.prisma.assignment.findUnique({
-      where: { id: submission.assignmentId },
-    });
-    if (assignment?.dueDate && new Date() > assignment.dueDate) {
-      throw new BadRequestException('Срок сдачи задания истёк');
     }
 
     return this._updateSubmissionData(submissionId, data);
@@ -391,6 +379,7 @@ export class SubmissionsService {
             ? 'graded'
             : 'submitted'
           : 'pending',
+        isLate: !!(latestSubmission && assignment.dueDate && latestSubmission.createdAt > assignment.dueDate),
       };
     });
 

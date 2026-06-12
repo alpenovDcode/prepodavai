@@ -143,6 +143,45 @@ function buildReadonlyScript(data: Record<string, any>): string {
 <\/script>`
 }
 
+// ─── Скрипт для предзаполнения черновика (без блокировки полей) ──────────────
+function buildPrefillOnlyScript(data: Record<string, any>): string {
+  return `<script>
+(function(){
+  var d=${JSON.stringify(data)};
+  function autoId(){
+    var i=0;
+    document.querySelectorAll('input,textarea,select,[contenteditable="true"]').forEach(function(el){
+      if(!el.id&&!el.name){el.id='hw_f_'+i;if(el.tagName!=='DIV'&&el.tagName!=='SPAN')el.name=el.id;}
+      i++;
+    });
+  }
+  function prefill(){
+    autoId();
+    Object.keys(d).forEach(function(k){
+      if(k.startsWith('r__'))return;
+      var v=d[k];
+      var el=document.getElementById(k)||document.querySelector('[name="'+k+'"]');
+      if(!el)return;
+      if(el.type==='checkbox'){el.checked=!!v;}
+      else{el.value=v!=null?String(v):'';}
+    });
+    Object.keys(d).filter(function(k){return k.startsWith('r__');}).forEach(function(k){
+      var name=k.slice(3),val=String(d[k]);
+      document.querySelectorAll('input[type="radio"][name="'+name+'"]').forEach(function(el){
+        el.checked=el.value===val;
+      });
+    });
+    document.querySelectorAll('[contenteditable="true"]').forEach(function(el){
+      var k=el.id||(el.dataset&&el.dataset.key);
+      if(k&&d[k]!=null)el.textContent=String(d[k]);
+    });
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',prefill);
+  else prefill();
+})();
+<\/script>`
+}
+
 // ─── Вспомогательные функции для работы с HTML ───────────────────────────────
 
 /** Извлекает HTML-строку из outputData любого формата */
@@ -244,6 +283,8 @@ interface InteractiveHtmlViewerProps {
   readOnly?: boolean
   /** Данные для предзаполнения (readOnly режим) */
   prefillData?: Record<string, any>
+  /** Начальные данные черновика (editable режим) — заполняет поля без блокировки */
+  initialData?: Record<string, any>
 }
 
 export default function InteractiveHtmlViewer({
@@ -252,15 +293,19 @@ export default function InteractiveHtmlViewer({
   onFormDataChange,
   readOnly = false,
   prefillData,
+  initialData,
 }: InteractiveHtmlViewerProps) {
   const [fieldCount, setFieldCount] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
   const iframeRef = useRef<HTMLIFrameElement>(null)
 
   // Строим финальный HTML с нужным скриптом
+  const hasInitialData = !readOnly && initialData && Object.keys(initialData).length > 0
   const scriptToInject = readOnly && prefillData
     ? buildReadonlyScript(prefillData)
-    : INTERACTIVE_SCRIPT
+    : hasInitialData
+      ? buildPrefillOnlyScript(initialData!) + INTERACTIVE_SCRIPT
+      : INTERACTIVE_SCRIPT
 
   // В обоих режимах применяем ОДИНАКОВЫЙ пайплайн: убираем ключ ответов и
   // конвертируем ___ → <input>. Это критично, потому что auto-id

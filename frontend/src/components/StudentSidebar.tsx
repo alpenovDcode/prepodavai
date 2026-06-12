@@ -34,7 +34,13 @@ export default function StudentSidebar({ user, onLogout }: StudentSidebarProps) 
         : 'У'
 
     return (
-        <aside className="w-64 bg-white border-r border-gray-100 h-screen sticky top-0 flex flex-col hidden lg:flex">
+        <>
+        {user?.id && (
+            <div className="lg:hidden fixed top-4 right-4 z-50">
+                <NotificationBell userType="student" studentId={user.id} />
+            </div>
+        )}
+        <aside className="w-64 bg-white border-r border-gray-100 h-screen sticky top-0 flex-col hidden lg:flex">
             {/* User Profile */}
             <div className="p-6 pb-4">
                 <div className="flex items-center gap-3 mb-6">
@@ -92,5 +98,6 @@ export default function StudentSidebar({ user, onLogout }: StudentSidebarProps) 
                 </button>
             </div>
         </aside>
+        </>
     )
 }

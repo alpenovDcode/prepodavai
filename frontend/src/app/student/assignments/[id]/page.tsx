@@ -156,6 +156,9 @@ export default function StudentAssignmentPage({ params }: { params: { id: string
   const [formDataMap, setFormDataMap] = useState<Record<string, Record<string, any>>>({})
   // кол-во интерактивных полей по каждой генерации
   const [fieldCountMap, setFieldCountMap] = useState<Record<string, number>>({})
+  // данные черновика из localStorage — используются как initialData для viewer
+  const [draftFormDataMap, setDraftFormDataMap] = useState<Record<string, Record<string, any>>>({})
+  const [draftSaved, setDraftSaved] = useState(false)
 
   const totalInteractiveFields = Object.values(fieldCountMap).reduce((s, n) => s + n, 0)
   const hasAnyFormData = Object.values(formDataMap).some(d => Object.keys(d).length > 0)
@@ -167,11 +170,28 @@ export default function StudentAssignmentPage({ params }: { params: { id: string
     if (!userStr) { router.push('/student/login'); return }
     setUser(JSON.parse(userStr))
 
+    // Синхронно читаем черновик из localStorage (до ответа API)
+    try {
+      const draftStr = localStorage.getItem(`draft_${params.id}`)
+      if (draftStr) {
+        const draft = JSON.parse(draftStr)
+        if (draft.submissionText) setSubmissionText(draft.submissionText)
+        if (draft.attachments?.length) setAttachments(draft.attachments)
+        if (draft.formDataMap) setDraftFormDataMap(draft.formDataMap)
+      }
+    } catch {}
+
     apiClient.get(`/assignments/${params.id}`)
       .then(r => {
         setAssignment(r.data)
         if (r.data.lesson.generations.length > 0) {
           setExpandedItems([r.data.lesson.generations[0].id])
+        }
+        // Если уже есть сдача — очищаем черновик
+        if (r.data.submissions?.length > 0) {
+          setDraftFormDataMap({})
+          setSubmissionText('')
+          setAttachments([])
         }
       })
       .catch((err: any) => {
@@ -196,6 +216,20 @@ export default function StudentAssignmentPage({ params }: { params: { id: string
     [],
   )
 
+  // Автосохранение черновика
+  useEffect(() => {
+    if (!assignment) return
+    const hasSubmission = (assignment.submissions?.length ?? 0) > 0
+    if (hasSubmission && !isEditing) return
+    const timer = setTimeout(() => {
+      const draft = { submissionText, attachments, formDataMap }
+      localStorage.setItem(`draft_${params.id}`, JSON.stringify(draft))
+      setDraftSaved(true)
+      setTimeout(() => setDraftSaved(false), 2000)
+    }, 1500)
+    return () => clearTimeout(timer)
+  }, [submissionText, attachments, formDataMap, assignment, isEditing, params.id])
+
   const isDeadlinePassed = () => assignment?.dueDate ? new Date() > new Date(assignment.dueDate) : false
 
   const buildPayload = () => {
@@ -208,10 +242,7 @@ export default function StudentAssignmentPage({ params }: { params: { id: string
     }
   }
 
-  const canSubmit = () => {
-    if (isDeadlinePassed()) return false
-    return submissionText.trim() !== '' || attachments.length > 0 || hasAnyFormData
-  }
+  const canSubmit = () => submissionText.trim() !== '' || attachments.length > 0 || hasAnyFormData
 
   const handleSubmit = async () => {
     if (!canSubmit()) return
@@ -225,6 +256,8 @@ export default function StudentAssignmentPage({ params }: { params: { id: string
       } else {
         await apiClient.post('/submissions', payload)
       }
+      localStorage.removeItem(`draft_${params.id}`)
+      setDraftFormDataMap({})
       const r = await apiClient.get(`/assignments/${params.id}`)
       setAssignment(r.data)
       setIsEditing(false)
@@ -334,6 +367,7 @@ export default function StudentAssignmentPage({ params }: { params: { id: string
               html={html}
               generationId={gen.id}
               onFormDataChange={handleFormDataChange}
+              initialData={draftFormDataMap[gen.id]}
             />
           </div>
         )
@@ -372,9 +406,9 @@ export default function StudentAssignmentPage({ params }: { params: { id: string
     return (
       <div className="space-y-4">
         {deadlinePassed && (
-          <div className="flex items-center gap-3 p-3 bg-red-50 rounded-xl border border-red-200">
-            <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
-            <p className="text-sm font-semibold text-red-700">Срок сдачи истёк. Отправка недоступна.</p>
+          <div className="flex items-center gap-3 p-3 bg-yellow-50 rounded-xl border border-yellow-200">
+            <AlertCircle className="w-5 h-5 text-yellow-500 flex-shrink-0" />
+            <p className="text-sm font-semibold text-yellow-700">Срок сдачи истёк — работа будет помечена как поздняя</p>
           </div>
         )}
 
@@ -396,8 +430,7 @@ export default function StudentAssignmentPage({ params }: { params: { id: string
           <textarea
             value={submissionText}
             onChange={e => setSubmissionText(e.target.value)}
-            disabled={deadlinePassed}
-            className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:border-orange-400 focus:ring-2 focus:ring-orange-100 focus:bg-white transition min-h-[120px] text-base resize-y outline-none disabled:opacity-60"
+            className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:border-orange-400 focus:ring-2 focus:ring-orange-100 focus:bg-white transition min-h-[120px] text-base resize-y outline-none"
             placeholder={totalInteractiveFields > 0 ? 'Напишите, если хотите добавить что-то...' : 'Введите ваш ответ здесь...'}
           />
         </div>
@@ -429,23 +462,21 @@ export default function StudentAssignmentPage({ params }: { params: { id: string
 
         <div className="flex items-center justify-between pt-1">
           <div className="flex items-center gap-2">
-            {!deadlinePassed && (
-              <div className="relative">
-                <input
-                  type="file" accept="image/png,image/jpeg,image/jpg"
-                  onChange={handleFileChange}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                  disabled={uploadingImage || submitting}
-                />
-                <button
-                  type="button" disabled={uploadingImage || submitting}
-                  className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 text-gray-600 font-medium rounded-xl hover:bg-gray-50 transition disabled:opacity-50 text-sm"
-                >
-                  {uploadingImage ? <Loader2 size={16} className="animate-spin text-orange-500" /> : <ImageIcon size={16} />}
-                  {uploadingImage ? 'Загрузка...' : 'Прикрепить фото'}
-                </button>
-              </div>
-            )}
+            <div className="relative">
+              <input
+                type="file" accept="image/png,image/jpeg,image/jpg"
+                onChange={handleFileChange}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                disabled={uploadingImage || submitting}
+              />
+              <button
+                type="button" disabled={uploadingImage || submitting}
+                className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 text-gray-600 font-medium rounded-xl hover:bg-gray-50 transition disabled:opacity-50 text-sm"
+              >
+                {uploadingImage ? <Loader2 size={16} className="animate-spin text-orange-500" /> : <ImageIcon size={16} />}
+                {uploadingImage ? 'Загрузка...' : 'Прикрепить фото'}
+              </button>
+            </div>
             {isEditing && (
               <button onClick={() => { setIsEditing(false); setError(null) }} className="px-4 py-2.5 text-gray-600 font-medium rounded-xl hover:bg-gray-100 transition text-sm">
                 Отмена
@@ -453,16 +484,19 @@ export default function StudentAssignmentPage({ params }: { params: { id: string
             )}
           </div>
 
-          <button
-            onClick={handleSubmit}
-            disabled={submitting || !canSubmit() || uploadingImage}
-            className="flex items-center gap-2 px-6 py-3 bg-orange-500 text-white font-bold rounded-xl hover:bg-orange-600 transition shadow-md disabled:opacity-50 disabled:cursor-not-allowed transform hover:-translate-y-0.5 active:translate-y-0 text-sm"
-          >
-            {submitting
-              ? <><Loader2 size={17} className="animate-spin" /> Отправка...</>
-              : <><Send size={17} /> {isEditing ? 'Сохранить изменения' : 'Отправить ответ'}</>
-            }
-          </button>
+          <div className="flex flex-col items-end gap-1">
+            {draftSaved && <p className="text-xs text-gray-400">Черновик сохранён</p>}
+            <button
+              onClick={handleSubmit}
+              disabled={submitting || !canSubmit() || uploadingImage}
+              className="flex items-center gap-2 px-6 py-3 bg-orange-500 text-white font-bold rounded-xl hover:bg-orange-600 transition shadow-md disabled:opacity-50 disabled:cursor-not-allowed transform hover:-translate-y-0.5 active:translate-y-0 text-sm"
+            >
+              {submitting
+                ? <><Loader2 size={17} className="animate-spin" /> Отправка...</>
+                : <><Send size={17} /> {isEditing ? 'Сохранить изменения' : deadlinePassed ? 'Сдать (поздняя работа)' : 'Отправить ответ'}</>
+              }
+            </button>
+          </div>
         </div>
       </div>
     )
@@ -473,7 +507,7 @@ export default function StudentAssignmentPage({ params }: { params: { id: string
   const renderSubmittedAnswer = () => {
     const sub = assignment!.submissions[0]
     const isGraded = sub.grade !== null && sub.grade !== undefined
-    const deadlinePassed = isDeadlinePassed()
+    const isLate = !!(sub?.createdAt && assignment!.dueDate && new Date(sub.createdAt) > new Date(assignment!.dueDate))
 
     return (
       <div className="space-y-4">
@@ -484,9 +518,16 @@ export default function StudentAssignmentPage({ params }: { params: { id: string
           <div className="flex items-center gap-3">
             <CheckCircle className={`w-6 h-6 flex-shrink-0 ${isGraded ? 'text-green-500' : 'text-yellow-500'}`} />
             <div>
-              <p className={`font-bold ${isGraded ? 'text-green-800' : 'text-yellow-800'}`}>
-                {isGraded ? 'Работа проверена' : 'Ответ отправлен'}
-              </p>
+              <div className="flex items-center gap-2">
+                <p className={`font-bold ${isGraded ? 'text-green-800' : 'text-yellow-800'}`}>
+                  {isGraded ? 'Работа проверена' : 'Ответ отправлен'}
+                </p>
+                {isLate && (
+                  <span className="text-xs font-semibold bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">
+                    ⏰ Поздно
+                  </span>
+                )}
+              </div>
               <p className={`text-sm ${isGraded ? 'text-green-600' : 'text-yellow-600'}`}>
                 {isGraded
                   ? <>Оценка: <span className="font-bold text-lg">{sub.grade}</span></>
@@ -495,8 +536,8 @@ export default function StudentAssignmentPage({ params }: { params: { id: string
               </p>
             </div>
           </div>
-          {/* Кнопка редактирования — только если не оценено и дедлайн не прошёл */}
-          {!isGraded && !deadlinePassed && (
+          {/* Кнопка редактирования — только если не оценено */}
+          {!isGraded && (
             <button
               onClick={handleStartEdit}
               className="flex items-center gap-2 px-4 py-2 bg-white border border-yellow-200 text-yellow-700 font-semibold rounded-xl hover:bg-yellow-50 transition text-sm"
