@@ -162,12 +162,12 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
     const renderToolButton = (tool: Tool, showStar = false) => {
         const Icon = tool.icon
         const active = isActive(tool.path)
-        const opType = opMap[tool.id]
-        const costEntry = costs?.find((c: any) => c.operationType === opType)
-        const isHidden = costs !== undefined && opType !== undefined && !costEntry
-        const isUnderMaintenance = costEntry?.isUnderMaintenance || false
+        // const opType = opMap[tool.id]
+        // const costEntry = costs?.find((c: any) => c.operationType === opType)
+        // const isHidden = costs !== undefined && opType !== undefined && !costEntry
+        const isUnderMaintenance = false
 
-        if (isHidden) return null
+        // if (isHidden) return null
 
         const handleClick = () => {
             if (isUnderMaintenance) return
