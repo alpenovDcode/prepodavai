@@ -19,7 +19,9 @@ import {
     Sparkles,
     Download,
     Zap,
-    Keyboard
+    Keyboard,
+    Gamepad2,
+    Trophy,
 } from 'lucide-react'
 import InteractiveHtmlViewer, { extractHtmlFromOutput } from '@/components/InteractiveHtmlViewer'
 
@@ -713,11 +715,92 @@ export default function HomeworkReviewPage() {
                                     return null
                                 })()}
 
+                                {/* Результаты мини-игр (game_generation) */}
+                                {(() => {
+                                    const generations = assignmentDetails.assignment.generations || []
+                                    const formData = (selectedStudentStatus.submission?.formData || {}) as Record<string, any>
+                                    // Поле может прийти как `type` (текущее DTO) или `generationType`
+                                    // (если кто-то изменит маппинг на бэкенде) — поддерживаем оба.
+                                    const typeOf = (g: any) => g?.type || g?.generationType
+                                    const gameBlocks = generations
+                                        .filter(g => typeOf(g) === 'game_generation' || typeOf(g) === 'game')
+                                        .map(g => ({ gen: g, result: formData[g.id]?._game }))
+                                        .filter(b => b.result)
+                                    if (gameBlocks.length === 0) return null
+                                    return (
+                                        <div className="space-y-3 mb-4">
+                                            {gameBlocks.map(({ gen, result }) => {
+                                                const out: any = gen.outputData || {}
+                                                const topic = out.topic || result.topic
+                                                const gType = out.type || result.gameType
+                                                const outcome = result.outcome
+                                                const outcomeLabel = outcome === 'win' ? 'Победа'
+                                                    : outcome === 'lose' ? 'Поражение'
+                                                    : 'Завершено'
+                                                const outcomeClass = outcome === 'win'
+                                                    ? 'bg-green-100 text-green-700 border-green-200'
+                                                    : outcome === 'lose'
+                                                    ? 'bg-red-100 text-red-700 border-red-200'
+                                                    : 'bg-blue-100 text-blue-700 border-blue-200'
+                                                return (
+                                                    <div key={gen.id} className="bg-white rounded-xl border border-indigo-100 p-4">
+                                                        <div className="flex flex-wrap items-center gap-2 mb-3">
+                                                            <span className="inline-flex items-center gap-1.5 text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 px-2.5 py-1 rounded-full">
+                                                                <Gamepad2 size={12} /> Мини-игра{gType ? ` · ${gType}` : ''}
+                                                            </span>
+                                                            {topic && <span className="text-sm text-gray-700"><span className="text-gray-500">Тема:</span> <strong>{topic}</strong></span>}
+                                                            <span className={`ml-auto inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full border ${outcomeClass}`}>
+                                                                <Trophy size={12} /> {outcomeLabel}
+                                                            </span>
+                                                        </div>
+                                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+                                                            {typeof result.score === 'number' && (
+                                                                <div className="bg-gray-50 rounded-lg p-3">
+                                                                    <p className="text-xs text-gray-500 mb-0.5">Счёт</p>
+                                                                    <p className="font-bold text-gray-900">{result.score}{typeof result.total === 'number' ? ` / ${result.total}` : ''}</p>
+                                                                </div>
+                                                            )}
+                                                            {typeof result.moves === 'number' && (
+                                                                <div className="bg-gray-50 rounded-lg p-3">
+                                                                    <p className="text-xs text-gray-500 mb-0.5">Ходы</p>
+                                                                    <p className="font-bold text-gray-900">{result.moves}</p>
+                                                                </div>
+                                                            )}
+                                                            {result.time && (
+                                                                <div className="bg-gray-50 rounded-lg p-3">
+                                                                    <p className="text-xs text-gray-500 mb-0.5">Время</p>
+                                                                    <p className="font-bold text-gray-900">{result.time}</p>
+                                                                </div>
+                                                            )}
+                                                            {typeof result.winAmount === 'number' && (
+                                                                <div className="bg-gray-50 rounded-lg p-3">
+                                                                    <p className="text-xs text-gray-500 mb-0.5">Выигрыш</p>
+                                                                    <p className="font-bold text-gray-900">{result.winAmount.toLocaleString('ru-RU')} ₽</p>
+                                                                </div>
+                                                            )}
+                                                            {typeof result.loseAmount === 'number' && (
+                                                                <div className="bg-gray-50 rounded-lg p-3">
+                                                                    <p className="text-xs text-gray-500 mb-0.5">Несгораемое</p>
+                                                                    <p className="font-bold text-gray-900">{result.loseAmount.toLocaleString('ru-RU')} ₽</p>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        {result.message && <p className="mt-3 text-sm text-gray-600 italic">«{result.message}»</p>}
+                                                    </div>
+                                                )
+                                            })}
+                                        </div>
+                                    )
+                                })()}
+
                                 {/* Text answer */}
                                 {(selectedStudentStatus.submission?.content || !assignmentDetails.assignment.generations?.some(gen => {
-                                    const formData = selectedStudentStatus.submission?.formData || {}
+                                    const formData = (selectedStudentStatus.submission?.formData || {}) as Record<string, any>
                                     const html = extractHtmlFromOutput(gen.outputData)
-                                    return html && formData[gen.id] && Object.keys(formData[gen.id]).length > 0
+                                    const interactiveFilled = html && formData[gen.id] && Object.keys(formData[gen.id]).length > 0
+                                    const gType = (gen as any).type || (gen as any).generationType
+                                    const gameFilled = (gType === 'game_generation' || gType === 'game') && !!formData[gen.id]?._game
+                                    return interactiveFilled || gameFilled
                                 })) && (
                                     <div className="bg-white p-5 rounded-xl border border-gray-200 text-gray-800 text-base leading-relaxed min-h-[100px]">
                                         <div className="whitespace-pre-wrap">

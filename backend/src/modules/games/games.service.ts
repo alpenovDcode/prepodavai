@@ -88,6 +88,13 @@ export class GamesService {
 
     this.logger.debug(`Template placeholders replaced, HTML length: ${gameHtml.length}`);
 
+    // 4b. Inject universal "report-result-to-parent" bridge.
+    // Слушает появление финальных экранов любой из встроенных игр
+    // (truefalse / memory / crossword / millionaire / flashcards) и шлёт
+    // window.parent.postMessage(...) с результатом, чтобы страница ученика
+    // могла записать его в submission.formData.
+    gameHtml = this.injectResultBridge(gameHtml, { topic, type });
+
     // 5. Save File
     const gameId = uuidv4();
     const fileName = `${gameId}.html`;
@@ -159,6 +166,102 @@ export class GamesService {
       url: gameUrl,
       downloadUrl,
     };
+  }
+
+  /**
+   * Внедряет в HTML игры универсальный скрипт-мост, который сообщает
+   * родительскому окну (странице ученика) о готовности и о финальном
+   * результате. Использует MutationObserver — без правки логики каждой игры.
+   */
+  private injectResultBridge(html: string, meta: { topic: string; type: string }): string {
+    const metaJson = JSON.stringify({ topic: meta.topic, type: meta.type });
+    const bridge = `
+<script>(function(){
+  if (window.__prepodavaiBridge) return;
+  window.__prepodavaiBridge = true;
+  var META = ${metaJson};
+  var sent = false;
+  function send(payload){
+    if (sent) return;
+    sent = true;
+    try { window.parent && window.parent.postMessage(Object.assign({source:'prepodavai-game'}, payload), '*'); } catch(e){}
+  }
+  function txt(id){
+    var el = document.getElementById(id);
+    return el ? (el.innerText || el.textContent || '').trim() : '';
+  }
+  function num(s){
+    if (!s) return null;
+    var m = String(s).replace(/\\s+/g,'').match(/-?\\d+(?:[.,]\\d+)?/);
+    return m ? Number(m[0].replace(',', '.')) : null;
+  }
+  function collect(outcome){
+    // Известные id из встроенных шаблонов
+    var score = num(txt('final-score'));
+    var moves = num(txt('final-moves'));
+    var time  = txt('final-time') || null;
+    var winAmount  = num(txt('win-amount'));
+    var loseAmount = num(txt('lose-amount'));
+    var msg = txt('final-message') || txt('result-message') || '';
+    // Пытаемся достать total из текстов вида "5 / 10"
+    var total = null;
+    var scoreBig = document.querySelector('.score-big');
+    if (scoreBig){
+      var m = (scoreBig.innerText || '').match(/\\/\\s*(\\d+)/);
+      if (m) total = Number(m[1]);
+    }
+    send({
+      type: 'GAME_RESULT',
+      outcome: outcome || 'finished',
+      topic: META.topic,
+      gameType: META.type,
+      score: score,
+      total: total,
+      moves: moves,
+      time: time,
+      winAmount: winAmount,
+      loseAmount: loseAmount,
+      message: msg,
+      finishedAt: new Date().toISOString()
+    });
+  }
+  function isVisible(el){
+    if (!el) return false;
+    var s = window.getComputedStyle(el);
+    if (s.display === 'none' || s.visibility === 'hidden' || Number(s.opacity) === 0) return false;
+    var r = el.getBoundingClientRect();
+    return r.width > 0 && r.height > 0;
+  }
+  function check(){
+    // Финальные контейнеры по разным шаблонам
+    var candidates = [
+      { sel: '#result-screen',  outcome: 'finished' }, // truefalse
+      { sel: '#win-modal.active', outcome: 'win'    }, // memory
+      { sel: '#win-modal',      outcome: 'win'      }, // crossword/memory (style.display)
+      { sel: '#screen-win',     outcome: 'win'      }, // millionaire
+      { sel: '#screen-lose',    outcome: 'lose'     }, // millionaire
+    ];
+    for (var i=0; i<candidates.length; i++){
+      var el = document.querySelector(candidates[i].sel);
+      if (el && isVisible(el)){ collect(candidates[i].outcome); return true; }
+    }
+    return false;
+  }
+  function ready(){
+    try { window.parent && window.parent.postMessage({source:'prepodavai-game', type:'GAME_READY', topic:META.topic, gameType:META.type}, '*'); } catch(e){}
+    if (check()) return;
+    var obs = new MutationObserver(function(){ if (check()) obs.disconnect(); });
+    obs.observe(document.body, { attributes:true, childList:true, subtree:true, attributeFilter:['style','class'] });
+    // Перестраховка — раз в секунду тоже проверяем (на случай скрытых от observer изменений)
+    var iv = setInterval(function(){ if (check()) { clearInterval(iv); obs.disconnect(); } }, 1000);
+    setTimeout(function(){ clearInterval(iv); obs.disconnect(); }, 30 * 60 * 1000);
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', ready);
+  else ready();
+})();</script>`;
+    if (/<\/body>/i.test(html)) return html.replace(/<\/body>/i, `${bridge}\n</body>`);
+    if (/<\/html>/i.test(html)) return html.replace(/<\/html>/i, `${bridge}\n</html>`);
+    return html + bridge;
   }
 
   async getGameFile(gameId: string) {

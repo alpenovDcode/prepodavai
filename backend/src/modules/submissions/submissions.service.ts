@@ -74,7 +74,7 @@ export class SubmissionsService {
         studentId,
         content: data.content || null,
         attachments: attachmentsPayload,
-        formData: data.formData || null,
+        formData: this._sanitizeFormData(data.formData),
         status: 'submitted',
       },
       include: { student: true },
@@ -111,6 +111,54 @@ export class SubmissionsService {
     return this._updateSubmissionData(submissionId, data);
   }
 
+  /**
+   * Приводит formData к безопасному виду. Раньше в БД попадало `any`,
+   * теперь служебный ключ `_game` валидируется по схеме (числа — числа,
+   * строки — строки, лишние поля выкидываются), а обычные поля копируются
+   * как примитивы. Защищает от инъекций и кривых клиентов.
+   */
+  private _sanitizeFormData(input: any): any {
+    if (!input || typeof input !== 'object') return null;
+    const isPrimitive = (v: any) =>
+      v === null || ['string', 'number', 'boolean'].includes(typeof v);
+    const sanitizeGame = (g: any) => {
+      if (!g || typeof g !== 'object') return null;
+      const num = (v: any) => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
+      const str = (v: any, max = 200) =>
+        typeof v === 'string' ? v.slice(0, max) : undefined;
+      const outcome = ['win', 'lose', 'finished'].includes(g.outcome) ? g.outcome : undefined;
+      return {
+        outcome,
+        score: num(g.score),
+        total: num(g.total),
+        moves: num(g.moves),
+        time: str(g.time, 40),
+        winAmount: num(g.winAmount),
+        loseAmount: num(g.loseAmount),
+        message: str(g.message, 500),
+        gameType: str(g.gameType, 40),
+        topic: str(g.topic, 200),
+        finishedAt: str(g.finishedAt, 40),
+      };
+    };
+    const out: Record<string, Record<string, any>> = {};
+    for (const [genId, fields] of Object.entries(input as Record<string, any>)) {
+      if (!fields || typeof fields !== 'object') continue;
+      const cleanFields: Record<string, any> = {};
+      for (const [k, v] of Object.entries(fields as Record<string, any>)) {
+        if (k === '_game') {
+          const game = sanitizeGame(v);
+          if (game) cleanFields._game = game;
+        } else if (isPrimitive(v)) {
+          // Ограничиваем длину строк, чтобы не складировать гигабайты в JSON
+          cleanFields[k] = typeof v === 'string' ? v.slice(0, 10_000) : v;
+        }
+      }
+      if (Object.keys(cleanFields).length) out[genId] = cleanFields;
+    }
+    return Object.keys(out).length ? out : null;
+  }
+
   private _buildAttachments(data: { fileUrl?: string; attachments?: any[] }) {
     if (data.attachments && Array.isArray(data.attachments) && data.attachments.length > 0) {
       return data.attachments;
@@ -132,7 +180,7 @@ export class SubmissionsService {
       data: {
         content: data.content !== undefined ? data.content || null : undefined,
         ...(attachmentsPayload !== null ? { attachments: attachmentsPayload } : {}),
-        ...(data.formData !== undefined ? { formData: data.formData || null } : {}),
+        ...(data.formData !== undefined ? { formData: this._sanitizeFormData(data.formData) } : {}),
         status: 'submitted',
         updatedAt: new Date(),
       },
@@ -516,7 +564,7 @@ export class SubmissionsService {
 Ученик: ${studentName}
 ${taskContent ? `\nСодержание задания (включая правильные ответы, если есть):\n${taskContent}` : ''}
 Ответ ученика:
-${textAnswer || '(текстовый ответ отсутствует)'}${formData ? `\n\nЗаполненные поля задания (JSON):\n${formData}` : ''}
+${textAnswer || '(текстовый ответ отсутствует)'}${formData ? `\n\nЗаполненные поля задания (JSON):\n${formData}\n\nПримечание: внутри JSON поле «_game» — это итог пройденной учеником мини-игры (поля: outcome — finished/win/lose; score, total — счёт; moves — число ходов; time — затраченное время; winAmount — выигрыш; message — итоговое сообщение игры). Учитывай это при оценке: высокий процент правильных ответов или победа = высокая оценка.` : ''}
 
 Проверь работу ученика, сравнив его ответы с правильными ответами из задания. Верни ТОЛЬКО валидный JSON без пояснений, без markdown-обёртки, без комментариев до или после. Формат строго такой:
 {"grade": <целое число от 1 до 5>, "feedback": "<краткий, конструктивный и поддерживающий комментарий 3–5 предложений на русском языке. Укажи количество правильных и неправильных ответов, отметь что сделано хорошо, и если есть ошибки — мягко укажи на них с пояснением правильного ответа. Связный текст без заголовков и маркеров.>"}

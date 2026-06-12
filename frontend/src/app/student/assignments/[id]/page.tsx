@@ -1,12 +1,12 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { apiClient } from '@/lib/api/client'
 import { useRouter } from 'next/navigation'
 import {
   ChevronDown, FileText, MonitorPlay, PenTool, BookOpen, ArrowLeft,
   CheckCircle, AlertCircle, Send, Loader2, X, ImageIcon, Clock, Edit2,
-  ClipboardList,
+  ClipboardList, Gamepad2, ExternalLink,
 } from 'lucide-react'
 import StudentSidebar from '@/components/StudentSidebar'
 import InteractiveHtmlViewer, { extractHtmlFromOutput } from '@/components/InteractiveHtmlViewer'
@@ -70,21 +70,47 @@ function DeadlineBadge({ dueDate }: { dueDate: string }) {
 
 function getGenIcon(type: string) {
   switch (type) {
-    case 'plan': case 'lesson-plan': return <FileText className="w-5 h-5 text-blue-500" />
+    case 'plan': case 'lesson-plan': case 'lesson_preparation': case 'lesson-preparation': return <FileText className="w-5 h-5 text-blue-500" />
     case 'presentation': return <MonitorPlay className="w-5 h-5 text-orange-500" />
     case 'quiz': return <PenTool className="w-5 h-5 text-purple-500" />
+    case 'game_generation': case 'game': return <Gamepad2 className="w-5 h-5 text-indigo-500" />
+    case 'image': case 'image_generation': case 'photosession': return <ImageIcon className="w-5 h-5 text-pink-500" />
     default: return <BookOpen className="w-5 h-5 text-gray-500" />
   }
 }
 
 function getGenLabel(type: string) {
   const map: Record<string, string> = {
-    'plan': 'План урока', 'lesson-plan': 'План урока', 'presentation': 'Презентация',
+    'plan': 'План урока', 'lesson-plan': 'План урока',
+    'lesson_preparation': 'Вау-урок', 'lesson-preparation': 'Вау-урок', 'lesson-prep': 'Вау-урок',
+    'presentation': 'Презентация',
     'quiz': 'Тест', 'worksheet': 'Рабочий лист', 'vocabulary': 'Словарь',
-    'adaptation': 'Адаптация текста', 'feedback': 'Фидбек', 'unpacking': 'Распаковка',
-    'exam': 'Вариант ОГЭ/ЕГЭ', 'lesson-prep': 'Вау-урок',
+    'adaptation': 'Адаптация текста', 'content-adaptation': 'Адаптация текста',
+    'feedback': 'Фидбек', 'unpacking': 'Распаковка',
+    'exam': 'Вариант ОГЭ/ЕГЭ', 'exam-variant': 'Вариант ОГЭ/ЕГЭ',
+    'game_generation': 'Мини-игра', 'game': 'Мини-игра',
+    'image': 'Изображение', 'image_generation': 'Изображение', 'photosession': 'Фотосессия',
   }
   return map[type] || 'Учебный материал'
+}
+
+// Возвращает русскоязычное название типа мини-игры
+function getGameTypeLabel(t?: string) {
+  if (!t) return null
+  const m: Record<string, string> = {
+    truefalse: 'Правда / Ложь',
+    'true-false': 'Правда / Ложь',
+    matching: 'Сопоставление',
+    crossword: 'Кроссворд',
+    quiz: 'Викторина',
+    memory: 'Найди пару',
+    wordsearch: 'Найди слова',
+    hangman: 'Виселица',
+    fillblanks: 'Заполни пропуски',
+    'fill-blanks': 'Заполни пропуски',
+    flashcards: 'Карточки',
+  }
+  return m[t.toLowerCase()] || t
 }
 
 // ─── Утилита: удаление ключа ответов из контента ─────────────────────────────
@@ -159,6 +185,51 @@ export default function StudentAssignmentPage({ params }: { params: { id: string
   // данные черновика из localStorage — используются как initialData для viewer
   const [draftFormDataMap, setDraftFormDataMap] = useState<Record<string, Record<string, any>>>({})
   const [draftSaved, setDraftSaved] = useState(false)
+  // Результаты мини-игр, пришедшие через postMessage из iframe
+  const [gameResults, setGameResults] = useState<Record<string, any>>({})
+  // genId -> iframe window, чтобы по event.source понять, какой генерации это сообщение
+  const gameFrameRefs = useRef<Record<string, HTMLIFrameElement | null>>({})
+
+  // Слушаем результаты мини-игр из iframe
+  useEffect(() => {
+    function onMessage(e: MessageEvent) {
+      const data = e.data
+      if (!data || typeof data !== 'object' || data.source !== 'prepodavai-game') return
+      // Находим генерацию по window-источнику
+      const genId = Object.keys(gameFrameRefs.current).find(
+        id => gameFrameRefs.current[id]?.contentWindow === e.source,
+      )
+      if (!genId) return
+      if (data.type !== 'GAME_RESULT') return
+      const result = {
+        outcome: data.outcome,
+        score: data.score,
+        total: data.total,
+        moves: data.moves,
+        time: data.time,
+        winAmount: data.winAmount,
+        loseAmount: data.loseAmount,
+        message: data.message,
+        gameType: data.gameType,
+        topic: data.topic,
+        finishedAt: data.finishedAt,
+      }
+      setGameResults(prev => ({ ...prev, [genId]: result }))
+      setFormDataMap(prev => ({ ...prev, [genId]: { _game: result } }))
+      setFieldCountMap(prev => ({ ...prev, [genId]: 1 }))
+    }
+    window.addEventListener('message', onMessage)
+    return () => window.removeEventListener('message', onMessage)
+  }, [])
+
+  // Чистим refs от удалённых генераций (если ассайнмент перечитан с сервера)
+  useEffect(() => {
+    if (!assignment) return
+    const alive = new Set(assignment.lesson.generations.map(g => g.id))
+    for (const id of Object.keys(gameFrameRefs.current)) {
+      if (!alive.has(id)) delete gameFrameRefs.current[id]
+    }
+  }, [assignment])
 
   const totalInteractiveFields = Object.values(fieldCountMap).reduce((s, n) => s + n, 0)
   const hasAnyFormData = Object.values(formDataMap).some(d => Object.keys(d).length > 0)
@@ -177,7 +248,24 @@ export default function StudentAssignmentPage({ params }: { params: { id: string
         const draft = JSON.parse(draftStr)
         if (draft.submissionText) setSubmissionText(draft.submissionText)
         if (draft.attachments?.length) setAttachments(draft.attachments)
-        if (draft.formDataMap) setDraftFormDataMap(draft.formDataMap)
+        if (draft.formDataMap) {
+          setDraftFormDataMap(draft.formDataMap)
+          // Сохранённые результаты мини-игр сразу попадают в актуальный formDataMap —
+          // ученик мог пройти игру, потом перезагрузить страницу. Без этой строки
+          // результат был бы виден в UI, но не уехал бы в submission.
+          const gameOnly: Record<string, Record<string, any>> = {}
+          const gameCount: Record<string, number> = {}
+          for (const [gid, fields] of Object.entries(draft.formDataMap as Record<string, any>)) {
+            if (fields && typeof fields === 'object' && fields._game) {
+              gameOnly[gid] = { _game: fields._game }
+              gameCount[gid] = 1
+            }
+          }
+          if (Object.keys(gameOnly).length) {
+            setFormDataMap(prev => ({ ...prev, ...gameOnly }))
+            setFieldCountMap(prev => ({ ...prev, ...gameCount }))
+          }
+        }
       }
     } catch {}
 
@@ -312,12 +400,144 @@ export default function StudentAssignmentPage({ params }: { params: { id: string
       )
     }
 
-    if (gen.generationType === 'image' || gen.generationType === 'photosession') {
-      const imgUrl = typeof gen.outputData === 'string' ? gen.outputData : gen.outputData?.imageUrl
-      if (imgUrl) {
+    if (gen.generationType === 'image' || gen.generationType === 'photosession' || gen.generationType === 'image_generation') {
+      const out = gen.outputData
+      const imgUrl = typeof out === 'string'
+        ? out
+        : (out?.imageUrl || out?.url || out?.content)
+      if (imgUrl && typeof imgUrl === 'string' && (imgUrl.startsWith('http') || imgUrl.startsWith('data:image'))) {
         return (
           <div className="relative h-80 w-full">
             <Image src={imgUrl} alt="Изображение" fill className="object-contain p-4" unoptimized />
+          </div>
+        )
+      }
+    }
+
+    // Мини-игры: outputData = { gameId, url, downloadUrl, topic, type }
+    if (gen.generationType === 'game_generation' || gen.generationType === 'game') {
+      const out = typeof gen.outputData === 'object' && gen.outputData ? gen.outputData : {}
+      const gameUrl: string | undefined = out.url
+      if (gameUrl) {
+        const gameTypeLabel = getGameTypeLabel(out.type)
+        const sub = assignment?.submissions?.[0]
+        const isSubmittedHere = !!(sub && !isEditing)
+        // Результат: live из postMessage > отправленный submission > черновик в localStorage
+        const result =
+          gameResults[gen.id] ||
+          sub?.formData?.[gen.id]?._game ||
+          draftFormDataMap[gen.id]?._game
+
+        // Заголовок одинаковый и для активного, и для readOnly режима
+        const header = (
+          <div className="px-4 py-3 flex flex-wrap items-center gap-2 bg-indigo-50/50 border-b border-indigo-100">
+            {gameTypeLabel && (
+              <span className="inline-flex items-center gap-1.5 text-xs font-semibold bg-white text-indigo-700 border border-indigo-200 px-2.5 py-1 rounded-full">
+                <Gamepad2 size={12} /> {gameTypeLabel}
+              </span>
+            )}
+            {out.topic && (
+              <span className="text-sm text-gray-700">
+                <span className="text-gray-500">Тема:</span> <span className="font-semibold">{out.topic}</span>
+              </span>
+            )}
+            <a
+              href={gameUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="ml-auto inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-600 hover:text-indigo-700"
+            >
+              Открыть в новой вкладке <ExternalLink size={12} />
+            </a>
+          </div>
+        )
+
+        // readOnly режим: уже сдано и не в режиме редактирования — статичная сводка
+        if (isSubmittedHere) {
+          return (
+            <div className="border-t border-gray-100">
+              {header}
+              <div className="p-5 space-y-3">
+                {result ? (
+                  <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <CheckCircle size={18} className="text-green-600" />
+                      <span className="font-bold text-green-800">Игра пройдена</span>
+                      {result.outcome === 'win' && <span className="text-xs font-semibold bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Победа</span>}
+                      {result.outcome === 'lose' && <span className="text-xs font-semibold bg-red-100 text-red-700 px-2 py-0.5 rounded-full">Поражение</span>}
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+                      {typeof result.score === 'number' && (
+                        <div className="bg-white rounded-lg p-3">
+                          <p className="text-xs text-gray-500 mb-0.5">Счёт</p>
+                          <p className="font-bold text-gray-900">{result.score}{typeof result.total === 'number' ? ` / ${result.total}` : ''}</p>
+                        </div>
+                      )}
+                      {typeof result.moves === 'number' && (
+                        <div className="bg-white rounded-lg p-3">
+                          <p className="text-xs text-gray-500 mb-0.5">Ходы</p>
+                          <p className="font-bold text-gray-900">{result.moves}</p>
+                        </div>
+                      )}
+                      {result.time && (
+                        <div className="bg-white rounded-lg p-3">
+                          <p className="text-xs text-gray-500 mb-0.5">Время</p>
+                          <p className="font-bold text-gray-900">{result.time}</p>
+                        </div>
+                      )}
+                      {typeof result.winAmount === 'number' && (
+                        <div className="bg-white rounded-lg p-3">
+                          <p className="text-xs text-gray-500 mb-0.5">Выигрыш</p>
+                          <p className="font-bold text-gray-900">{result.winAmount.toLocaleString('ru-RU')} ₽</p>
+                        </div>
+                      )}
+                    </div>
+                    {result.message && <p className="text-xs text-gray-600 italic mt-3">«{result.message}»</p>}
+                  </div>
+                ) : (
+                  <div className="text-sm text-gray-500 italic">Результат игры не зафиксирован.</div>
+                )}
+                <a
+                  href={gameUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-600 hover:text-indigo-700"
+                >
+                  Открыть игру снова <ExternalLink size={12} />
+                </a>
+              </div>
+            </div>
+          )
+        }
+
+        // Активный режим: ученик может играть
+        return (
+          <div className="border-t border-gray-100">
+            {header}
+            <iframe
+              ref={el => {
+                if (el) gameFrameRefs.current[gen.id] = el
+                else delete gameFrameRefs.current[gen.id]
+              }}
+              src={gameUrl}
+              className="w-full bg-white"
+              style={{ height: '70vh', minHeight: 480, border: 'none' }}
+              title={out.topic || 'Мини-игра'}
+              allow="fullscreen"
+            />
+            {result && (
+              <div className="px-4 py-3 flex flex-wrap items-center gap-2 bg-green-50 border-t border-green-100 text-sm text-green-800">
+                <CheckCircle size={16} className="text-green-600" />
+                <span className="font-semibold">Результат игры зафиксирован.</span>
+                {typeof result.score === 'number' && (
+                  <span>Счёт: <strong>{result.score}{typeof result.total === 'number' ? ` / ${result.total}` : ''}</strong></span>
+                )}
+                {typeof result.moves === 'number' && <span>Ходов: <strong>{result.moves}</strong></span>}
+                {result.time && <span>Время: <strong>{result.time}</strong></span>}
+                {typeof result.winAmount === 'number' && <span>Выигрыш: <strong>{result.winAmount.toLocaleString('ru-RU')} ₽</strong></span>}
+                <span className="ml-auto text-xs text-green-700">Будет отправлен учителю при сохранении ответа.</span>
+              </div>
+            )}
           </div>
         )
       }
@@ -387,10 +607,35 @@ export default function StudentAssignmentPage({ params }: { params: { id: string
     }
 
     // Нет HTML — рендерим как текст (с удалением ключа ответов)
-    const rawText = typeof gen.outputData === 'string'
-      ? gen.outputData
-      : (gen.outputData?.content || gen.outputData?.text || JSON.stringify(gen.outputData))
-    const textContent = stripAnswerKey(rawText)
+    const out = gen.outputData
+    let rawText: string | null = null
+    if (typeof out === 'string') {
+      rawText = out
+    } else if (out && typeof out === 'object') {
+      rawText = out.content || out.text || out.markdown || null
+    }
+
+    // Если в outputData есть только url/downloadUrl без html/текста —
+    // показываем кнопку «Открыть», а не сырой JSON.
+    if (!rawText && out && typeof out === 'object' && (out.url || out.downloadUrl)) {
+      const href: string = out.url || out.downloadUrl
+      return (
+        <div className="border-t border-gray-100 p-6 flex flex-col items-center gap-3 text-center">
+          <BookOpen className="w-10 h-10 text-gray-300" />
+          <p className="text-gray-600 text-sm">Откройте материал по ссылке</p>
+          <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-orange-500 text-white text-sm font-semibold rounded-xl hover:bg-orange-600 transition"
+          >
+            Открыть <ExternalLink size={14} />
+          </a>
+        </div>
+      )
+    }
+
+    const textContent = stripAnswerKey(rawText || '')
 
     return (
       <div className="border-t border-gray-100 p-6 text-gray-700 text-sm leading-relaxed whitespace-pre-wrap">

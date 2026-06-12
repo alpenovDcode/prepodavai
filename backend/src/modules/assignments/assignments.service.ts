@@ -18,12 +18,19 @@ function stripAnswerKeyFromOutput(outputData: any): any {
   }
 
   if (typeof outputData === 'object') {
-    // { content: "..." } — основной формат HTML-генераций
-    if (typeof outputData.content === 'string') {
-      return { ...outputData, content: stripAnswerKeyFromHtml(outputData.content) };
+    // HTML может лежать в любом из этих полей — фронт ищет их в этом же порядке
+    // (см. extractHtmlFromOutput в frontend/src/components/InteractiveHtmlViewer.tsx).
+    // Стрипим каждое строковое поле, чтобы ученик не получил ключ ответов через DevTools.
+    const HTML_FIELDS = ['content', 'htmlResult', 'html', 'text'] as const;
+    let touched = false;
+    const next: Record<string, any> = { ...outputData };
+    for (const f of HTML_FIELDS) {
+      if (typeof next[f] === 'string') {
+        next[f] = stripAnswerKeyFromHtml(next[f]);
+        touched = true;
+      }
     }
-    // Презентации и другие JSON-форматы — не трогаем
-    return outputData;
+    return touched ? next : outputData;
   }
 
   return outputData;

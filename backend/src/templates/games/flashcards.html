@@ -239,6 +239,12 @@
         Пробел — перевернуть | Стрелки — навигация
     </p>
 
+    <div id="result-screen" style="display:none; text-align:center; margin:24px auto; max-width:480px; padding:24px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:16px;">
+        <h2 style="margin:0 0 8px;">Колода пройдена!</h2>
+        <p style="color:#475569;">Вы просмотрели <strong><span id="final-score">0</span></strong> из <strong id="final-total">0</strong> карточек.</p>
+        <button class="btn btn-primary" style="margin-top:12px;" onclick="restartDeck()">Пройти заново</button>
+    </div>
+
     <script>
         const GAME_CONFIG = {{ GAME_DATA }};
         let CARDS_DATA = GAME_CONFIG.data;
@@ -249,6 +255,8 @@
         // --- ЛОГИКА ПРИЛОЖЕНИЯ ---
 
         let currentIndex = 0;
+        let viewedCount = 0;
+        const viewed = new Set();
         const cardElement = document.getElementById('card-element');
         const frontText = document.getElementById('card-front-text');
         const backText = document.getElementById('card-back-text');
@@ -275,11 +283,32 @@
                 const percentage = ((currentIndex + 1) / CARDS_DATA.length) * 100;
                 progressFill.style.width = percentage + '%';
 
+                // Считаем просмотренные уникальные карточки
+                if (!viewed.has(currentIndex)) {
+                    viewed.add(currentIndex);
+                    viewedCount = viewed.size;
+                }
+
                 // Trigger MathJax
                 if (window.MathJax) {
                     MathJax.typesetPromise && MathJax.typesetPromise();
                 }
             }, 150);
+        }
+
+        function finishDeck() {
+            document.getElementById('final-score').innerText = viewedCount;
+            document.getElementById('final-total').innerText = CARDS_DATA.length;
+            document.getElementById('result-screen').style.display = 'block';
+            document.getElementById('result-screen').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
+        function restartDeck() {
+            document.getElementById('result-screen').style.display = 'none';
+            currentIndex = 0;
+            viewed.clear();
+            viewedCount = 0;
+            renderCard();
         }
 
         function flipCard() {
@@ -291,11 +320,7 @@
                 currentIndex++;
                 renderCard();
             } else {
-                // Эффект "конец колоды" - можно зациклить
-                if (confirm("Колода пройдена! Начать сначала?")) {
-                    currentIndex = 0;
-                    renderCard();
-                }
+                finishDeck();
             }
         }
 
