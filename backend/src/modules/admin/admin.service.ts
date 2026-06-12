@@ -3632,7 +3632,7 @@ export class AdminService {
           COUNT(*) AS cnt
         FROM user_generations
         GROUP BY 1
-      `,
+      `.catch(() => [] as Row[]),
       // Топ UTM-источников для бот-пользователей (startPayload / botUtmSource)
       this.prisma.$queryRaw<Row[]>`
         SELECT
@@ -3642,7 +3642,7 @@ export class AdminService {
         GROUP BY 1
         ORDER BY cnt DESC
         LIMIT 15
-      `,
+      `.catch(() => [] as Row[]),
       // Monthly registration trend (last 18 months)
       this.prisma.$queryRaw<Row[]>`
         SELECT TO_CHAR(DATE_TRUNC('month', "createdAt"), 'YYYY-MM') AS m, COUNT(*)::int AS cnt
@@ -3970,11 +3970,11 @@ export class AdminService {
         uniqueUsers: Number(r.unique_users ?? 0),
       })),
       newUsersDaily: (newUsersDailyRows as Row[]).map(r => ({
-        date: String(r.d),
+        day: String(r.d),
         count: Number(r.cnt),
       })),
       dayRetentionCohorts: (dayRetentionRows as Row[]).reverse().map(r => ({
-        cohort: String(r.cohort),
+        cohortDay: String(r.cohort),
         cohortSize: Number(r.cohort_size ?? 0),
         d0: Number(r.d0 ?? 0),
         d1: Number(r.d1 ?? 0),
