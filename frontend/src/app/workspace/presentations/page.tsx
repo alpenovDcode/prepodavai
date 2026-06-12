@@ -9,7 +9,7 @@ import {
     PlusSquare, X, Upload, Image as ImageIcon
 } from 'lucide-react'
 import { useGenerations } from '@/lib/hooks/useGenerations'
-import GenerationCostBadge from '@/components/workspace/GenerationCostBadge'
+// import GenerationCostBadge from '@/components/workspace/GenerationCostBadge'
 import AssignTaskButton from '@/components/AssignTaskButton'
 import GenerationProgress from '@/components/workspace/GenerationProgress'
 import { SlideDocEditor } from '@/components/SlideDocEditor'
@@ -992,7 +992,7 @@ function PresentationGeneratorContent() {
                     <div>
                         <div className="flex items-center gap-2">
                             <h2 className="font-bold text-lg">Презентации</h2>
-                            <GenerationCostBadge operationType="presentation" />
+                            {/* <GenerationCostBadge operationType="presentation" /> */}
                         </div>
                         <p className="text-xs text-gray-500 font-medium tracking-tight">Преподавай 2.0</p>
                     </div>

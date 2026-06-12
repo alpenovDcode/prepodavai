@@ -7,7 +7,7 @@ import { downloadPdfById } from '@/lib/utils/downloadPdf'
 import { useIsMobile } from '@/lib/hooks/useIsMobile'
 import { useGenerations } from '@/lib/hooks/useGenerations'
 import { getCurrentUser } from '@/lib/utils/userIdentity'
-import GenerationCostBadge from '@/components/workspace/GenerationCostBadge'
+// import GenerationCostBadge from '@/components/workspace/GenerationCostBadge'
 import AssignTaskButton from '@/components/AssignTaskButton'
 import GenerationProgress from '@/components/workspace/GenerationProgress'
 import { ensureMathJaxInHtml } from '@/lib/utils/ensureMathJax'
@@ -132,7 +132,7 @@ export default function LessonPlanner() {
                     <div>
                         <div className="flex items-center gap-2">
                             <h2 className="font-bold text-lg">Конструктор</h2>
-                            <GenerationCostBadge operationType="lesson_plan" />
+                            {/* <GenerationCostBadge operationType="lesson_plan" /> */}
                         </div>
                         <p className="text-xs text-gray-500 font-medium tracking-tight">Преподавай 2.0</p>
                     </div>

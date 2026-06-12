@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { MessageSquare, Send, Loader2, Bot, User, Trash2, Sparkles } from 'lucide-react'
 import { useGenerations } from '@/lib/hooks/useGenerations'
-import GenerationCostBadge from '@/components/workspace/GenerationCostBadge'
+// import GenerationCostBadge from '@/components/workspace/GenerationCostBadge'
 import DOMPurify from 'isomorphic-dompurify'
 
 interface ChatMessage {
@@ -147,7 +147,7 @@ export default function AssistantGenerator() {
                     <div>
                         <div className="flex items-center gap-2">
                             <h2 className="font-bold text-base text-gray-900">AI Ассистент</h2>
-                            <GenerationCostBadge operationType="assistant" />
+                            {/* <GenerationCostBadge operationType="assistant" /> */}
                         </div>
                         <p className="text-[11px] text-gray-400">Помощник учителя</p>
                     </div>

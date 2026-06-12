@@ -9,7 +9,7 @@ import AssignTaskButton from '@/components/AssignTaskButton'
 import GenerationProgress from '@/components/workspace/GenerationProgress'
 import RichTextEditor from '@/components/workspace/RichTextEditor'
 import { getCurrentUser } from '@/lib/utils/userIdentity'
-import GenerationCostBadge from '@/components/workspace/GenerationCostBadge'
+// import GenerationCostBadge from '@/components/workspace/GenerationCostBadge'
 import { ensureMathJaxInHtml } from '@/lib/utils/ensureMathJax'
 
 const EXAM_SUBJECTS: Record<string, string[]> = {
@@ -150,7 +150,7 @@ export default function ExamGeneratorPage() {
                     <div>
                         <div className="flex items-center gap-2">
                             <h2 className="font-bold text-lg">Варианты ОГЭ/ЕГЭ</h2>
-                            <GenerationCostBadge operationType="exam_variant" />
+                            {/* <GenerationCostBadge operationType="exam_variant" /> */}
                         </div>
                         <p className="text-xs text-gray-500 font-medium">Преподавай 2.0</p>
                     </div>

@@ -7,7 +7,7 @@ import { MessageCircle, RefreshCw, Loader2, Copy, Download, Edit3, Eye } from 'l
 import toast from 'react-hot-toast'
 import { useGenerations } from '@/lib/hooks/useGenerations'
 import RichTextEditor from '@/components/workspace/RichTextEditor'
-import GenerationCostBadge from '@/components/workspace/GenerationCostBadge'
+// import GenerationCostBadge from '@/components/workspace/GenerationCostBadge'
 import AssignTaskButton from '@/components/AssignTaskButton'
 import GenerationProgress from '@/components/workspace/GenerationProgress'
 import { ensureMathJaxInHtml } from '@/lib/utils/ensureMathJax'
@@ -86,7 +86,7 @@ export default function FeedbackGenerator() {
                     <div>
                         <div className="flex items-center gap-2">
                             <h2 className="font-bold text-lg">Фидбек на работу</h2>
-                            <GenerationCostBadge operationType="feedback" />
+                            {/* <GenerationCostBadge operationType="feedback" /> */}
                         </div>
                         <p className="text-xs text-gray-500 font-medium">Преподавай 2.0</p>
                     </div>

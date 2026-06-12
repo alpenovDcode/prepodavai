@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Camera, RefreshCw, Loader2, Maximize2, UploadCloud, Download, ChevronDown, ChevronUp } from 'lucide-react'
 import { useGenerations } from '@/lib/hooks/useGenerations'
-import GenerationCostBadge from '@/components/workspace/GenerationCostBadge'
+// import GenerationCostBadge from '@/components/workspace/GenerationCostBadge'
 import GenerationProgress from '@/components/workspace/GenerationProgress'
 
 const photosessionPrompts = [
@@ -241,7 +241,7 @@ export default function PhotosessionGenerator() {
                     <div>
                         <div className="flex items-center gap-2">
                             <h2 className="font-bold text-lg">AI Фотосессия</h2>
-                            <GenerationCostBadge operationType="photosession" />
+                            {/* <GenerationCostBadge operationType="photosession" /> */}
                         </div>
                         <p className="text-xs text-gray-500 font-medium">Преподавай 2.0</p>
                     </div>

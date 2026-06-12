@@ -6,7 +6,7 @@ import toast from 'react-hot-toast'
 import { apiClient } from '@/lib/api/client'
 import { functions } from './InputComposer/config'
 import { useGenerations } from '@/lib/hooks/useGenerations'
-import { useSubscription } from '@/lib/hooks/useSubscription'
+// import { useSubscription } from '@/lib/hooks/useSubscription'
 import OnboardingQuestBanner from './OnboardingQuestBanner'
 import DashboardPopup from './DashboardPopup'
 import useSWR from 'swr'
@@ -101,7 +101,7 @@ export default function DashboardHome() {
     const { data: overview } = useSWR<TeacherOverview>('/analytics/teacher-overview', fetcher, {
         refreshInterval: 60000,
     })
-    const { totalCredits } = useSubscription()
+    // const { totalCredits } = useSubscription()
     const { generateBundle, isGenerating } = useGenerations()
 
     const PROGRESS_MESSAGES = [
@@ -460,19 +460,7 @@ export default function DashboardHome() {
                     </div>
                 </div>
 
-                <div className="bg-white rounded-2xl p-4 md:p-6 border border-gray-100 shadow-sm">
-                    <div className="flex items-center gap-2 md:gap-3">
-                        <div className="w-9 h-9 md:w-10 md:h-10 rounded-xl bg-blue-100 flex items-center justify-center flex-shrink-0">
-                            <i className="fas fa-coins text-blue-600 text-sm"></i>
-                        </div>
-                        <div>
-                            <p className="text-xl md:text-2xl font-bold text-gray-900">
-                                {totalCredits > 0 ? totalCredits.toLocaleString() : '—'}
-                            </p>
-                            <p className="text-[11px] md:text-xs text-gray-600 font-medium">Токенов</p>
-                        </div>
-                    </div>
-                </div>
+                {/* token balance card removed */}
             </div>
 
             {/* Main Form Card */}

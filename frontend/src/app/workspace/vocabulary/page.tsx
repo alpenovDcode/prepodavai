@@ -9,7 +9,7 @@ import { useGenerations } from '@/lib/hooks/useGenerations'
 import RichTextEditor from '@/components/workspace/RichTextEditor'
 import { getCurrentUser } from '@/lib/utils/userIdentity'
 import { ensureMathJaxInHtml } from '@/lib/utils/ensureMathJax'
-import GenerationCostBadge from '@/components/workspace/GenerationCostBadge'
+// import GenerationCostBadge from '@/components/workspace/GenerationCostBadge'
 import AssignTaskButton from '@/components/AssignTaskButton'
 import GenerationProgress from '@/components/workspace/GenerationProgress'
 
@@ -155,7 +155,7 @@ export default function VocabularyGenerator() {
                     <div>
                         <div className="flex items-center gap-2">
                             <h2 className="font-bold text-lg">Словарь</h2>
-                            <GenerationCostBadge operationType="vocabulary" />
+                            {/* <GenerationCostBadge operationType="vocabulary" /> */}
                         </div>
                         <p className="text-xs text-gray-500 font-medium tracking-tight">Преподавай 2.0</p>
                     </div>

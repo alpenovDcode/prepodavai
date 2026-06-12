@@ -3,11 +3,11 @@ import { ConfigModule } from '@nestjs/config';
 import { GamesController } from './games.controller';
 import { GamesService } from './games.service';
 import { ReplicateModule } from '../replicate/replicate.module';
-import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
+// import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { LessonsModule } from '../lessons/lessons.module';
 
 @Module({
-  imports: [ConfigModule, ReplicateModule, SubscriptionsModule, LessonsModule],
+  imports: [ConfigModule, ReplicateModule, LessonsModule],
   controllers: [GamesController],
   providers: [GamesService],
 })

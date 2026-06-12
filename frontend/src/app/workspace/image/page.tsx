@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { Image as ImageIcon, RefreshCw, Loader2, Maximize2, Download, Sparkles, FlipHorizontal } from 'lucide-react'
 import { useGenerations } from '@/lib/hooks/useGenerations'
 import { apiClient } from '@/lib/api/client'
-import GenerationCostBadge from '@/components/workspace/GenerationCostBadge'
+// import GenerationCostBadge from '@/components/workspace/GenerationCostBadge'
 import GenerationProgress from '@/components/workspace/GenerationProgress'
 
 const IMAGE_PRESETS = [
@@ -266,7 +266,7 @@ export default function ImageGenerator() {
                     <div>
                         <div className="flex items-center gap-2">
                             <h2 className="font-bold text-lg">Генератор</h2>
-                            <GenerationCostBadge operationType="image_generation" />
+                            {/* <GenerationCostBadge operationType="image_generation" /> */}
                         </div>
                         <p className="text-xs text-gray-500 font-medium tracking-tight">Преподавай 2.0</p>
                     </div>

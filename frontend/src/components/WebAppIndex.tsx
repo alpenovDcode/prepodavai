@@ -20,7 +20,7 @@ import {
   Users
 } from 'lucide-react'
 import { useGenerations } from '@/lib/hooks/useGenerations'
-import { useSubscription } from '@/lib/hooks/useSubscription'
+// import { useSubscription } from '@/lib/hooks/useSubscription'
 import { getCurrentUser } from '@/lib/utils/userIdentity'
 import { apiClient } from '@/lib/api/client'
 import AssignMaterialModal from './AssignMaterialModal' // Используется в initUser для проверки подписки
@@ -51,7 +51,7 @@ export default function WebAppIndex({ embedded = false }: WebAppIndexProps) {
   const [tmaError, setTmaError] = useState<'NOT_REGISTERED' | null>(null)
 
   const { generateAndWait, isGenerating: isGenGenerating, activeGenerationId, inputParams } = useGenerations()
-  const { subscription, totalCredits, loading: subscriptionLoading } = useSubscription()
+  // const { subscription, totalCredits, loading: subscriptionLoading } = useSubscription()
   const resultContainerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -625,13 +625,7 @@ ${autoPrintScript}</head><body>${bodyContent}</body></html>`
               </div>
             </div>
             <div className="flex items-center gap-2">
-              {!subscriptionLoading && (
-                <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#FF7E58] text-white text-xs shadow">
-                  <i className="fas fa-coins"></i>
-                  <span className="font-semibold">{totalCredits}</span>
-                  <span className="opacity-90">кред.</span>
-                </div>
-              )}
+              {/* balance badge removed */}
               <button
                 onClick={openHistory}
                 className="w-9 h-9 rounded-xl bg-[#D8E6FF] border border-[#D8E6FF] hover:bg-[#FF7E58] hover:border-[#FF7E58] transition active:scale-95"
@@ -663,11 +657,7 @@ ${autoPrintScript}</head><body>${bodyContent}</body></html>`
                 </h2>
                 <p className="text-sm text-black/70 mt-1">Рабочие листы, тесты, словари и планы уроков в один клик</p>
               </div>
-              {!subscriptionLoading && (
-                <div className="sm:hidden ml-3 px-3 py-1.5 rounded-full bg-[#FF7E58] text-white text-xs shadow">
-                  <i className="fas fa-coins mr-1"></i>{totalCredits}
-                </div>
-              )}
+              {/* balance badge removed */}
             </div>
           </div>
         </div>

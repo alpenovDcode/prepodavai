@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { FileEdit, RefreshCw, Loader2, Maximize2 } from 'lucide-react'
 import { useGenerations } from '@/lib/hooks/useGenerations'
 import RichTextEditor from '@/components/workspace/RichTextEditor'
-import GenerationCostBadge from '@/components/workspace/GenerationCostBadge'
+// import GenerationCostBadge from '@/components/workspace/GenerationCostBadge'
 import AssignTaskButton from '@/components/AssignTaskButton'
 import GenerationProgress from '@/components/workspace/GenerationProgress'
 
@@ -98,7 +98,7 @@ export default function AdaptationGenerator() {
                     <div>
                         <div className="flex items-center gap-2">
                             <h2 className="font-bold text-lg">Адаптация Текста</h2>
-                            <GenerationCostBadge operationType="content_adaptation" />
+                            {/* <GenerationCostBadge operationType="content_adaptation" /> */}
                         </div>
                         <p className="text-xs text-gray-500 font-medium tracking-tight">Преподавай 2.0</p>
                     </div>

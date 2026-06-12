@@ -6,7 +6,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { ReplicateService } from '../replicate/replicate.service';
 import { CreateGameDto, GameType } from './dto/create-game.dto';
 import { PrismaService } from '../../common/prisma/prisma.service';
-import { SubscriptionsService } from '../subscriptions/subscriptions.service';
+// import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { LessonsService } from '../lessons/lessons.service';
 
 @Injectable()
@@ -19,7 +19,6 @@ export class GamesService {
     private readonly replicateService: ReplicateService,
     private readonly configService: ConfigService,
     private readonly prisma: PrismaService,
-    private readonly subscriptionsService: SubscriptionsService,
     private readonly lessonsService: LessonsService,
   ) {
     const uploadDir = this.configService.get<string>('UPLOAD_DIR', './uploads');
@@ -40,15 +39,6 @@ export class GamesService {
     // Modified signature
     const { topic, type } = dto;
     this.logger.log(`Generating game ${type} for topic: ${topic}`);
-
-    // 0. Check Credits
-    const creditCheck = await this.subscriptionsService.checkCreditsAvailable(
-      userId,
-      'game_generation',
-    );
-    if (!creditCheck.available) {
-      throw new Error(creditCheck.message || 'Недостаточно Токенов для генерации игры');
-    }
 
     // 1. Get Prompt
     const prompt = this.getPrompt(type, topic);
@@ -155,15 +145,7 @@ export class GamesService {
       });
       userGenerationId = userGeneration.id;
 
-      // Debit Credits
-      await this.subscriptionsService.debitCredits(
-        userId,
-        'game_generation',
-        generationRequest.id,
-        `Генерация игры: ${topic} (${type})`,
-      );
-
-      this.logger.log(`Saved game generation to DB and debited credits for user ${userId}`);
+      this.logger.log(`Saved game generation to DB for user ${userId}`);
     } catch (error) {
       this.logger.error(`Failed to save game generation to DB: ${error.message}`, error.stack);
       // We don't throw here to avoid failing the request if DB save fails,

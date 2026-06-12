@@ -7,7 +7,7 @@ import { FileAudio, RefreshCw, Loader2, Maximize2, UploadCloud, Copy, FileText, 
 import toast from 'react-hot-toast'
 import { useGenerations } from '@/lib/hooks/useGenerations'
 import RichTextEditor from '@/components/workspace/RichTextEditor'
-import GenerationCostBadge from '@/components/workspace/GenerationCostBadge'
+// import GenerationCostBadge from '@/components/workspace/GenerationCostBadge'
 
 export default function TranscriptionGenerator() {
     const [fileHash, setFileHash] = useState('')
@@ -173,7 +173,7 @@ export default function TranscriptionGenerator() {
                     <div>
                         <div className="flex items-center gap-2">
                             <h2 className="font-bold text-lg">Транскрибация</h2>
-                            <GenerationCostBadge operationType="transcription" />
+                            {/* <GenerationCostBadge operationType="transcription" /> */}
                         </div>
                         <p className="text-xs text-gray-500 font-medium">Преподавай 2.0</p>
                     </div>

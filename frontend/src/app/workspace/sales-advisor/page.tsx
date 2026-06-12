@@ -8,7 +8,7 @@ import { LineChart, RefreshCw, Loader2, UploadCloud, X, Copy, Download, Edit3, E
 import toast from 'react-hot-toast'
 import { useGenerations } from '@/lib/hooks/useGenerations'
 import RichTextEditor from '@/components/workspace/RichTextEditor'
-import GenerationCostBadge from '@/components/workspace/GenerationCostBadge'
+// import GenerationCostBadge from '@/components/workspace/GenerationCostBadge'
 import AssignTaskButton from '@/components/AssignTaskButton'
 import GenerationProgress from '@/components/workspace/GenerationProgress'
 import { apiClient } from '@/lib/api/client'
@@ -168,7 +168,7 @@ export default function SalesAdvisorGenerator() {
                     <div>
                         <div className="flex items-center gap-2">
                             <h2 className="font-bold text-lg">ИИ-Продажник</h2>
-                            <GenerationCostBadge operationType="sales_advisor" />
+                            {/* <GenerationCostBadge operationType="sales_advisor" /> */}
                         </div>
                         <p className="text-xs text-gray-500 font-medium tracking-tight uppercase">Преподавай 2.0</p>
                     </div>

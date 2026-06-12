@@ -6,7 +6,7 @@ import PdfDownloadButton from '@/components/workspace/PdfDownloadButton'
 import { PenTool, Copy, RefreshCw, Loader2, Edit3, Eye } from 'lucide-react'
 import { useGenerations } from '@/lib/hooks/useGenerations'
 import { getCurrentUser } from '@/lib/utils/userIdentity'
-import GenerationCostBadge from '@/components/workspace/GenerationCostBadge'
+// import GenerationCostBadge from '@/components/workspace/GenerationCostBadge'
 import AssignTaskButton from '@/components/AssignTaskButton'
 import GenerationProgress from '@/components/workspace/GenerationProgress'
 import { ensureMathJaxInHtml, stripMathJaxScripts } from '@/lib/utils/ensureMathJax'
@@ -256,7 +256,7 @@ const generate = async () => {
                     <div>
                         <div className="flex items-center gap-2">
                             <h2 className="font-bold text-lg">Рабочие Листы</h2>
-                            <GenerationCostBadge operationType="worksheet" />
+                            {/* <GenerationCostBadge operationType="worksheet" /> */}
                         </div>
                         <p className="text-xs text-gray-500 font-medium tracking-tight">Преподавай 2.0</p>
                     </div>

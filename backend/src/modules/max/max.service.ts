@@ -33,7 +33,7 @@ interface GenSession {
 
 // ── NL-interface parsed request ────────────────────────────────────────────────
 interface NlParsedRequest {
-  action: 'generate' | 'show_history' | 'show_classes' | 'assign_homework' | 'show_balance' | 'show_menu' | 'show_tools' | 'show_analytics' | 'cancel' | 'register' | 'unknown';
+  action: 'generate' | 'show_history' | 'show_classes' | 'assign_homework' | 'show_menu' | 'show_tools' | 'show_analytics' | 'cancel' | 'register' | 'unknown';
   tool?: string;
   params?: Record<string, string>;
   target?: 'student' | 'class';
@@ -354,7 +354,6 @@ export class MaxService {
                   show_history: 'посмотреть историю генераций',
                   show_classes: 'посмотреть классы',
                   assign_homework: 'перейти к выдаче задания',
-                  show_balance: 'посмотреть баланс',
                   show_menu: 'перейти в главное меню',
                   show_tools: 'посмотреть инструменты',
                   show_analytics: 'посмотреть аналитику',
@@ -632,8 +631,6 @@ export class MaxService {
           } else {
             await this.showHwClassPicker(chatId, userId, 'class');
           }
-        } else if (pending.action === 'show_balance') {
-          await this.showMainMenu(chatId, userId);
         } else if (pending.action === 'show_menu') {
           await this.showMainMenu(chatId, userId);
           await this.sendMessageWithKeyboard(chatId, '🛠️ Выберите инструмент:', this.buildToolSelectionAttachment());
@@ -645,7 +642,7 @@ export class MaxService {
           await this.sendMessageWithKeyboard(chatId, '✅ Готово.', this.buildMainMenuAttachment());
         } else if (pending.action === 'register') {
           const appUrl = this.configService.get<string>('NEXT_PUBLIC_APP_URL') || 'https://prepodavai.ru';
-          await this.sendMessageWithKeyboard(chatId, `Для создания полного аккаунта перейдите на сайт: ${appUrl}\n\nТам можно зарегистрироваться и получить 1500 токенов.`, this.buildMainMenuAttachment());
+          await this.sendMessageWithKeyboard(chatId, `Для создания полного аккаунта перейдите на сайт: ${appUrl}\n\nТам можно зарегистрироваться и получить полный доступ.`, this.buildMainMenuAttachment());
         }
         return;
       }
@@ -878,15 +875,6 @@ export class MaxService {
           return;
         }
 
-        // Атомарно списываем 3 токена: subscription если привязан, иначе botCredits
-        const tokenResult = await this.deductTokens(userId, appUser.id);
-        if (!tokenResult.success) {
-          this.logger.warn(`[Gen] Insufficient tokens for userId=${userId} source=${tokenResult.source}`);
-          await this.sendMessage(chatId, '❌ Недостаточно токенов для генерации.\n\nОбратитесь к администратору для пополнения баланса.');
-          this.genSessions.delete(userId);
-          return;
-        }
-
         this.genSessions.delete(userId);
         this.lastGenAt.set(userId, Date.now());
 
@@ -898,7 +886,6 @@ export class MaxService {
           const authToken = await this.getApiToken(appUser.username, apiKey);
           if (!authToken) {
             this.logger.error(`[Gen] Auth failed for userId=${userId} username=${appUser.username}`);
-            await this.refundTokens(userId, appUser.id, tokenResult.source);
             await this.sendMessage(chatId, '❌ Ошибка авторизации. Попробуйте позже или обратитесь в поддержку.');
             return;
           }
@@ -916,7 +903,6 @@ export class MaxService {
               payload: { buttons: [[{ type: 'link', url: result.url, text: '🎮 Открыть игру' }]] },
             }];
             await this.sendMessageWithMarkup(chatId, `🎮 Игра готова!\n\nТема: ${session.params.topic}\n\nНажмите кнопку, чтобы открыть:`, gameAttachment);
-            await this.sendMessage(chatId, `💳 Осталось токенов: ${tokenResult.remaining}`);
             await this.sendMessageWithKeyboard(chatId, '🏠 Главное меню:', this.buildMainMenuAttachment());
           } else {
             let apiParams: Record<string, any> = { ...session.params };
@@ -928,8 +914,7 @@ export class MaxService {
             this.logger.log(`[Gen] Generation API response: userId=${userId} status=${result.status}`);
             this.tgtrack('send_reach_goal', { user_id: userId, target: 'generation_created' });
             if (result.status === 'failed') {
-              await this.refundTokens(userId, appUser.id, tokenResult.source);
-              await this.sendMessage(chatId, '❌ Генерация не удалась. Токены возвращены.');
+              await this.sendMessage(chatId, '❌ Генерация не удалась.');
               await this.sendMessageWithKeyboard(chatId, '🏠 Главное меню:', this.buildMainMenuAttachment());
               return;
             }
@@ -938,14 +923,13 @@ export class MaxService {
               data: { totalGenerations: { increment: 1 }, generationsThisMonth: { increment: 1 }, lastGenerationAt: new Date() },
             });
             if (result.status === 'completed') {
-              await this.sendMessage(chatId, `✅ Готово! Отправляю ${tool.emoji} ${tool.label} в чат...\n\n💳 Осталось токенов: ${tokenResult.remaining}`);
+              await this.sendMessage(chatId, `✅ Готово! Отправляю ${tool.emoji} ${tool.label} в чат...`);
             } else {
-              await this.sendMessage(chatId, `✅ Задача принята! Результат придёт в этот чат, как только будет готов.\n\n💳 Осталось токенов: ${tokenResult.remaining}`);
+              await this.sendMessage(chatId, `✅ Задача принята! Результат придёт в этот чат, как только будет готов.`);
             }
           }
         } catch (err: any) {
           this.logger.error(`[Gen] Generation failed for userId=${userId} tool=${tool.key}: ${err?.message ?? err}`);
-          await this.refundTokens(userId, appUser.id, tokenResult.source);
           await this.sendMessage(chatId, this.humanizeError(err));
           await this.sendMessageWithKeyboard(chatId, '🏠 Главное меню:', this.buildMainMenuAttachment());
         }
@@ -1044,7 +1028,7 @@ export class MaxService {
       await this.sendWelcomeMessage(chatIdStr, existingUser, botUserId);
     } else {
       this.logger.log(`[Start] New user: userId=${user.id} — upsert botUser and show activation flow`);
-      const newBotUser = await (this.prisma as any).botUser.upsert({
+      await (this.prisma as any).botUser.upsert({
         where: { maxId: user.id.toString() },
         update: { lastActiveAt: new Date(), firstName: user.first_name || undefined, lastName: user.last_name || undefined, username: user.username || undefined },
         create: {
@@ -1058,19 +1042,6 @@ export class MaxService {
           startPayload: payload || null,
         },
       });
-      // Логируем начальный грант кредитов только для новых пользователей
-      if (newBotUser.botCredits === 100 && newBotUser.totalGenerations === 0) {
-        (this.prisma as any).botCreditTransaction.create({
-          data: {
-            botUserId: newBotUser.id,
-            amount: 100,
-            balanceBefore: 0,
-            balanceAfter: 100,
-            reason: 'initial_grant',
-            description: 'Начальный баланс при старте бота',
-          },
-        }).catch(() => null);
-      }
       await this.sendActivationFlow(chatIdStr);
     }
   }
@@ -1187,18 +1158,7 @@ export class MaxService {
   }
 
   private async sendWelcomeMessage(chatId: string, appUser: any, _botUserId?: number) {
-    let balance: number | null = null;
-    const subscription = await this.prisma.userSubscription.findUnique({ where: { userId: appUser.id } });
-    if (subscription && subscription.status === 'active') {
-      balance = subscription.creditsBalance + subscription.extraCredits;
-    } else {
-      const maxId = appUser.maxId?.toString();
-      if (maxId) {
-        const botUserRecord = await (this.prisma as any).botUser.findUnique({ where: { maxId } });
-        balance = botUserRecord?.botCredits ?? null;
-      }
-    }
-    const text = this.getWelcomeMessage(appUser, balance);
+    const text = this.getWelcomeMessage(appUser);
     await this.sendMessageWithMarkup(chatId, text);
     await this.sendMessageWithKeyboard(chatId, '🏠 Главное меню:', this.buildMainMenuAttachment());
   }
@@ -1348,7 +1308,6 @@ export class MaxService {
       const val = params[field.key];
       if (val !== undefined && val !== '') lines.push(`• ${val}`);
     }
-    lines.push(`\n💳 Стоимость: ${tool.creditCost} токена`);
     lines.push(`⏱ Примерное время: ${tool.estimatedTime}`);
     lines.push('\nГенерировать?');
     return lines.join('\n');
@@ -1436,7 +1395,7 @@ export class MaxService {
       ? existingBotUserForSub.registrationStatus
       : 'subscribed';
 
-    const botUserRecord = await (this.prisma as any).botUser.upsert({
+    await (this.prisma as any).botUser.upsert({
       where: { maxId: userId },
       update: { appUserId: shadowAppUser.id, lastActiveAt: new Date(), registrationStatus: preservedStatus },
       create: {
@@ -1448,7 +1407,7 @@ export class MaxService {
       },
     });
 
-    const text = this.getWelcomeMessage(null, botUserRecord.botCredits);
+    const text = this.getWelcomeMessage(null);
     await this.sendMessageWithMarkup(chatId, text);
 
     await this.sendMessage(
@@ -1459,7 +1418,6 @@ export class MaxService {
       '📚 Классы — список классов и учеников\n' +
       '📊 Аналитика — прогресс учеников и статистика\n' +
       '🎤 Голосовые сообщения — тоже принимаю\n\n' +
-      '💳 1 генерация = 3 токена\n\n' +
       'Попробуйте прямо сейчас — нажмите «🛠 Создать материал»!',
     );
 
@@ -1598,27 +1556,8 @@ export class MaxService {
   }
 
   // ── Main menu ─────────────────────────────────────────────────────────────
-  private async showMainMenu(chatId: string, userId: string): Promise<void> {
-    const botUser = await (this.prisma as any).botUser.findUnique({
-      where: { maxId: userId }, select: { botCredits: true },
-    });
-    const sub = await this.prisma.appUser.findUnique({
-      where: { maxId: userId }, select: { id: true },
-    });
-    let balance: number | null = null;
-    if (sub?.id) {
-      const userSub = await this.prisma.userSubscription.findUnique({ where: { userId: sub.id } });
-      if (userSub?.status === 'active') {
-        balance = userSub.creditsBalance + userSub.extraCredits;
-      }
-    }
-    if (balance === null) balance = botUser?.botCredits ?? null;
-    const balanceLine = balance !== null ? `\n💳 Токенов: ${balance}` : '';
-    await this.sendMessageWithKeyboard(
-      chatId,
-      `🏠 Главное меню${balanceLine}`,
-      this.buildMainMenuAttachment(),
-    );
+  private async showMainMenu(chatId: string, _userId: string): Promise<void> {
+    await this.sendMessageWithKeyboard(chatId, '🏠 Главное меню', this.buildMainMenuAttachment());
   }
 
   private buildMainMenuAttachment(): any[] {
@@ -1668,7 +1607,6 @@ export class MaxService {
       return { action: 'assign_homework', target };
     }
     if (/мои классы|список классов|посмотреть классы|мои ученики/.test(t)) return { action: 'show_classes' };
-    if (/баланс|токен|сколько осталось|мой счёт|остаток/.test(t)) return { action: 'show_balance' };
     if (/главное меню|^меню$|на главную|домой|в начало|назад в меню/.test(t)) return { action: 'show_menu' };
     if (/инструменты|что умеешь|что можешь|доступные функции|список инструм/.test(t)) return { action: 'show_tools' };
     if (/аналитика|статистика|в риске|на проверку|дедлайн|успеваемость/.test(t)) return { action: 'show_analytics' };
@@ -1730,7 +1668,6 @@ export class MaxService {
       '{"action":"show_history"}\n' +
       '{"action":"show_classes"}\n' +
       '{"action":"assign_homework","target":"class","dueDate":"YYYY-MM-DD"}\n' +
-      '{"action":"show_balance"}\n' +
       '{"action":"show_menu"}\n' +
       '{"action":"show_tools"}\n' +
       '{"action":"show_analytics"}\n' +
@@ -1754,7 +1691,6 @@ export class MaxService {
       'show_history: "мои генерации", "история", "что я создавал", "покажи мои работы", "мои материалы"\n' +
       'show_classes: "мои классы", "список классов", "мои ученики", "покажи классы"\n' +
       'assign_homework: "выдать дз", "задать домашнее", "назначить задание", "отправить задание ученику"\n' +
-      'show_balance: "баланс", "сколько токенов", "мой счёт", "сколько у меня", "остаток токенов", "сколько осталось", "мои токены"\n' +
       'show_menu: "главное меню", "меню", "домой", "на главную", "в начало", "назад в меню"\n' +
       'show_tools: "список инструментов", "что умеешь", "что можешь", "покажи инструменты", "доступные функции", "что есть"\n' +
       'show_analytics: "аналитика", "статистика", "кто в риске", "работы на проверку", "дедлайны", "успеваемость"\n' +
@@ -1780,7 +1716,7 @@ export class MaxService {
       try { parsed = JSON.parse(jsonMatch[0]); } catch { return this.nlNavFallback(input); }
 
       if (!parsed.action) return { action: 'unknown' };
-      if (['show_history', 'show_classes', 'show_balance', 'show_menu', 'show_tools', 'show_analytics', 'cancel', 'register', 'unknown'].includes(parsed.action)) return { action: parsed.action };
+      if (['show_history', 'show_classes', 'show_menu', 'show_tools', 'show_analytics', 'cancel', 'register', 'unknown'].includes(parsed.action)) return { action: parsed.action };
 
       if (parsed.action === 'assign_homework') {
         const target: 'student' | 'class' = parsed.target === 'student' ? 'student' : 'class';
@@ -1857,7 +1793,6 @@ export class MaxService {
     const navMessages: Record<string, string> = {
       show_history: 'Правильно понял? Хотите посмотреть историю своих генераций.',
       show_classes: 'Правильно понял? Хотите посмотреть свои классы и учеников.',
-      show_balance: 'Правильно понял? Хотите посмотреть баланс токенов.',
       show_menu: 'Правильно понял? Хотите перейти в главное меню.',
       show_tools: 'Правильно понял? Хотите посмотреть список инструментов.',
       show_analytics: 'Правильно понял? Хотите посмотреть аналитику по классам.',
@@ -2655,13 +2590,6 @@ export class MaxService {
 
   private humanizeError(err: any): string {
     const msg: string = err?.message ?? '';
-    if (
-      msg.toLowerCase().includes('токен') ||
-      msg.toLowerCase().includes('кредит') ||
-      msg.toLowerCase().includes('баланс')
-    ) {
-      return '💳 Недостаточно токенов. Пополните баланс на сайте prepodavai.ru';
-    }
     if (msg.toLowerCase().includes('не найден')) {
       return '❌ Аккаунт не найден. Используйте /start.';
     }
@@ -2940,80 +2868,7 @@ export class MaxService {
     }
   }
 
-  private async deductTokens(
-    userId: string,
-    appUserId: string,
-  ): Promise<{ success: boolean; remaining: number; source: 'subscription' | 'bot' }> {
-    const subscription = await this.prisma.userSubscription.findUnique({ where: { userId: appUserId } });
-
-    if (subscription && subscription.status === 'active') {
-      const updated = await this.prisma.$transaction(async (tx) => {
-        const sub = await tx.userSubscription.findUnique({ where: { userId: appUserId } });
-        if (!sub || sub.creditsBalance + sub.extraCredits < 3) return null;
-        let newExtra = sub.extraCredits;
-        let newBalance = sub.creditsBalance;
-        if (newExtra >= 3) {
-          newExtra -= 3;
-        } else {
-          const remainder = 3 - newExtra;
-          newExtra = 0;
-          newBalance -= remainder;
-        }
-        return tx.userSubscription.update({ where: { id: sub.id }, data: { creditsBalance: newBalance, extraCredits: newExtra } });
-      });
-      if (!updated) {
-        const sub = await this.prisma.userSubscription.findUnique({ where: { userId: appUserId } });
-        return { success: false, remaining: (sub?.creditsBalance ?? 0) + (sub?.extraCredits ?? 0), source: 'subscription' };
-      }
-      return { success: true, remaining: updated.creditsBalance + updated.extraCredits, source: 'subscription' };
-    }
-
-    const deducted = await (this.prisma as any).botUser.updateMany({
-      where: { maxId: userId, botCredits: { gte: 3 } },
-      data: { botCredits: { decrement: 3 } },
-    });
-    if (deducted.count === 0) {
-      const bu = await (this.prisma as any).botUser.findUnique({ where: { maxId: userId }, select: { id: true, botCredits: true } });
-      return { success: false, remaining: bu?.botCredits ?? 0, source: 'bot' };
-    }
-    const bu = await (this.prisma as any).botUser.findUnique({ where: { maxId: userId }, select: { id: true, botCredits: true } });
-    if (bu?.id) {
-      (this.prisma as any).botCreditTransaction.create({
-        data: {
-          botUserId: bu.id,
-          amount: -3,
-          balanceBefore: bu.botCredits + 3,
-          balanceAfter: bu.botCredits,
-          reason: 'generation_deduct',
-        },
-      }).catch(() => null);
-    }
-    return { success: true, remaining: bu?.botCredits ?? 0, source: 'bot' };
-  }
-
-  private async refundTokens(userId: string, appUserId: string, source: 'subscription' | 'bot'): Promise<void> {
-    if (source === 'subscription') {
-      await this.prisma.userSubscription.updateMany({ where: { userId: appUserId }, data: { extraCredits: { increment: 3 } } });
-    } else {
-      const updated = await (this.prisma as any).botUser.findUnique({ where: { maxId: userId }, select: { id: true, botCredits: true } }).catch(() => null);
-      await (this.prisma as any).botUser.update({ where: { maxId: userId }, data: { botCredits: { increment: 3 } } }).catch(() => null);
-      if (updated?.id) {
-        (this.prisma as any).botCreditTransaction.create({
-          data: {
-            botUserId: updated.id,
-            amount: 3,
-            balanceBefore: updated.botCredits,
-            balanceAfter: updated.botCredits + 3,
-            reason: 'generation_refund',
-            description: 'Возврат кредитов при ошибке генерации',
-          },
-        }).catch(() => null);
-      }
-    }
-  }
-
-  private getWelcomeMessage(_appUser: any, balance: number | null = null): string {
-    const balanceLine = balance !== null ? `\n\n💳 Токенов на балансе: ${balance}` : '';
+  private getWelcomeMessage(_appUser: any): string {
     return (
       `Добро пожаловать в Преподавай 🎓\n\n` +
       `Я Ваш интеллектуальный помощник для:\n` +
@@ -3021,8 +2876,7 @@ export class MaxService {
       `— Планирования уроков\n` +
       `— Создания красочных презентаций\n` +
       `— Методической поддержки\n` +
-      `— Создания интерактивных игр` +
-      balanceLine
+      `— Создания интерактивных игр`
     );
   }
 
@@ -3103,23 +2957,6 @@ export class MaxService {
         } as any,
       });
 
-      // New web users get business plan with 1500 credits + remaining botCredits
-      const businessPlan = await tx.subscriptionPlan.findUnique({ where: { planKey: 'business' } });
-      if (businessPlan) {
-        const existingBot = await (tx as any).botUser.findUnique({ where: { maxId: userId }, select: { botCredits: true } });
-        const bonusCredits = existingBot?.botCredits ?? 0;
-        const now = new Date();
-        const endDate = new Date(now);
-        endDate.setMonth(endDate.getMonth() + 1);
-        await tx.userSubscription.create({
-          data: {
-            userId: appUser.id, planId: businessPlan.id, status: 'active',
-            creditsBalance: 1500 + bonusCredits, extraCredits: 0, creditsUsed: 0,
-            overageCreditsUsed: 0, startDate: now, endDate, autoRenew: true,
-          },
-        });
-      }
-
       await (tx as any).botUser.upsert({
         where: { maxId: userId },
         update: { appUserId: appUser.id, email, registrationStatus: 'registered' },
@@ -3146,7 +2983,7 @@ export class MaxService {
 
     await this.sendMessage(
       chatId,
-      `✅ Аккаунт создан!\n\n👤 Логин: ${username}\n🔑 Пароль: ${password}\n\n💳 Токенов на платформе: 1500\n\n⚠️ Сохраните пароль — он больше не будет показан.`,
+      `✅ Аккаунт создан!\n\n👤 Логин: ${username}\n🔑 Пароль: ${password}\n\n⚠️ Сохраните пароль — он больше не будет показан.`,
     );
     await this.sendMessageWithKeyboard(chatId, '🏠 Главное меню:', this.buildMainMenuAttachment());
   }

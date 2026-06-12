@@ -7,7 +7,7 @@ import { PackageOpen, RefreshCw, Loader2, Maximize2, Copy, Download, Edit3, Eye 
 import toast from 'react-hot-toast'
 import { useGenerations } from '@/lib/hooks/useGenerations'
 import RichTextEditor from '@/components/workspace/RichTextEditor'
-import GenerationCostBadge from '@/components/workspace/GenerationCostBadge'
+// import GenerationCostBadge from '@/components/workspace/GenerationCostBadge'
 import AssignTaskButton from '@/components/AssignTaskButton'
 import GenerationProgress from '@/components/workspace/GenerationProgress'
 
@@ -158,7 +158,7 @@ export default function UnpackingGenerator() {
                     <div>
                         <div className="flex items-center gap-2">
                             <h2 className="font-bold text-lg">Распаковка Экспертности</h2>
-                            <GenerationCostBadge operationType="unpacking" />
+                            {/* <GenerationCostBadge operationType="unpacking" /> */}
                         </div>
                         <p className="text-xs text-gray-500 font-medium">Преподавай 2.0</p>
                     </div>

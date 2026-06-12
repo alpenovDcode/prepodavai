@@ -185,8 +185,8 @@ export class AdminController {
 
   // ========== CJM ==========
   @Get('users/:id/cjm')
-  async getUserCjm(@Param('id') id: string) {
-    return this.adminService.getUserCjm(id);
+  async getUserCjm(@Param('id') id: string, @Query('days') days?: string) {
+    return this.adminService.getUserCjm(id, parseInt(days ?? '') || 30);
   }
 
   @Get('users/:id/export-cjm')

@@ -177,7 +177,7 @@ export default function AdminUsersPage() {
                                 <tr>
                                     <th className="px-6 py-4">ID / Логин / Пароль</th>
                                     <th className="px-6 py-4">Имя & Тел</th>
-                                    <th className="px-6 py-4">Ключи / Баланс / Тариф</th>
+                                    <th className="px-6 py-4">Ключи</th>
                                     <th className="px-6 py-4">Последний вход</th>
                                     <th className="px-6 py-4 text-right">Действия</th>
                                 </tr>
@@ -247,38 +247,7 @@ export default function AdminUsersPage() {
                                                         </button>
                                                     )}
                                                 </div>
-                                                <div className="text-xs font-bold pl-0.5 flex items-center gap-2">
-                                                    <span className="text-gray-400 uppercase tracking-widest text-[9px]">Баланс: </span>
-                                                    {user.subscription != null ? (
-                                                        <span className="text-indigo-600 bg-indigo-50 px-2.5 py-0.5 rounded-lg border border-indigo-100 tabular-nums">
-                                                            {(user.subscription.creditsBalance ?? 0) + (user.subscription.extraCredits ?? 0)}
-                                                        </span>
-                                                    ) : user.botUser != null ? (
-                                                        <span className="text-orange-600 bg-orange-50 px-2.5 py-0.5 rounded-lg border border-orange-100 tabular-nums" title="Бот-кредиты (без подписки)">
-                                                            {user.botUser.botCredits ?? 0} 🤖
-                                                        </span>
-                                                    ) : (
-                                                        <span className="text-gray-400">—</span>
-                                                    )}
-                                                </div>
-                                                {user.subscription?.plan && (
-                                                    <div className="pl-0.5">
-                                                        {(() => {
-                                                            const pk = user.subscription.plan.planKey
-                                                            const styles: Record<string, string> = {
-                                                                free: 'text-gray-600 bg-gray-100 border-gray-200',
-                                                                starter: 'text-blue-700 bg-blue-50 border-blue-200',
-                                                                pro: 'text-purple-700 bg-purple-50 border-purple-200',
-                                                                business: 'text-amber-700 bg-amber-50 border-amber-200',
-                                                            }
-                                                            return (
-                                                                <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${styles[pk] || styles.free}`}>
-                                                                    {user.subscription.plan.planName}
-                                                                </span>
-                                                            )
-                                                        })()}
-                                                    </div>
-                                                )}
+                                                {/* balance/plan display removed */}
                                             </div>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
@@ -391,26 +360,7 @@ export default function AdminUsersPage() {
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Телефон</label>
                                     <input type="text" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} placeholder="+7 999 000 00 00" className="w-full border-gray-300 rounded-lg p-2 border focus:ring-2 focus:ring-blue-500 focus:outline-none" />
                                 </div>
-                                <div className="col-span-2 sm:col-span-1">
-                                    <label className="block text-sm font-medium text-indigo-700 mb-1 font-semibold">Баланс токенов {isEditModalOpen && <span className="text-xs text-gray-400 font-normal">(подписка)</span>}</label>
-                                    <input type="number" placeholder="100" value={formData.creditsBalance} onChange={e => setFormData({...formData, creditsBalance: e.target.value})} className="w-full border-indigo-200 bg-indigo-50/50 rounded-lg p-2 border focus:ring-2 focus:ring-indigo-500 focus:outline-none" />
-                                </div>
-                                {isEditModalOpen && selectedUser?.botUser && !selectedUser?.subscription && (
-                                    <div className="col-span-2 sm:col-span-1">
-                                        <label className="block text-sm font-medium text-orange-700 mb-1 font-semibold">Бот-кредиты 🤖</label>
-                                        <input type="number" placeholder="100" value={formData.botCredits} onChange={e => setFormData({...formData, botCredits: e.target.value})} className="w-full border-orange-200 bg-orange-50/50 rounded-lg p-2 border focus:ring-2 focus:ring-orange-500 focus:outline-none" />
-                                    </div>
-                                )}
-                                <div className="col-span-2 sm:col-span-1">
-                                    <label className="block text-sm font-medium text-purple-700 mb-1 font-semibold">Тариф</label>
-                                    <select value={formData.planKey} onChange={e => setFormData({...formData, planKey: e.target.value})} className="w-full border-purple-200 bg-purple-50/50 rounded-lg p-2 border focus:ring-2 focus:ring-purple-500 focus:outline-none text-sm">
-                                        <option value="">{isEditModalOpen ? '— не менять —' : '— выбрать тариф —'}</option>
-                                        <option value="free">Бесплатный (30 токенов)</option>
-                                        <option value="starter">Стартер (200 токенов, 290₽)</option>
-                                        <option value="pro">Про (500 токенов, 690₽)</option>
-                                        <option value="business">Бизнес (1500 токенов, 1490₽)</option>
-                                    </select>
-                                </div>
+                                {/* creditsBalance, botCredits, planKey fields removed */}
                             </div>
                             
                             <div className="pt-4 flex justify-end gap-3">

@@ -146,7 +146,7 @@ interface GenerationSession {
 
 // ── Типы: платформенные фичи ──────────────────────────────────────────────────
 interface NlParsedRequest {
-  action: 'generate' | 'show_history' | 'show_classes' | 'assign_homework' | 'show_balance' | 'show_menu' | 'show_tools' | 'show_analytics' | 'cancel' | 'register' | 'unknown';
+  action: 'generate' | 'show_history' | 'show_classes' | 'assign_homework' | 'show_menu' | 'show_tools' | 'show_analytics' | 'cancel' | 'register' | 'unknown';
   tool?: string;
   params?: Record<string, string>;
   target?: 'student' | 'class';
@@ -356,7 +356,6 @@ function buildConfirmMessage(tool: ToolConfig, params: Record<string, string>): 
     const val = params[field.key];
     if (val !== undefined && val !== '') lines.push(`• ${sanitizeMd(val)}`);
   }
-  lines.push(`\n💳 Стоимость: *${tool.creditCost} токена*`);
   lines.push(`⏱ Примерное время: *${tool.estimatedTime}*`);
   lines.push('\nГенерировать?');
   return lines.join('\n');
@@ -511,9 +510,6 @@ async function uploadFileToBackend(
 
 function humanizeError(err: any): string {
   const msg: string = err?.message ?? '';
-  if (msg.toLowerCase().includes('токен') || msg.toLowerCase().includes('кредит') || msg.toLowerCase().includes('баланс')) {
-    return '💳 Недостаточно токенов. Пополните баланс на сайте prepodavai.ru';
-  }
   if (msg.toLowerCase().includes('не найден')) {
     return '❌ Аккаунт не найден. Используйте /start для перезапуска.';
   }
@@ -635,23 +631,6 @@ async function completeRegistration(ctx: Context, telegramId: string, state: Reg
         } as any,
       });
 
-      // New web users get business plan with 1500 credits + remaining botCredits
-      const businessPlan = await tx.subscriptionPlan.findUnique({ where: { planKey: 'business' } });
-      if (businessPlan) {
-        const existingBot = await (tx as any).botUser.findUnique({ where: { telegramId }, select: { botCredits: true } });
-        const bonusCredits = existingBot?.botCredits ?? 0;
-        const now = new Date();
-        const endDate = new Date(now);
-        endDate.setMonth(endDate.getMonth() + 1);
-        await tx.userSubscription.create({
-          data: {
-            userId: appUser.id, planId: businessPlan.id, status: 'active',
-            creditsBalance: 1500 + bonusCredits, extraCredits: 0, creditsUsed: 0,
-            overageCreditsUsed: 0, startDate: now, endDate, autoRenew: true,
-          },
-        });
-      }
-
       await (tx as any).botUser.upsert({
         where: { telegramId },
         update: { appUserId: appUser.id, email: state.email, registrationStatus: 'registered' },
@@ -686,7 +665,6 @@ async function completeRegistration(ctx: Context, telegramId: string, state: Reg
       `Ваши данные для входа на сайте:\n\n` +
       `👤 Логин: \`${username}\`\n` +
       `🔑 Пароль: \`${password}\`\n\n` +
-      `💳 Токенов на платформе: *1500*\n\n` +
       `⚠️ *Сохраните пароль* — он больше не будет показан.`,
       { parse_mode: 'Markdown', reply_markup: buildMainMenuKeyboard() },
     );
@@ -822,71 +800,15 @@ async function handleLinkToken(ctx: Context, user: any, token: string) {
   }
 
   // Уже был в боте → сразу приветствие с меню
-  const sub = await (prisma as any).userSubscription.findUnique({ where: { userId: linkToken.userId } });
-  const displayBalance = sub && sub.status === 'active'
-    ? sub.creditsBalance + sub.extraCredits
-    : (linkedBotUser.botCredits ?? 0);
-  const balanceLine = `\n\n💳 Токенов на балансе: ${displayBalance}`;
-
   await ctx.reply(
-    `Добро пожаловать в Преподавай 🎓\n\nЯ Ваш интеллектуальный помощник для:\n— Создания учебных материалов\n— Планирования уроков\n— Создания красочных презентаций\n— Методической поддержки\n— Создания интерактивных игр${balanceLine}`,
+    `Добро пожаловать в Преподавай 🎓\n\nЯ Ваш интеллектуальный помощник для:\n— Создания учебных материалов\n— Планирования уроков\n— Создания красочных презентаций\n— Методической поддержки\n— Создания интерактивных игр`,
     { reply_markup: buildMainMenuKeyboard() },
   );
   await ctx.reply(
-    '🚀 *Как пользоваться:*\n\n1. Выберите инструмент из меню *или просто напишите запрос* — например: «создай тест по биологии для 8 класса»\n2. Ответьте на несколько вопросов\n3. Получите готовый материал в PDF\n\nКаждая генерация стоит *3 токена*.',
+    '🚀 *Как пользоваться:*\n\n1. Выберите инструмент из меню *или просто напишите запрос* — например: «создай тест по биологии для 8 класса»\n2. Ответьте на несколько вопросов\n3. Получите готовый материал в PDF',
     { parse_mode: 'Markdown' },
   );
   await ctx.reply('🛠️ *Выберите инструмент:*', { parse_mode: 'Markdown', reply_markup: buildToolSelectionKeyboard() });
-}
-
-// ── Token deduction helpers ───────────────────────────────────────────────────
-async function deductTgTokens(
-  telegramId: string,
-  appUserId: string,
-): Promise<{ success: boolean; remaining: number; source: 'subscription' | 'bot' }> {
-  const subscription = await (prisma as any).userSubscription.findUnique({ where: { userId: appUserId } });
-
-  if (subscription && subscription.status === 'active') {
-    const updated = await (prisma as any).$transaction(async (tx: any) => {
-      const sub = await tx.userSubscription.findUnique({ where: { userId: appUserId } });
-      if (!sub || sub.creditsBalance + sub.extraCredits < 3) return null;
-      let newExtra = sub.extraCredits;
-      let newBalance = sub.creditsBalance;
-      if (newExtra >= 3) {
-        newExtra -= 3;
-      } else {
-        const remainder = 3 - newExtra;
-        newExtra = 0;
-        newBalance -= remainder;
-      }
-      return tx.userSubscription.update({ where: { id: sub.id }, data: { creditsBalance: newBalance, extraCredits: newExtra } });
-    });
-    if (!updated) {
-      const sub = await (prisma as any).userSubscription.findUnique({ where: { userId: appUserId } });
-      return { success: false, remaining: (sub?.creditsBalance ?? 0) + (sub?.extraCredits ?? 0), source: 'subscription' };
-    }
-    return { success: true, remaining: updated.creditsBalance + updated.extraCredits, source: 'subscription' };
-  }
-
-  const deducted = await (prisma as any).botUser.updateMany({
-    where: { telegramId, botCredits: { gte: 3 } },
-    data: { botCredits: { decrement: 3 } },
-  });
-  if (deducted.count === 0) {
-    const bu = await (prisma as any).botUser.findUnique({ where: { telegramId }, select: { botCredits: true } });
-    return { success: false, remaining: bu?.botCredits ?? 0, source: 'bot' };
-  }
-  const bu = await (prisma as any).botUser.findUnique({ where: { telegramId }, select: { botCredits: true } });
-  return { success: true, remaining: bu?.botCredits ?? 0, source: 'bot' };
-}
-
-async function refundTgTokens(telegramId: string, appUserId: string, source: 'subscription' | 'bot'): Promise<void> {
-  if (source === 'subscription') {
-    // Возврат в extraCredits — зеркало списания (deductTgTokens берёт сначала extraCredits)
-    await (prisma as any).userSubscription.updateMany({ where: { userId: appUserId }, data: { extraCredits: { increment: 3 } } });
-  } else {
-    await (prisma as any).botUser.update({ where: { telegramId }, data: { botCredits: { increment: 3 } } }).catch(() => null);
-  }
 }
 
 // ── Platform features helpers ─────────────────────────────────────────────────
@@ -1667,13 +1589,12 @@ async function handleSubscriptionCheck(ctx: Context, telegramId: string): Promis
     } as any,
   });
 
-  const balanceLine = `\n\n💳 Токенов на балансе: ${botUserRecord.botCredits ?? 0}`;
   await ctx.reply(
-    `Добро пожаловать в Преподавай 🎓\n\nЯ Ваш интеллектуальный помощник для:\n— Создания учебных материалов\n— Планирования уроков\n— Создания красочных презентаций\n— Методической поддержки\n— Создания интерактивных игр${balanceLine}`,
+    `Добро пожаловать в Преподавай 🎓\n\nЯ Ваш интеллектуальный помощник для:\n— Создания учебных материалов\n— Планирования уроков\n— Создания красочных презентаций\n— Методической поддержки\n— Создания интерактивных игр`,
     { reply_markup: buildMainMenuKeyboard() },
   );
   await ctx.reply(
-    'Как пользоваться:\n\n🛠️ *Создать материал* — выберите инструмент (тест, план урока, рабочий лист и др.) или просто напишите запрос своими словами — бот поймёт\n📋 *Мои генерации* — история ваших материалов, можно посмотреть и назначить как ДЗ\n📚 *Классы* — список классов и учеников\n📊 *Аналитика* — прогресс учеников и статистика\n🎤 Голосовые сообщения — тоже принимаю\n\n💳 *1 генерация = 3 токена*\n\nПопробуйте прямо сейчас — нажмите *«🛠️ Создать материал»*!',
+    'Как пользоваться:\n\n🛠️ *Создать материал* — выберите инструмент (тест, план урока, рабочий лист и др.) или просто напишите запрос своими словами — бот поймёт\n📋 *Мои генерации* — история ваших материалов, можно посмотреть и назначить как ДЗ\n📚 *Классы* — список классов и учеников\n📊 *Аналитика* — прогресс учеников и статистика\n🎤 Голосовые сообщения — тоже принимаю\n\nПопробуйте прямо сейчас — нажмите *«🛠️ Создать материал»*!',
     { parse_mode: 'Markdown' },
   );
   await ctx.reply('🛠️ *Выберите инструмент:*', { parse_mode: 'Markdown', reply_markup: buildToolSelectionKeyboard() });
@@ -1757,17 +1678,12 @@ bot.command('start', async (ctx: Context) => {
       return;
     }
 
-    const sub = await (prisma as any).userSubscription.findUnique({ where: { userId: existingUser.id } });
-    const displayBalance = sub && sub.status === 'active'
-      ? sub.creditsBalance + sub.extraCredits
-      : ((botUser as any).botCredits ?? 0);
-    const balanceLine = `\n\n💳 Токенов на балансе: ${displayBalance}`;
     await ctx.reply(
-      `Добро пожаловать в Преподавай 🎓\n\nЯ Ваш интеллектуальный помощник для:\n— Создания учебных материалов\n— Планирования уроков\n— Создания красочных презентаций\n— Методической поддержки\n— Создания интерактивных игр${balanceLine}`,
+      `Добро пожаловать в Преподавай 🎓\n\nЯ Ваш интеллектуальный помощник для:\n— Создания учебных материалов\n— Планирования уроков\n— Создания красочных презентаций\n— Методической поддержки\n— Создания интерактивных игр`,
       { reply_markup: buildMainMenuKeyboard() },
     );
     await ctx.reply(
-      'Как пользоваться:\n\n🛠️ *Создать материал* — выберите инструмент (тест, план урока, рабочий лист и др.) или просто напишите запрос своими словами — бот поймёт\n📋 *Мои генерации* — история ваших материалов, можно посмотреть и назначить как ДЗ\n📚 *Классы* — список классов и учеников\n📊 *Аналитика* — прогресс учеников и статистика\n🎤 Голосовые сообщения — тоже принимаю\n\n💳 *1 генерация = 3 токена*\n\nПопробуйте прямо сейчас — нажмите *«🛠️ Создать материал»*!',
+      'Как пользоваться:\n\n🛠️ *Создать материал* — выберите инструмент (тест, план урока, рабочий лист и др.) или просто напишите запрос своими словами — бот поймёт\n📋 *Мои генерации* — история ваших материалов, можно посмотреть и назначить как ДЗ\n📚 *Классы* — список классов и учеников\n📊 *Аналитика* — прогресс учеников и статистика\n🎤 Голосовые сообщения — тоже принимаю\n\nПопробуйте прямо сейчас — нажмите *«🛠️ Создать материал»*!',
       { parse_mode: 'Markdown' },
     );
     await ctx.reply('🛠️ *Выберите инструмент:*', { parse_mode: 'Markdown', reply_markup: buildToolSelectionKeyboard() });
@@ -1838,15 +1754,8 @@ function parseRuDate(text: string): string | null {
 
 // Показывает главное меню + инструменты для уже зарегистрированного пользователя
 async function showMainMenuFull(ctx: Context, telegramId: string) {
-  const appUser = await prisma.appUser.findUnique({ where: { telegramId } });
-  const botUser = await (prisma as any).botUser.findUnique({ where: { telegramId } });
-  let balance = botUser?.botCredits ?? 0;
-  if (appUser?.id) {
-    const sub = await (prisma as any).userSubscription.findUnique({ where: { userId: appUser.id } });
-    if (sub?.status === 'active') balance = sub.creditsBalance + sub.extraCredits;
-  }
   await ctx.reply(
-    `🏠 Главное меню\n\n💳 Токенов на балансе: ${balance}`,
+    `🏠 Главное меню`,
     { reply_markup: buildMainMenuKeyboard() },
   );
   await ctx.reply('🛠️ *Выберите инструмент:*', { parse_mode: 'Markdown', reply_markup: buildToolSelectionKeyboard() });
@@ -1996,17 +1905,6 @@ bot.on('callback_query:data', async (ctx: Context) => {
         } else {
           await showHomeworkClassPicker(ctx, telegramId);
         }
-      } else if (pending.action === 'show_balance') {
-        const balanceUser = await (prisma as any).botUser.findUnique({ where: { telegramId }, select: { botCredits: true } });
-        const appSub = await prisma.appUser.findUnique({ where: { telegramId }, select: { id: true } });
-        let bal: number | null = null;
-        if (appSub?.id) {
-          const sub = await (prisma as any).userSubscription.findUnique({ where: { userId: appSub.id } });
-          if (sub?.status === 'active') bal = sub.creditsBalance + sub.extraCredits;
-        }
-        if (bal === null) bal = balanceUser?.botCredits ?? null;
-        const balText = bal !== null ? `💳 Ваш баланс: *${bal}* токенов` : '💳 Баланс недоступен';
-        await ctx.reply(balText, { parse_mode: 'Markdown' });
       } else if (pending.action === 'show_menu') {
         await showMainMenuFull(ctx, telegramId);
       } else if (pending.action === 'show_tools') {
@@ -2214,14 +2112,6 @@ bot.on('callback_query:data', async (ctx: Context) => {
     const user = await prisma.appUser.findUnique({ where: { telegramId } }) as any;
     if (!user) { await ctx.reply('❌ Аккаунт не найден.'); genSessions.delete(telegramId); return; }
 
-    // Атомарно списываем 3 токена: subscription если привязан, иначе botCredits
-    const tokenResult = await deductTgTokens(telegramId, user.id);
-    if (!tokenResult.success) {
-      await ctx.reply('❌ Недостаточно токенов для генерации.\n\nОбратитесь к администратору для пополнения баланса.');
-      genSessions.delete(telegramId);
-      return;
-    }
-
     genSessions.delete(telegramId);
     lastGenAt.set(telegramId, Date.now());
 
@@ -2230,7 +2120,6 @@ bot.on('callback_query:data', async (ctx: Context) => {
     try {
       const token = await getApiToken(user.username, await ensureApiKey(user));
       if (!token) {
-        await refundTgTokens(telegramId, user.id, tokenResult.source);
         await ctx.reply('❌ Ошибка авторизации. Попробуйте позже или обратитесь в поддержку.');
         return;
       }
@@ -2238,8 +2127,7 @@ bot.on('callback_query:data', async (ctx: Context) => {
       if (tool.serviceType === 'games') {
         const result = await callGamesApi(token, session.params.type, session.params.topic);
         if (!result.url) {
-          await refundTgTokens(telegramId, user.id, tokenResult.source);
-          await ctx.reply('❌ Игра не создана: сервер не вернул ссылку. Токены возвращены.');
+          await ctx.reply('❌ Игра не создана: сервер не вернул ссылку.');
           await ctx.reply('🛠️ *Выберите инструмент:*', { parse_mode: 'Markdown', reply_markup: buildToolSelectionKeyboardWithAssign() });
           return;
         }
@@ -2249,7 +2137,6 @@ bot.on('callback_query:data', async (ctx: Context) => {
         });
         const kb = new InlineKeyboard().url('🎮 Открыть игру', result.url);
         await ctx.reply(`🎮 *Игра готова!*\n\nТема: _${session.params.topic}_\n\nНажмите кнопку, чтобы открыть:`, { parse_mode: 'Markdown', reply_markup: kb });
-        await ctx.reply(`💳 Осталось токенов: *${tokenResult.remaining}*`, { parse_mode: 'Markdown' });
         await ctx.reply('🛠️ *Выберите инструмент:*', { parse_mode: 'Markdown', reply_markup: buildToolSelectionKeyboardWithAssign() });
       } else {
         let apiParams: Record<string, any> = { ...session.params };
@@ -2259,8 +2146,7 @@ bot.on('callback_query:data', async (ctx: Context) => {
         const result = await callGenerationApi(token, tool.generationType, apiParams);
         tgtrack('send_reach_goal', { user_id: telegramId, target: 'generation_created' });
         if (result.status === 'failed') {
-          await refundTgTokens(telegramId, user.id, tokenResult.source);
-          await ctx.reply('❌ Генерация не удалась. Токены возвращены.');
+          await ctx.reply('❌ Генерация не удалась.');
           await ctx.reply('🛠️ *Выберите инструмент:*', { parse_mode: 'Markdown', reply_markup: buildToolSelectionKeyboard() });
           return;
         }
@@ -2269,13 +2155,12 @@ bot.on('callback_query:data', async (ctx: Context) => {
           data: { totalGenerations: { increment: 1 }, generationsThisMonth: { increment: 1 }, lastGenerationAt: new Date() },
         });
         if (result.status === 'completed') {
-          await ctx.reply(`✅ Готово! Отправляю ${tool.emoji} *${tool.label}* в чат...\n\n💳 Осталось токенов: *${tokenResult.remaining}*`, { parse_mode: 'Markdown' });
+          await ctx.reply(`✅ Готово! Отправляю ${tool.emoji} *${tool.label}* в чат...`, { parse_mode: 'Markdown' });
         } else {
-          await ctx.reply(`✅ Задача принята! Результат придёт в этот чат, как только будет готов.\n\n💳 Осталось токенов: *${tokenResult.remaining}*`, { parse_mode: 'Markdown' });
+          await ctx.reply(`✅ Задача принята! Результат придёт в этот чат, как только будет готов.`, { parse_mode: 'Markdown' });
         }
       }
     } catch (err: any) {
-      await refundTgTokens(telegramId, user.id, tokenResult.source);
       await ctx.reply(humanizeError(err));
       await ctx.reply('🛠️ *Выберите инструмент:*', { parse_mode: 'Markdown', reply_markup: buildToolSelectionKeyboardWithAssign() });
     }
@@ -2291,7 +2176,7 @@ bot.on('callback_query:data', async (ctx: Context) => {
 // Быстрая проверка: начинается ли текст с императивного глагола генерации.
 // Намеренно строго — только явные команды, чтобы "Создание атомов" как тема не триггерило.
 function looksLikeNlRequest(text: string): boolean {
-  return /^(сгенерируй|создай|сделай|составь|сделайте|создайте|сгенерируйте|составьте|хочу создать|хочу сгенерировать|мне нужн|придумай|подготовь|генерируй|покажи|посмотреть|сколько|мой баланс|мои токены|отмени|стоп$|хватит$|аналитика|статистика|главное меню|инструменты|что умеешь|что можешь|выдать|назначить|задать дом)/i.test(text.trim()) &&
+  return /^(сгенерируй|создай|сделай|составь|сделайте|создайте|сгенерируйте|составьте|хочу создать|хочу сгенерировать|мне нужн|придумай|подготовь|генерируй|покажи|посмотреть|отмени|стоп$|хватит$|аналитика|статистика|главное меню|инструменты|что умеешь|что можешь|выдать|назначить|задать дом)/i.test(text.trim()) &&
     text.trim().length > 3;
 }
 
@@ -2304,7 +2189,6 @@ function nlNavFallback(text: string): NlParsedRequest {
     return { action: 'assign_homework', target };
   }
   if (/мои классы|список классов|посмотреть классы|мои ученики/.test(t)) return { action: 'show_classes' };
-  if (/баланс|токен|сколько осталось|мой счёт|остаток/.test(t)) return { action: 'show_balance' };
   if (/главное меню|^меню$|на главную|домой|в начало|назад в меню/.test(t)) return { action: 'show_menu' };
   if (/инструменты|что умеешь|что можешь|доступные функции|список инструм/.test(t)) return { action: 'show_tools' };
   if (/аналитика|статистика|в риске|на проверку|дедлайн|успеваемость/.test(t)) return { action: 'show_analytics' };
@@ -2396,7 +2280,6 @@ async function parseNlRequest(text: string): Promise<NlParsedRequest> {
     '{"action":"show_history"}\n' +
     '{"action":"show_classes"}\n' +
     '{"action":"assign_homework","target":"class","dueDate":"YYYY-MM-DD"}\n' +
-    '{"action":"show_balance"}\n' +
     '{"action":"show_menu"}\n' +
     '{"action":"show_tools"}\n' +
     '{"action":"show_analytics"}\n' +
@@ -2420,7 +2303,6 @@ async function parseNlRequest(text: string): Promise<NlParsedRequest> {
     'show_history: "мои генерации", "история", "что я создавал", "покажи мои работы", "мои материалы"\n' +
     'show_classes: "мои классы", "список классов", "мои ученики", "покажи классы"\n' +
     'assign_homework: "выдать дз", "задать домашнее", "назначить задание", "отправить задание ученику"\n' +
-    'show_balance: "баланс", "сколько токенов", "мой счёт", "сколько у меня", "остаток токенов", "сколько осталось", "мои токены"\n' +
     'show_menu: "главное меню", "меню", "домой", "на главную", "в начало", "назад в меню"\n' +
     'show_tools: "список инструментов", "что умеешь", "что можешь", "покажи инструменты", "доступные функции", "что есть"\n' +
     'show_analytics: "аналитика", "статистика", "кто в риске", "работы на проверку", "дедлайны", "успеваемость"\n' +
@@ -2457,7 +2339,7 @@ async function parseNlRequest(text: string): Promise<NlParsedRequest> {
 
     if (!parsed.action) return { action: 'unknown' };
 
-    if (['show_history', 'show_classes', 'show_balance', 'show_menu', 'show_tools', 'show_analytics', 'cancel', 'register', 'unknown'].includes(parsed.action)) {
+    if (['show_history', 'show_classes', 'show_menu', 'show_tools', 'show_analytics', 'cancel', 'register', 'unknown'].includes(parsed.action)) {
       return { action: parsed.action };
     }
 
@@ -2545,7 +2427,6 @@ function buildNlConfirmMessage(parsed: NlParsedRequest): string {
   const navMessages: Record<string, string> = {
     show_history: 'Правильно понял? Хотите посмотреть историю своих генераций.',
     show_classes: 'Правильно понял? Хотите посмотреть свои классы и учеников.',
-    show_balance: 'Правильно понял? Хотите посмотреть баланс токенов.',
     show_menu: 'Правильно понял? Хотите перейти в главное меню.',
     show_tools: 'Правильно понял? Хотите посмотреть список инструментов.',
     show_analytics: 'Правильно понял? Хотите посмотреть аналитику по классам.',
@@ -2711,7 +2592,6 @@ bot.on('message:text', async (ctx: Context) => {
               show_history: 'посмотреть историю генераций',
               show_classes: 'посмотреть классы',
               assign_homework: 'перейти к выдаче задания',
-              show_balance: 'посмотреть баланс',
               show_menu: 'перейти в главное меню',
               show_tools: 'посмотреть инструменты',
               show_analytics: 'посмотреть аналитику',
@@ -2914,7 +2794,7 @@ bot.on('message:voice', async (ctx) => {
           vState.pendingNlRequest = parsed;
           const navLabels: Record<string, string> = {
             show_history: 'посмотреть историю генераций', show_classes: 'посмотреть классы',
-            assign_homework: 'перейти к выдаче задания', show_balance: 'посмотреть баланс',
+            assign_homework: 'перейти к выдаче задания',
             show_menu: 'перейти в главное меню', show_tools: 'посмотреть инструменты',
             show_analytics: 'посмотреть аналитику', cancel: 'отменить и выйти в меню',
             register: 'пройти регистрацию',

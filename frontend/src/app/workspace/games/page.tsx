@@ -5,7 +5,7 @@ import { Download, Copy, RefreshCw, Loader2, Gamepad2, ExternalLink } from 'luci
 import toast from 'react-hot-toast'
 import { apiClient } from '@/lib/api/client'
 import { getCurrentUser } from '@/lib/utils/userIdentity'
-import GenerationCostBadge from '@/components/workspace/GenerationCostBadge'
+// import GenerationCostBadge from '@/components/workspace/GenerationCostBadge'
 import AssignTaskButton from '@/components/AssignTaskButton'
 import GenerationProgress from '@/components/workspace/GenerationProgress'
 
@@ -91,7 +91,7 @@ export default function GamesGenerator() {
                             </div>
                             <div className="flex items-center gap-2">
                                 <h2 className="text-xl font-bold tracking-tight text-gray-900 leading-tight">Обучающие Игры</h2>
-                                <GenerationCostBadge operationType="game_generation" />
+                                {/* <GenerationCostBadge operationType="game_generation" /> */}
                             </div>
                         </div>
                         <p className="text-sm text-gray-500 leading-relaxed font-medium">Создайте интерактивную игру по вашей теме</p>

@@ -998,10 +998,14 @@ export class AdminService {
 
   // ========== CJM ==========
 
-  async getUserCjm(userId: string) {
+  async getUserCjm(userId: string, days: number = 30) {
     const db = this.prisma as any;
+    const since = new Date(Date.now() - days * 86400000);
 
-    const [user, botUser, subscription, firstGen, firstPayment, genStats, botCredHistory, generationsCount] = await Promise.all([
+    const [user, botUser, subscription, firstGen, firstPayment, genStats, botCredHistory, generationsCount,
+      onboardingSteps, allPayments, heatmapRows, weeklyRows, hourRows, dowRows, byTypeRows, gapRows,
+      depthRow, platformTimeRows, creditBurnRows, allDatesRows, windowRow, inLessonRow, topTopicsRows, planHistoryRows,
+    ] = await Promise.all([
       this.prisma.appUser.findUnique({
         where: { id: userId },
         select: {
@@ -1052,6 +1056,153 @@ export class AdminService {
         where: { userId },
         _count: { id: true },
       }),
+
+      // onboardingSteps — с датами
+      this.prisma.onboardingQuestStep.findMany({
+        where: { userId },
+        select: { step: true, completedAt: true },
+        orderBy: { completedAt: 'asc' },
+      }).catch(() => []),
+
+      // allPayments — все платежи
+      this.prisma.payment.findMany({
+        where: { userId, status: 'completed' },
+        orderBy: { createdAt: 'asc' },
+        select: { createdAt: true, planKey: true, amount: true },
+      }).catch(() => []),
+
+      // heatmapRows — последние 91 день
+      (this.prisma.$queryRaw`
+        SELECT DATE(created_at)::text AS d, COUNT(*)::int AS cnt
+        FROM user_generations
+        WHERE user_id = ${userId} AND created_at >= NOW() - INTERVAL '91 days'
+        GROUP BY DATE(created_at) ORDER BY d
+      ` as Promise<any[]>).catch(() => []),
+
+      // weeklyRows — еженедельная активность
+      (this.prisma.$queryRaw`
+        SELECT TO_CHAR(DATE_TRUNC('week', created_at), 'YYYY-MM-DD') AS w, COUNT(*)::int AS cnt
+        FROM user_generations WHERE user_id = ${userId}
+        GROUP BY DATE_TRUNC('week', created_at) ORDER BY w
+      ` as Promise<any[]>).catch(() => []),
+
+      // hourRows — паттерн по часам
+      (this.prisma.$queryRaw`
+        SELECT EXTRACT(HOUR FROM created_at)::int AS h, COUNT(*)::int AS cnt
+        FROM user_generations WHERE user_id = ${userId}
+        GROUP BY h ORDER BY h
+      ` as Promise<any[]>).catch(() => []),
+
+      // dowRows — паттерн по дням недели
+      (this.prisma.$queryRaw`
+        SELECT EXTRACT(DOW FROM created_at)::int AS dow, COUNT(*)::int AS cnt
+        FROM user_generations WHERE user_id = ${userId}
+        GROUP BY dow ORDER BY dow
+      ` as Promise<any[]>).catch(() => []),
+
+      // byTypeRows — типы контента с avg tokens/cost в окне days
+      (this.prisma.$queryRaw`
+        SELECT generation_type,
+          COUNT(*)::int AS cnt,
+          ROUND(AVG(tokens_used))::int AS avg_tokens,
+          ROUND(AVG(credit_cost))::int AS avg_cost
+        FROM user_generations
+        WHERE user_id = ${userId} AND status = 'completed' AND created_at >= ${since}
+        GROUP BY generation_type ORDER BY cnt DESC
+      ` as Promise<any[]>).catch(() => []),
+
+      // gapRows — периоды неактивности > 7 дней
+      (this.prisma.$queryRaw`
+        WITH dates AS (
+          SELECT DISTINCT DATE(created_at) AS d
+          FROM user_generations WHERE user_id = ${userId}
+        ),
+        gaps AS (
+          SELECT
+            LAG(d) OVER (ORDER BY d) AS prev_d,
+            d AS curr_d,
+            (d - LAG(d) OVER (ORDER BY d))::int AS gap_days
+          FROM dates
+        )
+        SELECT prev_d::text, curr_d::text, gap_days
+        FROM gaps WHERE gap_days > 7
+        ORDER BY gap_days DESC LIMIT 10
+      ` as Promise<any[]>).catch(() => []),
+
+      // depthRow — количество уроков/классов/учеников/ДЗ
+      (this.prisma.$queryRaw`
+        SELECT
+          (SELECT COUNT(*)::int FROM lessons WHERE user_id = ${userId}) AS lessons,
+          (SELECT COUNT(*)::int FROM classes WHERE user_id = ${userId}) AS classes,
+          (SELECT COUNT(DISTINCT s.id)::int FROM students s JOIN classes c ON s.class_id = c.id WHERE c.user_id = ${userId}) AS students,
+          (SELECT COUNT(*)::int FROM assignments WHERE teacher_id = ${userId}) AS assignments,
+          (SELECT MIN(created_at)::text FROM lessons WHERE user_id = ${userId}) AS first_lesson_at,
+          (SELECT MIN(a.created_at)::text FROM assignments a WHERE a.teacher_id = ${userId}) AS first_assignment_at,
+          (SELECT MIN(c.created_at)::text FROM classes c WHERE c.user_id = ${userId}) AS first_class_at,
+          (SELECT MIN(s.created_at)::text FROM students s JOIN classes c ON s.class_id = c.id WHERE c.user_id = ${userId}) AS first_student_at
+      ` as Promise<any[]>).catch(() => [{ lessons: 0, classes: 0, students: 0, assignments: 0, first_lesson_at: null, first_assignment_at: null, first_class_at: null, first_student_at: null }]),
+
+      // platformTimeRows — предпочтение платформы по месяцам
+      (this.prisma.$queryRaw`
+        SELECT TO_CHAR(DATE_TRUNC('month', created_at), 'YYYY-MM') AS m,
+          COALESCE(initiated_source, 'web') AS src,
+          COUNT(*)::int AS cnt
+        FROM user_generations WHERE user_id = ${userId}
+        GROUP BY DATE_TRUNC('month', created_at), COALESCE(initiated_source, 'web')
+        ORDER BY m, src
+      ` as Promise<any[]>).catch(() => []),
+
+      // creditBurnRows — monthly burn
+      (this.prisma.$queryRaw`
+        SELECT TO_CHAR(DATE_TRUNC('month', created_at), 'YYYY-MM') AS m,
+          COALESCE(SUM(CASE WHEN amount < 0 THEN ABS(amount) ELSE 0 END), 0)::int AS spent,
+          COALESCE(SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END), 0)::int AS granted
+        FROM credit_transactions WHERE user_id = ${userId}
+        GROUP BY DATE_TRUNC('month', created_at) ORDER BY m
+      ` as Promise<any[]>).catch(() => []),
+
+      // allDatesRows — все даты генераций (для streak)
+      (this.prisma.$queryRaw`
+        SELECT DISTINCT DATE(created_at)::text AS d
+        FROM user_generations WHERE user_id = ${userId}
+        ORDER BY d DESC
+      ` as Promise<any[]>).catch(() => []),
+
+      // windowRow — статистика в выбранном окне дней
+      (this.prisma.$queryRaw`
+        SELECT
+          COUNT(*)::int AS total,
+          COUNT(*) FILTER (WHERE status = 'completed')::int AS completed,
+          COUNT(*) FILTER (WHERE status = 'failed')::int AS failed,
+          COUNT(DISTINCT DATE(created_at))::int AS active_days,
+          COALESCE(ROUND(AVG(tokens_used)), 0)::int AS avg_tokens,
+          COALESCE(SUM(credit_cost), 0)::int AS total_credits
+        FROM user_generations
+        WHERE user_id = ${userId} AND created_at >= ${since}
+      ` as Promise<any[]>).catch(() => [{ total: 0, completed: 0, failed: 0, active_days: 0, avg_tokens: 0, total_credits: 0 }]),
+
+      // inLessonRow — генерации привязанные к урокам vs standalone
+      (this.prisma.$queryRaw`
+        SELECT
+          COUNT(*) FILTER (WHERE lesson_id IS NOT NULL)::int AS in_lesson,
+          COUNT(*) FILTER (WHERE lesson_id IS NULL)::int AS standalone
+        FROM user_generations WHERE user_id = ${userId}
+      ` as Promise<any[]>).catch(() => [{ in_lesson: 0, standalone: 0 }]),
+
+      // topTopicsRows — топ тем уроков
+      (this.prisma.$queryRaw`
+        SELECT topic, COUNT(*)::int AS cnt FROM lessons WHERE user_id = ${userId}
+        GROUP BY topic ORDER BY cnt DESC LIMIT 10
+      ` as Promise<any[]>).catch(() => []),
+
+      // planHistoryRows — история тарифов из платежей
+      (this.prisma.$queryRaw`
+        SELECT plan_key, COUNT(*)::int AS count,
+          MIN(created_at)::text AS first_at,
+          MAX(created_at)::text AS last_at
+        FROM payments WHERE user_id = ${userId} AND status = 'completed'
+        GROUP BY plan_key ORDER BY MIN(created_at)
+      ` as Promise<any[]>).catch(() => []),
     ]);
 
     if (!user) throw new NotFoundException('User not found');
@@ -1113,6 +1264,9 @@ export class AdminService {
     if (subscription?.creditsBalance === 0) churnSignals.push('Баланс 0 кредитов');
     if (subExpired) churnSignals.push('Подписка истекла');
     if (totalGenerations === 0) churnSignals.push('Ни одной генерации');
+    if (totalGenerations === 1) churnSignals.push('Только 1 генерация за всё время');
+    if (daysSinceRegistration > 7 && totalGenerations === 0) churnSignals.push('7+ дней без единой генерации');
+    if (subscription?.creditsBalance !== null && subscription?.creditsBalance !== undefined && subscription.creditsBalance < 10 && !subActive) churnSignals.push('Критически мало кредитов (<10)');
 
     let churnRisk: 'low' | 'medium' | 'high';
     if (churnSignals.some(s => s.includes('30+') || s === 'Подписка истекла')) churnRisk = 'high';
@@ -1126,7 +1280,108 @@ export class AdminService {
       byInitiated[src] = Number((row._count as any).id ?? 0);
     }
 
+    // Вычисляем streak из allDatesRows
+    function computeStreaks(dates: string[]): { current: number; max: number } {
+      if (dates.length === 0) return { current: 0, max: 0 };
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todayStr = today.toISOString().slice(0, 10);
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayStr = yesterday.toISOString().slice(0, 10);
+
+      // dates уже отсортированы DESC
+      let current = 0;
+      if (dates[0] === todayStr || dates[0] === yesterdayStr) {
+        const startDate = new Date(dates[0]);
+        for (let i = 0; i < dates.length; i++) {
+          const expected = new Date(startDate);
+          expected.setDate(expected.getDate() - i);
+          if (dates[i] === expected.toISOString().slice(0, 10)) {
+            current++;
+          } else break;
+        }
+      }
+
+      // Max streak (iterate ascending)
+      const asc = [...dates].sort();
+      let max = 1, run = 1;
+      for (let i = 1; i < asc.length; i++) {
+        const prev = new Date(asc[i - 1]);
+        prev.setDate(prev.getDate() + 1);
+        if (asc[i] === prev.toISOString().slice(0, 10)) {
+          run++;
+          max = Math.max(max, run);
+        } else {
+          run = 1;
+        }
+      }
+
+      return { current, max };
+    }
+
+    const streaks = computeStreaks((allDatesRows as any[]).map(r => r.d));
+
+    // LTV вычисление
+    const ltv = (allPayments as any[]).reduce((s: number, p: any) => s + Number(p.amount ?? 0), 0);
+    const paymentCount = (allPayments as any[]).length;
+    const avgPayment = paymentCount > 0 ? Math.round(ltv / paymentCount) : 0;
+
+    // Credit forecast
+    const burnLast30 = (creditBurnRows as any[])
+      .filter(r => r.m >= new Date(Date.now() - 86400000 * 60).toISOString().slice(0, 7))
+      .reduce((s: number, r: any) => s + Number(r.spent ?? 0), 0);
+    const burnRate30 = burnLast30 / 30;
+    const forecastDaysLeft = (subscription?.creditsBalance && burnRate30 > 0)
+      ? Math.round(subscription.creditsBalance / burnRate30)
+      : null;
+
+    // Platform over time
+    const platformTimeMap: Record<string, { web: number; telegram_bot: number; max_bot: number }> = {};
+    for (const r of platformTimeRows as any[]) {
+      if (!platformTimeMap[r.m]) platformTimeMap[r.m] = { web: 0, telegram_bot: 0, max_bot: 0 };
+      const src = r.src as string;
+      if (src === 'telegram_bot') platformTimeMap[r.m].telegram_bot += Number(r.cnt);
+      else if (src === 'max_bot') platformTimeMap[r.m].max_bot += Number(r.cnt);
+      else platformTimeMap[r.m].web += Number(r.cnt);
+    }
+    const platformOverTime = Object.entries(platformTimeMap)
+      .map(([month, v]) => ({ month, ...v }))
+      .sort((a, b) => a.month.localeCompare(b.month));
+
+    // Weekly retention grid
+    const weeklyRetentionMap = new Map<string, boolean>();
+    for (const r of weeklyRows as any[]) {
+      weeklyRetentionMap.set(r.w, true);
+    }
+    const weeklyGrid: { week: string; hasActivity: boolean }[] = [];
+    for (let i = 51; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i * 7);
+      const monday = new Date(d);
+      monday.setDate(monday.getDate() - monday.getDay() + 1);
+      const weekStr = monday.toISOString().slice(0, 10);
+      weeklyGrid.push({ week: weekStr, hasActivity: weeklyRetentionMap.has(weekStr) });
+    }
+    const activeWeeks = weeklyGrid.filter(w => w.hasActivity).length;
+    const retentionScore = weeklyGrid.length > 0 ? Math.round((activeWeeks / weeklyGrid.length) * 100) : 0;
+
+    // Window stats
+    const ws = (windowRow as any[])[0] ?? {};
+    const windowStats = {
+      total: Number(ws.total ?? 0),
+      completed: Number(ws.completed ?? 0),
+      failed: Number(ws.failed ?? 0),
+      activeDays: Number(ws.active_days ?? 0),
+      avgTokens: Number(ws.avg_tokens ?? 0),
+      totalCredits: Number(ws.total_credits ?? 0),
+      successRate: ws.total > 0 ? Math.round((Number(ws.completed) / Number(ws.total)) * 100) : 0,
+      avgPerActiveDay: ws.active_days > 0 ? Math.round((Number(ws.total) / Number(ws.active_days)) * 10) / 10 : 0,
+    };
+
     return {
+      days,
       acquisition: {
         // Веб-регистрация
         source: user.source,
@@ -1195,11 +1450,89 @@ export class AdminService {
         generationType: t.generationType,
         createdAt: t.createdAt,
       })),
+
+      onboardingSteps: (onboardingSteps as any[]).map(s => ({ step: s.step, completedAt: s.completedAt })),
+
+      engagement: {
+        window: windowStats,
+        currentStreak: streaks.current,
+        maxStreak: streaks.max,
+        heatmap: (heatmapRows as any[]).map(r => ({ date: r.d, count: Number(r.cnt) })),
+        weeklyActivity: (weeklyRows as any[]).map(r => ({ week: r.w, count: Number(r.cnt) })),
+        hourPattern: Array.from({ length: 24 }, (_, h) => ({
+          hour: h,
+          count: Number((hourRows as any[]).find((r: any) => r.h === h)?.cnt ?? 0),
+        })),
+        dowPattern: Array.from({ length: 7 }, (_, dow) => ({
+          dow,
+          count: Number((dowRows as any[]).find((r: any) => r.dow === dow)?.cnt ?? 0),
+        })),
+        byType: (() => {
+          const rows = byTypeRows as any[];
+          const total = rows.reduce((s: number, r: any) => s + Number(r.cnt), 0);
+          return rows.map(r => ({
+            type: r.generation_type,
+            count: Number(r.cnt),
+            pct: total > 0 ? Math.round((Number(r.cnt) / total) * 100) : 0,
+            avgTokens: Number(r.avg_tokens ?? 0),
+            avgCost: Number(r.avg_cost ?? 0),
+          }));
+        })(),
+        platformOverTime,
+      },
+
+      revenue: {
+        ltv,
+        paymentCount,
+        avgPayment,
+        allPayments: (allPayments as any[]).map(p => ({
+          date: p.createdAt,
+          planKey: p.planKey,
+          amount: Number(p.amount),
+        })),
+        creditBurnRate: (creditBurnRows as any[]).map(r => ({
+          month: r.m,
+          spent: Number(r.spent),
+          granted: Number(r.granted),
+        })),
+        forecastDaysLeft,
+        planHistory: (planHistoryRows as any[]).map(r => ({
+          planKey: r.plan_key,
+          count: Number(r.count),
+          firstAt: r.first_at,
+          lastAt: r.last_at,
+        })),
+      },
+
+      retention: {
+        weeklyGrid,
+        retentionScore,
+        gaps: (gapRows as any[]).map(r => ({
+          from: r.prev_d,
+          to: r.curr_d,
+          days: Number(r.gap_days),
+        })),
+        longestGap: (gapRows as any[])[0]?.gap_days ? Number((gapRows as any[])[0].gap_days) : 0,
+      },
+
+      depth: {
+        lessons: Number((depthRow as any[])[0]?.lessons ?? 0),
+        classes: Number((depthRow as any[])[0]?.classes ?? 0),
+        students: Number((depthRow as any[])[0]?.students ?? 0),
+        assignments: Number((depthRow as any[])[0]?.assignments ?? 0),
+        firstLessonAt: (depthRow as any[])[0]?.first_lesson_at ?? null,
+        firstAssignmentAt: (depthRow as any[])[0]?.first_assignment_at ?? null,
+        firstClassAt: (depthRow as any[])[0]?.first_class_at ?? null,
+        firstStudentAt: (depthRow as any[])[0]?.first_student_at ?? null,
+        inLesson: Number((inLessonRow as any[])[0]?.in_lesson ?? 0),
+        standalone: Number((inLessonRow as any[])[0]?.standalone ?? 0),
+        topTopics: (topTopicsRows as any[]).map(r => ({ topic: r.topic, count: Number(r.cnt) })),
+      },
     };
   }
 
   async exportUserCjmCsv(userId: string): Promise<string> {
-    const cjm = await this.getUserCjm(userId);
+    const cjm = await this.getUserCjm(userId, 30);
     const user = await this.prisma.appUser.findUnique({
       where: { id: userId },
       select: { id: true, username: true, firstName: true, lastName: true, email: true, phone: true },

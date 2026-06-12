@@ -175,10 +175,8 @@ export default function AdminSettingsPage() {
 
             <ChangePasswordCard />
 
-            <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 flex gap-3 text-blue-800 text-sm">
-                <AlertCircle className="w-5 h-5 flex-shrink-0" />
-                <p>Изменение стоимости генерации вступит в силу незамедлительно для всех пользователей платформы. Пожалуйста, будьте осторожны при изменении цен, чтобы не вызвать неожиданных списаний.</p>
-            </div>
+            {/* Credit cost settings section removed */}
+            {false && <div>
 
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
                 <div className="p-4 border-b border-gray-100 flex items-center gap-2 bg-gray-50/50">
@@ -306,6 +304,7 @@ export default function AdminSettingsPage() {
                     ))}
                 </div>
             </div>
+        </div>}
         </div>
     )
 }

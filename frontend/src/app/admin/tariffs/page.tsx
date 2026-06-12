@@ -13,8 +13,16 @@ const PLAN_STYLES: Record<string, { badge: string; bar: string; card: string }> 
     business: { badge: 'bg-amber-50 text-amber-700 border-amber-200',   bar: 'bg-amber-500',   card: 'border-amber-100 bg-amber-50/30' },
 }
 
+const SECTION_DISABLED = true
+
 export default function AdminTariffsPage() {
     const { data, isLoading } = useSWR<any>('/admin/analytics/tariffs', fetcher)
+
+    if (SECTION_DISABLED || !data || isLoading) return (
+        <div className="p-8 text-center text-gray-400">
+            <p className="text-lg font-semibold">Раздел временно отключён</p>
+        </div>
+    )
 
     const plans: any[] = data?.plans || []
     const totalActive: number = data?.totalActive || 0

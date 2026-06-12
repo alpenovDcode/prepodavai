@@ -8,10 +8,18 @@ import { DollarSign, Activity, FileText } from 'lucide-react'
 const fetcherSubscriptions = (url: string) => apiClient.get(url).then(res => res.data.subscriptions)
 const fetcherTransactions = (url: string) => apiClient.get(url).then(res => res.data.transactions)
 
+const SECTION_DISABLED = true
+
 export default function AdminFinancesPage() {
     const [activeTab, setActiveTab] = useState<'subscriptions'|'transactions'>('subscriptions')
     const { data: subscriptions, isLoading: isLoadingSubs } = useSWR<any[]>('/admin/subscriptions', fetcherSubscriptions)
     const { data: transactions, isLoading: isLoadingTrans } = useSWR<any[]>('/admin/transactions', fetcherTransactions)
+
+    if (SECTION_DISABLED) return (
+        <div className="p-8 text-center text-gray-400">
+            <p className="text-lg font-semibold">Раздел временно отключён</p>
+        </div>
+    )
 
     return (
         <div className="space-y-6">

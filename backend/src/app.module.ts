@@ -19,7 +19,7 @@ import { StudentsModule } from './modules/students/students.module';
 import { AssignmentsModule } from './modules/assignments/assignments.module';
 import { SubmissionsModule } from './modules/submissions/submissions.module';
 import { GenerationsModule } from './modules/generations/generations.module';
-import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
+// import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
 import { TelegramModule } from './modules/telegram/telegram.module';
 import { MaxModule } from './modules/max/max.module';
 import { WebhooksModule } from './modules/webhooks/webhooks.module';
@@ -38,7 +38,7 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { ReferralsModule } from './modules/referrals/referrals.module';
 import { OnboardingQuestModule } from './modules/onboarding-quest/onboarding-quest.module';
-import { PaymentsModule } from './modules/payments/payments.module';
+// import { PaymentsModule } from './modules/payments/payments.module';
 import { TeacherDiaryModule } from './modules/teacher-diary/teacher-diary.module';
 import { PopupsModule } from './modules/popups/popups.module';
 
@@ -91,7 +91,7 @@ import { PopupsModule } from './modules/popups/popups.module';
     AssignmentsModule,
     SubmissionsModule,
     GenerationsModule,
-    SubscriptionsModule,
+    // SubscriptionsModule,
     TelegramModule,
     MaxModule,
     WebhooksModule,
@@ -108,7 +108,7 @@ import { PopupsModule } from './modules/popups/popups.module';
     NotificationsModule,
     ReferralsModule,
     OnboardingQuestModule,
-    PaymentsModule,
+    // PaymentsModule,
     TeacherDiaryModule,
     PopupsModule,
   ],

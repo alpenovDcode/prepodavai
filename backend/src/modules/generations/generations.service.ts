@@ -9,7 +9,6 @@ import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { GenerationHelpersService } from './generation-helpers.service';
-import { SubscriptionsService, OperationType } from '../subscriptions/subscriptions.service';
 import axios from 'axios';
 import { ConfigService } from '@nestjs/config';
 import { ReplicateService } from '../replicate/replicate.service';
@@ -105,7 +104,6 @@ export class GenerationsService {
   constructor(
     private prisma: PrismaService,
     private generationHelpers: GenerationHelpersService,
-    private subscriptionsService: SubscriptionsService,
     private configService: ConfigService,
     private readonly replicateService: ReplicateService,
     private readonly lessonsService: LessonsService,
@@ -142,43 +140,7 @@ export class GenerationsService {
       }
     }
 
-    // Проверяем и списываем Токены
-    let creditCheck: any = { success: true };
-    const operationType = this.mapGenerationTypeToOperationType(generationType);
-
-    const isBotRequest = inputParams._miniAppPlatform === 'telegram' || inputParams._miniAppPlatform === 'max';
-
-    if (skipCreditDeduction || isBotRequest) {
-      this.logger.debug(
-        `Skipping credit deduction for ${generationType} — ${isBotRequest ? `bot request (${inputParams._miniAppPlatform})` : 'bundle item'}`,
-      );
-    } else if (generationType === 'lesson_preparation' || generationType === 'lessonPreparation') {
-      const types = inputParams.generationTypes || [];
-      let totalCost = 0;
-      for (const t of types) {
-        totalCost += await this.subscriptionsService.getOperationCost(
-          this.mapGenerationTypeToOperationType(t as any),
-        );
-      }
-
-      creditCheck = await this.subscriptionsService.debitCredits(
-        userId,
-        operationType,
-        undefined,
-        `Вау-урок: ${types.join(', ')}`,
-        totalCost,
-      );
-    } else {
-      creditCheck = await this.subscriptionsService.checkAndDebitCredits(userId, operationType);
-    }
-
-    if (!creditCheck.success) {
-      throw new BadRequestException(creditCheck.message || 'Недостаточно Токенов');
-    }
-
-    const deductedCost = creditCheck.transaction?.amount || 0;
-    const remainingCredits = creditCheck.transaction?.balanceAfter;
-    inputParams._creditCost = deductedCost; // Pass down the cost to completion helper
+    const remainingCredits: number | undefined = undefined;
 
     // Создаем записи в БД
     const { generationRequest } = await this.generationHelpers.createGeneration({
@@ -332,23 +294,7 @@ export class GenerationsService {
       return { results: [], remainingCredits: undefined };
     }
 
-    // Расчет стоимости: 50 за первые 2, +5 за каждую следующую
-    const totalCost = 50 + Math.max(0, types.length - 2) * 5;
-
-    // Списываем Токены за весь пакет сразу
-    const creditCheck = await this.subscriptionsService.debitCredits(
-      userId,
-      'bundle_generation' as any,
-      undefined,
-      `Пакетная генерация (${types.length} функций): ${types.join(', ')}`,
-      totalCost,
-    );
-
-    if (!creditCheck.success) {
-      throw new BadRequestException(creditCheck.message || 'Недостаточно Токенов для пакета');
-    }
-
-    const remainingCredits = creditCheck.transaction?.balanceAfter;
+    const remainingCredits: number | undefined = undefined;
     const results = [];
 
     // Создаем урок (Lesson) для группировки генераций
@@ -1181,38 +1127,6 @@ export class GenerationsService {
   /**
    * Маппинг типа генерации в тип операции для Токенов
    */
-  private mapGenerationTypeToOperationType(generationType: GenerationType): OperationType {
-    const map: Record<GenerationType, OperationType> = {
-      worksheet: 'worksheet',
-      quiz: 'quiz',
-      vocabulary: 'vocabulary',
-      'lesson-plan': 'lesson_plan',
-      lesson_plan: 'lesson_plan',
-      'content-adaptation': 'content_adaptation',
-      content_adaptation: 'content_adaptation',
-      message: 'message',
-      feedback: 'feedback',
-      image: 'image_generation',
-      image_generation: 'image_generation',
-      image_edit: 'image_edit',
-      photosession: 'photosession',
-      presentation: 'presentation',
-      transcription: 'transcription',
-      'video-analysis': 'video_analysis',
-      video_analysis: 'video_analysis',
-      'exam-variant': 'exam_variant',
-      exam_variant: 'exam_variant',
-      unpacking: 'unpacking',
-      'sales-advisor': 'sales_advisor',
-      sales_advisor: 'sales_advisor',
-      assistant: 'message',
-      game_generation: 'game_generation',
-      lessonPreparation: 'lesson_preparation',
-      lesson_preparation: 'lesson_preparation',
-    };
-
-    return map[generationType] || 'text_generation';
-  }
 
   /**
    * Получить модель по умолчанию для типа генерации

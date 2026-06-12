@@ -6,7 +6,7 @@ import { Sparkles, RefreshCw, Loader2, Maximize2, Download, Copy, Eye, Edit3, He
 import toast from 'react-hot-toast'
 import { useGenerations } from '@/lib/hooks/useGenerations'
 import RichTextEditor from '@/components/workspace/RichTextEditor'
-import GenerationCostBadge from '@/components/workspace/GenerationCostBadge'
+// import GenerationCostBadge from '@/components/workspace/GenerationCostBadge'
 import AssignTaskButton from '@/components/AssignTaskButton'
 import GenerationProgress from '@/components/workspace/GenerationProgress'
 import DownloadPdfModal from '@/components/workspace/DownloadPdfModal'
@@ -243,7 +243,7 @@ export default function LessonPrepGenerator() {
                     <div>
                         <div className="flex items-center gap-2">
                             <h2 className="font-bold text-lg">Вау-урок</h2>
-                            <GenerationCostBadge operationType="lesson_preparation" />
+                            {/* <GenerationCostBadge operationType="lesson_preparation" /> */}
                         </div>
                         <p className="text-xs text-gray-500 font-medium">Преподавай 2.0</p>
                     </div>

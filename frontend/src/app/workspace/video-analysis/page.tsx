@@ -5,9 +5,9 @@ import DOMPurify from 'isomorphic-dompurify'
 import PdfDownloadButton from '@/components/workspace/PdfDownloadButton'
 import { Video, RefreshCw, Loader2, Maximize2, UploadCloud, Copy, Edit3, Eye } from 'lucide-react'
 import { useGenerations } from '@/lib/hooks/useGenerations'
-import { useServiceCosts } from '@/lib/hooks/useServiceCosts'
+// import { useServiceCosts } from '@/lib/hooks/useServiceCosts'
 import RichTextEditor from '@/components/workspace/RichTextEditor'
-import GenerationCostBadge from '@/components/workspace/GenerationCostBadge'
+// import GenerationCostBadge from '@/components/workspace/GenerationCostBadge'
 import GenerationProgress from '@/components/workspace/GenerationProgress'
 
 export default function VideoAnalysisGenerator() {
@@ -116,8 +116,8 @@ export default function VideoAnalysisGenerator() {
         }
     }
 
-    const { costs } = useServiceCosts()
-    const isUnderMaintenance = costs?.find(c => c.operationType === 'video_analysis')?.isUnderMaintenance || false
+    // const { costs } = useServiceCosts()
+    const isUnderMaintenance = false
 
     return (
         <div className="flex w-full h-full bg-[#F9FAFB]">
@@ -130,7 +130,7 @@ export default function VideoAnalysisGenerator() {
                     <div>
                         <div className="flex items-center gap-2">
                             <h2 className="font-bold text-lg">Анализ Видео</h2>
-                            <GenerationCostBadge operationType="video_analysis" />
+                            {/* <GenerationCostBadge operationType="video_analysis" /> */}
                         </div>
                         <p className="text-xs text-gray-500 font-medium">Преподавай 2.0</p>
                     </div>
