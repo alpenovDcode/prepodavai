@@ -166,6 +166,16 @@ function normalizeResultPayload(value: any) {
         processed = processed.slice(1, -1)
     }
 
+    // Если сохранилось НЕСКОЛЬКО HTML-документов подряд (артефакт
+    // пересохранения) — берём только первый, иначе материал рендерится дважды
+    const htmlEnd = processed.match(/<\/html>/i)
+    if (htmlEnd && htmlEnd.index !== undefined) {
+        const endIdx = htmlEnd.index + htmlEnd[0].length
+        if (/<!DOCTYPE\s+html|<html[\s>]/i.test(processed.slice(endIdx))) {
+            processed = processed.slice(0, endIdx)
+        }
+    }
+
     const isHtmlResult = looksLikeFullHtmlDocument(processed)
 
     return {
@@ -496,7 +506,25 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
                 const lesson = response.data
                 setLessonTitle(lesson.title)
 
-                const generation = lesson.generations.find((g: any) => g.id === generationId)
+                let generation = lesson.generations.find((g: any) => g.id === generationId)
+
+                // Фолбэк: после «Выдать задание» генерация переносится в урок
+                // задания (linkToLesson меняет lessonId), и в исходном уроке её
+                // больше нет. Загружаем напрямую по id — endpoint вернёт
+                // отредактированный outputData.
+                if (!generation) {
+                    try {
+                        const direct = await apiClient.get(`/generate/${generationId}`)
+                        const result = direct.data?.result ?? direct.data?.status?.result
+                        if (result) {
+                            generation = {
+                                id: generationId,
+                                generationType: type || result?.type || '',
+                                outputData: result,
+                            }
+                        }
+                    } catch { /* генерация реально не существует — упадём в ошибку ниже */ }
+                }
 
                 if (!generation) {
                     setError('Материал не найден')

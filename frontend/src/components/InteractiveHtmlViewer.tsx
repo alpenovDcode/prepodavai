@@ -207,6 +207,19 @@ export function extractHtmlFromOutput(outputData: any): string | null {
   }
   raw = raw.replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\')
 
+  // Иногда в outputData сохраняется НЕСКОЛЬКО HTML-документов подряд
+  // (артефакт редактирования/пересохранения). Тогда лист отображается дважды,
+  // а <script> второго документа ломается и вылезает на страницу текстом.
+  // Берём только первый документ.
+  const htmlEndMatch = raw.match(/<\/html>/i)
+  if (htmlEndMatch && htmlEndMatch.index !== undefined) {
+    const endIdx = htmlEndMatch.index + htmlEndMatch[0].length
+    const rest = raw.slice(endIdx)
+    if (/<!DOCTYPE\s+html|<html[\s>]/i.test(rest)) {
+      raw = raw.slice(0, endIdx)
+    }
+  }
+
   const isHtml =
     /<!DOCTYPE html/i.test(raw) ||
     /<html[\s>]/i.test(raw) ||
@@ -242,8 +255,17 @@ function stripAnswerSection(html: string): string {
 /** Заменяет паттерны ___ на <input> поля для интерактивного заполнения */
 function convertBlanksToInputs(html: string): string {
   let counter = 0
+  // ___ внутри математических формул (\(..\), \[..\], $$..$$) трогать нельзя:
+  // <input> внутри LaTeX ломает MathJax («Extra close brace...»).
+  const mathRegions: Array<[number, number]> = []
+  const mathRe = /\\\([\s\S]*?\\\)|\\\[[\s\S]*?\\\]|\$\$[\s\S]*?\$\$/g
+  let m: RegExpExecArray | null
+  while ((m = mathRe.exec(html))) mathRegions.push([m.index, m.index + m[0].length])
+  const isInMath = (idx: number) => mathRegions.some(([s, e]) => idx >= s && idx < e)
+
   // Заменяем паттерн из 3+ подчёркиваний (или Unicode ___) на input
-  return html.replace(/_{3,}/g, () => {
+  return html.replace(/_{3,}/g, (match, offset: number) => {
+    if (isInMath(offset)) return match
     const id = `blank_${counter++}`
     const width = 120
     return `<input type="text" id="${id}" name="${id}" style="border:none;border-bottom:2px solid #333;width:${width}px;outline:none;background:transparent;font-size:inherit;font-family:inherit;text-align:center;padding:0 4px;" />`

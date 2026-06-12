@@ -150,6 +150,10 @@ export class SubmissionsService {
           const game = sanitizeGame(v);
           if (game) cleanFields._game = game;
         } else if (isPrimitive(v)) {
+          // Пустые строки не сохраняем: интерактивный лист шлёт ВСЕ поля,
+          // включая незаполненные. formData при апдейте заменяется целиком,
+          // так что «очистку» поля это не теряет.
+          if (typeof v === 'string' && v.trim() === '') continue;
           // Ограничиваем длину строк, чтобы не складировать гигабайты в JSON
           cleanFields[k] = typeof v === 'string' ? v.slice(0, 10_000) : v;
         }

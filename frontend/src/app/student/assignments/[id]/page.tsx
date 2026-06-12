@@ -11,6 +11,9 @@ import {
 import StudentSidebar from '@/components/StudentSidebar'
 import InteractiveHtmlViewer, { extractHtmlFromOutput } from '@/components/InteractiveHtmlViewer'
 import Image from 'next/image'
+// Та же резка применяется на странице учителя при просмотре заполненного
+// бланка, чтобы DOM (и auto-id полей hw_f_N) совпадали с тем, что заполнял ученик
+import { stripAnswerKey } from '@/lib/strip-answer-key'
 
 // ─── Типы ────────────────────────────────────────────────────────────────────
 
@@ -113,55 +116,6 @@ function getGameTypeLabel(t?: string) {
   return m[t.toLowerCase()] || t
 }
 
-// ─── Утилита: удаление ключа ответов из контента ─────────────────────────────
-
-function stripAnswerKey(content: string): string {
-  let result = content
-
-  // 1. Remove <div class="teacher-answers-only">...</div> and everything after it
-  result = result.replace(/<div[^>]*class\s*=\s*["'][^"']*teacher-answers-only[^"']*["'][^>]*>[\s\S]*/i, '')
-
-  // 2. <hr>, за которым в пределах ~200 символов идёт слово/заголовок из
-  //    секции ответов. Без этой проверки контекста <hr> часто используется
-  //    как декоративный разделитель между вопросами, и мы уничтожаем
-  //    весь квиз. Правило с div.page-break|border-top|separator удалено
-  //    по той же причине — слишком широкое совпадение.
-  result = result.replace(
-    /<hr[^>]*>[\s\S]{0,200}?(?:Ключ\s*[Оо]тветов|ОТВЕТЫ|[Оо]тветы(?:[\s<:]|\b))[\s\S]*/i,
-    '',
-  )
-
-  // 3. Heading-based patterns — "Ключ ответов" and variants
-  result = result.replace(/<(h[1-6]|p)\b[^>]*>[^<]*Ключ\s*ответов[^<]*<\/\1>[\s\S]*/i, '')
-  result = result.replace(/<(h[1-6]|p)\b[^>]*>\s*<[^>]*>[^<]*Ключ\s*ответов[^<]*<\/[^>]*>\s*<\/\1>[\s\S]*/i, '')
-
-  // 4. Heading tags STARTING with "ОТВЕТЫ"/"Ответы" (any text after allowed,
-  //    e.g. "ОТВЕТЫ И КРИТЕРИИ ОЦЕНИВАНИЯ" в шаблоне КИМ).
-  result = result.replace(/<(h[1-6])\b[^>]*>\s*(?:<[^>]*>)*\s*ОТВЕТЫ\b[^<]*(?:<\/[^>]*>)*\s*<\/\1>[\s\S]*/i, '')
-  result = result.replace(/<(h[1-6])\b[^>]*>\s*(?:<[^>]*>)*\s*Ответы\b[^<]*(?:<\/[^>]*>)*\s*<\/\1>[\s\S]*/i, '')
-
-  // 5. Paragraph/div acting as heading starting with "ОТВЕТЫ" (centered, bold, etc.)
-  result = result.replace(/<p\b[^>]*(?:text-align\s*:\s*center|align\s*=\s*["']center["'])[^>]*>\s*(?:<[^>]*>)*\s*ОТВЕТЫ\b[^<]*(?:<\/[^>]*>)*\s*<\/p>[\s\S]*/i, '')
-  result = result.replace(/<div\b[^>]*(?:text-align\s*:\s*center|align\s*=\s*["']center["'])[^>]*>\s*(?:<[^>]*>)*\s*ОТВЕТЫ\b[^<]*(?:<\/[^>]*>)*\s*<\/div>[\s\S]*/i, '')
-
-  // 6. Table that looks like an answer key: has "Ответ" AND ("Баллы" OR "Балл") in header row
-  result = result.replace(/<table\b[^>]*>(?:(?!<\/table>)[\s\S])*(?:Ответ|ОТВЕТ)(?:(?!<\/table>)[\s\S])*(?:Балл|БАЛЛ)(?:(?!<\/table>)[\s\S])*<\/table>/gi, '')
-
-  // 7. Plain text patterns
-  result = result.replace(/^[\s\-–—]*Ключ\s*ответов[^\n]*\n[\s\S]*/im, '')
-  result = result.replace(/^[\s\-–—]*ОТВЕТЫ\s*\n[\s\S]*/im, '')
-
-  // 8. Final fallback — if any of these keywords remain at top level, cut from there
-  const ANSWER_PATTERNS = [/Ключ\s*ответов/i, /^ОТВЕТЫ$/im]
-  for (const pat of ANSWER_PATTERNS) {
-    if (pat.test(result)) {
-      const idx = result.search(pat)
-      if (idx > 0) result = result.slice(0, idx)
-    }
-  }
-
-  return result.trim()
-}
 
 // ─── Основная страница ────────────────────────────────────────────────────────
 
@@ -232,7 +186,30 @@ export default function StudentAssignmentPage({ params }: { params: { id: string
   }, [assignment])
 
   const totalInteractiveFields = Object.values(fieldCountMap).reduce((s, n) => s + n, 0)
-  const hasAnyFormData = Object.values(formDataMap).some(d => Object.keys(d).length > 0)
+  // Поле считается заполненным, только если в нём реальное значение: интерактивный
+  // лист шлёт ВСЕ поля (включая пустые) при каждом изменении, и пустые строки
+  // не должны активировать кнопку отправки или завышать счётчик.
+  const isFilledValue = (v: any) =>
+    v === true || typeof v === 'number' || (typeof v === 'string' && v.trim() !== '') || (!!v && typeof v === 'object')
+  const filledFieldsCount = Object.values(formDataMap).reduce(
+    (s, d) => s + Object.values(d).filter(isFilledValue).length,
+    0,
+  )
+  const hasAnyFormData = filledFieldsCount > 0
+  // В задании только мини-игры (нет интерактивных бланков и других материалов
+  // с полями ввода) — тогда поле «Ваш ответ» не нужно показывать как основной CTA.
+  const generationsList = assignment?.lesson?.generations || []
+  const isGameOnlyAssignment =
+    generationsList.length > 0 &&
+    generationsList.every(
+      g => g.generationType === 'game_generation' || g.generationType === 'game',
+    )
+  // Сколько игр в задании пройдено (для UX-баннеров и текста кнопки)
+  const gameGenIds = generationsList
+    .filter(g => g.generationType === 'game_generation' || g.generationType === 'game')
+    .map(g => g.id)
+  const playedGamesCount = gameGenIds.filter(id => !!formDataMap[id]?._game).length
+  const totalGamesCount = gameGenIds.length
 
   // ─── Загрузка ────────────────────────────────────────────────────────────
 
@@ -361,6 +338,18 @@ export default function StudentAssignmentPage({ params }: { params: { id: string
     if (!sub) return
     setSubmissionText(sub.content || '')
     setAttachments(sub.attachments || [])
+    // Восстанавливаем прежние интерактивные ответы и результаты игр.
+    // Без этого PATCH после редактирования отправит пустой formData и
+    // сотрёт ответы из листа/игры, даже если ученик их не трогал.
+    if (sub.formData && typeof sub.formData === 'object') {
+      setDraftFormDataMap(sub.formData)
+      setFormDataMap(sub.formData)
+      const gameCounts: Record<string, number> = {}
+      for (const [gid, fields] of Object.entries(sub.formData as Record<string, any>)) {
+        if (fields && typeof fields === 'object' && fields._game) gameCounts[gid] = 1
+      }
+      if (Object.keys(gameCounts).length) setFieldCountMap(prev => ({ ...prev, ...gameCounts }))
+    }
     setIsEditing(true)
     setError(null)
   }
@@ -392,10 +381,79 @@ export default function StudentAssignmentPage({ params }: { params: { id: string
 
     // Презентации и изображения показываем статично (для них интерактив не нужен)
     if (gen.generationType === 'presentation') {
+      // outputData бывает: объектом со slides/pptxUrl, JSON-строкой,
+      // или объектом с content-строкой, внутри которой JSON
+      let pres: any = gen.outputData
+      if (typeof pres === 'string') {
+        try { pres = JSON.parse(pres) } catch { pres = {} }
+      } else if (pres && typeof pres === 'object' && typeof pres.content === 'string') {
+        try { pres = { ...pres, ...JSON.parse(pres.content) } } catch { /* content не JSON — ок */ }
+      }
+      const pptxUrl: string | undefined = pres?.pptxUrl || pres?.exportUrl
+      const pdfUrl: string | undefined = pres?.pdfUrl
+      const htmlSlides: any[] = Array.isArray(pres?.slides)
+        ? pres.slides.filter((s: any) => typeof s?.html === 'string')
+        : []
+
+      if (pptxUrl) {
+        return (
+          <div className="border-t border-gray-100">
+            <iframe
+              src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(pptxUrl)}`}
+              className="w-full bg-white"
+              style={{ height: '60vh', minHeight: 400, border: 'none' }}
+              title="Презентация"
+              allow="fullscreen"
+            />
+            <div className="px-4 py-3 border-t border-gray-100 text-right">
+              <a
+                href={pptxUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-orange-600 hover:text-orange-700"
+              >
+                Скачать презентацию <ExternalLink size={12} />
+              </a>
+            </div>
+          </div>
+        )
+      }
+
+      if (pdfUrl) {
+        return (
+          <div className="border-t border-gray-100">
+            <iframe
+              src={pdfUrl}
+              className="w-full bg-white"
+              style={{ height: '60vh', minHeight: 400, border: 'none' }}
+              title="Презентация (PDF)"
+            />
+          </div>
+        )
+      }
+
+      if (htmlSlides.length > 0) {
+        return (
+          <div className="border-t border-gray-100 p-4 space-y-4">
+            {htmlSlides.map((s, i) => (
+              <div key={i} className="rounded-xl overflow-hidden border border-gray-200">
+                <iframe
+                  srcDoc={s.html}
+                  className="w-full bg-white"
+                  style={{ height: 420, border: 'none' }}
+                  title={`Слайд ${i + 1}`}
+                  sandbox="allow-scripts allow-same-origin"
+                />
+              </div>
+            ))}
+          </div>
+        )
+      }
+
       return (
         <div className="p-4 text-center text-gray-500 text-sm">
           <MonitorPlay className="w-10 h-10 text-gray-300 mx-auto mb-2" />
-          Откройте презентацию в полном режиме для просмотра
+          Презентация недоступна для просмотра — обратитесь к учителю
         </div>
       )
     }
@@ -535,7 +593,7 @@ export default function StudentAssignmentPage({ params }: { params: { id: string
                 {typeof result.moves === 'number' && <span>Ходов: <strong>{result.moves}</strong></span>}
                 {result.time && <span>Время: <strong>{result.time}</strong></span>}
                 {typeof result.winAmount === 'number' && <span>Выигрыш: <strong>{result.winAmount.toLocaleString('ru-RU')} ₽</strong></span>}
-                <span className="ml-auto text-xs text-green-700">Будет отправлен учителю при сохранении ответа.</span>
+                <span className="ml-auto text-xs font-semibold text-green-700">↓ Нажмите кнопку внизу страницы, чтобы передать учителю.</span>
               </div>
             )}
           </div>
@@ -648,6 +706,7 @@ export default function StudentAssignmentPage({ params }: { params: { id: string
 
   const renderSubmissionForm = () => {
     const deadlinePassed = isDeadlinePassed()
+    const allGamesPlayed = totalGamesCount > 0 && playedGamesCount === totalGamesCount
     return (
       <div className="space-y-4">
         {deadlinePassed && (
@@ -658,27 +717,73 @@ export default function StudentAssignmentPage({ params }: { params: { id: string
         )}
 
         {/* Статус интерактивных полей */}
-        {totalInteractiveFields > 0 && (
+        {totalInteractiveFields > 0 && !isGameOnlyAssignment && (
           <div className="flex items-center gap-2 px-3 py-2.5 bg-blue-50 rounded-xl border border-blue-100 text-sm text-blue-700">
             <ClipboardList size={16} className="flex-shrink-0" />
             <span>
-              Интерактивные ответы: <strong>{Object.values(formDataMap).reduce((s, d) => s + Object.keys(d).length, 0)}</strong> из <strong>{totalInteractiveFields}</strong> полей заполнено
+              Интерактивные ответы: <strong>{filledFieldsCount}</strong> из <strong>{totalInteractiveFields}</strong> полей заполнено
             </span>
           </div>
         )}
 
-        {/* Дополнительный комментарий */}
-        <div>
-          <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5 block">
-            {totalInteractiveFields > 0 ? 'Дополнительный комментарий (необязательно)' : 'Ваш ответ'}
-          </label>
-          <textarea
-            value={submissionText}
-            onChange={e => setSubmissionText(e.target.value)}
-            className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:border-orange-400 focus:ring-2 focus:ring-orange-100 focus:bg-white transition min-h-[120px] text-base resize-y outline-none"
-            placeholder={totalInteractiveFields > 0 ? 'Напишите, если хотите добавить что-то...' : 'Введите ваш ответ здесь...'}
-          />
-        </div>
+        {/* Подсказка для чисто-игрового задания */}
+        {isGameOnlyAssignment && (
+          allGamesPlayed ? (
+            <div className="flex items-start gap-3 p-4 rounded-xl bg-green-50 border border-green-200">
+              <CheckCircle size={20} className="text-green-600 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-sm font-bold text-green-800">
+                  {totalGamesCount > 1 ? 'Все игры пройдены' : 'Игра пройдена'} — результат готов к отправке.
+                </p>
+                <p className="text-xs text-green-700 mt-0.5">
+                  Чтобы учитель увидел ваш счёт, нажмите кнопку <strong>«Передать результат учителю»</strong> ниже.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-start gap-3 p-4 rounded-xl bg-indigo-50 border border-indigo-200">
+              <Gamepad2 size={20} className="text-indigo-600 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-sm font-bold text-indigo-800">
+                  Пройдите {totalGamesCount > 1 ? `все мини-игры (${playedGamesCount} из ${totalGamesCount})` : 'мини-игру'}, чтобы передать результат учителю.
+                </p>
+                <p className="text-xs text-indigo-700 mt-0.5">
+                  Ничего вписывать не нужно — счёт уйдёт автоматически после завершения игры и нажатия кнопки внизу.
+                </p>
+              </div>
+            </div>
+          )
+        )}
+
+        {/* Дополнительный комментарий / поле ответа */}
+        {isGameOnlyAssignment ? (
+          // В чисто-игровом задании прячем поле под expander, оно опционально
+          <details className="bg-gray-50 rounded-xl border border-gray-200">
+            <summary className="px-4 py-3 cursor-pointer text-sm text-gray-600 font-medium select-none">
+              Добавить комментарий или фото (необязательно)
+            </summary>
+            <div className="p-4 pt-2">
+              <textarea
+                value={submissionText}
+                onChange={e => setSubmissionText(e.target.value)}
+                className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:border-orange-400 focus:ring-2 focus:ring-orange-100 transition min-h-[90px] text-base resize-y outline-none"
+                placeholder="Например, если хотите рассказать учителю, что было сложно..."
+              />
+            </div>
+          </details>
+        ) : (
+          <div>
+            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5 block">
+              {totalInteractiveFields > 0 ? 'Дополнительный комментарий (необязательно)' : 'Ваш ответ'}
+            </label>
+            <textarea
+              value={submissionText}
+              onChange={e => setSubmissionText(e.target.value)}
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:border-orange-400 focus:ring-2 focus:ring-orange-100 focus:bg-white transition min-h-[120px] text-base resize-y outline-none"
+              placeholder={totalInteractiveFields > 0 ? 'Напишите, если хотите добавить что-то...' : 'Введите ваш ответ здесь...'}
+            />
+          </div>
+        )}
 
         {/* Прикреплённые изображения */}
         {attachments.length > 0 && (
@@ -734,11 +839,17 @@ export default function StudentAssignmentPage({ params }: { params: { id: string
             <button
               onClick={handleSubmit}
               disabled={submitting || !canSubmit() || uploadingImage}
-              className="flex items-center gap-2 px-6 py-3 bg-orange-500 text-white font-bold rounded-xl hover:bg-orange-600 transition shadow-md disabled:opacity-50 disabled:cursor-not-allowed transform hover:-translate-y-0.5 active:translate-y-0 text-sm"
+              className={`flex items-center gap-2 px-6 py-3 bg-orange-500 text-white font-bold rounded-xl hover:bg-orange-600 transition shadow-md disabled:opacity-50 disabled:cursor-not-allowed transform hover:-translate-y-0.5 active:translate-y-0 text-sm ${
+                isGameOnlyAssignment && allGamesPlayed && !submitting ? 'animate-pulse shadow-lg shadow-orange-300/50 ring-2 ring-orange-300' : ''
+              }`}
             >
               {submitting
                 ? <><Loader2 size={17} className="animate-spin" /> Отправка...</>
-                : <><Send size={17} /> {isEditing ? 'Сохранить изменения' : deadlinePassed ? 'Сдать (поздняя работа)' : 'Отправить ответ'}</>
+                : isEditing
+                  ? <><Send size={17} /> Сохранить изменения</>
+                  : isGameOnlyAssignment
+                    ? <><Send size={17} /> {deadlinePassed ? 'Передать результат (поздняя работа)' : 'Передать результат учителю'}</>
+                    : <><Send size={17} /> {deadlinePassed ? 'Сдать (поздняя работа)' : 'Отправить ответ'}</>
               }
             </button>
           </div>

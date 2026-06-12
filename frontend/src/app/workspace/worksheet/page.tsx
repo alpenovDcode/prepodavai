@@ -119,10 +119,16 @@ const generate = async () => {
                     )
                 } else {
                     // localContent — фрагмент без body. Берём <head> (со всеми <style>)
-                    // из исходника и оборачиваем отредактированное тело в полный HTML.
-                    // Иначе сохранённый PDF выходит «голым текстом» без оформления.
+                    // из исходника, а если его там нет — ИЗ IFRAME: браузер при парсинге
+                    // srcDoc переносит <style> из начала фрагмента в <head> документа.
+                    // Раньше тут подставлялся пустой <head> — и сохранённый материал
+                    // уходил ученику и в PDF «голым текстом» без оформления.
                     const headMatch = localContent.match(/<head[\s\S]*?<\/head>/i)
-                    const head = headMatch ? headMatch[0] : '<head><meta charset="UTF-8"></head>'
+                    const headFromIframe = (iframeDoc?.head?.innerHTML || '')
+                        .replace(/<script[\s\S]*?<\/script>/gi, '')
+                    const head = headMatch
+                        ? headMatch[0]
+                        : `<head><meta charset="UTF-8">${headFromIframe}</head>`
                     fullHtml = `<!DOCTYPE html><html lang="ru">${head}<body>${editedBodyHtml}</body></html>`
                 }
             }

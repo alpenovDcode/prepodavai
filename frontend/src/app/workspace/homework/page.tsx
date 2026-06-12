@@ -24,6 +24,7 @@ import {
     Trophy,
 } from 'lucide-react'
 import InteractiveHtmlViewer, { extractHtmlFromOutput } from '@/components/InteractiveHtmlViewer'
+import { stripAnswerKey } from '@/lib/strip-answer-key'
 
 const FEEDBACK_TEMPLATES = [
     'Отличная работа, всё верно! Молодец!',
@@ -694,7 +695,14 @@ export default function HomeworkReviewPage() {
                                     const generations = assignmentDetails.assignment.generations || []
                                     const formData = selectedStudentStatus.submission?.formData || {}
                                     const interactiveBlocks = generations
-                                        .map(gen => ({ gen, html: extractHtmlFromOutput(gen.outputData), prefill: formData[gen.id] }))
+                                        .map(gen => {
+                                            const raw = extractHtmlFromOutput(gen.outputData)
+                                            // Режем ключ ответов ТАК ЖЕ, как на странице ученика:
+                                            // auto-id полей (hw_f_N) зависят от порядка DOM, и если
+                                            // ученик заполнял урезанный HTML, просматривать нужно
+                                            // тот же урезанный — иначе ответы сместятся в чужие ячейки.
+                                            return { gen, html: raw ? stripAnswerKey(raw) : null, prefill: formData[gen.id] }
+                                        })
                                         .filter(item => item.html && item.prefill && Object.keys(item.prefill).length > 0)
 
                                     if (interactiveBlocks.length > 0) {

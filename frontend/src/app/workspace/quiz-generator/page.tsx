@@ -5,14 +5,14 @@ import DOMPurify from 'isomorphic-dompurify'
 import PdfDownloadButton from '@/components/workspace/PdfDownloadButton'
 import { HelpCircle, Copy, RefreshCw, Loader2, Eye, Edit3 } from 'lucide-react'
 import { useIsMobile } from '@/lib/hooks/useIsMobile'
-import RichTextEditor from '@/components/workspace/RichTextEditor'
 import { useGenerations } from '@/lib/hooks/useGenerations'
 import { getCurrentUser } from '@/lib/utils/userIdentity'
-import { ensureMathJaxInHtml } from '@/lib/utils/ensureMathJax'
+import { ensureMathJaxInHtml, stripMathJaxScripts } from '@/lib/utils/ensureMathJax'
 import { apiClient } from '@/lib/api/client'
 // import GenerationCostBadge from '@/components/workspace/GenerationCostBadge'
 import AssignTaskButton from '@/components/AssignTaskButton'
 import GenerationProgress from '@/components/workspace/GenerationProgress'
+import toast from 'react-hot-toast'
 
 export default function QuizGenerator() {
     const [form, setForm] = useState({
@@ -26,11 +26,27 @@ export default function QuizGenerator() {
     const [activeTab, setActiveTab] = useState<'config' | 'preview'>('config')
     const { isMobile } = useIsMobile()
     const [editMode, setEditMode] = useState(false)
+    const [isSaving, setIsSaving] = useState(false)
     const [localContent, setLocalContent] = useState('<p>Определите параметры теста и нажмите Сгенерировать.</p>')
     const iframeRef = useRef<HTMLIFrameElement>(null)
+    // srcDoc меняем ТОЛЬКО когда реально пришёл новый контент — тогл режима
+    // правки и сохранение НЕ перезагружают iframe (см. worksheet/page.tsx)
+    const lastSrcDocRef = useRef<string>('')
+    const [srcDoc, setSrcDoc] = useState<string>('')
 
     const { generateAndWait, isGenerating, activeGenerationId } = useGenerations()
     const hasResult = !isGenerating && !!localContent && !localContent.startsWith('<p>Определите') && !localContent.startsWith('<p>Генерируем')
+
+    // В edit-режиме нужна версия без MathJax-скрипта: иначе LaTeX отрисуется в
+    // <mjx-container>, и при сохранении мы получим CHTML вместо исходных \(...\)
+    useEffect(() => {
+        if (!localContent) return
+        const key = `${editMode ? 'edit' : 'view'}|${localContent}`
+        if (key === lastSrcDocRef.current) return
+        lastSrcDocRef.current = key
+        setSrcDoc(editMode ? stripMathJaxScripts(localContent) : ensureMathJaxInHtml(localContent))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [localContent, editMode])
 
 
     const generateQuiz = async () => {
@@ -74,19 +90,110 @@ export default function QuizGenerator() {
         navigator.clipboard.writeText(tempDiv.innerText || tempDiv.textContent || '');
     }
 
-    const toggleEditMode = () => {
-        setEditMode(!editMode)
+    // Правка прямо в iframe (contentEditable): сохраняет стили и таблицы теста,
+    // которые Tiptap-редактор уничтожал. При выходе из правки результат
+    // сохраняется на бэкенд — иначе «Выдать задание» и PDF берут старую версию,
+    // а перезагрузка страницы теряет правки.
+    const toggleEditMode = async () => {
+        if (editMode) {
+            const iframeDoc = iframeRef.current?.contentDocument
+            let editedBodyHtml = iframeDoc?.body?.innerHTML ?? null
+            let fullHtml = localContent
+            if (editedBodyHtml !== null) {
+                // Чистим <script> и отрендеренный MathJax, чтобы сохранить
+                // исходный LaTeX, а не CHTML
+                editedBodyHtml = editedBodyHtml
+                    .replace(/<script[\s\S]*?<\/script>/gi, '')
+                    .replace(/<mjx-container[\s\S]*?<\/mjx-container>/gi, '')
+                    .replace(/<mjx-assistive-mml[\s\S]*?<\/mjx-assistive-mml>/gi, '')
+
+                // Защита от «всё пропало»: пустой результат не сохраняем
+                const textOnly = editedBodyHtml.replace(/<[^>]*>/g, '').replace(/&nbsp;/gi, ' ').trim()
+                if (!textOnly) {
+                    toast.error('Пустой результат не сохранён')
+                    return
+                }
+
+                const hasBody = /<body[^>]*>[\s\S]*<\/body>/i.test(localContent)
+                if (hasBody) {
+                    fullHtml = localContent.replace(
+                        /<body([^>]*)>[\s\S]*<\/body>/i,
+                        (_, bodyAttrs) => `<body${bodyAttrs}>${editedBodyHtml}</body>`
+                    )
+                } else {
+                    // localContent — фрагмент без <body>. Браузер при парсинге srcDoc
+                    // переносит <style> из начала фрагмента в <head> iframe — поэтому
+                    // head берём ИЗ IFRAME, иначе документ сохранится без стилей
+                    const headFromIframe = (iframeDoc?.head?.innerHTML || '')
+                        .replace(/<script[\s\S]*?<\/script>/gi, '')
+                    const headMatch = localContent.match(/<head[\s\S]*?<\/head>/i)
+                    const head = headMatch
+                        ? headMatch[0]
+                        : `<head><meta charset="UTF-8">${headFromIframe}</head>`
+                    fullHtml = `<!DOCTYPE html><html lang="ru">${head}<body>${editedBodyHtml}</body></html>`
+                }
+            }
+
+            if (activeGenerationId) {
+                setIsSaving(true)
+                try {
+                    await apiClient.patch(`/generate/${activeGenerationId}`, {
+                        outputData: { content: fullHtml },
+                    })
+                    lastSrcDocRef.current = `edit|${fullHtml}`
+                    setLocalContent(fullHtml)
+                    toast.success('Сохранено')
+                    setEditMode(false)
+                } catch (err: any) {
+                    const resp = err?.response?.data
+                    const msg = (Array.isArray(resp?.message) ? resp.message.join('; ') : resp?.message)
+                        || err?.message
+                        || 'Не удалось сохранить изменения'
+                    console.error('[quiz save] failed:', err?.response?.status, resp)
+                    toast.error(msg)
+                } finally {
+                    setIsSaving(false)
+                }
+            } else {
+                lastSrcDocRef.current = `edit|${fullHtml}`
+                setLocalContent(fullHtml)
+                setEditMode(false)
+            }
+        } else {
+            setEditMode(true)
+        }
     }
 
-    // Авто-вход в правку по клику в iframe убран — режим только по явной кнопке.
-    useEffect(() => {
-        if (!editMode && iframeRef.current && localContent) {
-            const iframeDoc = iframeRef.current.contentDocument;
-            if (iframeDoc?.body) {
-                iframeDoc.body.style.cursor = '';
+    const applyIframeState = (doc: Document) => {
+        if (!doc?.body) return
+        if (editMode) {
+            doc.body.contentEditable = 'true'
+            doc.body.style.outline = 'none'
+            doc.body.style.cursor = 'text'
+        } else {
+            doc.body.contentEditable = 'false'
+            doc.body.style.cursor = ''
+            // После сохранения дотипсечиваем LaTeX без перезагрузки iframe
+            const win = iframeRef.current?.contentWindow as any
+            if (win?.MathJax?.typesetPromise) {
+                win.MathJax.typesetPromise([doc.body]).catch(() => {})
             }
         }
-    }, [editMode, localContent]);
+    }
+
+    const handleIframeLoad = () => {
+        const iframeDoc = iframeRef.current?.contentDocument
+        if (!iframeDoc?.body) return
+        applyIframeState(iframeDoc)
+    }
+
+    // При смене editMode применяем состояние к уже загруженному iframe
+    useEffect(() => {
+        const iframeDoc = iframeRef.current?.contentDocument
+        if (!iframeDoc?.body) return
+        applyIframeState(iframeDoc)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [editMode]);
 
     return (
         <div className="flex flex-col md:flex-row w-full h-full bg-[#F9FAFB] overflow-hidden">
@@ -236,13 +343,16 @@ export default function QuizGenerator() {
                             {localContent && localContent !== '<p>Определите параметры теста и нажмите Сгенерировать.</p>' && localContent !== '<p>Генерируем вопросы для теста...</p>' && (
                                 <button
                                     onClick={toggleEditMode}
-                                    className={`flex items-center gap-1.5 px-3 py-2 text-[11px] font-bold rounded-lg transition-all flex-shrink-0 ${editMode
+                                    disabled={isSaving}
+                                    className={`flex items-center gap-1.5 px-3 py-2 text-[11px] font-bold rounded-lg transition-all flex-shrink-0 disabled:opacity-60 ${editMode
                                         ? 'bg-green-100 text-green-700 hover:bg-green-200'
                                         : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                                         }`}
                                 >
-                                    {editMode ? <Eye className="w-3.5 h-3.5" /> : <Edit3 className="w-3.5 h-3.5" />}
-                                    <span className="hidden xs:inline">{editMode ? 'Просмотр' : 'Править'}</span>
+                                    {isSaving
+                                        ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                        : editMode ? <Eye className="w-3.5 h-3.5" /> : <Edit3 className="w-3.5 h-3.5" />}
+                                    <span className="hidden xs:inline">{isSaving ? 'Сохранение...' : editMode ? 'Сохранить' : 'Править'}</span>
                                 </button>
                             )}
                             <button onClick={handleCopy} className="p-2 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0" title="Скопировать">
@@ -286,18 +396,13 @@ export default function QuizGenerator() {
                                     </button>
                                 )}
                             </div>
-                        ) : editMode ? (
-                            <RichTextEditor
-                                content={localContent}
-                                onChange={setLocalContent}
-                                readOnly={isGenerating}
-                            />
                         ) : (
                             <iframe
                                 ref={iframeRef}
-                                srcDoc={localContent}
+                                srcDoc={srcDoc}
+                                onLoad={handleIframeLoad}
                                 className={`w-full h-full border-0 ${editMode ? 'cursor-text' : ''}`}
-                                sandbox="allow-scripts allow-popups allow-modals"
+                                sandbox="allow-scripts allow-popups allow-modals allow-same-origin"
                                 title="Тест"
                             />
                         )}
