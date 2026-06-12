@@ -1543,37 +1543,75 @@ export class AdminService {
     const fmtDate = (d: Date | null) => d ? new Date(d).toISOString() : '';
 
     const header = [
+      // Идентификация
       'ID', 'Username', 'Имя', 'Фамилия', 'Email', 'Телефон',
+      // Аквизиция
       'Источник', 'UTM Source', 'UTM Medium', 'UTM Campaign', 'UTM Content', 'UTM Term',
       'UTM Landing Page', 'UTM Link Name', 'UTM Link URL', 'Реферальный код',
+      // Бот
       'Бот: платформа', 'Бот: старт', 'Бот: статус регистрации', 'Бот: кредиты',
+      'Бот: всего генераций', 'Бот: генераций в мес.', 'Бот: посл. генерация',
+      // Ключевые события
       'Регистрация на платформе',
       'Первая генерация: дата', 'Первая генерация: тип', 'Первая генерация: стоимость',
       'Первая оплата: дата', 'Первая оплата: тариф', 'Первая оплата: сумма',
+      // Тайминги
       'Дней до первой генерации', 'Дней до первой оплаты', 'Дней с регистрации', 'Дней без активности',
+      // CJM статус
       'Текущий этап', 'Churn Risk', 'Сигналы оттока',
+      // Активность
       'Всего генераций', 'Генерации Web', 'Генерации Telegram', 'Генерации MAX',
+      'Streak текущий (дн)', 'Streak максимальный (дн)',
+      // Подписка и кредиты
       'Тариф', 'Статус подписки', 'Окончание подписки', 'Баланс кредитов', 'Потрачено кредитов',
+      'Прогноз дней (кредиты)',
+      // Retention
+      'Retention score (%)', 'Макс. перерыв (дн)',
+      // Глубина
+      'Уроков', 'Классов', 'Учеников', 'ДЗ',
+      'Генераций в уроке', 'Standalone генераций',
+      // Монетизация
+      'LTV (руб)', 'Платежей', 'Ср. чек (руб)',
+      // Активность
       'Последняя активность', 'Последняя активность в боте',
     ].map(fmt).join(',');
 
     const row = [
+      // Идентификация
       user.id, user.username, user.firstName, user.lastName, user.email, user.phone,
+      // Аквизиция
       cjm.acquisition.source, cjm.acquisition.utmSource, cjm.acquisition.utmMedium,
       cjm.acquisition.utmCampaign, cjm.acquisition.utmContent, cjm.acquisition.utmTerm,
       cjm.acquisition.utmLandingPage, cjm.acquisition.utmLinkName, cjm.acquisition.utmLinkUrl,
       cjm.acquisition.referredByCode,
+      // Бот
       cjm.journey.botPlatform, fmtDate(cjm.journey.botStartedAt), cjm.journey.botRegistrationStatus, cjm.journey.botCredits,
+      cjm.journey.botTotalGenerations, cjm.journey.botGenerationsThisMonth, fmtDate(cjm.journey.botLastGenerationAt),
+      // Ключевые события
       fmtDate(cjm.journey.platformRegisteredAt),
       fmtDate(cjm.journey.firstGenerationAt), cjm.journey.firstGenerationType, cjm.journey.firstGenerationCreditCost,
       fmtDate(cjm.journey.firstPaymentAt), cjm.journey.firstPaymentPlan, cjm.journey.firstPaymentAmount,
+      // Тайминги
       cjm.timings.daysToFirstGen, cjm.timings.daysToFirstPayment,
       cjm.timings.daysSinceRegistration, cjm.timings.daysSinceLastActivity,
+      // CJM статус
       cjm.currentStage, cjm.churnRisk, cjm.churnSignals.join('; '),
+      // Активность
       cjm.activity.totalGenerations, cjm.activity.generationsByPlatform.web,
       cjm.activity.generationsByPlatform.telegram, cjm.activity.generationsByPlatform.max,
+      cjm.engagement.currentStreak, cjm.engagement.maxStreak,
+      // Подписка и кредиты
       cjm.activity.subscriptionPlan, cjm.activity.subscriptionStatus,
       fmtDate(cjm.activity.subscriptionEndDate), cjm.activity.creditsBalance, cjm.activity.creditsUsed,
+      cjm.revenue.forecastDaysLeft,
+      // Retention
+      cjm.retention.retentionScore, cjm.retention.longestGap,
+      // Глубина
+      cjm.depth.lessons, cjm.depth.classes, cjm.depth.students, cjm.depth.assignments,
+      cjm.depth.inLesson, cjm.depth.standalone,
+      // Монетизация
+      cjm.revenue.ltv, cjm.revenue.paymentCount, cjm.revenue.avgPayment,
+      // Активность
       fmtDate(cjm.activity.lastActiveAt), fmtDate(cjm.activity.lastBotActiveAt),
     ].map(fmt).join(',');
 
@@ -3456,7 +3494,30 @@ export class AdminService {
   async getCjmAnalytics() {
     type Row = { [key: string]: any };
 
-    const [stageRows, churnRows, genTimingRows, payTimingRows, acqRows, platformRows, initiatedRows, botUtmRows] = await Promise.all([
+    const [
+      stageRows,
+      churnRows,
+      genTimingRows,
+      payTimingRows,
+      acqRows,
+      platformRows,
+      initiatedRows,
+      botUtmRows,
+      regTrendRows,
+      activationRows,
+      onbStepRows,
+      featureAdoptRows,
+      userSegRows,
+      revenueMrrRows,
+      planDistRows,
+      cohortRows,
+      botFunnelRows,
+      botCompareRows,
+      referralRows,
+      contentTypeRows,
+      newUsersDailyRows,
+      dayRetentionRows,
+    ] = await Promise.all([
       // Stage distribution
       this.prisma.$queryRaw<Row[]>`
         WITH gen_counts AS (
@@ -3582,6 +3643,184 @@ export class AdminService {
         ORDER BY cnt DESC
         LIMIT 15
       `,
+      // Monthly registration trend (last 18 months)
+      this.prisma.$queryRaw<Row[]>`
+        SELECT TO_CHAR(DATE_TRUNC('month', "createdAt"), 'YYYY-MM') AS m, COUNT(*)::int AS cnt
+        FROM app_users
+        GROUP BY DATE_TRUNC('month', "createdAt")
+        ORDER BY m DESC LIMIT 18
+      `,
+      // Activation time brackets
+      this.prisma.$queryRaw<Row[]>`
+        WITH first_gen AS (
+          SELECT "userId", MIN("createdAt") AS first_at
+          FROM user_generations GROUP BY "userId"
+        ),
+        activation AS (
+          SELECT u.id,
+            EXTRACT(EPOCH FROM (fg.first_at - u."createdAt")) / 86400 AS days_to_gen
+          FROM app_users u
+          LEFT JOIN first_gen fg ON fg."userId" = u.id
+        )
+        SELECT
+          COUNT(*) FILTER (WHERE days_to_gen IS NOT NULL AND days_to_gen <= 1)::int AS day1,
+          COUNT(*) FILTER (WHERE days_to_gen > 1 AND days_to_gen <= 3)::int AS day1_3,
+          COUNT(*) FILTER (WHERE days_to_gen > 3 AND days_to_gen <= 7)::int AS day3_7,
+          COUNT(*) FILTER (WHERE days_to_gen > 7)::int AS day7plus,
+          COUNT(*) FILTER (WHERE days_to_gen IS NULL)::int AS never,
+          COUNT(*)::int AS total
+        FROM activation
+      `,
+      // Onboarding step completion rates
+      this.prisma.$queryRaw<Row[]>`
+        SELECT step, COUNT(DISTINCT "userId")::int AS cnt
+        FROM onboarding_quest_steps
+        GROUP BY step
+      `.catch(() => [] as Row[]),
+      // Feature adoption per tool type
+      this.prisma.$queryRaw<Row[]>`
+        SELECT generation_type, COUNT(DISTINCT "userId")::int AS unique_users
+        FROM user_generations
+        GROUP BY generation_type
+        ORDER BY unique_users DESC
+      `,
+      // User segmentation by activity level
+      this.prisma.$queryRaw<Row[]>`
+        WITH user_activity AS (
+          SELECT u.id,
+            COUNT(ug.id) FILTER (WHERE ug."createdAt" >= NOW() - INTERVAL '7 days') AS last_7d,
+            COUNT(ug.id) FILTER (WHERE ug."createdAt" >= NOW() - INTERVAL '30 days') AS last_30d,
+            COUNT(ug.id) FILTER (WHERE ug."createdAt" >= NOW() - INTERVAL '90 days') AS last_90d
+          FROM app_users u
+          LEFT JOIN user_generations ug ON ug."userId" = u.id
+          GROUP BY u.id
+        )
+        SELECT
+          COUNT(*) FILTER (WHERE last_7d >= 10)::int AS power,
+          COUNT(*) FILTER (WHERE last_7d BETWEEN 1 AND 9)::int AS regular,
+          COUNT(*) FILTER (WHERE last_90d >= 1 AND last_7d = 0)::int AS casual,
+          COUNT(*) FILTER (WHERE last_90d = 0)::int AS inactive
+        FROM user_activity
+      `,
+      // Monthly revenue MRR
+      this.prisma.$queryRaw<Row[]>`
+        SELECT TO_CHAR(DATE_TRUNC('month', "createdAt"), 'YYYY-MM') AS m,
+          COALESCE(SUM(amount), 0)::numeric AS revenue,
+          COUNT(*)::int AS payments,
+          COUNT(DISTINCT "userId")::int AS unique_payers
+        FROM payments WHERE status = 'completed'
+        GROUP BY DATE_TRUNC('month', "createdAt")
+        ORDER BY m DESC LIMIT 18
+      `.catch(() => [] as Row[]),
+      // Current plan distribution
+      this.prisma.$queryRaw<Row[]>`
+        SELECT p.plan_key, p.plan_name, COUNT(us.id)::int AS cnt
+        FROM user_subscriptions us
+        JOIN plans p ON p.id = us."planId"
+        WHERE us.status = 'active'
+        GROUP BY p.plan_key, p.plan_name
+      `.catch(() => [] as Row[]),
+      // Cohort retention table (last 12 months, M0-M6)
+      this.prisma.$queryRaw<Row[]>`
+        WITH cohorts AS (
+          SELECT id, DATE_TRUNC('month', "createdAt") AS cohort_month
+          FROM app_users
+          WHERE "createdAt" >= NOW() - INTERVAL '12 months'
+        ),
+        activity AS (
+          SELECT DISTINCT "userId", DATE_TRUNC('month', "createdAt") AS active_month
+          FROM user_generations
+        )
+        SELECT
+          TO_CHAR(c.cohort_month, 'YYYY-MM') AS cohort,
+          COUNT(DISTINCT c.id)::int AS cohort_size,
+          COUNT(DISTINCT a."userId") FILTER (WHERE a.active_month = c.cohort_month)::int AS m0,
+          COUNT(DISTINCT a."userId") FILTER (WHERE a.active_month = c.cohort_month + INTERVAL '1 month')::int AS m1,
+          COUNT(DISTINCT a."userId") FILTER (WHERE a.active_month = c.cohort_month + INTERVAL '2 months')::int AS m2,
+          COUNT(DISTINCT a."userId") FILTER (WHERE a.active_month = c.cohort_month + INTERVAL '3 months')::int AS m3,
+          COUNT(DISTINCT a."userId") FILTER (WHERE a.active_month = c.cohort_month + INTERVAL '6 months')::int AS m6
+        FROM cohorts c
+        LEFT JOIN activity a ON a."userId" = c.id
+        GROUP BY c.cohort_month
+        ORDER BY c.cohort_month DESC
+        LIMIT 12
+      `.catch(() => [] as Row[]),
+      // Bot registration funnel
+      this.prisma.$queryRaw<Row[]>`
+        SELECT
+          COUNT(*)::int AS started_bot,
+          COUNT(*) FILTER (WHERE "appUserId" IS NOT NULL)::int AS linked_platform,
+          (SELECT COUNT(DISTINCT ug."userId")::int FROM user_generations ug
+           JOIN bot_users bu2 ON bu2."appUserId" = ug."userId") AS bot_first_generated,
+          (SELECT COUNT(DISTINCT p."userId")::int FROM payments p
+           WHERE p.status = 'completed'
+           AND EXISTS (SELECT 1 FROM bot_users bu3 WHERE bu3."appUserId" = p."userId")) AS bot_paying
+        FROM bot_users
+      `.catch(() => [{ started_bot: 0, linked_platform: 0, bot_first_generated: 0, bot_paying: 0 }] as Row[]),
+      // Telegram vs MAX comparison
+      this.prisma.$queryRaw<Row[]>`
+        SELECT
+          COUNT(*) FILTER (WHERE "telegramId" IS NOT NULL)::int AS tg_users,
+          COUNT(*) FILTER (WHERE "maxId" IS NOT NULL)::int AS max_users,
+          COALESCE(SUM(CASE WHEN "telegramId" IS NOT NULL THEN "totalGenerations" ELSE 0 END), 0)::int AS tg_total_gens,
+          COALESCE(SUM(CASE WHEN "maxId" IS NOT NULL THEN "totalGenerations" ELSE 0 END), 0)::int AS max_total_gens,
+          COALESCE(SUM(CASE WHEN "telegramId" IS NOT NULL THEN "generationsThisMonth" ELSE 0 END), 0)::int AS tg_month_gens,
+          COALESCE(SUM(CASE WHEN "maxId" IS NOT NULL THEN "generationsThisMonth" ELSE 0 END), 0)::int AS max_month_gens,
+          ROUND(COALESCE(AVG(CASE WHEN "telegramId" IS NOT NULL THEN "botCredits"::numeric ELSE NULL END), 0))::int AS tg_avg_credits,
+          ROUND(COALESCE(AVG(CASE WHEN "maxId" IS NOT NULL THEN "botCredits"::numeric ELSE NULL END), 0))::int AS max_avg_credits
+        FROM bot_users
+      `.catch(() => [{ tg_users: 0, max_users: 0, tg_total_gens: 0, max_total_gens: 0, tg_month_gens: 0, max_month_gens: 0, tg_avg_credits: 0, max_avg_credits: 0 }] as Row[]),
+      // Referral funnel
+      this.prisma.$queryRaw<Row[]>`
+        SELECT
+          COUNT(DISTINCT r."referrerUserId")::int AS total_referrers,
+          COUNT(r.id)::int AS total_invited,
+          COUNT(r.id) FILTER (WHERE r.status = 'activated')::int AS activated,
+          (SELECT COUNT(DISTINCT p."userId")::int FROM payments p
+           WHERE p.status = 'completed'
+           AND EXISTS (SELECT 1 FROM referrals ref2 WHERE ref2."referredUserId" = p."userId")) AS converted_paid
+        FROM referrals r
+      `.catch(() => [{ total_referrers: 0, total_invited: 0, activated: 0, converted_paid: 0 }] as Row[]),
+      // Content type distribution
+      this.prisma.$queryRaw<Row[]>`
+        SELECT generation_type, COUNT(*)::int AS total_gens, COUNT(DISTINCT "userId")::int AS unique_users
+        FROM user_generations
+        WHERE status = 'completed'
+        GROUP BY generation_type
+        ORDER BY total_gens DESC
+      `,
+      // Daily new registrations (last 90 days)
+      this.prisma.$queryRaw<Row[]>`
+        SELECT DATE("createdAt")::text AS d, COUNT(*)::int AS cnt
+        FROM app_users
+        WHERE "createdAt" >= NOW() - INTERVAL '90 days'
+        GROUP BY DATE("createdAt")
+        ORDER BY d
+      `,
+      // Day-level cohort retention (D1/D7/D30) — last 60 day cohorts
+      this.prisma.$queryRaw<Row[]>`
+        WITH cohorts AS (
+          SELECT id, DATE("createdAt") AS reg_day
+          FROM app_users
+          WHERE "createdAt" >= NOW() - INTERVAL '60 days'
+        ),
+        activity AS (
+          SELECT DISTINCT "userId", DATE("createdAt") AS active_day
+          FROM user_generations
+        )
+        SELECT
+          TO_CHAR(c.reg_day, 'YYYY-MM-DD') AS cohort,
+          COUNT(DISTINCT c.id)::int AS cohort_size,
+          COUNT(DISTINCT a."userId") FILTER (WHERE a.active_day = c.reg_day)::int AS d0,
+          COUNT(DISTINCT a."userId") FILTER (WHERE a.active_day = c.reg_day + INTERVAL '1 day')::int AS d1,
+          COUNT(DISTINCT a."userId") FILTER (WHERE a.active_day = c.reg_day + INTERVAL '7 days')::int AS d7,
+          COUNT(DISTINCT a."userId") FILTER (WHERE a.active_day = c.reg_day + INTERVAL '30 days')::int AS d30
+        FROM cohorts c
+        LEFT JOIN activity a ON a."userId" = c.id
+        GROUP BY c.reg_day
+        ORDER BY c.reg_day DESC
+        LIMIT 60
+      `.catch(() => [] as Row[]),
     ]);
 
     const toMap = (rows: Row[], key: string): Record<string, number> =>
@@ -3638,6 +3877,165 @@ export class AdminService {
       botAcquisition: (botUtmRows as Row[]).map(r => ({
         source: String(r.bot_source),
         count: Number(r.cnt),
+      })),
+      registrationTrend: (regTrendRows as Row[]).reverse().map(r => ({ month: String(r.m), count: Number(r.cnt) })),
+      activation: (() => {
+        const a = (activationRows as Row[])[0] ?? {};
+        const total = Number(a.total ?? 0);
+        return {
+          day1: Number(a.day1 ?? 0),
+          day1_3: Number(a.day1_3 ?? 0),
+          day3_7: Number(a.day3_7 ?? 0),
+          day7plus: Number(a.day7plus ?? 0),
+          never: Number(a.never ?? 0),
+          total,
+          activationRate: total > 0 ? Math.round(((total - Number(a.never ?? 0)) / total) * 100) : 0,
+        };
+      })(),
+      onboardingCompletion: (onbStepRows as Row[]).map(r => ({
+        step: String(r.step),
+        count: Number(r.cnt),
+      })),
+      featureAdoption: (() => {
+        const rows = featureAdoptRows as Row[];
+        return rows.map(r => ({
+          type: String(r.generation_type),
+          uniqueUsers: Number(r.unique_users),
+          adoptionRate: totalUsers > 0 ? Math.round((Number(r.unique_users) / totalUsers) * 100) : 0,
+        }));
+      })(),
+      userSegmentation: (() => {
+        const s = (userSegRows as Row[])[0] ?? {};
+        return {
+          power: Number(s.power ?? 0),
+          regular: Number(s.regular ?? 0),
+          casual: Number(s.casual ?? 0),
+          inactive: Number(s.inactive ?? 0),
+        };
+      })(),
+      revenueMrr: (revenueMrrRows as Row[]).reverse().map(r => ({
+        month: String(r.m),
+        revenue: Number(r.revenue ?? 0),
+        payments: Number(r.payments ?? 0),
+        uniquePayers: Number(r.unique_payers ?? 0),
+      })),
+      planDistribution: (planDistRows as Row[]).map(r => ({
+        planKey: String(r.plan_key),
+        planName: String(r.plan_name),
+        count: Number(r.cnt),
+      })),
+      cohortRetention: (cohortRows as Row[]).reverse().map(r => ({
+        cohort: String(r.cohort),
+        cohortSize: Number(r.cohort_size ?? 0),
+        m0: Number(r.m0 ?? 0),
+        m1: Number(r.m1 ?? 0),
+        m2: Number(r.m2 ?? 0),
+        m3: Number(r.m3 ?? 0),
+        m6: Number(r.m6 ?? 0),
+      })),
+      botFunnel: (() => {
+        const f = (botFunnelRows as Row[])[0] ?? {};
+        return {
+          startedBot: Number(f.started_bot ?? 0),
+          linkedPlatform: Number(f.linked_platform ?? 0),
+          firstGenerated: Number(f.bot_first_generated ?? 0),
+          paying: Number(f.bot_paying ?? 0),
+        };
+      })(),
+      botComparison: (() => {
+        const c = (botCompareRows as Row[])[0] ?? {};
+        return {
+          tgUsers: Number(c.tg_users ?? 0),
+          maxUsers: Number(c.max_users ?? 0),
+          tgTotalGens: Number(c.tg_total_gens ?? 0),
+          maxTotalGens: Number(c.max_total_gens ?? 0),
+          tgMonthGens: Number(c.tg_month_gens ?? 0),
+          maxMonthGens: Number(c.max_month_gens ?? 0),
+          tgAvgCredits: Number(c.tg_avg_credits ?? 0),
+          maxAvgCredits: Number(c.max_avg_credits ?? 0),
+        };
+      })(),
+      referralFunnel: (() => {
+        const r = (referralRows as Row[])[0] ?? {};
+        return {
+          totalReferrers: Number(r.total_referrers ?? 0),
+          totalInvited: Number(r.total_invited ?? 0),
+          activated: Number(r.activated ?? 0),
+          convertedPaid: Number(r.converted_paid ?? 0),
+        };
+      })(),
+      contentTypes: (contentTypeRows as Row[]).map(r => ({
+        type: String(r.generation_type),
+        totalGens: Number(r.total_gens ?? 0),
+        uniqueUsers: Number(r.unique_users ?? 0),
+      })),
+      newUsersDaily: (newUsersDailyRows as Row[]).map(r => ({
+        date: String(r.d),
+        count: Number(r.cnt),
+      })),
+      dayRetentionCohorts: (dayRetentionRows as Row[]).reverse().map(r => ({
+        cohort: String(r.cohort),
+        cohortSize: Number(r.cohort_size ?? 0),
+        d0: Number(r.d0 ?? 0),
+        d1: Number(r.d1 ?? 0),
+        d7: Number(r.d7 ?? 0),
+        d30: Number(r.d30 ?? 0),
+      })),
+    };
+  }
+
+  async getWinbackList() {
+    type Row = { [key: string]: any };
+    const rows = await this.prisma.$queryRaw<Row[]>`
+      WITH user_stats AS (
+        SELECT
+          u.id,
+          u.username,
+          u."firstName" AS first_name,
+          u."lastName"  AS last_name,
+          u.email,
+          u."createdAt"::text AS reg_date,
+          GREATEST(u."lastAccessAt", u."lastTelegramAppAccess", u."lastMaxAppAccess")::text AS last_active_at,
+          COUNT(ug.id)::int AS total_gens,
+          MAX(ug."createdAt")::text AS last_gen_at,
+          ROUND(
+            EXTRACT(EPOCH FROM (NOW() - GREATEST(u."lastAccessAt", u."lastTelegramAppAccess", u."lastMaxAppAccess"))) / 86400
+          )::int AS days_inactive
+        FROM app_users u
+        LEFT JOIN user_generations ug ON ug."userId" = u.id
+        GROUP BY u.id, u.username, u."firstName", u."lastName", u.email, u."createdAt"
+      )
+      SELECT
+        us.*,
+        s.status AS sub_status,
+        pl.plan_key,
+        s."creditsBalance" AS credits_balance
+      FROM user_stats us
+      LEFT JOIN user_subscriptions s ON s."userId" = us.id
+      LEFT JOIN plans pl ON pl.id = s."planId"
+      WHERE
+        us.total_gens >= 10
+        AND (us.last_active_at IS NULL OR us.last_active_at::timestamptz < NOW() - INTERVAL '30 days')
+      ORDER BY us.total_gens DESC
+      LIMIT 200
+    `.catch(() => [] as Row[]);
+
+    return {
+      total: rows.length,
+      users: rows.map(r => ({
+        id: String(r.id),
+        username: r.username ?? null,
+        firstName: r.first_name ?? null,
+        lastName: r.last_name ?? null,
+        email: r.email ?? null,
+        regDate: r.reg_date,
+        lastActiveAt: r.last_active_at,
+        totalGens: Number(r.total_gens),
+        lastGenAt: r.last_gen_at,
+        daysInactive: Number(r.days_inactive ?? 0),
+        subStatus: r.sub_status ?? null,
+        planKey: r.plan_key ?? null,
+        creditsBalance: r.credits_balance != null ? Number(r.credits_balance) : null,
       })),
     };
   }

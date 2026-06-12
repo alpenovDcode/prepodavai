@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import useSWR from 'swr'
 import { apiClient } from '@/lib/api/client'
 import {
@@ -104,7 +105,8 @@ export default function ProductAnalyticsPage() {
     tab === 'bots' ? `/admin/bots?days=${daysFromRange(botsRange)}` : null,
     fetcher,
   )
-  const { data: cjm }    = useSWR(tab === 'cjm' ? '/admin/cjm' : null, fetcher)
+  const { data: cjm }       = useSWR(tab === 'cjm' ? '/admin/cjm' : null, fetcher)
+  const { data: winback }   = useSWR(tab === 'cjm' ? '/admin/winback' : null, fetcher)
 
   const handleExportAllCjm = async () => {
     setCjmExporting(true)
@@ -1031,23 +1033,32 @@ export default function ProductAnalyticsPage() {
             <div className="flex items-center justify-center h-40 text-gray-400">Загружаем данные...</div>
           ) : (
             <>
-              {/* Воронка этапов */}
+              {/* ── Section 1: CJM Funnel ── */}
               <div className="bg-white rounded-2xl border border-gray-200 p-5">
                 <p className="text-sm font-bold text-gray-700 mb-4">Воронка CJM этапов</p>
                 <div className="space-y-3">
                   {([
-                    { key: 'registered_only',   label: 'Только зарегистрированы',  color: 'bg-gray-400' },
-                    { key: 'generating_free',   label: 'Генерируют (бесплатно)',    color: 'bg-blue-500' },
-                    { key: 'subscribed_active', label: 'Активная подписка',         color: 'bg-green-500' },
-                    { key: 'subscribed_expired',label: 'Подписка истекла',          color: 'bg-orange-400' },
-                    { key: 'churned',           label: 'Отток',                     color: 'bg-red-400' },
-                  ] as const).map(({ key, label, color }) => {
+                    { key: 'registered_only',    label: 'Только зарегистрированы', color: 'bg-gray-400' },
+                    { key: 'generating_free',    label: 'Генерируют (бесплатно)',   color: 'bg-blue-500' },
+                    { key: 'subscribed_active',  label: 'Активная подписка',        color: 'bg-green-500' },
+                    { key: 'subscribed_expired', label: 'Подписка истекла',         color: 'bg-orange-400' },
+                    { key: 'churned',            label: 'Отток',                    color: 'bg-red-400' },
+                  ] as const).map(({ key, label, color }, idx, arr) => {
                     const cnt = cjm.stages[key] ?? 0
                     const pct = cjm.totalUsers > 0 ? Math.round((cnt / cjm.totalUsers) * 100) : 0
+                    const prevCnt = idx > 0 ? (cjm.stages[arr[idx - 1].key] ?? 0) : null
+                    const convPct = prevCnt != null && prevCnt > 0 ? Math.round((cnt / prevCnt) * 100) : null
                     return (
                       <div key={key}>
                         <div className="flex items-center justify-between text-sm mb-1.5">
-                          <span className="text-gray-700 font-medium">{label}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-gray-700 font-medium">{label}</span>
+                            {convPct !== null && (
+                              <span className="text-xs text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-full">
+                                {convPct}% от пред.
+                              </span>
+                            )}
+                          </div>
                           <span className="text-gray-500 font-semibold">{cnt.toLocaleString('ru')} <span className="text-gray-400 font-normal">({pct}%)</span></span>
                         </div>
                         <div className="h-2 bg-gray-100 rounded-full">
@@ -1059,15 +1070,15 @@ export default function ProductAnalyticsPage() {
                 </div>
               </div>
 
+              {/* ── Section 2: Churn Risk + Conversion Timings ── */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                {/* Риск оттока */}
                 <div className="bg-white rounded-2xl border border-gray-200 p-5">
                   <p className="text-sm font-bold text-gray-700 mb-4">Риск оттока</p>
                   <div className="space-y-3">
                     {([
-                      { key: 'low' as const,    label: 'Низкий',   icon: <Shield className="w-4 h-4" />, bg: 'bg-green-50', text: 'text-green-700', bar: 'bg-green-500' },
-                      { key: 'medium' as const, label: 'Средний',  icon: <AlertTriangle className="w-4 h-4" />, bg: 'bg-orange-50', text: 'text-orange-700', bar: 'bg-orange-400' },
-                      { key: 'high' as const,   label: 'Высокий',  icon: <Flame className="w-4 h-4" />, bg: 'bg-red-50', text: 'text-red-700', bar: 'bg-red-500' },
+                      { key: 'low' as const,    label: 'Низкий',  icon: <Shield className="w-4 h-4" />,        bg: 'bg-green-50',  text: 'text-green-700',  bar: 'bg-green-500' },
+                      { key: 'medium' as const, label: 'Средний', icon: <AlertTriangle className="w-4 h-4" />, bg: 'bg-orange-50', text: 'text-orange-700', bar: 'bg-orange-400' },
+                      { key: 'high' as const,   label: 'Высокий', icon: <Flame className="w-4 h-4" />,         bg: 'bg-red-50',    text: 'text-red-700',    bar: 'bg-red-500' },
                     ]).map(({ key, label, icon, bg, text, bar }) => {
                       const cnt = cjm.churnRisk[key] ?? 0
                       const total = (cjm.churnRisk.low ?? 0) + (cjm.churnRisk.medium ?? 0) + (cjm.churnRisk.high ?? 0)
@@ -1090,35 +1101,34 @@ export default function ProductAnalyticsPage() {
                   </div>
                 </div>
 
-                {/* Тайминги */}
                 <div className="bg-white rounded-2xl border border-gray-200 p-5">
                   <p className="text-sm font-bold text-gray-700 mb-4">Тайминги конверсии</p>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="bg-blue-50 rounded-xl p-3">
                       <p className="text-xs text-gray-500 mb-1">До первой генерации</p>
                       <p className="text-lg font-bold text-blue-700">
-                        {cjm.timings.avgDaysToFirstGen != null ? `${cjm.timings.avgDaysToFirstGen}д` : '—'}
+                        {cjm.timings?.avgDaysToFirstGen != null ? `${cjm.timings.avgDaysToFirstGen}д` : '—'}
                       </p>
                       <p className="text-xs text-gray-400">среднее</p>
                     </div>
                     <div className="bg-blue-50 rounded-xl p-3">
                       <p className="text-xs text-gray-500 mb-1">Медиана (генерация)</p>
                       <p className="text-lg font-bold text-blue-700">
-                        {cjm.timings.medianDaysToFirstGen != null ? `${cjm.timings.medianDaysToFirstGen}д` : '—'}
+                        {cjm.timings?.medianDaysToFirstGen != null ? `${cjm.timings.medianDaysToFirstGen}д` : '—'}
                       </p>
                       <p className="text-xs text-gray-400">медиана</p>
                     </div>
                     <div className="bg-green-50 rounded-xl p-3">
                       <p className="text-xs text-gray-500 mb-1">До первой оплаты</p>
                       <p className="text-lg font-bold text-green-700">
-                        {cjm.timings.avgDaysToFirstPayment != null ? `${cjm.timings.avgDaysToFirstPayment}д` : '—'}
+                        {cjm.timings?.avgDaysToFirstPayment != null ? `${cjm.timings.avgDaysToFirstPayment}д` : '—'}
                       </p>
                       <p className="text-xs text-gray-400">среднее</p>
                     </div>
                     <div className="bg-green-50 rounded-xl p-3">
                       <p className="text-xs text-gray-500 mb-1">Медиана (оплата)</p>
                       <p className="text-lg font-bold text-green-700">
-                        {cjm.timings.medianDaysToFirstPayment != null ? `${cjm.timings.medianDaysToFirstPayment}д` : '—'}
+                        {cjm.timings?.medianDaysToFirstPayment != null ? `${cjm.timings.medianDaysToFirstPayment}д` : '—'}
                       </p>
                       <p className="text-xs text-gray-400">медиана</p>
                     </div>
@@ -1126,92 +1136,43 @@ export default function ProductAnalyticsPage() {
                 </div>
               </div>
 
-              {/* Платформы */}
+              {/* ── Section 3: Acquisition ── */}
               <div className="bg-white rounded-2xl border border-gray-200 p-5">
-                <p className="text-sm font-bold text-gray-700 mb-4">Распределение по платформам</p>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  {([
-                    { key: 'web' as const,      label: 'Только Web',        icon: <Globe className="w-5 h-5" />,          bg: 'bg-gray-50',    text: 'text-gray-700' },
-                    { key: 'telegram' as const, label: 'Только Telegram',   icon: <Send className="w-5 h-5" />,           bg: 'bg-blue-50',    text: 'text-blue-700' },
-                    { key: 'max' as const,      label: 'Только MAX',        icon: <MessageSquare className="w-5 h-5" />, bg: 'bg-green-50',   text: 'text-green-700' },
-                    { key: 'both' as const,     label: 'TG + MAX',          icon: <ChevronRight className="w-5 h-5" />,  bg: 'bg-purple-50',  text: 'text-purple-700' },
-                  ]).map(({ key, label, icon, bg, text }) => {
-                    const cnt = cjm.platforms[key] ?? 0
-                    const totalPlatform = (cjm.platforms.web ?? 0) + (cjm.platforms.telegram ?? 0) + (cjm.platforms.max ?? 0) + (cjm.platforms.both ?? 0)
-                    const pct = totalPlatform > 0 ? Math.round((cnt / totalPlatform) * 100) : 0
-                    return (
-                      <div key={key} className={`${bg} rounded-xl p-4 text-center`}>
-                        <div className={`flex justify-center mb-2 ${text}`}>{icon}</div>
-                        <p className={`text-2xl font-bold ${text}`}>{cnt.toLocaleString('ru')}</p>
-                        <p className="text-xs text-gray-500 mt-0.5">{label}</p>
-                        <p className="text-xs text-gray-400">{pct}%</p>
-                      </div>
-                    )
-                  })}
-                </div>
+                <p className="text-sm font-bold text-gray-700 mb-4">Тренд регистраций (по месяцам)</p>
+                {(cjm.registrationTrend?.length ?? 0) > 0 ? (
+                  <ResponsiveContainer width="100%" height={200}>
+                    <LineChart data={cjm.registrationTrend} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                      <XAxis dataKey="month" tick={{ fontSize: 10 }} />
+                      <YAxis tick={{ fontSize: 10 }} width={40} />
+                      <Tooltip formatter={(v: any) => [v, 'Регистрации']} />
+                      <Line type="monotone" dataKey="count" stroke="#6366f1" strokeWidth={2} dot={false} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <p className="text-sm text-gray-400 text-center py-8">Нет данных</p>
+                )}
               </div>
 
-              {/* Генерации по источнику инициации */}
+              {/* ── Section 3b: Daily New Users ── */}
               <div className="bg-white rounded-2xl border border-gray-200 p-5">
-                <p className="text-sm font-bold text-gray-700 mb-4">Генерации по каналу инициации</p>
-                <p className="text-xs text-gray-400 mb-3">Откуда была запущена генерация — из браузера, бота Telegram или бота MAX</p>
-                <div className="grid grid-cols-3 gap-3">
-                  {([
-                    { key: 'web',           label: 'Веб-платформа',   icon: <Globe className="w-5 h-5" />,          bg: 'bg-gray-50',   text: 'text-gray-700' },
-                    { key: 'telegram_bot',  label: 'Telegram бот',    icon: <Send className="w-5 h-5" />,           bg: 'bg-blue-50',   text: 'text-blue-700' },
-                    { key: 'max_bot',       label: 'MAX бот',         icon: <MessageSquare className="w-5 h-5" />, bg: 'bg-green-50',  text: 'text-green-700' },
-                  ] as const).map(({ key, label, icon, bg, text }) => {
-                    const cnt = cjm.generationsBySource?.[key] ?? 0
-                    const total = (cjm.generationsBySource?.web ?? 0) + (cjm.generationsBySource?.telegram_bot ?? 0) + (cjm.generationsBySource?.max_bot ?? 0)
-                    const pct = total > 0 ? Math.round((cnt / total) * 100) : 0
-                    return (
-                      <div key={key} className={`${bg} rounded-xl p-4 text-center`}>
-                        <div className={`flex justify-center mb-2 ${text}`}>{icon}</div>
-                        <p className={`text-2xl font-bold ${text}`}>{cnt.toLocaleString('ru')}</p>
-                        <p className="text-xs text-gray-500 mt-0.5">{label}</p>
-                        <p className="text-xs text-gray-400">{pct}%</p>
-                      </div>
-                    )
-                  })}
-                </div>
+                <p className="text-sm font-bold text-gray-700 mb-1">Ежедневный прирост новых пользователей (90 дней)</p>
+                <p className="text-xs text-gray-400 mb-4">Количество регистраций за каждый день</p>
+                {(cjm.newUsersDaily?.length ?? 0) > 0 ? (
+                  <ResponsiveContainer width="100%" height={200}>
+                    <BarChart data={cjm.newUsersDaily} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                      <XAxis dataKey="day" tick={{ fontSize: 9 }} interval={6} />
+                      <YAxis tick={{ fontSize: 10 }} width={35} />
+                      <Tooltip formatter={(v: any) => [v, 'Новых пользователей']} labelFormatter={(l) => `Дата: ${l}`} />
+                      <Bar dataKey="count" fill="#6366f1" radius={[2, 2, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <p className="text-sm text-gray-400 text-center py-8">Нет данных</p>
+                )}
               </div>
 
-              {/* Источники бот-привлечения */}
-              {(cjm.botAcquisition?.length ?? 0) > 0 && (
-                <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-                  <div className="p-4 border-b border-gray-100">
-                    <p className="text-sm font-bold text-gray-700">Откуда приходят в бот</p>
-                    <p className="text-xs text-gray-400 mt-0.5">UTM-источник или raw payload из /start команды</p>
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
-                        <tr>
-                          <th className="px-4 py-3 text-left">Источник (payload / UTM)</th>
-                          <th className="px-4 py-3 text-right">Пользователей</th>
-                          <th className="px-4 py-3 text-right">Доля</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-50">
-                        {(cjm.botAcquisition ?? []).map((row: any) => {
-                          const total = (cjm.botAcquisition ?? []).reduce((s: number, r: any) => s + r.count, 0)
-                          return (
-                            <tr key={row.source} className="hover:bg-gray-50">
-                              <td className="px-4 py-3 font-mono text-gray-800 font-medium">{row.source}</td>
-                              <td className="px-4 py-3 text-right text-gray-700">{row.count.toLocaleString('ru')}</td>
-                              <td className="px-4 py-3 text-right text-gray-500">
-                                {total > 0 ? Math.round((row.count / total) * 100) : 0}%
-                              </td>
-                            </tr>
-                          )
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-
-              {/* Источники привлечения (веб) */}
               <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
                 <div className="p-4 border-b border-gray-100">
                   <p className="text-sm font-bold text-gray-700">Источники привлечения (платформа)</p>
@@ -1251,6 +1212,551 @@ export default function ProductAnalyticsPage() {
                     </tbody>
                   </table>
                 </div>
+              </div>
+
+              {(cjm.botAcquisition?.length ?? 0) > 0 && (
+                <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+                  <div className="p-4 border-b border-gray-100">
+                    <p className="text-sm font-bold text-gray-700">Откуда приходят в бот</p>
+                    <p className="text-xs text-gray-400 mt-0.5">UTM-источник или raw payload из /start команды</p>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
+                        <tr>
+                          <th className="px-4 py-3 text-left">Источник (payload / UTM)</th>
+                          <th className="px-4 py-3 text-right">Пользователей</th>
+                          <th className="px-4 py-3 text-right">Доля</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-50">
+                        {(cjm.botAcquisition ?? []).map((row: any) => {
+                          const total = (cjm.botAcquisition ?? []).reduce((s: number, r: any) => s + r.count, 0)
+                          return (
+                            <tr key={row.source} className="hover:bg-gray-50">
+                              <td className="px-4 py-3 font-mono text-gray-800 font-medium">{row.source}</td>
+                              <td className="px-4 py-3 text-right text-gray-700">{row.count.toLocaleString('ru')}</td>
+                              <td className="px-4 py-3 text-right text-gray-500">
+                                {total > 0 ? Math.round((row.count / total) * 100) : 0}%
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* ── Section 4: Activation funnel ── */}
+              <div className="bg-white rounded-2xl border border-gray-200 p-5">
+                <p className="text-sm font-bold text-gray-700 mb-4">Воронка активации</p>
+                <div className="flex items-center gap-4 mb-5">
+                  <div className="bg-indigo-50 rounded-xl px-5 py-3 text-center">
+                    <p className="text-3xl font-bold text-indigo-700">{cjm.activation?.activationRate ?? 0}%</p>
+                    <p className="text-xs text-gray-500 mt-0.5">Общий Activation Rate</p>
+                  </div>
+                  <div className="text-sm text-gray-500">
+                    <p>{(cjm.activation?.total ?? 0).toLocaleString('ru')} пользователей всего</p>
+                    <p>{((cjm.activation?.total ?? 0) - (cjm.activation?.never ?? 0)).toLocaleString('ru')} хотя бы раз генерировали</p>
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  {([
+                    { key: 'day1' as const,    label: 'В первый день',  color: 'bg-green-500' },
+                    { key: 'day1_3' as const,  label: '1–3 дня',        color: 'bg-blue-500' },
+                    { key: 'day3_7' as const,  label: '3–7 дней',       color: 'bg-yellow-500' },
+                    { key: 'day7plus' as const,label: '7+ дней',         color: 'bg-orange-500' },
+                    { key: 'never' as const,   label: 'Никогда',         color: 'bg-red-400' },
+                  ]).map(({ key, label, color }) => {
+                    const cnt = cjm.activation?.[key] ?? 0
+                    const total = cjm.activation?.total ?? 0
+                    const pct = total > 0 ? Math.round((cnt / total) * 100) : 0
+                    return (
+                      <div key={key} className="flex items-center gap-3">
+                        <span className="text-sm text-gray-600 w-32 shrink-0">{label}</span>
+                        <div className="flex-1 h-2 bg-gray-100 rounded-full">
+                          <div className={`h-2 ${color} rounded-full`} style={{ width: `${pct}%` }} />
+                        </div>
+                        <span className="text-sm font-semibold text-gray-700 w-24 text-right">{cnt.toLocaleString('ru')} <span className="text-gray-400 font-normal">({pct}%)</span></span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* ── Section 5: Onboarding completion ── */}
+              {(cjm.onboardingCompletion?.length ?? 0) > 0 && (
+                <div className="bg-white rounded-2xl border border-gray-200 p-5">
+                  <p className="text-sm font-bold text-gray-700 mb-4">Выполнение шагов онбординга</p>
+                  <div className="space-y-3">
+                    {(() => {
+                      const STEP_LABELS: Record<string, string> = {
+                        FIRST_GENERATION: 'Первая генерация',
+                        SECOND_TYPE_GENERATION: 'Генерация второго типа',
+                        SHARED_REFERRAL_LINK: 'Поделился реферальной ссылкой',
+                        FIRST_REFERRAL_ACTIVATED: 'Первый реферал активирован',
+                        SECOND_REFERRAL_ACTIVATED: 'Второй реферал активирован',
+                      }
+                      const totalOnb = cjm.totalUsers
+                      return (cjm.onboardingCompletion ?? []).map((row: any) => {
+                        const pct = totalOnb > 0 ? Math.round((row.count / totalOnb) * 100) : 0
+                        return (
+                          <div key={row.step}>
+                            <div className="flex justify-between text-sm mb-1">
+                              <span className="text-gray-700">{STEP_LABELS[row.step] ?? row.step}</span>
+                              <span className="font-semibold text-gray-600">{row.count.toLocaleString('ru')} <span className="text-gray-400 font-normal">({pct}%)</span></span>
+                            </div>
+                            <div className="h-2 bg-gray-100 rounded-full">
+                              <div className="h-2 bg-indigo-500 rounded-full" style={{ width: `${pct}%` }} />
+                            </div>
+                          </div>
+                        )
+                      })
+                    })()}
+                  </div>
+                </div>
+              )}
+
+              {/* ── Section 6: User Segmentation ── */}
+              <div className="bg-white rounded-2xl border border-gray-200 p-5">
+                <p className="text-sm font-bold text-gray-700 mb-4">Сегментация пользователей</p>
+                <p className="text-xs text-gray-400 mb-4">По активности за последние 7 дней и 90 дней</p>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {([
+                    { key: 'power' as const,    label: 'Power',    sub: '≥10 ген/нед',     bg: 'bg-purple-50',  text: 'text-purple-700',  icon: <Flame className="w-5 h-5" /> },
+                    { key: 'regular' as const,  label: 'Regular',  sub: '1–9 ген/нед',     bg: 'bg-blue-50',    text: 'text-blue-700',    icon: <Activity className="w-5 h-5" /> },
+                    { key: 'casual' as const,   label: 'Casual',   sub: 'активен 90д',     bg: 'bg-yellow-50',  text: 'text-yellow-700',  icon: <Calendar className="w-5 h-5" /> },
+                    { key: 'inactive' as const, label: 'Inactive', sub: 'нет активности',  bg: 'bg-gray-50',    text: 'text-gray-500',    icon: <UserX className="w-5 h-5" /> },
+                  ]).map(({ key, label, sub, bg, text, icon }) => {
+                    const cnt = cjm.userSegmentation?.[key] ?? 0
+                    const total = (cjm.userSegmentation?.power ?? 0) + (cjm.userSegmentation?.regular ?? 0) + (cjm.userSegmentation?.casual ?? 0) + (cjm.userSegmentation?.inactive ?? 0)
+                    const pct = total > 0 ? Math.round((cnt / total) * 100) : 0
+                    return (
+                      <div key={key} className={`${bg} rounded-xl p-4 text-center`}>
+                        <div className={`flex justify-center mb-2 ${text}`}>{icon}</div>
+                        <p className={`text-2xl font-bold ${text}`}>{cnt.toLocaleString('ru')}</p>
+                        <p className={`text-sm font-semibold ${text}`}>{label}</p>
+                        <p className="text-xs text-gray-500 mt-0.5">{sub}</p>
+                        <p className="text-xs text-gray-400">{pct}%</p>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* ── Section 7: Content type distribution ── */}
+              {(cjm.contentTypes?.length ?? 0) > 0 && (
+                <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+                  <div className="p-4 border-b border-gray-100">
+                    <p className="text-sm font-bold text-gray-700">Распределение по типам контента</p>
+                    <p className="text-xs text-gray-400 mt-0.5">Только завершённые генерации</p>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
+                        <tr>
+                          <th className="px-4 py-3 text-left">Инструмент</th>
+                          <th className="px-4 py-3 text-right">Всего генераций</th>
+                          <th className="px-4 py-3 text-right">Уникальных польз.</th>
+                          <th className="px-4 py-3 text-right">Adoption %</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-50">
+                        {(cjm.contentTypes ?? []).map((row: any) => {
+                          const adoptionPct = cjm.totalUsers > 0 ? Math.round((row.uniqueUsers / cjm.totalUsers) * 100) : 0
+                          return (
+                            <tr key={row.type} className="hover:bg-gray-50">
+                              <td className="px-4 py-3 text-gray-800 font-medium">{ftLabel(row.type)}</td>
+                              <td className="px-4 py-3 text-right text-gray-700">{row.totalGens.toLocaleString('ru')}</td>
+                              <td className="px-4 py-3 text-right text-blue-700">{row.uniqueUsers.toLocaleString('ru')}</td>
+                              <td className="px-4 py-3 text-right">
+                                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${adoptionPct >= 20 ? 'bg-green-100 text-green-700' : adoptionPct >= 5 ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'}`}>
+                                  {adoptionPct}%
+                                </span>
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* ── Section 8: Revenue MRR ── */}
+              {(cjm.revenueMrr?.length ?? 0) > 0 && (
+                <div className="bg-white rounded-2xl border border-gray-200 p-5">
+                  <p className="text-sm font-bold text-gray-700 mb-4">Revenue MRR (последние месяцы)</p>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <BarChart data={cjm.revenueMrr} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                      <XAxis dataKey="month" tick={{ fontSize: 10 }} />
+                      <YAxis tick={{ fontSize: 10 }} width={50} />
+                      <Tooltip formatter={(v: any) => [`${Number(v).toLocaleString('ru')} ₽`, 'Выручка']} />
+                      <Bar dataKey="revenue" fill="#10b981" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                  <div className="mt-3 overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead className="text-gray-400 uppercase">
+                        <tr>
+                          <th className="py-1.5 text-left">Месяц</th>
+                          <th className="py-1.5 text-right">Выручка</th>
+                          <th className="py-1.5 text-right">Платежей</th>
+                          <th className="py-1.5 text-right">Уникальных плательщиков</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-50">
+                        {(cjm.revenueMrr ?? []).slice(-6).reverse().map((row: any) => (
+                          <tr key={row.month} className="hover:bg-gray-50">
+                            <td className="py-1.5 text-gray-700">{row.month}</td>
+                            <td className="py-1.5 text-right text-gray-700">{Number(row.revenue).toLocaleString('ru')} ₽</td>
+                            <td className="py-1.5 text-right text-gray-600">{row.payments}</td>
+                            <td className="py-1.5 text-right text-blue-700">{row.uniquePayers}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* ── Section 9: Plan distribution ── */}
+              {(cjm.planDistribution?.length ?? 0) > 0 && (
+                <div className="bg-white rounded-2xl border border-gray-200 p-5">
+                  <p className="text-sm font-bold text-gray-700 mb-4">Активные подписки по тарифам</p>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    {(cjm.planDistribution ?? []).map((plan: any) => {
+                      const totalPlans = (cjm.planDistribution ?? []).reduce((s: number, p: any) => s + p.count, 0)
+                      const pct = totalPlans > 0 ? Math.round((plan.count / totalPlans) * 100) : 0
+                      return (
+                        <div key={plan.planKey} className="bg-indigo-50 rounded-xl p-4 text-center">
+                          <p className="text-2xl font-bold text-indigo-700">{plan.count.toLocaleString('ru')}</p>
+                          <p className="text-sm font-semibold text-indigo-600 mt-0.5">{plan.planName}</p>
+                          <p className="text-xs text-gray-400 mt-0.5">{pct}% от активных</p>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* ── Section 10: Cohort Retention ── */}
+              {(cjm.cohortRetention?.length ?? 0) > 0 && (
+                <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+                  <div className="p-4 border-b border-gray-100">
+                    <p className="text-sm font-bold text-gray-700">Когортная retention таблица</p>
+                    <p className="text-xs text-gray-400 mt-0.5">% пользователей, вернувшихся в каждый месяц после регистрации</p>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
+                        <tr>
+                          <th className="px-4 py-3 text-left">Когорта</th>
+                          <th className="px-4 py-3 text-right">Размер</th>
+                          <th className="px-3 py-3 text-center">M0</th>
+                          <th className="px-3 py-3 text-center">M1</th>
+                          <th className="px-3 py-3 text-center">M2</th>
+                          <th className="px-3 py-3 text-center">M3</th>
+                          <th className="px-3 py-3 text-center">M6</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {(cjm.cohortRetention ?? []).map((row: any) => {
+                          const sz = row.cohortSize || 1
+                          const pcts = {
+                            m0: Math.round((row.m0 / sz) * 100),
+                            m1: Math.round((row.m1 / sz) * 100),
+                            m2: Math.round((row.m2 / sz) * 100),
+                            m3: Math.round((row.m3 / sz) * 100),
+                            m6: Math.round((row.m6 / sz) * 100),
+                          }
+                          return (
+                            <tr key={row.cohort}>
+                              <td className="px-4 py-2.5 font-medium text-gray-700">{row.cohort}</td>
+                              <td className="px-4 py-2.5 text-right text-gray-500">{row.cohortSize.toLocaleString('ru')}</td>
+                              {(['m0', 'm1', 'm2', 'm3', 'm6'] as const).map(m => (
+                                <td key={m} className="px-3 py-2.5 text-center">
+                                  <span className={`inline-block min-w-[42px] text-xs font-bold px-1.5 py-0.5 rounded ${retentionColor(pcts[m])}`}>
+                                    {pcts[m]}%
+                                  </span>
+                                </td>
+                              ))}
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* ── Section 10b: Day-level Retention (D1/D7/D30) ── */}
+              {(cjm.dayRetentionCohorts?.length ?? 0) > 0 && (() => {
+                const today = new Date()
+                today.setHours(0, 0, 0, 0)
+                const daysBetween = (cohortDay: string, n: number) => {
+                  const d = new Date(cohortDay)
+                  d.setDate(d.getDate() + n)
+                  return d > today
+                }
+                return (
+                  <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+                    <div className="p-4 border-b border-gray-100">
+                      <p className="text-sm font-bold text-gray-700">Day-1 / Day-7 / Day-30 Retention (по дням регистрации)</p>
+                      <p className="text-xs text-gray-400 mt-0.5">% пользователей, вернувшихся через 1, 7 и 30 дней после регистрации. «—» — когорта ещё не достигла этой отметки</p>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
+                          <tr>
+                            <th className="px-4 py-3 text-left">День регистрации</th>
+                            <th className="px-4 py-3 text-right">Размер когорты</th>
+                            <th className="px-3 py-3 text-center">D1</th>
+                            <th className="px-3 py-3 text-center">D7</th>
+                            <th className="px-3 py-3 text-center">D30</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {(cjm.dayRetentionCohorts ?? []).map((row: any) => {
+                            const sz = row.cohortSize || 1
+                            const d1Pct  = !daysBetween(row.cohortDay, 1)  ? Math.round((row.d1  / sz) * 100) : null
+                            const d7Pct  = !daysBetween(row.cohortDay, 7)  ? Math.round((row.d7  / sz) * 100) : null
+                            const d30Pct = !daysBetween(row.cohortDay, 30) ? Math.round((row.d30 / sz) * 100) : null
+                            return (
+                              <tr key={row.cohortDay} className="hover:bg-gray-50">
+                                <td className="px-4 py-2.5 font-medium text-gray-700">{row.cohortDay}</td>
+                                <td className="px-4 py-2.5 text-right text-gray-500">{row.cohortSize.toLocaleString('ru')}</td>
+                                {[d1Pct, d7Pct, d30Pct].map((pct, i) => (
+                                  <td key={i} className="px-3 py-2.5 text-center">
+                                    {pct === null ? (
+                                      <span className="text-xs text-gray-300">—</span>
+                                    ) : (
+                                      <span className={`inline-block min-w-[42px] text-xs font-bold px-1.5 py-0.5 rounded ${retentionColor(pct)}`}>
+                                        {pct}%
+                                      </span>
+                                    )}
+                                  </td>
+                                ))}
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )
+              })()}
+
+              {/* ── Section 11: Platforms ── */}
+              <div className="bg-white rounded-2xl border border-gray-200 p-5">
+                <p className="text-sm font-bold text-gray-700 mb-4">Распределение по платформам</p>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {([
+                    { key: 'web' as const,      label: 'Только Web',      icon: <Globe className="w-5 h-5" />,          bg: 'bg-gray-50',   text: 'text-gray-700' },
+                    { key: 'telegram' as const, label: 'Только Telegram', icon: <Send className="w-5 h-5" />,           bg: 'bg-blue-50',   text: 'text-blue-700' },
+                    { key: 'max' as const,      label: 'Только MAX',      icon: <MessageSquare className="w-5 h-5" />,  bg: 'bg-green-50',  text: 'text-green-700' },
+                    { key: 'both' as const,     label: 'TG + MAX',        icon: <ChevronRight className="w-5 h-5" />,   bg: 'bg-purple-50', text: 'text-purple-700' },
+                  ]).map(({ key, label, icon, bg, text }) => {
+                    const cnt = cjm.platforms[key] ?? 0
+                    const totalPlatform = (cjm.platforms.web ?? 0) + (cjm.platforms.telegram ?? 0) + (cjm.platforms.max ?? 0) + (cjm.platforms.both ?? 0)
+                    const pct = totalPlatform > 0 ? Math.round((cnt / totalPlatform) * 100) : 0
+                    return (
+                      <div key={key} className={`${bg} rounded-xl p-4 text-center`}>
+                        <div className={`flex justify-center mb-2 ${text}`}>{icon}</div>
+                        <p className={`text-2xl font-bold ${text}`}>{cnt.toLocaleString('ru')}</p>
+                        <p className="text-xs text-gray-500 mt-0.5">{label}</p>
+                        <p className="text-xs text-gray-400">{pct}%</p>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              <div className="bg-white rounded-2xl border border-gray-200 p-5">
+                <p className="text-sm font-bold text-gray-700 mb-4">Генерации по каналу инициации</p>
+                <p className="text-xs text-gray-400 mb-3">Откуда была запущена генерация — из браузера, бота Telegram или бота MAX</p>
+                <div className="grid grid-cols-3 gap-3">
+                  {([
+                    { key: 'web',          label: 'Веб-платформа', icon: <Globe className="w-5 h-5" />,         bg: 'bg-gray-50',  text: 'text-gray-700' },
+                    { key: 'telegram_bot', label: 'Telegram бот',  icon: <Send className="w-5 h-5" />,          bg: 'bg-blue-50',  text: 'text-blue-700' },
+                    { key: 'max_bot',      label: 'MAX бот',       icon: <MessageSquare className="w-5 h-5" />, bg: 'bg-green-50', text: 'text-green-700' },
+                  ] as const).map(({ key, label, icon, bg, text }) => {
+                    const cnt = cjm.generationsBySource?.[key] ?? 0
+                    const total = (cjm.generationsBySource?.web ?? 0) + (cjm.generationsBySource?.telegram_bot ?? 0) + (cjm.generationsBySource?.max_bot ?? 0)
+                    const pct = total > 0 ? Math.round((cnt / total) * 100) : 0
+                    return (
+                      <div key={key} className={`${bg} rounded-xl p-4 text-center`}>
+                        <div className={`flex justify-center mb-2 ${text}`}>{icon}</div>
+                        <p className={`text-2xl font-bold ${text}`}>{cnt.toLocaleString('ru')}</p>
+                        <p className="text-xs text-gray-500 mt-0.5">{label}</p>
+                        <p className="text-xs text-gray-400">{pct}%</p>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* ── Section 12: Bot analytics ── */}
+              <div className="bg-white rounded-2xl border border-gray-200 p-5">
+                <p className="text-sm font-bold text-gray-700 mb-4">Воронка бот-пользователей</p>
+                <div className="flex items-center gap-0 flex-wrap">
+                  {([
+                    { label: 'Запустили бота',    value: cjm.botFunnel?.startedBot ?? 0,    bg: 'bg-blue-50',   text: 'text-blue-700' },
+                    { label: 'Зарегистрировались', value: cjm.botFunnel?.linkedPlatform ?? 0, bg: 'bg-indigo-50', text: 'text-indigo-700' },
+                    { label: 'Первая генерация',  value: cjm.botFunnel?.firstGenerated ?? 0, bg: 'bg-green-50',  text: 'text-green-700' },
+                    { label: 'Оплатили',           value: cjm.botFunnel?.paying ?? 0,         bg: 'bg-emerald-50', text: 'text-emerald-700' },
+                  ]).map(({ label, value, bg, text }, idx, arr) => {
+                    const prevVal = idx > 0 ? arr[idx - 1].value : null
+                    const convPct = prevVal != null && prevVal > 0 ? Math.round((value / prevVal) * 100) : null
+                    return (
+                      <div key={label} className="flex items-center">
+                        <div className={`${bg} rounded-xl p-4 text-center min-w-[120px]`}>
+                          <p className={`text-2xl font-bold ${text}`}>{value.toLocaleString('ru')}</p>
+                          <p className="text-xs text-gray-500 mt-0.5">{label}</p>
+                          {convPct !== null && (
+                            <p className="text-xs text-gray-400 mt-0.5">{convPct}% от пред.</p>
+                          )}
+                        </div>
+                        {idx < arr.length - 1 && (
+                          <ChevronRight className="w-5 h-5 text-gray-300 shrink-0 mx-1" />
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              <div className="bg-white rounded-2xl border border-gray-200 p-5">
+                <p className="text-sm font-bold text-gray-700 mb-4">Telegram vs MAX — сравнение</p>
+                <div className="grid grid-cols-2 gap-5">
+                  <div className="space-y-3">
+                    <p className="text-xs font-bold text-blue-600 uppercase tracking-wide flex items-center gap-1.5"><Send className="w-3.5 h-3.5" /> Telegram</p>
+                    {([
+                      { label: 'Пользователей',       value: cjm.botComparison?.tgUsers ?? 0 },
+                      { label: 'Всего генераций',     value: cjm.botComparison?.tgTotalGens ?? 0 },
+                      { label: 'Генераций в месяц',  value: cjm.botComparison?.tgMonthGens ?? 0 },
+                      { label: 'Avg кредитов',        value: cjm.botComparison?.tgAvgCredits ?? 0 },
+                    ]).map(({ label, value }) => (
+                      <div key={label} className="bg-blue-50 rounded-xl p-3 flex justify-between items-center">
+                        <span className="text-sm text-gray-600">{label}</span>
+                        <span className="text-lg font-bold text-blue-700">{value.toLocaleString('ru')}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="space-y-3">
+                    <p className="text-xs font-bold text-green-600 uppercase tracking-wide flex items-center gap-1.5"><MessageSquare className="w-3.5 h-3.5" /> MAX</p>
+                    {([
+                      { label: 'Пользователей',      value: cjm.botComparison?.maxUsers ?? 0 },
+                      { label: 'Всего генераций',    value: cjm.botComparison?.maxTotalGens ?? 0 },
+                      { label: 'Генераций в месяц', value: cjm.botComparison?.maxMonthGens ?? 0 },
+                      { label: 'Avg кредитов',       value: cjm.botComparison?.maxAvgCredits ?? 0 },
+                    ]).map(({ label, value }) => (
+                      <div key={label} className="bg-green-50 rounded-xl p-3 flex justify-between items-center">
+                        <span className="text-sm text-gray-600">{label}</span>
+                        <span className="text-lg font-bold text-green-700">{value.toLocaleString('ru')}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* ── Section 13: Referrals ── */}
+              <div className="bg-white rounded-2xl border border-gray-200 p-5">
+                <p className="text-sm font-bold text-gray-700 mb-4">Реферальная воронка</p>
+                <div className="flex items-center gap-0 flex-wrap">
+                  {([
+                    { label: 'Рефереры',   value: cjm.referralFunnel?.totalReferrers ?? 0, bg: 'bg-purple-50',  text: 'text-purple-700' },
+                    { label: 'Приглашены', value: cjm.referralFunnel?.totalInvited ?? 0,   bg: 'bg-indigo-50',  text: 'text-indigo-700' },
+                    { label: 'Активированы', value: cjm.referralFunnel?.activated ?? 0,    bg: 'bg-blue-50',    text: 'text-blue-700' },
+                    { label: 'Оплатили',   value: cjm.referralFunnel?.convertedPaid ?? 0,  bg: 'bg-green-50',   text: 'text-green-700' },
+                  ]).map(({ label, value, bg, text }, idx, arr) => {
+                    const prevVal = idx > 0 ? arr[idx - 1].value : null
+                    const convPct = prevVal != null && prevVal > 0 ? Math.round((value / prevVal) * 100) : null
+                    return (
+                      <div key={label} className="flex items-center">
+                        <div className={`${bg} rounded-xl p-4 text-center min-w-[120px]`}>
+                          <p className={`text-2xl font-bold ${text}`}>{value.toLocaleString('ru')}</p>
+                          <p className="text-xs text-gray-500 mt-0.5">{label}</p>
+                          {convPct !== null && (
+                            <p className="text-xs text-gray-400 mt-0.5">{convPct}% от пред.</p>
+                          )}
+                        </div>
+                        {idx < arr.length - 1 && (
+                          <ChevronRight className="w-5 h-5 text-gray-300 shrink-0 mx-1" />
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+              {/* ── Section 14: Win-back List ── */}
+              <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+                <div className="p-4 border-b border-gray-100 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-bold text-gray-700">Win-back список — отток высокоактивных</p>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      Пользователи с ≥10 генерациями, неактивные более 30 дней
+                      {winback ? ` · ${winback.total} пользователей` : ''}
+                    </p>
+                  </div>
+                  <span className="text-xs bg-red-100 text-red-700 font-bold px-2.5 py-1 rounded-full">
+                    ⚠ Требует реактивации
+                  </span>
+                </div>
+                {!winback ? (
+                  <div className="flex items-center justify-center h-24 text-gray-400 text-sm">Загружаем...</div>
+                ) : winback.total === 0 ? (
+                  <div className="flex items-center justify-center h-24 text-gray-400 text-sm">Нет отточных пользователей</div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
+                        <tr>
+                          <th className="px-4 py-3 text-left">Пользователь</th>
+                          <th className="px-4 py-3 text-right">Всего ген.</th>
+                          <th className="px-4 py-3 text-right">Неактивен</th>
+                          <th className="px-4 py-3 text-center">Тариф</th>
+                          <th className="px-4 py-3 text-right">Кредитов</th>
+                          <th className="px-4 py-3 text-center">Профиль</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-50">
+                        {(winback.users ?? []).map((u: any) => (
+                          <tr key={u.id} className="hover:bg-gray-50">
+                            <td className="px-4 py-3">
+                              <div className="font-medium text-gray-800">
+                                {[u.firstName, u.lastName].filter(Boolean).join(' ') || u.username || '—'}
+                              </div>
+                              {u.email && <div className="text-xs text-gray-400">{u.email}</div>}
+                            </td>
+                            <td className="px-4 py-3 text-right font-bold text-gray-700">{u.totalGens}</td>
+                            <td className="px-4 py-3 text-right">
+                              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${u.daysInactive > 60 ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'}`}>
+                                {u.daysInactive}д
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full font-mono">
+                                {u.planKey ?? u.subStatus ?? '—'}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-right text-gray-600">{u.creditsBalance ?? '—'}</td>
+                            <td className="px-4 py-3 text-center">
+                              <Link
+                                href={`/admin/users/${u.id}`}
+                                className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold hover:underline"
+                              >
+                                Открыть →
+                              </Link>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             </>
           )}

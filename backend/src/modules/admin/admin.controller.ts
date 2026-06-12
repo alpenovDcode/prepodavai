@@ -351,6 +351,12 @@ export class AdminController {
     return this.adminService.getCjmAnalytics();
   }
 
+  // ========== WIN-BACK LIST ==========
+  @Get('winback')
+  async getWinbackList() {
+    return this.adminService.getWinbackList();
+  }
+
   // ========== ADMIN MANAGEMENT ==========
   @Get('admins')
   async getAdmins() {
