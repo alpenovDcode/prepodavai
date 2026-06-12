@@ -3,13 +3,10 @@
 import { ReactNode, useState, useMemo, useEffect } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { useServiceCosts } from '@/lib/hooks/useServiceCosts'
 import { useUser } from '@/lib/hooks/useUser'
-import { useSubscription } from '@/lib/hooks/useSubscription'
 import { useIsMobile } from '@/lib/hooks/useIsMobile'
 import { LOGO_BASE64 } from '@/constants/branding'
-import { BookOpen, HelpCircle, Gamepad2, Settings, ArrowLeft, PenTool, LayoutTemplate, MessageSquare, FileEdit, MessageCircle, Sparkles, PackageOpen, Video, LineChart, Camera, Image as ImageIcon, FileAudio, MonitorPlay, ClipboardCheck, GraduationCap, X, Menu, Loader2, Zap, Lock } from 'lucide-react'
-import PlanUpgradeModal from '@/components/PlanUpgradeModal'
+import { BookOpen, HelpCircle, Gamepad2, Settings, ArrowLeft, PenTool, LayoutTemplate, MessageSquare, FileEdit, MessageCircle, Sparkles, PackageOpen, Video, LineChart, Camera, Image as ImageIcon, FileAudio, MonitorPlay, ClipboardCheck, GraduationCap, X, Menu, Lock } from 'lucide-react'
 import NotificationBell from '@/components/NotificationBell'
 import { getCachedGenerations } from '@/lib/utils/generationsCache'
 import { getCurrentUser } from '@/lib/utils/userIdentity'
@@ -50,28 +47,6 @@ interface ToolGroup {
 
 interface WorkspaceLayoutProps {
     children: ReactNode
-}
-
-// Минимальный план для каждой операции.
-// Про получает всё из Стартера + Бесплатного; Бизнес — всё из Про + Стартера + Бесплатного.
-const OP_REQUIRED_PLAN: Record<string, string> = {
-    // Бесплатный и выше
-    text_generation: 'free', lesson_plan: 'free', message: 'free', worksheet: 'free', quiz: 'free',
-    vocabulary: 'free', feedback: 'free', content_adaptation: 'free',
-    // Бесплатный и выше (расширено)
-    game_generation: 'free', exam_variant: 'free', presentation: 'free',
-    // Стартер и выше
-    lesson_preparation: 'starter', expert_unpacking: 'starter', unpacking: 'starter',
-    video_analysis: 'starter', transcription: 'starter', sales_advisor: 'starter',
-    // Про и выше
-    image_generation: 'pro', photosession: 'pro',
-}
-const PLAN_ORDER_LAYOUT = ['free', 'starter', 'pro', 'business']
-
-function isOpLocked(opKey: string | undefined, currentPlanKey: string): boolean {
-    if (!opKey) return false
-    const required = OP_REQUIRED_PLAN[opKey] ?? 'free'
-    return PLAN_ORDER_LAYOUT.indexOf(currentPlanKey) < PLAN_ORDER_LAYOUT.indexOf(required)
 }
 
 const opMap: Record<string, string> = {
@@ -141,27 +116,15 @@ const toolGroups: ToolGroup[] = [
 
 const allTools = toolGroups.flatMap(g => g.tools)
 
-function getCreditsLabel(value: number): string {
-    if (value === 0) return 'токенов'
-    const lastDigit = value % 10
-    const lastTwoDigits = value % 100
-    if (lastTwoDigits >= 11 && lastTwoDigits <= 19) return 'токенов'
-    if (lastDigit === 1) return 'токен'
-    if (lastDigit >= 2 && lastDigit <= 4) return 'токена'
-    return 'токенов'
-}
-
 export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
     const pathname = usePathname()
     const router = useRouter()
     const { user, fullName, initials, loading: userLoading } = useUser()
-    const { subscription, totalCredits, loading: subLoading } = useSubscription()
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
     const [avatarError, setAvatarError] = useState(false)
-    const [planModalOpen, setPlanModalOpen] = useState(false)
 
     const { isMobile, isMiniApp } = useIsMobile()
-    const { costs } = useServiceCosts()
+    const costs = undefined
 
     // Предзагружаем MathJax при входе в workspace — к моменту открытия iframe скрипт уже в кеше браузера
     useEffect(() => {
@@ -196,22 +159,18 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
         return pathname.startsWith(path)
     }
 
-    const currentPlanKey = (subscription as any)?.planKey || 'free'
-
     const renderToolButton = (tool: Tool, showStar = false) => {
         const Icon = tool.icon
         const active = isActive(tool.path)
         const opType = opMap[tool.id]
-        const costEntry = costs?.find(c => c.operationType === opType)
+        const costEntry = costs?.find((c: any) => c.operationType === opType)
         const isHidden = costs !== undefined && opType !== undefined && !costEntry
         const isUnderMaintenance = costEntry?.isUnderMaintenance || false
-        const locked = isOpLocked(opType, currentPlanKey)
 
         if (isHidden) return null
 
         const handleClick = () => {
             if (isUnderMaintenance) return
-            if (locked) { setPlanModalOpen(true); return }
             router.push(tool.path)
             setMobileMenuOpen(false)
         }
@@ -220,23 +179,19 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
             <button
                 key={tool.id}
                 onClick={handleClick}
-                title={isUnderMaintenance ? 'Временно недоступно (тех. работы)' : locked ? 'Недоступно на вашем тарифе' : ''}
+                title={isUnderMaintenance ? 'Временно недоступно (тех. работы)' : ''}
                 className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors group relative w-full ${
                     active
                         ? 'bg-primary-50 text-primary-700'
                         : isUnderMaintenance
                             ? 'text-gray-300 cursor-not-allowed'
-                            : locked
-                                ? 'text-gray-300 hover:bg-amber-50 hover:text-amber-600 cursor-pointer'
-                                : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                            : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                 }`}
             >
-                <Icon className={`w-4 h-4 flex-shrink-0 ${active ? 'text-primary-600' : isUnderMaintenance ? 'text-gray-200' : locked ? 'text-gray-300 group-hover:text-amber-400' : 'text-gray-400'}`} />
+                <Icon className={`w-4 h-4 flex-shrink-0 ${active ? 'text-primary-600' : isUnderMaintenance ? 'text-gray-200' : 'text-gray-400'}`} />
                 <span className="flex-1 text-left">{tool.label}</span>
                 {isUnderMaintenance ? (
                     <PenTool className="w-3 h-3 text-amber-400 animate-pulse" />
-                ) : locked ? (
-                    <Lock className="w-3 h-3 text-gray-300 group-hover:text-amber-400 transition-colors" />
                 ) : showStar ? (
                     <span className="text-[10px] text-amber-400">★</span>
                 ) : null}
@@ -339,7 +294,7 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
                                 <div className="min-w-0 flex-1">
                                     <p className="text-sm font-bold text-gray-900 truncate">{fullName}</p>
                                     <p className="text-[10px] text-gray-500 uppercase tracking-wider font-semibold">
-                                        {subscription?.planName || 'Базовый План'}
+                                        Преподавай
                                     </p>
                                 </div>
                             </div>
@@ -429,35 +384,6 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
                     {renderToolNav()}
                 </div>
 
-                {/* Balance + Upgrade */}
-                <div className="px-4 pb-3 flex flex-col gap-2">
-                    <div
-                        className="flex items-center gap-2 px-3 py-2 rounded-xl bg-purple-50 border border-purple-100"
-                        title="Токены — внутренняя валюта для генерации материалов"
-                    >
-                        <Sparkles className="w-4 h-4 text-purple-500 flex-shrink-0" />
-                        {subLoading ? (
-                            <Loader2 className="w-4 h-4 text-purple-400 animate-spin" />
-                        ) : (
-                            <span className="text-sm font-bold text-gray-800">
-                                {totalCredits ?? 0}{' '}
-                                <span className="font-normal text-gray-500 text-xs">
-                                    {getCreditsLabel(totalCredits ?? 0)}
-                                </span>
-                            </span>
-                        )}
-                    </div>
-                    <button
-                        onClick={() => setPlanModalOpen(true)}
-                        className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-semibold transition-all active:scale-[0.98] shadow-sm"
-                    >
-                        <Zap className="w-3.5 h-3.5" />
-                        Улучшить тариф
-                    </button>
-                </div>
-
-                <PlanUpgradeModal open={planModalOpen} onClose={() => setPlanModalOpen(false)} />
-
                 {/* User Profile */}
                 <div className="p-4 border-t border-gray-100 bg-gray-50/30">
                     <div className="flex items-center justify-between mb-4 px-2">
@@ -490,7 +416,7 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
                                 {userLoading ? 'Загрузка...' : fullName}
                             </p>
                             <p className="text-[10px] text-gray-500 font-medium truncate">
-                                {subLoading ? '...' : (subscription?.planName || 'Базовый План')}
+                                {user?.email || ''}
                             </p>
                         </div>
                     </div>

@@ -5,11 +5,9 @@ import { usePathname, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useUser } from '@/lib/hooks/useUser'
 import { useMiniAppAuth } from '@/lib/hooks/useMiniAppAuth'
-import { useSubscription } from '@/lib/hooks/useSubscription'
 import { LOGO_BASE64 } from '@/constants/branding'
 import { apiClient } from '@/lib/api/client'
-import { Loader2, Menu, X, LayoutDashboard, Wand2, BookOpen, Users, Settings as SettingsIcon, Sparkles, Gift, Zap, MessageCircle, Calendar } from 'lucide-react'
-import PlanUpgradeModal from '@/components/PlanUpgradeModal'
+import { Loader2, Menu, X, LayoutDashboard, Wand2, BookOpen, Users, Settings as SettingsIcon, Gift, MessageCircle, Calendar } from 'lucide-react'
 import NotificationBell from '@/components/NotificationBell'
 
 interface DashboardLayoutProps {
@@ -33,9 +31,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         { id: 'settings', label: 'Моя карточка', icon: SettingsIcon, path: '/dashboard/settings' },
     ]
 
-    const [planModalOpen, setPlanModalOpen] = useState(false)
     const { fullName, user, initials } = useUser()
-    const { totalCredits, loading: balanceLoading } = useSubscription({ enabled: true })
 
     const isActive = (path: string) => {
         if (path === '/dashboard' && pathname !== '/dashboard') return false
@@ -105,14 +101,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                         )}
                         <span className="font-bold text-gray-900 text-sm">Панель управления</span>
                     </div>
-                    <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-purple-50 border border-purple-100 rounded-full">
-                        <Sparkles className="w-3 h-3 text-purple-600 fill-purple-600 flex-shrink-0" />
-                        {balanceLoading ? (
-                            <Loader2 className="w-3 h-3 text-purple-500 animate-spin" />
-                        ) : (
-                            <span className="text-xs font-black text-purple-700 leading-none">{totalCredits}</span>
-                        )}
-                    </div>
+                    <div className="w-10" />
                 </div>
 
                 {/* Sidebar drawer for mobile */}
@@ -280,17 +269,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                     </a>
                 </nav>
 
-                {/* Upgrade Button */}
-                <div className="px-4 pb-3">
-                    <button
-                        onClick={() => setPlanModalOpen(true)}
-                        className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-sm font-semibold rounded-xl shadow-md transition-all active:scale-95"
-                    >
-                        <Zap className="w-4 h-4" />
-                        Улучшить тариф
-                    </button>
-                </div>
-
                 {/* Bottom Section: Profile */}
                 <div className="p-4 border-t border-gray-100 bg-gray-50/30">
                     <div className="flex items-center justify-between mb-3 px-1">
@@ -338,7 +316,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 </main>
             </div>
 
-            <PlanUpgradeModal open={planModalOpen} onClose={() => setPlanModalOpen(false)} />
         </div>
     )
 }
