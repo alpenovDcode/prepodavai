@@ -415,28 +415,6 @@
             </div>
           </div>
 
-          <!-- ─── API ─── -->
-          <div class="panel" data-tour="api">
-            <div class="panel-head">
-              <div>
-                <h2>API-ключ</h2>
-                <div class="sub">Для бота и сторонних интеграций</div>
-              </div>
-              <button class="btn btn-secondary btn-sm"><i data-lucide="refresh-cw"></i> Перегенерировать</button>
-            </div>
-            <div class="panel-body">
-              <div class="api-key">
-                <i data-lucide="key-round" style="width:16px; color:var(--ink-500);"></i>
-                <span class="key">prv_•••••••••••••••••••••••12af</span>
-                <button class="btn btn-ghost btn-sm"><i data-lucide="eye"></i></button>
-                <button class="btn btn-secondary btn-sm"><i data-lucide="copy"></i> Копировать</button>
-              </div>
-              <div style="font-size: 12px; color: var(--ink-500); margin-top: 10px; line-height: 1.5;">
-                Используется для авторизации бота при отправке результатов в Telegram/MAX. Не передавайте никому.
-              </div>
-            </div>
-          </div>
-
           <!-- ─── Danger zone ─── -->
           <div class="danger-zone" data-tour="danger">
             <h2>Опасная зона</h2>
@@ -505,11 +483,6 @@
       target: '[data-tour="integrations"]', placement: 'left', padding: 8,
       title: '🔗 Интеграции',
       body: 'Привяжите Telegram или MAX — будете получать уведомления и принимать работы прямо в мессенджере. Удобно, если не любите сидеть в браузере.'
-    },
-    {
-      target: '[data-tour="api"]', placement: 'left', padding: 8,
-      title: '🔑 API-ключ',
-      body: 'Если делаете свой бот или интегрируете с другими сервисами — берёте ключ здесь. Не нужно — просто пропустите.'
     },
     {
       target: '[data-tour="danger"]', placement: 'top', padding: 8,
