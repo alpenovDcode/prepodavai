@@ -783,3 +783,20 @@ model DashboardPopupDismissal {
   @@index([userId])
   @@map("dashboard_popup_dismissals")
 }
+
+// ────────────────────────────────────────────────────────────────────────────
+// Глобальные системные настройки. Сейчас используется для maintenance-mode
+// («Ведутся технические работы»), но key/value-формат позволяет добавлять
+// другие переключатели без миграций.
+// Ключи:
+//   maintenance.enabled  → 'true' / 'false'
+//   maintenance.message  → текст заглушки для пользователей
+// ────────────────────────────────────────────────────────────────────────────
+model SystemSetting {
+  key       String   @id
+  value     String?
+  updatedAt DateTime @updatedAt
+  updatedBy String?  // appUser.id админа
+
+  @@map("system_settings")
+}

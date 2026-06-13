@@ -41,6 +41,7 @@ import { OnboardingQuestModule } from './modules/onboarding-quest/onboarding-que
 // import { PaymentsModule } from './modules/payments/payments.module';
 import { TeacherDiaryModule } from './modules/teacher-diary/teacher-diary.module';
 import { PopupsModule } from './modules/popups/popups.module';
+import { SystemModule } from './modules/system/system.module';
 
 @Module({
   imports: [
@@ -111,6 +112,7 @@ import { PopupsModule } from './modules/popups/popups.module';
     // PaymentsModule,
     TeacherDiaryModule,
     PopupsModule,
+    SystemModule,
   ],
   controllers: [AppController],
   providers: [

@@ -3,6 +3,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Toaster } from 'react-hot-toast'
+import MaintenanceGate from '@/components/MaintenanceGate'
 // import FloatingBalance from '@/components/workspace/FloatingBalance'
 
 export function Providers({ children }: { children: React.ReactNode }) {
@@ -20,7 +21,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      {children}
+      <MaintenanceGate>{children}</MaintenanceGate>
       {/* <FloatingBalance /> */}
       <Toaster
         position="top-right"
