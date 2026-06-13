@@ -1,0 +1,121 @@
+/* ──────────────────────────────────────────────────────────────────────────
+   ПРЕПОДАВАЙ — Дизайн-токены v2
+   Стиль: Clean Modern SaaS (Notion + Linear + Khan Academy)
+   Бренд: warm coral-orange #FF7E58 (preserved)
+   ────────────────────────────────────────────────────────────────────────── */
+
+:root {
+    /* ─── Brand color (preserved) ─── */
+    --brand-50:  #FFF4F0;
+    --brand-100: #FFE3D9;
+    --brand-200: #FFC7B3;
+    --brand-300: #FFA88A;
+    --brand-400: #FF8E69;
+    --brand-500: #FF7E58;   /* primary brand */
+    --brand-600: #F26339;
+    --brand-700: #D14B23;
+    --brand-800: #A93A1B;
+    --brand-900: #7A2A14;
+
+    /* ─── Neutrals (slate scale — modern SaaS) ─── */
+    --ink-900: #0F172A;     /* heading */
+    --ink-800: #1E293B;
+    --ink-700: #334155;
+    --ink-600: #475569;     /* body */
+    --ink-500: #64748B;
+    --ink-400: #94A3B8;     /* muted text */
+    --ink-300: #CBD5E1;     /* borders strong */
+    --ink-200: #E2E8F0;     /* borders */
+    --ink-100: #F1F5F9;     /* subtle bg */
+    --ink-50:  #F8FAFC;     /* page bg */
+
+    /* ─── Surfaces ─── */
+    --surface:        #FFFFFF;
+    --surface-soft:   #FAFAFA;
+    --surface-sunken: #F4F5F7;
+
+    /* ─── Semantic ─── */
+    --success-50:  #ECFDF5;
+    --success-500: #10B981;
+    --success-700: #047857;
+
+    --warning-50:  #FFFBEB;
+    --warning-500: #F59E0B;
+    --warning-700: #B45309;
+
+    --danger-50:   #FEF2F2;
+    --danger-500:  #EF4444;
+    --danger-700:  #B91C1C;
+
+    --info-50:     #EFF6FF;
+    --info-500:    #3B82F6;
+    --info-700:    #1D4ED8;
+
+    /* ─── Radius ─── */
+    --r-xs: 6px;
+    --r-sm: 8px;
+    --r-md: 12px;
+    --r-lg: 16px;
+    --r-xl: 20px;
+    --r-2xl: 24px;
+    --r-full: 9999px;
+
+    /* ─── Shadow (subtle, modern) ─── */
+    --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.04);
+    --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04);
+    --shadow-md: 0 4px 12px rgba(15, 23, 42, 0.08), 0 1px 2px rgba(15, 23, 42, 0.04);
+    --shadow-lg: 0 12px 24px rgba(15, 23, 42, 0.10), 0 2px 4px rgba(15, 23, 42, 0.04);
+
+    /* ─── Spacing ─── */
+    --sp-1: 4px;
+    --sp-2: 8px;
+    --sp-3: 12px;
+    --sp-4: 16px;
+    --sp-5: 20px;
+    --sp-6: 24px;
+    --sp-8: 32px;
+    --sp-10: 40px;
+    --sp-12: 48px;
+    --sp-16: 64px;
+
+    /* ─── Typography ─── */
+    --font-display: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    --font-sans:    'Inter', system-ui, -apple-system, sans-serif;
+    --font-mono:    'JetBrains Mono', ui-monospace, monospace;
+
+    /* ─── Motion ─── */
+    --t-fast:   120ms;
+    --t-base:   180ms;
+    --t-medium: 260ms;
+    --ease:     cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+    margin: 0;
+    padding: 0;
+    font-family: var(--font-sans);
+    font-feature-settings: 'cv02','cv03','cv04','cv11';
+    color: var(--ink-700);
+    background: var(--ink-50);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, h5 {
+    font-family: var(--font-display);
+    color: var(--ink-900);
+    letter-spacing: -0.01em;
+    margin: 0;
+}
+
+/* ─── Reusable utilities ─── */
+.tnum { font-variant-numeric: tabular-nums; }
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+    }
+}

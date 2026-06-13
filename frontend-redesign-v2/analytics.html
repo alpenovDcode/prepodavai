@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Аналитика — Преподавай</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/tokens.css" />
+<link rel="stylesheet" href="assets/components.css" />
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+  /* Line chart (SVG) */
+  .chart-frame {
+    position: relative;
+    width: 100%;
+    height: 220px;
+  }
+  .chart-frame svg { width: 100%; height: 100%; overflow: visible; }
+  .ylabel {
+    font-size: 11px;
+    fill: var(--ink-400);
+    font-family: var(--font-mono);
+  }
+  .grid-line {
+    stroke: var(--ink-100);
+    stroke-width: 1;
+  }
+
+  /* Heatmap (classes x weeks) */
+  .heatmap {
+    display: grid;
+    grid-template-columns: 80px repeat(12, 1fr);
+    gap: 4px;
+    align-items: center;
+  }
+  .heatmap .row-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ink-700);
+    text-align: right;
+    padding-right: 8px;
+  }
+  .heatmap .cell {
+    aspect-ratio: 1;
+    border-radius: var(--r-sm);
+    background: var(--ink-100);
+    transition: transform var(--t-fast) var(--ease);
+    cursor: pointer;
+  }
+  .heatmap .cell:hover { transform: scale(1.15); z-index: 5; box-shadow: var(--shadow-md); }
+  .heatmap .cell.l1 { background: #FFE3D9; }
+  .heatmap .cell.l2 { background: #FFC7B3; }
+  .heatmap .cell.l3 { background: #FF8E69; }
+  .heatmap .cell.l4 { background: var(--brand-500); }
+  .heatmap .cell.l5 { background: var(--brand-700); }
+
+  /* Distribution bars */
+  .dist-bars { display: flex; flex-direction: column; gap: 12px; }
+  .dist-row { display: grid; grid-template-columns: 80px 1fr 40px; gap: 12px; align-items: center; }
+  .dist-row .l { font-size: 13px; color: var(--ink-700); }
+  .dist-row .b { height: 12px; background: var(--ink-100); border-radius: var(--r-full); overflow: hidden; }
+  .dist-row .b > i { display: block; height: 100%; border-radius: var(--r-full); }
+  .dist-row .v { text-align: right; font-size: 13px; font-weight: 700; color: var(--ink-900); font-variant-numeric: tabular-nums; }
+
+  /* Donut */
+  .donut-wrap { position: relative; display: flex; align-items: center; justify-content: center; }
+  .donut-wrap svg { width: 160px; height: 160px; transform: rotate(-90deg); }
+  .donut-wrap .center {
+    position: absolute;
+    text-align: center;
+  }
+  .donut-wrap .center .v {
+    font-family: var(--font-display);
+    font-size: 28px;
+    font-weight: 800;
+    color: var(--ink-900);
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+  }
+  .donut-wrap .center .l {
+    font-size: 11px;
+    color: var(--ink-500);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-weight: 600;
+    margin-top: 2px;
+  }
+
+  .legend-list { display: flex; flex-direction: column; gap: 10px; }
+  .legend-list .row { display: flex; align-items: center; gap: 10px; font-size: 13px; }
+  .legend-list .row .dot { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+  .legend-list .row .name { color: var(--ink-700); flex: 1; }
+  .legend-list .row .val { font-weight: 700; color: var(--ink-900); font-variant-numeric: tabular-nums; }
+
+  /* Class card */
+  .class-row {
+    display: grid;
+    grid-template-columns: 200px 100px 100px 1fr 80px;
+    gap: 16px;
+    align-items: center;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--ink-100);
+  }
+  .class-row:last-child { border-bottom: none; }
+  .class-row .cn {
+    display: flex; align-items: center; gap: 10px;
+    font-weight: 600;
+    color: var(--ink-900);
+  }
+  .class-row .cn .pill {
+    width: 36px; height: 36px;
+    border-radius: var(--r-sm);
+    background: var(--brand-50);
+    color: var(--brand-700);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 12px;
+  }
+  .class-row .stat { font-family: var(--font-display); font-weight: 700; font-size: 15px; font-variant-numeric: tabular-nums; color: var(--ink-900); }
+  .class-row .stat .l { font-size: 10px; color: var(--ink-500); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; font-family: var(--font-sans); margin-top: 1px; }
+  .class-row .trend-bar { display: flex; gap: 2px; align-items: end; height: 28px; }
+  .class-row .trend-bar > span { width: 8px; background: var(--brand-300); border-radius: 2px 2px 0 0; }
+</style>
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <img src="assets/logo.png" alt="" /><span class="brand-name">Преподавай</span>
+    </div>
+    <nav class="sidebar-section">
+      <div class="sidebar-label">Рабочий стол</div>
+      <a class="nav-item" href="dashboard.html"><i data-lucide="layout-dashboard"></i>Главная</a>
+      <a class="nav-item" href="tools.html"><i data-lucide="wand-sparkles"></i>ИИ Генератор</a>
+      <a class="nav-item" href="calendar.html"><i data-lucide="calendar"></i>Календарь</a>
+      <a class="nav-item" href="materials.html"><i data-lucide="book-open"></i>Материалы</a>
+
+      <div class="sidebar-label">Класс</div>
+      <a class="nav-item" href="students.html"><i data-lucide="users"></i>Ученики<span class="nav-badge">3</span></a>
+      <a class="nav-item" href="grading.html"><i data-lucide="clipboard-check"></i>Проверка ДЗ</a>
+      <a class="nav-item is-active"><i data-lucide="bar-chart-3"></i>Аналитика</a>
+
+      <div class="sidebar-label">Прочее</div>
+      <a class="nav-item" href="referrals.html"><i data-lucide="gift"></i>Пригласить</a>
+      <a class="nav-item"><i data-lucide="message-circle"></i>Поддержка</a>
+      <a class="nav-item" href="settings.html"><i data-lucide="settings"></i>Настройки</a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="user-chip">
+        <div class="avatar">ЕА</div>
+        <div class="info"><div class="name">Евгения А.</div><div class="plan">Тариф «Бизнес»</div></div>
+        <i data-lucide="chevron-up" style="color:var(--ink-400); width:16px;"></i>
+      </div>
+    </div>
+  </aside>
+
+  <main>
+    <header class="topbar">
+      <div>
+        <h1>Аналитика</h1>
+        <div style="font-size:13px; color:var(--ink-500); margin-top:2px;">Динамика классов за выбранный период</div>
+      </div>
+      <div class="actions">
+        <div class="view-switch" style="display: inline-flex; background: var(--ink-100); border-radius: var(--r-md); padding: 3px;">
+          <button style="height:30px; padding:0 14px; border-radius:var(--r-sm); border:none; background:transparent; font-weight:600; font-size:13px; color:var(--ink-600); cursor:pointer;">Неделя</button>
+          <button style="height:30px; padding:0 14px; border-radius:var(--r-sm); border:none; background:white; font-weight:600; font-size:13px; color:var(--ink-900); cursor:pointer; box-shadow:var(--shadow-xs);">Месяц</button>
+          <button style="height:30px; padding:0 14px; border-radius:var(--r-sm); border:none; background:transparent; font-weight:600; font-size:13px; color:var(--ink-600); cursor:pointer;">Семестр</button>
+          <button style="height:30px; padding:0 14px; border-radius:var(--r-sm); border:none; background:transparent; font-weight:600; font-size:13px; color:var(--ink-600); cursor:pointer;">Год</button>
+        </div>
+        <button class="btn btn-secondary btn-sm"><i data-lucide="download"></i> Отчёт</button>
+      </div>
+    </header>
+
+    <div class="content">
+
+      <!-- ─── KPI row ─── -->
+      <div class="grid-bento" style="margin-bottom: 24px;">
+        <div class="card col-3">
+          <div class="stat">
+            <div class="stat-label">
+              <span class="icon-tile"><i data-lucide="trophy"></i></span>
+              Средний балл
+            </div>
+            <div class="stat-value tnum">4,3</div>
+            <div class="stat-delta up"><i data-lucide="trending-up" style="width:12px;"></i> +0,4 за месяц</div>
+          </div>
+        </div>
+
+        <div class="card col-3">
+          <div class="stat">
+            <div class="stat-label">
+              <span class="icon-tile" style="background:var(--success-50); color:var(--success-700);"><i data-lucide="check-circle"></i></span>
+              Сдают вовремя
+            </div>
+            <div class="stat-value tnum">87%</div>
+            <div class="stat-delta down"><i data-lucide="trending-down" style="width:12px;"></i> −3% за неделю</div>
+          </div>
+        </div>
+
+        <div class="card col-3">
+          <div class="stat">
+            <div class="stat-label">
+              <span class="icon-tile" style="background:var(--info-50); color:var(--info-700);"><i data-lucide="users"></i></span>
+              Активны
+            </div>
+            <div class="stat-value tnum">42/47</div>
+            <div style="font-size:12px; color:var(--ink-500);">89% вовлечённость</div>
+          </div>
+        </div>
+
+        <div class="card col-3">
+          <div class="stat">
+            <div class="stat-label">
+              <span class="icon-tile" style="background:var(--warning-50); color:var(--warning-700);"><i data-lucide="alert-triangle"></i></span>
+              В зоне риска
+            </div>
+            <div class="stat-value tnum">3</div>
+            <div style="font-size:12px; color:var(--ink-500);">из 47, разные классы</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ─── Trend + Distribution ─── -->
+      <div class="grid-bento" style="margin-bottom: 24px;">
+
+        <!-- Trend chart -->
+        <div class="card col-8">
+          <div class="section-head" style="margin-bottom: 18px;">
+            <div>
+              <h2 style="font-size:16px;">Динамика среднего балла</h2>
+              <div class="subtitle">По всем классам · 6 месяцев</div>
+            </div>
+            <div style="display:flex; gap:14px; font-size:12px; color:var(--ink-600);">
+              <span style="display:flex; align-items:center; gap:6px;"><span style="width:10px; height:2px; background:var(--brand-500); border-radius:1px;"></span>Все классы</span>
+              <span style="display:flex; align-items:center; gap:6px;"><span style="width:10px; height:2px; background:var(--ink-400); border-radius:1px;"></span>Прошлый период</span>
+            </div>
+          </div>
+
+          <div class="chart-frame">
+            <svg viewBox="0 0 800 220" preserveAspectRatio="none">
+              <!-- Grid -->
+              <line x1="40" y1="20"  x2="800" y2="20"  class="grid-line" stroke-dasharray="3 3" />
+              <line x1="40" y1="65"  x2="800" y2="65"  class="grid-line" />
+              <line x1="40" y1="110" x2="800" y2="110" class="grid-line" />
+              <line x1="40" y1="155" x2="800" y2="155" class="grid-line" />
+              <line x1="40" y1="200" x2="800" y2="200" class="grid-line" />
+
+              <!-- Y labels -->
+              <text x="30" y="24"  text-anchor="end" class="ylabel">5</text>
+              <text x="30" y="69"  text-anchor="end" class="ylabel">4</text>
+              <text x="30" y="114" text-anchor="end" class="ylabel">3</text>
+              <text x="30" y="159" text-anchor="end" class="ylabel">2</text>
+
+              <!-- X labels -->
+              <text x="80"  y="218" text-anchor="middle" class="ylabel">Янв</text>
+              <text x="200" y="218" text-anchor="middle" class="ylabel">Фев</text>
+              <text x="320" y="218" text-anchor="middle" class="ylabel">Мар</text>
+              <text x="440" y="218" text-anchor="middle" class="ylabel">Апр</text>
+              <text x="560" y="218" text-anchor="middle" class="ylabel">Май</text>
+              <text x="680" y="218" text-anchor="middle" class="ylabel">Июн</text>
+
+              <!-- Previous period (dashed gray) -->
+              <polyline
+                points="80,90 200,80 320,95 440,75 560,90 680,80"
+                fill="none" stroke="#94A3B8" stroke-width="1.5" stroke-dasharray="5 4" opacity="0.6"
+              />
+
+              <!-- Area gradient -->
+              <defs>
+                <linearGradient id="grad-line" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#FF7E58" stop-opacity="0.32" />
+                  <stop offset="100%" stop-color="#FF7E58" stop-opacity="0" />
+                </linearGradient>
+              </defs>
+
+              <polygon
+                points="80,105 200,85 320,60 440,72 560,48 680,38 680,200 80,200"
+                fill="url(#grad-line)"
+              />
+
+              <!-- Current period (brand) -->
+              <polyline
+                points="80,105 200,85 320,60 440,72 560,48 680,38"
+                fill="none" stroke="#FF7E58" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"
+              />
+
+              <!-- Dots -->
+              <circle cx="80"  cy="105" r="4" fill="white" stroke="#FF7E58" stroke-width="2.5"/>
+              <circle cx="200" cy="85"  r="4" fill="white" stroke="#FF7E58" stroke-width="2.5"/>
+              <circle cx="320" cy="60"  r="4" fill="white" stroke="#FF7E58" stroke-width="2.5"/>
+              <circle cx="440" cy="72"  r="4" fill="white" stroke="#FF7E58" stroke-width="2.5"/>
+              <circle cx="560" cy="48"  r="4" fill="white" stroke="#FF7E58" stroke-width="2.5"/>
+              <circle cx="680" cy="38"  r="5" fill="#FF7E58" stroke="white" stroke-width="2.5"/>
+
+              <!-- Tooltip on last point -->
+              <g transform="translate(680, 38)">
+                <rect x="-46" y="-46" width="92" height="32" rx="6" fill="#0F172A" />
+                <text x="0" y="-30" text-anchor="middle" fill="white" font-size="10" font-family="Inter" opacity="0.7">Июнь</text>
+                <text x="0" y="-18" text-anchor="middle" fill="white" font-size="13" font-family="Plus Jakarta Sans" font-weight="800">4.3 ↑</text>
+              </g>
+            </svg>
+          </div>
+        </div>
+
+        <!-- Grade distribution donut -->
+        <div class="card col-4">
+          <div class="section-head" style="margin-bottom: 16px;">
+            <div>
+              <h2 style="font-size:16px;">Распределение оценок</h2>
+              <div class="subtitle">Все работы за месяц</div>
+            </div>
+          </div>
+
+          <div style="display:flex; align-items:center; gap:20px;">
+            <div class="donut-wrap">
+              <svg viewBox="0 0 100 100">
+                <!-- Donut: stroke-dasharray builds segments. Circumference = 2πr ≈ 251.2 (r=40) -->
+                <circle cx="50" cy="50" r="40" fill="none" stroke="var(--success-500)"  stroke-width="14" stroke-dasharray="83 251" stroke-dashoffset="0" />
+                <circle cx="50" cy="50" r="40" fill="none" stroke="#34D399"               stroke-width="14" stroke-dasharray="100 251" stroke-dashoffset="-83" />
+                <circle cx="50" cy="50" r="40" fill="none" stroke="var(--warning-500)"   stroke-width="14" stroke-dasharray="50 251" stroke-dashoffset="-183" />
+                <circle cx="50" cy="50" r="40" fill="none" stroke="var(--danger-500)"    stroke-width="14" stroke-dasharray="18 251" stroke-dashoffset="-233" />
+              </svg>
+              <div class="center">
+                <div class="v">126</div>
+                <div class="l">работ</div>
+              </div>
+            </div>
+
+            <div class="legend-list" style="flex:1;">
+              <div class="row"><span class="dot" style="background:var(--success-500);"></span><span class="name">Отлично (5)</span><span class="val">42</span></div>
+              <div class="row"><span class="dot" style="background:#34D399;"></span><span class="name">Хорошо (4)</span><span class="val">51</span></div>
+              <div class="row"><span class="dot" style="background:var(--warning-500);"></span><span class="name">Удовл. (3)</span><span class="val">25</span></div>
+              <div class="row"><span class="dot" style="background:var(--danger-500);"></span><span class="name">Неуд. (2)</span><span class="val">8</span></div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ─── Engagement heatmap + Class compare ─── -->
+      <div class="grid-bento" style="margin-bottom: 24px;">
+
+        <div class="card col-7">
+          <div class="section-head" style="margin-bottom: 18px;">
+            <div>
+              <h2 style="font-size:16px;">Вовлечённость по неделям</h2>
+              <div class="subtitle">Доля учеников, сдавших работы вовремя</div>
+            </div>
+          </div>
+
+          <div class="heatmap">
+            <div></div>
+            <div style="text-align:center; font-size:10px; color:var(--ink-400);">Н1</div>
+            <div style="text-align:center; font-size:10px; color:var(--ink-400);">Н2</div>
+            <div style="text-align:center; font-size:10px; color:var(--ink-400);">Н3</div>
+            <div style="text-align:center; font-size:10px; color:var(--ink-400);">Н4</div>
+            <div style="text-align:center; font-size:10px; color:var(--ink-400);">Н5</div>
+            <div style="text-align:center; font-size:10px; color:var(--ink-400);">Н6</div>
+            <div style="text-align:center; font-size:10px; color:var(--ink-400);">Н7</div>
+            <div style="text-align:center; font-size:10px; color:var(--ink-400);">Н8</div>
+            <div style="text-align:center; font-size:10px; color:var(--ink-400);">Н9</div>
+            <div style="text-align:center; font-size:10px; color:var(--ink-400);">Н10</div>
+            <div style="text-align:center; font-size:10px; color:var(--ink-400);">Н11</div>
+            <div style="text-align:center; font-size:10px; color:var(--ink-400);">Н12</div>
+
+            <div class="row-label">10А</div>
+            <div class="cell l3"></div><div class="cell l4"></div><div class="cell l4"></div><div class="cell l5"></div>
+            <div class="cell l4"></div><div class="cell l5"></div><div class="cell l5"></div><div class="cell l4"></div>
+            <div class="cell l5"></div><div class="cell l5"></div><div class="cell l4"></div><div class="cell l3"></div>
+
+            <div class="row-label">9А</div>
+            <div class="cell l3"></div><div class="cell l3"></div><div class="cell l4"></div><div class="cell l4"></div>
+            <div class="cell l4"></div><div class="cell l3"></div><div class="cell l2"></div><div class="cell l3"></div>
+            <div class="cell l4"></div><div class="cell l4"></div><div class="cell l5"></div><div class="cell l4"></div>
+
+            <div class="row-label">11Б</div>
+            <div class="cell l5"></div><div class="cell l5"></div><div class="cell l4"></div><div class="cell l5"></div>
+            <div class="cell l5"></div><div class="cell l5"></div><div class="cell l4"></div><div class="cell l5"></div>
+            <div class="cell l5"></div><div class="cell l4"></div><div class="cell l5"></div><div class="cell l5"></div>
+
+            <div class="row-label">8А</div>
+            <div class="cell l2"></div><div class="cell l3"></div><div class="cell l3"></div><div class="cell l2"></div>
+            <div class="cell l1"></div><div class="cell l2"></div><div class="cell l3"></div><div class="cell l3"></div>
+            <div class="cell l4"></div><div class="cell l3"></div><div class="cell l3"></div><div class="cell l4"></div>
+
+            <div class="row-label">8В</div>
+            <div class="cell l4"></div><div class="cell l3"></div><div class="cell l4"></div><div class="cell l4"></div>
+            <div class="cell l5"></div><div class="cell l4"></div><div class="cell l4"></div><div class="cell l5"></div>
+            <div class="cell l5"></div><div class="cell l5"></div><div class="cell l4"></div><div class="cell l5"></div>
+          </div>
+
+          <div style="display:flex; align-items:center; gap:8px; margin-top:18px; font-size:11px; color:var(--ink-500);">
+            <span>меньше</span>
+            <div class="cell" style="width:14px; aspect-ratio:1; background:var(--ink-100); border-radius:3px;"></div>
+            <div class="cell" style="width:14px; aspect-ratio:1; background:#FFE3D9; border-radius:3px;"></div>
+            <div class="cell" style="width:14px; aspect-ratio:1; background:#FFC7B3; border-radius:3px;"></div>
+            <div class="cell" style="width:14px; aspect-ratio:1; background:#FF8E69; border-radius:3px;"></div>
+            <div class="cell" style="width:14px; aspect-ratio:1; background:var(--brand-500); border-radius:3px;"></div>
+            <div class="cell" style="width:14px; aspect-ratio:1; background:var(--brand-700); border-radius:3px;"></div>
+            <span>больше</span>
+          </div>
+        </div>
+
+        <!-- Top subjects -->
+        <div class="card col-5">
+          <div class="section-head" style="margin-bottom: 18px;">
+            <div>
+              <h2 style="font-size:16px;">Сложность тем</h2>
+              <div class="subtitle">Где у класса проблемы чаще</div>
+            </div>
+          </div>
+
+          <div class="dist-bars">
+            <div class="dist-row">
+              <span class="l">Тригонометрия</span>
+              <span class="b"><i style="width:78%; background:var(--danger-500);"></i></span>
+              <span class="v">78%</span>
+            </div>
+            <div class="dist-row">
+              <span class="l">Интегралы</span>
+              <span class="b"><i style="width:65%; background:var(--warning-500);"></i></span>
+              <span class="v">65%</span>
+            </div>
+            <div class="dist-row">
+              <span class="l">Past Continuous</span>
+              <span class="b"><i style="width:48%; background:var(--warning-500);"></i></span>
+              <span class="v">48%</span>
+            </div>
+            <div class="dist-row">
+              <span class="l">Дискриминант</span>
+              <span class="b"><i style="width:32%; background:var(--success-500);"></i></span>
+              <span class="v">32%</span>
+            </div>
+            <div class="dist-row">
+              <span class="l">Эл. индукция</span>
+              <span class="b"><i style="width:28%; background:var(--success-500);"></i></span>
+              <span class="v">28%</span>
+            </div>
+            <div class="dist-row">
+              <span class="l">Геометрия</span>
+              <span class="b"><i style="width:22%; background:var(--success-500);"></i></span>
+              <span class="v">22%</span>
+            </div>
+          </div>
+
+          <div style="margin-top: 18px; padding: 12px 14px; background: linear-gradient(165deg, #EEF2FF 0%, #FFFFFF 60%); border:1px solid #C7D2FE; border-radius: var(--r-md); font-size: 12px; color: var(--ink-700); display:flex; gap:10px; align-items:flex-start;">
+            <span style="background: linear-gradient(135deg, #6366F1, #8B5CF6); color:white; padding:2px 6px; border-radius:var(--r-sm); font-weight:700; font-size:10px; flex-shrink:0;">ИИ</span>
+            <span>Тригонометрия сейчас тяжелее всего для 10А. Рекомендую сгенерировать «Вау-урок» с акцентом на формулы приведения.</span>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ─── Per-class table ─── -->
+      <div class="card" style="padding: 0;">
+        <div style="padding: 20px 24px; border-bottom: 1px solid var(--ink-100);">
+          <div class="section-head" style="margin-bottom: 0;">
+            <div>
+              <h2 style="font-size:16px;">Сравнение классов</h2>
+              <div class="subtitle">Где растут, где буксуют</div>
+            </div>
+            <button class="btn btn-secondary btn-sm"><i data-lucide="arrow-up-down"></i> По баллу</button>
+          </div>
+        </div>
+
+        <div class="class-row" style="background: var(--surface-soft); padding: 10px 16px;">
+          <div style="font-size:10px; font-weight:700; color:var(--ink-500); text-transform:uppercase; letter-spacing:0.04em;">Класс</div>
+          <div style="font-size:10px; font-weight:700; color:var(--ink-500); text-transform:uppercase; letter-spacing:0.04em;">Балл</div>
+          <div style="font-size:10px; font-weight:700; color:var(--ink-500); text-transform:uppercase; letter-spacing:0.04em;">Сдают</div>
+          <div style="font-size:10px; font-weight:700; color:var(--ink-500); text-transform:uppercase; letter-spacing:0.04em;">Тренд</div>
+          <div></div>
+        </div>
+
+        <div class="class-row">
+          <div class="cn"><span class="pill">11Б</span> <span>11Б · математика</span></div>
+          <div class="stat">4,6 <div class="l">средний</div></div>
+          <div class="stat" style="color:var(--success-700);">94% <div class="l">вовремя</div></div>
+          <div class="trend-bar">
+            <span style="height:30%; background:var(--brand-200);"></span>
+            <span style="height:45%; background:var(--brand-300);"></span>
+            <span style="height:50%; background:var(--brand-400);"></span>
+            <span style="height:60%; background:var(--brand-400);"></span>
+            <span style="height:75%; background:var(--brand-500);"></span>
+            <span style="height:80%; background:var(--brand-500);"></span>
+            <span style="height:92%; background:var(--brand-600);"></span>
+          </div>
+          <span class="badge badge-success">Растёт</span>
+        </div>
+
+        <div class="class-row">
+          <div class="cn"><span class="pill">10А</span> <span>10А · математика</span></div>
+          <div class="stat">4,3 <div class="l">средний</div></div>
+          <div class="stat" style="color:var(--success-700);">89% <div class="l">вовремя</div></div>
+          <div class="trend-bar">
+            <span style="height:55%; background:var(--brand-300);"></span>
+            <span style="height:60%; background:var(--brand-400);"></span>
+            <span style="height:50%; background:var(--brand-300);"></span>
+            <span style="height:65%; background:var(--brand-400);"></span>
+            <span style="height:70%; background:var(--brand-400);"></span>
+            <span style="height:80%; background:var(--brand-500);"></span>
+            <span style="height:85%; background:var(--brand-500);"></span>
+          </div>
+          <span class="badge badge-success">Растёт</span>
+        </div>
+
+        <div class="class-row">
+          <div class="cn"><span class="pill">9А</span> <span>9А · математика</span></div>
+          <div class="stat">3,9 <div class="l">средний</div></div>
+          <div class="stat" style="color:var(--warning-700);">82% <div class="l">вовремя</div></div>
+          <div class="trend-bar">
+            <span style="height:70%; background:var(--brand-400);"></span>
+            <span style="height:75%; background:var(--brand-500);"></span>
+            <span style="height:65%; background:var(--brand-400);"></span>
+            <span style="height:55%; background:var(--brand-300);"></span>
+            <span style="height:50%; background:var(--brand-300);"></span>
+            <span style="height:45%; background:var(--brand-300);"></span>
+            <span style="height:42%; background:var(--brand-300);"></span>
+          </div>
+          <span class="badge badge-warning">Падает</span>
+        </div>
+
+        <div class="class-row">
+          <div class="cn"><span class="pill">8А</span> <span>8А · история</span></div>
+          <div class="stat" style="color:var(--danger-700);">3,5 <div class="l">средний</div></div>
+          <div class="stat" style="color:var(--danger-700);">71% <div class="l">вовремя</div></div>
+          <div class="trend-bar">
+            <span style="height:30%; background:var(--ink-300);"></span>
+            <span style="height:35%; background:var(--ink-300);"></span>
+            <span style="height:25%; background:var(--ink-300);"></span>
+            <span style="height:30%; background:var(--ink-300);"></span>
+            <span style="height:32%; background:var(--ink-300);"></span>
+            <span style="height:28%; background:var(--ink-300);"></span>
+            <span style="height:34%; background:var(--ink-300);"></span>
+          </div>
+          <span class="badge badge-danger">Внимание</span>
+        </div>
+
+        <div class="class-row">
+          <div class="cn"><span class="pill">8В</span> <span>8В · англ. язык</span></div>
+          <div class="stat">4,1 <div class="l">средний</div></div>
+          <div class="stat" style="color:var(--success-700);">90% <div class="l">вовремя</div></div>
+          <div class="trend-bar">
+            <span style="height:60%; background:var(--brand-400);"></span>
+            <span style="height:65%; background:var(--brand-400);"></span>
+            <span style="height:70%; background:var(--brand-500);"></span>
+            <span style="height:72%; background:var(--brand-500);"></span>
+            <span style="height:75%; background:var(--brand-500);"></span>
+            <span style="height:70%; background:var(--brand-500);"></span>
+            <span style="height:72%; background:var(--brand-500);"></span>
+          </div>
+          <span class="badge badge-info">Стабильно</span>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+<script>lucide.createIcons();</script>
+</body>
+</html>

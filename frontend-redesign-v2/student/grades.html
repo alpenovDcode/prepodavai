@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Мои оценки — Преподавай</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/tokens.css" />
+<link rel="stylesheet" href="../assets/components.css" />
+<link rel="stylesheet" href="student.css" />
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+  /* KPI cards */
+  .gr-kpi {
+    background: var(--surface);
+    border: 1px solid var(--ink-200);
+    border-radius: var(--r-lg);
+    padding: 20px;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .gr-kpi .label { font-size: 13px; color: var(--ink-500); display: flex; align-items: center; gap: 8px; }
+  .gr-kpi .icon-tile { width: 28px; height: 28px; border-radius: var(--r-sm); display: flex; align-items: center; justify-content: center; }
+  .gr-kpi .icon-tile svg { width: 16px; height: 16px; }
+  .gr-kpi .val {
+    font-family: var(--font-display);
+    font-size: 32px;
+    font-weight: 800;
+    color: var(--ink-900);
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.1;
+  }
+  .gr-kpi .small { font-size: 12px; color: var(--ink-500); }
+
+  /* Subject row with bar */
+  .subj-row {
+    background: var(--surface);
+    border: 1px solid var(--ink-200);
+    border-radius: var(--r-md);
+    padding: 14px 18px;
+    display: grid;
+    grid-template-columns: 1fr 140px 80px;
+    gap: 16px;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .subj-row .name { font-weight: 700; color: var(--ink-900); font-size: 14px; }
+  .subj-row .meta { font-size: 12px; color: var(--ink-500); margin-top: 2px; }
+  .subj-row .bar { height: 8px; background: var(--ink-100); border-radius: var(--r-full); overflow: hidden; }
+  .subj-row .bar > i { display: block; height: 100%; border-radius: var(--r-full); }
+  .subj-row .v {
+    font-family: var(--font-display);
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--ink-900);
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Graded work card */
+  .graded {
+    background: var(--surface);
+    border: 1px solid var(--ink-200);
+    border-radius: var(--r-lg);
+    margin-bottom: 12px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: all var(--t-fast) var(--ease);
+  }
+  .graded:hover { border-color: var(--brand-300); box-shadow: var(--shadow-sm); }
+  .graded .head {
+    padding: 14px 18px;
+    display: flex; gap: 16px; align-items: center;
+  }
+  .graded .head .ico {
+    width: 44px; height: 44px;
+    border-radius: var(--r-md);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .graded .head .ico svg { width: 22px; }
+  .graded .head .ttl {
+    font-weight: 600; color: var(--ink-900); font-size: 14px;
+    line-height: 1.3;
+    margin-bottom: 4px;
+  }
+  .graded .head .meta {
+    font-size: 12px; color: var(--ink-500);
+    display: flex; gap: 8px; align-items: center;
+  }
+  .graded .grade-box {
+    width: 60px; height: 60px;
+    border-radius: var(--r-md);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-display);
+    font-size: 28px;
+    font-weight: 800;
+    color: white;
+    flex-shrink: 0;
+  }
+  .grade-5 { background: linear-gradient(135deg, var(--success-500), #047857); }
+  .grade-4 { background: linear-gradient(135deg, #34D399, var(--success-500)); }
+  .grade-3 { background: linear-gradient(135deg, #FBBF24, var(--warning-500)); }
+  .grade-2 { background: linear-gradient(135deg, #F87171, var(--danger-500)); }
+
+  .graded .body {
+    padding: 0 18px 18px 18px;
+    border-top: 1px solid var(--ink-100);
+    padding-top: 16px;
+  }
+  .graded .comment {
+    background: var(--info-50);
+    border-left: 3px solid var(--info-500);
+    border-radius: 0 var(--r-md) var(--r-md) 0;
+    padding: 12px 14px;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--ink-700);
+    display: flex;
+    gap: 10px;
+  }
+  .graded .comment .av {
+    width: 28px; height: 28px;
+    background: linear-gradient(135deg, var(--brand-300), var(--brand-500));
+    color: white;
+    border-radius: var(--r-full);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700;
+    font-size: 11px;
+    flex-shrink: 0;
+  }
+  .graded .comment .text strong { color: var(--ink-900); display: block; margin-bottom: 2px; font-size: 12px; }
+
+  /* Pending card */
+  .pending {
+    background: var(--surface-soft);
+    border: 1px dashed var(--ink-300);
+    border-radius: var(--r-lg);
+    padding: 16px 18px;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    opacity: 0.92;
+  }
+  .pending .grade-box-empty {
+    width: 60px; height: 60px;
+    border-radius: var(--r-md);
+    border: 2px dashed var(--ink-300);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--ink-400);
+    flex-shrink: 0;
+  }
+
+  /* Achievement strip */
+  .ach-strip {
+    background: linear-gradient(135deg, #FFFBEB 0%, #FFFFFF 70%);
+    border: 1px solid #FCD34D;
+    border-radius: var(--r-lg);
+    padding: 18px 22px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .ach-strip .ico {
+    width: 48px; height: 48px;
+    border-radius: var(--r-md);
+    background: linear-gradient(135deg, #F59E0B, #DC2626);
+    color: white;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .ach-strip .text { flex: 1; }
+  .ach-strip .t { font-weight: 800; color: var(--ink-900); font-size: 15px; }
+  .ach-strip .d { font-size: 12px; color: var(--ink-600); margin-top: 2px; }
+</style>
+</head>
+<body>
+<div class="s-shell">
+
+  <aside class="s-sidebar">
+    <div class="s-sidebar-brand">
+      <img src="../assets/logo.png" alt="" /><span class="name">Преподавай</span>
+    </div>
+    <nav class="s-nav">
+      <a class="s-nav-item" href="dashboard.html"><i data-lucide="layout-dashboard"></i>Главная</a>
+      <a class="s-nav-item"><i data-lucide="book-open"></i>Задания<span class="badge-num">7</span></a>
+      <a class="s-nav-item is-active"><i data-lucide="graduation-cap"></i>Оценки</a>
+      <a class="s-nav-item" href="ai-teacher.html"><i data-lucide="bot"></i>ИИ-учитель</a>
+      <a class="s-nav-item"><i data-lucide="trophy"></i>Достижения</a>
+      <a class="s-nav-item"><i data-lucide="bell"></i>Уведомления</a>
+    </nav>
+    <div class="s-profile">
+      <div class="top">
+        <div class="av">КП</div>
+        <div><div class="nm">Кирилл Петров</div><div class="mt">10А · математика</div></div>
+      </div>
+      <div class="stats">
+        <div><div class="v"><i data-lucide="flame" style="width:14px; color:#F59E0B;"></i> 7</div><div class="l">стрик</div></div>
+        <div><div class="v"><i data-lucide="star" style="width:14px; color:#F59E0B;"></i> 245</div><div class="l">опыт</div></div>
+      </div>
+    </div>
+  </aside>
+
+  <main>
+    <header class="s-topbar">
+      <h1>Мои оценки</h1>
+      <div style="display:flex; gap:10px; align-items:center;">
+        <div class="xp-chip">
+          <div class="ico"><i data-lucide="flame" style="width:12px;"></i></div>
+          7 дней подряд
+        </div>
+      </div>
+    </header>
+
+    <div class="s-content">
+
+      <!-- Achievement notification -->
+      <div class="ach-strip">
+        <div class="ico"><i data-lucide="award"></i></div>
+        <div class="text">
+          <div class="t">Новая ачивка: «Семь дней подряд»</div>
+          <div class="d">Ты сдаёшь работы вовремя 7 дней подряд. Бонус: <strong style="color:var(--warning-700);">+50 XP</strong></div>
+        </div>
+        <button class="btn btn-primary btn-sm">Посмотреть</button>
+      </div>
+
+      <!-- KPI -->
+      <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px;">
+        <div class="gr-kpi">
+          <div class="label">
+            <span class="icon-tile" style="background:var(--brand-50); color:var(--brand-600);"><i data-lucide="trophy"></i></span>
+            Средний балл
+          </div>
+          <div class="val">4,3</div>
+          <div class="small" style="color: var(--success-700); font-weight: 600;"><i data-lucide="trending-up" style="width:12px; display:inline-block; vertical-align:-2px;"></i> +0,3 за месяц</div>
+        </div>
+
+        <div class="gr-kpi">
+          <div class="label">
+            <span class="icon-tile" style="background:var(--success-50); color:var(--success-700);"><i data-lucide="check-circle"></i></span>
+            Сдано работ
+          </div>
+          <div class="val">24</div>
+          <div class="small">из 26 заданий за семестр</div>
+        </div>
+
+        <div class="gr-kpi">
+          <div class="label">
+            <span class="icon-tile" style="background:var(--warning-50); color:var(--warning-700);"><i data-lucide="hourglass"></i></span>
+            На проверке
+          </div>
+          <div class="val">2</div>
+          <div class="small">оценка появится скоро</div>
+        </div>
+
+        <div class="gr-kpi">
+          <div class="label">
+            <span class="icon-tile" style="background:#FEF3C7; color:#92400E;"><i data-lucide="star"></i></span>
+            Опыт
+          </div>
+          <div class="val">245</div>
+          <div class="small">до следующего уровня: 55</div>
+        </div>
+      </div>
+
+      <!-- By subject -->
+      <div class="section-head">
+        <div>
+          <h2 style="font-size:18px;">По предметам</h2>
+          <div class="subtitle">Твой средний балл по каждому предмету</div>
+        </div>
+      </div>
+
+      <div style="margin-bottom: 28px;">
+        <div class="subj-row">
+          <div>
+            <div class="name">Математика</div>
+            <div class="meta">10 оценок · 4 работы на проверке</div>
+          </div>
+          <div class="bar"><i style="width:88%; background:var(--success-500);"></i></div>
+          <div class="v" style="color:var(--success-700);">4,4</div>
+        </div>
+
+        <div class="subj-row">
+          <div>
+            <div class="name">Физика</div>
+            <div class="meta">5 оценок</div>
+          </div>
+          <div class="bar"><i style="width:82%; background:var(--success-500);"></i></div>
+          <div class="v" style="color:var(--success-700);">4,1</div>
+        </div>
+
+        <div class="subj-row">
+          <div>
+            <div class="name">Биология</div>
+            <div class="meta">3 оценки</div>
+          </div>
+          <div class="bar"><i style="width:90%; background:var(--success-500);"></i></div>
+          <div class="v" style="color:var(--success-700);">4,5</div>
+        </div>
+
+        <div class="subj-row">
+          <div>
+            <div class="name">Англ. язык</div>
+            <div class="meta">4 оценки</div>
+          </div>
+          <div class="bar"><i style="width:70%; background:var(--warning-500);"></i></div>
+          <div class="v" style="color:var(--warning-700);">3,5</div>
+        </div>
+
+        <div class="subj-row">
+          <div>
+            <div class="name">История</div>
+            <div class="meta">2 оценки</div>
+          </div>
+          <div class="bar"><i style="width:80%; background:var(--success-500);"></i></div>
+          <div class="v" style="color:var(--success-700);">4,0</div>
+        </div>
+      </div>
+
+      <!-- Pending -->
+      <div class="section-head">
+        <div>
+          <h2 style="font-size:18px;">Ждут оценки</h2>
+          <div class="subtitle">Учитель скоро проверит</div>
+        </div>
+      </div>
+
+      <div style="margin-bottom: 28px;">
+
+        <div class="pending">
+          <div class="grade-box-empty"><i data-lucide="hourglass"></i></div>
+          <div style="flex:1;">
+            <div style="font-weight: 600; color: var(--ink-900); font-size: 14px;">Рабочий лист · Древний Рим</div>
+            <div style="font-size: 12px; color: var(--ink-500); margin-top: 4px;">История · сдано 2 дня назад</div>
+          </div>
+          <span class="badge badge-warning">На проверке</span>
+        </div>
+
+        <div class="pending">
+          <div class="grade-box-empty"><i data-lucide="hourglass"></i></div>
+          <div style="flex:1;">
+            <div style="font-weight: 600; color: var(--ink-900); font-size: 14px;">Тест · Тригонометрия (базовые понятия)</div>
+            <div style="font-size: 12px; color: var(--ink-500); margin-top: 4px;">Математика · сдано вчера</div>
+          </div>
+          <span class="badge badge-warning">На проверке</span>
+        </div>
+
+      </div>
+
+      <!-- Graded -->
+      <div class="section-head">
+        <div>
+          <h2 style="font-size:18px;">Последние оценки</h2>
+          <div class="subtitle">С комментариями учителя</div>
+        </div>
+        <button class="btn btn-secondary btn-sm">Все 24</button>
+      </div>
+
+      <div>
+
+        <!-- 5 -->
+        <div class="graded">
+          <div class="head">
+            <div class="ico" style="background:#FEE2E2; color:var(--danger-700);"><i data-lucide="dna"></i></div>
+            <div style="flex:1;">
+              <div class="ttl">Тест · Строение клетки и её основные функции</div>
+              <div class="meta">
+                <span>Биология</span><span>·</span><span>вчера</span><span>·</span>
+                <span style="color: var(--warning-700); font-weight: 700;">+30 XP</span>
+              </div>
+            </div>
+            <div class="grade-box grade-5">5</div>
+          </div>
+          <div class="body">
+            <div class="comment">
+              <div class="av">ЕА</div>
+              <div class="text">
+                <strong>Евгения Александрова</strong>
+                Отлично! Все вопросы решены без ошибок. Особенно понравилось, что ты подробно описал функции митохондрий — видно, что разобрался в теме. Так держать! 👏
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 4 -->
+        <div class="graded">
+          <div class="head">
+            <div class="ico" style="background:var(--info-50); color:var(--info-700);"><i data-lucide="circle-help"></i></div>
+            <div style="flex:1;">
+              <div class="ttl">Тест · Дискриминант квадратного уравнения</div>
+              <div class="meta">
+                <span>Математика</span><span>·</span><span>3 дня назад</span><span>·</span>
+                <span style="color: var(--warning-700); font-weight: 700;">+20 XP</span>
+              </div>
+            </div>
+            <div class="grade-box grade-4">4</div>
+          </div>
+          <div class="body">
+            <div class="comment">
+              <div class="av">ЕА</div>
+              <div class="text">
+                <strong>Евгения Александрова</strong>
+                Хорошо. Допустил одну вычислительную ошибку в задаче №7. Внимательнее перепроверяй знаки при подстановке отрицательных значений.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3 -->
+        <div class="graded">
+          <div class="head">
+            <div class="ico" style="background:#EFF6FF; color:var(--info-700);"><i data-lucide="languages"></i></div>
+            <div style="flex:1;">
+              <div class="ttl">Рабочий лист · Past Continuous</div>
+              <div class="meta">
+                <span>Англ. язык</span><span>·</span><span>неделю назад</span><span>·</span>
+                <span style="color: var(--warning-700); font-weight: 700;">+10 XP</span>
+              </div>
+            </div>
+            <div class="grade-box grade-3">3</div>
+          </div>
+          <div class="body">
+            <div class="comment">
+              <div class="av" style="background:linear-gradient(135deg, #818CF8, #4338CA);">МК</div>
+              <div class="text">
+                <strong>Мария Куликова</strong>
+                Есть базовое понимание времён, но часто путаешь Past Simple с Past Continuous. Рекомендую повторить раздел «when vs while» и сделать <a href="#" style="color: var(--brand-700); font-weight: 600;">упражнения 12–15</a> для тренировки.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 5 -->
+        <div class="graded">
+          <div class="head">
+            <div class="ico" style="background:var(--success-50); color:var(--success-700);"><i data-lucide="atom"></i></div>
+            <div style="flex:1;">
+              <div class="ttl">Презентация · Электромагнитная индукция</div>
+              <div class="meta">
+                <span>Физика</span><span>·</span><span>2 недели назад</span><span>·</span>
+                <span style="color: var(--warning-700); font-weight: 700;">+50 XP</span>
+              </div>
+            </div>
+            <div class="grade-box grade-5">5</div>
+          </div>
+          <div class="body">
+            <div class="comment">
+              <div class="av">ЕА</div>
+              <div class="text">
+                <strong>Евгения Александрова</strong>
+                Великолепная работа. Презентация структурирована, формулы выведены, есть хорошие реальные примеры. Бонус +20 XP за качество оформления!
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </main>
+</div>
+<script>lucide.createIcons();</script>
+</body>
+</html>

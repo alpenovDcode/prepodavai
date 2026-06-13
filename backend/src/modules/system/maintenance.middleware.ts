@@ -44,6 +44,23 @@ export class MaintenanceMiddleware implements NestMiddleware {
       return next();
     }
 
+    // Запросы от ботов (Telegram standalone, MAX) проходят в обход maintenance:
+    // тех. работы — это про веб-интерфейс, ботам мы не показываем заглушку,
+    // они должны продолжать обслуживать пользователей. Бот сам ставит этот
+    // заголовок при вызове API.
+    const botSource = req.headers['x-bot-source'];
+    if (typeof botSource === 'string' && botSource.trim().length > 0) {
+      return next();
+    }
+
+    // Бот может также положить признак в тело запроса как _miniAppPlatform —
+    // на случай, если заголовок забыли пробросить.
+    const body = (req as any).body;
+    const platform = body?._miniAppPlatform;
+    if (platform === 'telegram' || platform === 'max') {
+      return next();
+    }
+
     // Достаём userId из Bearer JWT (без полноценной валидации — это уже сделает
     // дальше JwtAuthGuard). Нам нужно лишь сверить с admin-списком, чтобы
     // пропустить администратора при maintenance.

@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Вход — Преподавай</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/tokens.css" />
+<link rel="stylesheet" href="assets/components.css" />
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+  body { background: var(--surface); }
+
+  .auth-shell {
+    min-height: 100vh;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+  @media (max-width: 1023px) {
+    .auth-shell { grid-template-columns: 1fr; }
+    .auth-side  { display: none; }
+  }
+
+  .auth-form-col {
+    display: flex;
+    flex-direction: column;
+    padding: 32px;
+  }
+
+  .auth-top {
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .auth-brand {
+    display: flex; align-items: center; gap: 10px;
+  }
+  .auth-brand img { width: 32px; height: 32px; border-radius: 8px; }
+  .auth-brand .name {
+    font-family: var(--font-display); font-weight: 700; font-size: 16px;
+    color: var(--ink-900); letter-spacing: -0.02em;
+  }
+  .auth-top .lang {
+    font-size: 13px; color: var(--ink-600); font-weight: 500;
+    display: inline-flex; align-items: center; gap: 4px;
+    cursor: pointer; padding: 6px 10px; border-radius: var(--r-sm);
+  }
+  .auth-top .lang:hover { background: var(--ink-100); }
+
+  .auth-form-wrap {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .auth-form {
+    width: 100%;
+    max-width: 380px;
+  }
+  .auth-form h1 {
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+    margin-bottom: 8px;
+  }
+  .auth-form .sub {
+    font-size: 14px;
+    color: var(--ink-500);
+    margin-bottom: 28px;
+  }
+
+  .auth-field { margin-bottom: 14px; position: relative; }
+  .auth-field .input { padding-left: 40px; height: 48px; font-size: 14px; }
+  .auth-field svg.lead {
+    position: absolute;
+    left: 14px; top: 50%;
+    transform: translateY(-50%);
+    width: 18px; height: 18px;
+    color: var(--ink-500);
+    pointer-events: none;
+  }
+  .auth-field .toggle-pass {
+    position: absolute;
+    right: 12px; top: 50%;
+    transform: translateY(-50%);
+    width: 32px; height: 32px;
+    border: none; background: transparent;
+    color: var(--ink-500);
+    cursor: pointer;
+    border-radius: var(--r-sm);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .auth-field .toggle-pass:hover { background: var(--ink-100); color: var(--ink-900); }
+
+  .auth-actions-row {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 18px;
+    font-size: 13px;
+  }
+  .auth-actions-row label { display: flex; align-items: center; gap: 8px; cursor: pointer; color: var(--ink-600); }
+  .auth-actions-row label input { width: 16px; height: 16px; accent-color: var(--brand-500); }
+  .auth-actions-row a { color: var(--brand-700); font-weight: 600; text-decoration: none; }
+
+  .divider {
+    display: flex; align-items: center; gap: 12px;
+    margin: 22px 0;
+    font-size: 12px; color: var(--ink-400); font-weight: 500;
+    text-transform: uppercase; letter-spacing: 0.06em;
+  }
+  .divider::before, .divider::after {
+    content: ''; flex: 1; height: 1px; background: var(--ink-200);
+  }
+
+  .social-row { display: flex; flex-direction: column; gap: 10px; }
+  .social-btn {
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    height: 44px;
+    border: 1px solid var(--ink-200);
+    border-radius: var(--r-md);
+    background: var(--surface);
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--ink-800);
+    cursor: pointer;
+    transition: all var(--t-fast) var(--ease);
+    width: 100%;
+  }
+  .social-btn:hover { background: var(--ink-50); border-color: var(--ink-300); }
+  .social-btn .ico-circle {
+    width: 24px; height: 24px;
+    border-radius: var(--r-full);
+    display: flex; align-items: center; justify-content: center;
+    color: white;
+  }
+  .social-btn .ico-circle svg { width: 14px; height: 14px; }
+
+  .auth-bottom {
+    text-align: center;
+    margin-top: 24px;
+    font-size: 13px;
+    color: var(--ink-600);
+  }
+  .auth-bottom a { color: var(--brand-700); font-weight: 700; text-decoration: none; }
+
+  .auth-foot {
+    margin-top: auto;
+    text-align: center;
+    font-size: 12px;
+    color: var(--ink-400);
+  }
+
+  /* Decorative side */
+  .auth-side {
+    background:
+      radial-gradient(at 20% 20%, rgba(255,200,170,0.5) 0px, transparent 50%),
+      radial-gradient(at 80% 0%, rgba(255,126,88,0.4) 0px, transparent 40%),
+      radial-gradient(at 70% 80%, rgba(255,177,140,0.5) 0px, transparent 50%),
+      linear-gradient(135deg, #FFF4F0 0%, #FFE3D9 100%);
+    position: relative;
+    overflow: hidden;
+    padding: 60px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+
+  .auth-side .quote {
+    background: white;
+    border-radius: var(--r-xl);
+    padding: 24px;
+    box-shadow: var(--shadow-md);
+    max-width: 420px;
+  }
+  .auth-side .quote-text {
+    font-family: var(--font-display);
+    font-size: 18px;
+    line-height: 1.4;
+    color: var(--ink-900);
+    letter-spacing: -0.01em;
+  }
+  .auth-side .quote-author {
+    display: flex; align-items: center; gap: 12px;
+    margin-top: 16px;
+  }
+  .auth-side .quote-author .av {
+    width: 40px; height: 40px;
+    border-radius: var(--r-full);
+    background: linear-gradient(135deg, var(--brand-400), var(--brand-600));
+    color: white;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 13px;
+  }
+  .auth-side .quote-author .who { font-weight: 700; font-size: 14px; color: var(--ink-900); }
+  .auth-side .quote-author .role { font-size: 12px; color: var(--ink-500); }
+
+  /* Floating cards (decorative) */
+  .float-card {
+    background: white;
+    border-radius: var(--r-lg);
+    padding: 14px 16px;
+    box-shadow: var(--shadow-md);
+    display: flex; align-items: center; gap: 12px;
+    position: absolute;
+  }
+  .float-card .fci {
+    width: 36px; height: 36px;
+    border-radius: var(--r-md);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .float-card .ft { font-size: 12px; font-weight: 600; color: var(--ink-900); line-height: 1.2; }
+  .float-card .fm { font-size: 11px; color: var(--ink-500); margin-top: 2px; }
+
+  .float-1 { top: 18%; right: 8%; animation: floaty 6s ease-in-out infinite; }
+  .float-2 { top: 50%; left: 8%; animation: floaty 7s ease-in-out infinite reverse; }
+  .float-3 { top: 38%; right: 16%; animation: floaty 8s ease-in-out infinite; }
+
+  @keyframes floaty {
+    0%,100% { transform: translateY(0); }
+    50%     { transform: translateY(-10px); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .float-1, .float-2, .float-3 { animation: none; }
+  }
+
+  .auth-side-head h2 {
+    font-size: 32px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: var(--ink-900);
+    line-height: 1.15;
+    max-width: 420px;
+  }
+  .auth-side-head p {
+    color: var(--ink-700);
+    font-size: 15px;
+    max-width: 420px;
+    margin-top: 12px;
+    line-height: 1.5;
+  }
+</style>
+</head>
+<body>
+
+<div class="auth-shell">
+
+  <!-- ───────── Left: form ───────── -->
+  <div class="auth-form-col">
+    <div class="auth-top">
+      <div class="auth-brand">
+        <img src="assets/logo.png" alt="" />
+        <span class="name">Преподавай</span>
+      </div>
+      <div class="lang">
+        <i data-lucide="globe" style="width:14px;"></i> RU
+      </div>
+    </div>
+
+    <div class="auth-form-wrap">
+      <div class="auth-form">
+        <h1>С возвращением 👋</h1>
+        <div class="sub">Войдите, чтобы продолжить готовить уроки за минуты</div>
+
+        <div class="auth-field">
+          <i data-lucide="mail" class="lead"></i>
+          <input class="input" type="email" placeholder="your@email.ru" value="evgeniya@school.ru" />
+        </div>
+
+        <div class="auth-field">
+          <i data-lucide="lock" class="lead"></i>
+          <input class="input" type="password" placeholder="Пароль" value="••••••••" />
+          <button class="toggle-pass" type="button"><i data-lucide="eye-off" style="width:16px;"></i></button>
+        </div>
+
+        <div class="auth-actions-row">
+          <label>
+            <input type="checkbox" checked />
+            Запомнить меня
+          </label>
+          <a href="#">Забыли пароль?</a>
+        </div>
+
+        <button class="btn btn-primary btn-lg" style="width: 100%;">
+          Войти
+          <i data-lucide="arrow-right"></i>
+        </button>
+
+        <div class="divider">или</div>
+
+        <div class="social-row">
+          <button class="social-btn">
+            <div class="ico-circle" style="background:#0088CC;">
+              <i data-lucide="send"></i>
+            </div>
+            Войти через Telegram
+          </button>
+          <button class="social-btn">
+            <div class="ico-circle" style="background:linear-gradient(135deg,#5B47FB,#9747FB);">
+              <i data-lucide="message-circle"></i>
+            </div>
+            Войти через MAX
+          </button>
+        </div>
+
+        <div class="auth-bottom">
+          Ещё нет аккаунта? <a href="#">Зарегистрироваться</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="auth-foot">
+      © 2026 Преподавай · <a style="color:inherit;">Условия</a> · <a style="color:inherit;">Конфиденциальность</a>
+    </div>
+  </div>
+
+  <!-- ───────── Right: visual side ───────── -->
+  <div class="auth-side">
+    <div class="auth-side-head">
+      <h2>ИИ-копилот для учителя — готовит уроки за минуты, а не часы</h2>
+      <p>Рабочие листы, тесты, презентации, проверка ДЗ и аналитика по классу. Всё в одном месте, под ваш предмет и уровень класса.</p>
+    </div>
+
+    <!-- Floating cards -->
+    <div class="float-card float-1">
+      <div class="fci" style="background:var(--brand-50); color:var(--brand-700);"><i data-lucide="file-text"></i></div>
+      <div>
+        <div class="ft">Рабочий лист готов</div>
+        <div class="fm">Тригонометрия · 10А · 32 сек</div>
+      </div>
+    </div>
+
+    <div class="float-card float-2">
+      <div class="fci" style="background:var(--success-50); color:var(--success-700);"><i data-lucide="check-circle"></i></div>
+      <div>
+        <div class="ft">ДЗ проверено</div>
+        <div class="fm">18 работ · комментарии готовы</div>
+      </div>
+    </div>
+
+    <div class="float-card float-3">
+      <div class="fci" style="background:var(--info-50); color:var(--info-700);"><i data-lucide="bar-chart-3"></i></div>
+      <div>
+        <div class="ft">+12% сдают вовремя</div>
+        <div class="fm">10А · за этот месяц</div>
+      </div>
+    </div>
+
+    <div class="quote">
+      <div class="quote-text">
+        «Раньше готовила раздаточные часами вечером. Сейчас — за обедом. Дети получают индивидуальные задания, а я наконец-то отдыхаю в выходные.»
+      </div>
+      <div class="quote-author">
+        <div class="av">МК</div>
+        <div>
+          <div class="who">Марина Куликова</div>
+          <div class="role">Учитель математики · Москва</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>lucide.createIcons();</script>
+</body>
+</html>

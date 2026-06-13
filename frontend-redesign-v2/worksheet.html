@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Рабочий лист — Преподавай</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/tokens.css" />
+<link rel="stylesheet" href="assets/components.css" />
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+  /* Workspace split: settings + preview */
+  .workspace {
+    display: grid;
+    grid-template-columns: 380px 1fr;
+    gap: 0;
+    height: calc(100vh - 64px);
+  }
+  @media (max-width: 1023px) { .workspace { grid-template-columns: 1fr; height: auto; } }
+
+  .ws-settings {
+    background: var(--surface);
+    border-right: 1px solid var(--ink-200);
+    padding: 24px;
+    overflow-y: auto;
+  }
+  .ws-preview {
+    background: var(--ink-50);
+    padding: 24px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .tool-hero {
+    display: flex; align-items: center; gap: 14px;
+    padding-bottom: 20px;
+    margin-bottom: 4px;
+    border-bottom: 1px solid var(--ink-100);
+  }
+  .tool-hero .icon {
+    width: 44px; height: 44px;
+    background: var(--brand-50);
+    color: var(--brand-700);
+    border-radius: var(--r-md);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .tool-hero .icon svg { width: 22px; height: 22px; }
+  .tool-hero h2 { font-size: 18px; }
+  .tool-hero .sub { font-size: 12px; color: var(--ink-500); margin-top: 2px; }
+
+  .field { margin-bottom: 18px; }
+
+  .select-wrap { position: relative; }
+  .select-wrap select {
+    appearance: none;
+    height: 40px;
+    padding: 0 36px 0 12px;
+    border: 1px solid var(--ink-200);
+    border-radius: var(--r-md);
+    font-family: inherit;
+    font-size: 14px;
+    color: var(--ink-900);
+    background: var(--surface);
+    width: 100%;
+    cursor: pointer;
+  }
+  .select-wrap select:focus { outline:none; border-color: var(--brand-400); box-shadow: 0 0 0 3px rgba(255,126,88,0.12); }
+  .select-wrap svg {
+    position: absolute; right: 12px; top: 50%;
+    transform: translateY(-50%);
+    width: 16px; height: 16px;
+    color: var(--ink-500);
+    pointer-events: none;
+  }
+
+  .chip-group { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip {
+    height: 34px;
+    padding: 0 12px;
+    border-radius: var(--r-full);
+    border: 1px solid var(--ink-200);
+    background: var(--surface);
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--ink-700);
+    cursor: pointer;
+    transition: all var(--t-fast) var(--ease);
+  }
+  .chip:hover { background: var(--ink-50); }
+  .chip.is-active {
+    background: var(--brand-50);
+    color: var(--brand-700);
+    border-color: var(--brand-300);
+  }
+
+  .range-row { display: flex; align-items: center; gap: 12px; }
+  .range-row input[type="range"] {
+    flex: 1;
+    accent-color: var(--brand-500);
+  }
+  .range-val {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 16px;
+    width: 36px;
+    text-align: right;
+    color: var(--ink-900);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .preset-strip {
+    display: flex; gap: 6px; flex-wrap: wrap;
+  }
+  .preset {
+    height: 28px;
+    padding: 0 10px;
+    border-radius: var(--r-sm);
+    background: var(--ink-100);
+    color: var(--ink-700);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all var(--t-fast) var(--ease);
+  }
+  .preset:hover { background: var(--brand-50); color: var(--brand-700); border-color: var(--brand-200); }
+
+  .cost-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--brand-50);
+    border: 1px solid var(--brand-200);
+    border-radius: var(--r-md);
+    padding: 12px 14px;
+    margin-bottom: 14px;
+  }
+  .cost-bar .left { display:flex; align-items:center; gap:10px; }
+  .cost-bar .pill {
+    width:32px; height:32px;
+    background: linear-gradient(135deg, var(--brand-400), var(--brand-600));
+    border-radius: var(--r-sm);
+    color:white;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .cost-bar .pill svg { width: 16px; }
+  .cost-bar .title { font-weight: 700; color: var(--ink-900); font-size: 14px; }
+  .cost-bar .meta { font-size: 11px; color: var(--ink-600); }
+
+  /* Preview sheet */
+  .preview-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--surface);
+    border: 1px solid var(--ink-200);
+    border-radius: var(--r-md);
+    padding: 8px 12px;
+  }
+  .preview-toolbar .left { display: flex; gap: 4px; }
+  .preview-toolbar .tab {
+    height: 30px; padding: 0 12px;
+    border-radius: var(--r-sm);
+    font-size: 13px; font-weight: 600;
+    color: var(--ink-600); cursor: pointer;
+    border: none; background: transparent;
+  }
+  .preview-toolbar .tab:hover { background: var(--ink-100); color: var(--ink-900); }
+  .preview-toolbar .tab.is-active { background: var(--ink-900); color: white; }
+
+  .preview-sheet {
+    background: white;
+    border-radius: var(--r-lg);
+    box-shadow: var(--shadow-sm);
+    border: 1px solid var(--ink-200);
+    padding: 40px 48px;
+    font-family: var(--font-sans);
+    color: var(--ink-800);
+  }
+  .preview-sheet h1.doc {
+    font-family: var(--font-display);
+    font-size: 24px;
+    color: var(--ink-900);
+    margin-bottom: 4px;
+  }
+  .preview-sheet .meta-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    padding: 16px;
+    background: var(--ink-50);
+    border-radius: var(--r-md);
+    margin: 20px 0;
+  }
+  .preview-sheet .meta-row .label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--ink-500);
+    letter-spacing: 0.04em;
+    margin-bottom: 6px;
+  }
+  .preview-sheet .meta-row .underline {
+    border-bottom: 1px solid var(--ink-300);
+    height: 22px;
+  }
+  .preview-sheet .info-box {
+    background: var(--info-50);
+    border-left: 4px solid var(--info-500);
+    padding: 14px 16px;
+    border-radius: 0 var(--r-md) var(--r-md) 0;
+    margin: 16px 0 24px;
+    font-size: 14px;
+    color: var(--ink-700);
+  }
+  .preview-sheet h2.task-h {
+    font-family: var(--font-display);
+    font-size: 17px;
+    color: var(--ink-900);
+    margin-top: 28px;
+    margin-bottom: 10px;
+  }
+  .preview-sheet .task-body { font-size: 14px; line-height: 1.6; }
+  .preview-sheet ol.tasks { padding-left: 22px; }
+  .preview-sheet ol.tasks li { margin-bottom: 8px; }
+  .preview-sheet .fill-blank {
+    display: inline-block;
+    min-width: 70px;
+    border-bottom: 1px solid var(--ink-400);
+    margin: 0 4px;
+    height: 16px;
+  }
+  .preview-sheet .doc-footer {
+    margin-top: 32px;
+    padding-top: 16px;
+    border-top: 1px solid var(--ink-200);
+    display: flex; align-items: center; gap: 8px;
+    font-size: 11px; color: var(--ink-400);
+  }
+  .preview-sheet .doc-footer img { width: 16px; height: 16px; border-radius: 4px; opacity: 0.6; }
+</style>
+</head>
+<body>
+<div class="app-shell">
+
+  <!-- ───────── SIDEBAR ───────── -->
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <img src="assets/logo.png" alt="" />
+      <span class="brand-name">Преподавай</span>
+    </div>
+    <nav class="sidebar-section">
+      <div class="sidebar-label">Рабочий стол</div>
+      <a class="nav-item" href="dashboard.html"><i data-lucide="layout-dashboard"></i>Главная</a>
+      <a class="nav-item is-active" href="tools.html"><i data-lucide="wand-sparkles"></i>ИИ Генератор</a>
+      <a class="nav-item"><i data-lucide="calendar"></i>Календарь</a>
+      <a class="nav-item"><i data-lucide="book-open"></i>Материалы</a>
+
+      <div class="sidebar-label">Класс</div>
+      <a class="nav-item"><i data-lucide="users"></i>Ученики<span class="nav-badge">3</span></a>
+      <a class="nav-item"><i data-lucide="clipboard-check"></i>Проверка ДЗ</a>
+      <a class="nav-item"><i data-lucide="bar-chart-3"></i>Аналитика</a>
+
+      <div class="sidebar-label">Прочее</div>
+      <a class="nav-item"><i data-lucide="gift"></i>Пригласить</a>
+      <a class="nav-item"><i data-lucide="message-circle"></i>Поддержка</a>
+      <a class="nav-item"><i data-lucide="settings"></i>Настройки</a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="user-chip">
+        <div class="avatar">ЕА</div>
+        <div class="info">
+          <div class="name">Евгения А.</div>
+          <div class="plan">Тариф «Бизнес»</div>
+        </div>
+        <i data-lucide="chevron-up" style="color:var(--ink-400); width:16px;"></i>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ───────── MAIN ───────── -->
+  <main>
+    <header class="topbar">
+      <div style="display:flex; align-items:center; gap:12px;">
+        <a href="tools.html" style="height:32px; width:32px; border-radius:var(--r-sm); border:1px solid var(--ink-200); background:var(--surface); display:flex; align-items:center; justify-content:center; color:var(--ink-600); cursor:pointer;">
+          <i data-lucide="arrow-left" style="width:16px;"></i>
+        </a>
+        <div>
+          <div style="font-size:12px; color:var(--ink-500);">ИИ Генератор · Материалы</div>
+          <h1 style="font-size:18px;">Рабочий лист</h1>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn btn-secondary btn-sm"><i data-lucide="history"></i> История</button>
+        <div class="token-chip">
+          <div class="spark"><i data-lucide="sparkles"></i></div>
+          <span class="tnum">9 375</span>
+        </div>
+      </div>
+    </header>
+
+    <div class="workspace">
+
+      <!-- ───── Settings panel ───── -->
+      <div class="ws-settings">
+        <div class="tool-hero">
+          <div class="icon"><i data-lucide="file-text"></i></div>
+          <div>
+            <h2>Рабочий лист</h2>
+            <div class="sub">PDF с заданиями · готов за 30 секунд</div>
+          </div>
+        </div>
+
+        <div class="cost-bar">
+          <div class="left">
+            <div class="pill"><i data-lucide="sparkles"></i></div>
+            <div>
+              <div class="title">Стоимость: 3 токена</div>
+              <div class="meta">Бизнес-тариф — без лимита по штукам</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Subject -->
+        <div class="field">
+          <label class="input-label">Предмет</label>
+          <div class="select-wrap">
+            <select>
+              <option>Математика</option>
+              <option>Физика</option>
+              <option>Химия</option>
+              <option>Биология</option>
+              <option>История</option>
+              <option>Литература</option>
+              <option>Английский язык</option>
+            </select>
+            <i data-lucide="chevron-down"></i>
+          </div>
+        </div>
+
+        <!-- Topic -->
+        <div class="field">
+          <label class="input-label">Тема</label>
+          <input class="input" value="Тригонометрия: формулы приведения" />
+          <div class="input-hint">Чем точнее тема — тем точнее задания</div>
+
+          <div class="preset-strip" style="margin-top:10px;">
+            <button class="preset">Уравнения</button>
+            <button class="preset">Графики функций</button>
+            <button class="preset">Векторы</button>
+            <button class="preset">Стереометрия</button>
+          </div>
+        </div>
+
+        <!-- Level -->
+        <div class="field">
+          <label class="input-label">Уровень</label>
+          <div class="chip-group">
+            <button class="chip">5–6 класс</button>
+            <button class="chip">7–8 класс</button>
+            <button class="chip is-active">9–11 класс</button>
+            <button class="chip">Подготовка к ЕГЭ</button>
+          </div>
+        </div>
+
+        <!-- Tasks count -->
+        <div class="field">
+          <label class="input-label">Количество заданий</label>
+          <div class="range-row">
+            <input type="range" min="5" max="20" value="10" />
+            <div class="range-val tnum">10</div>
+          </div>
+        </div>
+
+        <!-- Optional sections -->
+        <div class="field">
+          <label class="input-label">Включить в материал</label>
+          <div style="display:flex; flex-direction:column; gap: 8px;">
+            <label style="display:flex; align-items:center; gap:10px; cursor:pointer;">
+              <input type="checkbox" checked style="width:18px; height:18px; accent-color: var(--brand-500);" />
+              <span style="font-size:13px;">Краткую теорию перед заданиями</span>
+            </label>
+            <label style="display:flex; align-items:center; gap:10px; cursor:pointer;">
+              <input type="checkbox" checked style="width:18px; height:18px; accent-color: var(--brand-500);" />
+              <span style="font-size:13px;">Ответы для учителя</span>
+            </label>
+            <label style="display:flex; align-items:center; gap:10px; cursor:pointer;">
+              <input type="checkbox" style="width:18px; height:18px; accent-color: var(--brand-500);" />
+              <span style="font-size:13px;">Подсказки к сложным задачам</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Generate button -->
+        <button class="btn btn-primary btn-lg" style="width:100%;">
+          <i data-lucide="wand-sparkles"></i>
+          Сгенерировать
+        </button>
+
+        <div style="text-align:center; margin-top:10px; font-size:11px; color:var(--ink-500);">
+          ⌘ + ↵ — горячая клавиша
+        </div>
+      </div>
+
+      <!-- ───── Preview panel ───── -->
+      <div class="ws-preview">
+
+        <div class="preview-toolbar">
+          <div class="left">
+            <button class="tab is-active"><i data-lucide="file-text" style="width:14px; display:inline-block; vertical-align:-2px; margin-right:4px;"></i> Превью</button>
+            <button class="tab"><i data-lucide="key-round" style="width:14px; display:inline-block; vertical-align:-2px; margin-right:4px;"></i> С ответами</button>
+            <button class="tab"><i data-lucide="edit-3" style="width:14px; display:inline-block; vertical-align:-2px; margin-right:4px;"></i> Редактировать</button>
+          </div>
+          <div style="display:flex; gap:6px;">
+            <button class="btn btn-secondary btn-sm"><i data-lucide="copy"></i> Копировать</button>
+            <button class="btn btn-secondary btn-sm"><i data-lucide="download"></i> PDF</button>
+            <button class="btn btn-primary btn-sm"><i data-lucide="send"></i> Выдать классу</button>
+          </div>
+        </div>
+
+        <div class="preview-sheet">
+          <div style="display:flex; align-items:center; gap:12px; margin-bottom:24px;">
+            <img src="assets/logo.png" alt="" style="width:36px; height:36px; border-radius:8px;" />
+            <div>
+              <div style="font-size:11px; color:var(--ink-500); letter-spacing:0.04em; text-transform:uppercase;">Рабочий лист</div>
+              <h1 class="doc">Тригонометрия: формулы приведения</h1>
+            </div>
+          </div>
+
+          <div class="meta-row">
+            <div>
+              <div class="label">Ученик</div>
+              <div class="underline"></div>
+            </div>
+            <div>
+              <div class="label">Класс</div>
+              <div class="underline"></div>
+            </div>
+            <div>
+              <div class="label">Дата</div>
+              <div class="underline"></div>
+            </div>
+          </div>
+
+          <div class="info-box">
+            <strong>Справка.</strong> Формулы приведения позволяют свести тригонометрические функции любого аргумента к функциям острого угла. Запоминаются по правилу «лошадь — кивает, а человек — мотает».
+          </div>
+
+          <h2 class="task-h">Задание 1 · Базовые приведения</h2>
+          <div class="task-body">
+            Упростите выражения, используя формулы приведения:
+            <ol class="tasks" style="margin-top:8px;">
+              <li>sin(180° − α) = <span class="fill-blank"></span></li>
+              <li>cos(90° + α) = <span class="fill-blank"></span></li>
+              <li>tg(360° − α) = <span class="fill-blank"></span></li>
+              <li>ctg(270° − α) = <span class="fill-blank"></span></li>
+            </ol>
+          </div>
+
+          <h2 class="task-h">Задание 2 · Вычисления</h2>
+          <div class="task-body">
+            Найдите значения, не используя калькулятор:
+            <ol class="tasks" start="5" style="margin-top:8px;">
+              <li>sin 150° = <span class="fill-blank"></span></li>
+              <li>cos 120° = <span class="fill-blank"></span></li>
+              <li>tg 225° = <span class="fill-blank"></span></li>
+            </ol>
+          </div>
+
+          <h2 class="task-h">Задание 3 · Применение</h2>
+          <div class="task-body">
+            Решите уравнение sin(π − x) = √3 / 2 на отрезке [0; 2π]. Запишите все корни.
+            <div style="margin-top:12px; padding: 16px; border:1px dashed var(--ink-300); border-radius:8px; min-height: 80px;"></div>
+          </div>
+
+          <div class="doc-footer">
+            <img src="assets/logo.png" alt="" />
+            <span>Преподавай · сгенерировано ИИ · prepodavai.ru</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>lucide.createIcons();</script>
+</body>
+</html>

@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Преподавай · Redesign v2 — превью</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/tokens.css" />
+<link rel="stylesheet" href="assets/components.css" />
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+  body { background: var(--ink-50); }
+
+  .hub-shell {
+    max-width: 1320px;
+    margin: 0 auto;
+    padding: 48px 32px;
+  }
+
+  .hub-head {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 40px;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  .hub-head .brand {
+    display: flex; align-items: center; gap: 14px;
+  }
+  .hub-head .brand img { width: 44px; height: 44px; border-radius: 10px; }
+  .hub-head .brand .name {
+    font-family: var(--font-display);
+    font-size: 24px;
+    font-weight: 800;
+    color: var(--ink-900);
+    letter-spacing: -0.02em;
+  }
+  .hub-head .brand .tag {
+    font-size: 12px;
+    color: var(--ink-500);
+    margin-top: 2px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .hub-head .brand .tag .pulse {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--success-500);
+    box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.15);
+  }
+
+  .hub-intro {
+    max-width: 720px;
+    margin-bottom: 40px;
+  }
+  .hub-intro h1 {
+    font-size: 40px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+    margin-bottom: 14px;
+  }
+  .hub-intro h1 span { color: var(--brand-600); }
+  .hub-intro p {
+    font-size: 16px;
+    color: var(--ink-600);
+    line-height: 1.6;
+  }
+
+  /* Role tabs */
+  .role-tabs {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 32px;
+    padding: 6px;
+    background: white;
+    border: 1px solid var(--ink-200);
+    border-radius: var(--r-full);
+    width: fit-content;
+  }
+  .role-tab {
+    height: 40px;
+    padding: 0 22px;
+    border-radius: var(--r-full);
+    border: none;
+    background: transparent;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--ink-600);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all var(--t-fast) var(--ease);
+  }
+  .role-tab .num {
+    background: var(--ink-100);
+    color: var(--ink-600);
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: var(--r-full);
+    font-weight: 700;
+  }
+  .role-tab.is-active {
+    background: var(--ink-900);
+    color: white;
+  }
+  .role-tab.is-active .num { background: rgba(255,255,255,0.14); color: white; }
+
+  /* Section title */
+  .sect-title {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 48px;
+  }
+  .sect-title:first-of-type { margin-top: 0; }
+  .sect-title h2 {
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .sect-title h2 .badge {
+    font-family: var(--font-sans);
+    text-transform: none;
+    letter-spacing: 0;
+  }
+  .sect-title .sub {
+    color: var(--ink-500);
+    font-size: 14px;
+    margin-top: 2px;
+  }
+
+  /* Screen previews */
+  .screens-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+  }
+  @media (max-width: 1023px) { .screens-grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 639px)  { .screens-grid { grid-template-columns: 1fr; } }
+
+  .screen-card {
+    background: var(--surface);
+    border: 1px solid var(--ink-200);
+    border-radius: var(--r-xl);
+    overflow: hidden;
+    cursor: pointer;
+    transition: all var(--t-medium) var(--ease);
+    text-decoration: none;
+    color: inherit;
+    display: block;
+  }
+  .screen-card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-lg);
+    border-color: var(--brand-300);
+  }
+  .screen-card .preview {
+    aspect-ratio: 16 / 11;
+    background: var(--ink-100);
+    position: relative;
+    overflow: hidden;
+  }
+  .screen-card iframe {
+    border: 0;
+    width: 200%; height: 200%;
+    transform: scale(0.5);
+    transform-origin: 0 0;
+    pointer-events: none;
+  }
+  .screen-card .body {
+    padding: 14px 18px;
+    border-top: 1px solid var(--ink-100);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .screen-card .title {
+    font-weight: 700;
+    color: var(--ink-900);
+    font-size: 14px;
+  }
+  .screen-card .desc {
+    font-size: 12px;
+    color: var(--ink-500);
+    margin-top: 2px;
+    line-height: 1.4;
+  }
+  .screen-card .open-arrow {
+    width: 32px; height: 32px;
+    border-radius: var(--r-full);
+    background: var(--brand-50);
+    color: var(--brand-700);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    transition: all var(--t-fast) var(--ease);
+  }
+  .screen-card:hover .open-arrow { background: var(--brand-500); color: white; }
+
+  /* Stats banner */
+  .stats-banner {
+    background: linear-gradient(135deg, var(--brand-50) 0%, #FFFFFF 60%);
+    border: 1px solid var(--brand-200);
+    border-radius: var(--r-xl);
+    padding: 24px 28px;
+    margin-bottom: 40px;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 24px;
+  }
+  @media (max-width: 767px) { .stats-banner { grid-template-columns: repeat(2, 1fr); } }
+  .stat-block .v {
+    font-family: var(--font-display);
+    font-size: 32px;
+    font-weight: 800;
+    color: var(--ink-900);
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+  }
+  .stat-block .l {
+    font-size: 12px;
+    color: var(--ink-500);
+    text-transform: uppercase;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    margin-top: 6px;
+  }
+</style>
+</head>
+<body>
+
+<div class="hub-shell">
+
+  <div class="hub-head">
+    <div class="brand">
+      <img src="assets/logo.png" alt="" />
+      <div>
+        <div class="name">Преподавай</div>
+        <div class="tag">
+          <span class="pulse"></span>
+          Redesign v2 · 14 экранов
+        </div>
+      </div>
+    </div>
+    <div style="display:flex; gap:8px;">
+      <a class="btn btn-secondary btn-sm" href="dashboard.html">
+        <i data-lucide="layout-dashboard"></i> Учитель
+      </a>
+      <a class="btn btn-primary btn-sm" href="student/dashboard.html">
+        <i data-lucide="graduation-cap"></i> Ученик
+      </a>
+    </div>
+  </div>
+
+  <div class="hub-intro">
+    <h1>Полный <span>интерфейс</span> учителя и ученика</h1>
+    <p>
+      14 живых HTML-мокапов. Полностью переделанный UI учителя (главная, инструменты, классы, оценки, аналитика, проверка ДЗ, тарифы, настройки и т.д.) и весь интерфейс ученика — задания, выполнение работ, оценки, ИИ-помощник. Бренд и логотип сохранены, добавлены геймификация (стрик, опыт, ачивки) и аналитика, которой не было.
+    </p>
+  </div>
+
+  <!-- Stats banner -->
+  <div class="stats-banner">
+    <div class="stat-block">
+      <div class="v">14</div>
+      <div class="l">экранов</div>
+    </div>
+    <div class="stat-block">
+      <div class="v">2</div>
+      <div class="l">роли · учитель + ученик</div>
+    </div>
+    <div class="stat-block">
+      <div class="v">#FF7E58</div>
+      <div class="l">бренд сохранён</div>
+    </div>
+    <div class="stat-block">
+      <div class="v">AA+</div>
+      <div class="l">WCAG доступность</div>
+    </div>
+  </div>
+
+  <!-- ────────── TEACHER ────────── -->
+  <div class="sect-title">
+    <div>
+      <h2>
+        <span style="width:36px; height:36px; background:var(--brand-50); color:var(--brand-700); border-radius:var(--r-md); display:inline-flex; align-items:center; justify-content:center;">
+          <i data-lucide="layout-dashboard" style="width:18px;"></i>
+        </span>
+        Учитель
+        <span class="badge badge-brand">9 экранов</span>
+      </h2>
+      <div class="sub">Все вкладки бокового меню учителя</div>
+    </div>
+  </div>
+
+  <div class="screens-grid">
+    <a class="screen-card" href="dashboard.html" target="_blank">
+      <div class="preview"><iframe src="dashboard.html" loading="lazy"></iframe></div>
+      <div class="body"><div><div class="title">Главная</div><div class="desc">Bento: KPI, расписание, баланс</div></div><div class="open-arrow"><i data-lucide="arrow-up-right" style="width:14px;"></i></div></div>
+    </a>
+
+    <a class="screen-card" href="tools.html" target="_blank">
+      <div class="preview"><iframe src="tools.html" loading="lazy"></iframe></div>
+      <div class="body"><div><div class="title">ИИ Генератор</div><div class="desc">Каталог 15 инструментов</div></div><div class="open-arrow"><i data-lucide="arrow-up-right" style="width:14px;"></i></div></div>
+    </a>
+
+    <a class="screen-card" href="worksheet.html" target="_blank">
+      <div class="preview"><iframe src="worksheet.html" loading="lazy"></iframe></div>
+      <div class="body"><div><div class="title">Workspace инструмента</div><div class="desc">Настройки + live превью PDF</div></div><div class="open-arrow"><i data-lucide="arrow-up-right" style="width:14px;"></i></div></div>
+    </a>
+
+    <a class="screen-card" href="calendar.html" target="_blank">
+      <div class="preview"><iframe src="calendar.html" loading="lazy"></iframe></div>
+      <div class="body"><div><div class="title">Календарь</div><div class="desc">Week view с цветными уроками</div></div><div class="open-arrow"><i data-lucide="arrow-up-right" style="width:14px;"></i></div></div>
+    </a>
+
+    <a class="screen-card" href="materials.html" target="_blank">
+      <div class="preview"><iframe src="materials.html" loading="lazy"></iframe></div>
+      <div class="body"><div><div class="title">Материалы</div><div class="desc">Сетка уроков с обложками</div></div><div class="open-arrow"><i data-lucide="arrow-up-right" style="width:14px;"></i></div></div>
+    </a>
+
+    <a class="screen-card" href="class-detail.html" target="_blank">
+      <div class="preview"><iframe src="class-detail.html" loading="lazy"></iframe></div>
+      <div class="body"><div><div class="title">Урок · детально</div><div class="desc">Материалы, оценки, at-risk</div></div><div class="open-arrow"><i data-lucide="arrow-up-right" style="width:14px;"></i></div></div>
+    </a>
+
+    <a class="screen-card" href="students.html" target="_blank">
+      <div class="preview"><iframe src="students.html" loading="lazy"></iframe></div>
+      <div class="body"><div><div class="title">Ученики</div><div class="desc">Таблица с risk-аналитикой</div></div><div class="open-arrow"><i data-lucide="arrow-up-right" style="width:14px;"></i></div></div>
+    </a>
+
+    <a class="screen-card" href="grading.html" target="_blank">
+      <div class="preview"><iframe src="grading.html" loading="lazy"></iframe></div>
+      <div class="body"><div><div class="title">Проверка ДЗ</div><div class="desc">3-колоночный workspace с ИИ</div></div><div class="open-arrow"><i data-lucide="arrow-up-right" style="width:14px;"></i></div></div>
+    </a>
+
+    <a class="screen-card" href="analytics.html" target="_blank">
+      <div class="preview"><iframe src="analytics.html" loading="lazy"></iframe></div>
+      <div class="body"><div><div class="title">Аналитика</div><div class="desc">Графики, heatmap, тренды</div></div><div class="open-arrow"><i data-lucide="arrow-up-right" style="width:14px;"></i></div></div>
+    </a>
+
+    <a class="screen-card" href="referrals.html" target="_blank">
+      <div class="preview"><iframe src="referrals.html" loading="lazy"></iframe></div>
+      <div class="body"><div><div class="title">Пригласить</div><div class="desc">Реф. программа · 4 тира</div></div><div class="open-arrow"><i data-lucide="arrow-up-right" style="width:14px;"></i></div></div>
+    </a>
+
+    <a class="screen-card" href="pricing.html" target="_blank">
+      <div class="preview"><iframe src="pricing.html" loading="lazy"></iframe></div>
+      <div class="body"><div><div class="title">Тарифы и баланс</div><div class="desc">4 плана, FAQ, токены</div></div><div class="open-arrow"><i data-lucide="arrow-up-right" style="width:14px;"></i></div></div>
+    </a>
+
+    <a class="screen-card" href="settings.html" target="_blank">
+      <div class="preview"><iframe src="settings.html" loading="lazy"></iframe></div>
+      <div class="body"><div><div class="title">Настройки</div><div class="desc">Профиль, подписка, интеграции</div></div><div class="open-arrow"><i data-lucide="arrow-up-right" style="width:14px;"></i></div></div>
+    </a>
+
+    <a class="screen-card" href="login.html" target="_blank">
+      <div class="preview"><iframe src="login.html" loading="lazy"></iframe></div>
+      <div class="body"><div><div class="title">Вход (учитель)</div><div class="desc">Сплит-экран · соц-логин</div></div><div class="open-arrow"><i data-lucide="arrow-up-right" style="width:14px;"></i></div></div>
+    </a>
+  </div>
+
+  <!-- ────────── STUDENT ────────── -->
+  <div class="sect-title">
+    <div>
+      <h2>
+        <span style="width:36px; height:36px; background:#EEF2FF; color:#4338CA; border-radius:var(--r-md); display:inline-flex; align-items:center; justify-content:center;">
+          <i data-lucide="graduation-cap" style="width:18px;"></i>
+        </span>
+        Ученик
+        <span class="badge badge-info">5 экранов</span>
+      </h2>
+      <div class="sub">Геймификация · стрик · опыт · ачивки</div>
+    </div>
+  </div>
+
+  <div class="screens-grid">
+    <a class="screen-card" href="student/login.html" target="_blank">
+      <div class="preview"><iframe src="student/login.html" loading="lazy"></iframe></div>
+      <div class="body"><div><div class="title">Вход (ученик)</div><div class="desc">Тёплое приветствие</div></div><div class="open-arrow"><i data-lucide="arrow-up-right" style="width:14px;"></i></div></div>
+    </a>
+
+    <a class="screen-card" href="student/dashboard.html" target="_blank">
+      <div class="preview"><iframe src="student/dashboard.html" loading="lazy"></iframe></div>
+      <div class="body"><div><div class="title">Главная (мои задания)</div><div class="desc">Группировка по срочности</div></div><div class="open-arrow"><i data-lucide="arrow-up-right" style="width:14px;"></i></div></div>
+    </a>
+
+    <a class="screen-card" href="student/assignment.html" target="_blank">
+      <div class="preview"><iframe src="student/assignment.html" loading="lazy"></iframe></div>
+      <div class="body"><div><div class="title">Выполнение задания</div><div class="desc">Аккордеоны · автосейв</div></div><div class="open-arrow"><i data-lucide="arrow-up-right" style="width:14px;"></i></div></div>
+    </a>
+
+    <a class="screen-card" href="student/grades.html" target="_blank">
+      <div class="preview"><iframe src="student/grades.html" loading="lazy"></iframe></div>
+      <div class="body"><div><div class="title">Мои оценки</div><div class="desc">По предметам + комментарии</div></div><div class="open-arrow"><i data-lucide="arrow-up-right" style="width:14px;"></i></div></div>
+    </a>
+
+    <a class="screen-card" href="student/ai-teacher.html" target="_blank">
+      <div class="preview"><iframe src="student/ai-teacher.html" loading="lazy"></iframe></div>
+      <div class="body"><div><div class="title">ИИ-учитель (чат)</div><div class="desc">История · quick prompts</div></div><div class="open-arrow"><i data-lucide="arrow-up-right" style="width:14px;"></i></div></div>
+    </a>
+  </div>
+
+  <!-- ────────── Notes ────────── -->
+  <div class="sect-title" style="margin-top: 56px;">
+    <div>
+      <h2>
+        <span style="width:36px; height:36px; background:#FFFBEB; color:#92400E; border-radius:var(--r-md); display:inline-flex; align-items:center; justify-content:center;">
+          <i data-lucide="info" style="width:18px;"></i>
+        </span>
+        Главное в редизайне
+      </h2>
+      <div class="sub">Что отличает этот UI от текущего</div>
+    </div>
+  </div>
+
+  <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap: 16px;">
+    <div class="card">
+      <span style="display:inline-flex; width:32px; height:32px; background:var(--brand-50); color:var(--brand-700); border-radius:var(--r-sm); align-items:center; justify-content:center; margin-bottom:12px;">
+        <i data-lucide="alert-triangle" style="width:16px;"></i>
+      </span>
+      <h3 style="font-size:15px; margin-bottom:6px;">At-risk встроена везде</h3>
+      <p style="font-size:13px; color:var(--ink-600); line-height:1.5; margin:0;">Не нужно копаться в графиках — система сама показывает 3 учеников с проблемами на главной, в классе, в проверке ДЗ.</p>
+    </div>
+    <div class="card">
+      <span style="display:inline-flex; width:32px; height:32px; background:#EEF2FF; color:#4338CA; border-radius:var(--r-sm); align-items:center; justify-content:center; margin-bottom:12px;">
+        <i data-lucide="sparkles" style="width:16px;"></i>
+      </span>
+      <h3 style="font-size:15px; margin-bottom:6px;">ИИ — везде, где он помогает</h3>
+      <p style="font-size:13px; color:var(--ink-600); line-height:1.5; margin:0;">ИИ-подсказки в проверке ДЗ, AI-генерация комментариев, рекомендации в аналитике, ИИ-учитель у ученика — не сбоку, а как часть workflow.</p>
+    </div>
+    <div class="card">
+      <span style="display:inline-flex; width:32px; height:32px; background:#FFFBEB; color:#92400E; border-radius:var(--r-sm); align-items:center; justify-content:center; margin-bottom:12px;">
+        <i data-lucide="flame" style="width:16px;"></i>
+      </span>
+      <h3 style="font-size:15px; margin-bottom:6px;">Геймификация для ученика</h3>
+      <p style="font-size:13px; color:var(--ink-600); line-height:1.5; margin:0;">Стрик дней, опыт, ачивки, бонусы за вовремя сданные работы. Делает ежедневный заход в платформу привычкой.</p>
+    </div>
+    <div class="card">
+      <span style="display:inline-flex; width:32px; height:32px; background:var(--success-50); color:var(--success-700); border-radius:var(--r-sm); align-items:center; justify-content:center; margin-bottom:12px;">
+        <i data-lucide="zap" style="width:16px;"></i>
+      </span>
+      <h3 style="font-size:15px; margin-bottom:6px;">Прозрачная стоимость</h3>
+      <p style="font-size:13px; color:var(--ink-600); line-height:1.5; margin:0;">В каждой карточке инструмента указано «3 токена · 30 сек». Никаких сюрпризов — учитель всегда видит, на что хватит баланса.</p>
+    </div>
+    <div class="card">
+      <span style="display:inline-flex; width:32px; height:32px; background:var(--info-50); color:var(--info-700); border-radius:var(--r-sm); align-items:center; justify-content:center; margin-bottom:12px;">
+        <i data-lucide="calendar" style="width:16px;"></i>
+      </span>
+      <h3 style="font-size:15px; margin-bottom:6px;">Календарь как ядро</h3>
+      <p style="font-size:13px; color:var(--ink-600); line-function:1.5; margin:0;">Раньше календарь был отдельной вкладкой. Теперь расписание видно с главной, в карточке класса, в каждом уроке — и оно связано с материалами.</p>
+    </div>
+    <div class="card">
+      <span style="display:inline-flex; width:32px; height:32px; background:var(--warning-50); color:var(--warning-700); border-radius:var(--r-sm); align-items:center; justify-content:center; margin-bottom:12px;">
+        <i data-lucide="users" style="width:16px;"></i>
+      </span>
+      <h3 style="font-size:15px; margin-bottom:6px;">Чёткое разделение ролей</h3>
+      <p style="font-size:13px; color:var(--ink-600); line-height:1.5; margin:0;">Учительский интерфейс — функциональный и плотный. Ученический — теплее, проще, с большим акцентом на мотивацию и прогресс.</p>
+    </div>
+  </div>
+
+  <!-- ────────── Footer ────────── -->
+  <div style="border-top: 1px solid var(--ink-200); padding-top: 32px; margin-top: 64px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 16px; font-size: 13px; color: var(--ink-500);">
+    <div>
+      <strong style="color: var(--ink-900);">Преподавай · Redesign v2</strong> — Мокапы, изолированы от основного фронта.<br />
+      Папка: <code style="background:var(--ink-100); padding:2px 6px; border-radius: 4px; font-family: var(--font-mono);">frontend-redesign-v2/</code>
+    </div>
+    <div>
+      Tailwind tokens · Inter + Plus Jakarta Sans · Lucide icons<br />
+      © Готовы переноситься на Next.js
+    </div>
+  </div>
+
+</div>
+
+<script>lucide.createIcons();</script>
+</body>
+</html>

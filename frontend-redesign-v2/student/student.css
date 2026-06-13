@@ -1,0 +1,166 @@
+/* Student-specific overrides — friendlier, more playful */
+
+.s-sidebar {
+    background: var(--surface);
+    border-right: 1px solid var(--ink-200);
+    display: flex;
+    flex-direction: column;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    width: 240px;
+}
+.s-sidebar-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 20px;
+    border-bottom: 1px solid var(--ink-100);
+}
+.s-sidebar-brand img { width: 32px; height: 32px; border-radius: 8px; }
+.s-sidebar-brand .name {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 16px;
+    color: var(--ink-900);
+    letter-spacing: -0.02em;
+}
+
+.s-nav {
+    padding: 16px 12px;
+    flex: 1;
+}
+.s-nav-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 11px 12px;
+    border-radius: var(--r-sm);
+    color: var(--ink-600);
+    font-weight: 500;
+    font-size: 14px;
+    text-decoration: none;
+    cursor: pointer;
+    transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.s-nav-item:hover { background: var(--ink-100); color: var(--ink-900); }
+.s-nav-item.is-active {
+    background: var(--brand-50);
+    color: var(--brand-700);
+}
+.s-nav-item.is-active svg { color: var(--brand-600); }
+.s-nav-item svg { width: 18px; height: 18px; flex-shrink: 0; }
+.s-nav-item .badge-num {
+    margin-left: auto;
+    background: var(--brand-500);
+    color: white;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: var(--r-full);
+}
+
+/* Profile card in sidebar bottom — gamified */
+.s-profile {
+    margin: 12px;
+    padding: 14px;
+    background: linear-gradient(165deg, #FFF4F0 0%, #FFFFFF 60%);
+    border: 1px solid var(--brand-200);
+    border-radius: var(--r-lg);
+}
+.s-profile .top { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.s-profile .av {
+    width: 40px; height: 40px;
+    border-radius: var(--r-full);
+    background: linear-gradient(135deg, var(--brand-400), var(--brand-600));
+    color: white;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700;
+    font-size: 14px;
+    flex-shrink: 0;
+}
+.s-profile .nm { font-weight: 700; font-size: 13px; color: var(--ink-900); line-height: 1.2; }
+.s-profile .mt { font-size: 11px; color: var(--ink-500); margin-top: 2px; }
+
+.s-profile .stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+.s-profile .stats > div {
+    background: white;
+    border-radius: var(--r-sm);
+    padding: 8px 10px;
+    text-align: center;
+}
+.s-profile .stats .v {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 16px;
+    color: var(--ink-900);
+    font-variant-numeric: tabular-nums;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+.s-profile .stats .l {
+    font-size: 10px;
+    color: var(--ink-500);
+    text-transform: uppercase;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    margin-top: 1px;
+}
+
+/* Student shell layout */
+.s-shell {
+    display: grid;
+    grid-template-columns: 240px 1fr;
+    min-height: 100vh;
+}
+@media (max-width: 1023px) {
+    .s-shell { grid-template-columns: 1fr; }
+    .s-sidebar { display: none; }
+}
+
+/* Topbar adapted for student */
+.s-topbar {
+    height: 64px;
+    background: rgba(255,255,255,0.85);
+    backdrop-filter: saturate(180%) blur(6px);
+    border-bottom: 1px solid var(--ink-200);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 32px;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+.s-topbar h1 { font-size: 20px; font-weight: 700; }
+.s-content {
+    padding: 32px;
+    max-width: 1100px;
+    margin: 0 auto;
+}
+
+/* XP/streak chip */
+.xp-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 36px;
+    padding: 0 12px;
+    background: linear-gradient(135deg, #FFFBEB, #FFFFFF);
+    border: 1px solid #FCD34D;
+    border-radius: var(--r-full);
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--warning-700);
+}
+.xp-chip .ico {
+    width: 22px; height: 22px;
+    border-radius: var(--r-full);
+    background: linear-gradient(135deg, #F59E0B, #DC2626);
+    color: white;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px;
+}

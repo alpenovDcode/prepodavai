@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Настройки — Преподавай</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/tokens.css" />
+<link rel="stylesheet" href="assets/components.css" />
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+  .settings-shell {
+    display: grid;
+    grid-template-columns: 240px 1fr;
+    gap: 32px;
+    align-items: start;
+  }
+  @media (max-width: 1023px) { .settings-shell { grid-template-columns: 1fr; } }
+
+  .settings-nav {
+    background: var(--surface);
+    border: 1px solid var(--ink-200);
+    border-radius: var(--r-lg);
+    padding: 8px;
+    position: sticky;
+    top: 88px;
+  }
+  .settings-nav .nv {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 12px;
+    border-radius: var(--r-sm);
+    color: var(--ink-600);
+    font-weight: 600;
+    font-size: 13px;
+    cursor: pointer;
+    text-decoration: none;
+    transition: all var(--t-fast) var(--ease);
+  }
+  .settings-nav .nv:hover { background: var(--ink-100); color: var(--ink-900); }
+  .settings-nav .nv.is-active {
+    background: var(--brand-50);
+    color: var(--brand-700);
+  }
+  .settings-nav .nv svg { width: 16px; height: 16px; }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--ink-200);
+    border-radius: var(--r-lg);
+    margin-bottom: 16px;
+  }
+  .panel-head {
+    padding: 18px 22px;
+    border-bottom: 1px solid var(--ink-100);
+    display: flex; align-items: flex-end; justify-content: space-between;
+  }
+  .panel-head h2 {
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 2px;
+  }
+  .panel-head .sub { font-size: 13px; color: var(--ink-500); }
+  .panel-body { padding: 22px; }
+
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 14px; }
+  @media (max-width: 639px) { .form-row { grid-template-columns: 1fr; } }
+  .form-row.full { grid-template-columns: 1fr; }
+
+  .field { display: flex; flex-direction: column; }
+
+  .avatar-row {
+    display: flex; align-items: center; gap: 16px;
+    padding-bottom: 18px;
+    border-bottom: 1px solid var(--ink-100);
+    margin-bottom: 18px;
+  }
+  .avatar-row .av {
+    width: 64px; height: 64px;
+    border-radius: var(--r-full);
+    background: linear-gradient(135deg, var(--brand-400), var(--brand-600));
+    color: white;
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 22px;
+    flex-shrink: 0;
+  }
+  .avatar-row .info { flex: 1; }
+  .avatar-row .info .n { font-weight: 700; font-size: 15px; color: var(--ink-900); }
+  .avatar-row .info .m { font-size: 12px; color: var(--ink-500); margin-top: 2px; }
+
+  /* Toggle */
+  .toggle-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--ink-100);
+  }
+  .toggle-row:last-child { border-bottom: none; }
+  .toggle-row .l-side { flex: 1; padding-right: 16px; }
+  .toggle-row .l-side .ttl { font-weight: 600; color: var(--ink-900); font-size: 14px; }
+  .toggle-row .l-side .desc { font-size: 12px; color: var(--ink-500); margin-top: 2px; line-height: 1.4; }
+  .switch {
+    position: relative;
+    width: 40px; height: 22px;
+    background: var(--ink-200);
+    border-radius: var(--r-full);
+    cursor: pointer;
+    transition: background var(--t-fast) var(--ease);
+    flex-shrink: 0;
+  }
+  .switch::after {
+    content: '';
+    position: absolute;
+    top: 2px; left: 2px;
+    width: 18px; height: 18px;
+    background: white;
+    border-radius: 50%;
+    transition: transform var(--t-fast) var(--ease);
+    box-shadow: var(--shadow-xs);
+  }
+  .switch.is-on { background: var(--brand-500); }
+  .switch.is-on::after { transform: translateX(18px); }
+
+  /* Token mono input */
+  .api-key {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--ink-50);
+    border: 1px solid var(--ink-200);
+    border-radius: var(--r-md);
+    padding: 8px 8px 8px 14px;
+  }
+  .api-key .key {
+    flex: 1;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--ink-700);
+    letter-spacing: 0.04em;
+  }
+
+  /* Integration cards */
+  .integ-card {
+    border: 1px solid var(--ink-200);
+    border-radius: var(--r-md);
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .integ-card .logo {
+    width: 44px; height: 44px;
+    border-radius: var(--r-md);
+    display: flex; align-items: center; justify-content: center;
+    color: white;
+    flex-shrink: 0;
+  }
+  .integ-card .body { flex: 1; }
+  .integ-card .ttl { font-weight: 700; color: var(--ink-900); font-size: 14px; }
+  .integ-card .desc { font-size: 12px; color: var(--ink-500); margin-top: 2px; }
+
+  /* Danger */
+  .danger-zone {
+    border: 1px solid #FECACA;
+    background: linear-gradient(165deg, #FEF2F2 0%, #FFFFFF 60%);
+    border-radius: var(--r-lg);
+    padding: 22px;
+  }
+  .danger-zone h2 { color: var(--danger-700); font-size: 16px; margin-bottom: 4px; }
+  .danger-zone .sub { font-size: 13px; color: var(--ink-600); margin-bottom: 16px; }
+  .danger-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 0; border-top: 1px solid #FECACA;
+  }
+  .danger-row:first-of-type { border-top: none; }
+  .danger-row .ttl { font-weight: 700; color: var(--ink-900); font-size: 14px; }
+  .danger-row .desc { font-size: 12px; color: var(--ink-600); margin-top: 2px; }
+</style>
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <img src="assets/logo.png" alt="" /><span class="brand-name">Преподавай</span>
+    </div>
+    <nav class="sidebar-section">
+      <div class="sidebar-label">Рабочий стол</div>
+      <a class="nav-item" href="dashboard.html"><i data-lucide="layout-dashboard"></i>Главная</a>
+      <a class="nav-item" href="tools.html"><i data-lucide="wand-sparkles"></i>ИИ Генератор</a>
+      <a class="nav-item" href="calendar.html"><i data-lucide="calendar"></i>Календарь</a>
+      <a class="nav-item" href="materials.html"><i data-lucide="book-open"></i>Материалы</a>
+
+      <div class="sidebar-label">Класс</div>
+      <a class="nav-item" href="students.html"><i data-lucide="users"></i>Ученики<span class="nav-badge">3</span></a>
+      <a class="nav-item" href="grading.html"><i data-lucide="clipboard-check"></i>Проверка ДЗ</a>
+      <a class="nav-item" href="analytics.html"><i data-lucide="bar-chart-3"></i>Аналитика</a>
+
+      <div class="sidebar-label">Прочее</div>
+      <a class="nav-item" href="referrals.html"><i data-lucide="gift"></i>Пригласить</a>
+      <a class="nav-item"><i data-lucide="message-circle"></i>Поддержка</a>
+      <a class="nav-item is-active"><i data-lucide="settings"></i>Настройки</a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="user-chip">
+        <div class="avatar">ЕА</div>
+        <div class="info"><div class="name">Евгения А.</div><div class="plan">Тариф «Бизнес»</div></div>
+        <i data-lucide="chevron-up" style="color:var(--ink-400); width:16px;"></i>
+      </div>
+    </div>
+  </aside>
+
+  <main>
+    <header class="topbar">
+      <h1>Настройки</h1>
+      <div class="actions">
+        <button class="btn btn-primary btn-sm"><i data-lucide="check"></i> Сохранить</button>
+      </div>
+    </header>
+
+    <div class="content">
+
+      <div class="settings-shell">
+
+        <!-- ─── Nav ─── -->
+        <div class="settings-nav">
+          <a class="nv is-active"><i data-lucide="user-circle"></i> Профиль</a>
+          <a class="nv"><i data-lucide="bell"></i> Уведомления</a>
+          <a class="nv"><i data-lucide="shield-check"></i> Безопасность</a>
+          <a class="nv"><i data-lucide="credit-card"></i> Подписка</a>
+          <a class="nv"><i data-lucide="link"></i> Интеграции</a>
+          <a class="nv"><i data-lucide="palette"></i> Внешний вид</a>
+          <a class="nv"><i data-lucide="languages"></i> Язык и регион</a>
+          <a class="nv"><i data-lucide="trash-2" style="color: var(--danger-500);"></i> <span style="color: var(--danger-700);">Удалить аккаунт</span></a>
+        </div>
+
+        <!-- ─── Right column ─── -->
+        <div>
+
+          <!-- ─── Profile ─── -->
+          <div class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>Профиль</h2>
+                <div class="sub">Как вас увидят ученики и коллеги</div>
+              </div>
+            </div>
+            <div class="panel-body">
+              <div class="avatar-row">
+                <div class="av">ЕА</div>
+                <div class="info">
+                  <div class="n">Евгения Александрова</div>
+                  <div class="m">evgeniya@school.ru · присоединилась 3 мая 2026</div>
+                </div>
+                <button class="btn btn-secondary btn-sm"><i data-lucide="upload"></i> Загрузить фото</button>
+                <button class="btn btn-ghost btn-sm">Удалить</button>
+              </div>
+
+              <div class="form-row">
+                <div class="field">
+                  <label class="input-label">Имя</label>
+                  <input class="input" value="Евгения" />
+                </div>
+                <div class="field">
+                  <label class="input-label">Фамилия</label>
+                  <input class="input" value="Александрова" />
+                </div>
+              </div>
+
+              <div class="form-row">
+                <div class="field">
+                  <label class="input-label">Email</label>
+                  <input class="input" value="evgeniya@school.ru" />
+                  <div class="input-hint"><i data-lucide="check-circle" style="width:12px; display:inline-block; vertical-align:-2px; color:var(--success-700);"></i> Подтверждён</div>
+                </div>
+                <div class="field">
+                  <label class="input-label">Телефон</label>
+                  <input class="input" value="+7 985 123-45-67" />
+                </div>
+              </div>
+
+              <div class="form-row">
+                <div class="field">
+                  <label class="input-label">Предметы</label>
+                  <input class="input" value="Математика, Физика" />
+                </div>
+                <div class="field">
+                  <label class="input-label">Город</label>
+                  <input class="input" value="Москва" />
+                </div>
+              </div>
+
+              <div class="form-row full">
+                <div class="field">
+                  <label class="input-label">О себе</label>
+                  <textarea class="input" style="height: 80px; padding: 10px 12px; resize: vertical; font-family: inherit;" placeholder="Несколько слов о себе для приветственного письма ученикам">Учитель математики высшей категории. 12 лет опыта. Готовлю к ЕГЭ и олимпиадам.</textarea>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ─── Notifications ─── -->
+          <div class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>Уведомления</h2>
+                <div class="sub">Когда и о чём сообщать</div>
+              </div>
+            </div>
+            <div class="panel-body" style="padding-top: 8px;">
+
+              <div class="toggle-row">
+                <div class="l-side">
+                  <div class="ttl">Ученик сдал работу</div>
+                  <div class="desc">Push в Telegram + Email — как только появится новая работа</div>
+                </div>
+                <div class="switch is-on"></div>
+              </div>
+
+              <div class="toggle-row">
+                <div class="l-side">
+                  <div class="ttl">Дедлайн приближается</div>
+                  <div class="desc">Напомнить за 1 час до конца урока, если есть непроверенные работы</div>
+                </div>
+                <div class="switch is-on"></div>
+              </div>
+
+              <div class="toggle-row">
+                <div class="l-side">
+                  <div class="ttl">Ученик в зоне риска</div>
+                  <div class="desc">Когда балл падает или пропущено 2+ дедлайна подряд</div>
+                </div>
+                <div class="switch is-on"></div>
+              </div>
+
+              <div class="toggle-row">
+                <div class="l-side">
+                  <div class="ttl">Новые возможности продукта</div>
+                  <div class="desc">Раз в 2 недели — что нового, что улучшили</div>
+                </div>
+                <div class="switch"></div>
+              </div>
+
+              <div class="toggle-row">
+                <div class="l-side">
+                  <div class="ttl">Дайджест по итогам недели</div>
+                  <div class="desc">Каждый понедельник — что было, что предстоит</div>
+                </div>
+                <div class="switch is-on"></div>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- ─── Subscription ─── -->
+          <div class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>Подписка</h2>
+                <div class="sub">Тариф, оплата, история платежей</div>
+              </div>
+              <button class="btn btn-secondary btn-sm">История</button>
+            </div>
+            <div class="panel-body">
+
+              <div style="display: flex; gap: 14px; align-items: center; padding: 18px; background: linear-gradient(135deg, var(--brand-50) 0%, #FFFFFF 80%); border: 1px solid var(--brand-200); border-radius: var(--r-md); margin-bottom: 18px;">
+                <div style="width:48px; height:48px; border-radius:var(--r-md); background: linear-gradient(135deg, var(--brand-400), var(--brand-600)); display:flex; align-items:center; justify-content:center; color:white; flex-shrink:0;">
+                  <i data-lucide="crown"></i>
+                </div>
+                <div style="flex:1;">
+                  <div style="font-weight: 800; color: var(--ink-900); font-size: 16px;">Тариф «Бизнес»</div>
+                  <div style="font-size: 12px; color: var(--ink-600);">1 490 ₽/мес · следующее списание 13 июля 2026</div>
+                </div>
+                <a href="pricing.html" class="btn btn-secondary btn-sm">Сменить</a>
+              </div>
+
+              <div class="form-row">
+                <div style="padding: 14px; background: var(--ink-50); border-radius: var(--r-md);">
+                  <div style="font-size: 11px; font-weight: 700; color: var(--ink-500); text-transform: uppercase; letter-spacing: 0.04em;">Баланс</div>
+                  <div style="font-family: var(--font-display); font-size: 22px; font-weight: 800; color: var(--ink-900); margin-top: 4px; font-variant-numeric: tabular-nums;">9 375 ★</div>
+                  <div style="font-size: 11px; color: var(--ink-500); margin-top: 2px;">токенов</div>
+                </div>
+                <div style="padding: 14px; background: var(--ink-50); border-radius: var(--r-md);">
+                  <div style="font-size: 11px; font-weight: 700; color: var(--ink-500); text-transform: uppercase; letter-spacing: 0.04em;">Использовано</div>
+                  <div style="font-family: var(--font-display); font-size: 22px; font-weight: 800; color: var(--ink-900); margin-top: 4px; font-variant-numeric: tabular-nums;">1 125</div>
+                  <div style="font-size: 11px; color: var(--ink-500); margin-top: 2px;">в этом месяце</div>
+                </div>
+              </div>
+
+              <div style="padding-top: 14px; border-top: 1px solid var(--ink-100);">
+                <div class="input-label">Способ оплаты</div>
+                <div style="display: flex; align-items: center; gap: 12px; padding: 12px; background: var(--surface); border: 1px solid var(--ink-200); border-radius: var(--r-md);">
+                  <div style="width:36px; height:24px; background: linear-gradient(135deg,#1A1F71,#0E1F4F); border-radius: 4px; color:white; display:flex; align-items:center; justify-content:center; font-size:9px; font-weight:800;">VISA</div>
+                  <div style="flex:1; font-size:13px; color:var(--ink-700);">
+                    <strong style="color: var(--ink-900);">•••• 4242</strong> · до 09/27
+                  </div>
+                  <button class="btn btn-ghost btn-sm"><i data-lucide="edit-3"></i> Изменить</button>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- ─── Integrations ─── -->
+          <div class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>Интеграции</h2>
+                <div class="sub">Telegram, MAX и внешние сервисы</div>
+              </div>
+            </div>
+            <div class="panel-body" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+
+              <div class="integ-card">
+                <div class="logo" style="background: #0088CC;"><i data-lucide="send"></i></div>
+                <div class="body">
+                  <div class="ttl">Telegram</div>
+                  <div class="desc">@evgeniya_math · бот привязан</div>
+                </div>
+                <span class="badge badge-success">подключён</span>
+              </div>
+
+              <div class="integ-card">
+                <div class="logo" style="background: linear-gradient(135deg, #5B47FB, #9747FB);"><i data-lucide="message-circle"></i></div>
+                <div class="body">
+                  <div class="ttl">MAX</div>
+                  <div class="desc">@evgeniya · бот привязан</div>
+                </div>
+                <span class="badge badge-success">подключён</span>
+              </div>
+
+              <div class="integ-card">
+                <div class="logo" style="background: linear-gradient(135deg, #34A853, #4285F4);"><i data-lucide="calendar"></i></div>
+                <div class="body">
+                  <div class="ttl">Google Calendar</div>
+                  <div class="desc">Синхронизация расписания</div>
+                </div>
+                <button class="btn btn-secondary btn-sm">Подключить</button>
+              </div>
+
+              <div class="integ-card">
+                <div class="logo" style="background: #FF7919;"><i data-lucide="cloud"></i></div>
+                <div class="body">
+                  <div class="ttl">Яндекс.Диск</div>
+                  <div class="desc">Сохранять материалы автоматом</div>
+                </div>
+                <button class="btn btn-secondary btn-sm">Подключить</button>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- ─── API ─── -->
+          <div class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>API-ключ</h2>
+                <div class="sub">Для бота и сторонних интеграций</div>
+              </div>
+              <button class="btn btn-secondary btn-sm"><i data-lucide="refresh-cw"></i> Перегенерировать</button>
+            </div>
+            <div class="panel-body">
+              <div class="api-key">
+                <i data-lucide="key-round" style="width:16px; color:var(--ink-500);"></i>
+                <span class="key">prv_•••••••••••••••••••••••12af</span>
+                <button class="btn btn-ghost btn-sm"><i data-lucide="eye"></i></button>
+                <button class="btn btn-secondary btn-sm"><i data-lucide="copy"></i> Копировать</button>
+              </div>
+              <div style="font-size: 12px; color: var(--ink-500); margin-top: 10px; line-height: 1.5;">
+                Используется для авторизации бота при отправке результатов в Telegram/MAX. Не передавайте никому.
+              </div>
+            </div>
+          </div>
+
+          <!-- ─── Danger zone ─── -->
+          <div class="danger-zone">
+            <h2>Опасная зона</h2>
+            <div class="sub">Эти действия необратимы. Подумайте дважды.</div>
+
+            <div class="danger-row">
+              <div>
+                <div class="ttl">Экспортировать все данные</div>
+                <div class="desc">JSON со всеми материалами, оценками и историей</div>
+              </div>
+              <button class="btn btn-secondary btn-sm"><i data-lucide="download"></i> Экспорт</button>
+            </div>
+
+            <div class="danger-row">
+              <div>
+                <div class="ttl">Очистить историю генераций</div>
+                <div class="desc">Материалы исчезнут навсегда. Списанные токены не возвращаются.</div>
+              </div>
+              <button class="btn btn-secondary btn-sm" style="color: var(--danger-700); border-color: #FECACA;"><i data-lucide="trash-2"></i> Очистить</button>
+            </div>
+
+            <div class="danger-row">
+              <div>
+                <div class="ttl">Удалить аккаунт</div>
+                <div class="desc">Профиль, классы, ученики, история — всё будет удалено</div>
+              </div>
+              <button class="btn btn-secondary btn-sm" style="color: var(--danger-700); border-color: #FECACA; background: white;"><i data-lucide="user-x"></i> Удалить</button>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+  </main>
+</div>
+<script>lucide.createIcons();</script>
+</body>
+</html>

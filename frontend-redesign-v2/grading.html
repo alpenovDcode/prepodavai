@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Проверка ДЗ — Преподавай</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/tokens.css" />
+<link rel="stylesheet" href="assets/components.css" />
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+  /* Grading workspace */
+  .gr-workspace {
+    display: grid;
+    grid-template-columns: 320px 1fr 360px;
+    gap: 0;
+    height: calc(100vh - 64px);
+  }
+  @media (max-width: 1279px) {
+    .gr-workspace { grid-template-columns: 280px 1fr; }
+    .gr-right { display: none; }
+  }
+
+  /* Left: queue list */
+  .gr-queue {
+    background: var(--surface);
+    border-right: 1px solid var(--ink-200);
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+  }
+  .gr-queue-head {
+    padding: 16px;
+    border-bottom: 1px solid var(--ink-200);
+    position: sticky;
+    top: 0;
+    background: var(--surface);
+    z-index: 2;
+  }
+  .gr-tabs {
+    display: flex;
+    background: var(--ink-100);
+    padding: 3px;
+    border-radius: var(--r-md);
+    margin-bottom: 12px;
+  }
+  .gr-tabs button {
+    flex: 1;
+    height: 30px;
+    border: none; background: transparent;
+    border-radius: var(--r-sm);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ink-600);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+  }
+  .gr-tabs button.is-active { background: white; color: var(--ink-900); box-shadow: var(--shadow-xs); }
+  .gr-tabs .count {
+    background: var(--brand-500);
+    color: white;
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: var(--r-full);
+    font-weight: 700;
+  }
+  .gr-tabs button:not(.is-active) .count { background: var(--ink-300); color: var(--ink-700); }
+
+  .gr-search { position: relative; }
+  .gr-search svg { position: absolute; left:10px; top:50%; transform:translateY(-50%); width:14px; color:var(--ink-500); }
+  .gr-search input {
+    height: 34px; width: 100%;
+    border: 1px solid var(--ink-200); border-radius: var(--r-sm);
+    padding: 0 12px 0 30px;
+    font-family: inherit; font-size: 13px;
+  }
+  .gr-search input:focus { outline:none; border-color: var(--brand-400); box-shadow: 0 0 0 3px rgba(255,126,88,0.12); }
+
+  .gr-queue-list {
+    flex: 1;
+    overflow-y: auto;
+  }
+  .gr-item {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--ink-100);
+    display: flex;
+    gap: 12px;
+    cursor: pointer;
+    transition: background var(--t-fast) var(--ease);
+  }
+  .gr-item:hover { background: var(--surface-soft); }
+  .gr-item.is-active { background: var(--brand-50); border-left: 3px solid var(--brand-500); padding-left: 13px; }
+  .gr-item .av {
+    width: 36px; height: 36px;
+    border-radius: var(--r-full);
+    background: linear-gradient(135deg, var(--brand-300), var(--brand-500));
+    color: white;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700;
+    font-size: 12px;
+    flex-shrink: 0;
+  }
+  .gr-item .name {
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--ink-900);
+    line-height: 1.2;
+  }
+  .gr-item .task {
+    font-size: 12px;
+    color: var(--ink-600);
+    margin: 4px 0;
+    line-height: 1.4;
+  }
+  .gr-item .meta {
+    font-size: 11px;
+    color: var(--ink-500);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  /* Center: work to grade */
+  .gr-main {
+    background: var(--ink-50);
+    padding: 24px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .gr-doc {
+    background: white;
+    border: 1px solid var(--ink-200);
+    border-radius: var(--r-lg);
+    padding: 28px 32px;
+    flex: 1;
+  }
+  .gr-doc .header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--ink-100);
+    margin-bottom: 20px;
+  }
+  .gr-doc h2 {
+    font-family: var(--font-display);
+    font-size: 20px;
+    margin-bottom: 4px;
+  }
+  .gr-doc .header .sub {
+    font-size: 13px;
+    color: var(--ink-500);
+  }
+
+  .answer-block { margin-bottom: 18px; }
+  .answer-block .q {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ink-900);
+    margin-bottom: 8px;
+  }
+  .answer-block .a {
+    background: var(--ink-50);
+    border-radius: var(--r-md);
+    padding: 12px 14px;
+    font-size: 14px;
+    color: var(--ink-800);
+    line-height: 1.6;
+    border-left: 3px solid var(--info-500);
+  }
+  .answer-block .a.correct { border-left-color: var(--success-500); background: var(--success-50); }
+  .answer-block .a.wrong { border-left-color: var(--danger-500); background: var(--danger-50); }
+
+  .answer-block .ai-hint {
+    margin-top: 6px;
+    padding: 8px 12px;
+    background: rgba(99, 102, 241, 0.06);
+    border-left: 2px solid #6366F1;
+    border-radius: 0 var(--r-sm) var(--r-sm) 0;
+    font-size: 12px;
+    color: var(--ink-700);
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+  }
+  .ai-hint .ai-badge {
+    background: #6366F1;
+    color: white;
+    font-size: 9px;
+    padding: 1px 5px;
+    border-radius: var(--r-sm);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  /* Right: grading panel */
+  .gr-right {
+    background: var(--surface);
+    border-left: 1px solid var(--ink-200);
+    padding: 24px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+  .gr-right h3 {
+    font-size: 11px;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: var(--ink-500);
+    letter-spacing: 0.06em;
+    margin-bottom: 10px;
+  }
+
+  /* Grade picker */
+  .grade-picker { display: flex; gap: 8px; }
+  .grade-btn {
+    flex: 1;
+    aspect-ratio: 1;
+    border: 2px solid var(--ink-200);
+    background: var(--surface);
+    border-radius: var(--r-md);
+    font-family: var(--font-display);
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--ink-700);
+    cursor: pointer;
+    transition: all var(--t-fast) var(--ease);
+  }
+  .grade-btn:hover { background: var(--ink-50); border-color: var(--ink-300); }
+  .grade-btn.is-active.g5 { background: var(--success-500); color: white; border-color: var(--success-500); }
+  .grade-btn.is-active.g4 { background: var(--success-500); color: white; border-color: var(--success-500); }
+  .grade-btn.is-active.g3 { background: var(--warning-500); color: white; border-color: var(--warning-500); }
+  .grade-btn.is-active.g2 { background: var(--danger-500); color: white; border-color: var(--danger-500); }
+
+  .comment-area {
+    background: var(--ink-50);
+    border: 1px solid var(--ink-200);
+    border-radius: var(--r-md);
+    padding: 12px;
+    font-family: inherit;
+    font-size: 13px;
+    color: var(--ink-800);
+    min-height: 100px;
+    width: 100%;
+    resize: vertical;
+  }
+  .comment-area:focus { outline:none; border-color: var(--brand-400); box-shadow: 0 0 0 3px rgba(255,126,88,0.12); background: white; }
+
+  .ai-suggest {
+    background: linear-gradient(165deg, #EEF2FF 0%, #FFFFFF 60%);
+    border: 1px solid #C7D2FE;
+    border-radius: var(--r-md);
+    padding: 14px;
+  }
+  .ai-suggest .head {
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 8px;
+  }
+  .ai-suggest .head .badge-ai {
+    background: linear-gradient(135deg, #6366F1, #8B5CF6);
+    color: white;
+    width: 24px; height: 24px;
+    border-radius: var(--r-sm);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .ai-suggest .head .badge-ai svg { width: 14px; }
+  .ai-suggest .head .title {
+    font-size: 12px;
+    font-weight: 700;
+    color: #4338CA;
+  }
+  .ai-suggest .body { font-size: 13px; color: var(--ink-700); line-height: 1.5; }
+  .ai-suggest .actions { display: flex; gap: 6px; margin-top: 10px; }
+</style>
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <img src="assets/logo.png" alt="" /><span class="brand-name">Преподавай</span>
+    </div>
+    <nav class="sidebar-section">
+      <div class="sidebar-label">Рабочий стол</div>
+      <a class="nav-item" href="dashboard.html"><i data-lucide="layout-dashboard"></i>Главная</a>
+      <a class="nav-item" href="tools.html"><i data-lucide="wand-sparkles"></i>ИИ Генератор</a>
+      <a class="nav-item" href="calendar.html"><i data-lucide="calendar"></i>Календарь</a>
+      <a class="nav-item" href="materials.html"><i data-lucide="book-open"></i>Материалы</a>
+
+      <div class="sidebar-label">Класс</div>
+      <a class="nav-item" href="students.html"><i data-lucide="users"></i>Ученики<span class="nav-badge">3</span></a>
+      <a class="nav-item is-active"><i data-lucide="clipboard-check"></i>Проверка ДЗ<span class="nav-badge">12</span></a>
+      <a class="nav-item" href="analytics.html"><i data-lucide="bar-chart-3"></i>Аналитика</a>
+
+      <div class="sidebar-label">Прочее</div>
+      <a class="nav-item" href="referrals.html"><i data-lucide="gift"></i>Пригласить</a>
+      <a class="nav-item"><i data-lucide="message-circle"></i>Поддержка</a>
+      <a class="nav-item" href="settings.html"><i data-lucide="settings"></i>Настройки</a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="user-chip">
+        <div class="avatar">ЕА</div>
+        <div class="info"><div class="name">Евгения А.</div><div class="plan">Тариф «Бизнес»</div></div>
+        <i data-lucide="chevron-up" style="color:var(--ink-400); width:16px;"></i>
+      </div>
+    </div>
+  </aside>
+
+  <main>
+    <header class="topbar">
+      <div>
+        <h1>Проверка ДЗ</h1>
+        <div style="font-size:13px; color:var(--ink-500); margin-top:2px;">12 работ ждут проверки · 3 просрочены</div>
+      </div>
+      <div class="actions">
+        <button class="btn btn-secondary btn-sm"><i data-lucide="sparkles"></i> Проверить всё ИИ</button>
+        <button class="btn btn-primary btn-sm"><i data-lucide="zap"></i> Авто-проверка</button>
+      </div>
+    </header>
+
+    <div class="gr-workspace">
+
+      <!-- ─── Queue ─── -->
+      <div class="gr-queue">
+        <div class="gr-queue-head">
+          <div class="gr-tabs">
+            <button class="is-active">Ждут <span class="count">12</span></button>
+            <button>Проверено <span class="count">38</span></button>
+          </div>
+          <div class="gr-search">
+            <i data-lucide="search"></i>
+            <input placeholder="Поиск ученика…" />
+          </div>
+        </div>
+
+        <div class="gr-queue-list">
+
+          <div class="gr-item is-active">
+            <div class="av" style="background:linear-gradient(135deg,#FCA5A5,#DC2626);">КП</div>
+            <div style="min-width:0; flex:1;">
+              <div class="name">Кирилл Петров</div>
+              <div class="task">Рабочий лист · Тригонометрия</div>
+              <div class="meta">
+                <span class="badge badge-danger" style="font-size:10px; padding: 1px 6px;">просрочено</span>
+                <span>10А · 2 дн</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="gr-item">
+            <div class="av">МИ</div>
+            <div style="min-width:0; flex:1;">
+              <div class="name">Мария Иванова</div>
+              <div class="task">Тест · Дискриминант</div>
+              <div class="meta">
+                <span class="badge badge-success" style="font-size:10px; padding: 1px 6px;">сдано</span>
+                <span>10А · 3 ч</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="gr-item">
+            <div class="av">ДВ</div>
+            <div style="min-width:0; flex:1;">
+              <div class="name">Дмитрий Волков</div>
+              <div class="task">Рабочий лист · Тригонометрия</div>
+              <div class="meta">
+                <span class="badge badge-success" style="font-size:10px; padding: 1px 6px;">сдано</span>
+                <span>11Б · 5 ч</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="gr-item">
+            <div class="av">ЕБ</div>
+            <div style="min-width:0; flex:1;">
+              <div class="name">Елена Белова</div>
+              <div class="task">Тест · Электромагнитная индукция</div>
+              <div class="meta">
+                <span class="badge badge-success" style="font-size:10px; padding: 1px 6px;">сдано</span>
+                <span>9А · 6 ч</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="gr-item">
+            <div class="av" style="background:linear-gradient(135deg,#FCA5A5,#DC2626);">АС</div>
+            <div style="min-width:0; flex:1;">
+              <div class="name">Анна Соколова</div>
+              <div class="task">Рабочий лист · Past Continuous</div>
+              <div class="meta">
+                <span class="badge badge-danger" style="font-size:10px; padding: 1px 6px;">просрочено</span>
+                <span>9А · 1 дн</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="gr-item">
+            <div class="av">НЛ</div>
+            <div style="min-width:0; flex:1;">
+              <div class="name">Никита Лебедев</div>
+              <div class="task">Тест · Тригонометрия</div>
+              <div class="meta">
+                <span class="badge badge-success" style="font-size:10px; padding: 1px 6px;">сдано</span>
+                <span>10А · вчера</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="gr-item">
+            <div class="av">ПА</div>
+            <div style="min-width:0; flex:1;">
+              <div class="name">Полина Антонова</div>
+              <div class="task">Презентация · Древний Рим</div>
+              <div class="meta">
+                <span class="badge badge-info" style="font-size:10px; padding: 1px 6px;">творческое</span>
+                <span>8А · вчера</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="gr-item">
+            <div class="av">МК</div>
+            <div style="min-width:0; flex:1;">
+              <div class="name">Михаил Козлов</div>
+              <div class="task">Рабочий лист · Интегралы</div>
+              <div class="meta">
+                <span class="badge badge-warning" style="font-size:10px; padding: 1px 6px;">частично</span>
+                <span>11Б · вчера</span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ─── Center: work ─── -->
+      <div class="gr-main">
+        <div class="gr-doc">
+          <div class="header">
+            <div>
+              <h2>Рабочий лист · Тригонометрия: формулы приведения</h2>
+              <div class="sub">Кирилл Петров · 10А · сдано 11 июня в 23:42 (на 2 дня позже)</div>
+            </div>
+            <span class="badge badge-danger" style="padding: 4px 10px;"><i data-lucide="clock"></i> Просрочено</span>
+          </div>
+
+          <div class="answer-block">
+            <div class="q">1. sin(180° − α) = ?</div>
+            <div class="a correct">sin α</div>
+            <div class="ai-hint">
+              <span class="ai-badge">ИИ</span>
+              <span>Верно. Угол во второй четверти — синус положителен.</span>
+            </div>
+          </div>
+
+          <div class="answer-block">
+            <div class="q">2. cos(90° + α) = ?</div>
+            <div class="a correct">−sin α</div>
+            <div class="ai-hint">
+              <span class="ai-badge">ИИ</span>
+              <span>Верно. Перешли в косинус → синус, в первой четверти знак минус.</span>
+            </div>
+          </div>
+
+          <div class="answer-block">
+            <div class="q">3. tg(360° − α) = ?</div>
+            <div class="a wrong">tg α</div>
+            <div class="ai-hint" style="background: rgba(239, 68, 68, 0.06); border-left-color: var(--danger-500);">
+              <span class="ai-badge" style="background: var(--danger-500);">ОШИБКА</span>
+              <span>Неверный знак: tg(360° − α) = −tg α. Угол в четвёртой четверти — тангенс отрицателен.</span>
+            </div>
+          </div>
+
+          <div class="answer-block">
+            <div class="q">4. Найдите sin 150°</div>
+            <div class="a correct">sin 150° = sin(180° − 30°) = sin 30° = ½</div>
+            <div class="ai-hint">
+              <span class="ai-badge">ИИ</span>
+              <span>Верно. Решение полное, с обоснованием.</span>
+            </div>
+          </div>
+
+          <div class="answer-block">
+            <div class="q">5. Решите уравнение sin(π − x) = √3/2 на [0; 2π]</div>
+            <div class="a wrong">x = π/3</div>
+            <div class="ai-hint" style="background: rgba(239, 68, 68, 0.06); border-left-color: var(--danger-500);">
+              <span class="ai-badge" style="background: var(--danger-500);">НЕПОЛНЫЙ ОТВЕТ</span>
+              <span>Один корень найден верно, но пропущен второй: x = 2π/3. Правильный ответ: x ∈ {π/3, 2π/3}.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ─── Right: grading ─── -->
+      <div class="gr-right">
+
+        <div>
+          <h3>Оценка</h3>
+          <div class="grade-picker">
+            <button class="grade-btn g2">2</button>
+            <button class="grade-btn g3 is-active">3</button>
+            <button class="grade-btn g4">4</button>
+            <button class="grade-btn g5">5</button>
+          </div>
+        </div>
+
+        <div>
+          <h3>Прогресс по работе</h3>
+          <div style="display: flex; gap: 8px;">
+            <div style="flex: 1; padding: 10px; background: var(--success-50); border-radius: var(--r-md); text-align: center;">
+              <div style="font-family: var(--font-display); font-size: 18px; font-weight: 800; color: var(--success-700);">3</div>
+              <div style="font-size: 11px; color: var(--ink-500); font-weight: 600;">верно</div>
+            </div>
+            <div style="flex: 1; padding: 10px; background: var(--danger-50); border-radius: var(--r-md); text-align: center;">
+              <div style="font-family: var(--font-display); font-size: 18px; font-weight: 800; color: var(--danger-700);">2</div>
+              <div style="font-size: 11px; color: var(--ink-500); font-weight: 600;">ошибки</div>
+            </div>
+            <div style="flex: 1; padding: 10px; background: var(--ink-50); border-radius: var(--r-md); text-align: center;">
+              <div style="font-family: var(--font-display); font-size: 18px; font-weight: 800; color: var(--ink-700);">5/5</div>
+              <div style="font-size: 11px; color: var(--ink-500); font-weight: 600;">всего</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- AI suggestion -->
+        <div class="ai-suggest">
+          <div class="head">
+            <span class="badge-ai"><i data-lucide="sparkles"></i></span>
+            <span class="title">ИИ предлагает комментарий</span>
+          </div>
+          <div class="body">
+            Кирилл, в целом верное направление, но есть две системные ошибки. Запомни: при переходе угла в нечётную четверть знак функции меняется. Пересмотри определения тангенса в IV четверти и не забывай искать все корни в указанном промежутке.
+          </div>
+          <div class="actions">
+            <button class="btn btn-primary btn-sm" style="flex:1;"><i data-lucide="check"></i> Использовать</button>
+            <button class="btn btn-secondary btn-sm"><i data-lucide="refresh-cw"></i></button>
+          </div>
+        </div>
+
+        <div>
+          <h3>Комментарий ученику</h3>
+          <textarea class="comment-area" placeholder="Что хорошо, что улучшить…">Кирилл, в целом верное направление, но есть две системные ошибки. Запомни: при переходе угла в нечётную четверть знак функции меняется. Пересмотри определения тангенса в IV четверти.</textarea>
+          <div style="display:flex; gap:6px; margin-top:8px;">
+            <button class="preset" style="background: var(--success-50); color: var(--success-700); border-color: var(--success-200);">Молодец 👏</button>
+            <button class="preset" style="background: var(--warning-50); color: var(--warning-700);">Подтянуть</button>
+            <button class="preset" style="background: var(--info-50); color: var(--info-700);">Повторить тему</button>
+          </div>
+        </div>
+
+        <div>
+          <h3>Действия</h3>
+          <div style="display:flex; flex-direction:column; gap:8px;">
+            <button class="btn btn-primary"><i data-lucide="check"></i> Сохранить оценку</button>
+            <button class="btn btn-secondary"><i data-lucide="arrow-right"></i> Сохранить и следующая</button>
+            <button class="btn btn-ghost"><i data-lucide="message-circle"></i> Связаться с учеником</button>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </main>
+</div>
+<script>lucide.createIcons();</script>
+</body>
+</html>

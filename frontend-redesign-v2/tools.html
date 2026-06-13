@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ИИ Генератор — Преподавай</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/tokens.css" />
+<link rel="stylesheet" href="assets/components.css" />
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+  .tool-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+  }
+  .tool-card {
+    background: var(--surface);
+    border: 1px solid var(--ink-200);
+    border-radius: var(--r-lg);
+    padding: 20px;
+    cursor: pointer;
+    transition: all var(--t-base) var(--ease);
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .tool-card:hover {
+    border-color: var(--brand-300);
+    box-shadow: var(--shadow-md);
+    transform: translateY(-2px);
+  }
+  .tool-card .tool-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: var(--r-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .tool-card .tool-icon svg { width: 22px; height: 22px; }
+  .tool-card h3 {
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 1.25;
+  }
+  .tool-card p {
+    font-size: 13px;
+    color: var(--ink-500);
+    line-height: 1.5;
+    margin: 0;
+    flex: 1;
+  }
+  .tool-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: 12px;
+    border-top: 1px solid var(--ink-100);
+    font-size: 12px;
+    color: var(--ink-500);
+  }
+  .tool-meta .cost {
+    color: var(--brand-700);
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .category-tabs {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--ink-200);
+  }
+  .cat-tab {
+    height: 36px;
+    padding: 0 14px;
+    border-radius: var(--r-full);
+    background: transparent;
+    border: 1px solid var(--ink-200);
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--ink-600);
+    cursor: pointer;
+    transition: all var(--t-fast) var(--ease);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .cat-tab:hover { background: var(--ink-100); color: var(--ink-900); }
+  .cat-tab.is-active {
+    background: var(--ink-900);
+    color: white;
+    border-color: var(--ink-900);
+  }
+  .cat-tab .count {
+    background: rgba(0,0,0,0.08);
+    border-radius: var(--r-full);
+    padding: 1px 7px;
+    font-size: 11px;
+  }
+  .cat-tab.is-active .count { background: rgba(255,255,255,0.16); }
+</style>
+</head>
+<body>
+<div class="app-shell">
+
+  <!-- ───────── SIDEBAR (same as dashboard) ───────── -->
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <img src="assets/logo.png" alt="" />
+      <span class="brand-name">Преподавай</span>
+    </div>
+    <nav class="sidebar-section">
+      <div class="sidebar-label">Рабочий стол</div>
+      <a class="nav-item" href="dashboard.html"><i data-lucide="layout-dashboard"></i>Главная</a>
+      <a class="nav-item is-active"><i data-lucide="wand-sparkles"></i>ИИ Генератор</a>
+      <a class="nav-item"><i data-lucide="calendar"></i>Календарь</a>
+      <a class="nav-item"><i data-lucide="book-open"></i>Материалы</a>
+
+      <div class="sidebar-label">Класс</div>
+      <a class="nav-item"><i data-lucide="users"></i>Ученики<span class="nav-badge">3</span></a>
+      <a class="nav-item"><i data-lucide="clipboard-check"></i>Проверка ДЗ</a>
+      <a class="nav-item"><i data-lucide="bar-chart-3"></i>Аналитика</a>
+
+      <div class="sidebar-label">Прочее</div>
+      <a class="nav-item"><i data-lucide="gift"></i>Пригласить</a>
+      <a class="nav-item"><i data-lucide="message-circle"></i>Поддержка</a>
+      <a class="nav-item"><i data-lucide="settings"></i>Настройки</a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="user-chip">
+        <div class="avatar">ЕА</div>
+        <div class="info">
+          <div class="name">Евгения А.</div>
+          <div class="plan">Тариф «Бизнес»</div>
+        </div>
+        <i data-lucide="chevron-up" style="color:var(--ink-400); width:16px;"></i>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ───────── MAIN ───────── -->
+  <main>
+    <header class="topbar">
+      <div>
+        <h1>ИИ Генератор</h1>
+        <div style="font-size:13px; color:var(--ink-500); margin-top:2px;">
+          15 инструментов для подготовки урока за минуты
+        </div>
+      </div>
+      <div class="actions">
+        <div class="searchbar">
+          <i data-lucide="search"></i>
+          <input placeholder="Найти инструмент…" />
+          <span class="kbd">⌘K</span>
+        </div>
+        <div class="token-chip">
+          <div class="spark"><i data-lucide="sparkles"></i></div>
+          <span class="tnum">9 375</span>
+          <span style="color:var(--brand-600); font-weight:500;">токенов</span>
+        </div>
+      </div>
+    </header>
+
+    <div class="content">
+
+      <!-- Category tabs -->
+      <div class="category-tabs">
+        <button class="cat-tab is-active">Все <span class="count">15</span></button>
+        <button class="cat-tab"><i data-lucide="file-text" style="width:14px;"></i> Материалы <span class="count">7</span></button>
+        <button class="cat-tab"><i data-lucide="image" style="width:14px;"></i> Медиа <span class="count">3</span></button>
+        <button class="cat-tab"><i data-lucide="gamepad-2" style="width:14px;"></i> Игры <span class="count">1</span></button>
+        <button class="cat-tab"><i data-lucide="graduation-cap" style="width:14px;"></i> Экзамены <span class="count">2</span></button>
+        <button class="cat-tab"><i data-lucide="mail" style="width:14px;"></i> Общение <span class="count">2</span></button>
+      </div>
+
+      <!-- Featured big card -->
+      <div class="card" style="margin-bottom: 24px; background: linear-gradient(135deg, #FFF4F0 0%, #FFFFFF 70%); border-color: var(--brand-200); padding: 28px;">
+        <div style="display:flex; gap: 24px; align-items: center;">
+          <div style="width:64px; height:64px; border-radius:var(--r-lg); background: linear-gradient(135deg, var(--brand-400), var(--brand-600)); display:flex; align-items:center; justify-content:center; color:white; flex-shrink:0;">
+            <i data-lucide="zap" style="width:30px; height:30px;"></i>
+          </div>
+          <div style="flex:1;">
+            <div style="display:inline-flex; align-items:center; gap:6px; padding:3px 10px; background:var(--brand-100); color:var(--brand-700); border-radius: var(--r-full); font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:8px;">
+              <i data-lucide="sparkles" style="width:12px;"></i> Главный инструмент
+            </div>
+            <h2 style="font-size:22px; margin-bottom:4px;">Вау-урок</h2>
+            <p style="font-size:14px; color:var(--ink-600); margin: 0 0 16px; max-width: 560px;">
+              Один запрос — комплект «под ключ»: план урока, рабочий лист, тест и адаптация под интересы ученика. Готово за минуту.
+            </p>
+            <button class="btn btn-primary btn-lg">
+              <i data-lucide="wand-sparkles"></i>
+              Создать вау-урок
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tools grid -->
+      <div class="tool-grid">
+
+        <a class="tool-card" href="worksheet.html">
+          <div class="tool-icon" style="background:var(--brand-50); color:var(--brand-700);">
+            <i data-lucide="file-text"></i>
+          </div>
+          <h3>Рабочий лист</h3>
+          <p>Готовый PDF-лист с заданиями по теме и уровню класса. Открывается в редакторе.</p>
+          <div class="tool-meta">
+            <span class="cost"><i data-lucide="sparkles" style="width:12px;"></i> 3 токена</span>
+            <span>~30 сек</span>
+          </div>
+        </a>
+
+        <a class="tool-card">
+          <div class="tool-icon" style="background:var(--info-50); color:var(--info-700);">
+            <i data-lucide="circle-help"></i>
+          </div>
+          <h3>Тест</h3>
+          <p>Тест с выбором ответа: 5–25 вопросов, 2–4 варианта в каждом.</p>
+          <div class="tool-meta">
+            <span class="cost"><i data-lucide="sparkles" style="width:12px;"></i> 3 токена</span>
+            <span>~30 сек</span>
+          </div>
+        </a>
+
+        <a class="tool-card">
+          <div class="tool-icon" style="background:var(--success-50); color:var(--success-700);">
+            <i data-lucide="book-marked"></i>
+          </div>
+          <h3>Словарь</h3>
+          <p>Тематический словарь на 10 языках, 5–30 слов с переводом и примером.</p>
+          <div class="tool-meta">
+            <span class="cost"><i data-lucide="sparkles" style="width:12px;"></i> 3 токена</span>
+            <span>~20 сек</span>
+          </div>
+        </a>
+
+        <a class="tool-card">
+          <div class="tool-icon" style="background:#EEF2FF; color:#4338CA;">
+            <i data-lucide="clipboard-list"></i>
+          </div>
+          <h3>План урока</h3>
+          <p>Структурированный план — цели, этапы, активности и время.</p>
+          <div class="tool-meta">
+            <span class="cost"><i data-lucide="sparkles" style="width:12px;"></i> 3 токена</span>
+            <span>~40 сек</span>
+          </div>
+        </a>
+
+        <a class="tool-card">
+          <div class="tool-icon" style="background:var(--warning-50); color:var(--warning-700);">
+            <i data-lucide="presentation"></i>
+          </div>
+          <h3>Презентация</h3>
+          <p>Готовая PPTX-презентация с дизайном, картинками и заметками.</p>
+          <div class="tool-meta">
+            <span class="cost"><i data-lucide="sparkles" style="width:12px;"></i> 50 токенов</span>
+            <span>~2 мин</span>
+          </div>
+        </a>
+
+        <a class="tool-card">
+          <div class="tool-icon" style="background:#FDF4FF; color:#A21CAF;">
+            <i data-lucide="image"></i>
+          </div>
+          <h3>Изображение</h3>
+          <p>Иллюстрация по описанию — карты, схемы, портреты, анимация.</p>
+          <div class="tool-meta">
+            <span class="cost"><i data-lucide="sparkles" style="width:12px;"></i> 15 токенов</span>
+            <span>~25 сек</span>
+          </div>
+        </a>
+
+        <a class="tool-card">
+          <div class="tool-icon" style="background:#F0FDFA; color:#0F766E;">
+            <i data-lucide="gamepad-2"></i>
+          </div>
+          <h3>Обучающая игра</h3>
+          <p>HTML5-игра: «Миллионер», флешкарты, кроссворд, memory, верю/не верю.</p>
+          <div class="tool-meta">
+            <span class="cost"><i data-lucide="sparkles" style="width:12px;"></i> 15 токенов</span>
+            <span>~25 сек</span>
+          </div>
+        </a>
+
+        <a class="tool-card">
+          <div class="tool-icon" style="background:#FEF3C7; color:#92400E;">
+            <i data-lucide="graduation-cap"></i>
+          </div>
+          <h3>Вариант ОГЭ/ЕГЭ</h3>
+          <p>Полный экзаменационный вариант с разбором по темам.</p>
+          <div class="tool-meta">
+            <span class="cost"><i data-lucide="sparkles" style="width:12px;"></i> 20 токенов</span>
+            <span>~1 мин</span>
+          </div>
+        </a>
+
+        <a class="tool-card">
+          <div class="tool-icon" style="background:var(--danger-50); color:var(--danger-700);">
+            <i data-lucide="brain"></i>
+          </div>
+          <h3>Распаковка экспертности</h3>
+          <p>Глубокий разбор темы или навыка — для подготовки самого себя.</p>
+          <div class="tool-meta">
+            <span class="cost"><i data-lucide="sparkles" style="width:12px;"></i> 20 токенов</span>
+            <span>~1 мин</span>
+          </div>
+        </a>
+
+        <a class="tool-card">
+          <div class="tool-icon" style="background:#ECFEFF; color:#0E7490;">
+            <i data-lucide="video"></i>
+          </div>
+          <h3>Анализ видео</h3>
+          <p>Транскрибация + конспект + методический анализ урока.</p>
+          <div class="tool-meta">
+            <span class="cost"><i data-lucide="sparkles" style="width:12px;"></i> 15 токенов</span>
+            <span>~3 мин</span>
+          </div>
+        </a>
+
+        <a class="tool-card">
+          <div class="tool-icon" style="background:var(--success-50); color:var(--success-700);">
+            <i data-lucide="check-circle-2"></i>
+          </div>
+          <h3>Проверка ДЗ</h3>
+          <p>ИИ-оценка работы ученика и развёрнутая обратная связь.</p>
+          <div class="tool-meta">
+            <span class="cost"><i data-lucide="sparkles" style="width:12px;"></i> 3 токена</span>
+            <span>~30 сек</span>
+          </div>
+        </a>
+
+        <a class="tool-card">
+          <div class="tool-icon" style="background:var(--ink-100); color:var(--ink-700);">
+            <i data-lucide="mail"></i>
+          </div>
+          <h3>Сообщение родителям</h3>
+          <p>Готовое тактичное сообщение по теме — от похвалы до проблемы.</p>
+          <div class="tool-meta">
+            <span class="cost"><i data-lucide="sparkles" style="width:12px;"></i> 1 токен</span>
+            <span>~10 сек</span>
+          </div>
+        </a>
+
+        <a class="tool-card">
+          <div class="tool-icon" style="background:#FEF2F2; color:#BE123C;">
+            <i data-lucide="camera"></i>
+          </div>
+          <h3>AI Фотосессия</h3>
+          <p>Серия портретов по референсу — для соцсетей и рекламы курса.</p>
+          <div class="tool-meta">
+            <span class="cost"><i data-lucide="sparkles" style="width:12px;"></i> 25 токенов</span>
+            <span>~1 мин</span>
+          </div>
+        </a>
+
+        <a class="tool-card">
+          <div class="tool-icon" style="background:#F5F3FF; color:#6D28D9;">
+            <i data-lucide="trending-up"></i>
+          </div>
+          <h3>ИИ-продажник</h3>
+          <p>Помогает с продажей курсов: оффер, возражения, скрипты.</p>
+          <div class="tool-meta">
+            <span class="cost"><i data-lucide="sparkles" style="width:12px;"></i> 10 токенов</span>
+            <span>~30 сек</span>
+          </div>
+        </a>
+
+        <a class="tool-card">
+          <div class="tool-icon" style="background:var(--info-50); color:var(--info-700);">
+            <i data-lucide="repeat"></i>
+          </div>
+          <h3>Адаптация текста</h3>
+          <p>Перепишет материал под нужный уровень — проще, сложнее, под интересы.</p>
+          <div class="tool-meta">
+            <span class="cost"><i data-lucide="sparkles" style="width:12px;"></i> 3 токена</span>
+            <span>~20 сек</span>
+          </div>
+        </a>
+
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>lucide.createIcons();</script>
+</body>
+</html>

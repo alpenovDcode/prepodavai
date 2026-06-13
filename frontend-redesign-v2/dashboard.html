@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Главная — Преподавай</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/tokens.css" />
+<link rel="stylesheet" href="assets/components.css" />
+<script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+<div class="app-shell">
+
+  <!-- ───────── SIDEBAR ───────── -->
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <img src="assets/logo.png" alt="" />
+      <span class="brand-name">Преподавай</span>
+    </div>
+
+    <nav class="sidebar-section">
+      <div class="sidebar-label">Рабочий стол</div>
+      <a class="nav-item is-active"><i data-lucide="layout-dashboard"></i>Главная</a>
+      <a class="nav-item"><i data-lucide="wand-sparkles"></i>ИИ Генератор</a>
+      <a class="nav-item"><i data-lucide="calendar"></i>Календарь</a>
+      <a class="nav-item"><i data-lucide="book-open"></i>Материалы</a>
+
+      <div class="sidebar-label">Класс</div>
+      <a class="nav-item">
+        <i data-lucide="users"></i>Ученики
+        <span class="nav-badge">3</span>
+      </a>
+      <a class="nav-item"><i data-lucide="clipboard-check"></i>Проверка ДЗ</a>
+      <a class="nav-item"><i data-lucide="bar-chart-3"></i>Аналитика</a>
+
+      <div class="sidebar-label">Прочее</div>
+      <a class="nav-item"><i data-lucide="gift"></i>Пригласить</a>
+      <a class="nav-item"><i data-lucide="message-circle"></i>Поддержка</a>
+      <a class="nav-item"><i data-lucide="settings"></i>Настройки</a>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="user-chip">
+        <div class="avatar">ЕА</div>
+        <div class="info">
+          <div class="name">Евгения А.</div>
+          <div class="plan">Тариф «Бизнес»</div>
+        </div>
+        <i data-lucide="chevron-up" style="color: var(--ink-400); width:16px;"></i>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ───────── MAIN ───────── -->
+  <main>
+    <header class="topbar">
+      <div>
+        <h1>Добро пожаловать, Евгения 👋</h1>
+        <div style="font-size:13px; color: var(--ink-500); margin-top:2px;">
+          Вторник, 13 июня · 3 урока сегодня
+        </div>
+      </div>
+      <div class="actions">
+        <div class="searchbar">
+          <i data-lucide="search"></i>
+          <input placeholder="Поиск материалов, учеников, классов…" />
+          <span class="kbd">⌘K</span>
+        </div>
+        <div class="token-chip">
+          <div class="spark"><i data-lucide="sparkles"></i></div>
+          <span class="tnum">9 375</span>
+          <span style="color:var(--brand-600); font-weight:500;">токенов</span>
+        </div>
+        <button class="btn btn-ghost" aria-label="Уведомления" style="height:36px; width:36px; padding:0; position:relative;">
+          <i data-lucide="bell" style="width:18px;"></i>
+          <span style="position:absolute; top:6px; right:6px; width:8px; height:8px; background:var(--brand-500); border-radius:50%; border:2px solid white;"></span>
+        </button>
+      </div>
+    </header>
+
+    <div class="content">
+
+      <!-- ────────── Bento: что важно сегодня ────────── -->
+      <section style="margin-bottom: 32px;">
+        <div class="section-head">
+          <div>
+            <h2>Что важно сегодня</h2>
+            <div class="subtitle">Чтобы день прошёл спокойно</div>
+          </div>
+          <button class="btn btn-ghost btn-sm">Скрыть</button>
+        </div>
+
+        <div class="grid-bento">
+          <!-- Pending grading -->
+          <div class="card col-3 is-interactive">
+            <div class="stat">
+              <div class="stat-label">
+                <span class="icon-tile" style="background: var(--warning-50); color: var(--warning-700);">
+                  <i data-lucide="clipboard-list"></i>
+                </span>
+                Работ ждут проверки
+              </div>
+              <div class="stat-value tnum">12</div>
+              <div style="font-size:12px; color:var(--ink-500);">
+                3 в классе «10А», 9 в «8Б»
+              </div>
+            </div>
+          </div>
+
+          <!-- Next lesson -->
+          <div class="card col-3 is-interactive">
+            <div class="stat">
+              <div class="stat-label">
+                <span class="icon-tile" style="background: var(--info-50); color: var(--info-700);">
+                  <i data-lucide="clock"></i>
+                </span>
+                Следующий урок
+              </div>
+              <div class="stat-value" style="font-size:22px;">14:30</div>
+              <div style="font-size:12px; color:var(--ink-500);">
+                Тригонометрия · 10А · через 1 ч 12 мин
+              </div>
+            </div>
+          </div>
+
+          <!-- At-risk students -->
+          <div class="card col-3 is-interactive">
+            <div class="stat">
+              <div class="stat-label">
+                <span class="icon-tile" style="background: var(--danger-50); color: var(--danger-700);">
+                  <i data-lucide="alert-triangle"></i>
+                </span>
+                Под наблюдением
+              </div>
+              <div class="stat-value tnum">3</div>
+              <div style="display:flex; align-items:center; gap:8px; margin-top:2px;">
+                <div class="avatar-stack">
+                  <div class="av">КП</div>
+                  <div class="av">АС</div>
+                  <div class="av muted">+1</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Overdue -->
+          <div class="card col-3 is-interactive">
+            <div class="stat">
+              <div class="stat-label">
+                <span class="icon-tile" style="background: var(--danger-50); color: var(--danger-700);">
+                  <i data-lucide="calendar-x"></i>
+                </span>
+                Просрочено
+              </div>
+              <div class="stat-value tnum">5</div>
+              <div style="font-size:12px; color:var(--ink-500);">
+                заданий, дедлайн прошёл
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ────────── Quick start (AI generator) ────────── -->
+      <section style="margin-bottom: 32px;">
+        <div class="section-head">
+          <div>
+            <h2>Быстрый старт</h2>
+            <div class="subtitle">Сгенерировать материал за минуту</div>
+          </div>
+        </div>
+
+        <div class="grid-bento">
+          <!-- Hero generator card -->
+          <div class="card col-8" style="background: linear-gradient(135deg, #FFF4F0 0%, #FFFFFF 60%); border-color: var(--brand-200);">
+            <div style="display:flex; gap:24px; align-items:flex-start;">
+              <div style="width:56px; height:56px; border-radius:var(--r-lg); background: linear-gradient(135deg, var(--brand-400), var(--brand-600)); display:flex; align-items:center; justify-content:center; color:white; flex-shrink:0;">
+                <i data-lucide="sparkles" style="width:28px; height:28px;"></i>
+              </div>
+              <div style="flex:1;">
+                <h3 style="font-size:18px; margin-bottom:4px;">Сгенерируйте материал к уроку</h3>
+                <p style="font-size:14px; color:var(--ink-600); margin:0 0 16px;">
+                  Опишите тему — ИИ соберёт рабочий лист, тест, презентацию или сразу всё вместе.
+                </p>
+                <div style="display:flex; gap:8px; flex-wrap: wrap;">
+                  <button class="btn btn-primary">
+                    <i data-lucide="wand-sparkles"></i>
+                    Открыть генератор
+                  </button>
+                  <button class="btn btn-secondary">
+                    <i data-lucide="zap"></i>
+                    Вау-урок
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Last used tools -->
+          <div class="card col-4">
+            <div style="font-size:13px; font-weight:600; color:var(--ink-500); margin-bottom:12px;">Часто используете</div>
+            <div style="display:flex; flex-direction:column; gap:6px;">
+              <a class="nav-item" style="margin:0;">
+                <span style="width:28px; height:28px; background:var(--brand-50); border-radius:var(--r-sm); display:flex; align-items:center; justify-content:center; color:var(--brand-700);">
+                  <i data-lucide="file-text"></i>
+                </span>
+                <div style="flex:1;">
+                  <div style="font-weight:600; font-size:13px; color:var(--ink-900);">Рабочий лист</div>
+                  <div style="font-size:11px; color:var(--ink-500);">3 токена · ~30 сек</div>
+                </div>
+                <i data-lucide="chevron-right" style="color:var(--ink-400); width:16px;"></i>
+              </a>
+              <a class="nav-item" style="margin:0;">
+                <span style="width:28px; height:28px; background:var(--info-50); border-radius:var(--r-sm); display:flex; align-items:center; justify-content:center; color:var(--info-700);">
+                  <i data-lucide="circle-help"></i>
+                </span>
+                <div style="flex:1;">
+                  <div style="font-weight:600; font-size:13px; color:var(--ink-900);">Генератор тестов</div>
+                  <div style="font-size:11px; color:var(--ink-500);">3 токена · ~30 сек</div>
+                </div>
+                <i data-lucide="chevron-right" style="color:var(--ink-400); width:16px;"></i>
+              </a>
+              <a class="nav-item" style="margin:0;">
+                <span style="width:28px; height:28px; background:var(--success-50); border-radius:var(--r-sm); display:flex; align-items:center; justify-content:center; color:var(--success-700);">
+                  <i data-lucide="presentation"></i>
+                </span>
+                <div style="flex:1;">
+                  <div style="font-weight:600; font-size:13px; color:var(--ink-900);">Презентация</div>
+                  <div style="font-size:11px; color:var(--ink-500);">50 токенов · ~2 мин</div>
+                </div>
+                <i data-lucide="chevron-right" style="color:var(--ink-400); width:16px;"></i>
+              </a>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ────────── Today schedule + recent generations ────────── -->
+      <section style="margin-bottom: 32px;">
+        <div class="grid-bento">
+          <!-- Today schedule -->
+          <div class="card col-6">
+            <div class="section-head" style="margin-bottom:16px;">
+              <div>
+                <h2 style="font-size:16px;">Расписание сегодня</h2>
+              </div>
+              <a style="font-size:13px; color:var(--brand-600); font-weight:600; cursor:pointer;">Открыть календарь →</a>
+            </div>
+
+            <div style="display:flex; flex-direction:column; gap:12px;">
+              <div style="display:flex; gap:16px; padding: 14px; border-radius: var(--r-md); background: var(--ink-50); position:relative;">
+                <div style="text-align:right; flex-shrink:0; width:54px;">
+                  <div class="tnum" style="font-weight:700; font-size:14px; color:var(--ink-900);">13:00</div>
+                  <div class="tnum" style="font-size:11px; color:var(--ink-500);">45 мин</div>
+                </div>
+                <div style="width:3px; background: var(--ink-300); border-radius:2px; flex-shrink:0;"></div>
+                <div style="flex:1;">
+                  <div style="font-weight:600; color:var(--ink-900); font-size:14px;">Дискриминант</div>
+                  <div style="font-size:12px; color:var(--ink-500); margin-top:2px;">9А · кабинет 204 · математика</div>
+                </div>
+                <span class="badge badge-success">завершён</span>
+              </div>
+
+              <div style="display:flex; gap:16px; padding: 14px; border-radius: var(--r-md); background: var(--brand-50); border: 1px solid var(--brand-200); position:relative;">
+                <div style="text-align:right; flex-shrink:0; width:54px;">
+                  <div class="tnum" style="font-weight:700; font-size:14px; color:var(--ink-900);">14:30</div>
+                  <div class="tnum" style="font-size:11px; color:var(--ink-500);">45 мин</div>
+                </div>
+                <div style="width:3px; background: var(--brand-500); border-radius:2px; flex-shrink:0;"></div>
+                <div style="flex:1;">
+                  <div style="font-weight:600; color:var(--ink-900); font-size:14px;">Тригонометрия</div>
+                  <div style="font-size:12px; color:var(--ink-500); margin-top:2px;">10А · кабинет 204 · математика</div>
+                </div>
+                <span class="badge badge-brand">скоро · через 1 ч</span>
+              </div>
+
+              <div style="display:flex; gap:16px; padding: 14px; border-radius: var(--r-md); position:relative;">
+                <div style="text-align:right; flex-shrink:0; width:54px;">
+                  <div class="tnum" style="font-weight:700; font-size:14px; color:var(--ink-900);">16:00</div>
+                  <div class="tnum" style="font-size:11px; color:var(--ink-500);">90 мин</div>
+                </div>
+                <div style="width:3px; background: var(--ink-200); border-radius:2px; flex-shrink:0;"></div>
+                <div style="flex:1;">
+                  <div style="font-weight:600; color:var(--ink-900); font-size:14px;">Геометрия на плоскости</div>
+                  <div style="font-size:12px; color:var(--ink-500); margin-top:2px;">11Б · онлайн · математика</div>
+                </div>
+                <button class="btn btn-secondary btn-sm">Материалы</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Recent generations -->
+          <div class="card col-6">
+            <div class="section-head" style="margin-bottom:16px;">
+              <div>
+                <h2 style="font-size:16px;">Последние материалы</h2>
+              </div>
+              <a style="font-size:13px; color:var(--brand-600); font-weight:600; cursor:pointer;">Вся история →</a>
+            </div>
+
+            <div style="display:flex; flex-direction:column; gap:8px;">
+              <div class="nav-item" style="background:transparent; padding:10px; cursor:pointer;">
+                <span style="width:36px; height:36px; background:var(--brand-50); border-radius:var(--r-md); display:flex; align-items:center; justify-content:center; color:var(--brand-700);">
+                  <i data-lucide="file-text"></i>
+                </span>
+                <div style="flex:1; min-width:0;">
+                  <div style="font-weight:600; font-size:13px; color:var(--ink-900); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Рабочий лист · Тригонометрия</div>
+                  <div style="font-size:11px; color:var(--ink-500);">10А · 2 часа назад</div>
+                </div>
+                <span class="badge badge-success">готово</span>
+              </div>
+
+              <div class="nav-item" style="background:transparent; padding:10px; cursor:pointer;">
+                <span style="width:36px; height:36px; background:var(--info-50); border-radius:var(--r-md); display:flex; align-items:center; justify-content:center; color:var(--info-700);">
+                  <i data-lucide="circle-help"></i>
+                </span>
+                <div style="flex:1; min-width:0;">
+                  <div style="font-weight:600; font-size:13px; color:var(--ink-900); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Тест · Планометрия</div>
+                  <div style="font-size:11px; color:var(--ink-500);">9А · вчера</div>
+                </div>
+                <span class="badge badge-success">готово</span>
+              </div>
+
+              <div class="nav-item" style="background:transparent; padding:10px; cursor:pointer;">
+                <span style="width:36px; height:36px; background:var(--success-50); border-radius:var(--r-md); display:flex; align-items:center; justify-content:center; color:var(--success-700);">
+                  <i data-lucide="presentation"></i>
+                </span>
+                <div style="flex:1; min-width:0;">
+                  <div style="font-weight:600; font-size:13px; color:var(--ink-900); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Презентация · Интегралы</div>
+                  <div style="font-size:11px; color:var(--ink-500);">11Б · 2 дня назад</div>
+                </div>
+                <span class="badge badge-success">готово</span>
+              </div>
+
+              <div class="nav-item" style="background:transparent; padding:10px; cursor:pointer;">
+                <span style="width:36px; height:36px; background:var(--warning-50); border-radius:var(--r-md); display:flex; align-items:center; justify-content:center; color:var(--warning-700);">
+                  <i data-lucide="image"></i>
+                </span>
+                <div style="flex:1; min-width:0;">
+                  <div style="font-weight:600; font-size:13px; color:var(--ink-900); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Изображение · Древний Рим</div>
+                  <div style="font-size:11px; color:var(--ink-500);">7В · 3 дня назад</div>
+                </div>
+                <span class="badge badge-success">готово</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ────────── Weekly summary (chart placeholder) ────────── -->
+      <section>
+        <div class="grid-bento">
+          <div class="card col-8">
+            <div class="section-head" style="margin-bottom:20px;">
+              <div>
+                <h2 style="font-size:16px;">Активность за неделю</h2>
+                <div class="subtitle">Генерации и проверки ДЗ</div>
+              </div>
+              <div style="display:flex; gap:6px;">
+                <button class="btn btn-secondary btn-sm">Неделя</button>
+                <button class="btn btn-ghost btn-sm">Месяц</button>
+              </div>
+            </div>
+
+            <!-- Faux chart with CSS bars -->
+            <div style="height: 160px; display: grid; grid-template-columns: repeat(7, 1fr); gap: 12px; align-items: end;">
+              <div style="display:flex; flex-direction:column; align-items:center; gap:6px;">
+                <div style="width:100%; max-width:32px; height:42%; background:linear-gradient(180deg, var(--brand-400), var(--brand-300)); border-radius: 6px 6px 0 0;"></div>
+                <span style="font-size:11px; color:var(--ink-500);">Пн</span>
+              </div>
+              <div style="display:flex; flex-direction:column; align-items:center; gap:6px;">
+                <div style="width:100%; max-width:32px; height:78%; background:linear-gradient(180deg, var(--brand-500), var(--brand-400)); border-radius: 6px 6px 0 0;"></div>
+                <span style="font-size:11px; color:var(--ink-500);">Вт</span>
+              </div>
+              <div style="display:flex; flex-direction:column; align-items:center; gap:6px;">
+                <div style="width:100%; max-width:32px; height:55%; background:linear-gradient(180deg, var(--brand-400), var(--brand-300)); border-radius: 6px 6px 0 0;"></div>
+                <span style="font-size:11px; color:var(--ink-500);">Ср</span>
+              </div>
+              <div style="display:flex; flex-direction:column; align-items:center; gap:6px;">
+                <div style="width:100%; max-width:32px; height:90%; background:linear-gradient(180deg, var(--brand-600), var(--brand-500)); border-radius: 6px 6px 0 0;"></div>
+                <span style="font-size:11px; color:var(--ink-500);">Чт</span>
+              </div>
+              <div style="display:flex; flex-direction:column; align-items:center; gap:6px;">
+                <div style="width:100%; max-width:32px; height:65%; background:linear-gradient(180deg, var(--brand-500), var(--brand-400)); border-radius: 6px 6px 0 0;"></div>
+                <span style="font-size:11px; color:var(--ink-500);">Пт</span>
+              </div>
+              <div style="display:flex; flex-direction:column; align-items:center; gap:6px;">
+                <div style="width:100%; max-width:32px; height:30%; background:linear-gradient(180deg, var(--brand-300), var(--brand-200)); border-radius: 6px 6px 0 0;"></div>
+                <span style="font-size:11px; color:var(--ink-500);">Сб</span>
+              </div>
+              <div style="display:flex; flex-direction:column; align-items:center; gap:6px;">
+                <div style="width:100%; max-width:32px; height:20%; background:linear-gradient(180deg, var(--brand-200), var(--brand-100)); border-radius: 6px 6px 0 0;"></div>
+                <span style="font-size:11px; color:var(--ink-500);">Вс</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="card col-4">
+            <div class="section-head" style="margin-bottom:20px;">
+              <div>
+                <h2 style="font-size:16px;">Баланс токенов</h2>
+              </div>
+            </div>
+            <div style="font-family: var(--font-display); font-size: 36px; font-weight: 800; color: var(--ink-900); letter-spacing:-0.02em;" class="tnum">9 375</div>
+            <div style="font-size:13px; color:var(--ink-500); margin-bottom: 20px;">из 1 500 / мес. бизнес-тариф</div>
+
+            <!-- Progress bar -->
+            <div style="height:8px; background:var(--ink-100); border-radius: var(--r-full); overflow:hidden; margin-bottom: 16px;">
+              <div style="width:62%; height:100%; background: linear-gradient(90deg, var(--brand-400), var(--brand-600)); border-radius: var(--r-full);"></div>
+            </div>
+
+            <div style="display:flex; gap:8px;">
+              <button class="btn btn-primary btn-sm" style="flex:1;">
+                <i data-lucide="plus"></i> Пополнить
+              </button>
+              <button class="btn btn-secondary btn-sm">История</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+</div>
+
+<script>lucide.createIcons();</script>
+</body>
+</html>

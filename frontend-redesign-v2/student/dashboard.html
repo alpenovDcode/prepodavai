@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Главная — Преподавай</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/tokens.css" />
+<link rel="stylesheet" href="../assets/components.css" />
+<link rel="stylesheet" href="student.css" />
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+  /* Hero greeting */
+  .greet {
+    background: linear-gradient(135deg, var(--brand-50) 0%, #FFFFFF 70%);
+    border: 1px solid var(--brand-200);
+    border-radius: var(--r-xl);
+    padding: 26px 28px;
+    margin-bottom: 24px;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 24px;
+    align-items: center;
+  }
+  .greet h1 {
+    font-size: 26px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    margin-bottom: 4px;
+  }
+  .greet h1 span { color: var(--brand-600); }
+  .greet p { color: var(--ink-600); font-size: 14px; }
+
+  .greet-stats {
+    display: flex;
+    gap: 16px;
+  }
+  .greet-stat {
+    background: white;
+    border: 1px solid var(--ink-200);
+    border-radius: var(--r-lg);
+    padding: 14px 18px;
+    min-width: 120px;
+    text-align: center;
+  }
+  .greet-stat .v {
+    font-family: var(--font-display);
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--ink-900);
+    letter-spacing: -0.02em;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-variant-numeric: tabular-nums;
+  }
+  .greet-stat .l {
+    font-size: 11px;
+    color: var(--ink-500);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-top: 6px;
+  }
+
+  @media (max-width: 767px) {
+    .greet { grid-template-columns: 1fr; }
+    .greet-stats { flex-wrap: wrap; }
+  }
+
+  /* Tabs */
+  .s-tabs {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 18px;
+    border-bottom: 1px solid var(--ink-200);
+  }
+  .s-tab {
+    height: 38px; padding: 0 14px;
+    border: none; background: transparent;
+    color: var(--ink-500);
+    font-weight: 600;
+    font-size: 13px;
+    cursor: pointer;
+    position: relative;
+    display: inline-flex; align-items: center; gap: 6px;
+    transition: color var(--t-fast) var(--ease);
+  }
+  .s-tab:hover { color: var(--ink-900); }
+  .s-tab.is-active { color: var(--brand-700); }
+  .s-tab.is-active::after {
+    content: '';
+    position: absolute;
+    bottom: -1px; left: 12px; right: 12px;
+    height: 2px;
+    background: var(--brand-500);
+    border-radius: 2px;
+  }
+  .s-tab .count {
+    background: var(--ink-100);
+    color: var(--ink-600);
+    font-size: 11px;
+    padding: 1px 7px;
+    border-radius: var(--r-full);
+    font-weight: 700;
+  }
+  .s-tab.is-active .count { background: var(--brand-100); color: var(--brand-700); }
+
+  /* Section group */
+  .group-title {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--ink-500);
+    letter-spacing: 0.06em;
+    margin: 20px 0 12px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .group-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--ink-100);
+  }
+  .group-title:first-of-type { margin-top: 0; }
+
+  /* Task card (student-facing) */
+  .task-card {
+    background: var(--surface);
+    border: 1px solid var(--ink-200);
+    border-radius: var(--r-lg);
+    padding: 18px;
+    margin-bottom: 10px;
+    display: grid;
+    grid-template-columns: 48px 1fr auto;
+    gap: 16px;
+    align-items: center;
+    transition: all var(--t-base) var(--ease);
+    cursor: pointer;
+  }
+  .task-card:hover {
+    border-color: var(--brand-300);
+    box-shadow: var(--shadow-md);
+    transform: translateY(-2px);
+  }
+  .task-card .ico {
+    width: 48px; height: 48px;
+    border-radius: var(--r-md);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .task-card .ico svg { width: 22px; height: 22px; }
+  .task-card h3 {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--ink-900);
+    line-height: 1.3;
+    margin-bottom: 4px;
+  }
+  .task-card .meta-row {
+    font-size: 12px;
+    color: var(--ink-500);
+    display: flex; align-items: center; gap: 10px;
+    flex-wrap: wrap;
+  }
+  .task-card .meta-row .subj {
+    background: var(--ink-100);
+    color: var(--ink-700);
+    padding: 2px 8px;
+    border-radius: var(--r-full);
+    font-weight: 600;
+    font-size: 11px;
+  }
+
+  .task-card.is-urgent { border-color: var(--warning-300); }
+  .task-card.is-overdue {
+    border-color: #FECACA;
+    background: linear-gradient(135deg, #FEF2F2 0%, #FFFFFF 30%);
+  }
+  .task-card.is-done {
+    background: var(--surface-soft);
+    opacity: 0.85;
+  }
+
+  .deadline-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border-radius: var(--r-full);
+    font-size: 11px;
+    font-weight: 700;
+  }
+  .deadline-chip.urgent { background: var(--warning-50); color: var(--warning-700); }
+  .deadline-chip.overdue { background: var(--danger-50); color: var(--danger-700); }
+  .deadline-chip.ok { background: var(--ink-100); color: var(--ink-600); }
+  .deadline-chip.done { background: var(--success-50); color: var(--success-700); }
+</style>
+</head>
+<body>
+<div class="s-shell">
+
+  <!-- ───────── SIDEBAR ───────── -->
+  <aside class="s-sidebar">
+    <div class="s-sidebar-brand">
+      <img src="../assets/logo.png" alt="" />
+      <span class="name">Преподавай</span>
+    </div>
+
+    <nav class="s-nav">
+      <a class="s-nav-item is-active"><i data-lucide="layout-dashboard"></i>Главная</a>
+      <a class="s-nav-item"><i data-lucide="book-open"></i>Задания<span class="badge-num">7</span></a>
+      <a class="s-nav-item" href="grades.html"><i data-lucide="graduation-cap"></i>Оценки</a>
+      <a class="s-nav-item" href="ai-teacher.html"><i data-lucide="bot"></i>ИИ-учитель</a>
+      <a class="s-nav-item"><i data-lucide="trophy"></i>Достижения</a>
+      <a class="s-nav-item"><i data-lucide="bell"></i>Уведомления</a>
+    </nav>
+
+    <div class="s-profile">
+      <div class="top">
+        <div class="av">КП</div>
+        <div>
+          <div class="nm">Кирилл Петров</div>
+          <div class="mt">10А · математика</div>
+        </div>
+      </div>
+      <div class="stats">
+        <div>
+          <div class="v"><i data-lucide="flame" style="width:14px; color:#F59E0B;"></i> 7</div>
+          <div class="l">дней подряд</div>
+        </div>
+        <div>
+          <div class="v"><i data-lucide="star" style="width:14px; color:#F59E0B;"></i> 245</div>
+          <div class="l">опыт</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ───────── MAIN ───────── -->
+  <main>
+    <header class="s-topbar">
+      <div>
+        <h1>Мои задания</h1>
+      </div>
+      <div style="display:flex; gap:10px; align-items:center;">
+        <div class="xp-chip">
+          <div class="ico"><i data-lucide="flame" style="width:12px;"></i></div>
+          7 дней подряд
+        </div>
+        <button class="btn btn-ghost" aria-label="Уведомления" style="height:36px; width:36px; padding:0; position:relative;">
+          <i data-lucide="bell" style="width:18px;"></i>
+          <span style="position:absolute; top:8px; right:8px; width:8px; height:8px; background:var(--brand-500); border-radius:50%; border:2px solid white;"></span>
+        </button>
+      </div>
+    </header>
+
+    <div class="s-content">
+
+      <!-- Greeting -->
+      <div class="greet">
+        <div>
+          <h1>Привет, <span>Кирилл</span> 👋</h1>
+          <p>У тебя <strong style="color: var(--ink-900);">5 заданий</strong> на этой неделе. Самое срочное — рабочий лист по тригонометрии, до завтра.</p>
+        </div>
+        <div class="greet-stats">
+          <div class="greet-stat">
+            <div class="v"><i data-lucide="flame" style="width:18px; color:#F59E0B;"></i> 7</div>
+            <div class="l">стрик</div>
+          </div>
+          <div class="greet-stat">
+            <div class="v"><i data-lucide="trophy" style="width:18px; color:#F59E0B;"></i> 12</div>
+            <div class="l">ачивок</div>
+          </div>
+          <div class="greet-stat">
+            <div class="v">4,3</div>
+            <div class="l">средний балл</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tabs filter -->
+      <div class="s-tabs">
+        <button class="s-tab is-active">Все <span class="count">7</span></button>
+        <button class="s-tab">К выполнению <span class="count">5</span></button>
+        <button class="s-tab">На проверке <span class="count">1</span></button>
+        <button class="s-tab">Завершено <span class="count">1</span></button>
+      </div>
+
+      <!-- ── Срочно ── -->
+      <div class="group-title">
+        <i data-lucide="flame" style="width:14px; color:var(--warning-500);"></i>
+        Срочно · до завтра
+      </div>
+
+      <a class="task-card is-urgent" href="assignment.html">
+        <div class="ico" style="background:var(--brand-50); color:var(--brand-700);"><i data-lucide="file-text"></i></div>
+        <div>
+          <h3>Рабочий лист · Тригонометрия: формулы приведения</h3>
+          <div class="meta-row">
+            <span class="subj">Математика</span>
+            <span>10 заданий</span>
+            <span>·</span>
+            <span>~25 минут</span>
+          </div>
+        </div>
+        <div style="display:flex; flex-direction:column; align-items:flex-end; gap:8px;">
+          <span class="deadline-chip urgent">
+            <i data-lucide="clock" style="width:12px;"></i>
+            До завтра, 23:59
+          </span>
+          <button class="btn btn-primary btn-sm">Начать</button>
+        </div>
+      </a>
+
+      <a class="task-card is-urgent">
+        <div class="ico" style="background:var(--info-50); color:var(--info-700);"><i data-lucide="circle-help"></i></div>
+        <div>
+          <h3>Тест · Дискриминант квадратного уравнения</h3>
+          <div class="meta-row">
+            <span class="subj">Математика</span>
+            <span>15 вопросов</span>
+            <span>·</span>
+            <span>~20 минут</span>
+          </div>
+        </div>
+        <div style="display:flex; flex-direction:column; align-items:flex-end; gap:8px;">
+          <span class="deadline-chip urgent">
+            <i data-lucide="clock" style="width:12px;"></i>
+            До завтра, 23:59
+          </span>
+          <button class="btn btn-primary btn-sm">Начать</button>
+        </div>
+      </a>
+
+      <!-- ── На этой неделе ── -->
+      <div class="group-title">
+        <i data-lucide="calendar" style="width:14px; color:var(--info-500);"></i>
+        На этой неделе
+      </div>
+
+      <a class="task-card">
+        <div class="ico" style="background:#F0FDFA; color:#0F766E;"><i data-lucide="gamepad-2"></i></div>
+        <div>
+          <h3>Игра «Миллионер» · Тригонометрия</h3>
+          <div class="meta-row">
+            <span class="subj">Математика</span>
+            <span>15 вопросов</span>
+            <span>·</span>
+            <span class="badge badge-success">за полное прохождение +50 XP</span>
+          </div>
+        </div>
+        <div style="display:flex; flex-direction:column; align-items:flex-end; gap:8px;">
+          <span class="deadline-chip ok"><i data-lucide="calendar" style="width:12px;"></i> До пятницы</span>
+          <button class="btn btn-secondary btn-sm">Играть</button>
+        </div>
+      </a>
+
+      <a class="task-card">
+        <div class="ico" style="background:var(--warning-50); color:var(--warning-700);"><i data-lucide="presentation"></i></div>
+        <div>
+          <h3>Презентация · Электромагнитная индукция</h3>
+          <div class="meta-row">
+            <span class="subj">Физика</span>
+            <span>18 слайдов</span>
+            <span>·</span>
+            <span>~15 минут на изучение</span>
+          </div>
+        </div>
+        <div style="display:flex; flex-direction:column; align-items:flex-end; gap:8px;">
+          <span class="deadline-chip ok"><i data-lucide="calendar" style="width:12px;"></i> До пятницы</span>
+          <button class="btn btn-secondary btn-sm">Открыть</button>
+        </div>
+      </a>
+
+      <a class="task-card">
+        <div class="ico" style="background:var(--info-50); color:var(--info-700);"><i data-lucide="circle-help"></i></div>
+        <div>
+          <h3>Тест · Past Continuous Tense</h3>
+          <div class="meta-row">
+            <span class="subj">Англ. язык</span>
+            <span>20 вопросов</span>
+            <span>·</span>
+            <span>~25 минут</span>
+          </div>
+        </div>
+        <div style="display:flex; flex-direction:column; align-items:flex-end; gap:8px;">
+          <span class="deadline-chip ok"><i data-lucide="calendar" style="width:12px;"></i> До воскресенья</span>
+          <button class="btn btn-secondary btn-sm">Начать</button>
+        </div>
+      </a>
+
+      <!-- ── В процессе проверки ── -->
+      <div class="group-title">
+        <i data-lucide="hourglass" style="width:14px; color:var(--info-500);"></i>
+        Ждут проверки
+      </div>
+
+      <a class="task-card">
+        <div class="ico" style="background:#EEF2FF; color:#4338CA;"><i data-lucide="clipboard-list"></i></div>
+        <div>
+          <h3>Рабочий лист · Древний Рим</h3>
+          <div class="meta-row">
+            <span class="subj">История</span>
+            <span>сдано 2 дня назад</span>
+          </div>
+        </div>
+        <div style="display:flex; flex-direction:column; align-items:flex-end; gap:8px;">
+          <span class="deadline-chip ok">
+            <i data-lucide="hourglass" style="width:12px;"></i>
+            На проверке
+          </span>
+          <span style="font-size:11px; color:var(--ink-500);">оценка появится позже</span>
+        </div>
+      </a>
+
+      <!-- ── Завершено ── -->
+      <div class="group-title">
+        <i data-lucide="check-circle-2" style="width:14px; color:var(--success-500);"></i>
+        Завершено
+      </div>
+
+      <a class="task-card is-done">
+        <div class="ico" style="background:var(--success-50); color:var(--success-700);"><i data-lucide="check-circle"></i></div>
+        <div>
+          <h3>Тест · Строение клетки</h3>
+          <div class="meta-row">
+            <span class="subj">Биология</span>
+            <span>сдано вчера</span>
+            <span>·</span>
+            <span style="color:var(--success-700); font-weight:700;">+30 XP</span>
+          </div>
+        </div>
+        <div style="display:flex; flex-direction:column; align-items:flex-end; gap:8px;">
+          <span class="deadline-chip done">
+            <i data-lucide="check" style="width:12px;"></i>
+            Оценка: 5
+          </span>
+          <button class="btn btn-ghost btn-sm">Посмотреть</button>
+        </div>
+      </a>
+
+      <!-- ── Просрочено (показывается ниже) ── -->
+      <div class="group-title">
+        <i data-lucide="alert-triangle" style="width:14px; color:var(--danger-500);"></i>
+        Просрочено
+      </div>
+
+      <a class="task-card is-overdue">
+        <div class="ico" style="background:var(--brand-50); color:var(--brand-700);"><i data-lucide="file-text"></i></div>
+        <div>
+          <h3>Рабочий лист · Тригонометрия: углы и функции</h3>
+          <div class="meta-row">
+            <span class="subj">Математика</span>
+            <span style="color: var(--danger-700); font-weight: 600;">просрочено на 2 дня</span>
+          </div>
+        </div>
+        <div style="display:flex; flex-direction:column; align-items:flex-end; gap:8px;">
+          <span class="deadline-chip overdue">
+            <i data-lucide="alert-triangle" style="width:12px;"></i>
+            Просрочено
+          </span>
+          <button class="btn btn-secondary btn-sm" style="color: var(--danger-700);">Сдать с опозданием</button>
+        </div>
+      </a>
+
+    </div>
+  </main>
+</div>
+<script>lucide.createIcons();</script>
+</body>
+</html>

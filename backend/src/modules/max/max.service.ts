@@ -1533,7 +1533,13 @@ export class MaxService {
     const resp = await axios.request({
       method,
       url: `${this.internalApiUrl}/api/${path}`,
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+        // Помечаем все запросы от бота — maintenance-middleware пропускает их,
+        // даже когда веб-сайт под тех. работами.
+        'X-Bot-Source': 'max',
+      },
       ...(body ? { data: body } : {}),
     });
     return resp.data;
@@ -2439,7 +2445,10 @@ export class MaxService {
       try {
         const resp = await axios.get(
           `${this.internalApiUrl}/api/generate/${genId}/image`,
-          { headers: { Authorization: `Bearer ${auth.token}` }, responseType: 'arraybuffer', timeout: 30_000 },
+          {
+            headers: { Authorization: `Bearer ${auth.token}`, 'X-Bot-Source': 'max' },
+            responseType: 'arraybuffer', timeout: 30_000,
+          },
         );
         const ct = String(resp.headers['content-type'] ?? 'image/jpeg');
         const ext = ct.includes('png') ? 'png' : 'jpg';
@@ -2457,7 +2466,14 @@ export class MaxService {
         const resp = await axios.post(
           `${this.internalApiUrl}/api/generate/${genId}/presentation/pdf`,
           {},
-          { headers: { Authorization: `Bearer ${auth.token}`, 'Content-Type': 'application/json' }, responseType: 'arraybuffer', timeout: PDF_TIMEOUT },
+          {
+            headers: {
+              Authorization: `Bearer ${auth.token}`,
+              'Content-Type': 'application/json',
+              'X-Bot-Source': 'max',
+            },
+            responseType: 'arraybuffer', timeout: PDF_TIMEOUT,
+          },
         );
         await this.uploadAndSendFile(chatId, Buffer.from(resp.data), `presentation_${Date.now()}.pdf`, `✅ ${caption}`);
       } catch (err: any) {
@@ -2472,7 +2488,14 @@ export class MaxService {
       const resp = await axios.post(
         `${this.internalApiUrl}/api/generate/${genId}/pdf`,
         {},
-        { headers: { Authorization: `Bearer ${auth.token}`, 'Content-Type': 'application/json' }, responseType: 'arraybuffer', timeout: PDF_TIMEOUT },
+        {
+          headers: {
+            Authorization: `Bearer ${auth.token}`,
+            'Content-Type': 'application/json',
+            'X-Bot-Source': 'max',
+          },
+          responseType: 'arraybuffer', timeout: PDF_TIMEOUT,
+        },
       );
       const filename = `${genType || 'doc'}_${Date.now()}.pdf`;
       await this.uploadAndSendFile(chatId, Buffer.from(resp.data), filename, `✅ ${caption}`);
@@ -2565,7 +2588,13 @@ export class MaxService {
     const resp = await axios.post(
       `${this.internalApiUrl}/api/generate/${generationType}`,
       { ...params, _miniAppPlatform: 'max' },
-      { headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` } },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          'X-Bot-Source': 'max',
+        },
+      },
     );
     return resp.data;
   }
@@ -2574,7 +2603,13 @@ export class MaxService {
     const resp = await axios.post(
       `${this.internalApiUrl}/api/games/generate`,
       { type, topic },
-      { headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` } },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          'X-Bot-Source': 'max',
+        },
+      },
     );
     return resp.data;
   }

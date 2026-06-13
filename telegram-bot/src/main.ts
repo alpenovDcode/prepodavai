@@ -450,7 +450,11 @@ async function getApiToken(username: string, apiKey: string): Promise<string | n
 async function callGenerationApi(token: string, generationType: string, params: Record<string, any>): Promise<any> {
   const resp = await fetch(`${API_URL}/api/generate/${generationType}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+      'X-Bot-Source': 'telegram',
+    },
     body: JSON.stringify({ ...params, _miniAppPlatform: 'telegram' }),
   });
   if (!resp.ok) {
@@ -463,7 +467,11 @@ async function callGenerationApi(token: string, generationType: string, params: 
 async function callGamesApi(token: string, type: string, topic: string): Promise<any> {
   const resp = await fetch(`${API_URL}/api/games/generate`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+      'X-Bot-Source': 'telegram',
+    },
     body: JSON.stringify({ type, topic }),
   });
   if (!resp.ok) {
@@ -497,7 +505,10 @@ async function uploadFileToBackend(
   const uploadAbort = AbortSignal.timeout(30_000);
   const uploadResp = await fetch(`${API_URL}/api/files/upload`, {
     method: 'POST',
-    headers: { 'Authorization': `Bearer ${token}` },
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'X-Bot-Source': 'telegram',
+    },
     body: formData as any,
     signal: uploadAbort,
   });
@@ -827,7 +838,13 @@ function getPlatformState(telegramId: string): PlatformState {
 async function callApi(token: string, path: string, method = 'GET', body?: any): Promise<any> {
   const opts: RequestInit = {
     method,
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+      // Помечаем все запросы от бота — maintenance-middleware пропускает их,
+      // даже когда веб-сайт под тех. работами.
+      'X-Bot-Source': 'telegram',
+    },
   };
   if (body) opts.body = JSON.stringify(body);
   const resp = await fetch(`${API_URL}/api/${path}`, opts);
@@ -989,7 +1006,7 @@ async function showGenContent(ctx: Context, telegramId: string) {
   if (['image_generation', 'photosession', 'image'].includes(type)) {
     try {
       const resp = await fetch(`${API_URL}/api/generate/${state.genId}/image`, {
-        headers: { 'Authorization': `Bearer ${apiToken}` },
+        headers: { 'Authorization': `Bearer ${apiToken}`, 'X-Bot-Source': 'telegram' },
         signal: AbortSignal.timeout(30_000),
       });
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
@@ -1009,7 +1026,11 @@ async function showGenContent(ctx: Context, telegramId: string) {
     try {
       const resp = await fetch(`${API_URL}/api/generate/${state.genId}/presentation/pdf`, {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${apiToken}`, 'Content-Type': 'application/json' },
+        headers: {
+          'Authorization': `Bearer ${apiToken}`,
+          'Content-Type': 'application/json',
+          'X-Bot-Source': 'telegram',
+        },
         signal: PDF_TIMEOUT,
       });
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
@@ -1026,7 +1047,11 @@ async function showGenContent(ctx: Context, telegramId: string) {
   try {
     const resp = await fetch(`${API_URL}/api/generate/${state.genId}/pdf`, {
       method: 'POST',
-      headers: { 'Authorization': `Bearer ${apiToken}`, 'Content-Type': 'application/json' },
+      headers: {
+        'Authorization': `Bearer ${apiToken}`,
+        'Content-Type': 'application/json',
+        'X-Bot-Source': 'telegram',
+      },
       signal: PDF_TIMEOUT,
     });
     if (!resp.ok) {

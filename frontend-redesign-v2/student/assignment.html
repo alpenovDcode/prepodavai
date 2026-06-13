@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Задание — Преподавай</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/tokens.css" />
+<link rel="stylesheet" href="../assets/components.css" />
+<link rel="stylesheet" href="student.css" />
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+  .as-shell { max-width: 880px; margin: 0 auto; }
+
+  /* Hero */
+  .as-hero {
+    background: var(--surface);
+    border: 1px solid var(--ink-200);
+    border-radius: var(--r-xl);
+    padding: 24px 28px;
+    margin-bottom: 20px;
+  }
+  .crumb-row {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 12px;
+    color: var(--ink-500);
+    margin-bottom: 12px;
+  }
+  .crumb-row a { color: var(--ink-500); text-decoration: none; }
+  .crumb-row a:hover { color: var(--ink-900); }
+  .crumb-row svg { width: 12px; }
+
+  .as-hero .title-row {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    gap: 16px;
+  }
+  .as-hero h1 {
+    font-size: 24px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+    margin-bottom: 8px;
+  }
+  .as-hero .meta {
+    display: flex; gap: 10px; flex-wrap: wrap; align-items: center;
+    font-size: 13px; color: var(--ink-500);
+  }
+  .as-hero .meta .subj-pill {
+    background: var(--ink-100); color: var(--ink-700);
+    padding: 3px 10px; border-radius: var(--r-full); font-weight: 600; font-size: 11px;
+  }
+
+  /* Progress bar at top */
+  .progress-wrap {
+    margin-top: 20px;
+    background: var(--ink-50);
+    border-radius: var(--r-md);
+    padding: 12px 16px;
+    display: flex; align-items: center; gap: 14px;
+  }
+  .progress-wrap .v {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 15px;
+    color: var(--ink-900);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .progress-wrap .bar {
+    flex: 1;
+    height: 8px;
+    background: var(--ink-200);
+    border-radius: var(--r-full);
+    overflow: hidden;
+  }
+  .progress-wrap .bar > i {
+    display: block; height: 100%;
+    width: 40%;
+    background: linear-gradient(90deg, var(--brand-400), var(--brand-600));
+    border-radius: var(--r-full);
+    transition: width var(--t-medium) var(--ease);
+  }
+  .progress-wrap .save {
+    font-size: 12px;
+    color: var(--success-700);
+    display: flex; align-items: center; gap: 4px;
+  }
+
+  /* Accordion sections */
+  .acc {
+    background: var(--surface);
+    border: 1px solid var(--ink-200);
+    border-radius: var(--r-lg);
+    margin-bottom: 14px;
+    overflow: hidden;
+  }
+  .acc-head {
+    padding: 18px 22px;
+    display: flex; align-items: center; gap: 14px;
+    cursor: pointer;
+    transition: background var(--t-fast) var(--ease);
+  }
+  .acc-head:hover { background: var(--surface-soft); }
+  .acc.is-open .acc-head { border-bottom: 1px solid var(--ink-100); }
+  .acc-ico {
+    width: 44px; height: 44px;
+    border-radius: var(--r-md);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .acc-info { flex: 1; min-width: 0; }
+  .acc-info .t {
+    font-weight: 700; font-size: 14px;
+    color: var(--ink-900);
+    line-height: 1.3;
+  }
+  .acc-info .s {
+    font-size: 12px; color: var(--ink-500);
+    margin-top: 2px;
+  }
+  .acc-head .chev {
+    width: 28px; height: 28px;
+    color: var(--ink-400);
+    display: flex; align-items: center; justify-content: center;
+    transition: transform var(--t-fast) var(--ease);
+  }
+  .acc.is-open .chev { transform: rotate(180deg); }
+  .acc-body { padding: 20px 22px; }
+  .acc.is-collapsed .acc-body { display: none; }
+
+  /* Worksheet preview (inside accordion) */
+  .ws-doc {
+    background: white;
+    border: 1px solid var(--ink-200);
+    border-radius: var(--r-md);
+    padding: 28px;
+  }
+  .ws-doc h2 {
+    font-size: 16px;
+    color: var(--ink-900);
+    margin-bottom: 12px;
+    font-family: var(--font-display);
+  }
+  .ws-doc .info-box {
+    background: var(--info-50);
+    border-left: 3px solid var(--info-500);
+    border-radius: 0 var(--r-md) var(--r-md) 0;
+    padding: 12px 14px;
+    margin: 14px 0;
+    font-size: 13px;
+    color: var(--ink-700);
+    line-height: 1.5;
+  }
+  .ws-task { margin-top: 16px; }
+  .ws-task .q {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ink-900);
+    margin-bottom: 10px;
+  }
+  .ws-task .q .num {
+    background: var(--brand-50);
+    color: var(--brand-700);
+    border-radius: var(--r-full);
+    width: 22px; height: 22px;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-weight: 800;
+    font-size: 12px;
+    margin-right: 8px;
+  }
+  .ws-input {
+    width: 100%;
+    height: 36px;
+    border: 1px solid var(--ink-200);
+    border-radius: var(--r-md);
+    padding: 0 12px;
+    font-family: inherit;
+    font-size: 14px;
+    color: var(--ink-900);
+    background: white;
+  }
+  .ws-input:focus { outline: none; border-color: var(--brand-400); box-shadow: 0 0 0 3px rgba(255,126,88,0.12); }
+
+  /* Submit panel — sticky */
+  .submit-panel {
+    background: var(--surface);
+    border: 1px solid var(--ink-200);
+    border-radius: var(--r-lg);
+    padding: 20px;
+    position: sticky;
+    bottom: 16px;
+    margin-top: 16px;
+    box-shadow: var(--shadow-md);
+  }
+  .submit-panel h3 {
+    font-size: 14px;
+    font-weight: 700;
+    margin-bottom: 12px;
+  }
+  .submit-panel .answer-textarea {
+    width: 100%;
+    min-height: 80px;
+    padding: 12px 14px;
+    border: 1px solid var(--ink-200);
+    border-radius: var(--r-md);
+    font-family: inherit;
+    font-size: 14px;
+    color: var(--ink-900);
+    resize: vertical;
+    margin-bottom: 12px;
+  }
+  .submit-panel .answer-textarea:focus { outline:none; border-color: var(--brand-400); box-shadow: 0 0 0 3px rgba(255,126,88,0.12); }
+
+  .upload-strip {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 12px;
+    background: var(--ink-50);
+    border: 1px dashed var(--ink-300);
+    border-radius: var(--r-md);
+    margin-bottom: 12px;
+    cursor: pointer;
+    transition: all var(--t-fast) var(--ease);
+  }
+  .upload-strip:hover { background: var(--brand-50); border-color: var(--brand-300); }
+  .upload-strip .ico {
+    width:32px; height:32px;
+    background: white;
+    border-radius: var(--r-sm);
+    color: var(--ink-500);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .upload-strip .text { font-size: 12px; color: var(--ink-600); flex: 1; }
+  .upload-strip .text strong { color: var(--ink-900); }
+
+  .submit-actions {
+    display: flex; gap: 8px;
+    padding-top: 14px;
+    border-top: 1px solid var(--ink-100);
+    align-items: center;
+  }
+
+  /* Reward note */
+  .reward-note {
+    margin-top: 12px;
+    background: linear-gradient(135deg, #FFFBEB, #FFFFFF);
+    border: 1px solid #FCD34D;
+    border-radius: var(--r-md);
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 12px;
+    color: var(--warning-700);
+  }
+  .reward-note svg { width: 16px; color: #F59E0B; }
+</style>
+</head>
+<body>
+<div class="s-shell">
+
+  <aside class="s-sidebar">
+    <div class="s-sidebar-brand">
+      <img src="../assets/logo.png" alt="" /><span class="name">Преподавай</span>
+    </div>
+    <nav class="s-nav">
+      <a class="s-nav-item" href="dashboard.html"><i data-lucide="layout-dashboard"></i>Главная</a>
+      <a class="s-nav-item is-active"><i data-lucide="book-open"></i>Задания<span class="badge-num">7</span></a>
+      <a class="s-nav-item" href="grades.html"><i data-lucide="graduation-cap"></i>Оценки</a>
+      <a class="s-nav-item" href="ai-teacher.html"><i data-lucide="bot"></i>ИИ-учитель</a>
+      <a class="s-nav-item"><i data-lucide="trophy"></i>Достижения</a>
+      <a class="s-nav-item"><i data-lucide="bell"></i>Уведомления</a>
+    </nav>
+    <div class="s-profile">
+      <div class="top">
+        <div class="av">КП</div>
+        <div><div class="nm">Кирилл Петров</div><div class="mt">10А · математика</div></div>
+      </div>
+      <div class="stats">
+        <div><div class="v"><i data-lucide="flame" style="width:14px; color:#F59E0B;"></i> 7</div><div class="l">стрик</div></div>
+        <div><div class="v"><i data-lucide="star" style="width:14px; color:#F59E0B;"></i> 245</div><div class="l">опыт</div></div>
+      </div>
+    </div>
+  </aside>
+
+  <main>
+    <header class="s-topbar">
+      <div style="display:flex; align-items:center; gap:12px;">
+        <a href="dashboard.html" style="height:32px; width:32px; border-radius:var(--r-sm); border:1px solid var(--ink-200); background:var(--surface); display:flex; align-items:center; justify-content:center; color:var(--ink-600);">
+          <i data-lucide="arrow-left" style="width:16px;"></i>
+        </a>
+        <h1 style="font-size:18px;">Задание</h1>
+      </div>
+      <div style="display:flex; gap:10px; align-items:center;">
+        <div class="xp-chip">
+          <div class="ico"><i data-lucide="flame" style="width:12px;"></i></div>
+          7 дней подряд
+        </div>
+      </div>
+    </header>
+
+    <div class="s-content">
+
+      <div class="as-shell">
+
+        <!-- Hero -->
+        <div class="as-hero">
+          <div class="crumb-row">
+            <a href="dashboard.html">Задания</a>
+            <i data-lucide="chevron-right"></i>
+            <span>Тригонометрия</span>
+          </div>
+
+          <div class="title-row">
+            <div>
+              <h1>Тригонометрия: формулы приведения</h1>
+              <div class="meta">
+                <span class="subj-pill">Математика</span>
+                <span>от Евгении А.</span>
+                <span>·</span>
+                <span>3 материала</span>
+              </div>
+            </div>
+            <span class="deadline-chip urgent" style="display:inline-flex; align-items:center; gap:4px; padding:6px 12px; border-radius:var(--r-full); font-size:12px; font-weight:700; background:var(--warning-50); color:var(--warning-700);">
+              <i data-lucide="clock" style="width:12px;"></i>
+              До завтра, 23:59
+            </span>
+          </div>
+
+          <div class="progress-wrap">
+            <span class="v">4/10</span>
+            <div class="bar"><i></i></div>
+            <span style="font-size:12px; color:var(--ink-500);">Заполнено</span>
+            <span class="save"><i data-lucide="cloud-check" style="width:14px;"></i> Черновик сохранён</span>
+          </div>
+        </div>
+
+        <!-- Materials -->
+
+        <!-- ── Worksheet (open) ── -->
+        <div class="acc is-open">
+          <div class="acc-head">
+            <div class="acc-ico" style="background:var(--brand-50); color:var(--brand-700);">
+              <i data-lucide="file-text"></i>
+            </div>
+            <div class="acc-info">
+              <div class="t">Рабочий лист · 10 заданий</div>
+              <div class="s">~25 минут · заполните прямо здесь</div>
+            </div>
+            <span class="badge badge-warning">в процессе</span>
+            <div class="chev"><i data-lucide="chevron-down"></i></div>
+          </div>
+          <div class="acc-body">
+            <div class="ws-doc">
+              <h2>Формулы приведения</h2>
+
+              <div class="info-box">
+                <strong>Справка.</strong> Формулы приведения позволяют свести тригонометрические функции любого аргумента к функциям острого угла. Запоминай по правилу «лошадь — кивает, а человек — мотает».
+              </div>
+
+              <h3 style="font-size:14px; margin-top:20px; color:var(--ink-900);">Задание 1 · Базовые приведения</h3>
+
+              <div class="ws-task">
+                <div class="q"><span class="num">1</span> sin(180° − α) = ?</div>
+                <input class="ws-input" value="sin α" />
+              </div>
+              <div class="ws-task">
+                <div class="q"><span class="num">2</span> cos(90° + α) = ?</div>
+                <input class="ws-input" value="-sin α" />
+              </div>
+              <div class="ws-task">
+                <div class="q"><span class="num">3</span> tg(360° − α) = ?</div>
+                <input class="ws-input" placeholder="введите ответ" />
+              </div>
+              <div class="ws-task">
+                <div class="q"><span class="num">4</span> ctg(270° − α) = ?</div>
+                <input class="ws-input" placeholder="введите ответ" />
+              </div>
+
+              <h3 style="font-size:14px; margin-top:24px; color:var(--ink-900);">Задание 2 · Вычисления</h3>
+
+              <div class="ws-task">
+                <div class="q"><span class="num">5</span> sin 150° = ?</div>
+                <input class="ws-input" value="1/2" />
+              </div>
+              <div class="ws-task">
+                <div class="q"><span class="num">6</span> cos 120° = ?</div>
+                <input class="ws-input" value="-1/2" />
+              </div>
+              <div class="ws-task">
+                <div class="q"><span class="num">7</span> tg 225° = ?</div>
+                <input class="ws-input" placeholder="введите ответ" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── Presentation (collapsed) ── -->
+        <div class="acc is-collapsed">
+          <div class="acc-head">
+            <div class="acc-ico" style="background:var(--warning-50); color:var(--warning-700);">
+              <i data-lucide="presentation"></i>
+            </div>
+            <div class="acc-info">
+              <div class="t">Презентация · 18 слайдов</div>
+              <div class="s">Посмотри перед заполнением листа · 8 мин</div>
+            </div>
+            <span class="badge badge-success">просмотрено</span>
+            <div class="chev"><i data-lucide="chevron-down"></i></div>
+          </div>
+        </div>
+
+        <!-- ── Game (collapsed) ── -->
+        <div class="acc is-collapsed">
+          <div class="acc-head">
+            <div class="acc-ico" style="background:#F0FDFA; color:#0F766E;">
+              <i data-lucide="gamepad-2"></i>
+            </div>
+            <div class="acc-info">
+              <div class="t">Игра «Миллионер» · 15 вопросов</div>
+              <div class="s">Бонус: +50 XP за полное прохождение · опционально</div>
+            </div>
+            <span class="badge badge-info">бонус</span>
+            <div class="chev"><i data-lucide="chevron-down"></i></div>
+          </div>
+        </div>
+
+        <!-- ── Submit panel ── -->
+        <div class="submit-panel">
+          <h3>Дополнительно к ответам</h3>
+          <textarea class="answer-textarea" placeholder="Если нужно — напиши решение, объяснение или вопрос учителю…"></textarea>
+
+          <div class="upload-strip">
+            <div class="ico"><i data-lucide="paperclip"></i></div>
+            <div class="text">
+              <strong>Прикрепить фото</strong> · решения на бумаге, скриншоты (до 5 файлов)
+            </div>
+            <button class="btn btn-secondary btn-sm"><i data-lucide="image"></i> Выбрать</button>
+          </div>
+
+          <div class="submit-actions">
+            <span style="font-size:13px; color:var(--ink-500); flex: 1;">
+              <i data-lucide="cloud-check" style="width:14px; display:inline-block; vertical-align:-2px; color:var(--success-700);"></i>
+              Сохранено · черновик
+            </span>
+            <button class="btn btn-secondary"><i data-lucide="save"></i> Сохранить</button>
+            <button class="btn btn-primary"><i data-lucide="send"></i> Отправить учителю</button>
+          </div>
+
+          <div class="reward-note">
+            <i data-lucide="star"></i>
+            <span>Сдай вовремя — получишь <strong style="color: var(--warning-700);">+30 XP</strong> и сохранишь стрик в 7 дней!</span>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </main>
+</div>
+<script>lucide.createIcons();</script>
+</body>
+</html>

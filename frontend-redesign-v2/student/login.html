@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Вход для ученика — Преподавай</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/tokens.css" />
+<link rel="stylesheet" href="../assets/components.css" />
+<link rel="stylesheet" href="student.css" />
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+  body {
+    background:
+      radial-gradient(at 80% 10%, rgba(255,168,138,0.35), transparent 50%),
+      radial-gradient(at 10% 90%, rgba(255,200,170,0.4), transparent 50%),
+      linear-gradient(135deg, #FFF4F0 0%, #FFE3D9 100%);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+
+  .card-login {
+    background: white;
+    border-radius: var(--r-2xl);
+    box-shadow: 0 24px 60px rgba(15, 23, 42, 0.12);
+    padding: 40px;
+    width: 100%;
+    max-width: 420px;
+    border: 1px solid var(--ink-100);
+    position: relative;
+  }
+
+  .card-login .brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 32px;
+  }
+  .card-login .brand img { width: 36px; height: 36px; border-radius: 8px; }
+  .card-login .brand .nm {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 17px;
+    letter-spacing: -0.02em;
+  }
+  .card-login .brand .role {
+    margin-left: auto;
+    background: var(--brand-50);
+    color: var(--brand-700);
+    padding: 4px 10px;
+    border-radius: var(--r-full);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .greet-icon {
+    width: 64px; height: 64px;
+    background: linear-gradient(135deg, var(--brand-400), var(--brand-600));
+    border-radius: var(--r-lg);
+    color: white;
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 18px;
+  }
+
+  .card-login h1 {
+    font-size: 26px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+    margin-bottom: 6px;
+  }
+  .card-login .sub {
+    color: var(--ink-500);
+    font-size: 14px;
+    margin-bottom: 28px;
+  }
+
+  .field { margin-bottom: 14px; position: relative; }
+  .field svg.lead { position:absolute; left:14px; top:50%; transform:translateY(-50%); width:18px; color:var(--ink-500); }
+  .field input { padding-left: 40px; height: 48px; font-size: 14px; }
+  .field .toggle-pass {
+    position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+    width: 32px; height: 32px;
+    border: none; background: transparent;
+    color: var(--ink-500); cursor: pointer; border-radius: var(--r-sm);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .field .toggle-pass:hover { background: var(--ink-100); color: var(--ink-900); }
+
+  .help-row {
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 13px;
+    margin-bottom: 18px;
+  }
+  .help-row label { display: flex; align-items: center; gap: 8px; cursor: pointer; color: var(--ink-600); }
+  .help-row label input { width: 16px; height: 16px; accent-color: var(--brand-500); }
+  .help-row a { color: var(--brand-700); font-weight: 600; text-decoration: none; }
+
+  .foot-link { text-align: center; margin-top: 18px; font-size: 13px; color: var(--ink-600); }
+  .foot-link a { color: var(--brand-700); font-weight: 700; text-decoration: none; }
+
+  .small-info {
+    margin-top: 24px;
+    padding: 14px;
+    background: var(--ink-50);
+    border-radius: var(--r-md);
+    font-size: 12px;
+    color: var(--ink-600);
+    line-height: 1.5;
+    display: flex;
+    gap: 10px;
+  }
+  .small-info svg { width: 18px; color: var(--info-500); flex-shrink: 0; margin-top: 1px; }
+</style>
+</head>
+<body>
+
+<div class="card-login">
+  <div class="brand">
+    <img src="../assets/logo.png" alt="" />
+    <span class="nm">Преподавай</span>
+    <span class="role">Ученик</span>
+  </div>
+
+  <div class="greet-icon"><i data-lucide="graduation-cap" style="width:32px; height:32px;"></i></div>
+
+  <h1>Привет, с возвращением 👋</h1>
+  <div class="sub">Войди — твои задания уже ждут</div>
+
+  <div class="field">
+    <i data-lucide="mail" class="lead"></i>
+    <input class="input" type="email" placeholder="Email от учителя" value="k.petrov@school.ru" />
+  </div>
+
+  <div class="field">
+    <i data-lucide="lock" class="lead"></i>
+    <input class="input" type="password" placeholder="Пароль" value="••••••••" />
+    <button class="toggle-pass" type="button"><i data-lucide="eye-off" style="width:16px;"></i></button>
+  </div>
+
+  <div class="help-row">
+    <label><input type="checkbox" checked /> Запомнить</label>
+    <a href="#">Не помню пароль</a>
+  </div>
+
+  <button class="btn btn-primary btn-lg" style="width:100%;">
+    Войти
+    <i data-lucide="arrow-right"></i>
+  </button>
+
+  <div class="small-info">
+    <i data-lucide="info"></i>
+    <span>Логин и пароль присылает учитель. Если их нет — попроси у своего преподавателя.</span>
+  </div>
+
+  <div class="foot-link">
+    Учитель, а не ученик? <a href="../login.html">Вход для учителей →</a>
+  </div>
+</div>
+
+<script>lucide.createIcons();</script>
+</body>
+</html>

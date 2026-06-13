@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Класс 10А — Преподавай</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/tokens.css" />
+<link rel="stylesheet" href="assets/components.css" />
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+  .crumb { font-size: 13px; color: var(--ink-500); display: inline-flex; align-items: center; gap: 6px; }
+  .crumb a { color: var(--ink-500); text-decoration: none; }
+  .crumb a:hover { color: var(--ink-900); }
+  .crumb svg { width: 12px; }
+
+  .class-hero {
+    background: linear-gradient(135deg, var(--brand-50) 0%, #FFFFFF 60%);
+    border: 1px solid var(--brand-200);
+    border-radius: var(--r-xl);
+    padding: 24px 28px;
+    margin-bottom: 24px;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 24px;
+    align-items: center;
+  }
+  .class-hero .label {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--brand-700);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 6px;
+  }
+  .class-hero h1 {
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    margin-bottom: 8px;
+  }
+  .class-hero .desc { color: var(--ink-600); font-size: 14px; }
+
+  .class-stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    background: white;
+    border-radius: var(--r-lg);
+    padding: 16px 20px;
+    border: 1px solid var(--ink-200);
+    min-width: 480px;
+  }
+  @media (max-width: 1023px) {
+    .class-hero { grid-template-columns: 1fr; }
+    .class-stats { min-width: 0; }
+  }
+  @media (max-width: 639px) {
+    .class-stats { grid-template-columns: repeat(2, 1fr); }
+  }
+  .class-stats > div { text-align: center; }
+  .class-stats .v {
+    font-family: var(--font-display);
+    font-size: 20px;
+    font-weight: 800;
+    color: var(--ink-900);
+    letter-spacing: -0.02em;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+  .class-stats .l {
+    font-size: 11px;
+    color: var(--ink-500);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-top: 4px;
+  }
+  .class-stats .sep { width: 1px; background: var(--ink-100); height: 32px; align-self: center; }
+
+  /* Tabs */
+  .tabs {
+    display: flex;
+    gap: 4px;
+    border-bottom: 1px solid var(--ink-200);
+    margin-bottom: 24px;
+  }
+  .tab-btn {
+    padding: 12px 14px;
+    background: transparent;
+    border: none;
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--ink-500);
+    cursor: pointer;
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: color var(--t-fast) var(--ease);
+  }
+  .tab-btn:hover { color: var(--ink-900); }
+  .tab-btn.is-active {
+    color: var(--brand-700);
+  }
+  .tab-btn.is-active::after {
+    content: '';
+    position: absolute;
+    bottom: -1px; left: 12px; right: 12px;
+    height: 2px;
+    background: var(--brand-500);
+    border-radius: 2px;
+  }
+  .tab-btn .count {
+    background: var(--ink-100);
+    color: var(--ink-600);
+    padding: 1px 7px;
+    border-radius: var(--r-full);
+    font-size: 11px;
+    font-weight: 700;
+  }
+  .tab-btn.is-active .count { background: var(--brand-100); color: var(--brand-700); }
+
+  /* Lesson material rows */
+  .lesson-row {
+    background: var(--surface);
+    border: 1px solid var(--ink-200);
+    border-radius: var(--r-lg);
+    padding: 16px;
+    display: grid;
+    grid-template-columns: 44px 1fr auto;
+    gap: 14px;
+    align-items: center;
+    margin-bottom: 8px;
+    transition: all var(--t-fast) var(--ease);
+  }
+  .lesson-row:hover {
+    border-color: var(--ink-300);
+    box-shadow: var(--shadow-sm);
+  }
+  .lesson-row .lr-icon {
+    width: 44px; height: 44px;
+    border-radius: var(--r-md);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .lesson-row .lr-title {
+    font-weight: 600;
+    color: var(--ink-900);
+    font-size: 14px;
+    line-height: 1.3;
+    margin-bottom: 4px;
+  }
+  .lesson-row .lr-meta {
+    font-size: 12px;
+    color: var(--ink-500);
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .lesson-row .lr-actions {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+  .icon-btn {
+    width: 32px; height: 32px;
+    border-radius: var(--r-sm);
+    border: 1px solid var(--ink-200);
+    background: var(--surface);
+    color: var(--ink-600);
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all var(--t-fast) var(--ease);
+  }
+  .icon-btn:hover { background: var(--ink-50); color: var(--ink-900); }
+  .icon-btn svg { width: 14px; }
+
+  /* Distribution */
+  .grade-bars { display: flex; flex-direction: column; gap: 10px; }
+  .grade-bar { display: grid; grid-template-columns: 64px 1fr 40px; gap: 12px; align-items: center; }
+  .grade-bar .l { font-size: 12px; color: var(--ink-700); font-weight: 600; }
+  .grade-bar .b { height: 8px; background: var(--ink-100); border-radius: var(--r-full); overflow: hidden; }
+  .grade-bar .b > i { display: block; height: 100%; border-radius: var(--r-full); }
+  .grade-bar .v { text-align: right; font-size: 12px; font-weight: 700; color: var(--ink-900); font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+<div class="app-shell">
+
+  <!-- ───────── SIDEBAR ───────── -->
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <img src="assets/logo.png" alt="" />
+      <span class="brand-name">Преподавай</span>
+    </div>
+    <nav class="sidebar-section">
+      <div class="sidebar-label">Рабочий стол</div>
+      <a class="nav-item" href="dashboard.html"><i data-lucide="layout-dashboard"></i>Главная</a>
+      <a class="nav-item" href="tools.html"><i data-lucide="wand-sparkles"></i>ИИ Генератор</a>
+      <a class="nav-item"><i data-lucide="calendar"></i>Календарь</a>
+      <a class="nav-item is-active"><i data-lucide="book-open"></i>Материалы</a>
+
+      <div class="sidebar-label">Класс</div>
+      <a class="nav-item" href="students.html"><i data-lucide="users"></i>Ученики<span class="nav-badge">3</span></a>
+      <a class="nav-item"><i data-lucide="clipboard-check"></i>Проверка ДЗ</a>
+      <a class="nav-item"><i data-lucide="bar-chart-3"></i>Аналитика</a>
+
+      <div class="sidebar-label">Прочее</div>
+      <a class="nav-item"><i data-lucide="gift"></i>Пригласить</a>
+      <a class="nav-item"><i data-lucide="message-circle"></i>Поддержка</a>
+      <a class="nav-item"><i data-lucide="settings"></i>Настройки</a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="user-chip">
+        <div class="avatar">ЕА</div>
+        <div class="info">
+          <div class="name">Евгения А.</div>
+          <div class="plan">Тариф «Бизнес»</div>
+        </div>
+        <i data-lucide="chevron-up" style="color:var(--ink-400); width:16px;"></i>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ───────── MAIN ───────── -->
+  <main>
+    <header class="topbar">
+      <div>
+        <div class="crumb">
+          <a href="#">Материалы</a> <i data-lucide="chevron-right"></i> <span>10А · Тригонометрия</span>
+        </div>
+        <h1 style="font-size: 20px; margin-top: 2px;">Тригонометрия · 10А</h1>
+      </div>
+      <div class="actions">
+        <button class="btn btn-secondary btn-sm"><i data-lucide="share-2"></i> Поделиться</button>
+        <button class="btn btn-primary btn-sm"><i data-lucide="send"></i> Выдать всему классу</button>
+      </div>
+    </header>
+
+    <div class="content">
+
+      <!-- ─── Hero ─── -->
+      <div class="class-hero">
+        <div>
+          <div class="label">Тема урока · 13 июня · 14:30</div>
+          <h1>Формулы приведения</h1>
+          <div class="desc">5 материалов готово, 1 ученик ещё не сдал, средний балл по теме — 4,1</div>
+        </div>
+        <div class="class-stats">
+          <div>
+            <div class="v">18</div>
+            <div class="l">учеников</div>
+          </div>
+          <div class="sep"></div>
+          <div>
+            <div class="v">5</div>
+            <div class="l">материалов</div>
+          </div>
+          <div class="sep"></div>
+          <div>
+            <div class="v">4,1</div>
+            <div class="l">средний балл</div>
+          </div>
+          <div class="sep"></div>
+          <div>
+            <div class="v" style="color:var(--success-700);">94%</div>
+            <div class="l">сдают вовремя</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ─── Tabs ─── -->
+      <div class="tabs">
+        <button class="tab-btn is-active">
+          <i data-lucide="file-text" style="width:16px;"></i>
+          Материалы
+          <span class="count">5</span>
+        </button>
+        <button class="tab-btn">
+          <i data-lucide="users" style="width:16px;"></i>
+          Ученики
+          <span class="count">18</span>
+        </button>
+        <button class="tab-btn">
+          <i data-lucide="clipboard-check" style="width:16px;"></i>
+          Задания
+          <span class="count">3</span>
+        </button>
+        <button class="tab-btn">
+          <i data-lucide="bar-chart-3" style="width:16px;"></i>
+          Аналитика
+        </button>
+        <button class="tab-btn">
+          <i data-lucide="tag" style="width:16px;"></i>
+          Теги
+        </button>
+      </div>
+
+      <!-- ─── Content: 2 cols ─── -->
+      <div class="grid-bento">
+
+        <!-- Materials list -->
+        <div class="col-8">
+          <div class="section-head">
+            <h2 style="font-size:16px;">Материалы урока</h2>
+            <button class="btn btn-secondary btn-sm">
+              <i data-lucide="plus"></i> Добавить материал
+            </button>
+          </div>
+
+          <div class="lesson-row">
+            <div class="lr-icon" style="background:var(--brand-50); color:var(--brand-700);">
+              <i data-lucide="file-text"></i>
+            </div>
+            <div>
+              <div class="lr-title">Рабочий лист · Формулы приведения</div>
+              <div class="lr-meta">
+                <span class="badge badge-success">готов</span>
+                <span>10 заданий</span>
+                <span>·</span>
+                <span>сегодня, 13:42</span>
+              </div>
+            </div>
+            <div class="lr-actions">
+              <button class="icon-btn" title="Открыть"><i data-lucide="eye"></i></button>
+              <button class="icon-btn" title="Скачать PDF"><i data-lucide="download"></i></button>
+              <button class="btn btn-primary btn-sm"><i data-lucide="send"></i> Выдать</button>
+            </div>
+          </div>
+
+          <div class="lesson-row">
+            <div class="lr-icon" style="background:var(--info-50); color:var(--info-700);">
+              <i data-lucide="circle-help"></i>
+            </div>
+            <div>
+              <div class="lr-title">Тест · Углы и тригонометрические функции</div>
+              <div class="lr-meta">
+                <span class="badge badge-success">готов</span>
+                <span>15 вопросов · 4 варианта</span>
+                <span>·</span>
+                <span>сегодня, 13:38</span>
+              </div>
+            </div>
+            <div class="lr-actions">
+              <button class="icon-btn" title="Открыть"><i data-lucide="eye"></i></button>
+              <button class="icon-btn" title="Скачать PDF"><i data-lucide="download"></i></button>
+              <button class="btn btn-primary btn-sm"><i data-lucide="send"></i> Выдать</button>
+            </div>
+          </div>
+
+          <div class="lesson-row">
+            <div class="lr-icon" style="background:var(--warning-50); color:var(--warning-700);">
+              <i data-lucide="presentation"></i>
+            </div>
+            <div>
+              <div class="lr-title">Презентация · Тригонометрия за 45 минут</div>
+              <div class="lr-meta">
+                <span class="badge badge-success">готов</span>
+                <span>18 слайдов · PPTX</span>
+                <span>·</span>
+                <span>вчера</span>
+              </div>
+            </div>
+            <div class="lr-actions">
+              <button class="icon-btn" title="Открыть"><i data-lucide="eye"></i></button>
+              <button class="icon-btn" title="Скачать PDF"><i data-lucide="download"></i></button>
+              <button class="btn btn-primary btn-sm"><i data-lucide="send"></i> Выдать</button>
+            </div>
+          </div>
+
+          <div class="lesson-row">
+            <div class="lr-icon" style="background:#EEF2FF; color:#4338CA;">
+              <i data-lucide="clipboard-list"></i>
+            </div>
+            <div>
+              <div class="lr-title">План урока · Формулы приведения</div>
+              <div class="lr-meta">
+                <span class="badge badge-success">готов</span>
+                <span>45 минут</span>
+                <span>·</span>
+                <span>3 этапа</span>
+                <span>·</span>
+                <span>вчера</span>
+              </div>
+            </div>
+            <div class="lr-actions">
+              <button class="icon-btn" title="Открыть"><i data-lucide="eye"></i></button>
+              <button class="icon-btn" title="Скачать PDF"><i data-lucide="download"></i></button>
+              <button class="icon-btn" title="Дополнительно"><i data-lucide="more-horizontal"></i></button>
+            </div>
+          </div>
+
+          <div class="lesson-row">
+            <div class="lr-icon" style="background:#F0FDFA; color:#0F766E;">
+              <i data-lucide="gamepad-2"></i>
+            </div>
+            <div>
+              <div class="lr-title">Игра «Миллионер» · Тригонометрия</div>
+              <div class="lr-meta">
+                <span class="badge badge-success">готов</span>
+                <span>15 вопросов</span>
+                <span>·</span>
+                <span>2 дня назад</span>
+              </div>
+            </div>
+            <div class="lr-actions">
+              <button class="icon-btn" title="Играть"><i data-lucide="play"></i></button>
+              <button class="icon-btn" title="Поделиться"><i data-lucide="share-2"></i></button>
+              <button class="icon-btn" title="Дополнительно"><i data-lucide="more-horizontal"></i></button>
+            </div>
+          </div>
+
+          <!-- Empty add -->
+          <div style="margin-top: 16px; border: 1.5px dashed var(--ink-300); border-radius: var(--r-lg); padding: 24px; text-align: center; background: var(--surface-soft);">
+            <i data-lucide="plus-circle" style="width: 28px; color: var(--ink-400); margin-bottom: 8px;"></i>
+            <div style="font-weight: 600; color: var(--ink-700); font-size: 14px;">Добавить ещё один материал</div>
+            <div style="font-size: 12px; color: var(--ink-500); margin-top: 2px;">Адаптация, видео-анализ, словарь — на ваш выбор</div>
+            <button class="btn btn-secondary btn-sm" style="margin-top: 12px;">
+              <i data-lucide="wand-sparkles"></i> Открыть генератор
+            </button>
+          </div>
+        </div>
+
+        <!-- Side: progress + at-risk -->
+        <div class="col-4" style="display: flex; flex-direction: column; gap: 16px;">
+
+          <!-- Schedule -->
+          <div class="card" style="padding: 20px;">
+            <div style="font-size: 13px; font-weight: 600; color: var(--ink-500); margin-bottom: 10px; display:flex; align-items:center; gap:8px;">
+              <i data-lucide="calendar" style="width:14px;"></i> Урок запланирован
+            </div>
+            <div style="font-family: var(--font-display); font-size: 22px; font-weight: 800; color: var(--ink-900); letter-spacing: -0.02em;">
+              13 июня · 14:30
+            </div>
+            <div style="color: var(--ink-500); font-size: 13px; margin-top: 4px;">Кабинет 204 · через 1 ч 12 мин</div>
+
+            <div style="display: flex; gap: 6px; margin-top: 16px;">
+              <button class="btn btn-secondary btn-sm" style="flex:1;">
+                <i data-lucide="calendar"></i> В календарь
+              </button>
+              <button class="btn btn-secondary btn-sm">
+                <i data-lucide="edit-3"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- Grade distribution -->
+          <div class="card" style="padding: 20px;">
+            <div style="font-size: 14px; font-weight: 700; color: var(--ink-900); margin-bottom: 14px;">
+              Распределение оценок
+            </div>
+            <div class="grade-bars">
+              <div class="grade-bar">
+                <span class="l">⭐ 5</span>
+                <span class="b"><i style="width:33%; background:var(--success-500);"></i></span>
+                <span class="v">6</span>
+              </div>
+              <div class="grade-bar">
+                <span class="l">4</span>
+                <span class="b"><i style="width:44%; background:var(--success-500);"></i></span>
+                <span class="v">8</span>
+              </div>
+              <div class="grade-bar">
+                <span class="l">3</span>
+                <span class="b"><i style="width:17%; background:var(--warning-500);"></i></span>
+                <span class="v">3</span>
+              </div>
+              <div class="grade-bar">
+                <span class="l">2</span>
+                <span class="b"><i style="width:6%; background:var(--danger-500);"></i></span>
+                <span class="v">1</span>
+              </div>
+            </div>
+            <div style="margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--ink-100); display: flex; justify-content: space-between; font-size: 12px;">
+              <span style="color: var(--ink-500);">Средний балл</span>
+              <span style="font-weight: 700; color: var(--success-700);" class="tnum">4,1 ↑</span>
+            </div>
+          </div>
+
+          <!-- At-risk -->
+          <div class="card" style="padding: 20px; background: linear-gradient(165deg, #FEF2F2 0%, #FFFFFF 60%); border-color: #FECACA;">
+            <div style="font-size: 14px; font-weight: 700; color: var(--danger-700); margin-bottom: 4px; display: flex; align-items: center; gap: 8px;">
+              <i data-lucide="alert-triangle" style="width:16px;"></i>
+              2 ученика отстают
+            </div>
+            <div style="font-size: 12px; color: var(--ink-600); margin-bottom: 14px;">
+              Пропустили дедлайн или балл &lt; 3,5
+            </div>
+
+            <div style="display:flex; flex-direction:column; gap:8px;">
+              <div style="display:flex; align-items:center; gap:10px; padding: 8px; background: white; border-radius: var(--r-sm); border: 1px solid var(--ink-100);">
+                <div class="av" style="width:32px; height:32px; border-radius:var(--r-full); background:linear-gradient(135deg, #FCA5A5, #DC2626); color:white; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:12px;">КП</div>
+                <div style="flex:1;">
+                  <div style="font-weight: 600; font-size: 13px; color: var(--ink-900);">Кирилл Петров</div>
+                  <div style="font-size: 11px; color: var(--ink-500);">Балл 3,2 · −3 ДЗ</div>
+                </div>
+                <button class="icon-btn"><i data-lucide="message-circle"></i></button>
+              </div>
+
+              <div style="display:flex; align-items:center; gap:10px; padding: 8px; background: white; border-radius: var(--r-sm); border: 1px solid var(--ink-100);">
+                <div class="av" style="width:32px; height:32px; border-radius:var(--r-full); background:linear-gradient(135deg, #FCA5A5, #DC2626); color:white; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:12px;">АС</div>
+                <div style="flex:1;">
+                  <div style="font-weight: 600; font-size: 13px; color: var(--ink-900);">Анна Соколова</div>
+                  <div style="font-size: 11px; color: var(--ink-500);">Балл 3,5 · −2 ДЗ</div>
+                </div>
+                <button class="icon-btn"><i data-lucide="message-circle"></i></button>
+              </div>
+            </div>
+
+            <button class="btn btn-secondary btn-sm" style="width: 100%; margin-top: 12px;">
+              <i data-lucide="sparkles"></i>
+              Сделать персональное задание
+            </button>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<script>lucide.createIcons();</script>
+</body>
+</html>
