@@ -90,6 +90,9 @@ export default function ProductAnalyticsPage() {
   const [cmpPeriod, setCmpPeriod] = useState<'week' | 'month'>('week')
   const [botsRange, setBotsRange] = useState('30d')
   const [cjmExporting, setCjmExporting] = useState(false)
+  const [cjmPeriod, setCjmPeriod] = useState<'7' | '30' | '60' | '90' | 'all'>('all')
+  const [cjmPlatform, setCjmPlatform] = useState<'all' | 'web' | 'telegram' | 'max'>('all')
+  const [cjmUtmSource, setCjmUtmSource] = useState<string>('all')
 
   const { data: dau }    = useSWR(`/admin/product/dau-wau-mau?days=${daysFromRange(dauRange)}`, fetcher)
   const { data: ret }    = useSWR('/admin/product/retention', fetcher)
@@ -105,7 +108,15 @@ export default function ProductAnalyticsPage() {
     tab === 'bots' ? `/admin/bots?days=${daysFromRange(botsRange)}` : null,
     fetcher,
   )
-  const { data: cjm }       = useSWR(tab === 'cjm' ? '/admin/cjm' : null, fetcher)
+  const cjmQuery = (() => {
+    const p = new URLSearchParams()
+    if (cjmPeriod !== 'all') p.set('period', cjmPeriod)
+    if (cjmPlatform !== 'all') p.set('platform', cjmPlatform)
+    if (cjmUtmSource !== 'all') p.set('utmSource', cjmUtmSource)
+    const s = p.toString()
+    return s ? `?${s}` : ''
+  })()
+  const { data: cjm }       = useSWR(tab === 'cjm' ? `/admin/cjm${cjmQuery}` : null, fetcher)
   const { data: winback }   = useSWR(tab === 'cjm' ? '/admin/winback' : null, fetcher)
 
   const handleExportAllCjm = async () => {
@@ -1029,6 +1040,66 @@ export default function ProductAnalyticsPage() {
             </button>
           </div>
 
+          {/* ── Фильтры ── */}
+          <div className="bg-white rounded-2xl border border-gray-200 p-4 flex flex-wrap items-center gap-4">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Период</span>
+              <div className="flex bg-gray-100 rounded-lg p-1">
+                {([
+                  { v: '7', label: '7д' },
+                  { v: '30', label: '30д' },
+                  { v: '60', label: '60д' },
+                  { v: '90', label: '90д' },
+                  { v: 'all', label: 'Всё время' },
+                ] as const).map(({ v, label }) => (
+                  <button
+                    key={v}
+                    onClick={() => setCjmPeriod(v)}
+                    className={`px-3 py-1 text-xs font-semibold rounded-md transition ${
+                      cjmPeriod === v ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-600 hover:text-gray-800'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Платформа</span>
+              <select
+                value={cjmPlatform}
+                onChange={e => setCjmPlatform(e.target.value as any)}
+                className="text-sm px-3 py-1.5 border border-gray-200 rounded-lg bg-white text-gray-700 focus:outline-none focus:border-indigo-400"
+              >
+                <option value="all">Все</option>
+                <option value="web">Web</option>
+                <option value="telegram">Telegram</option>
+                <option value="max">MAX</option>
+              </select>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">UTM-источник</span>
+              <select
+                value={cjmUtmSource}
+                onChange={e => setCjmUtmSource(e.target.value)}
+                className="text-sm px-3 py-1.5 border border-gray-200 rounded-lg bg-white text-gray-700 focus:outline-none focus:border-indigo-400 min-w-[140px]"
+              >
+                <option value="all">Все</option>
+                {(cjm?.availableUtmSources ?? []).map((s: string) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+            </div>
+            {(cjmPeriod !== 'all' || cjmPlatform !== 'all' || cjmUtmSource !== 'all') && (
+              <button
+                onClick={() => { setCjmPeriod('all'); setCjmPlatform('all'); setCjmUtmSource('all') }}
+                className="text-xs text-gray-500 hover:text-gray-800 underline"
+              >
+                Сбросить
+              </button>
+            )}
+          </div>
+
           {!cjm ? (
             <div className="flex items-center justify-center h-40 text-gray-400">Загружаем данные...</div>
           ) : (
@@ -1070,71 +1141,87 @@ export default function ProductAnalyticsPage() {
                 </div>
               </div>
 
-              {/* ── Section 2: Churn Risk + Conversion Timings ── */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                <div className="bg-white rounded-2xl border border-gray-200 p-5">
-                  <p className="text-sm font-bold text-gray-700 mb-4">Риск оттока</p>
-                  <div className="space-y-3">
-                    {([
-                      { key: 'low' as const,    label: 'Низкий',  icon: <Shield className="w-4 h-4" />,        bg: 'bg-green-50',  text: 'text-green-700',  bar: 'bg-green-500' },
-                      { key: 'medium' as const, label: 'Средний', icon: <AlertTriangle className="w-4 h-4" />, bg: 'bg-orange-50', text: 'text-orange-700', bar: 'bg-orange-400' },
-                      { key: 'high' as const,   label: 'Высокий', icon: <Flame className="w-4 h-4" />,         bg: 'bg-red-50',    text: 'text-red-700',    bar: 'bg-red-500' },
-                    ]).map(({ key, label, icon, bg, text, bar }) => {
-                      const cnt = cjm.churnRisk[key] ?? 0
-                      const total = (cjm.churnRisk.low ?? 0) + (cjm.churnRisk.medium ?? 0) + (cjm.churnRisk.high ?? 0)
-                      const pct = total > 0 ? Math.round((cnt / total) * 100) : 0
-                      return (
-                        <div key={key} className={`${bg} rounded-xl p-3 flex items-center gap-3`}>
-                          <span className={text}>{icon}</span>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex justify-between items-center mb-1">
-                              <span className={`text-sm font-semibold ${text}`}>{label}</span>
-                              <span className={`text-sm font-bold ${text}`}>{cnt.toLocaleString('ru')} <span className="font-normal opacity-70">({pct}%)</span></span>
-                            </div>
-                            <div className="h-1.5 bg-white/70 rounded-full">
-                              <div className={`h-1.5 ${bar} rounded-full`} style={{ width: `${pct}%` }} />
-                            </div>
+              {/* ── Section 2: Churn Risk ── */}
+              <div className="bg-white rounded-2xl border border-gray-200 p-5">
+                <p className="text-sm font-bold text-gray-700 mb-4">Риск оттока</p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  {([
+                    { key: 'low' as const,    label: 'Низкий',  icon: <Shield className="w-4 h-4" />,        bg: 'bg-green-50',  text: 'text-green-700',  bar: 'bg-green-500' },
+                    { key: 'medium' as const, label: 'Средний', icon: <AlertTriangle className="w-4 h-4" />, bg: 'bg-orange-50', text: 'text-orange-700', bar: 'bg-orange-400' },
+                    { key: 'high' as const,   label: 'Высокий', icon: <Flame className="w-4 h-4" />,         bg: 'bg-red-50',    text: 'text-red-700',    bar: 'bg-red-500' },
+                  ]).map(({ key, label, icon, bg, text, bar }) => {
+                    const cnt = cjm.churnRisk[key] ?? 0
+                    const total = (cjm.churnRisk.low ?? 0) + (cjm.churnRisk.medium ?? 0) + (cjm.churnRisk.high ?? 0)
+                    const pct = total > 0 ? Math.round((cnt / total) * 100) : 0
+                    return (
+                      <div key={key} className={`${bg} rounded-xl p-3 flex items-center gap-3`}>
+                        <span className={text}>{icon}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex justify-between items-center mb-1">
+                            <span className={`text-sm font-semibold ${text}`}>{label}</span>
+                            <span className={`text-sm font-bold ${text}`}>{cnt.toLocaleString('ru')} <span className="font-normal opacity-70">({pct}%)</span></span>
+                          </div>
+                          <div className="h-1.5 bg-white/70 rounded-full">
+                            <div className={`h-1.5 ${bar} rounded-full`} style={{ width: `${pct}%` }} />
                           </div>
                         </div>
-                      )
-                    })}
-                  </div>
-                </div>
-
-                <div className="bg-white rounded-2xl border border-gray-200 p-5">
-                  <p className="text-sm font-bold text-gray-700 mb-4">Тайминги конверсии</p>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="bg-blue-50 rounded-xl p-3">
-                      <p className="text-xs text-gray-500 mb-1">До первой генерации</p>
-                      <p className="text-lg font-bold text-blue-700">
-                        {cjm.timings?.avgDaysToFirstGen != null ? `${cjm.timings.avgDaysToFirstGen}д` : '—'}
-                      </p>
-                      <p className="text-xs text-gray-400">среднее</p>
-                    </div>
-                    <div className="bg-blue-50 rounded-xl p-3">
-                      <p className="text-xs text-gray-500 mb-1">Медиана (генерация)</p>
-                      <p className="text-lg font-bold text-blue-700">
-                        {cjm.timings?.medianDaysToFirstGen != null ? `${cjm.timings.medianDaysToFirstGen}д` : '—'}
-                      </p>
-                      <p className="text-xs text-gray-400">медиана</p>
-                    </div>
-                    <div className="bg-green-50 rounded-xl p-3">
-                      <p className="text-xs text-gray-500 mb-1">До первой оплаты</p>
-                      <p className="text-lg font-bold text-green-700">
-                        {cjm.timings?.avgDaysToFirstPayment != null ? `${cjm.timings.avgDaysToFirstPayment}д` : '—'}
-                      </p>
-                      <p className="text-xs text-gray-400">среднее</p>
-                    </div>
-                    <div className="bg-green-50 rounded-xl p-3">
-                      <p className="text-xs text-gray-500 mb-1">Медиана (оплата)</p>
-                      <p className="text-lg font-bold text-green-700">
-                        {cjm.timings?.medianDaysToFirstPayment != null ? `${cjm.timings.medianDaysToFirstPayment}д` : '—'}
-                      </p>
-                      <p className="text-xs text-gray-400">медиана</p>
-                    </div>
-                  </div>
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
+
+              {/* ── Сегментация по платформам ── */}
+              {(cjm.sourceSegmentation?.length ?? 0) > 0 && (
+                <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+                  <div className="p-4 border-b border-gray-100">
+                    <p className="text-sm font-bold text-gray-700">Сегментация по платформам</p>
+                    <p className="text-xs text-gray-400 mt-0.5">Регистрации, активации и оплаты в разрезе платформ — с учётом выбранных фильтров</p>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
+                        <tr>
+                          <th className="px-4 py-3 text-left">Платформа</th>
+                          <th className="px-4 py-3 text-right">Пользователей</th>
+                          <th className="px-4 py-3 text-right">Активированы</th>
+                          <th className="px-4 py-3 text-right">Activation %</th>
+                          <th className="px-4 py-3 text-right">Оплатили</th>
+                          <th className="px-4 py-3 text-right">Conversion %</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-50">
+                        {(cjm.sourceSegmentation ?? []).map((row: any) => {
+                          const PLATFORM_LABELS: Record<string, string> = {
+                            web: 'Web',
+                            telegram: 'Telegram',
+                            max: 'MAX',
+                            both: 'TG + MAX',
+                          }
+                          return (
+                            <tr key={row.platform} className="hover:bg-gray-50">
+                              <td className="px-4 py-3 font-medium text-gray-800">{PLATFORM_LABELS[row.platform] ?? row.platform}</td>
+                              <td className="px-4 py-3 text-right text-gray-700">{row.total.toLocaleString('ru')}</td>
+                              <td className="px-4 py-3 text-right text-blue-700">{row.activated.toLocaleString('ru')}</td>
+                              <td className="px-4 py-3 text-right">
+                                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${row.activationRate >= 50 ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'}`}>
+                                  {row.activationRate}%
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-right text-green-700">{row.paid.toLocaleString('ru')}</td>
+                              <td className="px-4 py-3 text-right">
+                                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${row.conversionRate >= 10 ? 'bg-green-100 text-green-700' : row.conversionRate >= 5 ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-600'}`}>
+                                  {row.conversionRate}%
+                                </span>
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
 
               {/* ── Section 3: Acquisition ── */}
               <div className="bg-white rounded-2xl border border-gray-200 p-5">

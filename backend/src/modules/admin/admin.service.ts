@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, BadRequestException, UnauthorizedException, ForbiddenException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as bcrypt from 'bcryptjs';
@@ -3491,8 +3492,38 @@ export class AdminService {
 
   // ========== AGGREGATE CJM ANALYTICS ==========
 
-  async getCjmAnalytics() {
+  private buildCjmUserFilter(opts: {
+    periodDays?: number;
+    platform?: 'web' | 'telegram' | 'max';
+    utmSource?: string;
+  }): Prisma.Sql {
+    const clauses: Prisma.Sql[] = [];
+    if (opts.periodDays && opts.periodDays > 0) {
+      clauses.push(Prisma.sql`u."createdAt" >= NOW() - (${opts.periodDays}::int * INTERVAL '1 day')`);
+    }
+    if (opts.utmSource) {
+      clauses.push(
+        Prisma.sql`COALESCE(NULLIF(u."utmSource", ''), NULLIF(u.source, ''), 'direct') = ${opts.utmSource}`,
+      );
+    }
+    if (opts.platform === 'web') {
+      clauses.push(Prisma.sql`u."telegramId" IS NULL AND u."maxId" IS NULL`);
+    } else if (opts.platform === 'telegram') {
+      clauses.push(Prisma.sql`u."telegramId" IS NOT NULL`);
+    } else if (opts.platform === 'max') {
+      clauses.push(Prisma.sql`u."maxId" IS NOT NULL`);
+    }
+    if (clauses.length === 0) return Prisma.empty;
+    return Prisma.sql`AND ${Prisma.join(clauses, ' AND ')}`;
+  }
+
+  async getCjmAnalytics(opts: {
+    periodDays?: number;
+    platform?: 'web' | 'telegram' | 'max';
+    utmSource?: string;
+  } = {}) {
     type Row = { [key: string]: any };
+    const userFilter = this.buildCjmUserFilter(opts);
 
     const [
       stageRows,
@@ -3517,6 +3548,8 @@ export class AdminService {
       contentTypeRows,
       newUsersDailyRows,
       dayRetentionRows,
+      availableUtmRows,
+      sourceSegRows,
     ] = await Promise.all([
       // Stage distribution
       this.prisma.$queryRaw<Row[]>`
@@ -3537,6 +3570,7 @@ export class AdminService {
         FROM app_users u
         LEFT JOIN user_subscriptions s ON s."userId" = u.id
         LEFT JOIN gen_counts g ON g."userId" = u.id
+        WHERE 1=1 ${userFilter}
         GROUP BY 1
       `,
       // Churn risk distribution
@@ -3548,6 +3582,7 @@ export class AdminService {
             s.status AS sub_status
           FROM app_users u
           LEFT JOIN user_subscriptions s ON s."userId" = u.id
+          WHERE 1=1 ${userFilter}
         )
         SELECT
           CASE
@@ -3573,6 +3608,7 @@ export class AdminService {
           FROM user_generations
           GROUP BY "userId"
         ) fg ON fg."userId" = u.id
+        WHERE 1=1 ${userFilter}
       `,
       // Avg + median days to first payment
       this.prisma.$queryRaw<Row[]>`
@@ -3588,6 +3624,7 @@ export class AdminService {
           WHERE status = 'completed'
           GROUP BY "userId"
         ) fp ON fp."userId" = u.id
+        WHERE 1=1 ${userFilter}
       `,
       // Acquisition source breakdown
       this.prisma.$queryRaw<Row[]>`
@@ -3599,6 +3636,7 @@ export class AdminService {
         FROM app_users u
         LEFT JOIN (SELECT DISTINCT "userId" FROM payments WHERE status = 'completed') fp ON fp."userId" = u.id
         LEFT JOIN (SELECT DISTINCT "userId" FROM user_generations) ga ON ga."userId" = u.id
+        WHERE 1=1 ${userFilter}
         GROUP BY 1
         ORDER BY total DESC
         LIMIT 20
@@ -3645,9 +3683,10 @@ export class AdminService {
       `.catch(() => [] as Row[]),
       // Monthly registration trend (last 18 months)
       this.prisma.$queryRaw<Row[]>`
-        SELECT TO_CHAR(DATE_TRUNC('month', "createdAt"), 'YYYY-MM') AS m, COUNT(*)::int AS cnt
-        FROM app_users
-        GROUP BY DATE_TRUNC('month', "createdAt")
+        SELECT TO_CHAR(DATE_TRUNC('month', u."createdAt"), 'YYYY-MM') AS m, COUNT(*)::int AS cnt
+        FROM app_users u
+        WHERE 1=1 ${userFilter}
+        GROUP BY DATE_TRUNC('month', u."createdAt")
         ORDER BY m DESC LIMIT 18
       `,
       // Activation time brackets
@@ -3661,6 +3700,7 @@ export class AdminService {
             EXTRACT(EPOCH FROM (fg.first_at - u."createdAt")) / 86400 AS days_to_gen
           FROM app_users u
           LEFT JOIN first_gen fg ON fg."userId" = u.id
+          WHERE 1=1 ${userFilter}
         )
         SELECT
           COUNT(*) FILTER (WHERE days_to_gen IS NOT NULL AND days_to_gen <= 1)::int AS day1,
@@ -3679,9 +3719,11 @@ export class AdminService {
       `.catch(() => [] as Row[]),
       // Feature adoption per tool type
       this.prisma.$queryRaw<Row[]>`
-        SELECT "generationType" AS generation_type, COUNT(DISTINCT "userId")::int AS unique_users
-        FROM user_generations
-        GROUP BY "generationType"
+        SELECT ug."generationType" AS generation_type, COUNT(DISTINCT ug."userId")::int AS unique_users
+        FROM user_generations ug
+        JOIN app_users u ON u.id = ug."userId"
+        WHERE 1=1 ${userFilter}
+        GROUP BY ug."generationType"
         ORDER BY unique_users DESC
       `,
       // User segmentation by activity level
@@ -3693,6 +3735,7 @@ export class AdminService {
             COUNT(ug.id) FILTER (WHERE ug."createdAt" >= NOW() - INTERVAL '90 days') AS last_90d
           FROM app_users u
           LEFT JOIN user_generations ug ON ug."userId" = u.id
+          WHERE 1=1 ${userFilter}
           GROUP BY u.id
         )
         SELECT
@@ -3783,18 +3826,19 @@ export class AdminService {
       `.catch(() => [{ total_referrers: 0, total_invited: 0, activated: 0, converted_paid: 0 }] as Row[]),
       // Content type distribution
       this.prisma.$queryRaw<Row[]>`
-        SELECT "generationType" AS generation_type, COUNT(*)::int AS total_gens, COUNT(DISTINCT "userId")::int AS unique_users
-        FROM user_generations
-        WHERE status = 'completed'
-        GROUP BY "generationType"
+        SELECT ug."generationType" AS generation_type, COUNT(*)::int AS total_gens, COUNT(DISTINCT ug."userId")::int AS unique_users
+        FROM user_generations ug
+        JOIN app_users u ON u.id = ug."userId"
+        WHERE ug.status = 'completed' ${userFilter}
+        GROUP BY ug."generationType"
         ORDER BY total_gens DESC
       `,
       // Daily new registrations (last 90 days)
       this.prisma.$queryRaw<Row[]>`
-        SELECT DATE("createdAt")::text AS d, COUNT(*)::int AS cnt
-        FROM app_users
-        WHERE "createdAt" >= NOW() - INTERVAL '90 days'
-        GROUP BY DATE("createdAt")
+        SELECT DATE(u."createdAt")::text AS d, COUNT(*)::int AS cnt
+        FROM app_users u
+        WHERE u."createdAt" >= NOW() - INTERVAL '90 days' ${userFilter}
+        GROUP BY DATE(u."createdAt")
         ORDER BY d
       `,
       // Day-level cohort retention (D1/D7/D30) — last 60 day cohorts
@@ -3820,6 +3864,38 @@ export class AdminService {
         GROUP BY c.reg_day
         ORDER BY c.reg_day DESC
         LIMIT 60
+      `.catch(() => [] as Row[]),
+      // Список доступных UTM-источников (не зависит от userFilter — нужен для UI селектора)
+      this.prisma.$queryRaw<Row[]>`
+        SELECT DISTINCT COALESCE(NULLIF("utmSource", ''), NULLIF(source, ''), 'direct') AS src
+        FROM app_users
+        WHERE COALESCE(NULLIF("utmSource", ''), NULLIF(source, '')) IS NOT NULL
+        ORDER BY src
+        LIMIT 50
+      `.catch(() => [] as Row[]),
+      // Per-platform segmentation: регистрации / активации / оплаты в разрезе платформ
+      this.prisma.$queryRaw<Row[]>`
+        WITH base AS (
+          SELECT
+            u.id,
+            CASE
+              WHEN u."telegramId" IS NOT NULL AND u."maxId" IS NOT NULL THEN 'both'
+              WHEN u."telegramId" IS NOT NULL THEN 'telegram'
+              WHEN u."maxId" IS NOT NULL THEN 'max'
+              ELSE 'web'
+            END AS platform
+          FROM app_users u
+          WHERE 1=1 ${userFilter}
+        )
+        SELECT
+          b.platform,
+          COUNT(*)::int AS total,
+          COUNT(DISTINCT ug."userId")::int AS activated,
+          COUNT(DISTINCT p."userId")::int AS paid
+        FROM base b
+        LEFT JOIN user_generations ug ON ug."userId" = b.id
+        LEFT JOIN payments p ON p."userId" = b.id AND p.status = 'completed'
+        GROUP BY b.platform
       `.catch(() => [] as Row[]),
     ]);
 
@@ -3981,6 +4057,27 @@ export class AdminService {
         d7: Number(r.d7 ?? 0),
         d30: Number(r.d30 ?? 0),
       })),
+      availableUtmSources: (availableUtmRows as Row[])
+        .map(r => String(r.src))
+        .filter(s => s && s !== 'direct'),
+      sourceSegmentation: (sourceSegRows as Row[]).map(r => {
+        const total = Number(r.total ?? 0);
+        const activated = Number(r.activated ?? 0);
+        const paid = Number(r.paid ?? 0);
+        return {
+          platform: String(r.platform),
+          total,
+          activated,
+          paid,
+          activationRate: total > 0 ? Math.round((activated / total) * 100) : 0,
+          conversionRate: total > 0 ? Math.round((paid / total) * 100) : 0,
+        };
+      }),
+      filters: {
+        periodDays: opts.periodDays ?? null,
+        platform: opts.platform ?? null,
+        utmSource: opts.utmSource ?? null,
+      },
     };
   }
 

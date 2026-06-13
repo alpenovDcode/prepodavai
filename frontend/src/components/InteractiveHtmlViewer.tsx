@@ -205,7 +205,22 @@ export function extractHtmlFromOutput(outputData: any): string | null {
   if ((raw.startsWith('"') && raw.endsWith('"')) || (raw.startsWith("'") && raw.endsWith("'"))) {
     raw = raw.slice(1, -1)
   }
-  raw = raw.replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\')
+
+  // JSON-unescape делаем ТОЛЬКО если строка похожа на JSON-экранированную
+  // (в ней нет настоящих переводов строк). Иначе \n внутри LaTeX-команд
+  // (\neq, \nabla, \not...) превращается в перенос строки и формулы ломаются:
+  // «x \neq -5» отображалось ученику как «xeq-5».
+  if (!/\n/.test(raw) && /\\n|\\"/.test(raw)) {
+    raw = raw
+      .replace(/\\n(?![a-zA-Z])/g, '\n') // \n только если дальше НЕ буква (не LaTeX-команда)
+      .replace(/\\"/g, '"')
+      .replace(/\\\\/g, '\\')
+  }
+
+  // Битый логотип: placeholder подменяется на base64 при генерации и в PDF,
+  // но в повреждённых правками материалах он остаётся — убираем, чтобы не
+  // показывать ученику иконку сломанной картинки.
+  raw = raw.replace(/<img[^>]*src=["']LOGO_PLACEHOLDER["'][^>]*>/gi, '')
 
   // Иногда в outputData сохраняется НЕСКОЛЬКО HTML-документов подряд
   // (артефакт редактирования/пересохранения). Тогда лист отображается дважды,

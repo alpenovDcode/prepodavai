@@ -347,8 +347,22 @@ export class AdminController {
 
   // ========== AGGREGATE CJM ANALYTICS ==========
   @Get('cjm')
-  async getCjmAnalytics() {
-    return this.adminService.getCjmAnalytics();
+  async getCjmAnalytics(
+    @Query('period') period?: string,
+    @Query('platform') platform?: string,
+    @Query('utmSource') utmSource?: string,
+  ) {
+    const periodDays = period ? Math.max(0, parseInt(period, 10)) || undefined : undefined;
+    const allowedPlatforms = ['web', 'telegram', 'max'] as const;
+    const platformParam = (allowedPlatforms as readonly string[]).includes(platform ?? '')
+      ? (platform as 'web' | 'telegram' | 'max')
+      : undefined;
+    const utm = utmSource && utmSource.trim() ? utmSource.trim() : undefined;
+    return this.adminService.getCjmAnalytics({
+      periodDays,
+      platform: platformParam,
+      utmSource: utm,
+    });
   }
 
   // ========== WIN-BACK LIST ==========
