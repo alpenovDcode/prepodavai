@@ -13,9 +13,10 @@
 <style>
   .settings-shell {
     display: grid;
-    grid-template-columns: 240px 1fr;
+    grid-template-columns: 240px minmax(0, 1fr);
     gap: 32px;
     align-items: start;
+    min-width: 0;
   }
   @media (max-width: 1023px) { .settings-shell { grid-template-columns: 1fr; } }
 
@@ -145,21 +146,30 @@
   .integ-card {
     border: 1px solid var(--ink-200);
     border-radius: var(--r-md);
-    padding: 16px;
+    padding: 14px;
     display: flex;
     align-items: center;
-    gap: 14px;
+    gap: 12px;
+    flex-wrap: wrap;
+    min-width: 0;
   }
   .integ-card .logo {
-    width: 44px; height: 44px;
+    width: 40px; height: 40px;
     border-radius: var(--r-md);
     display: flex; align-items: center; justify-content: center;
     color: white;
     flex-shrink: 0;
   }
-  .integ-card .body { flex: 1; }
-  .integ-card .ttl { font-weight: 700; color: var(--ink-900); font-size: 14px; }
-  .integ-card .desc { font-size: 12px; color: var(--ink-500); margin-top: 2px; }
+  .integ-card .body { flex: 1 1 120px; min-width: 0; }
+  .integ-card .ttl {
+    font-weight: 700; color: var(--ink-900); font-size: 14px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .integ-card .desc {
+    font-size: 12px; color: var(--ink-500); margin-top: 2px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .integ-card .badge, .integ-card .btn { flex-shrink: 0; margin-left: auto; }
 
   /* Danger */
   .danger-zone {
@@ -215,7 +225,11 @@
     <header class="topbar">
       <h1>Настройки</h1>
       <div class="actions">
-        <button class="btn btn-primary btn-sm"><i data-lucide="check"></i> Сохранить</button>
+        <button class="btn btn-ghost" id="tour-restart-header" aria-label="Запустить тур" style="height:32px; padding: 0 12px; gap: 6px;">
+          <i data-lucide="compass" style="width:14px;"></i>
+          <span style="font-size:12px; font-weight:600;">Тур</span>
+        </button>
+        <button class="btn btn-primary btn-sm" data-tour="save"><i data-lucide="check"></i> Сохранить</button>
       </div>
     </header>
 
@@ -224,11 +238,10 @@
       <div class="settings-shell">
 
         <!-- ─── Nav ─── -->
-        <div class="settings-nav">
+        <div class="settings-nav" data-tour="nav">
           <a class="nv is-active"><i data-lucide="user-circle"></i> Профиль</a>
           <a class="nv"><i data-lucide="bell"></i> Уведомления</a>
           <a class="nv"><i data-lucide="shield-check"></i> Безопасность</a>
-          <a class="nv"><i data-lucide="credit-card"></i> Подписка</a>
           <a class="nv"><i data-lucide="link"></i> Интеграции</a>
           <a class="nv"><i data-lucide="palette"></i> Внешний вид</a>
           <a class="nv"><i data-lucide="languages"></i> Язык и регион</a>
@@ -239,7 +252,7 @@
         <div>
 
           <!-- ─── Profile ─── -->
-          <div class="panel">
+          <div class="panel" data-tour="profile">
             <div class="panel-head">
               <div>
                 <h2>Профиль</h2>
@@ -301,7 +314,7 @@
           </div>
 
           <!-- ─── Notifications ─── -->
-          <div class="panel">
+          <div class="panel" data-tour="notifications">
             <div class="panel-head">
               <div>
                 <h2>Уведомления</h2>
@@ -353,64 +366,15 @@
             </div>
           </div>
 
-          <!-- ─── Subscription ─── -->
-          <div class="panel">
-            <div class="panel-head">
-              <div>
-                <h2>Подписка</h2>
-                <div class="sub">Тариф, оплата, история платежей</div>
-              </div>
-              <button class="btn btn-secondary btn-sm">История</button>
-            </div>
-            <div class="panel-body">
-
-              <div style="display: flex; gap: 14px; align-items: center; padding: 18px; background: linear-gradient(135deg, var(--brand-50) 0%, #FFFFFF 80%); border: 1px solid var(--brand-200); border-radius: var(--r-md); margin-bottom: 18px;">
-                <div style="width:48px; height:48px; border-radius:var(--r-md); background: linear-gradient(135deg, var(--brand-400), var(--brand-600)); display:flex; align-items:center; justify-content:center; color:white; flex-shrink:0;">
-                  <i data-lucide="crown"></i>
-                </div>
-                <div style="flex:1;">
-                  <div style="font-weight: 800; color: var(--ink-900); font-size: 16px;">Тариф «Бизнес»</div>
-                  <div style="font-size: 12px; color: var(--ink-600);">1 490 ₽/мес · следующее списание 13 июля 2026</div>
-                </div>
-                <a href="pricing.html" class="btn btn-secondary btn-sm">Сменить</a>
-              </div>
-
-              <div class="form-row">
-                <div style="padding: 14px; background: var(--ink-50); border-radius: var(--r-md);">
-                  <div style="font-size: 11px; font-weight: 700; color: var(--ink-500); text-transform: uppercase; letter-spacing: 0.04em;">Баланс</div>
-                  <div style="font-family: var(--font-display); font-size: 22px; font-weight: 800; color: var(--ink-900); margin-top: 4px; font-variant-numeric: tabular-nums;">9 375 ★</div>
-                  <div style="font-size: 11px; color: var(--ink-500); margin-top: 2px;">токенов</div>
-                </div>
-                <div style="padding: 14px; background: var(--ink-50); border-radius: var(--r-md);">
-                  <div style="font-size: 11px; font-weight: 700; color: var(--ink-500); text-transform: uppercase; letter-spacing: 0.04em;">Использовано</div>
-                  <div style="font-family: var(--font-display); font-size: 22px; font-weight: 800; color: var(--ink-900); margin-top: 4px; font-variant-numeric: tabular-nums;">1 125</div>
-                  <div style="font-size: 11px; color: var(--ink-500); margin-top: 2px;">в этом месяце</div>
-                </div>
-              </div>
-
-              <div style="padding-top: 14px; border-top: 1px solid var(--ink-100);">
-                <div class="input-label">Способ оплаты</div>
-                <div style="display: flex; align-items: center; gap: 12px; padding: 12px; background: var(--surface); border: 1px solid var(--ink-200); border-radius: var(--r-md);">
-                  <div style="width:36px; height:24px; background: linear-gradient(135deg,#1A1F71,#0E1F4F); border-radius: 4px; color:white; display:flex; align-items:center; justify-content:center; font-size:9px; font-weight:800;">VISA</div>
-                  <div style="flex:1; font-size:13px; color:var(--ink-700);">
-                    <strong style="color: var(--ink-900);">•••• 4242</strong> · до 09/27
-                  </div>
-                  <button class="btn btn-ghost btn-sm"><i data-lucide="edit-3"></i> Изменить</button>
-                </div>
-              </div>
-
-            </div>
-          </div>
-
           <!-- ─── Integrations ─── -->
-          <div class="panel">
+          <div class="panel" data-tour="integrations">
             <div class="panel-head">
               <div>
                 <h2>Интеграции</h2>
                 <div class="sub">Telegram, MAX и внешние сервисы</div>
               </div>
             </div>
-            <div class="panel-body" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div class="panel-body" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px;">
 
               <div class="integ-card">
                 <div class="logo" style="background: #0088CC;"><i data-lucide="send"></i></div>
@@ -452,7 +416,7 @@
           </div>
 
           <!-- ─── API ─── -->
-          <div class="panel">
+          <div class="panel" data-tour="api">
             <div class="panel-head">
               <div>
                 <h2>API-ключ</h2>
@@ -474,7 +438,7 @@
           </div>
 
           <!-- ─── Danger zone ─── -->
-          <div class="danger-zone">
+          <div class="danger-zone" data-tour="danger">
             <h2>Опасная зона</h2>
             <div class="sub">Эти действия необратимы. Подумайте дважды.</div>
 
@@ -511,5 +475,60 @@
   </main>
 </div>
 <script>lucide.createIcons();</script>
+
+<!-- ────────── Tour ────────── -->
+<script>
+  window.TOUR_LS_KEY = 'prepodavai_settings_tour_v1';
+  window.TOUR_STEPS = [
+    {
+      target: null, isModal: true, illustration: '⚙️',
+      title: 'Настройки аккаунта',
+      body: 'Здесь меняете профиль, уведомления, привязываете мессенджеры и управляете аккаунтом. Покажу основные секции.',
+      primaryLabel: 'Начнём'
+    },
+    {
+      target: '[data-tour="nav"]', placement: 'right', padding: 6,
+      title: 'Боковая навигация',
+      body: 'Все разделы настроек — здесь. Клик по пункту прокручивает к нужной секции. Удалить аккаунт — внизу красным, чтобы случайно не нажать.'
+    },
+    {
+      target: '[data-tour="profile"]', placement: 'left', padding: 8,
+      title: '👤 Профиль',
+      body: 'Имя, фото, email, предметы, город — то, что увидят ученики и коллеги. Раздел «О себе» вставляется в приветственное письмо ученикам.'
+    },
+    {
+      target: '[data-tour="notifications"]', placement: 'left', padding: 8,
+      title: '🔔 Уведомления',
+      body: 'Куда и как сообщать: email, Telegram, push. Можно настроить отдельно: о сданных работах, дедлайнах, активности учеников.'
+    },
+    {
+      target: '[data-tour="integrations"]', placement: 'left', padding: 8,
+      title: '🔗 Интеграции',
+      body: 'Привяжите Telegram или MAX — будете получать уведомления и принимать работы прямо в мессенджере. Удобно, если не любите сидеть в браузере.'
+    },
+    {
+      target: '[data-tour="api"]', placement: 'left', padding: 8,
+      title: '🔑 API-ключ',
+      body: 'Если делаете свой бот или интегрируете с другими сервисами — берёте ключ здесь. Не нужно — просто пропустите.'
+    },
+    {
+      target: '[data-tour="danger"]', placement: 'top', padding: 8,
+      title: '⚠️ Опасная зона',
+      body: 'Здесь можно экспортировать все ваши данные одним кликом или удалить аккаунт. Удаление необратимо — всё, что вы создали, исчезнет.'
+    },
+    {
+      target: '[data-tour="save"]', placement: 'bottom', padding: 6,
+      title: '💾 Сохранить',
+      body: 'Не забудьте сохранить после изменений! Кнопка в шапке справа.'
+    },
+    {
+      target: null, isModal: true, illustration: '🎉',
+      title: 'Готово!',
+      body: 'Настройки можно менять в любое время. Если что — кнопка «Тур» в шапке всегда поможет.',
+      primaryLabel: 'К работе'
+    }
+  ];
+</script>
+<script src="assets/tour.js"></script>
 </body>
 </html>

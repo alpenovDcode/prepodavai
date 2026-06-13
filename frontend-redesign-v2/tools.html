@@ -153,37 +153,35 @@
       <div>
         <h1>ИИ Генератор</h1>
         <div style="font-size:13px; color:var(--ink-500); margin-top:2px;">
-          15 инструментов для подготовки урока за минуты
+          9 инструментов для подготовки урока за минуты
         </div>
       </div>
       <div class="actions">
-        <div class="searchbar">
+        <div class="searchbar" data-tour="search">
           <i data-lucide="search"></i>
           <input placeholder="Найти инструмент…" />
           <span class="kbd">⌘K</span>
         </div>
-        <div class="token-chip">
-          <div class="spark"><i data-lucide="sparkles"></i></div>
-          <span class="tnum">9 375</span>
-          <span style="color:var(--brand-600); font-weight:500;">токенов</span>
-        </div>
+        <button class="btn btn-ghost" id="tour-restart-header" aria-label="Запустить тур" style="height:36px; padding: 0 14px; gap: 8px;">
+          <i data-lucide="compass" style="width:16px;"></i>
+          <span style="font-size:13px; font-weight:600;">Тур</span>
+        </button>
       </div>
     </header>
 
     <div class="content">
 
       <!-- Category tabs -->
-      <div class="category-tabs">
-        <button class="cat-tab is-active">Все <span class="count">15</span></button>
-        <button class="cat-tab"><i data-lucide="file-text" style="width:14px;"></i> Материалы <span class="count">7</span></button>
-        <button class="cat-tab"><i data-lucide="image" style="width:14px;"></i> Медиа <span class="count">3</span></button>
+      <div class="category-tabs" data-tour="categories">
+        <button class="cat-tab is-active">Все <span class="count">9</span></button>
+        <button class="cat-tab"><i data-lucide="file-text" style="width:14px;"></i> Материалы <span class="count">5</span></button>
+        <button class="cat-tab"><i data-lucide="image" style="width:14px;"></i> Медиа <span class="count">1</span></button>
         <button class="cat-tab"><i data-lucide="gamepad-2" style="width:14px;"></i> Игры <span class="count">1</span></button>
-        <button class="cat-tab"><i data-lucide="graduation-cap" style="width:14px;"></i> Экзамены <span class="count">2</span></button>
         <button class="cat-tab"><i data-lucide="mail" style="width:14px;"></i> Общение <span class="count">2</span></button>
       </div>
 
       <!-- Featured big card -->
-      <div class="card" style="margin-bottom: 24px; background: linear-gradient(135deg, #FFF4F0 0%, #FFFFFF 70%); border-color: var(--brand-200); padding: 28px;">
+      <div class="card" data-tour="hero-wow" style="margin-bottom: 24px; background: linear-gradient(135deg, #FFF4F0 0%, #FFFFFF 70%); border-color: var(--brand-200); padding: 28px;">
         <div style="display:flex; gap: 24px; align-items: center;">
           <div style="width:64px; height:64px; border-radius:var(--r-lg); background: linear-gradient(135deg, var(--brand-400), var(--brand-600)); display:flex; align-items:center; justify-content:center; color:white; flex-shrink:0;">
             <i data-lucide="zap" style="width:30px; height:30px;"></i>
@@ -205,193 +203,281 @@
       </div>
 
       <!-- Tools grid -->
-      <div class="tool-grid">
+      <div class="tool-grid" data-tour="grid">
 
-        <a class="tool-card" href="worksheet.html">
+        <a class="tool-card" href="worksheet.html" data-tour="tool-worksheet">
           <div class="tool-icon" style="background:var(--brand-50); color:var(--brand-700);">
             <i data-lucide="file-text"></i>
           </div>
           <h3>Рабочий лист</h3>
           <p>Готовый PDF-лист с заданиями по теме и уровню класса. Открывается в редакторе.</p>
           <div class="tool-meta">
-            <span class="cost"><i data-lucide="sparkles" style="width:12px;"></i> 3 токена</span>
             <span>~30 сек</span>
           </div>
         </a>
 
-        <a class="tool-card">
+        <a class="tool-card" href="quiz.html" data-tour="tool-test">
           <div class="tool-icon" style="background:var(--info-50); color:var(--info-700);">
             <i data-lucide="circle-help"></i>
           </div>
           <h3>Тест</h3>
           <p>Тест с выбором ответа: 5–25 вопросов, 2–4 варианта в каждом.</p>
           <div class="tool-meta">
-            <span class="cost"><i data-lucide="sparkles" style="width:12px;"></i> 3 токена</span>
             <span>~30 сек</span>
           </div>
         </a>
 
-        <a class="tool-card">
+        <a class="tool-card" href="vocab.html" data-tour="tool-vocab">
           <div class="tool-icon" style="background:var(--success-50); color:var(--success-700);">
             <i data-lucide="book-marked"></i>
           </div>
           <h3>Словарь</h3>
           <p>Тематический словарь на 10 языках, 5–30 слов с переводом и примером.</p>
           <div class="tool-meta">
-            <span class="cost"><i data-lucide="sparkles" style="width:12px;"></i> 3 токена</span>
             <span>~20 сек</span>
           </div>
         </a>
 
-        <a class="tool-card">
+        <a class="tool-card" href="plan.html" data-tour="tool-plan">
           <div class="tool-icon" style="background:#EEF2FF; color:#4338CA;">
             <i data-lucide="clipboard-list"></i>
           </div>
           <h3>План урока</h3>
           <p>Структурированный план — цели, этапы, активности и время.</p>
           <div class="tool-meta">
-            <span class="cost"><i data-lucide="sparkles" style="width:12px;"></i> 3 токена</span>
             <span>~40 сек</span>
           </div>
         </a>
 
-        <a class="tool-card">
+        <a class="tool-card" href="presentation.html" data-tour="tool-presentation">
           <div class="tool-icon" style="background:var(--warning-50); color:var(--warning-700);">
             <i data-lucide="presentation"></i>
           </div>
           <h3>Презентация</h3>
           <p>Готовая PPTX-презентация с дизайном, картинками и заметками.</p>
           <div class="tool-meta">
-            <span class="cost"><i data-lucide="sparkles" style="width:12px;"></i> 50 токенов</span>
             <span>~2 мин</span>
           </div>
         </a>
 
-        <a class="tool-card">
+        <a class="tool-card" href="image.html" data-tour="tool-image">
           <div class="tool-icon" style="background:#FDF4FF; color:#A21CAF;">
             <i data-lucide="image"></i>
           </div>
           <h3>Изображение</h3>
           <p>Иллюстрация по описанию — карты, схемы, портреты, анимация.</p>
           <div class="tool-meta">
-            <span class="cost"><i data-lucide="sparkles" style="width:12px;"></i> 15 токенов</span>
             <span>~25 сек</span>
           </div>
         </a>
 
-        <a class="tool-card">
+        <a class="tool-card" href="game.html" data-tour="tool-game">
           <div class="tool-icon" style="background:#F0FDFA; color:#0F766E;">
             <i data-lucide="gamepad-2"></i>
           </div>
           <h3>Обучающая игра</h3>
           <p>HTML5-игра: «Миллионер», флешкарты, кроссворд, memory, верю/не верю.</p>
           <div class="tool-meta">
-            <span class="cost"><i data-lucide="sparkles" style="width:12px;"></i> 15 токенов</span>
             <span>~25 сек</span>
           </div>
         </a>
 
-        <a class="tool-card">
+        <!-- BACKLOG: Вариант ОГЭ/ЕГЭ (отключено по бизнес-решению)
+<a class="tool-card">
           <div class="tool-icon" style="background:#FEF3C7; color:#92400E;">
             <i data-lucide="graduation-cap"></i>
           </div>
           <h3>Вариант ОГЭ/ЕГЭ</h3>
           <p>Полный экзаменационный вариант с разбором по темам.</p>
           <div class="tool-meta">
-            <span class="cost"><i data-lucide="sparkles" style="width:12px;"></i> 20 токенов</span>
             <span>~1 мин</span>
           </div>
         </a>
 
-        <a class="tool-card">
+
+        -->
+
+        <!-- BACKLOG: Распаковка экспертности (отключено по бизнес-решению)
+<a class="tool-card">
           <div class="tool-icon" style="background:var(--danger-50); color:var(--danger-700);">
             <i data-lucide="brain"></i>
           </div>
           <h3>Распаковка экспертности</h3>
           <p>Глубокий разбор темы или навыка — для подготовки самого себя.</p>
           <div class="tool-meta">
-            <span class="cost"><i data-lucide="sparkles" style="width:12px;"></i> 20 токенов</span>
             <span>~1 мин</span>
           </div>
         </a>
 
-        <a class="tool-card">
+
+        -->
+
+        <!-- BACKLOG: Анализ видео (отключено по бизнес-решению)
+<a class="tool-card">
           <div class="tool-icon" style="background:#ECFEFF; color:#0E7490;">
             <i data-lucide="video"></i>
           </div>
           <h3>Анализ видео</h3>
           <p>Транскрибация + конспект + методический анализ урока.</p>
           <div class="tool-meta">
-            <span class="cost"><i data-lucide="sparkles" style="width:12px;"></i> 15 токенов</span>
             <span>~3 мин</span>
           </div>
         </a>
 
-        <a class="tool-card">
+
+        -->
+
+        <a class="tool-card" href="check.html" data-tour="tool-check">
           <div class="tool-icon" style="background:var(--success-50); color:var(--success-700);">
             <i data-lucide="check-circle-2"></i>
           </div>
           <h3>Проверка ДЗ</h3>
           <p>ИИ-оценка работы ученика и развёрнутая обратная связь.</p>
           <div class="tool-meta">
-            <span class="cost"><i data-lucide="sparkles" style="width:12px;"></i> 3 токена</span>
             <span>~30 сек</span>
           </div>
         </a>
 
-        <a class="tool-card">
+        <a class="tool-card" href="message.html" data-tour="tool-message">
           <div class="tool-icon" style="background:var(--ink-100); color:var(--ink-700);">
             <i data-lucide="mail"></i>
           </div>
           <h3>Сообщение родителям</h3>
           <p>Готовое тактичное сообщение по теме — от похвалы до проблемы.</p>
           <div class="tool-meta">
-            <span class="cost"><i data-lucide="sparkles" style="width:12px;"></i> 1 токен</span>
             <span>~10 сек</span>
           </div>
         </a>
 
-        <a class="tool-card">
+        <!-- BACKLOG: AI Фотосессия (отключено по бизнес-решению)
+<a class="tool-card">
           <div class="tool-icon" style="background:#FEF2F2; color:#BE123C;">
             <i data-lucide="camera"></i>
           </div>
           <h3>AI Фотосессия</h3>
           <p>Серия портретов по референсу — для соцсетей и рекламы курса.</p>
           <div class="tool-meta">
-            <span class="cost"><i data-lucide="sparkles" style="width:12px;"></i> 25 токенов</span>
             <span>~1 мин</span>
           </div>
         </a>
 
-        <a class="tool-card">
+
+        -->
+
+        <!-- BACKLOG: ИИ-продажник (отключено по бизнес-решению)
+<a class="tool-card">
           <div class="tool-icon" style="background:#F5F3FF; color:#6D28D9;">
             <i data-lucide="trending-up"></i>
           </div>
           <h3>ИИ-продажник</h3>
           <p>Помогает с продажей курсов: оффер, возражения, скрипты.</p>
           <div class="tool-meta">
-            <span class="cost"><i data-lucide="sparkles" style="width:12px;"></i> 10 токенов</span>
             <span>~30 сек</span>
           </div>
         </a>
 
-        <a class="tool-card">
+
+        -->
+
+        <!-- BACKLOG: Адаптация текста (отключено по бизнес-решению)
+<a class="tool-card">
           <div class="tool-icon" style="background:var(--info-50); color:var(--info-700);">
             <i data-lucide="repeat"></i>
           </div>
           <h3>Адаптация текста</h3>
           <p>Перепишет материал под нужный уровень — проще, сложнее, под интересы.</p>
           <div class="tool-meta">
-            <span class="cost"><i data-lucide="sparkles" style="width:12px;"></i> 3 токена</span>
             <span>~20 сек</span>
           </div>
         </a>
+
+
+        -->
 
       </div>
     </div>
   </main>
 </div>
 
+<!-- ────────── Onboarding Tour ────────── -->
+<script>
+  window.TOUR_LS_KEY = 'prepodavai_tools_tour_v1';
+  window.TOUR_STEPS = [
+    {
+      target: null, isModal: true, illustration: '🪄',
+      title: 'Мастерская инструментов',
+      body: 'Тут все ИИ-генераторы для подготовки урока. Пройдёмся по основным — за минуту покажу, какой инструмент для чего нужен.',
+      primaryLabel: 'Начнём'
+    },
+    {
+      target: '[data-tour="search"]', placement: 'bottom',
+      title: '🔎 Поиск по инструментам',
+      body: 'Если знаете, что вам нужно — напишите название («рабочий лист», «тест»). Поиск работает по названиям и описаниям.'
+    },
+    {
+      target: '[data-tour="categories"]', placement: 'bottom', padding: 6,
+      title: 'Категории инструментов',
+      body: 'Фильтр по типу: Материалы, Медиа, Игры, Общение. Помогает быстро найти нужное, когда инструментов становится больше.'
+    },
+    {
+      target: '[data-tour="hero-wow"]', placement: 'bottom', padding: 6,
+      title: '⚡ Главный инструмент — «Вау-урок»',
+      body: 'Один запрос — комплект «под ключ»: план урока, рабочий лист, тест и адаптация. Готово за минуту. Если не знаете, с чего начать — начинайте отсюда.'
+    },
+    {
+      target: '[data-tour="tool-worksheet"]', placement: 'right', padding: 6,
+      title: '📄 Рабочий лист',
+      body: 'Самый частый формат. Готовый PDF с задачами по теме и уровню класса. Открывается в редакторе — можно править перед печатью.'
+    },
+    {
+      target: '[data-tour="tool-test"]', placement: 'right', padding: 6,
+      title: '❓ Тест',
+      body: 'Тест с выбором ответа: 5–25 вопросов, 2–4 варианта. Можно отдать ученикам онлайн или распечатать.'
+    },
+    {
+      target: '[data-tour="tool-vocab"]', placement: 'right', padding: 6,
+      title: '📖 Словарь',
+      body: 'Тематический словарь на 10 языках. 5–30 слов с переводом и примером. Удобно для иностранных языков и терминологии.'
+    },
+    {
+      target: '[data-tour="tool-plan"]', placement: 'right', padding: 6,
+      title: '📋 План урока',
+      body: 'Структурированный план: цели, этапы, активности и время на каждое. Соответствует ФГОС — можно сдавать без правок.'
+    },
+    {
+      target: '[data-tour="tool-presentation"]', placement: 'right', padding: 6,
+      title: '🎞 Презентация',
+      body: 'Готовая PPTX-презентация с дизайном, картинками и заметками для учителя. Скачать или продолжить редактировать в редакторе.'
+    },
+    {
+      target: '[data-tour="tool-image"]', placement: 'right', padding: 6,
+      title: '🎨 Изображение',
+      body: 'Иллюстрация по описанию: карты, схемы, портреты, анимация. Полезно, когда нужно показать что-то нестандартное, чего нет в учебниках.'
+    },
+    {
+      target: '[data-tour="tool-game"]', placement: 'right', padding: 6,
+      title: '🎮 Обучающая игра',
+      body: 'HTML5-игра по вашей теме: «Миллионер», флешкарты, кроссворд, memory, верю/не верю. Запускается прямо в браузере у ученика.'
+    },
+    {
+      target: '[data-tour="tool-check"]', placement: 'right', padding: 6,
+      title: '✅ Проверка ДЗ',
+      body: 'ИИ-оценка работы ученика с развёрнутой обратной связью: что сделано хорошо, что плохо, на что обратить внимание.'
+    },
+    {
+      target: '[data-tour="tool-message"]', placement: 'right', padding: 6,
+      title: '✉️ Сообщение родителям',
+      body: 'Готовое тактичное сообщение по любой теме — от похвалы до неприятной ситуации. ИИ подбирает корректный тон.'
+    },
+    {
+      target: null, isModal: true, illustration: '🎉',
+      title: 'Готово!',
+      body: 'Теперь вы знаете, что есть в Генераторе. Клик по любой карточке открывает форму ввода. Если что — кнопка «Тур» в шапке всегда под рукой.',
+      primaryLabel: 'Попробовать'
+    }
+  ];
+</script>
+<script src="assets/tour.js"></script>
 <script>lucide.createIcons();</script>
 </body>
 </html>

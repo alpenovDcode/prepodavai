@@ -189,8 +189,8 @@
       <a class="s-nav-item"><i data-lucide="book-open"></i>Задания<span class="badge-num">7</span></a>
       <a class="s-nav-item is-active"><i data-lucide="graduation-cap"></i>Оценки</a>
       <a class="s-nav-item" href="ai-teacher.html"><i data-lucide="bot"></i>ИИ-учитель</a>
-      <a class="s-nav-item"><i data-lucide="trophy"></i>Достижения</a>
-      <a class="s-nav-item"><i data-lucide="bell"></i>Уведомления</a>
+      <a class="s-nav-item" href="achievements.html"><i data-lucide="trophy"></i>Достижения</a>
+      <a class="s-nav-item" href="notifications.html"><i data-lucide="bell"></i>Уведомления<span class="badge-num">5</span></a>
     </nav>
     <div class="s-profile">
       <div class="top">
@@ -208,6 +208,10 @@
     <header class="s-topbar">
       <h1>Мои оценки</h1>
       <div style="display:flex; gap:10px; align-items:center;">
+        <button class="btn btn-ghost" id="tour-restart-header" aria-label="Запустить тур" style="height:32px; padding: 0 12px; gap: 6px;">
+          <i data-lucide="compass" style="width:14px;"></i>
+          <span style="font-size:12px; font-weight:600;">Тур</span>
+        </button>
         <div class="xp-chip">
           <div class="ico"><i data-lucide="flame" style="width:12px;"></i></div>
           7 дней подряд
@@ -218,7 +222,7 @@
     <div class="s-content">
 
       <!-- Achievement notification -->
-      <div class="ach-strip">
+      <div class="ach-strip" data-tour="ach">
         <div class="ico"><i data-lucide="award"></i></div>
         <div class="text">
           <div class="t">Новая ачивка: «Семь дней подряд»</div>
@@ -228,7 +232,7 @@
       </div>
 
       <!-- KPI -->
-      <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px;">
+      <div data-tour="kpi" style="display:grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px;">
         <div class="gr-kpi">
           <div class="label">
             <span class="icon-tile" style="background:var(--brand-50); color:var(--brand-600);"><i data-lucide="trophy"></i></span>
@@ -267,7 +271,7 @@
       </div>
 
       <!-- By subject -->
-      <div class="section-head">
+      <div class="section-head" data-tour="by-subject">
         <div>
           <h2 style="font-size:18px;">По предметам</h2>
           <div class="subtitle">Твой средний балл по каждому предмету</div>
@@ -322,7 +326,7 @@
       </div>
 
       <!-- Pending -->
-      <div class="section-head">
+      <div class="section-head" data-tour="pending">
         <div>
           <h2 style="font-size:18px;">Ждут оценки</h2>
           <div class="subtitle">Учитель скоро проверит</div>
@@ -352,7 +356,7 @@
       </div>
 
       <!-- Graded -->
-      <div class="section-head">
+      <div class="section-head" data-tour="graded">
         <div>
           <h2 style="font-size:18px;">Последние оценки</h2>
           <div class="subtitle">С комментариями учителя</div>
@@ -464,5 +468,50 @@
   </main>
 </div>
 <script>lucide.createIcons();</script>
+
+<!-- ────────── Tour ────────── -->
+<script>
+  window.TOUR_LS_KEY = 'prepodavai_student_grades_tour_v1';
+  window.TOUR_STEPS = [
+    {
+      target: null, isModal: true, illustration: '⭐',
+      title: 'Твои оценки',
+      body: 'Здесь все твои баллы и прогресс по каждому предмету. Покажу за 30 секунд, что где смотреть.',
+      primaryLabel: 'Покажи'
+    },
+    {
+      target: '[data-tour="ach"]', placement: 'bottom', padding: 6,
+      title: '🏆 Ачивка получена',
+      body: 'Когда выполняешь что-то крутое — стрик из 7 дней, отлично сдал работу, поднялся в рейтинге — здесь появляется поздравление с бонусом XP.'
+    },
+    {
+      target: '[data-tour="kpi"]', placement: 'bottom', padding: 8,
+      title: '4 главные цифры',
+      body: 'Средний балл, сколько сдал работ, сколько на проверке, опыт (XP) до следующего уровня. Стрелка ↑ — растёшь, ↓ — нужно подтянуть.'
+    },
+    {
+      target: '[data-tour="by-subject"]', placement: 'bottom', padding: 6,
+      title: '📚 По предметам',
+      body: 'Средний балл по каждому. Зелёные полоски — всё хорошо, жёлтые — нужно подтянуть. Видно, где ты сильнее, а где слабее.'
+    },
+    {
+      target: '[data-tour="pending"]', placement: 'top', padding: 6,
+      title: '⏳ Ждут оценки',
+      body: 'Работы, которые ты сдал, но учитель ещё не проверил. Появится оценка — сразу увидишь.'
+    },
+    {
+      target: '[data-tour="graded"]', placement: 'top', padding: 6,
+      title: '✅ Последние оценки',
+      body: 'Уже проверенные работы. С комментарием учителя — что хорошо, что можно улучшить. Жми «Все 24», чтобы посмотреть историю.'
+    },
+    {
+      target: null, isModal: true, illustration: '🎯',
+      title: 'Готово!',
+      body: 'Заходи сюда раз в неделю — увидишь, как растёшь. Если что — кнопка «Тур» сверху.',
+      primaryLabel: 'Смотреть оценки'
+    }
+  ];
+</script>
+<script src="../assets/tour.js"></script>
 </body>
 </html>

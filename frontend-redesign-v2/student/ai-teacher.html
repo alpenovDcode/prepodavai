@@ -318,8 +318,8 @@
       <a class="s-nav-item"><i data-lucide="book-open"></i>Задания<span class="badge-num">7</span></a>
       <a class="s-nav-item" href="grades.html"><i data-lucide="graduation-cap"></i>Оценки</a>
       <a class="s-nav-item is-active"><i data-lucide="bot"></i>ИИ-учитель</a>
-      <a class="s-nav-item"><i data-lucide="trophy"></i>Достижения</a>
-      <a class="s-nav-item"><i data-lucide="bell"></i>Уведомления</a>
+      <a class="s-nav-item" href="achievements.html"><i data-lucide="trophy"></i>Достижения</a>
+      <a class="s-nav-item" href="notifications.html"><i data-lucide="bell"></i>Уведомления<span class="badge-num">5</span></a>
     </nav>
     <div class="s-profile">
       <div class="top">
@@ -337,6 +337,10 @@
     <header class="s-topbar">
       <h1>ИИ-учитель</h1>
       <div style="display:flex; gap:10px; align-items:center;">
+        <button class="btn btn-ghost" id="tour-restart-header" aria-label="Запустить тур" style="height:32px; padding: 0 12px; gap: 6px;">
+          <i data-lucide="compass" style="width:14px;"></i>
+          <span style="font-size:12px; font-weight:600;">Тур</span>
+        </button>
         <div class="xp-chip">
           <div class="ico"><i data-lucide="flame" style="width:12px;"></i></div>
           7 дней подряд
@@ -347,9 +351,9 @@
     <div class="chat-shell">
 
       <!-- ─── History sidebar ─── -->
-      <div class="chat-side">
+      <div class="chat-side" data-tour="history">
         <div class="head">
-          <button class="new-chat-btn">
+          <button class="new-chat-btn" data-tour="new-chat">
             <i data-lucide="plus" style="width:16px;"></i>
             Новый чат
           </button>
@@ -387,7 +391,7 @@
       </div>
 
       <!-- ─── Main chat ─── -->
-      <div class="chat-main">
+      <div class="chat-main" data-tour="chat">
 
         <div class="chat-head">
           <div class="ai-info">
@@ -438,7 +442,7 @@
 
                   Попробуй теперь сам: sin(180° − α) = ?
                 </div>
-                <div class="msg-actions">
+                <div class="msg-actions" data-tour="msg-actions">
                   <button><i data-lucide="copy"></i> Копировать</button>
                   <button><i data-lucide="refresh-cw"></i> Перегенерировать</button>
                   <button><i data-lucide="thumbs-up"></i></button>
@@ -482,7 +486,7 @@
         </div>
 
         <!-- Composer -->
-        <div class="composer">
+        <div class="composer" data-tour="composer">
           <div class="quick-prompts">
             <button class="qp"><i data-lucide="lightbulb"></i> Объясни простыми словами</button>
             <button class="qp"><i data-lucide="calculator"></i> Реши задачу пошагово</button>
@@ -509,5 +513,50 @@
   </main>
 </div>
 <script>lucide.createIcons();</script>
+
+<!-- ────────── Tour ────────── -->
+<script>
+  window.TOUR_LS_KEY = 'prepodavai_student_ai_teacher_tour_v1';
+  window.TOUR_STEPS = [
+    {
+      target: null, isModal: true, illustration: '🤖',
+      title: 'ИИ-учитель',
+      body: 'Это твой персональный помощник 24/7. Спрашивай, что непонятно — объяснит на пальцах, решит задачу пошагово, разберёт ошибки.',
+      primaryLabel: 'Покажи'
+    },
+    {
+      target: '[data-tour="history"]', placement: 'right', padding: 6,
+      title: '💬 История чатов',
+      body: 'Все твои разговоры с ИИ хранятся слева. Можешь вернуться к любому, чтобы вспомнить объяснение.'
+    },
+    {
+      target: '[data-tour="new-chat"]', placement: 'right', padding: 4,
+      title: '➕ Новый чат',
+      body: 'Когда хочешь спросить про другую тему — жми сюда. Чтобы старые объяснения не путались с новыми.'
+    },
+    {
+      target: '[data-tour="chat"]', placement: 'left', padding: 8,
+      title: '🗨 Окно чата',
+      body: 'Здесь идёт разговор. Твои сообщения — справа, ответы ИИ — слева с искоркой. ИИ объясняет шагами, выделяет важное жирным.'
+    },
+    {
+      target: '[data-tour="msg-actions"]', placement: 'top', padding: 4,
+      title: 'Действия с ответом',
+      body: 'Под каждым ответом ИИ: скопировать, перегенерировать (если объяснение не понравилось), 👍/👎 — помоги ИИ учиться, что полезно, что нет.'
+    },
+    {
+      target: '[data-tour="composer"]', placement: 'top', padding: 6,
+      title: '✍️ Поле ввода',
+      body: 'Пиши свой вопрос или используй быстрые подсказки: «Объясни простыми словами», «Реши пошагово», «Проверь решение». Можно прикрепить фото или сказать голосом.'
+    },
+    {
+      target: null, isModal: true, illustration: '💡',
+      title: 'Подсказка',
+      body: 'Не стесняйся переспрашивать! Если объяснение непонятно — скажи «Попроще» или «На примере». ИИ адаптируется под тебя.',
+      primaryLabel: 'Спросить'
+    }
+  ];
+</script>
+<script src="../assets/tour.js"></script>
 </body>
 </html>

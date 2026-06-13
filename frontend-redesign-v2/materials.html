@@ -11,457 +11,944 @@
 <link rel="stylesheet" href="assets/components.css" />
 <script src="https://unpkg.com/lucide@latest"></script>
 <style>
+  /* ── Фильтр-пилюли (тёплые, в стиле платформы) ── */
+  .filter-pill {
+    display: inline-flex; align-items: center; gap: 8px;
+    height: 38px;
+    padding: 0 16px;
+    background: var(--surface);
+    border: 1px solid var(--ink-200);
+    border-radius: var(--r-full);
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--ink-700);
+    cursor: pointer;
+    transition: all var(--t-fast) var(--ease);
+    white-space: nowrap;
+  }
+  .filter-pill:hover { background: var(--ink-50); border-color: var(--ink-300); color: var(--ink-900); }
+  .filter-pill.is-active {
+    background: var(--brand-50);
+    border-color: var(--brand-300);
+    color: var(--brand-800);
+    box-shadow: 0 1px 3px rgba(255,126,88,0.1);
+  }
+  .filter-pill svg { width: 15px; height: 15px; flex-shrink: 0; opacity: 0.7; }
+  .filter-pill.is-active svg { opacity: 1; color: var(--brand-600); }
+  .filter-pill .count {
+    background: var(--ink-100);
+    color: var(--ink-600);
+    padding: 2px 9px;
+    border-radius: var(--r-full);
+    font-size: 12px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  .filter-pill.is-active .count { background: var(--brand-100); color: var(--brand-700); }
+
+  /* ── Селекты ── */
+  .filter-select {
+    position: relative; display: inline-flex; align-items: center;
+  }
+  .filter-select select {
+    appearance: none;
+    height: 38px;
+    padding: 0 38px 0 16px;
+    background: var(--surface);
+    border: 1px solid var(--ink-200);
+    border-radius: var(--r-full);
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ink-700);
+    cursor: pointer;
+    transition: all var(--t-fast) var(--ease);
+  }
+  .filter-select select:hover { background: var(--ink-50); border-color: var(--ink-300); color: var(--ink-900); }
+  .filter-select select:focus { outline: none; border-color: var(--brand-300); box-shadow: 0 0 0 3px rgba(255,126,88,0.12); }
+  .filter-select::after {
+    content: '';
+    position: absolute; right: 16px; top: 50%;
+    width: 8px; height: 8px;
+    border-right: 1.5px solid var(--ink-500);
+    border-bottom: 1.5px solid var(--ink-500);
+    transform: translateY(-65%) rotate(45deg);
+    pointer-events: none;
+  }
+
+  /* ── View toggle ── */
   .view-toggle {
     display: inline-flex;
     background: var(--ink-100);
-    border-radius: var(--r-md);
-    padding: 3px;
+    border-radius: var(--r-full);
+    padding: 4px;
   }
   .view-toggle button {
-    height: 30px; padding: 0 10px;
+    height: 30px; padding: 0 14px;
     border: none; background: transparent;
-    border-radius: var(--r-sm);
+    border-radius: var(--r-full);
     color: var(--ink-600);
     cursor: pointer;
     display: inline-flex; align-items: center; gap: 6px;
     font-weight: 600; font-size: 13px;
+    transition: all var(--t-fast) var(--ease);
   }
+  .view-toggle button:hover { color: var(--ink-900); }
   .view-toggle button.is-active {
     background: white; color: var(--ink-900);
-    box-shadow: var(--shadow-xs);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+  .view-toggle button svg { width: 14px; height: 14px; flex-shrink: 0; }
+
+  /* ── Карточка материала ── */
+  .mat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+  }
+  .mat-card {
+    background: var(--surface);
+    border: 1px solid var(--ink-200);
+    border-radius: var(--r-lg);
+    padding: 18px 18px 14px;
+    cursor: pointer;
+    transition: all var(--t-base) var(--ease);
+    display: flex; flex-direction: column;
+    gap: 14px;
+    position: relative;
+    text-decoration: none;
+    color: inherit;
+  }
+  .mat-card:hover {
+    border-color: var(--brand-300);
+    box-shadow: 0 8px 24px rgba(15,23,42,0.08);
+    transform: translateY(-2px);
+  }
+  .mat-card-head {
+    display: flex; justify-content: space-between; align-items: flex-start;
+  }
+  .mat-card .type-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 10px;
+    border-radius: var(--r-full);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .mat-card .type-chip svg { width: 12px; height: 12px; }
+
+  /* Цвета типов */
+  .type-worksheet { background: var(--brand-50); color: var(--brand-700); }
+  .type-test      { background: #EFF6FF; color: #1D4ED8; }
+  .type-presentation { background: #FFFBEB; color: #B45309; }
+  .type-plan      { background: #EEF2FF; color: #4338CA; }
+  .type-image     { background: #FDF4FF; color: #A21CAF; }
+  .type-game      { background: #F0FDFA; color: #0F766E; }
+  .type-vocab     { background: #ECFDF5; color: #047857; }
+  .type-check     { background: #F0FDF4; color: #166534; }
+  .type-message   { background: #F1F5F9; color: #475569; }
+
+  .mat-card h3 {
+    font-family: var(--font-display);
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1.3;
+    color: var(--ink-900);
+    margin: 0;
+    /* clamp to 2 lines */
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .mat-card .tags {
+    display: flex; gap: 6px; flex-wrap: wrap;
+  }
+  .mat-card .tag {
+    background: var(--ink-50);
+    color: var(--ink-600);
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: var(--r-sm);
+  }
+  .mat-card .meta {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 12px;
+    color: var(--ink-500);
+    margin-top: auto;
+    padding-top: 12px;
+    border-top: 1px solid var(--ink-100);
+  }
+  .mat-card .meta svg { width: 12px; height: 12px; flex-shrink: 0; }
+  .mat-card .meta .subject { font-weight: 600; color: var(--ink-700); }
+
+  /* ── Меню действий «⋯» ── */
+  .mat-menu {
+    position: relative;
+  }
+  .mat-menu-btn {
+    width: 30px; height: 30px;
+    border-radius: var(--r-sm);
+    border: none;
+    background: transparent;
+    color: var(--ink-400);
+    cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+    transition: all var(--t-fast) var(--ease);
+  }
+  .mat-menu-btn:hover { background: var(--ink-100); color: var(--ink-900); }
+  .mat-menu-btn svg { width: 16px; height: 16px; }
+
+  .mat-menu-list {
+    position: absolute; top: 100%; right: 0;
+    margin-top: 4px;
+    background: var(--surface);
+    border: 1px solid var(--ink-200);
+    border-radius: var(--r-md);
+    box-shadow: 0 12px 32px rgba(15,23,42,0.12);
+    padding: 6px;
+    min-width: 200px;
+    display: none;
+    z-index: 100;
+  }
+  .mat-menu.is-open .mat-menu-list { display: block; }
+  .mat-menu-list button {
+    display: flex; align-items: center; gap: 10px;
+    width: 100%;
+    padding: 8px 10px;
+    border: none;
+    background: transparent;
+    border-radius: var(--r-sm);
+    color: var(--ink-700);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    text-align: left;
+    transition: background var(--t-fast) var(--ease);
+  }
+  .mat-menu-list button:hover { background: var(--ink-100); color: var(--ink-900); }
+  .mat-menu-list button.is-danger { color: var(--danger-700); }
+  .mat-menu-list button.is-danger:hover { background: var(--danger-50); color: var(--danger-700); }
+  .mat-menu-list button svg { width: 14px; height: 14px; flex-shrink: 0; }
+  .mat-menu-list .menu-sep {
+    height: 1px;
+    background: var(--ink-100);
+    margin: 4px 2px;
   }
 
-  .lesson-card {
+  /* ── Список (List mode) ── */
+  .mat-list {
     background: var(--surface);
     border: 1px solid var(--ink-200);
     border-radius: var(--r-lg);
     overflow: hidden;
+  }
+  .mat-row {
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr) 140px 110px 44px;
+    gap: 16px;
+    align-items: center;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--ink-100);
+    transition: background var(--t-fast) var(--ease);
+    text-decoration: none;
+    color: inherit;
     cursor: pointer;
-    transition: all var(--t-base) var(--ease);
-    display: flex; flex-direction: column;
   }
-  .lesson-card:hover {
-    border-color: var(--brand-300);
-    box-shadow: var(--shadow-md);
-    transform: translateY(-2px);
-  }
-
-  .lesson-cover {
-    aspect-ratio: 16 / 9;
-    background: linear-gradient(135deg, var(--brand-100), var(--brand-50));
-    position: relative;
+  .mat-row:last-child { border-bottom: none; }
+  .mat-row:hover { background: var(--ink-50); }
+  .mat-row .row-icon {
+    width: 40px; height: 40px;
+    border-radius: var(--r-md);
     display: flex; align-items: center; justify-content: center;
-    overflow: hidden;
   }
-  .lesson-cover .subj-icon {
-    width: 56px; height: 56px;
-    background: white;
-    border-radius: var(--r-lg);
-    display: flex; align-items: center; justify-content: center;
-    color: var(--brand-600);
-    box-shadow: var(--shadow-md);
-  }
-  .lesson-cover .subj-icon svg { width: 28px; height: 28px; }
-  .lesson-cover .subj-label {
-    position: absolute;
-    top: 12px; left: 12px;
-    background: rgba(255,255,255,0.92);
-    color: var(--ink-700);
-    font-size: 11px;
-    font-weight: 700;
-    padding: 4px 10px;
-    border-radius: var(--r-full);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-  }
-  .lesson-cover .mat-count {
-    position: absolute;
-    top: 12px; right: 12px;
-    background: var(--ink-900);
-    color: white;
-    font-size: 11px;
-    font-weight: 700;
-    padding: 4px 10px;
-    border-radius: var(--r-full);
-    display: inline-flex; align-items: center; gap: 4px;
-  }
-
-  /* color variants */
-  .cover-math    { background: linear-gradient(135deg, #DBEAFE, #EFF6FF); }
-  .cover-math    .subj-icon { color: #2563EB; }
-  .cover-russ    { background: linear-gradient(135deg, var(--brand-100), var(--brand-50)); }
-  .cover-russ    .subj-icon { color: var(--brand-600); }
-  .cover-physics { background: linear-gradient(135deg, #D1FAE5, #ECFDF5); }
-  .cover-physics .subj-icon { color: var(--success-700); }
-  .cover-eng     { background: linear-gradient(135deg, #E0E7FF, #EEF2FF); }
-  .cover-eng     .subj-icon { color: #4338CA; }
-  .cover-hist    { background: linear-gradient(135deg, #FEF3C7, #FFFBEB); }
-  .cover-hist    .subj-icon { color: var(--warning-700); }
-  .cover-bio     { background: linear-gradient(135deg, #FEE2E2, #FEF2F2); }
-  .cover-bio     .subj-icon { color: var(--danger-700); }
-
-  .lesson-body { padding: 16px 18px; }
-  .lesson-body .meta-row {
-    font-size: 11px;
-    color: var(--ink-500);
-    display: flex; align-items: center; gap: 8px;
-    margin-bottom: 6px;
-  }
-  .lesson-body .meta-row .class-pill {
-    background: var(--ink-100);
-    color: var(--ink-700);
-    font-weight: 700;
-    padding: 2px 8px;
-    border-radius: var(--r-full);
-    font-size: 11px;
-  }
-  .lesson-body h3 {
-    font-size: 15px;
-    font-weight: 700;
+  .mat-row .row-icon svg { width: 18px; height: 18px; }
+  .mat-row .row-main { min-width: 0; }
+  .mat-row .row-title {
+    font-weight: 600;
     color: var(--ink-900);
-    line-height: 1.3;
-    margin-bottom: 8px;
+    font-size: 14px;
+    margin-bottom: 3px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
-  .lesson-body .tags {
-    display: flex; gap: 4px; flex-wrap: wrap;
-    margin-bottom: 12px;
-  }
-  .lesson-body .tag {
-    background: var(--ink-50);
-    color: var(--ink-600);
-    font-size: 11px;
-    font-weight: 500;
-    padding: 2px 8px;
-    border-radius: var(--r-sm);
-  }
-  .lesson-body .mat-types {
-    display: flex; gap: 6px;
-    margin-bottom: 12px;
-  }
-  .lesson-body .mtype {
-    width: 26px; height: 26px;
-    border-radius: var(--r-sm);
-    display: inline-flex; align-items: center; justify-content: center;
-  }
-  .lesson-body .mtype svg { width: 13px; height: 13px; }
-  .lesson-body .row {
-    display: flex; align-items: center; justify-content: space-between;
-    border-top: 1px solid var(--ink-100);
-    padding-top: 12px;
+  .mat-row .row-sub {
     font-size: 12px;
     color: var(--ink-500);
+    display: flex; gap: 8px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
+  .mat-row .row-subject {
+    font-size: 12px;
+    color: var(--ink-700);
+    font-weight: 600;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .mat-row .row-date {
+    font-size: 12px;
+    color: var(--ink-500);
+    text-align: right;
+  }
+  @media (max-width: 767px) {
+    .mat-row { grid-template-columns: 40px minmax(0, 1fr) 44px; }
+    .mat-row .row-subject, .mat-row .row-date { display: none; }
+  }
+
+  /* Empty state */
+  .empty {
+    text-align: center;
+    padding: 64px 24px;
+    background: var(--surface);
+    border-radius: var(--r-lg);
+    border: 1px dashed var(--ink-200);
+  }
+  .empty .icon-bg {
+    width: 72px; height: 72px;
+    margin: 0 auto 16px;
+    background: var(--ink-100);
+    border-radius: var(--r-lg);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--ink-400);
+  }
+  .empty .icon-bg svg { width: 32px; height: 32px; }
+  .empty h3 { font-size: 18px; color: var(--ink-800); margin-bottom: 6px; }
+  .empty p { color: var(--ink-500); font-size: 14px; max-width: 360px; margin: 0 auto; }
+
+  /* Hide cards/rows that don't match active type (demo) */
+  body[data-type="all"] .mat-card,
+  body[data-type="all"] .mat-row { display: flex; }
+  body[data-type="worksheet"] .mat-card:not(.is-worksheet),
+  body[data-type="worksheet"] .mat-row:not(.is-worksheet) { display: none; }
+  body[data-type="test"] .mat-card:not(.is-test),
+  body[data-type="test"] .mat-row:not(.is-test) { display: none; }
+  body[data-type="presentation"] .mat-card:not(.is-presentation),
+  body[data-type="presentation"] .mat-row:not(.is-presentation) { display: none; }
+  body[data-type="plan"] .mat-card:not(.is-plan),
+  body[data-type="plan"] .mat-row:not(.is-plan) { display: none; }
+  body[data-type="image"] .mat-card:not(.is-image),
+  body[data-type="image"] .mat-row:not(.is-image) { display: none; }
+  body[data-type="game"] .mat-card:not(.is-game),
+  body[data-type="game"] .mat-row:not(.is-game) { display: none; }
+
+  /* View toggle */
+  body[data-view="list"] .mat-grid { display: none; }
+  body[data-view="cards"] .mat-list { display: none; }
 </style>
 </head>
-<body>
+<body data-view="cards" data-type="all">
 <div class="app-shell">
+
+  <!-- ───────── SIDEBAR ───────── -->
   <aside class="sidebar">
     <div class="sidebar-brand">
-      <img src="assets/logo.png" alt="" /><span class="brand-name">Преподавай</span>
+      <img src="assets/logo.png" alt="" />
+      <span class="brand-name">Преподавай</span>
     </div>
     <nav class="sidebar-section">
       <div class="sidebar-label">Рабочий стол</div>
-      <a class="nav-item" href="dashboard.html"><i data-lucide="layout-dashboard"></i>Главная</a>
-      <a class="nav-item" href="tools.html"><i data-lucide="wand-sparkles"></i>ИИ Генератор</a>
-      <a class="nav-item" href="calendar.html"><i data-lucide="calendar"></i>Календарь</a>
-      <a class="nav-item is-active"><i data-lucide="book-open"></i>Материалы</a>
+      <a class="nav-item" href="dashboard.html"><i data-lucide="layout-dashboard"></i><span>Главная</span></a>
+      <a class="nav-item" href="tools.html"><i data-lucide="wand-sparkles"></i><span>ИИ Генератор</span></a>
+      <a class="nav-item" href="calendar.html"><i data-lucide="calendar"></i><span>Календарь</span></a>
+      <a class="nav-item is-active"><i data-lucide="book-open"></i><span>Материалы</span></a>
 
       <div class="sidebar-label">Класс</div>
-      <a class="nav-item" href="students.html"><i data-lucide="users"></i>Ученики<span class="nav-badge">3</span></a>
-      <a class="nav-item" href="grading.html"><i data-lucide="clipboard-check"></i>Проверка ДЗ</a>
-      <a class="nav-item" href="analytics.html"><i data-lucide="bar-chart-3"></i>Аналитика</a>
+      <a class="nav-item" href="students.html"><i data-lucide="users"></i><span>Ученики</span><span class="nav-badge">3</span></a>
+      <a class="nav-item" href="grading.html"><i data-lucide="clipboard-check"></i><span>Проверка ДЗ</span></a>
+      <a class="nav-item" href="analytics.html"><i data-lucide="bar-chart-3"></i><span>Аналитика</span></a>
 
       <div class="sidebar-label">Прочее</div>
-      <a class="nav-item" href="referrals.html"><i data-lucide="gift"></i>Пригласить</a>
-      <a class="nav-item"><i data-lucide="message-circle"></i>Поддержка</a>
-      <a class="nav-item" href="settings.html"><i data-lucide="settings"></i>Настройки</a>
+      <a class="nav-item" href="referrals.html"><i data-lucide="gift"></i><span>Пригласить</span></a>
+      <a class="nav-item"><i data-lucide="message-circle"></i><span>Поддержка</span></a>
+      <a class="nav-item" href="settings.html"><i data-lucide="settings"></i><span>Настройки</span></a>
     </nav>
     <div class="sidebar-footer">
       <div class="user-chip">
         <div class="avatar">ЕА</div>
-        <div class="info"><div class="name">Евгения А.</div><div class="plan">Тариф «Бизнес»</div></div>
+        <div class="info">
+          <div class="name">Евгения А.</div>
+          <div class="plan">Тариф «Бизнес»</div>
+        </div>
         <i data-lucide="chevron-up" style="color:var(--ink-400); width:16px;"></i>
       </div>
     </div>
   </aside>
 
+  <!-- ───────── MAIN ───────── -->
   <main>
     <header class="topbar">
       <div>
         <h1>Материалы</h1>
         <div style="font-size:13px; color:var(--ink-500); margin-top:2px;">
-          47 уроков · 162 материала · 8 готовы выдать
+          Все, что вы создали в ИИ Генераторе. Найти, открыть, отредактировать.
         </div>
       </div>
       <div class="actions">
-        <div class="searchbar"><i data-lucide="search"></i><input placeholder="Поиск урока, темы…" /><span class="kbd">⌘K</span></div>
-        <button class="btn btn-primary btn-sm"><i data-lucide="plus"></i> Новый урок</button>
+        <div class="searchbar" data-tour="search"><i data-lucide="search"></i><input placeholder="Найти по названию или теме…" /><span class="kbd">⌘K</span></div>
+        <button class="btn btn-ghost" id="tour-restart-header" aria-label="Запустить тур" style="height:36px; padding: 0 14px; gap: 8px;">
+          <i data-lucide="compass" style="width:16px;"></i>
+          <span style="font-size:13px; font-weight:600;">Тур</span>
+        </button>
+        <a href="tools.html" class="btn btn-primary btn-sm" data-tour="create"><i data-lucide="plus"></i> Создать новый</a>
       </div>
     </header>
 
     <div class="content">
 
-      <!-- Filters -->
-      <div style="display:flex; align-items:center; gap:10px; margin-bottom:20px; flex-wrap: wrap;">
-        <button class="cat-tab is-active">Все <span class="count">47</span></button>
-        <button class="cat-tab"><i data-lucide="bookmark" style="width:14px;"></i> Избранное <span class="count">6</span></button>
-        <button class="cat-tab"><i data-lucide="calendar" style="width:14px;"></i> На этой неделе <span class="count">8</span></button>
-        <button class="cat-tab"><i data-lucide="clock" style="width:14px;"></i> Запланированы <span class="count">12</span></button>
-        <button class="cat-tab"><i data-lucide="archive" style="width:14px;"></i> Архив <span class="count">21</span></button>
+      <!-- Filters: тип -->
+      <div data-tour="type-filter" style="display:flex; align-items:center; gap:8px; margin-bottom:16px; flex-wrap: wrap;">
+        <button class="filter-pill is-active" data-filter-type="all">
+          <i data-lucide="layers"></i> Все материалы <span class="count">162</span>
+        </button>
+        <button class="filter-pill" data-filter-type="worksheet">
+          <i data-lucide="file-text"></i> Рабочие листы <span class="count">48</span>
+        </button>
+        <button class="filter-pill" data-filter-type="test">
+          <i data-lucide="circle-help"></i> Тесты <span class="count">36</span>
+        </button>
+        <button class="filter-pill" data-filter-type="presentation">
+          <i data-lucide="presentation"></i> Презентации <span class="count">29</span>
+        </button>
+        <button class="filter-pill" data-filter-type="plan">
+          <i data-lucide="clipboard-list"></i> Планы уроков <span class="count">21</span>
+        </button>
+        <button class="filter-pill" data-filter-type="image">
+          <i data-lucide="image"></i> Изображения <span class="count">14</span>
+        </button>
+        <button class="filter-pill" data-filter-type="game">
+          <i data-lucide="gamepad-2"></i> Игры <span class="count">8</span>
+        </button>
+      </div>
 
-        <div style="height:24px; width:1px; background:var(--ink-200);"></div>
-
-        <select class="input" style="height:36px; width:auto; padding: 0 32px 0 12px;">
-          <option>Все предметы</option>
-          <option>Математика</option><option>Физика</option><option>Биология</option>
-        </select>
-        <select class="input" style="height:36px; width:auto; padding: 0 32px 0 12px;">
-          <option>Все классы</option>
-          <option>10А</option><option>9А</option><option>11Б</option>
-        </select>
+      <!-- Filters: предмет, дата, сортировка + view toggle -->
+      <div data-tour="meta-filters" style="display:flex; align-items:center; gap:8px; margin-bottom:24px; flex-wrap: wrap;">
+        <div class="filter-select">
+          <select>
+            <option>Все предметы</option>
+            <option>Математика</option><option>Физика</option><option>Химия</option>
+            <option>Биология</option><option>История</option><option>Литература</option>
+            <option>Английский язык</option><option>География</option>
+          </select>
+        </div>
+        <div class="filter-select">
+          <select>
+            <option>За всё время</option>
+            <option>Сегодня</option>
+            <option>На этой неделе</option>
+            <option>За последний месяц</option>
+            <option>За полгода</option>
+          </select>
+        </div>
+        <div class="filter-select">
+          <select>
+            <option>Сначала новые</option>
+            <option>Сначала старые</option>
+            <option>По названию А-Я</option>
+            <option>По названию Я-А</option>
+            <option>По предмету</option>
+          </select>
+        </div>
 
         <div style="margin-left:auto; display:flex; gap:8px;">
-          <div class="view-toggle">
-            <button class="is-active"><i data-lucide="grid-3x3" style="width:14px;"></i> Карточки</button>
-            <button><i data-lucide="list" style="width:14px;"></i> Список</button>
+          <div class="view-toggle" data-tour="view-toggle">
+            <button class="is-active" data-view="cards"><i data-lucide="layout-grid"></i> Карточки</button>
+            <button data-view="list"><i data-lucide="list"></i> Список</button>
           </div>
         </div>
       </div>
 
-      <!-- Grid -->
-      <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 18px;">
+      <!-- ─── Карточки ─── -->
+      <div class="mat-grid">
 
-        <a class="lesson-card" href="class-detail.html">
-          <div class="lesson-cover cover-russ">
-            <div class="subj-label">Математика</div>
-            <div class="mat-count"><i data-lucide="file-text" style="width:11px;"></i> 5</div>
-            <div class="subj-icon"><i data-lucide="function-square"></i></div>
+        <!-- 1. Рабочий лист -->
+        <a class="mat-card is-worksheet" href="material.html" data-tour="first-card">
+          <div class="mat-card-head">
+            <span class="type-chip type-worksheet"><i data-lucide="file-text"></i> Рабочий лист</span>
+            <div class="mat-menu" onclick="toggleMenu(event, this)" data-tour="card-menu">
+              <button class="mat-menu-btn"><i data-lucide="more-horizontal"></i></button>
+              <div class="mat-menu-list">
+                <button><i data-lucide="eye"></i> Открыть</button>
+                <button><i data-lucide="edit-3"></i> Редактировать</button>
+                <button><i data-lucide="pen-line"></i> Переименовать</button>
+                <button><i data-lucide="copy"></i> Дублировать</button>
+                <button><i data-lucide="download"></i> Скачать PDF</button>
+                <button><i data-lucide="send"></i> Выдать ученикам</button>
+                <div class="menu-sep"></div>
+                <button class="is-danger"><i data-lucide="trash-2"></i> Удалить</button>
+              </div>
+            </div>
           </div>
-          <div class="lesson-body">
-            <div class="meta-row">
-              <span class="class-pill">10А</span>
-              <span>· 13 июня · 14:30</span>
+          <h3>Тригонометрия: формулы приведения</h3>
+          <div class="tags">
+            <span class="tag">тригонометрия</span>
+            <span class="tag">10 класс</span>
+          </div>
+          <div class="meta">
+            <span class="subject"><i data-lucide="book"></i> Математика</span>
+            <span>·</span>
+            <span><i data-lucide="clock" style="display:inline-block; vertical-align:-2px;"></i> 13 июня</span>
+          </div>
+        </a>
+
+        <!-- 2. Тест -->
+        <a class="mat-card is-test" href="material.html">
+          <div class="mat-card-head">
+            <span class="type-chip type-test"><i data-lucide="circle-help"></i> Тест</span>
+            <div class="mat-menu" onclick="toggleMenu(event, this)">
+              <button class="mat-menu-btn"><i data-lucide="more-horizontal"></i></button>
+              <div class="mat-menu-list">
+                <button><i data-lucide="eye"></i> Открыть</button>
+                <button><i data-lucide="edit-3"></i> Редактировать</button>
+                <button><i data-lucide="pen-line"></i> Переименовать</button>
+                <button><i data-lucide="copy"></i> Дублировать</button>
+                <button><i data-lucide="download"></i> Скачать PDF</button>
+                <button><i data-lucide="send"></i> Выдать ученикам</button>
+                <div class="menu-sep"></div>
+                <button class="is-danger"><i data-lucide="trash-2"></i> Удалить</button>
+              </div>
             </div>
-            <h3>Тригонометрия: формулы приведения</h3>
-            <div class="tags">
-              <span class="tag">тригонометрия</span>
-              <span class="tag">формулы</span>
-              <span class="tag">10 класс</span>
+          </div>
+          <h3>Строение клетки — проверочный квиз</h3>
+          <div class="tags">
+            <span class="tag">клетка</span>
+            <span class="tag">9 класс</span>
+            <span class="tag">15 вопросов</span>
+          </div>
+          <div class="meta">
+            <span class="subject"><i data-lucide="microscope"></i> Биология</span>
+            <span>·</span>
+            <span>вчера</span>
+          </div>
+        </a>
+
+        <!-- 3. Презентация -->
+        <a class="mat-card is-presentation" href="material.html">
+          <div class="mat-card-head">
+            <span class="type-chip type-presentation"><i data-lucide="presentation"></i> Презентация</span>
+            <div class="mat-menu" onclick="toggleMenu(event, this)">
+              <button class="mat-menu-btn"><i data-lucide="more-horizontal"></i></button>
+              <div class="mat-menu-list">
+                <button><i data-lucide="eye"></i> Открыть</button>
+                <button><i data-lucide="edit-3"></i> Редактировать</button>
+                <button><i data-lucide="pen-line"></i> Переименовать</button>
+                <button><i data-lucide="copy"></i> Дублировать</button>
+                <button><i data-lucide="download"></i> Скачать PPTX</button>
+                <button><i data-lucide="download"></i> Скачать PDF</button>
+                <button><i data-lucide="send"></i> Выдать ученикам</button>
+                <div class="menu-sep"></div>
+                <button class="is-danger"><i data-lucide="trash-2"></i> Удалить</button>
+              </div>
             </div>
-            <div class="mat-types">
-              <span class="mtype" style="background:var(--brand-50); color:var(--brand-700);" title="Рабочий лист"><i data-lucide="file-text"></i></span>
-              <span class="mtype" style="background:var(--info-50); color:var(--info-700);" title="Тест"><i data-lucide="circle-help"></i></span>
-              <span class="mtype" style="background:var(--warning-50); color:var(--warning-700);" title="Презентация"><i data-lucide="presentation"></i></span>
-              <span class="mtype" style="background:#EEF2FF; color:#4338CA;" title="План урока"><i data-lucide="clipboard-list"></i></span>
-              <span class="mtype" style="background:#F0FDFA; color:#0F766E;" title="Игра"><i data-lucide="gamepad-2"></i></span>
+          </div>
+          <h3>Эволюция животного мира — 12 слайдов</h3>
+          <div class="tags">
+            <span class="tag">эволюция</span>
+            <span class="tag">9 класс</span>
+          </div>
+          <div class="meta">
+            <span class="subject"><i data-lucide="microscope"></i> Биология</span>
+            <span>·</span>
+            <span>2 дня назад</span>
+          </div>
+        </a>
+
+        <!-- 4. План урока -->
+        <a class="mat-card is-plan" href="material.html">
+          <div class="mat-card-head">
+            <span class="type-chip type-plan"><i data-lucide="clipboard-list"></i> План урока</span>
+            <div class="mat-menu" onclick="toggleMenu(event, this)">
+              <button class="mat-menu-btn"><i data-lucide="more-horizontal"></i></button>
+              <div class="mat-menu-list">
+                <button><i data-lucide="eye"></i> Открыть</button>
+                <button><i data-lucide="edit-3"></i> Редактировать</button>
+                <button><i data-lucide="pen-line"></i> Переименовать</button>
+                <button><i data-lucide="copy"></i> Дублировать</button>
+                <button><i data-lucide="download"></i> Скачать PDF</button>
+                <button><i data-lucide="download"></i> Скачать DOCX</button>
+                <div class="menu-sep"></div>
+                <button class="is-danger"><i data-lucide="trash-2"></i> Удалить</button>
+              </div>
             </div>
-            <div class="row">
-              <span><i data-lucide="users" style="width:12px; display:inline-block; vertical-align:-2px; margin-right:3px;"></i> 18 учеников</span>
-              <span class="badge badge-success">выдано</span>
+          </div>
+          <h3>Реформы Петра I — 45 минут</h3>
+          <div class="tags">
+            <span class="tag">пётр I</span>
+            <span class="tag">8 класс</span>
+            <span class="tag">ФГОС</span>
+          </div>
+          <div class="meta">
+            <span class="subject"><i data-lucide="landmark"></i> История</span>
+            <span>·</span>
+            <span>3 дня назад</span>
+          </div>
+        </a>
+
+        <!-- 5. Игра -->
+        <a class="mat-card is-game" href="material.html">
+          <div class="mat-card-head">
+            <span class="type-chip type-game"><i data-lucide="gamepad-2"></i> Игра</span>
+            <div class="mat-menu" onclick="toggleMenu(event, this)">
+              <button class="mat-menu-btn"><i data-lucide="more-horizontal"></i></button>
+              <div class="mat-menu-list">
+                <button><i data-lucide="eye"></i> Открыть</button>
+                <button><i data-lucide="edit-3"></i> Редактировать</button>
+                <button><i data-lucide="pen-line"></i> Переименовать</button>
+                <button><i data-lucide="copy"></i> Дублировать</button>
+                <button><i data-lucide="link"></i> Скопировать ссылку</button>
+                <button><i data-lucide="qr-code"></i> Показать QR</button>
+                <div class="menu-sep"></div>
+                <button class="is-danger"><i data-lucide="trash-2"></i> Удалить</button>
+              </div>
+            </div>
+          </div>
+          <h3>Древний Рим — «Кто хочет стать миллионером»</h3>
+          <div class="tags">
+            <span class="tag">рим</span>
+            <span class="tag">6 класс</span>
+            <span class="tag">викторина</span>
+          </div>
+          <div class="meta">
+            <span class="subject"><i data-lucide="landmark"></i> История</span>
+            <span>·</span>
+            <span>неделю назад</span>
+          </div>
+        </a>
+
+        <!-- 6. Изображение -->
+        <a class="mat-card is-image" href="material.html">
+          <div class="mat-card-head">
+            <span class="type-chip type-image"><i data-lucide="image"></i> Изображение</span>
+            <div class="mat-menu" onclick="toggleMenu(event, this)">
+              <button class="mat-menu-btn"><i data-lucide="more-horizontal"></i></button>
+              <div class="mat-menu-list">
+                <button><i data-lucide="eye"></i> Открыть</button>
+                <button><i data-lucide="refresh-cw"></i> Сгенерировать ещё</button>
+                <button><i data-lucide="pen-line"></i> Переименовать</button>
+                <button><i data-lucide="download"></i> Скачать PNG</button>
+                <button><i data-lucide="download"></i> Скачать SVG</button>
+                <div class="menu-sep"></div>
+                <button class="is-danger"><i data-lucide="trash-2"></i> Удалить</button>
+              </div>
+            </div>
+          </div>
+          <h3>Карта России с обозначением субъектов</h3>
+          <div class="tags">
+            <span class="tag">россия</span>
+            <span class="tag">плакат</span>
+          </div>
+          <div class="meta">
+            <span class="subject"><i data-lucide="globe"></i> География</span>
+            <span>·</span>
+            <span>неделю назад</span>
+          </div>
+        </a>
+
+        <!-- 7. Рабочий лист -->
+        <a class="mat-card is-worksheet" href="material.html">
+          <div class="mat-card-head">
+            <span class="type-chip type-worksheet"><i data-lucide="file-text"></i> Рабочий лист</span>
+            <div class="mat-menu" onclick="toggleMenu(event, this)">
+              <button class="mat-menu-btn"><i data-lucide="more-horizontal"></i></button>
+              <div class="mat-menu-list">
+                <button><i data-lucide="eye"></i> Открыть</button>
+                <button><i data-lucide="edit-3"></i> Редактировать</button>
+                <button><i data-lucide="pen-line"></i> Переименовать</button>
+                <button><i data-lucide="copy"></i> Дублировать</button>
+                <button><i data-lucide="download"></i> Скачать PDF</button>
+                <button><i data-lucide="send"></i> Выдать ученикам</button>
+                <div class="menu-sep"></div>
+                <button class="is-danger"><i data-lucide="trash-2"></i> Удалить</button>
+              </div>
+            </div>
+          </div>
+          <h3>Квадратные уравнения — 10 задач</h3>
+          <div class="tags">
+            <span class="tag">алгебра</span>
+            <span class="tag">9 класс</span>
+          </div>
+          <div class="meta">
+            <span class="subject"><i data-lucide="book"></i> Математика</span>
+            <span>·</span>
+            <span>2 недели назад</span>
+          </div>
+        </a>
+
+        <!-- 8. Тест -->
+        <a class="mat-card is-test" href="material.html">
+          <div class="mat-card-head">
+            <span class="type-chip type-test"><i data-lucide="circle-help"></i> Тест</span>
+            <div class="mat-menu" onclick="toggleMenu(event, this)">
+              <button class="mat-menu-btn"><i data-lucide="more-horizontal"></i></button>
+              <div class="mat-menu-list">
+                <button><i data-lucide="eye"></i> Открыть</button>
+                <button><i data-lucide="edit-3"></i> Редактировать</button>
+                <button><i data-lucide="pen-line"></i> Переименовать</button>
+                <button><i data-lucide="copy"></i> Дублировать</button>
+                <button><i data-lucide="download"></i> Скачать PDF</button>
+                <button><i data-lucide="send"></i> Выдать ученикам</button>
+                <div class="menu-sep"></div>
+                <button class="is-danger"><i data-lucide="trash-2"></i> Удалить</button>
+              </div>
+            </div>
+          </div>
+          <h3>Древний Египет — входной тест</h3>
+          <div class="tags">
+            <span class="tag">египет</span>
+            <span class="tag">5 класс</span>
+            <span class="tag">10 вопросов</span>
+          </div>
+          <div class="meta">
+            <span class="subject"><i data-lucide="landmark"></i> История</span>
+            <span>·</span>
+            <span>3 недели назад</span>
+          </div>
+        </a>
+
+        <!-- 9. План урока -->
+        <a class="mat-card is-plan" href="material.html">
+          <div class="mat-card-head">
+            <span class="type-chip type-plan"><i data-lucide="clipboard-list"></i> План урока</span>
+            <div class="mat-menu" onclick="toggleMenu(event, this)">
+              <button class="mat-menu-btn"><i data-lucide="more-horizontal"></i></button>
+              <div class="mat-menu-list">
+                <button><i data-lucide="eye"></i> Открыть</button>
+                <button><i data-lucide="edit-3"></i> Редактировать</button>
+                <button><i data-lucide="pen-line"></i> Переименовать</button>
+                <button><i data-lucide="copy"></i> Дублировать</button>
+                <button><i data-lucide="download"></i> Скачать PDF</button>
+                <div class="menu-sep"></div>
+                <button class="is-danger"><i data-lucide="trash-2"></i> Удалить</button>
+              </div>
+            </div>
+          </div>
+          <h3>Закон Архимеда — открытый урок</h3>
+          <div class="tags">
+            <span class="tag">архимед</span>
+            <span class="tag">7 класс</span>
+            <span class="tag">эксперимент</span>
+          </div>
+          <div class="meta">
+            <span class="subject"><i data-lucide="atom"></i> Физика</span>
+            <span>·</span>
+            <span>месяц назад</span>
+          </div>
+        </a>
+
+        <!-- 10. Презентация -->
+        <a class="mat-card is-presentation" href="material.html">
+          <div class="mat-card-head">
+            <span class="type-chip type-presentation"><i data-lucide="presentation"></i> Презентация</span>
+            <div class="mat-menu" onclick="toggleMenu(event, this)">
+              <button class="mat-menu-btn"><i data-lucide="more-horizontal"></i></button>
+              <div class="mat-menu-list">
+                <button><i data-lucide="eye"></i> Открыть</button>
+                <button><i data-lucide="edit-3"></i> Редактировать</button>
+                <button><i data-lucide="pen-line"></i> Переименовать</button>
+                <button><i data-lucide="copy"></i> Дублировать</button>
+                <button><i data-lucide="download"></i> Скачать PPTX</button>
+                <button><i data-lucide="send"></i> Выдать ученикам</button>
+                <div class="menu-sep"></div>
+                <button class="is-danger"><i data-lucide="trash-2"></i> Удалить</button>
+              </div>
+            </div>
+          </div>
+          <h3>«Война и мир» — характеристика героев</h3>
+          <div class="tags">
+            <span class="tag">толстой</span>
+            <span class="tag">10 класс</span>
+            <span class="tag">18 слайдов</span>
+          </div>
+          <div class="meta">
+            <span class="subject"><i data-lucide="book-open"></i> Литература</span>
+            <span>·</span>
+            <span>месяц назад</span>
+          </div>
+        </a>
+
+        <!-- 11. Игра -->
+        <a class="mat-card is-game" href="material.html">
+          <div class="mat-card-head">
+            <span class="type-chip type-game"><i data-lucide="gamepad-2"></i> Игра</span>
+            <div class="mat-menu" onclick="toggleMenu(event, this)">
+              <button class="mat-menu-btn"><i data-lucide="more-horizontal"></i></button>
+              <div class="mat-menu-list">
+                <button><i data-lucide="eye"></i> Открыть</button>
+                <button><i data-lucide="edit-3"></i> Редактировать</button>
+                <button><i data-lucide="pen-line"></i> Переименовать</button>
+                <button><i data-lucide="copy"></i> Дублировать</button>
+                <button><i data-lucide="link"></i> Скопировать ссылку</button>
+                <div class="menu-sep"></div>
+                <button class="is-danger"><i data-lucide="trash-2"></i> Удалить</button>
+              </div>
+            </div>
+          </div>
+          <h3>Англо-русские флешкарты — Travel</h3>
+          <div class="tags">
+            <span class="tag">травел</span>
+            <span class="tag">A2</span>
+          </div>
+          <div class="meta">
+            <span class="subject"><i data-lucide="languages"></i> Английский язык</span>
+            <span>·</span>
+            <span>2 месяца назад</span>
+          </div>
+        </a>
+
+        <!-- 12. Рабочий лист -->
+        <a class="mat-card is-worksheet" href="material.html">
+          <div class="mat-card-head">
+            <span class="type-chip type-worksheet"><i data-lucide="file-text"></i> Рабочий лист</span>
+            <div class="mat-menu" onclick="toggleMenu(event, this)">
+              <button class="mat-menu-btn"><i data-lucide="more-horizontal"></i></button>
+              <div class="mat-menu-list">
+                <button><i data-lucide="eye"></i> Открыть</button>
+                <button><i data-lucide="edit-3"></i> Редактировать</button>
+                <button><i data-lucide="pen-line"></i> Переименовать</button>
+                <button><i data-lucide="copy"></i> Дублировать</button>
+                <button><i data-lucide="download"></i> Скачать PDF</button>
+                <button><i data-lucide="send"></i> Выдать ученикам</button>
+                <div class="menu-sep"></div>
+                <button class="is-danger"><i data-lucide="trash-2"></i> Удалить</button>
+              </div>
+            </div>
+          </div>
+          <h3>Правописание приставок ПРЕ- и ПРИ-</h3>
+          <div class="tags">
+            <span class="tag">орфография</span>
+            <span class="tag">7 класс</span>
+          </div>
+          <div class="meta">
+            <span class="subject"><i data-lucide="pen-tool"></i> Русский язык</span>
+            <span>·</span>
+            <span>2 месяца назад</span>
+          </div>
+        </a>
+
+      </div>
+
+      <!-- ─── Список (List mode) ─── -->
+      <div class="mat-list">
+
+        <a class="mat-row is-worksheet" href="material.html">
+          <div class="row-icon type-worksheet"><i data-lucide="file-text"></i></div>
+          <div class="row-main">
+            <div class="row-title">Тригонометрия: формулы приведения</div>
+            <div class="row-sub">Рабочий лист · тригонометрия, 10 класс</div>
+          </div>
+          <div class="row-subject"><i data-lucide="book"></i> Математика</div>
+          <div class="row-date">13 июня</div>
+          <div class="mat-menu" onclick="toggleMenu(event, this)">
+            <button class="mat-menu-btn"><i data-lucide="more-horizontal"></i></button>
+            <div class="mat-menu-list">
+              <button><i data-lucide="eye"></i> Открыть</button>
+              <button><i data-lucide="edit-3"></i> Редактировать</button>
+              <button><i data-lucide="pen-line"></i> Переименовать</button>
+              <button><i data-lucide="copy"></i> Дублировать</button>
+              <button><i data-lucide="download"></i> Скачать PDF</button>
+              <div class="menu-sep"></div>
+              <button class="is-danger"><i data-lucide="trash-2"></i> Удалить</button>
             </div>
           </div>
         </a>
 
-        <a class="lesson-card">
-          <div class="lesson-cover cover-math">
-            <div class="subj-label">Математика</div>
-            <div class="mat-count"><i data-lucide="file-text" style="width:11px;"></i> 4</div>
-            <div class="subj-icon"><i data-lucide="square-pi"></i></div>
+        <a class="mat-row is-test" href="material.html">
+          <div class="row-icon type-test"><i data-lucide="circle-help"></i></div>
+          <div class="row-main">
+            <div class="row-title">Строение клетки — проверочный квиз</div>
+            <div class="row-sub">Тест · 9 класс · 15 вопросов</div>
           </div>
-          <div class="lesson-body">
-            <div class="meta-row">
-              <span class="class-pill">9А</span>
-              <span>· 12 июня</span>
-            </div>
-            <h3>Дискриминант квадратного уравнения</h3>
-            <div class="tags">
-              <span class="tag">уравнения</span>
-              <span class="tag">9 класс</span>
-            </div>
-            <div class="mat-types">
-              <span class="mtype" style="background:var(--brand-50); color:var(--brand-700);"><i data-lucide="file-text"></i></span>
-              <span class="mtype" style="background:var(--info-50); color:var(--info-700);"><i data-lucide="circle-help"></i></span>
-              <span class="mtype" style="background:var(--warning-50); color:var(--warning-700);"><i data-lucide="presentation"></i></span>
-              <span class="mtype" style="background:#EEF2FF; color:#4338CA;"><i data-lucide="clipboard-list"></i></span>
-            </div>
-            <div class="row">
-              <span><i data-lucide="users" style="width:12px; display:inline-block; vertical-align:-2px; margin-right:3px;"></i> 15 учеников</span>
-              <span class="badge badge-success">выдано</span>
+          <div class="row-subject"><i data-lucide="microscope"></i> Биология</div>
+          <div class="row-date">вчера</div>
+          <div class="mat-menu" onclick="toggleMenu(event, this)">
+            <button class="mat-menu-btn"><i data-lucide="more-horizontal"></i></button>
+            <div class="mat-menu-list">
+              <button><i data-lucide="eye"></i> Открыть</button>
+              <button><i data-lucide="edit-3"></i> Редактировать</button>
+              <button><i data-lucide="copy"></i> Дублировать</button>
+              <button><i data-lucide="download"></i> Скачать PDF</button>
+              <div class="menu-sep"></div>
+              <button class="is-danger"><i data-lucide="trash-2"></i> Удалить</button>
             </div>
           </div>
         </a>
 
-        <a class="lesson-card">
-          <div class="lesson-cover cover-math">
-            <div class="subj-label">Математика</div>
-            <div class="mat-count"><i data-lucide="file-text" style="width:11px;"></i> 6</div>
-            <div class="subj-icon"><i data-lucide="sigma"></i></div>
+        <a class="mat-row is-presentation" href="material.html">
+          <div class="row-icon type-presentation"><i data-lucide="presentation"></i></div>
+          <div class="row-main">
+            <div class="row-title">Эволюция животного мира</div>
+            <div class="row-sub">Презентация · 9 класс · 12 слайдов</div>
           </div>
-          <div class="lesson-body">
-            <div class="meta-row">
-              <span class="class-pill">11Б</span>
-              <span>· 11 июня</span>
-            </div>
-            <h3>Интегралы: определённый интеграл</h3>
-            <div class="tags">
-              <span class="tag">интегралы</span>
-              <span class="tag">подготовка к ЕГЭ</span>
-            </div>
-            <div class="mat-types">
-              <span class="mtype" style="background:var(--brand-50); color:var(--brand-700);"><i data-lucide="file-text"></i></span>
-              <span class="mtype" style="background:var(--info-50); color:var(--info-700);"><i data-lucide="circle-help"></i></span>
-              <span class="mtype" style="background:var(--warning-50); color:var(--warning-700);"><i data-lucide="presentation"></i></span>
-              <span class="mtype" style="background:#FEF3C7; color:#92400E;"><i data-lucide="graduation-cap"></i></span>
-              <span class="mtype" style="background:var(--danger-50); color:var(--danger-700);"><i data-lucide="brain"></i></span>
-              <span class="mtype" style="background:#EEF2FF; color:#4338CA;"><i data-lucide="clipboard-list"></i></span>
-            </div>
-            <div class="row">
-              <span><i data-lucide="users" style="width:12px; display:inline-block; vertical-align:-2px; margin-right:3px;"></i> 14 учеников</span>
-              <span class="badge badge-warning">черновик</span>
+          <div class="row-subject"><i data-lucide="microscope"></i> Биология</div>
+          <div class="row-date">2 дня назад</div>
+          <div class="mat-menu" onclick="toggleMenu(event, this)">
+            <button class="mat-menu-btn"><i data-lucide="more-horizontal"></i></button>
+            <div class="mat-menu-list">
+              <button><i data-lucide="eye"></i> Открыть</button>
+              <button><i data-lucide="edit-3"></i> Редактировать</button>
+              <button><i data-lucide="copy"></i> Дублировать</button>
+              <button><i data-lucide="download"></i> Скачать PPTX</button>
+              <div class="menu-sep"></div>
+              <button class="is-danger"><i data-lucide="trash-2"></i> Удалить</button>
             </div>
           </div>
         </a>
 
-        <a class="lesson-card">
-          <div class="lesson-cover cover-math">
-            <div class="subj-label">Геометрия</div>
-            <div class="mat-count"><i data-lucide="file-text" style="width:11px;"></i> 3</div>
-            <div class="subj-icon"><i data-lucide="triangle"></i></div>
+        <a class="mat-row is-plan" href="material.html">
+          <div class="row-icon type-plan"><i data-lucide="clipboard-list"></i></div>
+          <div class="row-main">
+            <div class="row-title">Реформы Петра I — 45 минут</div>
+            <div class="row-sub">План урока · 8 класс · ФГОС</div>
           </div>
-          <div class="lesson-body">
-            <div class="meta-row">
-              <span class="class-pill">11Б</span>
-              <span>· 11 июня</span>
-            </div>
-            <h3>Геометрия на плоскости: задачи на построение</h3>
-            <div class="tags">
-              <span class="tag">геометрия</span>
-              <span class="tag">построения</span>
-            </div>
-            <div class="mat-types">
-              <span class="mtype" style="background:var(--brand-50); color:var(--brand-700);"><i data-lucide="file-text"></i></span>
-              <span class="mtype" style="background:#EEF2FF; color:#4338CA;"><i data-lucide="clipboard-list"></i></span>
-              <span class="mtype" style="background:#FDF4FF; color:#A21CAF;"><i data-lucide="image"></i></span>
-            </div>
-            <div class="row">
-              <span><i data-lucide="calendar" style="width:12px; display:inline-block; vertical-align:-2px; margin-right:3px;"></i> 13 июня, 17:00</span>
-              <span class="badge badge-info">запланирован</span>
+          <div class="row-subject"><i data-lucide="landmark"></i> История</div>
+          <div class="row-date">3 дня назад</div>
+          <div class="mat-menu" onclick="toggleMenu(event, this)">
+            <button class="mat-menu-btn"><i data-lucide="more-horizontal"></i></button>
+            <div class="mat-menu-list">
+              <button><i data-lucide="eye"></i> Открыть</button>
+              <button><i data-lucide="edit-3"></i> Редактировать</button>
+              <button><i data-lucide="copy"></i> Дублировать</button>
+              <button><i data-lucide="download"></i> Скачать PDF</button>
+              <div class="menu-sep"></div>
+              <button class="is-danger"><i data-lucide="trash-2"></i> Удалить</button>
             </div>
           </div>
         </a>
 
-        <a class="lesson-card">
-          <div class="lesson-cover cover-physics">
-            <div class="subj-label">Физика</div>
-            <div class="mat-count"><i data-lucide="file-text" style="width:11px;"></i> 5</div>
-            <div class="subj-icon"><i data-lucide="atom"></i></div>
+        <a class="mat-row is-game" href="material.html">
+          <div class="row-icon type-game"><i data-lucide="gamepad-2"></i></div>
+          <div class="row-main">
+            <div class="row-title">Древний Рим — «Кто хочет стать миллионером»</div>
+            <div class="row-sub">Игра · 6 класс · 15 вопросов</div>
           </div>
-          <div class="lesson-body">
-            <div class="meta-row">
-              <span class="class-pill">10Б</span>
-              <span>· 10 июня</span>
-            </div>
-            <h3>Электромагнитная индукция</h3>
-            <div class="tags">
-              <span class="tag">электричество</span>
-              <span class="tag">индукция</span>
-            </div>
-            <div class="mat-types">
-              <span class="mtype" style="background:var(--brand-50); color:var(--brand-700);"><i data-lucide="file-text"></i></span>
-              <span class="mtype" style="background:var(--info-50); color:var(--info-700);"><i data-lucide="circle-help"></i></span>
-              <span class="mtype" style="background:var(--warning-50); color:var(--warning-700);"><i data-lucide="presentation"></i></span>
-              <span class="mtype" style="background:#FDF4FF; color:#A21CAF;"><i data-lucide="image"></i></span>
-              <span class="mtype" style="background:#ECFEFF; color:#0E7490;"><i data-lucide="video"></i></span>
-            </div>
-            <div class="row">
-              <span><i data-lucide="users" style="width:12px; display:inline-block; vertical-align:-2px; margin-right:3px;"></i> 16 учеников</span>
-              <span class="badge badge-success">выдано</span>
+          <div class="row-subject"><i data-lucide="landmark"></i> История</div>
+          <div class="row-date">неделю назад</div>
+          <div class="mat-menu" onclick="toggleMenu(event, this)">
+            <button class="mat-menu-btn"><i data-lucide="more-horizontal"></i></button>
+            <div class="mat-menu-list">
+              <button><i data-lucide="eye"></i> Открыть</button>
+              <button><i data-lucide="edit-3"></i> Редактировать</button>
+              <button><i data-lucide="link"></i> Скопировать ссылку</button>
+              <div class="menu-sep"></div>
+              <button class="is-danger"><i data-lucide="trash-2"></i> Удалить</button>
             </div>
           </div>
         </a>
 
-        <a class="lesson-card">
-          <div class="lesson-cover cover-eng">
-            <div class="subj-label">Англ. язык</div>
-            <div class="mat-count"><i data-lucide="file-text" style="width:11px;"></i> 3</div>
-            <div class="subj-icon"><i data-lucide="languages"></i></div>
+        <a class="mat-row is-image" href="material.html">
+          <div class="row-icon type-image"><i data-lucide="image"></i></div>
+          <div class="row-main">
+            <div class="row-title">Карта России с обозначением субъектов</div>
+            <div class="row-sub">Изображение · плакат</div>
           </div>
-          <div class="lesson-body">
-            <div class="meta-row">
-              <span class="class-pill">8В</span>
-              <span>· 9 июня</span>
-            </div>
-            <h3>Past Continuous Tense: правила и упражнения</h3>
-            <div class="tags">
-              <span class="tag">грамматика</span>
-              <span class="tag">времена</span>
-            </div>
-            <div class="mat-types">
-              <span class="mtype" style="background:var(--brand-50); color:var(--brand-700);"><i data-lucide="file-text"></i></span>
-              <span class="mtype" style="background:var(--success-50); color:var(--success-700);"><i data-lucide="book-marked"></i></span>
-              <span class="mtype" style="background:#F0FDFA; color:#0F766E;"><i data-lucide="gamepad-2"></i></span>
-            </div>
-            <div class="row">
-              <span><i data-lucide="users" style="width:12px; display:inline-block; vertical-align:-2px; margin-right:3px;"></i> 14 учеников</span>
-              <span class="badge badge-success">выдано</span>
-            </div>
-          </div>
-        </a>
-
-        <a class="lesson-card">
-          <div class="lesson-cover cover-hist">
-            <div class="subj-label">История</div>
-            <div class="mat-count"><i data-lucide="file-text" style="width:11px;"></i> 4</div>
-            <div class="subj-icon"><i data-lucide="landmark"></i></div>
-          </div>
-          <div class="lesson-body">
-            <div class="meta-row">
-              <span class="class-pill">8А</span>
-              <span>· 8 июня</span>
-            </div>
-            <h3>Древний Рим: эпоха республики</h3>
-            <div class="tags">
-              <span class="tag">древний мир</span>
-              <span class="tag">рим</span>
-            </div>
-            <div class="mat-types">
-              <span class="mtype" style="background:var(--brand-50); color:var(--brand-700);"><i data-lucide="file-text"></i></span>
-              <span class="mtype" style="background:var(--info-50); color:var(--info-700);"><i data-lucide="circle-help"></i></span>
-              <span class="mtype" style="background:var(--warning-50); color:var(--warning-700);"><i data-lucide="presentation"></i></span>
-              <span class="mtype" style="background:#FDF4FF; color:#A21CAF;"><i data-lucide="image"></i></span>
-            </div>
-            <div class="row">
-              <span><i data-lucide="users" style="width:12px; display:inline-block; vertical-align:-2px; margin-right:3px;"></i> 17 учеников</span>
-              <span class="badge badge-success">выдано</span>
-            </div>
-          </div>
-        </a>
-
-        <a class="lesson-card">
-          <div class="lesson-cover cover-bio">
-            <div class="subj-label">Биология</div>
-            <div class="mat-count"><i data-lucide="file-text" style="width:11px;"></i> 4</div>
-            <div class="subj-icon"><i data-lucide="dna"></i></div>
-          </div>
-          <div class="lesson-body">
-            <div class="meta-row">
-              <span class="class-pill">9А</span>
-              <span>· 7 июня</span>
-            </div>
-            <h3>Строение клетки и её основные функции</h3>
-            <div class="tags">
-              <span class="tag">цитология</span>
-              <span class="tag">базовый уровень</span>
-            </div>
-            <div class="mat-types">
-              <span class="mtype" style="background:var(--brand-50); color:var(--brand-700);"><i data-lucide="file-text"></i></span>
-              <span class="mtype" style="background:var(--success-50); color:var(--success-700);"><i data-lucide="book-marked"></i></span>
-              <span class="mtype" style="background:var(--warning-50); color:var(--warning-700);"><i data-lucide="presentation"></i></span>
-              <span class="mtype" style="background:#FDF4FF; color:#A21CAF;"><i data-lucide="image"></i></span>
-            </div>
-            <div class="row">
-              <span><i data-lucide="users" style="width:12px; display:inline-block; vertical-align:-2px; margin-right:3px;"></i> 15 учеников</span>
-              <span class="badge badge-success">выдано</span>
+          <div class="row-subject"><i data-lucide="globe"></i> География</div>
+          <div class="row-date">неделю назад</div>
+          <div class="mat-menu" onclick="toggleMenu(event, this)">
+            <button class="mat-menu-btn"><i data-lucide="more-horizontal"></i></button>
+            <div class="mat-menu-list">
+              <button><i data-lucide="eye"></i> Открыть</button>
+              <button><i data-lucide="download"></i> Скачать PNG</button>
+              <div class="menu-sep"></div>
+              <button class="is-danger"><i data-lucide="trash-2"></i> Удалить</button>
             </div>
           </div>
         </a>
@@ -471,6 +958,105 @@
     </div>
   </main>
 </div>
-<script>lucide.createIcons();</script>
+
+<script>
+  // Простое переключение фильтров по типу
+  document.querySelectorAll('[data-filter-type]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('[data-filter-type]').forEach(b => b.classList.remove('is-active'));
+      btn.classList.add('is-active');
+      document.body.dataset.type = btn.dataset.filterType;
+    });
+  });
+
+  // Переключение Карточки / Список
+  document.querySelectorAll('[data-view]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.view-toggle button').forEach(b => b.classList.remove('is-active'));
+      btn.classList.add('is-active');
+      document.body.dataset.view = btn.dataset.view;
+    });
+  });
+
+  // Меню действий «⋯» — открытие/закрытие
+  function toggleMenu(e, el) {
+    // если кликнули НЕ по кнопке меню — не открывать (это карточка-ссылка)
+    if (!e.target.closest('.mat-menu-btn') && !e.target.closest('.mat-menu-list')) return;
+    e.preventDefault();
+    e.stopPropagation();
+    // если клик по пункту меню — просто закрыть, не блокировать действие пункта
+    if (e.target.closest('.mat-menu-list button')) {
+      el.classList.remove('is-open');
+      return;
+    }
+    // переключаем
+    const wasOpen = el.classList.contains('is-open');
+    document.querySelectorAll('.mat-menu.is-open').forEach(m => m.classList.remove('is-open'));
+    if (!wasOpen) el.classList.add('is-open');
+  }
+  // Закрытие при клике вне меню
+  document.addEventListener('click', e => {
+    if (!e.target.closest('.mat-menu')) {
+      document.querySelectorAll('.mat-menu.is-open').forEach(m => m.classList.remove('is-open'));
+    }
+  });
+
+  lucide.createIcons();
+</script>
+
+<!-- ────────── Tour ────────── -->
+<script>
+  window.TOUR_LS_KEY = 'prepodavai_materials_tour_v1';
+  window.TOUR_STEPS = [
+    {
+      target: null, isModal: true, illustration: '📁',
+      title: 'Это ваша библиотека',
+      body: 'Здесь живут все материалы, которые вы создали в ИИ Генераторе. За минуту покажу, как находить нужное и что с ним можно делать.',
+      primaryLabel: 'Начнём'
+    },
+    {
+      target: '[data-tour="search"]', placement: 'bottom', padding: 6,
+      title: '🔎 Поиск',
+      body: 'Самый быстрый способ найти материал — написать название или ключевое слово темы. Жмёте ⌘K с любой страницы — открывается поиск.'
+    },
+    {
+      target: '[data-tour="type-filter"]', placement: 'bottom', padding: 8,
+      title: 'Фильтры по типу',
+      body: 'Все ваши материалы разбиты по типам: рабочие листы, тесты, презентации, планы уроков, изображения, игры. Клик по нужной пилюле — остальные скрываются.'
+    },
+    {
+      target: '[data-tour="meta-filters"]', placement: 'bottom', padding: 8,
+      title: 'Доп. фильтры и сортировка',
+      body: 'Предмет, период создания, сортировка (новые сверху / по названию / по предмету). Все фильтры работают вместе — пересечение результатов.'
+    },
+    {
+      target: '[data-tour="view-toggle"]', placement: 'left', padding: 6,
+      title: 'Карточки или список',
+      body: 'По умолчанию — карточки. Если материалов стало много и нужно быстро пробежать глазами, переключитесь на список — он компактнее.'
+    },
+    {
+      target: '[data-tour="first-card"]', placement: 'right', padding: 8,
+      title: 'Карточка материала',
+      body: 'Цветная плашка типа сверху, название темы, теги, предмет и время создания. Клик по любому месту карточки открывает страницу просмотра.'
+    },
+    {
+      target: '[data-tour="card-menu"]', placement: 'left', padding: 4,
+      title: '«⋯» — быстрые действия',
+      body: 'Не открывая карточку: переименовать, дублировать, скачать в PDF, выдать ученикам или удалить. Удаление выделено красным — случайно не нажмёте.'
+    },
+    {
+      target: '[data-tour="create"]', placement: 'bottom', padding: 6,
+      title: 'Создать новый',
+      body: 'Кнопка справа в шапке ведёт в ИИ Генератор. Выбираете тип → заполняете форму → материал появляется здесь автоматически.'
+    },
+    {
+      target: null, isModal: true, illustration: '🎉',
+      title: 'Готово!',
+      body: 'Если что — кнопка «Тур» в шапке всегда под рукой. А теперь попробуйте: кликните на любую карточку, чтобы открыть.',
+      primaryLabel: 'К работе'
+    }
+  ];
+</script>
+<script src="assets/tour.js"></script>
 </body>
 </html>

@@ -11,43 +11,212 @@
 <link rel="stylesheet" href="assets/components.css" />
 <script src="https://unpkg.com/lucide@latest"></script>
 <style>
-  /* Line chart (SVG) */
-  .chart-frame {
-    position: relative;
-    width: 100%;
-    height: 220px;
+  /* ── Фильтры (как на materials.html) ── */
+  .filter-pill {
+    display: inline-flex; align-items: center; gap: 8px;
+    height: 36px;
+    padding: 0 16px;
+    background: var(--surface);
+    border: 1px solid var(--ink-200);
+    border-radius: var(--r-full);
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--ink-700);
+    cursor: pointer;
+    transition: all var(--t-fast) var(--ease);
+    white-space: nowrap;
   }
-  .chart-frame svg { width: 100%; height: 100%; overflow: visible; }
-  .ylabel {
-    font-size: 11px;
-    fill: var(--ink-400);
-    font-family: var(--font-mono);
+  .filter-pill:hover { background: var(--ink-50); border-color: var(--ink-300); color: var(--ink-900); }
+  .filter-pill.is-active {
+    background: var(--brand-50); border-color: var(--brand-300); color: var(--brand-800);
+    box-shadow: 0 1px 3px rgba(255,126,88,0.1);
   }
-  .grid-line {
-    stroke: var(--ink-100);
-    stroke-width: 1;
+  .filter-pill svg { width: 14px; height: 14px; flex-shrink: 0; opacity: 0.7; }
+  .filter-pill.is-active svg { opacity: 1; color: var(--brand-600); }
+
+  .filter-select { position: relative; display: inline-flex; align-items: center; }
+  .filter-select select {
+    appearance: none; height: 36px;
+    padding: 0 38px 0 16px;
+    background: var(--surface); border: 1px solid var(--ink-200); border-radius: var(--r-full);
+    font-family: inherit; font-size: 13px; font-weight: 600; color: var(--ink-700);
+    cursor: pointer;
+    transition: all var(--t-fast) var(--ease);
+  }
+  .filter-select select:hover { background: var(--ink-50); border-color: var(--ink-300); color: var(--ink-900); }
+  .filter-select select:focus { outline: none; border-color: var(--brand-300); box-shadow: 0 0 0 3px rgba(255,126,88,0.12); }
+  .filter-select::after {
+    content: ''; position: absolute; right: 16px; top: 50%;
+    width: 7px; height: 7px;
+    border-right: 1.5px solid var(--ink-500); border-bottom: 1.5px solid var(--ink-500);
+    transform: translateY(-65%) rotate(45deg); pointer-events: none;
   }
 
-  /* Heatmap (classes x weeks) */
+  /* ── Сегментированный переключатель периода ── */
+  .seg {
+    display: inline-flex;
+    background: var(--ink-100);
+    border-radius: var(--r-full);
+    padding: 3px;
+    gap: 2px;
+  }
+  .seg button {
+    height: 30px; padding: 0 14px;
+    border: none; background: transparent;
+    border-radius: var(--r-full);
+    font-weight: 600; font-size: 13px;
+    color: var(--ink-600);
+    cursor: pointer;
+    transition: all var(--t-fast) var(--ease);
+    white-space: nowrap;
+  }
+  .seg button:hover { color: var(--ink-900); }
+  .seg button.is-active {
+    background: white; color: var(--ink-900);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+
+  /* ── Главные табы: По классам / По ученикам ── */
+  .main-tabs {
+    display: flex; gap: 4px;
+    border-bottom: 1px solid var(--ink-200);
+    margin-bottom: 24px;
+  }
+  .main-tab {
+    padding: 14px 18px;
+    background: transparent; border: none;
+    font-weight: 700; font-size: 15px;
+    color: var(--ink-500);
+    cursor: pointer; position: relative;
+    display: inline-flex; align-items: center; gap: 8px;
+    transition: color var(--t-fast) var(--ease);
+  }
+  .main-tab:hover { color: var(--ink-900); }
+  .main-tab.is-active { color: var(--brand-700); }
+  .main-tab.is-active::after {
+    content: ''; position: absolute; bottom: -1px; left: 14px; right: 14px;
+    height: 2.5px; background: var(--brand-500); border-radius: 2px;
+  }
+  .main-tab svg { width: 16px; height: 16px; flex-shrink: 0; }
+  .main-tab .count {
+    background: var(--ink-100); color: var(--ink-600);
+    padding: 2px 8px; border-radius: var(--r-full);
+    font-size: 11px; font-weight: 700;
+  }
+  .main-tab.is-active .count { background: var(--brand-100); color: var(--brand-700); }
+
+  /* Видимость табов */
+  body[data-view="classes"] #view-students { display: none; }
+  body[data-view="students"] #view-classes { display: none; }
+
+  /* ── KPI cards ── */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 14px;
+    margin-bottom: 24px;
+  }
+  .kpi-card {
+    background: var(--surface);
+    border: 1px solid var(--ink-200);
+    border-radius: var(--r-lg);
+    padding: 18px 20px;
+    transition: all var(--t-fast) var(--ease);
+  }
+  .kpi-card:hover { border-color: var(--ink-300); box-shadow: var(--shadow-sm); transform: translateY(-1px); }
+  .kpi-card .kpi-label {
+    font-size: 12px; color: var(--ink-500); font-weight: 600;
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 10px;
+  }
+  .kpi-card .icon-tile {
+    width: 28px; height: 28px;
+    border-radius: var(--r-sm);
+    background: var(--brand-50); color: var(--brand-600);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .kpi-card .icon-tile svg { width: 15px; height: 15px; }
+  .kpi-card .kpi-value {
+    font-family: var(--font-display);
+    font-size: 30px; font-weight: 800; letter-spacing: -0.02em;
+    color: var(--ink-900); line-height: 1; margin-bottom: 6px;
+    font-variant-numeric: tabular-nums;
+  }
+  .kpi-card .kpi-delta {
+    font-size: 12px; font-weight: 600;
+    display: inline-flex; align-items: center; gap: 4px;
+  }
+  .kpi-card .kpi-delta.up { color: var(--success-700); }
+  .kpi-card .kpi-delta.down { color: var(--danger-700); }
+  .kpi-card .kpi-delta.flat { color: var(--ink-500); }
+
+  /* ── Generic grid ── */
+  .a-grid {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+  .a-col-4 { grid-column: span 4; }
+  .a-col-5 { grid-column: span 5; }
+  .a-col-6 { grid-column: span 6; }
+  .a-col-7 { grid-column: span 7; }
+  .a-col-8 { grid-column: span 8; }
+  .a-col-12 { grid-column: span 12; }
+  @media (max-width: 1023px) {
+    .a-col-4, .a-col-5, .a-col-6, .a-col-7, .a-col-8 { grid-column: span 12; }
+  }
+
+  /* ── Card ── */
+  .a-card {
+    background: var(--surface);
+    border: 1px solid var(--ink-200);
+    border-radius: var(--r-lg);
+    padding: 20px 22px;
+    min-width: 0;
+    /* container queries — внутренний контент адаптируется к ширине карточки */
+    container-type: inline-size;
+  }
+  .a-card-head {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    margin-bottom: 16px;
+    gap: 12px; flex-wrap: wrap;
+  }
+  .a-card-head h2 {
+    font-size: 16px; font-weight: 700; color: var(--ink-900);
+    margin: 0;
+  }
+  .a-card-head .sub {
+    font-size: 12px; color: var(--ink-500); margin-top: 2px;
+  }
+
+  /* ── Графики ── */
+  .chart-frame { position: relative; width: 100%; height: 220px; }
+  .chart-frame svg { width: 100%; height: 100%; overflow: visible; }
+  .ylabel { font-size: 11px; fill: var(--ink-400); font-family: var(--font-mono); }
+  .grid-line { stroke: var(--ink-100); stroke-width: 1; }
+
+  /* ── Heatmap ── */
   .heatmap {
     display: grid;
-    grid-template-columns: 80px repeat(12, 1fr);
+    grid-template-columns: 70px repeat(12, minmax(0, 1fr));
     gap: 4px;
     align-items: center;
   }
   .heatmap .row-label {
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--ink-700);
-    text-align: right;
-    padding-right: 8px;
+    font-size: 12px; font-weight: 600; color: var(--ink-700);
+    text-align: right; padding-right: 8px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
+  .heatmap .col-label { text-align: center; font-size: 10px; color: var(--ink-400); }
   .heatmap .cell {
     aspect-ratio: 1;
     border-radius: var(--r-sm);
     background: var(--ink-100);
     transition: transform var(--t-fast) var(--ease);
     cursor: pointer;
+    min-width: 0;
   }
   .heatmap .cell:hover { transform: scale(1.15); z-index: 5; box-shadow: var(--shadow-md); }
   .heatmap .cell.l1 { background: #FFE3D9; }
@@ -56,95 +225,149 @@
   .heatmap .cell.l4 { background: var(--brand-500); }
   .heatmap .cell.l5 { background: var(--brand-700); }
 
-  /* Distribution bars */
+  /* ── Distribution bars ── */
   .dist-bars { display: flex; flex-direction: column; gap: 12px; }
-  .dist-row { display: grid; grid-template-columns: 80px 1fr 40px; gap: 12px; align-items: center; }
-  .dist-row .l { font-size: 13px; color: var(--ink-700); }
-  .dist-row .b { height: 12px; background: var(--ink-100); border-radius: var(--r-full); overflow: hidden; }
-  .dist-row .b > i { display: block; height: 100%; border-radius: var(--r-full); }
+  .dist-row { display: grid; grid-template-columns: minmax(80px, 130px) 1fr 44px; gap: 12px; align-items: center; }
+  .dist-row .l { font-size: 13px; color: var(--ink-700); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dist-row .b { height: 10px; background: var(--ink-100); border-radius: var(--r-full); overflow: hidden; min-width: 0; }
+  .dist-row .b > i { display: block; height: 100%; border-radius: var(--r-full); transition: width 0.5s ease; }
   .dist-row .v { text-align: right; font-size: 13px; font-weight: 700; color: var(--ink-900); font-variant-numeric: tabular-nums; }
 
-  /* Donut */
+  /* ── Donut ── */
   .donut-wrap { position: relative; display: flex; align-items: center; justify-content: center; }
-  .donut-wrap svg { width: 160px; height: 160px; transform: rotate(-90deg); }
-  .donut-wrap .center {
-    position: absolute;
-    text-align: center;
-  }
-  .donut-wrap .center .v {
-    font-family: var(--font-display);
-    font-size: 28px;
-    font-weight: 800;
-    color: var(--ink-900);
-    letter-spacing: -0.02em;
-    font-variant-numeric: tabular-nums;
-  }
-  .donut-wrap .center .l {
-    font-size: 11px;
-    color: var(--ink-500);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    font-weight: 600;
-    margin-top: 2px;
-  }
-
-  .legend-list { display: flex; flex-direction: column; gap: 10px; }
+  .donut-wrap svg { width: 150px; height: 150px; transform: rotate(-90deg); }
+  .donut-wrap .center { position: absolute; text-align: center; }
+  .donut-wrap .center .v { font-family: var(--font-display); font-size: 26px; font-weight: 800; color: var(--ink-900); font-variant-numeric: tabular-nums; }
+  .donut-wrap .center .l { font-size: 11px; color: var(--ink-500); text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; margin-top: 2px; }
+  .legend-list { display: flex; flex-direction: column; gap: 8px; flex: 1; min-width: 0; }
   .legend-list .row { display: flex; align-items: center; gap: 10px; font-size: 13px; }
   .legend-list .row .dot { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
-  .legend-list .row .name { color: var(--ink-700); flex: 1; }
+  .legend-list .row .name { color: var(--ink-700); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .legend-list .row .val { font-weight: 700; color: var(--ink-900); font-variant-numeric: tabular-nums; }
 
-  /* Class card */
-  .class-row {
+  /* ── Table-like rows ── */
+  .row-list { display: flex; flex-direction: column; gap: 0; }
+  .data-row {
     display: grid;
-    grid-template-columns: 200px 100px 100px 1fr 80px;
-    gap: 16px;
+    grid-template-columns: 40px minmax(0, 1fr) 70px 70px minmax(80px, 110px) 88px;
+    gap: 14px;
     align-items: center;
-    padding: 14px 16px;
+    padding: 12px 4px;
     border-bottom: 1px solid var(--ink-100);
+    transition: background var(--t-fast) var(--ease);
+    cursor: pointer;
+    text-decoration: none;
+    color: inherit;
   }
-  .class-row:last-child { border-bottom: none; }
-  .class-row .cn {
-    display: flex; align-items: center; gap: 10px;
-    font-weight: 600;
-    color: var(--ink-900);
-  }
-  .class-row .cn .pill {
+  .data-row:last-child { border-bottom: none; }
+  .data-row:hover { background: var(--ink-50); border-radius: var(--r-sm); }
+  .data-row .avatar {
     width: 36px; height: 36px;
-    border-radius: var(--r-sm);
-    background: var(--brand-50);
-    color: var(--brand-700);
+    border-radius: var(--r-full);
+    background: var(--brand-50); color: var(--brand-700);
     display: flex; align-items: center; justify-content: center;
-    font-weight: 700; font-size: 12px;
+    font-weight: 700; font-size: 12px; flex-shrink: 0;
   }
-  .class-row .stat { font-family: var(--font-display); font-weight: 700; font-size: 15px; font-variant-numeric: tabular-nums; color: var(--ink-900); }
-  .class-row .stat .l { font-size: 10px; color: var(--ink-500); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; font-family: var(--font-sans); margin-top: 1px; }
-  .class-row .trend-bar { display: flex; gap: 2px; align-items: end; height: 28px; }
-  .class-row .trend-bar > span { width: 8px; background: var(--brand-300); border-radius: 2px 2px 0 0; }
+  .data-row .avatar.warn { background: var(--warning-50); color: var(--warning-700); }
+  .data-row .avatar.danger { background: var(--danger-50); color: var(--danger-700); }
+  .data-row .avatar.good { background: var(--success-50); color: var(--success-700); }
+  .data-row .nm-row { min-width: 0; }
+  .data-row .nm { font-weight: 600; color: var(--ink-900); font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .data-row .sm { font-size: 12px; color: var(--ink-500); }
+  .data-row .stat { font-family: var(--font-display); font-weight: 700; font-size: 15px; color: var(--ink-900); font-variant-numeric: tabular-nums; }
+  .data-row .stat .l { font-size: 10px; color: var(--ink-500); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; font-family: var(--font-sans); margin-top: 1px; }
+  .data-row .trend-bar { display: flex; gap: 2px; align-items: end; height: 24px; }
+  .data-row .trend-bar > span { width: 6px; background: var(--brand-300); border-radius: 2px 2px 0 0; }
+
+  @media (max-width: 767px) {
+    .data-row { grid-template-columns: 36px minmax(0, 1fr) 60px 88px; }
+    .data-row .col-late, .data-row .col-trend { display: none; }
+  }
+
+  /* ── Адаптация под ширину карточки (container queries) ── */
+  /* Когда карточка ≤ 620px: убираем тренд-бар и вторую stat-колонку */
+  @container (max-width: 620px) {
+    .data-row {
+      grid-template-columns: 36px minmax(0, 1fr) minmax(54px, auto) auto;
+      gap: 10px;
+    }
+    .data-row > *:nth-child(4),
+    .data-row > *:nth-child(5) { display: none; }
+  }
+  /* Когда карточка ≤ 380px: убираем и первую stat — оставляем только аватар + имя + бейдж */
+  @container (max-width: 380px) {
+    .data-row {
+      grid-template-columns: 32px minmax(0, 1fr) auto;
+      gap: 8px;
+    }
+    .data-row > *:nth-child(3) { display: none; }
+  }
+
+  /* AI tip block */
+  .ai-tip {
+    margin-top: 14px;
+    padding: 14px 16px;
+    background: linear-gradient(165deg, #EEF2FF 0%, #FFFFFF 60%);
+    border: 1px solid #C7D2FE;
+    border-radius: var(--r-md);
+    font-size: 13px; color: var(--ink-700);
+    display: flex; gap: 12px; align-items: flex-start;
+    line-height: 1.55;
+  }
+  .ai-tip .ai-tag {
+    background: linear-gradient(135deg, #6366F1, #8B5CF6);
+    color: white;
+    padding: 3px 8px;
+    border-radius: var(--r-sm);
+    font-weight: 700;
+    font-size: 11px;
+    flex-shrink: 0;
+  }
+
+  /* Bar chart by weekday */
+  .weekday-bars { display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px; align-items: end; height: 160px; }
+  .wbar { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .wbar .bar { width: 100%; max-width: 40px; background: linear-gradient(180deg, var(--brand-500), var(--brand-300)); border-radius: 6px 6px 4px 4px; transition: opacity .15s ease; cursor: pointer; }
+  .wbar .bar:hover { opacity: 0.85; }
+  .wbar .day { font-size: 11px; color: var(--ink-500); font-weight: 600; margin-top: 2px; }
+  .wbar .v { font-size: 12px; color: var(--ink-700); font-weight: 700; font-variant-numeric: tabular-nums; }
+
+  /* Чип бейджа */
+  .badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 10px; border-radius: var(--r-full);
+    font-size: 11px; font-weight: 700;
+  }
+  .badge.up { background: var(--success-50); color: var(--success-700); }
+  .badge.down { background: var(--danger-50); color: var(--danger-700); }
+  .badge.flat { background: var(--ink-100); color: var(--ink-600); }
+  .badge.warn { background: var(--warning-50); color: var(--warning-700); }
 </style>
 </head>
-<body>
+<body data-view="classes">
 <div class="app-shell">
+
+  <!-- ───────── SIDEBAR ───────── -->
   <aside class="sidebar">
     <div class="sidebar-brand">
       <img src="assets/logo.png" alt="" /><span class="brand-name">Преподавай</span>
     </div>
     <nav class="sidebar-section">
       <div class="sidebar-label">Рабочий стол</div>
-      <a class="nav-item" href="dashboard.html"><i data-lucide="layout-dashboard"></i>Главная</a>
-      <a class="nav-item" href="tools.html"><i data-lucide="wand-sparkles"></i>ИИ Генератор</a>
-      <a class="nav-item" href="calendar.html"><i data-lucide="calendar"></i>Календарь</a>
-      <a class="nav-item" href="materials.html"><i data-lucide="book-open"></i>Материалы</a>
+      <a class="nav-item" href="dashboard.html"><i data-lucide="layout-dashboard"></i><span>Главная</span></a>
+      <a class="nav-item" href="tools.html"><i data-lucide="wand-sparkles"></i><span>ИИ Генератор</span></a>
+      <a class="nav-item" href="calendar.html"><i data-lucide="calendar"></i><span>Календарь</span></a>
+      <a class="nav-item" href="materials.html"><i data-lucide="book-open"></i><span>Материалы</span></a>
 
       <div class="sidebar-label">Класс</div>
-      <a class="nav-item" href="students.html"><i data-lucide="users"></i>Ученики<span class="nav-badge">3</span></a>
-      <a class="nav-item" href="grading.html"><i data-lucide="clipboard-check"></i>Проверка ДЗ</a>
-      <a class="nav-item is-active"><i data-lucide="bar-chart-3"></i>Аналитика</a>
+      <a class="nav-item" href="students.html"><i data-lucide="users"></i><span>Ученики</span><span class="nav-badge">3</span></a>
+      <a class="nav-item" href="grading.html"><i data-lucide="clipboard-check"></i><span>Проверка ДЗ</span></a>
+      <a class="nav-item is-active"><i data-lucide="bar-chart-3"></i><span>Аналитика</span></a>
 
       <div class="sidebar-label">Прочее</div>
-      <a class="nav-item" href="referrals.html"><i data-lucide="gift"></i>Пригласить</a>
-      <a class="nav-item"><i data-lucide="message-circle"></i>Поддержка</a>
-      <a class="nav-item" href="settings.html"><i data-lucide="settings"></i>Настройки</a>
+      <a class="nav-item" href="referrals.html"><i data-lucide="gift"></i><span>Пригласить</span></a>
+      <a class="nav-item"><i data-lucide="message-circle"></i><span>Поддержка</span></a>
+      <a class="nav-item" href="settings.html"><i data-lucide="settings"></i><span>Настройки</span></a>
     </nav>
     <div class="sidebar-footer">
       <div class="user-chip">
@@ -159,403 +382,721 @@
     <header class="topbar">
       <div>
         <h1>Аналитика</h1>
-        <div style="font-size:13px; color:var(--ink-500); margin-top:2px;">Динамика классов за выбранный период</div>
+        <div style="font-size:13px; color:var(--ink-500); margin-top:2px;">Как идут дела у классов и каждого ученика</div>
       </div>
       <div class="actions">
-        <div class="view-switch" style="display: inline-flex; background: var(--ink-100); border-radius: var(--r-md); padding: 3px;">
-          <button style="height:30px; padding:0 14px; border-radius:var(--r-sm); border:none; background:transparent; font-weight:600; font-size:13px; color:var(--ink-600); cursor:pointer;">Неделя</button>
-          <button style="height:30px; padding:0 14px; border-radius:var(--r-sm); border:none; background:white; font-weight:600; font-size:13px; color:var(--ink-900); cursor:pointer; box-shadow:var(--shadow-xs);">Месяц</button>
-          <button style="height:30px; padding:0 14px; border-radius:var(--r-sm); border:none; background:transparent; font-weight:600; font-size:13px; color:var(--ink-600); cursor:pointer;">Семестр</button>
-          <button style="height:30px; padding:0 14px; border-radius:var(--r-sm); border:none; background:transparent; font-weight:600; font-size:13px; color:var(--ink-600); cursor:pointer;">Год</button>
+        <button class="btn btn-ghost" id="tour-restart-header" aria-label="Запустить тур" style="height:32px; padding: 0 12px; gap: 6px;">
+          <i data-lucide="compass" style="width:14px;"></i>
+          <span style="font-size:12px; font-weight:600;">Тур</span>
+        </button>
+        <div class="seg" data-tour="period">
+          <button>Неделя</button>
+          <button class="is-active">Месяц</button>
+          <button>Семестр</button>
+          <button>Год</button>
         </div>
-        <button class="btn btn-secondary btn-sm"><i data-lucide="download"></i> Отчёт</button>
+        <button class="btn btn-secondary btn-sm" data-tour="export"><i data-lucide="download"></i> Скачать отчёт</button>
       </div>
     </header>
 
     <div class="content">
 
-      <!-- ─── KPI row ─── -->
-      <div class="grid-bento" style="margin-bottom: 24px;">
-        <div class="card col-3">
-          <div class="stat">
-            <div class="stat-label">
-              <span class="icon-tile"><i data-lucide="trophy"></i></span>
-              Средний балл
-            </div>
-            <div class="stat-value tnum">4,3</div>
-            <div class="stat-delta up"><i data-lucide="trending-up" style="width:12px;"></i> +0,4 за месяц</div>
+      <!-- ─── Фильтры ─── -->
+      <div data-tour="filters" style="display:flex; align-items:center; gap:8px; margin-bottom:20px; flex-wrap: wrap;">
+        <div class="filter-select">
+          <select>
+            <option>Все классы</option>
+            <option>10А</option><option>9А</option><option>11Б</option><option>8А</option><option>8В</option>
+          </select>
+        </div>
+        <button class="filter-pill"><i data-lucide="alert-triangle"></i> Только проблемные</button>
+        <button class="filter-pill"><i data-lucide="trending-up"></i> Только растущие</button>
+      </div>
+
+      <!-- ─── KPI ─── -->
+      <div class="kpi-grid" data-tour="kpi">
+        <div class="kpi-card">
+          <div class="kpi-label">
+            <span class="icon-tile" style="background:var(--brand-50); color:var(--brand-600);"><i data-lucide="trophy"></i></span>
+            Средний балл
           </div>
+          <div class="kpi-value">4,3</div>
+          <div class="kpi-delta up"><i data-lucide="trending-up" style="width:12px;"></i> +0,4 за месяц</div>
         </div>
 
-        <div class="card col-3">
-          <div class="stat">
-            <div class="stat-label">
-              <span class="icon-tile" style="background:var(--success-50); color:var(--success-700);"><i data-lucide="check-circle"></i></span>
-              Сдают вовремя
-            </div>
-            <div class="stat-value tnum">87%</div>
-            <div class="stat-delta down"><i data-lucide="trending-down" style="width:12px;"></i> −3% за неделю</div>
+        <div class="kpi-card">
+          <div class="kpi-label">
+            <span class="icon-tile" style="background:var(--success-50); color:var(--success-700);"><i data-lucide="check-circle"></i></span>
+            Сдают вовремя
           </div>
+          <div class="kpi-value">87%</div>
+          <div class="kpi-delta down"><i data-lucide="trending-down" style="width:12px;"></i> −3% за неделю</div>
         </div>
 
-        <div class="card col-3">
-          <div class="stat">
-            <div class="stat-label">
-              <span class="icon-tile" style="background:var(--info-50); color:var(--info-700);"><i data-lucide="users"></i></span>
-              Активны
-            </div>
-            <div class="stat-value tnum">42/47</div>
-            <div style="font-size:12px; color:var(--ink-500);">89% вовлечённость</div>
+        <div class="kpi-card">
+          <div class="kpi-label">
+            <span class="icon-tile" style="background:var(--info-50); color:var(--info-700);"><i data-lucide="users"></i></span>
+            Активные ученики
           </div>
+          <div class="kpi-value">42<span style="font-size:18px; color:var(--ink-500); font-weight:600;">/47</span></div>
+          <div class="kpi-delta flat">89% вовлечённость</div>
         </div>
 
-        <div class="card col-3">
-          <div class="stat">
-            <div class="stat-label">
-              <span class="icon-tile" style="background:var(--warning-50); color:var(--warning-700);"><i data-lucide="alert-triangle"></i></span>
-              В зоне риска
-            </div>
-            <div class="stat-value tnum">3</div>
-            <div style="font-size:12px; color:var(--ink-500);">из 47, разные классы</div>
+        <div class="kpi-card">
+          <div class="kpi-label">
+            <span class="icon-tile" style="background:var(--warning-50); color:var(--warning-700);"><i data-lucide="alert-triangle"></i></span>
+            Под наблюдением
           </div>
+          <div class="kpi-value">3</div>
+          <div class="kpi-delta flat">из 47 учеников</div>
+        </div>
+
+        <div class="kpi-card">
+          <div class="kpi-label">
+            <span class="icon-tile" style="background:#FDF4FF; color:#A21CAF;"><i data-lucide="clock"></i></span>
+            Среднее время сдачи
+          </div>
+          <div class="kpi-value">2,4 <span style="font-size:18px; color:var(--ink-500); font-weight:600;">дня</span></div>
+          <div class="kpi-delta up"><i data-lucide="trending-up" style="width:12px;"></i> Быстрее на 0,5 дня</div>
+        </div>
+
+        <div class="kpi-card">
+          <div class="kpi-label">
+            <span class="icon-tile" style="background:#ECFDF5; color:#047857;"><i data-lucide="file-text"></i></span>
+            Материалов создано
+          </div>
+          <div class="kpi-value">23</div>
+          <div class="kpi-delta flat">за месяц · 162 всего</div>
         </div>
       </div>
 
-      <!-- ─── Trend + Distribution ─── -->
-      <div class="grid-bento" style="margin-bottom: 24px;">
+      <!-- ─── Главные табы: По классам / По ученикам ─── -->
+      <div class="main-tabs" data-tour="main-tabs">
+        <button class="main-tab is-active" data-view="classes">
+          <i data-lucide="school"></i> По классам <span class="count">5</span>
+        </button>
+        <button class="main-tab" data-view="students">
+          <i data-lucide="users"></i> По ученикам <span class="count">47</span>
+        </button>
+      </div>
 
-        <!-- Trend chart -->
-        <div class="card col-8">
-          <div class="section-head" style="margin-bottom: 18px;">
-            <div>
-              <h2 style="font-size:16px;">Динамика среднего балла</h2>
-              <div class="subtitle">По всем классам · 6 месяцев</div>
-            </div>
-            <div style="display:flex; gap:14px; font-size:12px; color:var(--ink-600);">
-              <span style="display:flex; align-items:center; gap:6px;"><span style="width:10px; height:2px; background:var(--brand-500); border-radius:1px;"></span>Все классы</span>
-              <span style="display:flex; align-items:center; gap:6px;"><span style="width:10px; height:2px; background:var(--ink-400); border-radius:1px;"></span>Прошлый период</span>
-            </div>
-          </div>
+      <!-- ═══════════════════════════════════════════════════════════════ -->
+      <!--                    ВКЛАДКА: ПО КЛАССАМ                          -->
+      <!-- ═══════════════════════════════════════════════════════════════ -->
+      <div id="view-classes">
 
-          <div class="chart-frame">
-            <svg viewBox="0 0 800 220" preserveAspectRatio="none">
-              <!-- Grid -->
-              <line x1="40" y1="20"  x2="800" y2="20"  class="grid-line" stroke-dasharray="3 3" />
-              <line x1="40" y1="65"  x2="800" y2="65"  class="grid-line" />
-              <line x1="40" y1="110" x2="800" y2="110" class="grid-line" />
-              <line x1="40" y1="155" x2="800" y2="155" class="grid-line" />
-              <line x1="40" y1="200" x2="800" y2="200" class="grid-line" />
-
-              <!-- Y labels -->
-              <text x="30" y="24"  text-anchor="end" class="ylabel">5</text>
-              <text x="30" y="69"  text-anchor="end" class="ylabel">4</text>
-              <text x="30" y="114" text-anchor="end" class="ylabel">3</text>
-              <text x="30" y="159" text-anchor="end" class="ylabel">2</text>
-
-              <!-- X labels -->
-              <text x="80"  y="218" text-anchor="middle" class="ylabel">Янв</text>
-              <text x="200" y="218" text-anchor="middle" class="ylabel">Фев</text>
-              <text x="320" y="218" text-anchor="middle" class="ylabel">Мар</text>
-              <text x="440" y="218" text-anchor="middle" class="ylabel">Апр</text>
-              <text x="560" y="218" text-anchor="middle" class="ylabel">Май</text>
-              <text x="680" y="218" text-anchor="middle" class="ylabel">Июн</text>
-
-              <!-- Previous period (dashed gray) -->
-              <polyline
-                points="80,90 200,80 320,95 440,75 560,90 680,80"
-                fill="none" stroke="#94A3B8" stroke-width="1.5" stroke-dasharray="5 4" opacity="0.6"
-              />
-
-              <!-- Area gradient -->
-              <defs>
-                <linearGradient id="grad-line" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stop-color="#FF7E58" stop-opacity="0.32" />
-                  <stop offset="100%" stop-color="#FF7E58" stop-opacity="0" />
-                </linearGradient>
-              </defs>
-
-              <polygon
-                points="80,105 200,85 320,60 440,72 560,48 680,38 680,200 80,200"
-                fill="url(#grad-line)"
-              />
-
-              <!-- Current period (brand) -->
-              <polyline
-                points="80,105 200,85 320,60 440,72 560,48 680,38"
-                fill="none" stroke="#FF7E58" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"
-              />
-
-              <!-- Dots -->
-              <circle cx="80"  cy="105" r="4" fill="white" stroke="#FF7E58" stroke-width="2.5"/>
-              <circle cx="200" cy="85"  r="4" fill="white" stroke="#FF7E58" stroke-width="2.5"/>
-              <circle cx="320" cy="60"  r="4" fill="white" stroke="#FF7E58" stroke-width="2.5"/>
-              <circle cx="440" cy="72"  r="4" fill="white" stroke="#FF7E58" stroke-width="2.5"/>
-              <circle cx="560" cy="48"  r="4" fill="white" stroke="#FF7E58" stroke-width="2.5"/>
-              <circle cx="680" cy="38"  r="5" fill="#FF7E58" stroke="white" stroke-width="2.5"/>
-
-              <!-- Tooltip on last point -->
-              <g transform="translate(680, 38)">
-                <rect x="-46" y="-46" width="92" height="32" rx="6" fill="#0F172A" />
-                <text x="0" y="-30" text-anchor="middle" fill="white" font-size="10" font-family="Inter" opacity="0.7">Июнь</text>
-                <text x="0" y="-18" text-anchor="middle" fill="white" font-size="13" font-family="Plus Jakarta Sans" font-weight="800">4.3 ↑</text>
-              </g>
-            </svg>
-          </div>
-        </div>
-
-        <!-- Grade distribution donut -->
-        <div class="card col-4">
-          <div class="section-head" style="margin-bottom: 16px;">
-            <div>
-              <h2 style="font-size:16px;">Распределение оценок</h2>
-              <div class="subtitle">Все работы за месяц</div>
-            </div>
-          </div>
-
-          <div style="display:flex; align-items:center; gap:20px;">
-            <div class="donut-wrap">
-              <svg viewBox="0 0 100 100">
-                <!-- Donut: stroke-dasharray builds segments. Circumference = 2πr ≈ 251.2 (r=40) -->
-                <circle cx="50" cy="50" r="40" fill="none" stroke="var(--success-500)"  stroke-width="14" stroke-dasharray="83 251" stroke-dashoffset="0" />
-                <circle cx="50" cy="50" r="40" fill="none" stroke="#34D399"               stroke-width="14" stroke-dasharray="100 251" stroke-dashoffset="-83" />
-                <circle cx="50" cy="50" r="40" fill="none" stroke="var(--warning-500)"   stroke-width="14" stroke-dasharray="50 251" stroke-dashoffset="-183" />
-                <circle cx="50" cy="50" r="40" fill="none" stroke="var(--danger-500)"    stroke-width="14" stroke-dasharray="18 251" stroke-dashoffset="-233" />
-              </svg>
-              <div class="center">
-                <div class="v">126</div>
-                <div class="l">работ</div>
+        <!-- Тренд + Распределение оценок -->
+        <div class="a-grid" data-tour="charts">
+          <div class="a-col-8 a-card">
+            <div class="a-card-head">
+              <div>
+                <h2>Динамика среднего балла</h2>
+                <div class="sub">По всем классам · последние 6 месяцев</div>
+              </div>
+              <div style="display:flex; gap:14px; font-size:12px; color:var(--ink-600);">
+                <span style="display:inline-flex; align-items:center; gap:6px;"><span style="width:10px; height:2.5px; background:var(--brand-500); border-radius:1px;"></span>Этот период</span>
+                <span style="display:inline-flex; align-items:center; gap:6px;"><span style="width:10px; height:2px; background:var(--ink-400); border-radius:1px;"></span>Прошлый</span>
               </div>
             </div>
-
-            <div class="legend-list" style="flex:1;">
-              <div class="row"><span class="dot" style="background:var(--success-500);"></span><span class="name">Отлично (5)</span><span class="val">42</span></div>
-              <div class="row"><span class="dot" style="background:#34D399;"></span><span class="name">Хорошо (4)</span><span class="val">51</span></div>
-              <div class="row"><span class="dot" style="background:var(--warning-500);"></span><span class="name">Удовл. (3)</span><span class="val">25</span></div>
-              <div class="row"><span class="dot" style="background:var(--danger-500);"></span><span class="name">Неуд. (2)</span><span class="val">8</span></div>
+            <div class="chart-frame">
+              <svg viewBox="0 0 800 220" preserveAspectRatio="xMidYMid meet">
+                <line x1="40" y1="20"  x2="800" y2="20"  class="grid-line" stroke-dasharray="3 3" />
+                <line x1="40" y1="65"  x2="800" y2="65"  class="grid-line" />
+                <line x1="40" y1="110" x2="800" y2="110" class="grid-line" />
+                <line x1="40" y1="155" x2="800" y2="155" class="grid-line" />
+                <line x1="40" y1="200" x2="800" y2="200" class="grid-line" />
+                <text x="30" y="24"  text-anchor="end" class="ylabel">5</text>
+                <text x="30" y="69"  text-anchor="end" class="ylabel">4</text>
+                <text x="30" y="114" text-anchor="end" class="ylabel">3</text>
+                <text x="30" y="159" text-anchor="end" class="ylabel">2</text>
+                <text x="80"  y="218" text-anchor="middle" class="ylabel">Янв</text>
+                <text x="200" y="218" text-anchor="middle" class="ylabel">Фев</text>
+                <text x="320" y="218" text-anchor="middle" class="ylabel">Мар</text>
+                <text x="440" y="218" text-anchor="middle" class="ylabel">Апр</text>
+                <text x="560" y="218" text-anchor="middle" class="ylabel">Май</text>
+                <text x="680" y="218" text-anchor="middle" class="ylabel">Июн</text>
+                <polyline points="80,90 200,80 320,95 440,75 560,90 680,80" fill="none" stroke="#94A3B8" stroke-width="1.5" stroke-dasharray="5 4" opacity="0.6" />
+                <defs>
+                  <linearGradient id="grad-line" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#FF7E58" stop-opacity="0.32" />
+                    <stop offset="100%" stop-color="#FF7E58" stop-opacity="0" />
+                  </linearGradient>
+                </defs>
+                <polygon points="80,105 200,85 320,60 440,72 560,48 680,38 680,200 80,200" fill="url(#grad-line)" />
+                <polyline points="80,105 200,85 320,60 440,72 560,48 680,38" fill="none" stroke="#FF7E58" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+                <circle cx="80"  cy="105" r="4" fill="white" stroke="#FF7E58" stroke-width="2.5"/>
+                <circle cx="200" cy="85"  r="4" fill="white" stroke="#FF7E58" stroke-width="2.5"/>
+                <circle cx="320" cy="60"  r="4" fill="white" stroke="#FF7E58" stroke-width="2.5"/>
+                <circle cx="440" cy="72"  r="4" fill="white" stroke="#FF7E58" stroke-width="2.5"/>
+                <circle cx="560" cy="48"  r="4" fill="white" stroke="#FF7E58" stroke-width="2.5"/>
+                <circle cx="680" cy="38"  r="5" fill="#FF7E58" stroke="white" stroke-width="2.5"/>
+                <g transform="translate(680, 38)">
+                  <rect x="-46" y="-46" width="92" height="32" rx="6" fill="#0F172A" />
+                  <text x="0" y="-30" text-anchor="middle" fill="white" font-size="10" font-family="Inter" opacity="0.7">Июнь</text>
+                  <text x="0" y="-18" text-anchor="middle" fill="white" font-size="13" font-family="Plus Jakarta Sans" font-weight="800">4.3 ↑</text>
+                </g>
+              </svg>
             </div>
+          </div>
+
+          <div class="a-col-4 a-card">
+            <div class="a-card-head">
+              <div>
+                <h2>Распределение оценок</h2>
+                <div class="sub">Все работы за месяц</div>
+              </div>
+            </div>
+            <div style="display:flex; align-items:center; gap:20px; flex-wrap: wrap;">
+              <div class="donut-wrap">
+                <svg viewBox="0 0 100 100">
+                  <circle cx="50" cy="50" r="40" fill="none" stroke="var(--success-500)" stroke-width="14" stroke-dasharray="83 251" stroke-dashoffset="0" />
+                  <circle cx="50" cy="50" r="40" fill="none" stroke="#34D399" stroke-width="14" stroke-dasharray="100 251" stroke-dashoffset="-83" />
+                  <circle cx="50" cy="50" r="40" fill="none" stroke="var(--warning-500)" stroke-width="14" stroke-dasharray="50 251" stroke-dashoffset="-183" />
+                  <circle cx="50" cy="50" r="40" fill="none" stroke="var(--danger-500)" stroke-width="14" stroke-dasharray="18 251" stroke-dashoffset="-233" />
+                </svg>
+                <div class="center"><div class="v">126</div><div class="l">работ</div></div>
+              </div>
+              <div class="legend-list">
+                <div class="row"><span class="dot" style="background:var(--success-500);"></span><span class="name">Отлично (5)</span><span class="val">42</span></div>
+                <div class="row"><span class="dot" style="background:#34D399;"></span><span class="name">Хорошо (4)</span><span class="val">51</span></div>
+                <div class="row"><span class="dot" style="background:var(--warning-500);"></span><span class="name">Удовл. (3)</span><span class="val">25</span></div>
+                <div class="row"><span class="dot" style="background:var(--danger-500);"></span><span class="name">Неуд. (2)</span><span class="val">8</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Heatmap + Сложность тем -->
+        <div class="a-grid" data-tour="heatmap">
+          <div class="a-col-7 a-card">
+            <div class="a-card-head">
+              <div>
+                <h2>Вовлечённость по неделям</h2>
+                <div class="sub">% учеников каждого класса, сдавших работы вовремя</div>
+              </div>
+            </div>
+            <div class="heatmap">
+              <div></div>
+              <div class="col-label">Н1</div><div class="col-label">Н2</div><div class="col-label">Н3</div><div class="col-label">Н4</div>
+              <div class="col-label">Н5</div><div class="col-label">Н6</div><div class="col-label">Н7</div><div class="col-label">Н8</div>
+              <div class="col-label">Н9</div><div class="col-label">Н10</div><div class="col-label">Н11</div><div class="col-label">Н12</div>
+
+              <div class="row-label">10А</div>
+              <div class="cell l3"></div><div class="cell l4"></div><div class="cell l4"></div><div class="cell l5"></div>
+              <div class="cell l4"></div><div class="cell l5"></div><div class="cell l5"></div><div class="cell l4"></div>
+              <div class="cell l5"></div><div class="cell l5"></div><div class="cell l4"></div><div class="cell l3"></div>
+
+              <div class="row-label">9А</div>
+              <div class="cell l3"></div><div class="cell l3"></div><div class="cell l4"></div><div class="cell l4"></div>
+              <div class="cell l4"></div><div class="cell l3"></div><div class="cell l2"></div><div class="cell l3"></div>
+              <div class="cell l4"></div><div class="cell l4"></div><div class="cell l5"></div><div class="cell l4"></div>
+
+              <div class="row-label">11Б</div>
+              <div class="cell l5"></div><div class="cell l5"></div><div class="cell l4"></div><div class="cell l5"></div>
+              <div class="cell l5"></div><div class="cell l5"></div><div class="cell l4"></div><div class="cell l5"></div>
+              <div class="cell l5"></div><div class="cell l4"></div><div class="cell l5"></div><div class="cell l5"></div>
+
+              <div class="row-label">8А</div>
+              <div class="cell l2"></div><div class="cell l3"></div><div class="cell l3"></div><div class="cell l2"></div>
+              <div class="cell l1"></div><div class="cell l2"></div><div class="cell l3"></div><div class="cell l3"></div>
+              <div class="cell l4"></div><div class="cell l3"></div><div class="cell l3"></div><div class="cell l4"></div>
+
+              <div class="row-label">8В</div>
+              <div class="cell l4"></div><div class="cell l3"></div><div class="cell l4"></div><div class="cell l4"></div>
+              <div class="cell l5"></div><div class="cell l4"></div><div class="cell l4"></div><div class="cell l5"></div>
+              <div class="cell l5"></div><div class="cell l5"></div><div class="cell l4"></div><div class="cell l5"></div>
+            </div>
+
+            <div style="display:flex; align-items:center; gap:8px; margin-top:18px; font-size:11px; color:var(--ink-500);">
+              <span>меньше</span>
+              <div class="cell" style="width:14px; height:14px; background:var(--ink-100); border-radius:3px;"></div>
+              <div class="cell" style="width:14px; height:14px; background:#FFE3D9; border-radius:3px;"></div>
+              <div class="cell" style="width:14px; height:14px; background:#FFC7B3; border-radius:3px;"></div>
+              <div class="cell" style="width:14px; height:14px; background:#FF8E69; border-radius:3px;"></div>
+              <div class="cell" style="width:14px; height:14px; background:var(--brand-500); border-radius:3px;"></div>
+              <div class="cell" style="width:14px; height:14px; background:var(--brand-700); border-radius:3px;"></div>
+              <span>больше</span>
+            </div>
+          </div>
+
+          <div class="a-col-5 a-card">
+            <div class="a-card-head">
+              <div>
+                <h2>Сложность тем</h2>
+                <div class="sub">% учеников с трудностями</div>
+              </div>
+            </div>
+            <div class="dist-bars">
+              <div class="dist-row"><span class="l">Тригонометрия</span><span class="b"><i style="width:78%; background:var(--danger-500);"></i></span><span class="v">78%</span></div>
+              <div class="dist-row"><span class="l">Интегралы</span><span class="b"><i style="width:65%; background:var(--warning-500);"></i></span><span class="v">65%</span></div>
+              <div class="dist-row"><span class="l">Past Continuous</span><span class="b"><i style="width:48%; background:var(--warning-500);"></i></span><span class="v">48%</span></div>
+              <div class="dist-row"><span class="l">Дискриминант</span><span class="b"><i style="width:32%; background:var(--success-500);"></i></span><span class="v">32%</span></div>
+              <div class="dist-row"><span class="l">Эл. индукция</span><span class="b"><i style="width:28%; background:var(--success-500);"></i></span><span class="v">28%</span></div>
+              <div class="dist-row"><span class="l">Геометрия</span><span class="b"><i style="width:22%; background:var(--success-500);"></i></span><span class="v">22%</span></div>
+            </div>
+            <div class="ai-tip">
+              <span class="ai-tag">ИИ</span>
+              <span>Тригонометрия — самая сложная тема сейчас, особенно для 10А. Рекомендую сгенерировать <b>«Вау-урок»</b> с акцентом на формулы приведения.</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Активность по дням + Топ материалов -->
+        <div class="a-grid">
+          <div class="a-col-5 a-card">
+            <div class="a-card-head">
+              <div>
+                <h2>Когда сдают</h2>
+                <div class="sub">Активность учеников по дням недели</div>
+              </div>
+            </div>
+            <div class="weekday-bars">
+              <div class="wbar"><div class="v">18</div><div class="bar" style="height:35%;"></div><div class="day">Пн</div></div>
+              <div class="wbar"><div class="v">24</div><div class="bar" style="height:48%;"></div><div class="day">Вт</div></div>
+              <div class="wbar"><div class="v">31</div><div class="bar" style="height:62%;"></div><div class="day">Ср</div></div>
+              <div class="wbar"><div class="v">28</div><div class="bar" style="height:56%;"></div><div class="day">Чт</div></div>
+              <div class="wbar"><div class="v">15</div><div class="bar" style="height:30%;"></div><div class="day">Пт</div></div>
+              <div class="wbar"><div class="v">45</div><div class="bar" style="height:90%;"></div><div class="day">Сб</div></div>
+              <div class="wbar"><div class="v">38</div><div class="bar" style="height:76%;"></div><div class="day">Вс</div></div>
+            </div>
+            <div style="font-size:12px; color:var(--ink-500); margin-top:12px;">
+              Пик сдач — суббота. Хорошее время для дедлайнов: <b style="color:var(--ink-900);">пятница вечер</b>.
+            </div>
+          </div>
+
+          <div class="a-col-7 a-card">
+            <div class="a-card-head">
+              <div>
+                <h2>Топ материалов</h2>
+                <div class="sub">Лучшие по среднему баллу учеников</div>
+              </div>
+              <button class="btn btn-secondary btn-sm" style="height:30px;"><i data-lucide="arrow-up-down"></i> По баллу</button>
+            </div>
+            <div class="row-list">
+              <a class="data-row" href="material.html">
+                <div class="avatar good">📄</div>
+                <div class="nm-row">
+                  <div class="nm">Геометрия треугольника · рабочий лист</div>
+                  <div class="sm">9А · сдало 18/18</div>
+                </div>
+                <div class="stat" style="color:var(--success-700);">4,7 <div class="l">балл</div></div>
+                <div class="stat">100% <div class="l">сдали</div></div>
+                <div class="col-late stat" style="color:var(--ink-500);">1,8д <div class="l">в сроке</div></div>
+                <span class="badge up">★ Лучший</span>
+              </a>
+              <a class="data-row" href="material.html">
+                <div class="avatar good">❓</div>
+                <div class="nm-row">
+                  <div class="nm">Строение клетки · тест</div>
+                  <div class="sm">9А · 15 вопросов</div>
+                </div>
+                <div class="stat">4,5 <div class="l">балл</div></div>
+                <div class="stat">96% <div class="l">сдали</div></div>
+                <div class="col-late stat" style="color:var(--ink-500);">2,1д <div class="l">в сроке</div></div>
+                <span class="badge up">Хороший</span>
+              </a>
+              <a class="data-row" href="material.html">
+                <div class="avatar">📊</div>
+                <div class="nm-row">
+                  <div class="nm">Эволюция · презентация + квиз</div>
+                  <div class="sm">9А · 12 слайдов</div>
+                </div>
+                <div class="stat">4,2 <div class="l">балл</div></div>
+                <div class="stat">89% <div class="l">сдали</div></div>
+                <div class="col-late stat" style="color:var(--ink-500);">2,8д <div class="l">в сроке</div></div>
+                <span class="badge flat">Норма</span>
+              </a>
+              <a class="data-row" href="material.html">
+                <div class="avatar warn">📋</div>
+                <div class="nm-row">
+                  <div class="nm">Тригонометрия · контрольная</div>
+                  <div class="sm">10А · 5 заданий</div>
+                </div>
+                <div class="stat" style="color:var(--warning-700);">3,4 <div class="l">балл</div></div>
+                <div class="stat" style="color:var(--warning-700);">72% <div class="l">сдали</div></div>
+                <div class="col-late stat" style="color:var(--ink-500);">3,9д <div class="l">в сроке</div></div>
+                <span class="badge warn">Сложно</span>
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Сравнение классов -->
+        <div class="a-card">
+          <div class="a-card-head">
+            <div>
+              <h2>Сравнение классов</h2>
+              <div class="sub">Где растут, где буксуют · клик по классу — детали</div>
+            </div>
+            <button class="btn btn-secondary btn-sm" style="height:30px;"><i data-lucide="arrow-up-down"></i> По баллу</button>
+          </div>
+          <div class="row-list">
+            <a class="data-row" href="class-detail.html">
+              <div class="avatar">11Б</div>
+              <div class="nm-row">
+                <div class="nm">11Б · математика</div>
+                <div class="sm">12 учеников</div>
+              </div>
+              <div class="stat">4,6 <div class="l">балл</div></div>
+              <div class="stat" style="color:var(--success-700);">94% <div class="l">вовремя</div></div>
+              <div class="col-trend trend-bar">
+                <span style="height:30%;"></span><span style="height:45%;"></span><span style="height:50%;"></span>
+                <span style="height:60%;"></span><span style="height:75%;"></span><span style="height:80%;"></span><span style="height:92%;"></span>
+              </div>
+              <span class="badge up">Растёт</span>
+            </a>
+            <a class="data-row" href="class-detail.html">
+              <div class="avatar">10А</div>
+              <div class="nm-row">
+                <div class="nm">10А · математика</div>
+                <div class="sm">18 учеников</div>
+              </div>
+              <div class="stat">4,3 <div class="l">балл</div></div>
+              <div class="stat" style="color:var(--success-700);">89% <div class="l">вовремя</div></div>
+              <div class="col-trend trend-bar">
+                <span style="height:55%;"></span><span style="height:60%;"></span><span style="height:50%;"></span>
+                <span style="height:65%;"></span><span style="height:70%;"></span><span style="height:80%;"></span><span style="height:85%;"></span>
+              </div>
+              <span class="badge up">Растёт</span>
+            </a>
+            <a class="data-row" href="class-detail.html">
+              <div class="avatar warn">9А</div>
+              <div class="nm-row">
+                <div class="nm">9А · математика</div>
+                <div class="sm">9 учеников</div>
+              </div>
+              <div class="stat">3,9 <div class="l">балл</div></div>
+              <div class="stat" style="color:var(--warning-700);">82% <div class="l">вовремя</div></div>
+              <div class="col-trend trend-bar">
+                <span style="height:70%;"></span><span style="height:75%;"></span><span style="height:65%;"></span>
+                <span style="height:55%;"></span><span style="height:50%;"></span><span style="height:45%;"></span><span style="height:42%;"></span>
+              </div>
+              <span class="badge down">Падает</span>
+            </a>
+            <a class="data-row" href="class-detail.html">
+              <div class="avatar danger">8А</div>
+              <div class="nm-row">
+                <div class="nm">8А · история</div>
+                <div class="sm">5 учеников</div>
+              </div>
+              <div class="stat" style="color:var(--danger-700);">3,5 <div class="l">балл</div></div>
+              <div class="stat" style="color:var(--danger-700);">71% <div class="l">вовремя</div></div>
+              <div class="col-trend trend-bar">
+                <span style="height:30%; background:var(--ink-300);"></span><span style="height:35%; background:var(--ink-300);"></span>
+                <span style="height:25%; background:var(--ink-300);"></span><span style="height:30%; background:var(--ink-300);"></span>
+                <span style="height:32%; background:var(--ink-300);"></span><span style="height:28%; background:var(--ink-300);"></span>
+                <span style="height:34%; background:var(--ink-300);"></span>
+              </div>
+              <span class="badge down">Внимание</span>
+            </a>
+            <a class="data-row" href="class-detail.html">
+              <div class="avatar">8В</div>
+              <div class="nm-row">
+                <div class="nm">8В · английский язык</div>
+                <div class="sm">3 ученика</div>
+              </div>
+              <div class="stat">4,1 <div class="l">балл</div></div>
+              <div class="stat" style="color:var(--success-700);">90% <div class="l">вовремя</div></div>
+              <div class="col-trend trend-bar">
+                <span style="height:60%;"></span><span style="height:65%;"></span><span style="height:70%;"></span>
+                <span style="height:72%;"></span><span style="height:75%;"></span><span style="height:70%;"></span><span style="height:72%;"></span>
+              </div>
+              <span class="badge flat">Стабильно</span>
+            </a>
           </div>
         </div>
 
       </div>
 
-      <!-- ─── Engagement heatmap + Class compare ─── -->
-      <div class="grid-bento" style="margin-bottom: 24px;">
+      <!-- ═══════════════════════════════════════════════════════════════ -->
+      <!--                    ВКЛАДКА: ПО УЧЕНИКАМ                         -->
+      <!-- ═══════════════════════════════════════════════════════════════ -->
+      <div id="view-students">
 
-        <div class="card col-7">
-          <div class="section-head" style="margin-bottom: 18px;">
+        <!-- Топ-5 и Внимание -->
+        <div class="a-grid">
+          <div class="a-col-6 a-card">
+            <div class="a-card-head">
+              <div>
+                <h2><i data-lucide="trophy" style="width:18px; display:inline-block; vertical-align:-3px; color:var(--success-700);"></i> Лучшие ученики</h2>
+                <div class="sub">Топ-5 по успеваемости за месяц</div>
+              </div>
+            </div>
+            <div class="row-list">
+              <a class="data-row" href="#">
+                <div class="avatar good">КП</div>
+                <div class="nm-row">
+                  <div class="nm">Катя Петрова</div>
+                  <div class="sm">11Б · математика</div>
+                </div>
+                <div class="stat" style="color:var(--success-700);">4,9 <div class="l">балл</div></div>
+                <div class="stat">100% <div class="l">сдали</div></div>
+                <div class="col-trend trend-bar">
+                  <span style="height:70%;"></span><span style="height:75%;"></span><span style="height:80%;"></span>
+                  <span style="height:85%;"></span><span style="height:90%;"></span><span style="height:95%;"></span><span style="height:100%;"></span>
+                </div>
+                <span class="badge up">↑ Растёт</span>
+              </a>
+              <a class="data-row" href="#">
+                <div class="avatar good">АС</div>
+                <div class="nm-row">
+                  <div class="nm">Артём Соколов</div>
+                  <div class="sm">10А · математика</div>
+                </div>
+                <div class="stat" style="color:var(--success-700);">4,8 <div class="l">балл</div></div>
+                <div class="stat">100% <div class="l">сдали</div></div>
+                <div class="col-trend trend-bar">
+                  <span style="height:60%;"></span><span style="height:70%;"></span><span style="height:75%;"></span>
+                  <span style="height:80%;"></span><span style="height:85%;"></span><span style="height:90%;"></span><span style="height:95%;"></span>
+                </div>
+                <span class="badge up">↑ Растёт</span>
+              </a>
+              <a class="data-row" href="#">
+                <div class="avatar good">МК</div>
+                <div class="nm-row">
+                  <div class="nm">Мария Кузнецова</div>
+                  <div class="sm">11Б · математика</div>
+                </div>
+                <div class="stat" style="color:var(--success-700);">4,7 <div class="l">балл</div></div>
+                <div class="stat">95% <div class="l">сдали</div></div>
+                <div class="col-trend trend-bar">
+                  <span style="height:65%;"></span><span style="height:70%;"></span><span style="height:72%;"></span>
+                  <span style="height:80%;"></span><span style="height:85%;"></span><span style="height:88%;"></span><span style="height:92%;"></span>
+                </div>
+                <span class="badge flat">Стабильно</span>
+              </a>
+            </div>
+          </div>
+
+          <div class="a-col-6 a-card">
+            <div class="a-card-head">
+              <div>
+                <h2><i data-lucide="alert-triangle" style="width:18px; display:inline-block; vertical-align:-3px; color:var(--warning-700);"></i> Под наблюдением</h2>
+                <div class="sub">Ученики, кому нужно особое внимание</div>
+              </div>
+            </div>
+            <div class="row-list">
+              <a class="data-row" href="#">
+                <div class="avatar danger">ДО</div>
+                <div class="nm-row">
+                  <div class="nm">Дима Орлов</div>
+                  <div class="sm">8А · история</div>
+                </div>
+                <div class="stat" style="color:var(--danger-700);">2,8 <div class="l">балл</div></div>
+                <div class="stat" style="color:var(--danger-700);">48% <div class="l">сдали</div></div>
+                <div class="col-trend trend-bar">
+                  <span style="height:50%; background:var(--ink-300);"></span><span style="height:45%; background:var(--ink-300);"></span>
+                  <span style="height:40%; background:var(--ink-300);"></span><span style="height:38%; background:var(--ink-300);"></span>
+                  <span style="height:35%; background:var(--ink-300);"></span><span style="height:30%; background:var(--ink-300);"></span>
+                  <span style="height:25%; background:var(--ink-300);"></span>
+                </div>
+                <span class="badge down">↓ Падает</span>
+              </a>
+              <a class="data-row" href="#">
+                <div class="avatar warn">ВТ</div>
+                <div class="nm-row">
+                  <div class="nm">Влад Тимофеев</div>
+                  <div class="sm">9А · математика</div>
+                </div>
+                <div class="stat" style="color:var(--warning-700);">3,2 <div class="l">балл</div></div>
+                <div class="stat" style="color:var(--warning-700);">62% <div class="l">сдали</div></div>
+                <div class="col-trend trend-bar">
+                  <span style="height:60%;"></span><span style="height:55%;"></span><span style="height:50%;"></span>
+                  <span style="height:48%;"></span><span style="height:42%;"></span><span style="height:40%;"></span><span style="height:35%;"></span>
+                </div>
+                <span class="badge down">↓ Падает</span>
+              </a>
+              <a class="data-row" href="#">
+                <div class="avatar warn">ЛМ</div>
+                <div class="nm-row">
+                  <div class="nm">Лиза Морозова</div>
+                  <div class="sm">8А · история</div>
+                </div>
+                <div class="stat" style="color:var(--warning-700);">3,4 <div class="l">балл</div></div>
+                <div class="stat">75% <div class="l">сдали</div></div>
+                <div class="col-trend trend-bar">
+                  <span style="height:65%;"></span><span style="height:62%;"></span><span style="height:60%;"></span>
+                  <span style="height:58%;"></span><span style="height:55%;"></span><span style="height:50%;"></span><span style="height:48%;"></span>
+                </div>
+                <span class="badge warn">Внимание</span>
+              </a>
+            </div>
+            <div class="ai-tip">
+              <span class="ai-tag">ИИ</span>
+              <span>У <b>Димы Орлова</b> падение 4 недели подряд. Рекомендую: индивидуальный план уроков + сообщение родителям.</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Полный рейтинг учеников -->
+        <div class="a-card">
+          <div class="a-card-head">
             <div>
-              <h2 style="font-size:16px;">Вовлечённость по неделям</h2>
-              <div class="subtitle">Доля учеников, сдавших работы вовремя</div>
+              <h2>Все ученики · рейтинг</h2>
+              <div class="sub">47 учеников · сортировка по среднему баллу</div>
+            </div>
+            <div style="display:flex; gap:8px; flex-wrap: wrap;">
+              <div class="filter-select">
+                <select>
+                  <option>Все классы</option>
+                  <option>10А</option><option>9А</option><option>11Б</option>
+                </select>
+              </div>
+              <button class="btn btn-secondary btn-sm" style="height:30px;"><i data-lucide="arrow-up-down"></i> По баллу</button>
             </div>
           </div>
-
-          <div class="heatmap">
-            <div></div>
-            <div style="text-align:center; font-size:10px; color:var(--ink-400);">Н1</div>
-            <div style="text-align:center; font-size:10px; color:var(--ink-400);">Н2</div>
-            <div style="text-align:center; font-size:10px; color:var(--ink-400);">Н3</div>
-            <div style="text-align:center; font-size:10px; color:var(--ink-400);">Н4</div>
-            <div style="text-align:center; font-size:10px; color:var(--ink-400);">Н5</div>
-            <div style="text-align:center; font-size:10px; color:var(--ink-400);">Н6</div>
-            <div style="text-align:center; font-size:10px; color:var(--ink-400);">Н7</div>
-            <div style="text-align:center; font-size:10px; color:var(--ink-400);">Н8</div>
-            <div style="text-align:center; font-size:10px; color:var(--ink-400);">Н9</div>
-            <div style="text-align:center; font-size:10px; color:var(--ink-400);">Н10</div>
-            <div style="text-align:center; font-size:10px; color:var(--ink-400);">Н11</div>
-            <div style="text-align:center; font-size:10px; color:var(--ink-400);">Н12</div>
-
-            <div class="row-label">10А</div>
-            <div class="cell l3"></div><div class="cell l4"></div><div class="cell l4"></div><div class="cell l5"></div>
-            <div class="cell l4"></div><div class="cell l5"></div><div class="cell l5"></div><div class="cell l4"></div>
-            <div class="cell l5"></div><div class="cell l5"></div><div class="cell l4"></div><div class="cell l3"></div>
-
-            <div class="row-label">9А</div>
-            <div class="cell l3"></div><div class="cell l3"></div><div class="cell l4"></div><div class="cell l4"></div>
-            <div class="cell l4"></div><div class="cell l3"></div><div class="cell l2"></div><div class="cell l3"></div>
-            <div class="cell l4"></div><div class="cell l4"></div><div class="cell l5"></div><div class="cell l4"></div>
-
-            <div class="row-label">11Б</div>
-            <div class="cell l5"></div><div class="cell l5"></div><div class="cell l4"></div><div class="cell l5"></div>
-            <div class="cell l5"></div><div class="cell l5"></div><div class="cell l4"></div><div class="cell l5"></div>
-            <div class="cell l5"></div><div class="cell l4"></div><div class="cell l5"></div><div class="cell l5"></div>
-
-            <div class="row-label">8А</div>
-            <div class="cell l2"></div><div class="cell l3"></div><div class="cell l3"></div><div class="cell l2"></div>
-            <div class="cell l1"></div><div class="cell l2"></div><div class="cell l3"></div><div class="cell l3"></div>
-            <div class="cell l4"></div><div class="cell l3"></div><div class="cell l3"></div><div class="cell l4"></div>
-
-            <div class="row-label">8В</div>
-            <div class="cell l4"></div><div class="cell l3"></div><div class="cell l4"></div><div class="cell l4"></div>
-            <div class="cell l5"></div><div class="cell l4"></div><div class="cell l4"></div><div class="cell l5"></div>
-            <div class="cell l5"></div><div class="cell l5"></div><div class="cell l4"></div><div class="cell l5"></div>
+          <div class="row-list">
+            <a class="data-row" href="#"><div class="avatar good">КП</div><div class="nm-row"><div class="nm">Катя Петрова</div><div class="sm">11Б · математика</div></div><div class="stat" style="color:var(--success-700);">4,9</div><div class="stat">100%</div><div class="col-trend trend-bar"><span style="height:75%;"></span><span style="height:80%;"></span><span style="height:85%;"></span><span style="height:88%;"></span><span style="height:92%;"></span><span style="height:95%;"></span><span style="height:100%;"></span></div><span class="badge up">↑</span></a>
+            <a class="data-row" href="#"><div class="avatar good">АС</div><div class="nm-row"><div class="nm">Артём Соколов</div><div class="sm">10А · математика</div></div><div class="stat" style="color:var(--success-700);">4,8</div><div class="stat">100%</div><div class="col-trend trend-bar"><span style="height:65%;"></span><span style="height:72%;"></span><span style="height:78%;"></span><span style="height:82%;"></span><span style="height:87%;"></span><span style="height:91%;"></span><span style="height:95%;"></span></div><span class="badge up">↑</span></a>
+            <a class="data-row" href="#"><div class="avatar good">МК</div><div class="nm-row"><div class="nm">Мария Кузнецова</div><div class="sm">11Б · математика</div></div><div class="stat" style="color:var(--success-700);">4,7</div><div class="stat">95%</div><div class="col-trend trend-bar"><span style="height:68%;"></span><span style="height:72%;"></span><span style="height:75%;"></span><span style="height:82%;"></span><span style="height:85%;"></span><span style="height:88%;"></span><span style="height:92%;"></span></div><span class="badge flat">→</span></a>
+            <a class="data-row" href="#"><div class="avatar">ИГ</div><div class="nm-row"><div class="nm">Игорь Григорьев</div><div class="sm">10А · математика</div></div><div class="stat">4,4</div><div class="stat">94%</div><div class="col-trend trend-bar"><span style="height:55%;"></span><span style="height:60%;"></span><span style="height:65%;"></span><span style="height:68%;"></span><span style="height:75%;"></span><span style="height:78%;"></span><span style="height:80%;"></span></div><span class="badge up">↑</span></a>
+            <a class="data-row" href="#"><div class="avatar">АП</div><div class="nm-row"><div class="nm">Алексей Попов</div><div class="sm">9А · математика</div></div><div class="stat">4,2</div><div class="stat">88%</div><div class="col-trend trend-bar"><span style="height:62%;"></span><span style="height:65%;"></span><span style="height:68%;"></span><span style="height:70%;"></span><span style="height:72%;"></span><span style="height:75%;"></span><span style="height:78%;"></span></div><span class="badge flat">→</span></a>
+            <a class="data-row" href="#"><div class="avatar">НФ</div><div class="nm-row"><div class="nm">Настя Фёдорова</div><div class="sm">10А · математика</div></div><div class="stat">4,1</div><div class="stat">82%</div><div class="col-trend trend-bar"><span style="height:60%;"></span><span style="height:62%;"></span><span style="height:65%;"></span><span style="height:62%;"></span><span style="height:60%;"></span><span style="height:58%;"></span><span style="height:55%;"></span></div><span class="badge down">↓</span></a>
+            <a class="data-row" href="#"><div class="avatar warn">ВТ</div><div class="nm-row"><div class="nm">Влад Тимофеев</div><div class="sm">9А · математика</div></div><div class="stat" style="color:var(--warning-700);">3,2</div><div class="stat" style="color:var(--warning-700);">62%</div><div class="col-trend trend-bar"><span style="height:60%;"></span><span style="height:55%;"></span><span style="height:50%;"></span><span style="height:48%;"></span><span style="height:42%;"></span><span style="height:40%;"></span><span style="height:35%;"></span></div><span class="badge down">↓</span></a>
+            <a class="data-row" href="#"><div class="avatar danger">ДО</div><div class="nm-row"><div class="nm">Дима Орлов</div><div class="sm">8А · история</div></div><div class="stat" style="color:var(--danger-700);">2,8</div><div class="stat" style="color:var(--danger-700);">48%</div><div class="col-trend trend-bar"><span style="height:50%; background:var(--ink-300);"></span><span style="height:45%; background:var(--ink-300);"></span><span style="height:40%; background:var(--ink-300);"></span><span style="height:38%; background:var(--ink-300);"></span><span style="height:35%; background:var(--ink-300);"></span><span style="height:30%; background:var(--ink-300);"></span><span style="height:25%; background:var(--ink-300);"></span></div><span class="badge down">↓</span></a>
           </div>
-
-          <div style="display:flex; align-items:center; gap:8px; margin-top:18px; font-size:11px; color:var(--ink-500);">
-            <span>меньше</span>
-            <div class="cell" style="width:14px; aspect-ratio:1; background:var(--ink-100); border-radius:3px;"></div>
-            <div class="cell" style="width:14px; aspect-ratio:1; background:#FFE3D9; border-radius:3px;"></div>
-            <div class="cell" style="width:14px; aspect-ratio:1; background:#FFC7B3; border-radius:3px;"></div>
-            <div class="cell" style="width:14px; aspect-ratio:1; background:#FF8E69; border-radius:3px;"></div>
-            <div class="cell" style="width:14px; aspect-ratio:1; background:var(--brand-500); border-radius:3px;"></div>
-            <div class="cell" style="width:14px; aspect-ratio:1; background:var(--brand-700); border-radius:3px;"></div>
-            <span>больше</span>
+          <div style="text-align:center; padding:14px; border-top:1px solid var(--ink-100); margin-top:8px;">
+            <button class="btn btn-ghost btn-sm">Показать ещё 39 учеников</button>
           </div>
         </div>
 
-        <!-- Top subjects -->
-        <div class="card col-5">
-          <div class="section-head" style="margin-bottom: 18px;">
-            <div>
-              <h2 style="font-size:16px;">Сложность тем</h2>
-              <div class="subtitle">Где у класса проблемы чаще</div>
+        <!-- Распределение учеников по уровням + Прогресс -->
+        <div class="a-grid">
+          <div class="a-col-6 a-card">
+            <div class="a-card-head">
+              <div>
+                <h2>Распределение по уровням</h2>
+                <div class="sub">Все 47 учеников · средний балл за месяц</div>
+              </div>
+            </div>
+            <div style="display:flex; align-items:center; gap:20px; flex-wrap: wrap;">
+              <div class="donut-wrap">
+                <svg viewBox="0 0 100 100">
+                  <circle cx="50" cy="50" r="40" fill="none" stroke="var(--success-500)" stroke-width="14" stroke-dasharray="64 251" stroke-dashoffset="0" />
+                  <circle cx="50" cy="50" r="40" fill="none" stroke="#34D399" stroke-width="14" stroke-dasharray="106 251" stroke-dashoffset="-64" />
+                  <circle cx="50" cy="50" r="40" fill="none" stroke="var(--warning-500)" stroke-width="14" stroke-dasharray="65 251" stroke-dashoffset="-170" />
+                  <circle cx="50" cy="50" r="40" fill="none" stroke="var(--danger-500)" stroke-width="14" stroke-dasharray="16 251" stroke-dashoffset="-235" />
+                </svg>
+                <div class="center"><div class="v">47</div><div class="l">учеников</div></div>
+              </div>
+              <div class="legend-list">
+                <div class="row"><span class="dot" style="background:var(--success-500);"></span><span class="name">Отличники (4,5+)</span><span class="val">12</span></div>
+                <div class="row"><span class="dot" style="background:#34D399;"></span><span class="name">Хорошисты (3,5–4,5)</span><span class="val">20</span></div>
+                <div class="row"><span class="dot" style="background:var(--warning-500);"></span><span class="name">Удовл. (3–3,5)</span><span class="val">12</span></div>
+                <div class="row"><span class="dot" style="background:var(--danger-500);"></span><span class="name">В риске (&lt;3)</span><span class="val">3</span></div>
+              </div>
             </div>
           </div>
 
-          <div class="dist-bars">
-            <div class="dist-row">
-              <span class="l">Тригонометрия</span>
-              <span class="b"><i style="width:78%; background:var(--danger-500);"></i></span>
-              <span class="v">78%</span>
+          <div class="a-col-6 a-card">
+            <div class="a-card-head">
+              <div>
+                <h2>Динамика по ученикам</h2>
+                <div class="sub">Сколько растут / падают / стабильны</div>
+              </div>
             </div>
-            <div class="dist-row">
-              <span class="l">Интегралы</span>
-              <span class="b"><i style="width:65%; background:var(--warning-500);"></i></span>
-              <span class="v">65%</span>
+            <div class="dist-bars">
+              <div class="dist-row">
+                <span class="l" style="display:inline-flex; align-items:center; gap:6px;"><i data-lucide="trending-up" style="width:14px; color:var(--success-700);"></i> Растут</span>
+                <span class="b"><i style="width:55%; background:var(--success-500);"></i></span>
+                <span class="v">26</span>
+              </div>
+              <div class="dist-row">
+                <span class="l" style="display:inline-flex; align-items:center; gap:6px;"><i data-lucide="minus" style="width:14px; color:var(--ink-500);"></i> Стабильно</span>
+                <span class="b"><i style="width:32%; background:var(--ink-400);"></i></span>
+                <span class="v">15</span>
+              </div>
+              <div class="dist-row">
+                <span class="l" style="display:inline-flex; align-items:center; gap:6px;"><i data-lucide="trending-down" style="width:14px; color:var(--danger-700);"></i> Падают</span>
+                <span class="b"><i style="width:13%; background:var(--danger-500);"></i></span>
+                <span class="v">6</span>
+              </div>
             </div>
-            <div class="dist-row">
-              <span class="l">Past Continuous</span>
-              <span class="b"><i style="width:48%; background:var(--warning-500);"></i></span>
-              <span class="v">48%</span>
-            </div>
-            <div class="dist-row">
-              <span class="l">Дискриминант</span>
-              <span class="b"><i style="width:32%; background:var(--success-500);"></i></span>
-              <span class="v">32%</span>
-            </div>
-            <div class="dist-row">
-              <span class="l">Эл. индукция</span>
-              <span class="b"><i style="width:28%; background:var(--success-500);"></i></span>
-              <span class="v">28%</span>
-            </div>
-            <div class="dist-row">
-              <span class="l">Геометрия</span>
-              <span class="b"><i style="width:22%; background:var(--success-500);"></i></span>
-              <span class="v">22%</span>
+            <div class="ai-tip">
+              <span class="ai-tag">ИИ</span>
+              <span>За месяц <b>+0,4 балла</b> в среднем — это хороший рост. Лучше всего растут ученики 11Б (4 человека за месяц подтянулись с 4,2 до 4,7).</span>
             </div>
           </div>
-
-          <div style="margin-top: 18px; padding: 12px 14px; background: linear-gradient(165deg, #EEF2FF 0%, #FFFFFF 60%); border:1px solid #C7D2FE; border-radius: var(--r-md); font-size: 12px; color: var(--ink-700); display:flex; gap:10px; align-items:flex-start;">
-            <span style="background: linear-gradient(135deg, #6366F1, #8B5CF6); color:white; padding:2px 6px; border-radius:var(--r-sm); font-weight:700; font-size:10px; flex-shrink:0;">ИИ</span>
-            <span>Тригонометрия сейчас тяжелее всего для 10А. Рекомендую сгенерировать «Вау-урок» с акцентом на формулы приведения.</span>
-          </div>
         </div>
 
-      </div>
-
-      <!-- ─── Per-class table ─── -->
-      <div class="card" style="padding: 0;">
-        <div style="padding: 20px 24px; border-bottom: 1px solid var(--ink-100);">
-          <div class="section-head" style="margin-bottom: 0;">
-            <div>
-              <h2 style="font-size:16px;">Сравнение классов</h2>
-              <div class="subtitle">Где растут, где буксуют</div>
-            </div>
-            <button class="btn btn-secondary btn-sm"><i data-lucide="arrow-up-down"></i> По баллу</button>
-          </div>
-        </div>
-
-        <div class="class-row" style="background: var(--surface-soft); padding: 10px 16px;">
-          <div style="font-size:10px; font-weight:700; color:var(--ink-500); text-transform:uppercase; letter-spacing:0.04em;">Класс</div>
-          <div style="font-size:10px; font-weight:700; color:var(--ink-500); text-transform:uppercase; letter-spacing:0.04em;">Балл</div>
-          <div style="font-size:10px; font-weight:700; color:var(--ink-500); text-transform:uppercase; letter-spacing:0.04em;">Сдают</div>
-          <div style="font-size:10px; font-weight:700; color:var(--ink-500); text-transform:uppercase; letter-spacing:0.04em;">Тренд</div>
-          <div></div>
-        </div>
-
-        <div class="class-row">
-          <div class="cn"><span class="pill">11Б</span> <span>11Б · математика</span></div>
-          <div class="stat">4,6 <div class="l">средний</div></div>
-          <div class="stat" style="color:var(--success-700);">94% <div class="l">вовремя</div></div>
-          <div class="trend-bar">
-            <span style="height:30%; background:var(--brand-200);"></span>
-            <span style="height:45%; background:var(--brand-300);"></span>
-            <span style="height:50%; background:var(--brand-400);"></span>
-            <span style="height:60%; background:var(--brand-400);"></span>
-            <span style="height:75%; background:var(--brand-500);"></span>
-            <span style="height:80%; background:var(--brand-500);"></span>
-            <span style="height:92%; background:var(--brand-600);"></span>
-          </div>
-          <span class="badge badge-success">Растёт</span>
-        </div>
-
-        <div class="class-row">
-          <div class="cn"><span class="pill">10А</span> <span>10А · математика</span></div>
-          <div class="stat">4,3 <div class="l">средний</div></div>
-          <div class="stat" style="color:var(--success-700);">89% <div class="l">вовремя</div></div>
-          <div class="trend-bar">
-            <span style="height:55%; background:var(--brand-300);"></span>
-            <span style="height:60%; background:var(--brand-400);"></span>
-            <span style="height:50%; background:var(--brand-300);"></span>
-            <span style="height:65%; background:var(--brand-400);"></span>
-            <span style="height:70%; background:var(--brand-400);"></span>
-            <span style="height:80%; background:var(--brand-500);"></span>
-            <span style="height:85%; background:var(--brand-500);"></span>
-          </div>
-          <span class="badge badge-success">Растёт</span>
-        </div>
-
-        <div class="class-row">
-          <div class="cn"><span class="pill">9А</span> <span>9А · математика</span></div>
-          <div class="stat">3,9 <div class="l">средний</div></div>
-          <div class="stat" style="color:var(--warning-700);">82% <div class="l">вовремя</div></div>
-          <div class="trend-bar">
-            <span style="height:70%; background:var(--brand-400);"></span>
-            <span style="height:75%; background:var(--brand-500);"></span>
-            <span style="height:65%; background:var(--brand-400);"></span>
-            <span style="height:55%; background:var(--brand-300);"></span>
-            <span style="height:50%; background:var(--brand-300);"></span>
-            <span style="height:45%; background:var(--brand-300);"></span>
-            <span style="height:42%; background:var(--brand-300);"></span>
-          </div>
-          <span class="badge badge-warning">Падает</span>
-        </div>
-
-        <div class="class-row">
-          <div class="cn"><span class="pill">8А</span> <span>8А · история</span></div>
-          <div class="stat" style="color:var(--danger-700);">3,5 <div class="l">средний</div></div>
-          <div class="stat" style="color:var(--danger-700);">71% <div class="l">вовремя</div></div>
-          <div class="trend-bar">
-            <span style="height:30%; background:var(--ink-300);"></span>
-            <span style="height:35%; background:var(--ink-300);"></span>
-            <span style="height:25%; background:var(--ink-300);"></span>
-            <span style="height:30%; background:var(--ink-300);"></span>
-            <span style="height:32%; background:var(--ink-300);"></span>
-            <span style="height:28%; background:var(--ink-300);"></span>
-            <span style="height:34%; background:var(--ink-300);"></span>
-          </div>
-          <span class="badge badge-danger">Внимание</span>
-        </div>
-
-        <div class="class-row">
-          <div class="cn"><span class="pill">8В</span> <span>8В · англ. язык</span></div>
-          <div class="stat">4,1 <div class="l">средний</div></div>
-          <div class="stat" style="color:var(--success-700);">90% <div class="l">вовремя</div></div>
-          <div class="trend-bar">
-            <span style="height:60%; background:var(--brand-400);"></span>
-            <span style="height:65%; background:var(--brand-400);"></span>
-            <span style="height:70%; background:var(--brand-500);"></span>
-            <span style="height:72%; background:var(--brand-500);"></span>
-            <span style="height:75%; background:var(--brand-500);"></span>
-            <span style="height:70%; background:var(--brand-500);"></span>
-            <span style="height:72%; background:var(--brand-500);"></span>
-          </div>
-          <span class="badge badge-info">Стабильно</span>
-        </div>
       </div>
 
     </div>
   </main>
 </div>
-<script>lucide.createIcons();</script>
+
+<script>
+  // Переключение главных табов: По классам / По ученикам
+  document.querySelectorAll('.main-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.main-tab').forEach(b => b.classList.remove('is-active'));
+      btn.classList.add('is-active');
+      document.body.dataset.view = btn.dataset.view;
+    });
+  });
+
+  // Сегмент периода
+  document.querySelectorAll('.seg button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.seg button').forEach(b => b.classList.remove('is-active'));
+      btn.classList.add('is-active');
+    });
+  });
+
+  lucide.createIcons();
+
+// ────────── Tour ──────────
+window.TOUR_LS_KEY = 'prepodavai_analytics_tour_v1';
+window.TOUR_STEPS = [
+  {
+    target: null, isModal: true, illustration: '📊',
+    title: 'Аналитика по классам и ученикам',
+    body: 'Здесь видно, как идут дела у каждого класса и ученика. За минуту покажу, что показывают графики и как этим пользоваться.',
+    primaryLabel: 'Начнём'
+  },
+  {
+    target: '[data-tour="period"]', placement: 'bottom', padding: 6,
+    title: '📅 Период',
+    body: 'Все цифры и графики ниже считаются за выбранный период: неделя, месяц, семестр или год. Переключаете — всё пересчитывается.'
+  },
+  {
+    target: '[data-tour="filters"]', placement: 'bottom', padding: 6,
+    title: 'Фильтры',
+    body: 'Можно показать один класс или быстро отфильтровать «только проблемные» / «только растущие». Пилюли работают как переключатели.'
+  },
+  {
+    target: '[data-tour="kpi"]', placement: 'bottom', padding: 8,
+    title: '6 главных цифр',
+    body: 'Средний балл, % сдач вовремя, активные ученики, под наблюдением, скорость сдачи, созданные материалы. Зелёные стрелки — рост, красные — падение.'
+  },
+  {
+    target: '[data-tour="main-tabs"]', placement: 'bottom', padding: 6,
+    title: 'По классам или по ученикам',
+    body: 'Два режима. По классам — общая картина каждого класса. По ученикам — индивидуальные траектории.'
+  },
+  {
+    target: '[data-tour="charts"]', placement: 'top', padding: 8,
+    title: '📈 Тренд + распределение оценок',
+    body: 'Слева — динамика балла (этот период vs прошлый). Справа — сколько у кого каких оценок. Видно сразу, кто отстаёт.'
+  },
+  {
+    target: '[data-tour="heatmap"]', placement: 'top', padding: 8,
+    title: '🗓 Вовлечённость + сложные темы',
+    body: 'Heatmap показывает, в какие дни ученики активнее всего. Справа — темы, на которых класс «спотыкается»: можно сразу запланировать повторение.'
+  },
+  {
+    target: '[data-tour="export"]', placement: 'bottom', padding: 6,
+    title: '📥 Скачать отчёт',
+    body: 'Один клик — PDF со всеми графиками и таблицами. Удобно для родительского собрания или отчёта в школу.'
+  },
+  {
+    target: null, isModal: true, illustration: '🎉',
+    title: 'Готово!',
+    body: 'Аналитика помогает заметить проблемы до того, как они станут критическими. Загляните сюда раз в неделю.',
+    primaryLabel: 'К работе'
+  }
+];
+</script>
+<script src="assets/tour.js"></script>
 </body>
 </html>

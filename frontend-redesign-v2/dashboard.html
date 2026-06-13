@@ -15,7 +15,7 @@
 <div class="app-shell">
 
   <!-- ───────── SIDEBAR ───────── -->
-  <aside class="sidebar">
+  <aside class="sidebar" data-tour="sidebar">
     <div class="sidebar-brand">
       <img src="assets/logo.png" alt="" />
       <span class="brand-name">Преподавай</span>
@@ -23,23 +23,23 @@
 
     <nav class="sidebar-section">
       <div class="sidebar-label">Рабочий стол</div>
-      <a class="nav-item is-active"><i data-lucide="layout-dashboard"></i>Главная</a>
-      <a class="nav-item"><i data-lucide="wand-sparkles"></i>ИИ Генератор</a>
-      <a class="nav-item"><i data-lucide="calendar"></i>Календарь</a>
-      <a class="nav-item"><i data-lucide="book-open"></i>Материалы</a>
+      <a class="nav-item is-active" data-tour="nav-home"><i data-lucide="layout-dashboard"></i>Главная</a>
+      <a class="nav-item" data-tour="nav-ai"><i data-lucide="wand-sparkles"></i>ИИ Генератор</a>
+      <a class="nav-item" data-tour="nav-calendar"><i data-lucide="calendar"></i>Календарь</a>
+      <a class="nav-item" data-tour="nav-materials"><i data-lucide="book-open"></i>Материалы</a>
 
       <div class="sidebar-label">Класс</div>
-      <a class="nav-item">
+      <a class="nav-item" data-tour="nav-students">
         <i data-lucide="users"></i>Ученики
         <span class="nav-badge">3</span>
       </a>
-      <a class="nav-item"><i data-lucide="clipboard-check"></i>Проверка ДЗ</a>
-      <a class="nav-item"><i data-lucide="bar-chart-3"></i>Аналитика</a>
+      <a class="nav-item" data-tour="nav-grading"><i data-lucide="clipboard-check"></i>Проверка ДЗ</a>
+      <a class="nav-item" data-tour="nav-analytics"><i data-lucide="bar-chart-3"></i>Аналитика</a>
 
       <div class="sidebar-label">Прочее</div>
-      <a class="nav-item"><i data-lucide="gift"></i>Пригласить</a>
-      <a class="nav-item"><i data-lucide="message-circle"></i>Поддержка</a>
-      <a class="nav-item"><i data-lucide="settings"></i>Настройки</a>
+      <a class="nav-item" data-tour="nav-invite"><i data-lucide="gift"></i>Пригласить</a>
+      <a class="nav-item" data-tour="nav-support"><i data-lucide="message-circle"></i>Поддержка</a>
+      <a class="nav-item" data-tour="nav-settings"><i data-lucide="settings"></i>Настройки</a>
     </nav>
 
     <div class="sidebar-footer">
@@ -64,17 +64,16 @@
         </div>
       </div>
       <div class="actions">
-        <div class="searchbar">
+        <div class="searchbar" data-tour="search">
           <i data-lucide="search"></i>
           <input placeholder="Поиск материалов, учеников, классов…" />
           <span class="kbd">⌘K</span>
         </div>
-        <div class="token-chip">
-          <div class="spark"><i data-lucide="sparkles"></i></div>
-          <span class="tnum">9 375</span>
-          <span style="color:var(--brand-600); font-weight:500;">токенов</span>
-        </div>
-        <button class="btn btn-ghost" aria-label="Уведомления" style="height:36px; width:36px; padding:0; position:relative;">
+        <button class="btn btn-ghost" id="tour-restart-header" aria-label="Запустить тур" style="height:36px; padding: 0 14px; gap: 8px;">
+          <i data-lucide="compass" style="width:16px;"></i>
+          <span style="font-size:13px; font-weight:600;">Тур</span>
+        </button>
+        <button class="btn btn-ghost" data-tour="notifications" aria-label="Уведомления" style="height:36px; width:36px; padding:0; position:relative;">
           <i data-lucide="bell" style="width:18px;"></i>
           <span style="position:absolute; top:6px; right:6px; width:8px; height:8px; background:var(--brand-500); border-radius:50%; border:2px solid white;"></span>
         </button>
@@ -84,7 +83,7 @@
     <div class="content">
 
       <!-- ────────── Bento: что важно сегодня ────────── -->
-      <section style="margin-bottom: 32px;">
+      <section style="margin-bottom: 32px;" data-tour="today">
         <div class="section-head">
           <div>
             <h2>Что важно сегодня</h2>
@@ -164,77 +163,56 @@
         </div>
       </section>
 
-      <!-- ────────── Quick start (AI generator) ────────── -->
-      <section style="margin-bottom: 32px;">
+      <!-- ────────── Часто используете ────────── -->
+      <section style="margin-bottom: 32px;" data-tour="favorites">
         <div class="section-head">
           <div>
-            <h2>Быстрый старт</h2>
-            <div class="subtitle">Сгенерировать материал за минуту</div>
+            <h2>Часто используете</h2>
+            <div class="subtitle">Запустить инструмент в один клик</div>
           </div>
+          <button class="btn btn-ghost btn-sm">Все инструменты <i data-lucide="arrow-right" style="width:14px;"></i></button>
         </div>
-
-        <div class="grid-bento">
-          <!-- Hero generator card -->
-          <div class="card col-8" style="background: linear-gradient(135deg, #FFF4F0 0%, #FFFFFF 60%); border-color: var(--brand-200);">
-            <div style="display:flex; gap:24px; align-items:flex-start;">
-              <div style="width:56px; height:56px; border-radius:var(--r-lg); background: linear-gradient(135deg, var(--brand-400), var(--brand-600)); display:flex; align-items:center; justify-content:center; color:white; flex-shrink:0;">
-                <i data-lucide="sparkles" style="width:28px; height:28px;"></i>
-              </div>
-              <div style="flex:1;">
-                <h3 style="font-size:18px; margin-bottom:4px;">Сгенерируйте материал к уроку</h3>
-                <p style="font-size:14px; color:var(--ink-600); margin:0 0 16px;">
-                  Опишите тему — ИИ соберёт рабочий лист, тест, презентацию или сразу всё вместе.
-                </p>
-                <div style="display:flex; gap:8px; flex-wrap: wrap;">
-                  <button class="btn btn-primary">
-                    <i data-lucide="wand-sparkles"></i>
-                    Открыть генератор
-                  </button>
-                  <button class="btn btn-secondary">
-                    <i data-lucide="zap"></i>
-                    Вау-урок
-                  </button>
-                </div>
-              </div>
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px;">
+          <a class="card" style="padding: 16px; display:flex; align-items:center; gap:12px; cursor:pointer; transition: border-color .15s ease, transform .15s ease;" onmouseenter="this.style.borderColor='var(--brand-300)'; this.style.transform='translateY(-2px)'" onmouseleave="this.style.borderColor=''; this.style.transform=''">
+            <span style="width:38px; height:38px; background:var(--brand-50); border-radius:var(--r-md); display:flex; align-items:center; justify-content:center; color:var(--brand-700); flex-shrink:0;">
+              <i data-lucide="file-text"></i>
+            </span>
+            <div style="flex:1; min-width:0;">
+              <div style="font-weight:700; font-size:14px; color:var(--ink-900);">Рабочий лист</div>
+              <div style="font-size:11px; color:var(--ink-500);">~30 секунд</div>
             </div>
-          </div>
-
-          <!-- Last used tools -->
-          <div class="card col-4">
-            <div style="font-size:13px; font-weight:600; color:var(--ink-500); margin-bottom:12px;">Часто используете</div>
-            <div style="display:flex; flex-direction:column; gap:6px;">
-              <a class="nav-item" style="margin:0;">
-                <span style="width:28px; height:28px; background:var(--brand-50); border-radius:var(--r-sm); display:flex; align-items:center; justify-content:center; color:var(--brand-700);">
-                  <i data-lucide="file-text"></i>
-                </span>
-                <div style="flex:1;">
-                  <div style="font-weight:600; font-size:13px; color:var(--ink-900);">Рабочий лист</div>
-                  <div style="font-size:11px; color:var(--ink-500);">3 токена · ~30 сек</div>
-                </div>
-                <i data-lucide="chevron-right" style="color:var(--ink-400); width:16px;"></i>
-              </a>
-              <a class="nav-item" style="margin:0;">
-                <span style="width:28px; height:28px; background:var(--info-50); border-radius:var(--r-sm); display:flex; align-items:center; justify-content:center; color:var(--info-700);">
-                  <i data-lucide="circle-help"></i>
-                </span>
-                <div style="flex:1;">
-                  <div style="font-weight:600; font-size:13px; color:var(--ink-900);">Генератор тестов</div>
-                  <div style="font-size:11px; color:var(--ink-500);">3 токена · ~30 сек</div>
-                </div>
-                <i data-lucide="chevron-right" style="color:var(--ink-400); width:16px;"></i>
-              </a>
-              <a class="nav-item" style="margin:0;">
-                <span style="width:28px; height:28px; background:var(--success-50); border-radius:var(--r-sm); display:flex; align-items:center; justify-content:center; color:var(--success-700);">
-                  <i data-lucide="presentation"></i>
-                </span>
-                <div style="flex:1;">
-                  <div style="font-weight:600; font-size:13px; color:var(--ink-900);">Презентация</div>
-                  <div style="font-size:11px; color:var(--ink-500);">50 токенов · ~2 мин</div>
-                </div>
-                <i data-lucide="chevron-right" style="color:var(--ink-400); width:16px;"></i>
-              </a>
+            <i data-lucide="chevron-right" style="color:var(--ink-400); width:16px; flex-shrink:0;"></i>
+          </a>
+          <a class="card" style="padding: 16px; display:flex; align-items:center; gap:12px; cursor:pointer; transition: border-color .15s ease, transform .15s ease;" onmouseenter="this.style.borderColor='var(--brand-300)'; this.style.transform='translateY(-2px)'" onmouseleave="this.style.borderColor=''; this.style.transform=''">
+            <span style="width:38px; height:38px; background:var(--info-50); border-radius:var(--r-md); display:flex; align-items:center; justify-content:center; color:var(--info-700); flex-shrink:0;">
+              <i data-lucide="circle-help"></i>
+            </span>
+            <div style="flex:1; min-width:0;">
+              <div style="font-weight:700; font-size:14px; color:var(--ink-900);">Генератор тестов</div>
+              <div style="font-size:11px; color:var(--ink-500);">~30 секунд</div>
             </div>
-          </div>
+            <i data-lucide="chevron-right" style="color:var(--ink-400); width:16px; flex-shrink:0;"></i>
+          </a>
+          <a class="card" style="padding: 16px; display:flex; align-items:center; gap:12px; cursor:pointer; transition: border-color .15s ease, transform .15s ease;" onmouseenter="this.style.borderColor='var(--brand-300)'; this.style.transform='translateY(-2px)'" onmouseleave="this.style.borderColor=''; this.style.transform=''">
+            <span style="width:38px; height:38px; background:var(--success-50); border-radius:var(--r-md); display:flex; align-items:center; justify-content:center; color:var(--success-700); flex-shrink:0;">
+              <i data-lucide="presentation"></i>
+            </span>
+            <div style="flex:1; min-width:0;">
+              <div style="font-weight:700; font-size:14px; color:var(--ink-900);">Презентация</div>
+              <div style="font-size:11px; color:var(--ink-500);">~2 минуты</div>
+            </div>
+            <i data-lucide="chevron-right" style="color:var(--ink-400); width:16px; flex-shrink:0;"></i>
+          </a>
+          <a class="card" style="padding: 16px; display:flex; align-items:center; gap:12px; cursor:pointer; transition: border-color .15s ease, transform .15s ease;" onmouseenter="this.style.borderColor='var(--brand-300)'; this.style.transform='translateY(-2px)'" onmouseleave="this.style.borderColor=''; this.style.transform=''">
+            <span style="width:38px; height:38px; background:var(--warning-50); border-radius:var(--r-md); display:flex; align-items:center; justify-content:center; color:var(--warning-700); flex-shrink:0;">
+              <i data-lucide="clipboard-list"></i>
+            </span>
+            <div style="flex:1; min-width:0;">
+              <div style="font-weight:700; font-size:14px; color:var(--ink-900);">План урока</div>
+              <div style="font-size:11px; color:var(--ink-500);">~1 минута</div>
+            </div>
+            <i data-lucide="chevron-right" style="color:var(--ink-400); width:16px; flex-shrink:0;"></i>
+          </a>
         </div>
       </section>
 
@@ -242,7 +220,7 @@
       <section style="margin-bottom: 32px;">
         <div class="grid-bento">
           <!-- Today schedule -->
-          <div class="card col-6">
+          <div class="card col-6" data-tour="schedule">
             <div class="section-head" style="margin-bottom:16px;">
               <div>
                 <h2 style="font-size:16px;">Расписание сегодня</h2>
@@ -293,7 +271,7 @@
           </div>
 
           <!-- Recent generations -->
-          <div class="card col-6">
+          <div class="card col-6" data-tour="recent-materials">
             <div class="section-head" style="margin-bottom:16px;">
               <div>
                 <h2 style="font-size:16px;">Последние материалы</h2>
@@ -353,7 +331,7 @@
       <!-- ────────── Weekly summary (chart placeholder) ────────── -->
       <section>
         <div class="grid-bento">
-          <div class="card col-8">
+          <div class="card col-8" data-tour="activity">
             <div class="section-head" style="margin-bottom:20px;">
               <div>
                 <h2 style="font-size:16px;">Активность за неделю</h2>
@@ -398,25 +376,27 @@
             </div>
           </div>
 
-          <div class="card col-4">
-            <div class="section-head" style="margin-bottom:20px;">
+          <div class="card col-4" style="background: linear-gradient(145deg, #fff7ed, #ffedd5); border-color: #fed7aa; position:relative; overflow:hidden;">
+            <div style="position:absolute; top:-30px; right:-30px; width:140px; height:140px; background: radial-gradient(circle, rgba(249,115,22,.15), transparent 70%); pointer-events:none;"></div>
+            <div class="section-head" style="margin-bottom:14px; position:relative;">
               <div>
-                <h2 style="font-size:16px;">Баланс токенов</h2>
+                <div style="display:inline-flex; align-items:center; gap:6px; padding:3px 10px; border-radius:99px; background: white; border: 1px solid #fed7aa; color: #ea580c; font-size:11px; font-weight:700; letter-spacing:0.04em; text-transform:uppercase; margin-bottom:10px;">
+                  <i data-lucide="compass" style="width:12px; height:12px;"></i>
+                  Подсказка
+                </div>
+                <h2 style="font-size:18px; color:#7c2d12;">Запутались в интерфейсе?</h2>
               </div>
             </div>
-            <div style="font-family: var(--font-display); font-size: 36px; font-weight: 800; color: var(--ink-900); letter-spacing:-0.02em;" class="tnum">9 375</div>
-            <div style="font-size:13px; color:var(--ink-500); margin-bottom: 20px;">из 1 500 / мес. бизнес-тариф</div>
-
-            <!-- Progress bar -->
-            <div style="height:8px; background:var(--ink-100); border-radius: var(--r-full); overflow:hidden; margin-bottom: 16px;">
-              <div style="width:62%; height:100%; background: linear-gradient(90deg, var(--brand-400), var(--brand-600)); border-radius: var(--r-full);"></div>
-            </div>
-
-            <div style="display:flex; gap:8px;">
-              <button class="btn btn-primary btn-sm" style="flex:1;">
-                <i data-lucide="plus"></i> Пополнить
+            <p style="font-size:13.5px; color:#9a3412; line-height:1.6; margin: 0 0 18px; position:relative;">
+              Покажу за минуту, где что находится. Можно перезапустить в любой момент.
+            </p>
+            <div style="display:flex; gap:8px; position:relative;">
+              <button class="btn btn-primary btn-sm" id="tour-restart-card" style="flex:1;">
+                <i data-lucide="play"></i> Запустить тур
               </button>
-              <button class="btn btn-secondary btn-sm">История</button>
+              <a href="https://t.me/prepodavai_help_bot" target="_blank" rel="noopener" class="btn btn-secondary btn-sm" style="text-decoration:none;">
+                <i data-lucide="message-circle"></i>
+              </a>
             </div>
           </div>
         </div>
@@ -426,6 +406,122 @@
   </main>
 </div>
 
+<!-- ────────── Onboarding Tour ────────── -->
+<script>
+  // Шаги тура для главной — движок в assets/tour.js
+  window.TOUR_LS_KEY = 'prepodavai_dashboard_tour_v1';
+  window.TOUR_STEPS = [
+    // ── 1. Welcome
+    {
+      target: null, isModal: true, illustration: '👋',
+      title: 'Здравствуйте, Евгения!',
+      body: 'За пару минут покажу, что где находится. Сначала пройдёмся по меню слева, потом — по блокам на дашборде. Можно пропустить в любой момент.',
+      primaryLabel: 'Начнём'
+    },
+    // ── 2. Sidebar overview
+    {
+      target: '[data-tour="sidebar"]', placement: 'right', padding: 6,
+      title: 'Это главное меню',
+      body: 'Все разделы платформы — слева. Меню сгруппировано: Рабочий стол, Класс, Прочее. Сейчас пройдёмся по каждому пункту.'
+    },
+    // ── 3-12. Sidebar items
+    {
+      target: '[data-tour="nav-home"]', placement: 'right',
+      title: '🏠 Главная',
+      body: 'Стартовая страница с обзором дня — то, что вы сейчас видите. Сюда возвращаетесь, чтобы быстро понять, что важно прямо сейчас.'
+    },
+    {
+      target: '[data-tour="nav-ai"]', placement: 'right',
+      title: '⚡ ИИ Генератор — главный инструмент',
+      body: '15+ форматов: рабочие листы, тесты, презентации, варианты ОГЭ/ЕГЭ, изображения, планы уроков. Сюда заходите каждый раз, когда нужно подготовить материал.'
+    },
+    {
+      target: '[data-tour="nav-calendar"]', placement: 'right',
+      title: '📅 Календарь',
+      body: 'Расписание уроков на месяц и дедлайны заданий. Видно сразу всё, что планируется на неделю вперёд.'
+    },
+    {
+      target: '[data-tour="nav-materials"]', placement: 'right',
+      title: '📁 Материалы',
+      body: 'Архив всего, что вы создали. Можно искать, фильтровать по тегам, переиспользовать или адаптировать под другой класс.'
+    },
+    {
+      target: '[data-tour="nav-students"]', placement: 'right',
+      title: '👥 Ученики',
+      body: 'Все ваши классы и ученики. Здесь добавляете новых, приглашаете по ссылке, отслеживаете успеваемость каждого.'
+    },
+    {
+      target: '[data-tour="nav-grading"]', placement: 'right',
+      title: '✅ Проверка ДЗ',
+      body: 'Проверяете домашние задания. ИИ помогает оценивать и писать комментарии. Горячие клавиши 1–5 для оценки + шаблоны фидбэка.'
+    },
+    {
+      target: '[data-tour="nav-analytics"]', placement: 'right',
+      title: '📊 Аналитика',
+      body: 'Графики успеваемости класса, динамика по предметам, кто отстаёт, кто прогрессирует. Помогает увидеть тренды до родительского собрания.'
+    },
+    {
+      target: '[data-tour="nav-invite"]', placement: 'right',
+      title: '🎁 Пригласить',
+      body: 'Делитесь платформой с коллегами — за каждого получаете бонусы. Можно создать свой реферальный код или ссылку.'
+    },
+    {
+      target: '[data-tour="nav-support"]', placement: 'right',
+      title: '💬 Поддержка',
+      body: 'Связь с нашей командой. Отвечаем в Telegram в течение часа в рабочее время. Можно прислать скриншот или описать проблему словами.'
+    },
+    {
+      target: '[data-tour="nav-settings"]', placement: 'right',
+      title: '⚙️ Настройки',
+      body: 'Профиль, имя, email, аватар, предмет, классы. Здесь же — связать платформу с Telegram или MAX и поменять пароль.'
+    },
+    // ── 13-14. Top bar
+    {
+      target: '[data-tour="search"]', placement: 'bottom',
+      title: '🔎 Поиск ⌘K',
+      body: 'Найдёте материал, ученика или класс за секунду. Жмёте ⌘K (Cmd+K) — открывается окно поиска. Работает с любой страницы.'
+    },
+    {
+      target: '[data-tour="notifications"]', placement: 'bottom',
+      title: '🔔 Уведомления',
+      body: 'Когда ученик сдал работу, появилось новое сообщение или закончилась генерация — точка загорится. Кликните, чтобы увидеть список.'
+    },
+    // ── 15-19. Dashboard content
+    {
+      target: '[data-tour="today"]', placement: 'top', padding: 8,
+      title: '⚠️ Что важно сегодня',
+      body: 'Четыре карточки с самым срочным: непроверенные работы, ближайший урок, ученики под наблюдением, просрочки. Клик по карточке — переходите в раздел.'
+    },
+    {
+      target: '[data-tour="favorites"]', placement: 'top', padding: 8,
+      title: '⚡ Часто используете',
+      body: 'Быстрые ярлыки к инструментам, которыми вы пользуетесь чаще всего. Один клик — открывается генератор с предзаполненными настройками.'
+    },
+    {
+      target: '[data-tour="schedule"]', placement: 'top',
+      title: '🕒 Расписание сегодня',
+      body: 'Уроки на текущий день с временем, темой и классом. Клик на урок открывает материалы и список учеников для этого занятия.'
+    },
+    {
+      target: '[data-tour="recent-materials"]', placement: 'top',
+      title: '📚 Последние материалы',
+      body: 'Что вы создавали последним. Можно сразу открыть, продолжить редактировать или поделиться с учениками — не нужно идти в архив.'
+    },
+    {
+      target: '[data-tour="activity"]', placement: 'top',
+      title: '📈 Активность за неделю',
+      body: 'График вашей активности: сколько материалов сделано, сколько работ проверено. Помогает увидеть собственный ритм.'
+    },
+    // ── 20. Finale
+    {
+      target: null, isModal: true, illustration: '🎉',
+      title: 'Готово! Вы освоили платформу',
+      body: 'Если что-то забудете — в шапке есть кнопка «Тур», а на дашборде справа — большая кнопка «Запустить тур». Всегда можно повторить. Хорошего урока!',
+      primaryLabel: 'К работе'
+    }
+  ];
+</script>
+<script src="assets/tour.js"></script>
 <script>lucide.createIcons();</script>
 </body>
 </html>

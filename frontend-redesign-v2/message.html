@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Сообщение родителям — Преподавай</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/tokens.css" />
+<link rel="stylesheet" href="assets/components.css" />
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+  .workspace {
+    display: grid;
+    grid-template-columns: minmax(300px, 380px) minmax(0, 1fr);
+    gap: 0;
+    height: calc(100vh - 64px);
+    min-height: 600px;
+  }
+  @media (max-width: 1023px) { .workspace { grid-template-columns: 1fr; height: auto; min-height: 0; } }
+
+  .ws-settings {
+    background: var(--surface);
+    border-right: 1px solid var(--ink-200);
+    padding: 24px;
+    overflow-y: auto;
+  }
+  .ws-preview {
+    background: var(--ink-50);
+    padding: 24px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .tool-hero {
+    display: flex; align-items: center; gap: 14px;
+    padding-bottom: 20px;
+    margin-bottom: 4px;
+    border-bottom: 1px solid var(--ink-100);
+  }
+  .tool-hero .icon {
+    width: 44px; height: 44px;
+    border-radius: var(--r-md);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .tool-hero .icon svg { width: 22px; height: 22px; }
+  .tool-hero h2 { font-size: 18px; }
+  .tool-hero .sub { font-size: 12px; color: var(--ink-500); margin-top: 2px; }
+
+  .field { margin-bottom: 18px; }
+  .input-label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ink-700);
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .input, textarea.input {
+    width: 100%;
+    border: 1px solid var(--ink-200);
+    border-radius: var(--r-md);
+    padding: 10px 12px;
+    font-family: inherit;
+    font-size: 14px;
+    background: var(--surface);
+    color: var(--ink-900);
+    transition: border-color var(--t-fast) var(--ease);
+  }
+  textarea.input { resize: vertical; min-height: 60px; }
+  .input:focus, textarea.input:focus { outline: none; border-color: var(--brand-400); box-shadow: 0 0 0 3px rgba(255,126,88,0.12); }
+  .input-hint { font-size: 11px; color: var(--ink-500); margin-top: 6px; }
+
+  .select-wrap { position: relative; }
+  .select-wrap select {
+    appearance: none;
+    width: 100%;
+    border: 1px solid var(--ink-200);
+    border-radius: var(--r-md);
+    padding: 10px 36px 10px 12px;
+    font-family: inherit;
+    font-size: 14px;
+    background: var(--surface);
+    color: var(--ink-900);
+    cursor: pointer;
+  }
+  .select-wrap svg { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: var(--ink-500); width: 16px; pointer-events: none; }
+
+  .chip-group { display: flex; gap: 6px; flex-wrap: wrap; }
+  .chip {
+    padding: 6px 12px;
+    border: 1px solid var(--ink-200);
+    border-radius: var(--r-full);
+    background: var(--surface);
+    color: var(--ink-700);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all var(--t-fast) var(--ease);
+  }
+  .chip:hover { border-color: var(--brand-300); color: var(--ink-900); }
+  .chip.is-active { background: var(--brand-50); border-color: var(--brand-300); color: var(--brand-700); }
+
+  .preset-strip { display: flex; gap: 6px; flex-wrap: wrap; }
+  .preset {
+    padding: 4px 10px;
+    background: var(--ink-100);
+    border: none;
+    border-radius: var(--r-sm);
+    font-size: 12px;
+    color: var(--ink-600);
+    cursor: pointer;
+    transition: background var(--t-fast) var(--ease);
+  }
+  .preset:hover { background: var(--ink-200); color: var(--ink-900); }
+
+  .range-row { display: flex; align-items: center; gap: 12px; }
+  .range-row input[type="range"] { flex: 1; accent-color: var(--brand-500); }
+  .range-val {
+    min-width: 36px;
+    text-align: center;
+    background: var(--brand-50);
+    color: var(--brand-700);
+    padding: 4px 10px;
+    border-radius: var(--r-sm);
+    font-weight: 700;
+    font-size: 13px;
+  }
+
+  .preview-toolbar {
+    display: flex; justify-content: space-between; align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    background: var(--surface);
+    border: 1px solid var(--ink-200);
+    border-radius: var(--r-md);
+    padding: 8px;
+  }
+  .preview-toolbar .left { display: flex; gap: 4px; flex-wrap: wrap; }
+  .preview-toolbar .tab {
+    padding: 6px 12px;
+    background: transparent;
+    border: none;
+    border-radius: var(--r-sm);
+    color: var(--ink-600);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .preview-toolbar .tab svg { width: 14px; height: 14px; flex-shrink: 0; }
+  .preview-toolbar .tab:hover { background: var(--ink-100); color: var(--ink-900); }
+  .preview-toolbar .tab.is-active { background: var(--ink-900); color: white; }
+  .preview-toolbar .right { display: flex; gap: 6px; flex-wrap: wrap; }
+
+  .preview-placeholder {
+    flex: 1;
+    background: var(--surface);
+    border: 2px dashed var(--ink-200);
+    border-radius: var(--r-lg);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    text-align: center;
+    color: var(--ink-500);
+    min-height: 400px;
+  }
+  .preview-placeholder .icon-big {
+    width: 72px; height: 72px;
+    border-radius: var(--r-lg);
+    background: var(--ink-100);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--ink-400);
+    margin-bottom: 16px;
+  }
+  .preview-placeholder .icon-big svg { width: 36px; height: 36px; }
+  .preview-placeholder h3 { font-size: 16px; color: var(--ink-700); margin-bottom: 6px; }
+  .preview-placeholder p { font-size: 13px; max-width: 360px; line-height: 1.6; }
+</style>
+</head>
+<body>
+<div class="app-shell">
+
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <img src="assets/logo.png" alt="" />
+      <span class="brand-name">Преподавай</span>
+    </div>
+    <nav class="sidebar-section">
+      <div class="sidebar-label">Рабочий стол</div>
+      <a class="nav-item" href="dashboard.html"><i data-lucide="layout-dashboard"></i><span>Главная</span></a>
+      <a class="nav-item is-active" href="tools.html"><i data-lucide="wand-sparkles"></i><span>ИИ Генератор</span></a>
+      <a class="nav-item"><i data-lucide="calendar"></i><span>Календарь</span></a>
+      <a class="nav-item"><i data-lucide="book-open"></i><span>Материалы</span></a>
+
+      <div class="sidebar-label">Класс</div>
+      <a class="nav-item"><i data-lucide="users"></i><span>Ученики</span><span class="nav-badge">3</span></a>
+      <a class="nav-item"><i data-lucide="clipboard-check"></i><span>Проверка ДЗ</span></a>
+      <a class="nav-item"><i data-lucide="bar-chart-3"></i><span>Аналитика</span></a>
+
+      <div class="sidebar-label">Прочее</div>
+      <a class="nav-item"><i data-lucide="gift"></i><span>Пригласить</span></a>
+      <a class="nav-item"><i data-lucide="message-circle"></i><span>Поддержка</span></a>
+      <a class="nav-item"><i data-lucide="settings"></i><span>Настройки</span></a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="user-chip">
+        <div class="avatar">ЕА</div>
+        <div class="info">
+          <div class="name">Евгения А.</div>
+          <div class="plan">Тариф «Бизнес»</div>
+        </div>
+        <i data-lucide="chevron-up" style="color:var(--ink-400); width:16px;"></i>
+      </div>
+    </div>
+  </aside>
+
+  <main>
+    <header class="topbar">
+      <div style="display:flex; align-items:center; gap:12px;">
+        <a href="tools.html" style="height:32px; width:32px; border-radius:var(--r-sm); border:1px solid var(--ink-200); background:var(--surface); display:flex; align-items:center; justify-content:center; color:var(--ink-600); cursor:pointer;">
+          <i data-lucide="arrow-left" style="width:16px;"></i>
+        </a>
+        <div>
+          <div style="font-size:12px; color:var(--ink-500);">ИИ Генератор</div>
+          <h1 style="font-size:18px;">Сообщение родителям</h1>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn btn-secondary btn-sm"><i data-lucide="history"></i> История</button>
+        <button class="btn btn-ghost" id="tour-restart-header" aria-label="Запустить тур" style="height:32px; padding: 0 12px; gap: 6px;">
+          <i data-lucide="compass" style="width:14px;"></i>
+          <span style="font-size:12px; font-weight:600;">Тур</span>
+        </button>
+      </div>
+    </header>
+
+    <div class="workspace">
+
+      <!-- ───── Settings panel ───── -->
+      <div class="ws-settings">
+        <div class="tool-hero" data-tour="hero">
+          <div class="icon" style="background:#F1F5F9; color:#475569;"><i data-lucide="mail"></i></div>
+          <div>
+            <h2>Сообщение родителям</h2>
+            <div class="sub">Тактичное сообщение по любой ситуации</div>
+          </div>
+        </div>
+
+        <!-- Template -->
+        <div class="field" data-tour="template">
+          <label class="input-label">Шаблон ситуации</label>
+          <div class="chip-group">
+            <button class="chip is-active">Приглашение на собрание</button>
+            <button class="chip">Отчёт об успеваемости</button>
+            <button class="chip">Поведение на уроке</button>
+            <button class="chip">Похвала / благодарность</button>
+            <button class="chip">Напоминание</button>
+            <button class="chip">Свободная форма</button>
+          </div>
+        </div>
+
+        <!-- Student -->
+        <div class="field" data-tour="student">
+          <label class="input-label">Имя ученика</label>
+          <input class="input" value="Алексей П." />
+        </div>
+
+        <!-- Context -->
+        <div class="field" data-tour="context">
+          <label class="input-label">Контекст и детали</label>
+          <textarea class="input" rows="4" placeholder="Опишите ситуацию своими словами. Чем подробнее — тем лучше получится сообщение.">Собрание 25 марта в 18:00, тема — успеваемость в третьей четверти и подготовка к ОГЭ. Очно в кабинете 204.</textarea>
+        </div>
+
+        <!-- Tone -->
+        <div class="field" data-tour="tone">
+          <label class="input-label">Тон сообщения</label>
+          <div class="chip-group">
+            <button class="chip is-active">Формальный</button>
+            <button class="chip">Дружелюбный</button>
+            <button class="chip">Тёплый</button>
+            <button class="chip">Сдержанный</button>
+          </div>
+        </div>
+
+        <!-- Channel -->
+        <div class="field" data-tour="channel">
+          <label class="input-label">Канал</label>
+          <div class="chip-group">
+            <button class="chip is-active">Telegram / WhatsApp</button>
+            <button class="chip">Email</button>
+            <button class="chip">Дневник</button>
+          </div>
+        </div>
+
+        <button class="btn btn-primary btn-lg" data-tour="generate" style="width:100%;">
+          <i data-lucide="wand-sparkles"></i>
+          Сгенерировать
+        </button>
+        <div style="text-align:center; margin-top:10px; font-size:11px; color:var(--ink-500);">
+          ⌘ + ↵ — горячая клавиша
+        </div>
+      </div>
+
+      <!-- ───── Preview panel ───── -->
+      <div class="ws-preview" data-tour="preview">
+        <div class="preview-toolbar" data-tour="preview-tabs">
+          <div class="left">
+            <button class="tab is-active"><i data-lucide="file-text" style="width:14px; display:inline-block; vertical-align:-2px; margin-right:4px;"></i> Превью</button>
+            <button class="tab"><i data-lucide="edit-3" style="width:14px; display:inline-block; vertical-align:-2px; margin-right:4px;"></i> Редактировать</button>
+          </div>
+          <div class="right">
+            <button class="btn btn-secondary btn-sm"><i data-lucide="copy"></i> Копировать</button>
+            <button class="btn btn-secondary btn-sm"><i data-lucide="download"></i> Скачать</button>
+            <button class="btn btn-primary btn-sm"><i data-lucide="send"></i> Выдать классу</button>
+          </div>
+        </div>
+        <div class="preview-placeholder">
+          <div class="icon-big"><i data-lucide="mail"></i></div>
+          <h3>Заполните настройки слева</h3>
+          <p>После генерации здесь появится готовый текст сообщения. Можно отредактировать или сразу скопировать.</p>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<!-- ────────── Mini-tour ────────── -->
+<script>
+  window.TOUR_LS_KEY = 'prepodavai_message_tour_v1';
+  window.TOUR_STEPS = [
+    { target: null, isModal: true, illustration: '✉️',
+      title: 'Как написать сообщение родителям',
+      body: 'Тактичное сообщение по любой ситуации — от приглашения на собрание до сложного разговора.',
+      primaryLabel: 'Начнём' },
+    { target: '[data-tour="template"]', placement: 'right', padding: 6,
+      title: '1. Шаблон ситуации',
+      body: 'Под каждый случай — свой подход. Если нет подходящего — «Свободная форма».' },
+    { target: '[data-tour="student"]', placement: 'right', padding: 6,
+      title: '2. Имя ученика',
+      body: 'Чтобы сообщение было адресным.' },
+    { target: '[data-tour="context"]', placement: 'right', padding: 6,
+      title: '3. Контекст и детали',
+      body: 'Опишите ситуацию своими словами. Чем подробнее — тем точнее получится текст.' },
+    { target: '[data-tour="tone"]', placement: 'right', padding: 6,
+      title: '4. Тон',
+      body: 'Формальный — для официальных тем. Тёплый — для похвалы. Сдержанный — для сложных разговоров.' },
+    { target: '[data-tour="channel"]', placement: 'right', padding: 6,
+      title: '5. Канал',
+      body: 'От канала зависит длина и стиль. В дневник — короче, в email — длиннее.' },
+    { target: '[data-tour="generate"]', placement: 'top', padding: 6,
+      title: '🪄 Жмёте «Сгенерировать»',
+      body: '10 секунд — и готов вариант сообщения. Можно сразу скопировать.' },
+    { target: '[data-tour="preview"]', placement: 'left', padding: 6,
+      title: '📋 Превью справа',
+      body: 'Тут появится готовый текст. Можно отредактировать, скопировать или отправить через Telegram.' },
+    { target: null, isModal: true, illustration: '🚀',
+      title: 'Готово!',
+      body: 'Готово. Попробуйте написать первое сообщение.',
+      primaryLabel: 'Попробовать' }
+  ];
+</script>
+<script src="assets/tour.js"></script>
+<script>lucide.createIcons();</script>
+</body>
+</html>

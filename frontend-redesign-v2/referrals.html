@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Пригласить — Преподавай</title>
+<title>Пригласить коллег — Преподавай</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
@@ -11,164 +11,352 @@
 <link rel="stylesheet" href="assets/components.css" />
 <script src="https://unpkg.com/lucide@latest"></script>
 <style>
+  /* ── Содержимое страницы ── */
+  .ref-content { max-width: 1100px; margin: 0 auto; padding: 28px 32px 48px; width: 100%; }
+  @media (max-width: 767px) { .ref-content { padding: 20px 16px 40px; } }
+
+  /* ── Hero ── */
   .ref-hero {
     background:
       radial-gradient(at 100% 0%, rgba(255,126,88,0.18), transparent 50%),
-      radial-gradient(at 0% 100%, rgba(255,168,138,0.18), transparent 50%),
+      radial-gradient(at 0% 100%, rgba(255,168,138,0.14), transparent 50%),
       linear-gradient(135deg, var(--brand-50), #FFFFFF 70%);
     border: 1px solid var(--brand-200);
     border-radius: var(--r-xl);
-    padding: 32px;
-    margin-bottom: 28px;
-    position: relative;
-    overflow: hidden;
+    padding: clamp(20px, 4vw, 36px);
+    margin-bottom: 24px;
   }
   .ref-hero h1 {
-    font-size: 32px;
+    font-size: clamp(24px, 4vw, 34px);
     font-weight: 800;
     letter-spacing: -0.02em;
     line-height: 1.15;
-    margin-bottom: 10px;
-    max-width: 580px;
+    margin-bottom: 12px;
+    max-width: 640px;
   }
   .ref-hero h1 .accent { color: var(--brand-600); }
-  .ref-hero p {
+  .ref-hero p.lead {
     color: var(--ink-600);
-    font-size: 15px;
-    max-width: 580px;
-    line-height: 1.5;
+    font-size: clamp(14px, 2vw, 16px);
+    max-width: 600px;
+    line-height: 1.6;
     margin-bottom: 24px;
   }
 
+  /* ── Реферальная ссылка ── */
   .ref-link {
-    display: flex;
-    align-items: center;
-    gap: 8px;
+    display: flex; align-items: center; gap: 10px;
     background: white;
     border: 1px solid var(--ink-200);
     border-radius: var(--r-md);
     padding: 8px 8px 8px 16px;
-    max-width: 520px;
+    max-width: 560px;
+    flex-wrap: wrap;
   }
   .ref-link .url {
-    flex: 1;
+    flex: 1 1 200px; min-width: 0;
     font-family: var(--font-mono);
-    font-size: 13px;
+    font-size: 14px;
     color: var(--ink-700);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
-  .ref-link .url .brand { color: var(--brand-600); font-weight: 600; }
+  .ref-link .url .brand { color: var(--brand-600); font-weight: 700; }
+  .ref-link .ref-btns { display: flex; gap: 6px; flex-shrink: 0; }
 
-  .ref-hero .quick-share {
-    display: flex; gap: 8px; margin-top: 12px;
-  }
-  .ref-hero .quick-share button {
-    height: 38px; padding: 0 14px;
+  /* ── Способы поделиться ── */
+  .share-row { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
+  .share-btn {
+    height: 42px; padding: 0 16px;
     border-radius: var(--r-md);
     border: 1px solid var(--ink-200);
     background: white;
-    font-size: 13px; font-weight: 600;
+    font-size: 14px; font-weight: 600;
     cursor: pointer;
     color: var(--ink-700);
-    display: inline-flex; align-items: center; gap: 8px;
+    display: inline-flex; align-items: center; gap: 10px;
     transition: all var(--t-fast) var(--ease);
   }
-  .ref-hero .quick-share button:hover { border-color: var(--ink-300); background: var(--ink-50); }
+  .share-btn:hover { border-color: var(--ink-300); background: var(--ink-50); transform: translateY(-1px); }
+  .share-btn .ico {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    color: white; flex-shrink: 0;
+  }
+  .share-btn .ico svg { width: 13px; height: 13px; }
 
-  .tier-card {
+  /* ── KPI карточки ── */
+  .kpi-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 14px;
+    margin-bottom: 28px;
+  }
+  .kpi-card {
     background: var(--surface);
     border: 1px solid var(--ink-200);
     border-radius: var(--r-lg);
-    padding: 20px;
+    padding: 20px 22px;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .kpi-card .kpi-label {
+    font-size: 13px; font-weight: 600; color: var(--ink-500);
+    display: inline-flex; align-items: center; gap: 8px;
+  }
+  .kpi-card .kpi-label .ico {
+    width: 28px; height: 28px;
+    border-radius: var(--r-sm);
+    background: var(--brand-50);
+    color: var(--brand-700);
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .kpi-card .kpi-label .ico svg { width: 14px; height: 14px; }
+  .kpi-card .kpi-value {
+    font-family: var(--font-display);
+    font-size: 30px; font-weight: 800; color: var(--ink-900);
+    letter-spacing: -0.02em; line-height: 1.1;
+    font-variant-numeric: tabular-nums;
+  }
+  .kpi-card .kpi-value .unit { font-size: 17px; color: var(--ink-500); font-weight: 600; margin-left: 4px; }
+  .kpi-card .kpi-sub { font-size: 12.5px; color: var(--ink-500); line-height: 1.4; }
+  .kpi-card.is-highlight {
+    background: linear-gradient(135deg, var(--brand-50), #FFFFFF 60%);
+    border-color: var(--brand-200);
+  }
+  .kpi-card.is-highlight .ico { background: white; color: var(--brand-600); }
+  .kpi-card.is-highlight .kpi-value { color: var(--brand-700); }
+
+  /* ── «Как это работает» ── */
+  .how-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 14px;
+    margin-bottom: 28px;
+  }
+  .how-step {
+    background: var(--surface);
+    border: 1px solid var(--ink-200);
+    border-radius: var(--r-lg);
+    padding: 22px 22px 20px;
     position: relative;
+  }
+  .how-step .step-num {
+    position: absolute; top: 18px; right: 22px;
+    font-family: var(--font-display);
+    font-size: 14px; font-weight: 800;
+    color: var(--ink-200);
+    letter-spacing: -0.02em;
+  }
+  .how-step .step-icon {
+    width: 44px; height: 44px;
+    border-radius: var(--r-md);
+    background: var(--brand-50);
+    color: var(--brand-700);
+    display: inline-flex; align-items: center; justify-content: center;
+    margin-bottom: 12px;
+  }
+  .how-step .step-icon svg { width: 22px; height: 22px; }
+  .how-step h3 { font-size: 15px; font-weight: 700; color: var(--ink-900); margin-bottom: 6px; }
+  .how-step p { font-size: 13px; color: var(--ink-600); line-height: 1.55; margin: 0; }
+
+  /* ── Награды (полноценные карточки с описанием) ── */
+  .reward-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+    margin-bottom: 28px;
+  }
+  .reward-card {
+    background: var(--surface);
+    border: 1px solid var(--ink-200);
+    border-radius: var(--r-lg);
+    padding: 24px;
+    display: flex; flex-direction: column; gap: 14px;
     transition: all var(--t-base) var(--ease);
+    position: relative;
+    overflow: hidden;
   }
-  .tier-card.is-current {
-    border-color: var(--brand-500);
-    border-width: 2px;
-    box-shadow: 0 12px 24px rgba(255, 126, 88, 0.12);
+  .reward-card:hover { border-color: var(--brand-300); box-shadow: var(--shadow-md); }
+  .reward-card .reward-icon {
+    width: 56px; height: 56px;
+    border-radius: var(--r-lg);
+    display: inline-flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
   }
-  .tier-card.is-current::before {
-    content: 'Ваш тир';
-    position: absolute;
-    top: -10px; right: 16px;
-    background: var(--brand-500);
-    color: white;
-    font-size: 10px;
-    font-weight: 700;
+  .reward-card .reward-icon svg { width: 28px; height: 28px; }
+  .reward-card .reward-condition {
+    display: inline-flex; align-items: center; gap: 6px;
+    align-self: flex-start;
     padding: 4px 10px;
+    background: var(--ink-100);
+    color: var(--ink-700);
     border-radius: var(--r-full);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-  }
-  .tier-card .num {
-    font-family: var(--font-display);
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--ink-500);
-    margin-bottom: 4px;
+    letter-spacing: 0.05em;
   }
-  .tier-card .reward {
+  .reward-card .reward-condition svg { width: 12px; height: 12px; }
+  .reward-card h3 {
     font-family: var(--font-display);
-    font-size: 30px;
+    font-size: 18px;
     font-weight: 800;
     color: var(--ink-900);
-    letter-spacing: -0.02em;
-    margin: 6px 0 4px;
+    letter-spacing: -0.01em;
+    line-height: 1.3;
   }
-  .tier-card .reward .small { font-size: 14px; font-weight: 600; color: var(--ink-500); margin-left: 2px; }
-  .tier-card .range {
-    font-size: 13px;
+  .reward-card p.reward-desc {
+    font-size: 13.5px;
     color: var(--ink-600);
-    margin-bottom: 14px;
+    line-height: 1.6;
+    margin: 0;
+    flex: 1;
   }
-  .tier-card .progress {
+  .reward-card .reward-status {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 12px;
+    background: var(--surface-soft);
+    border-radius: var(--r-md);
+    font-size: 12.5px;
+    color: var(--ink-600);
+    margin-top: auto;
+  }
+  .reward-card .reward-status .progress-bar {
+    flex: 1;
     height: 6px;
     background: var(--ink-100);
     border-radius: var(--r-full);
     overflow: hidden;
   }
-  .tier-card .progress > i {
-    display: block;
-    height: 100%;
+  .reward-card .reward-status .progress-bar > i {
+    display: block; height: 100%;
     background: linear-gradient(90deg, var(--brand-400), var(--brand-600));
     border-radius: var(--r-full);
   }
-  .tier-card .progress-meta {
-    display: flex; justify-content: space-between;
-    margin-top: 6px;
-    font-size: 11px;
-    color: var(--ink-500);
-  }
 
-  /* Invitee list */
+  /* Варианты карточки наград */
+  .reward-card.is-unlocked { background: linear-gradient(135deg, #ECFDF5 0%, #FFFFFF 60%); border-color: #A7F3D0; }
+  .reward-card.is-unlocked .reward-icon { background: var(--success-50); color: var(--success-700); }
+  .reward-card.is-unlocked .reward-condition { background: var(--success-50); color: var(--success-700); }
+  .reward-card.is-unlocked .reward-status { background: white; color: var(--success-700); font-weight: 600; }
+
+  .reward-card.is-progress .reward-icon { background: var(--brand-50); color: var(--brand-600); }
+  .reward-card.is-progress .reward-condition { background: var(--brand-50); color: var(--brand-700); }
+
+  .reward-card.is-locked .reward-icon { background: var(--ink-100); color: var(--ink-500); }
+  .reward-card.is-locked h3 { color: var(--ink-700); }
+  .reward-card.is-locked .reward-desc { color: var(--ink-500); }
+
+  /* ── Список приглашённых ── */
+  .invitee-card {
+    background: var(--surface);
+    border: 1px solid var(--ink-200);
+    border-radius: var(--r-lg);
+    overflow: hidden;
+  }
+  .invitee-head {
+    padding: 18px 22px;
+    border-bottom: 1px solid var(--ink-100);
+    display: flex; align-items: center; justify-content: space-between;
+    flex-wrap: wrap; gap: 8px;
+  }
+  .invitee-head h2 { font-size: 16px; font-weight: 700; color: var(--ink-900); margin: 0; }
+  .invitee-head .sub { font-size: 12px; color: var(--ink-500); margin-top: 2px; }
+
   .invitee-row {
     display: grid;
-    grid-template-columns: 1fr 120px 100px 100px;
+    grid-template-columns: minmax(180px, 2fr) minmax(180px, 1.2fr) minmax(160px, 1fr);
     gap: 16px;
-    padding: 14px 16px;
+    padding: 16px 22px;
     border-bottom: 1px solid var(--ink-100);
     align-items: center;
   }
   .invitee-row:last-child { border-bottom: none; }
-  .invitee-row .who {
-    display: flex; align-items: center; gap: 10px;
+  .invitee-row.is-header {
+    background: var(--surface-soft);
+    padding: 10px 22px;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--ink-500);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
   }
-  .invitee-row .who .av {
-    width: 32px; height: 32px;
+  .invitee-row .invitee-name {
+    display: flex; align-items: center; gap: 12px; min-width: 0;
+  }
+  .invitee-row .invitee-name .av {
+    width: 36px; height: 36px;
     border-radius: var(--r-full);
     background: var(--brand-100);
     color: var(--brand-700);
     display: flex; align-items: center; justify-content: center;
-    font-weight: 700; font-size: 12px;
+    font-weight: 700; font-size: 13px;
     flex-shrink: 0;
   }
-  .invitee-row .who .n { font-weight: 600; color: var(--ink-900); font-size: 14px; line-height: 1.2; }
-  .invitee-row .who .when { font-size: 11px; color: var(--ink-500); margin-top: 2px; }
+  .invitee-row .invitee-name .av.muted { background: var(--ink-100); color: var(--ink-500); }
+  .invitee-row .invitee-name .who-meta { min-width: 0; }
+  .invitee-row .invitee-name .n { font-weight: 600; color: var(--ink-900); font-size: 14px; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .invitee-row .invitee-name .when { font-size: 12px; color: var(--ink-500); margin-top: 2px; }
+  .invitee-row .status-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 3px 10px;
+    border-radius: var(--r-full);
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .invitee-row .status-badge.is-active { background: var(--success-50); color: var(--success-700); }
+  .invitee-row .status-badge.is-pending { background: var(--warning-50); color: var(--warning-700); }
+  .invitee-row .status-badge.is-master { background: var(--brand-50); color: var(--brand-700); }
+  .invitee-row .invitee-reward {
+    font-size: 13px;
+    color: var(--ink-700);
+    text-align: right;
+    font-weight: 600;
+  }
+  .invitee-row .invitee-reward .empty { color: var(--ink-400); font-weight: 500; }
+
+  @media (max-width: 639px) {
+    .invitee-row { grid-template-columns: 1fr; gap: 8px; padding: 14px 18px; }
+    .invitee-row.is-header { display: none; }
+    .invitee-row .invitee-reward { text-align: left; }
+  }
+
+  /* ── FAQ ── */
+  .faq-card {
+    background: var(--surface);
+    border: 1px solid var(--ink-200);
+    border-radius: var(--r-lg);
+    padding: 8px 14px;
+    margin-top: 28px;
+  }
+  .faq-item { border-bottom: 1px solid var(--ink-100); }
+  .faq-item:last-child { border-bottom: none; }
+  .faq-item summary {
+    cursor: pointer;
+    padding: 16px 10px;
+    font-weight: 600;
+    color: var(--ink-900);
+    font-size: 14px;
+    list-style: none;
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  }
+  .faq-item summary::-webkit-details-marker { display: none; }
+  .faq-item summary::after {
+    content: '';
+    width: 10px; height: 10px;
+    border-right: 1.5px solid var(--ink-500);
+    border-bottom: 1.5px solid var(--ink-500);
+    transform: rotate(45deg);
+    transition: transform var(--t-fast) var(--ease);
+    flex-shrink: 0;
+  }
+  .faq-item[open] summary::after { transform: rotate(-135deg); }
+  .faq-item .answer {
+    padding: 0 10px 16px;
+    font-size: 13.5px;
+    color: var(--ink-600);
+    line-height: 1.65;
+  }
 </style>
 </head>
 <body>
@@ -179,25 +367,25 @@
     </div>
     <nav class="sidebar-section">
       <div class="sidebar-label">Рабочий стол</div>
-      <a class="nav-item" href="dashboard.html"><i data-lucide="layout-dashboard"></i>Главная</a>
-      <a class="nav-item" href="tools.html"><i data-lucide="wand-sparkles"></i>ИИ Генератор</a>
-      <a class="nav-item" href="calendar.html"><i data-lucide="calendar"></i>Календарь</a>
-      <a class="nav-item" href="materials.html"><i data-lucide="book-open"></i>Материалы</a>
+      <a class="nav-item" href="dashboard.html"><i data-lucide="layout-dashboard"></i><span>Главная</span></a>
+      <a class="nav-item" href="tools.html"><i data-lucide="wand-sparkles"></i><span>ИИ Генератор</span></a>
+      <a class="nav-item" href="calendar.html"><i data-lucide="calendar"></i><span>Календарь</span></a>
+      <a class="nav-item" href="materials.html"><i data-lucide="book-open"></i><span>Материалы</span></a>
 
       <div class="sidebar-label">Класс</div>
-      <a class="nav-item" href="students.html"><i data-lucide="users"></i>Ученики<span class="nav-badge">3</span></a>
-      <a class="nav-item" href="grading.html"><i data-lucide="clipboard-check"></i>Проверка ДЗ</a>
-      <a class="nav-item" href="analytics.html"><i data-lucide="bar-chart-3"></i>Аналитика</a>
+      <a class="nav-item" href="students.html"><i data-lucide="users"></i><span>Ученики</span><span class="nav-badge">3</span></a>
+      <a class="nav-item" href="grading.html"><i data-lucide="clipboard-check"></i><span>Проверка ДЗ</span></a>
+      <a class="nav-item" href="analytics.html"><i data-lucide="bar-chart-3"></i><span>Аналитика</span></a>
 
       <div class="sidebar-label">Прочее</div>
-      <a class="nav-item is-active"><i data-lucide="gift"></i>Пригласить</a>
-      <a class="nav-item"><i data-lucide="message-circle"></i>Поддержка</a>
-      <a class="nav-item" href="settings.html"><i data-lucide="settings"></i>Настройки</a>
+      <a class="nav-item is-active" href="referrals.html"><i data-lucide="gift"></i><span>Пригласить</span></a>
+      <a class="nav-item"><i data-lucide="message-circle"></i><span>Поддержка</span></a>
+      <a class="nav-item" href="settings.html"><i data-lucide="settings"></i><span>Настройки</span></a>
     </nav>
     <div class="sidebar-footer">
       <div class="user-chip">
         <div class="avatar">ЕА</div>
-        <div class="info"><div class="name">Евгения А.</div><div class="plan">Тариф «Бизнес»</div></div>
+        <div class="info"><div class="name">Евгения А.</div><div class="plan">Преподаватель</div></div>
         <i data-lucide="chevron-up" style="color:var(--ink-400); width:16px;"></i>
       </div>
     </div>
@@ -207,276 +395,337 @@
     <header class="topbar">
       <div>
         <h1>Пригласить коллег</h1>
-        <div style="font-size:13px; color:var(--ink-500); margin-top:2px;">Партнёрская программа · 4 уровня</div>
+        <div style="font-size:13px; color:var(--ink-500); margin-top:2px;">
+          Делитесь платформой и открывайте новые возможности для своих уроков
+        </div>
       </div>
       <div class="actions">
+        <button class="btn btn-ghost" id="tour-restart-header" aria-label="Запустить тур" style="height:32px; padding: 0 12px; gap: 6px;">
+          <i data-lucide="compass" style="width:14px;"></i>
+          <span style="font-size:12px; font-weight:600;">Тур</span>
+        </button>
         <button class="btn btn-secondary btn-sm"><i data-lucide="download"></i> Промо-материалы</button>
       </div>
     </header>
 
-    <div class="content">
+    <div class="ref-content">
 
       <!-- ─── Hero ─── -->
       <div class="ref-hero">
-        <h1>Каждый коллега — <span class="accent">+40 до 80 токенов</span> вам в подарок</h1>
-        <p>Поделитесь ссылкой с учителями. Когда они зарегистрируются и создадут первый материал, вы получите токены на счёт. Чем больше приглашённых — тем выше тир и выше награда.</p>
+        <h1>Помогите коллегам, <span class="accent">а мы поможем вам стать лучшим учителем</span></h1>
+        <p class="lead">
+          Поделитесь Преподаваем с другими учителями. За приглашённых вы получаете доступ к эксклюзивным материалам, вебинарам с топ-методистами и статус наставника в нашем сообществе. Это про развитие, а не про деньги.
+        </p>
 
-        <div class="ref-link">
+        <div class="ref-link" data-tour="ref-link">
           <span class="url">prepodavai.ru/?ref=<span class="brand">EVGENIYA-A</span></span>
-          <button class="btn btn-secondary btn-sm"><i data-lucide="copy"></i> Скопировать</button>
-          <button class="btn btn-primary btn-sm"><i data-lucide="share-2"></i> Поделиться</button>
+          <div class="ref-btns">
+            <button class="btn btn-secondary btn-sm"><i data-lucide="copy"></i> Скопировать</button>
+            <button class="btn btn-primary btn-sm"><i data-lucide="share-2"></i> Поделиться</button>
+          </div>
         </div>
 
-        <div class="quick-share">
-          <button><span style="width:18px; height:18px; border-radius:50%; background:#0088CC; display:inline-flex; align-items:center; justify-content:center; color:white;"><i data-lucide="send" style="width:11px;"></i></span> Telegram</button>
-          <button><span style="width:18px; height:18px; border-radius:50%; background:linear-gradient(135deg,#5B47FB,#9747FB); display:inline-flex; align-items:center; justify-content:center; color:white;"><i data-lucide="message-circle" style="width:11px;"></i></span> MAX</button>
-          <button><span style="width:18px; height:18px; border-radius:50%; background:#25D366; display:inline-flex; align-items:center; justify-content:center; color:white;"><i data-lucide="phone" style="width:11px;"></i></span> WhatsApp</button>
-          <button><span style="width:18px; height:18px; border-radius:50%; background:var(--ink-700); display:inline-flex; align-items:center; justify-content:center; color:white;"><i data-lucide="mail" style="width:11px;"></i></span> Email</button>
+        <div class="share-row" data-tour="share-buttons">
+          <button class="share-btn">
+            <span class="ico" style="background:#0088CC;"><i data-lucide="send"></i></span>
+            Telegram
+          </button>
+          <button class="share-btn">
+            <span class="ico" style="background:linear-gradient(135deg,#5B47FB,#9747FB);"><i data-lucide="message-circle"></i></span>
+            MAX
+          </button>
+          <button class="share-btn">
+            <span class="ico" style="background:#25D366;"><i data-lucide="phone"></i></span>
+            WhatsApp
+          </button>
+          <button class="share-btn">
+            <span class="ico" style="background:var(--ink-700);"><i data-lucide="mail"></i></span>
+            Email
+          </button>
         </div>
       </div>
 
       <!-- ─── KPI ─── -->
-      <div class="grid-bento" style="margin-bottom: 24px;">
-        <div class="card col-3">
-          <div class="stat">
-            <div class="stat-label">
-              <span class="icon-tile"><i data-lucide="users"></i></span>
-              Всего приглашено
-            </div>
-            <div class="stat-value tnum">5</div>
-            <div class="stat-delta up"><i data-lucide="trending-up" style="width:12px;"></i> +2 в этом месяце</div>
+      <div class="kpi-row" data-tour="kpi">
+        <div class="kpi-card">
+          <div class="kpi-label">
+            <span class="ico"><i data-lucide="users"></i></span>
+            Пригласили коллег
           </div>
+          <div class="kpi-value tnum">5</div>
+          <div class="kpi-sub">+2 за этот месяц</div>
         </div>
-        <div class="card col-3">
-          <div class="stat">
-            <div class="stat-label">
-              <span class="icon-tile" style="background:var(--success-50); color:var(--success-700);"><i data-lucide="check-circle"></i></span>
-              Активировано
-            </div>
-            <div class="stat-value tnum">4</div>
-            <div style="font-size:12px; color:var(--ink-500);">80% конверсия</div>
+        <div class="kpi-card is-highlight">
+          <div class="kpi-label">
+            <span class="ico"><i data-lucide="library"></i></span>
+            Эксклюзивных материалов
           </div>
+          <div class="kpi-value tnum">25 <span class="unit">шт.</span></div>
+          <div class="kpi-sub">Готовые шаблоны от методистов · в Материалах</div>
         </div>
-        <div class="card col-3">
-          <div class="stat">
-            <div class="stat-label">
-              <span class="icon-tile" style="background:var(--brand-50); color:var(--brand-700);"><i data-lucide="sparkles"></i></span>
-              Получено токенов
-            </div>
-            <div class="stat-value tnum">240</div>
-            <div style="font-size:12px; color:var(--ink-500);">+ 200 за оплату</div>
+        <div class="kpi-card">
+          <div class="kpi-label">
+            <span class="ico" style="background: var(--success-50); color: var(--success-700);"><i data-lucide="video"></i></span>
+            Доступно вебинаров
           </div>
-        </div>
-        <div class="card col-3">
-          <div class="stat">
-            <div class="stat-label">
-              <span class="icon-tile" style="background:var(--warning-50); color:var(--warning-700);"><i data-lucide="trophy"></i></span>
-              До майлстоуна
-            </div>
-            <div class="stat-value tnum">3 / 8</div>
-            <div style="font-size:12px; color:var(--ink-500);">+ 200 за 8 учителей</div>
-          </div>
+          <div class="kpi-value tnum">2</div>
+          <div class="kpi-sub">Ближайший — 18 июня в 19:00</div>
         </div>
       </div>
 
-      <!-- ─── Tiers ─── -->
-      <div class="section-head">
+      <!-- ─── Как это работает ─── -->
+      <div class="section-head" style="margin-bottom: 14px;">
         <div>
-          <h2>Уровни наград</h2>
-          <div class="subtitle">Чем больше коллег — тем выше тир</div>
+          <h2 style="font-size:18px;">Как это работает</h2>
+          <div class="subtitle">Три простых шага</div>
+        </div>
+      </div>
+      <div class="how-row" data-tour="how-it-works">
+        <div class="how-step">
+          <div class="step-num">01</div>
+          <div class="step-icon"><i data-lucide="link"></i></div>
+          <h3>Поделитесь ссылкой</h3>
+          <p>В мессенджере, email или просто скопируйте и отправьте лично коллеге-учителю.</p>
+        </div>
+        <div class="how-step">
+          <div class="step-num">02</div>
+          <div class="step-icon"><i data-lucide="user-plus"></i></div>
+          <h3>Коллега начинает работать</h3>
+          <p>Регистрируется, осваивает Генератор, создаёт первый рабочий лист или тест.</p>
+        </div>
+        <div class="how-step">
+          <div class="step-num">03</div>
+          <div class="step-icon"><i data-lucide="gift"></i></div>
+          <h3>Вам открываются возможности</h3>
+          <p>Эксклюзивные материалы, вебинары экспертов, статус наставника — выбор за вами.</p>
         </div>
       </div>
 
-      <div class="grid-bento" style="margin-bottom: 32px;">
-
-        <div class="tier-card col-3">
-          <div class="num">Тир 1</div>
-          <div class="reward">40 <span class="small">токенов</span></div>
-          <div class="range">за 1–3 коллег</div>
-          <div class="progress"><i style="width:100%;"></i></div>
-          <div class="progress-meta">
-            <span style="color:var(--success-700); font-weight:700;">Пройден</span>
-            <span class="tnum">3 / 3</span>
-          </div>
-        </div>
-
-        <div class="tier-card col-3 is-current">
-          <div class="num">Тир 2</div>
-          <div class="reward">60 <span class="small">токенов</span></div>
-          <div class="range">за 4–7 коллег</div>
-          <div class="progress"><i style="width:25%;"></i></div>
-          <div class="progress-meta">
-            <span>Идёт</span>
-            <span class="tnum">1 / 4</span>
-          </div>
-        </div>
-
-        <div class="tier-card col-3">
-          <div class="num">Тир 3</div>
-          <div class="reward">80 <span class="small">токенов</span></div>
-          <div class="range">за 8+ коллег</div>
-          <div class="progress"><i style="width:0%;"></i></div>
-          <div class="progress-meta">
-            <span style="color:var(--ink-400);">Закрыт</span>
-            <span class="tnum">0 / 8</span>
-          </div>
-        </div>
-
-        <!-- Conversion bonus -->
-        <div class="tier-card col-3" style="background: linear-gradient(165deg, #FFFBEB 0%, #FFFFFF 60%); border-color: #FCD34D;">
-          <div class="num" style="color: var(--warning-700);">Бонус</div>
-          <div class="reward">+200 <span class="small">токенов</span></div>
-          <div class="range">когда коллега оплачивает тариф</div>
-          <div class="progress"><i style="background: var(--warning-500); width:50%;"></i></div>
-          <div class="progress-meta">
-            <span>Оплатили</span>
-            <span class="tnum">1 / 2</span>
-          </div>
+      <!-- ─── Награды ─── -->
+      <div class="section-head" style="margin-bottom: 14px;">
+        <div>
+          <h2 style="font-size:18px;">Что вы получаете</h2>
+          <div class="subtitle">Три уровня — каждый открывает новые возможности для роста</div>
         </div>
       </div>
+      <div class="reward-grid" data-tour="rewards">
 
-      <!-- ─── Milestones ─── -->
-      <div class="card" style="margin-bottom: 24px; padding: 20px 24px;">
-        <div class="section-head" style="margin-bottom: 18px;">
+        <!-- Tier 1 — Получено -->
+        <div class="reward-card is-unlocked">
+          <div class="reward-icon"><i data-lucide="library"></i></div>
+          <span class="reward-condition"><i data-lucide="user-plus"></i> Уже 1 коллега</span>
+          <h3>Эксклюзивные материалы от методистов</h3>
+          <p class="reward-desc">
+            Сборники готовых рабочих листов, тестов и презентаций от ведущих методистов. Это не сгенерированные ИИ — это проверенные материалы, которые недоступны в обычном Генераторе.
+          </p>
+          <div class="reward-status">
+            <i data-lucide="check-circle-2" style="width:16px; flex-shrink:0;"></i>
+            <span>Открыто · 25 материалов в библиотеке</span>
+          </div>
+        </div>
+
+        <!-- Tier 2 — В процессе -->
+        <div class="reward-card is-progress">
+          <div class="reward-icon"><i data-lucide="video"></i></div>
+          <span class="reward-condition"><i data-lucide="user-plus"></i> 3 активных коллеги</span>
+          <h3>Закрытые вебинары и мастер-классы</h3>
+          <p class="reward-desc">
+            Доступ в методический клуб: ежемесячные онлайн-встречи с топ-учителями страны, разборы сложных тем, обмен опытом, возможность задать вопрос эксперту.
+          </p>
+          <div class="reward-status">
+            <span style="white-space:nowrap;">Прогресс</span>
+            <div class="progress-bar"><i style="width: 100%;"></i></div>
+            <span style="white-space:nowrap; font-weight:600; color:var(--success-700);">3 / 3 ✓</span>
+          </div>
+        </div>
+
+        <!-- Tier 3 — Заблокировано -->
+        <div class="reward-card is-locked">
+          <div class="reward-icon"><i data-lucide="award"></i></div>
+          <span class="reward-condition"><i data-lucide="lock" style="width:11px;"></i> 8 активных коллег</span>
+          <h3>Статус «Наставник» + методический набор</h3>
+          <p class="reward-desc">
+            Именной сертификат «Наставник Преподавай» для портфолио, физический набор учителя в подарок (планер, ручки, наклейки для класса), отдельный значок в сообществе.
+          </p>
+          <div class="reward-status">
+            <span style="white-space:nowrap;">До цели</span>
+            <div class="progress-bar"><i style="width: 38%;"></i></div>
+            <span style="white-space:nowrap; font-weight:600;" class="tnum">3 / 8</span>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ─── Список приглашённых ─── -->
+      <div class="invitee-card" data-tour="invitees">
+        <div class="invitee-head">
           <div>
-            <h2 style="font-size: 16px;">Майлстоуны</h2>
-            <div class="subtitle">Разовые крупные награды</div>
+            <h2>Кого вы пригласили</h2>
+            <div class="sub">Видите статус каждого и какие награды открыли</div>
           </div>
+          <button class="btn btn-secondary btn-sm">Все 5</button>
         </div>
 
-        <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px;">
-
-          <div style="padding: 14px; background: var(--success-50); border: 1px solid #A7F3D0; border-radius: var(--r-md); display:flex; align-items:center; gap:12px;">
-            <div style="width:36px; height:36px; background:white; border-radius:var(--r-md); display:flex; align-items:center; justify-content:center; color:var(--success-700); flex-shrink:0;">
-              <i data-lucide="check-circle"></i>
-            </div>
-            <div style="flex:1;">
-              <div style="font-weight:700; font-size:13px; color:var(--ink-900);">3 учителя · +100 ★</div>
-              <div style="font-size: 11px; color:var(--success-700); font-weight: 600; margin-top:2px;">Получено</div>
-            </div>
-          </div>
-
-          <div style="padding: 14px; background: var(--surface); border: 1px solid var(--ink-200); border-radius: var(--r-md); display:flex; align-items:center; gap:12px;">
-            <div style="width:36px; height:36px; background:var(--ink-50); border-radius:var(--r-md); display:flex; align-items:center; justify-content:center; color:var(--ink-500); flex-shrink:0;">
-              <i data-lucide="trophy"></i>
-            </div>
-            <div style="flex:1;">
-              <div style="font-weight:700; font-size:13px; color:var(--ink-900);">8 учителей · +200 ★</div>
-              <div style="font-size: 11px; color:var(--ink-500); margin-top:2px;">До цели: 4</div>
-            </div>
-          </div>
-
-          <div style="padding: 14px; background: var(--surface); border: 1px solid var(--ink-200); border-radius: var(--r-md); display:flex; align-items:center; gap:12px;">
-            <div style="width:36px; height:36px; background:var(--ink-50); border-radius:var(--r-md); display:flex; align-items:center; justify-content:center; color:var(--ink-500); flex-shrink:0;">
-              <i data-lucide="users"></i>
-            </div>
-            <div style="flex:1;">
-              <div style="font-weight:700; font-size:13px; color:var(--ink-900);">5 учеников · +50 ★</div>
-              <div style="font-size: 11px; color:var(--ink-500); margin-top:2px;">Через классы</div>
-            </div>
-          </div>
-
-          <div style="padding: 14px; background: var(--surface); border: 1px solid var(--ink-200); border-radius: var(--r-md); display:flex; align-items:center; gap:12px;">
-            <div style="width:36px; height:36px; background:var(--ink-50); border-radius:var(--r-md); display:flex; align-items:center; justify-content:center; color:var(--ink-500); flex-shrink:0;">
-              <i data-lucide="graduation-cap"></i>
-            </div>
-            <div style="flex:1;">
-              <div style="font-weight:700; font-size:13px; color:var(--ink-900);">10 учеников · +100 ★</div>
-              <div style="font-size: 11px; color:var(--ink-500); margin-top:2px;">Через классы</div>
-            </div>
-          </div>
-
-        </div>
-      </div>
-
-      <!-- ─── Invitees list ─── -->
-      <div class="card" style="padding: 0;">
-        <div style="padding: 20px 24px; border-bottom: 1px solid var(--ink-100);">
-          <div class="section-head" style="margin-bottom: 0;">
-            <div>
-              <h2 style="font-size: 16px;">Кого вы пригласили</h2>
-              <div class="subtitle">История начислений и статусы</div>
-            </div>
-            <button class="btn btn-secondary btn-sm">Все 5</button>
-          </div>
-        </div>
-
-        <div class="invitee-row" style="background: var(--surface-soft); padding: 10px 16px;">
-          <div style="font-size:10px; font-weight:700; color:var(--ink-500); text-transform:uppercase; letter-spacing:0.04em;">Кто</div>
-          <div style="font-size:10px; font-weight:700; color:var(--ink-500); text-transform:uppercase; letter-spacing:0.04em;">Статус</div>
-          <div style="font-size:10px; font-weight:700; color:var(--ink-500); text-transform:uppercase; letter-spacing:0.04em;">Тариф</div>
-          <div style="font-size:10px; font-weight:700; color:var(--ink-500); text-transform:uppercase; letter-spacing:0.04em; text-align:right;">Награда</div>
+        <div class="invitee-row is-header">
+          <div>Учитель</div>
+          <div>Что делает на платформе</div>
+          <div style="text-align:right;">Вклад в ваши награды</div>
         </div>
 
         <div class="invitee-row">
-          <div class="who">
+          <div class="invitee-name">
             <div class="av">МК</div>
-            <div>
+            <div class="who-meta">
               <div class="n">Марина Куликова</div>
-              <div class="when">3 мая 2026</div>
+              <div class="when">3 мая · 12 материалов</div>
             </div>
           </div>
-          <span class="badge badge-success">Активирован</span>
-          <span class="badge badge-warning">Про</span>
-          <span style="text-align:right; font-family:var(--font-display); font-weight:700; color:var(--ink-900);" class="tnum">240 ★</span>
+          <div><span class="status-badge is-master"><i data-lucide="award" style="width:12px;"></i> Опытный пользователь</span></div>
+          <div class="invitee-reward">Открыла все 3 уровня</div>
         </div>
 
         <div class="invitee-row">
-          <div class="who">
+          <div class="invitee-name">
             <div class="av">АП</div>
-            <div>
+            <div class="who-meta">
               <div class="n">Алексей Прохоров</div>
-              <div class="when">15 апреля 2026</div>
+              <div class="when">15 апреля · 5 материалов</div>
             </div>
           </div>
-          <span class="badge badge-success">Активирован</span>
-          <span class="badge badge-neutral">Стартер</span>
-          <span style="text-align:right; font-family:var(--font-display); font-weight:700; color:var(--ink-900);" class="tnum">40 ★</span>
+          <div><span class="status-badge is-active"><i data-lucide="sparkles" style="width:12px;"></i> Активно работает</span></div>
+          <div class="invitee-reward">+ 5 материалов</div>
         </div>
 
         <div class="invitee-row">
-          <div class="who">
+          <div class="invitee-name">
             <div class="av">ИС</div>
-            <div>
+            <div class="who-meta">
               <div class="n">Ирина Смирнова</div>
-              <div class="when">10 апреля 2026</div>
+              <div class="when">10 апреля · 3 материала</div>
             </div>
           </div>
-          <span class="badge badge-success">Активирован</span>
-          <span class="badge badge-neutral">Free</span>
-          <span style="text-align:right; font-family:var(--font-display); font-weight:700; color:var(--ink-900);" class="tnum">40 ★</span>
+          <div><span class="status-badge is-active"><i data-lucide="sparkles" style="width:12px;"></i> Активно работает</span></div>
+          <div class="invitee-reward">+ 5 материалов</div>
         </div>
 
         <div class="invitee-row">
-          <div class="who">
+          <div class="invitee-name">
             <div class="av">ОВ</div>
-            <div>
+            <div class="who-meta">
               <div class="n">Олеся Васильева</div>
-              <div class="when">5 апреля 2026</div>
+              <div class="when">5 апреля · 1 материал</div>
             </div>
           </div>
-          <span class="badge badge-success">Активирован</span>
-          <span class="badge badge-neutral">Free</span>
-          <span style="text-align:right; font-family:var(--font-display); font-weight:700; color:var(--ink-900);" class="tnum">40 ★</span>
+          <div><span class="status-badge is-active"><i data-lucide="sparkles" style="width:12px;"></i> Только начала</span></div>
+          <div class="invitee-reward">+ 5 материалов</div>
         </div>
 
         <div class="invitee-row">
-          <div class="who">
-            <div class="av muted" style="background: var(--ink-100); color: var(--ink-500);">??</div>
-            <div>
-              <div class="n" style="color: var(--ink-500);">Татьяна (по ссылке)</div>
+          <div class="invitee-name">
+            <div class="av muted">??</div>
+            <div class="who-meta">
+              <div class="n">Татьяна — по ссылке</div>
               <div class="when">3 дня назад · открыла ссылку</div>
             </div>
           </div>
-          <span class="badge badge-warning">Не подтвердила</span>
-          <span class="badge badge-neutral">—</span>
-          <span style="text-align:right; font-family:var(--font-display); font-weight:700; color:var(--ink-400);" class="tnum">— ★</span>
+          <div><span class="status-badge is-pending"><i data-lucide="clock" style="width:12px;"></i> Ещё не зарегистрировалась</span></div>
+          <div class="invitee-reward"><span class="empty">пока ничего</span></div>
         </div>
+      </div>
+
+      <!-- ─── FAQ ─── -->
+      <div class="faq-card">
+        <details class="faq-item">
+          <summary>Кому я могу отправить ссылку?</summary>
+          <div class="answer">
+            Любому коллеге-учителю или репетитору. Это могут быть знакомые из школы, родительского чата, профессионального сообщества. Не отправляйте незнакомым людям и не публикуйте в открытых группах — иначе ссылку могут заблокировать.
+          </div>
+        </details>
+        <details class="faq-item">
+          <summary>Платформа правда полностью бесплатная?</summary>
+          <div class="answer">
+            Да. У нас нет тарифов, нет токенов, нет ограничений на количество материалов. Все основные инструменты — Генератор, Календарь, Проверка ДЗ — доступны каждому учителю без оплаты. Реферальная программа — это про развитие, а не про деньги.
+          </div>
+        </details>
+        <details class="faq-item">
+          <summary>Что такое эксклюзивные материалы?</summary>
+          <div class="answer">
+            Это сборники готовых уроков, рабочих листов, презентаций и тестов от профессиональных методистов. Они отличаются от обычной ИИ-генерации: проверены экспертами, привязаны к программе и часто содержат интересные методические находки, которые трудно получить простым запросом.
+          </div>
+        </details>
+        <details class="faq-item">
+          <summary>Кого считать «активным коллегой»?</summary>
+          <div class="answer">
+            Учителя, который создал хотя бы один материал в Генераторе и пользовался платформой больше одной недели. Просто регистрация без работы не засчитывается — это страховка от формальных приглашений и спама.
+          </div>
+        </details>
+        <details class="faq-item">
+          <summary>Что входит в методический набор «Наставника»?</summary>
+          <div class="answer">
+            Именной сертификат для портфолио (можно повесить в кабинете), планер учителя на учебный год, набор канцелярии с символикой платформы, стикеры и грамоты для класса. Отправляем «Почтой России» или СДЭКом по адресу, который вы укажете.
+          </div>
+        </details>
+        <details class="faq-item">
+          <summary>Что если коллега не начнёт пользоваться?</summary>
+          <div class="answer">
+            Ничего страшного. Это не уменьшает ваших баллов и не отменяет уже открытые уровни. Просто этот человек не засчитывается как «активный» и не приближает вас к следующей награде. Можно пригласить других.
+          </div>
+        </details>
       </div>
 
     </div>
   </main>
 </div>
 <script>lucide.createIcons();</script>
+
+<!-- ────────── Tour ────────── -->
+<script>
+  window.TOUR_LS_KEY = 'prepodavai_referrals_tour_v1';
+  window.TOUR_STEPS = [
+    {
+      target: null, isModal: true, illustration: '🎁',
+      title: 'Приглашайте коллег',
+      body: 'За приглашённых учителей вы получаете доступ к эксклюзивным материалам и вебинарам с топ-методистами. Покажу, как это работает.',
+      primaryLabel: 'Начнём'
+    },
+    {
+      target: '[data-tour="ref-link"]', placement: 'bottom', padding: 6,
+      title: '🔗 Ваша персональная ссылка',
+      body: 'Уникальная ссылка с вашим именем. Когда коллега зарегистрируется по ней — система автоматически засчитает приглашение. Можно скопировать или поделиться одним кликом.'
+    },
+    {
+      target: '[data-tour="share-buttons"]', placement: 'bottom', padding: 6,
+      title: 'Куда поделиться',
+      body: 'Telegram, MAX, WhatsApp или Email — в один клик откроется готовое сообщение с вашей ссылкой и приветственным текстом. Не нужно ничего писать.'
+    },
+    {
+      target: '[data-tour="kpi"]', placement: 'bottom', padding: 8,
+      title: '📊 Ваш прогресс',
+      body: 'Сколько коллег пригласили, сколько эксклюзивных материалов уже открыли и сколько вебинаров доступно. Цифры обновляются в реальном времени.'
+    },
+    {
+      target: '[data-tour="how-it-works"]', placement: 'top', padding: 8,
+      title: '📋 Как это работает',
+      body: 'Три шага: поделиться ссылкой → коллега регистрируется и активен 7 дней → вы открываете очередной уровень наград. Без денег, только про развитие.'
+    },
+    {
+      target: '[data-tour="rewards"]', placement: 'top', padding: 8,
+      title: '🏆 Уровни наград',
+      body: 'Чем больше пригласили — тем больше открывается: библиотека шаблонов от методистов, доступ к закрытым вебинарам, статус наставника в сообществе.'
+    },
+    {
+      target: '[data-tour="invitees"]', placement: 'top', padding: 8,
+      title: '👥 Кого вы пригласили',
+      body: 'Список с именем коллеги, датой регистрации и статусом активации. Видно, когда награда уже зачтена, а когда коллега ещё «думает».'
+    },
+    {
+      target: null, isModal: true, illustration: '🚀',
+      title: 'Готово!',
+      body: 'Делитесь с теми, кому Преподавай реально пригодится. Хороший учитель приглашает другого хорошего учителя — все выигрывают.',
+      primaryLabel: 'Поделиться'
+    }
+  ];
+</script>
+<script src="assets/tour.js"></script>
 </body>
 </html>

@@ -11,25 +11,136 @@
 <link rel="stylesheet" href="assets/components.css" />
 <script src="https://unpkg.com/lucide@latest"></script>
 <style>
-  /* Filters bar */
-  .filter-bar {
-    display: flex;
-    align-items: center;
-    gap: 10px;
+  /* ── Фильтр-пилюли (тёплый стиль, единый с materials.html) ── */
+  .filter-pill {
+    display: inline-flex; align-items: center; gap: 8px;
+    height: 36px;
+    padding: 0 14px;
+    background: var(--surface);
+    border: 1px solid var(--ink-200);
+    border-radius: var(--r-full);
+    font-weight: 600;
+    font-size: 13.5px;
+    color: var(--ink-700);
+    cursor: pointer;
+    transition: all var(--t-fast) var(--ease);
+    white-space: nowrap;
+  }
+  .filter-pill:hover { background: var(--ink-50); border-color: var(--ink-300); color: var(--ink-900); }
+  .filter-pill.is-active {
+    background: var(--brand-50);
+    border-color: var(--brand-300);
+    color: var(--brand-800);
+    box-shadow: 0 1px 3px rgba(255,126,88,0.1);
+  }
+  .filter-pill svg { width: 14px; height: 14px; flex-shrink: 0; opacity: 0.7; }
+  .filter-pill.is-active svg { opacity: 1; color: var(--brand-600); }
+  .filter-pill .count {
+    background: var(--ink-100);
+    color: var(--ink-600);
+    padding: 1px 8px;
+    border-radius: var(--r-full);
+    font-size: 11px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  .filter-pill.is-active .count { background: var(--brand-100); color: var(--brand-700); }
+  /* статус-пилюли: цветной dot слева */
+  .filter-pill .status-dot {
+    width: 9px; height: 9px; border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .filter-pill .status-dot.alert { background: var(--danger-500); }
+  .filter-pill .status-dot.warn  { background: var(--warning-500); }
+  .filter-pill .status-dot.ok    { background: var(--success-500); }
+
+  /* ── Селекты ── */
+  .filter-select { position: relative; display: inline-flex; align-items: center; }
+  .filter-select select {
+    appearance: none;
+    height: 36px;
+    padding: 0 36px 0 14px;
+    background: var(--surface);
+    border: 1px solid var(--ink-200);
+    border-radius: var(--r-full);
+    font-family: inherit;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--ink-700);
+    cursor: pointer;
+    transition: all var(--t-fast) var(--ease);
+  }
+  .filter-select select:hover { background: var(--ink-50); border-color: var(--ink-300); color: var(--ink-900); }
+  .filter-select select:focus { outline: none; border-color: var(--brand-300); box-shadow: 0 0 0 3px rgba(255,126,88,0.12); }
+  .filter-select::after {
+    content: '';
+    position: absolute; right: 14px; top: 50%;
+    width: 8px; height: 8px;
+    border-right: 1.5px solid var(--ink-500);
+    border-bottom: 1.5px solid var(--ink-500);
+    transform: translateY(-65%) rotate(45deg);
+    pointer-events: none;
+  }
+
+  /* View toggle */
+  .view-toggle {
+    display: inline-flex;
+    background: var(--ink-100);
+    border-radius: var(--r-full);
+    padding: 4px;
+  }
+  .view-toggle button {
+    height: 28px; padding: 0 12px;
+    border: none; background: transparent;
+    border-radius: var(--r-full);
+    color: var(--ink-600);
+    cursor: pointer;
+    display: inline-flex; align-items: center; gap: 6px;
+    font-weight: 600; font-size: 13px;
+    transition: all var(--t-fast) var(--ease);
+  }
+  .view-toggle button:hover { color: var(--ink-900); }
+  .view-toggle button.is-active {
+    background: white; color: var(--ink-900);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+  .view-toggle button svg { width: 14px; height: 14px; flex-shrink: 0; }
+
+  /* ── At-risk banner ── */
+  .at-risk-banner {
+    display: flex; align-items: center; gap: 16px;
+    padding: 16px 20px;
+    background: linear-gradient(90deg, #FEF2F2 0%, #FFFFFF 80%);
+    border: 1px solid #FECACA;
+    border-radius: var(--r-lg);
     margin-bottom: 20px;
     flex-wrap: wrap;
   }
-  .filter-bar .searchbar { width: 320px; }
+  .at-risk-banner .icon {
+    width: 44px; height: 44px;
+    background: white;
+    border: 1px solid #FCA5A5;
+    border-radius: var(--r-md);
+    color: var(--danger-500);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .at-risk-banner .icon svg { width: 22px; height: 22px; }
 
-  /* Table */
+  /* ── Таблица с горизонтальной прокруткой внутри карточки ── */
   .table-card {
     background: var(--surface);
     border: 1px solid var(--ink-200);
     border-radius: var(--r-lg);
     overflow: hidden;
   }
+  .table-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
   .stu-table {
     width: 100%;
+    min-width: 880px;       /* минимальная ширина таблицы — прокрутка только внутри */
     border-collapse: collapse;
   }
   .stu-table thead {
@@ -61,9 +172,7 @@
   }
   .stu-table td.numeric { text-align: right; font-variant-numeric: tabular-nums; }
 
-  .student-cell {
-    display: flex; align-items: center; gap: 12px;
-  }
+  .student-cell { display: flex; align-items: center; gap: 12px; }
   .student-cell .av {
     width: 36px; height: 36px;
     border-radius: var(--r-full);
@@ -77,69 +186,174 @@
   .student-cell .name { font-weight: 600; color: var(--ink-900); font-size: 14px; }
   .student-cell .email { font-size: 12px; color: var(--ink-500); margin-top: 1px; }
 
+  /* Класс-бейдж в фирменном стиле */
+  .class-tag {
+    display: inline-flex; align-items: center;
+    padding: 3px 10px;
+    border-radius: var(--r-full);
+    font-size: 12px;
+    font-weight: 700;
+    background: var(--ink-100);
+    color: var(--ink-700);
+  }
+
   .grade-cell { display: inline-flex; align-items: center; gap: 8px; }
   .grade-cell .bar {
-    width: 60px; height: 6px;
+    width: 64px; height: 6px;
     background: var(--ink-100);
     border-radius: var(--r-full);
     overflow: hidden;
-    position: relative;
   }
-  .grade-cell .bar > i {
-    display: block; height: 100%;
-    border-radius: var(--r-full);
-  }
+  .grade-cell .bar > i { display: block; height: 100%; border-radius: var(--r-full); }
 
   .risk-dot {
     display: inline-flex; align-items: center; gap: 6px;
-    font-size: 12px;
+    font-size: 12.5px;
     font-weight: 600;
+    padding: 4px 10px;
+    border-radius: var(--r-full);
   }
   .risk-dot::before {
     content: '';
-    width: 8px; height: 8px;
+    width: 7px; height: 7px;
     border-radius: 50%;
   }
+  .risk-dot.ok    { background: var(--success-50); color: var(--success-700); }
   .risk-dot.ok::before    { background: var(--success-500); }
+  .risk-dot.warn  { background: var(--warning-50); color: var(--warning-700); }
   .risk-dot.warn::before  { background: var(--warning-500); }
+  .risk-dot.alert { background: var(--danger-50); color: var(--danger-700); }
   .risk-dot.alert::before { background: var(--danger-500); }
-  .risk-dot.ok    { color: var(--success-700); }
-  .risk-dot.warn  { color: var(--warning-700); }
-  .risk-dot.alert { color: var(--danger-700); }
 
-  .row-actions {
-    display: flex; gap: 4px; justify-content: flex-end;
-  }
+  /* Действия в строке */
+  .row-actions { display: flex; gap: 4px; justify-content: flex-end; }
   .row-actions button {
-    width: 30px; height: 30px;
-    border: none; background: transparent;
+    width: 32px; height: 32px;
+    border: 1px solid transparent;
+    background: transparent;
     border-radius: var(--r-sm);
     color: var(--ink-500);
     cursor: pointer;
     display: flex; align-items: center; justify-content: center;
+    transition: all var(--t-fast) var(--ease);
   }
-  .row-actions button:hover { background: var(--ink-100); color: var(--ink-900); }
+  .row-actions button:hover { background: var(--ink-100); color: var(--ink-900); border-color: var(--ink-200); }
+  .row-actions button svg { width: 15px; height: 15px; }
 
-  .at-risk-banner {
-    display: flex; align-items: center; gap: 16px;
-    padding: 16px 20px;
-    background: linear-gradient(90deg, #FEF2F2 0%, #FFFFFF 80%);
-    border: 1px solid #FECACA;
-    border-radius: var(--r-lg);
-    margin-bottom: 20px;
-  }
-  .at-risk-banner .icon {
-    width: 44px; height: 44px;
-    background: white;
-    border: 1px solid #FCA5A5;
+  /* Меню «⋯» */
+  .stu-menu { position: relative; display: inline-block; }
+  .stu-menu-list {
+    position: absolute; top: 100%; right: 0;
+    margin-top: 4px;
+    background: var(--surface);
+    border: 1px solid var(--ink-200);
     border-radius: var(--r-md);
-    color: var(--danger-500);
-    display: flex; align-items: center; justify-content: center;
-    flex-shrink: 0;
+    box-shadow: 0 12px 32px rgba(15,23,42,0.12);
+    padding: 6px;
+    min-width: 220px;
+    display: none;
+    z-index: 100;
+    text-align: left;
   }
+  .stu-menu.is-open .stu-menu-list { display: block; }
+  .stu-menu-list button {
+    display: flex; align-items: center; gap: 10px;
+    width: 100%;
+    padding: 8px 10px;
+    border: none;
+    background: transparent;
+    border-radius: var(--r-sm);
+    color: var(--ink-700);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    text-align: left;
+    transition: background var(--t-fast) var(--ease);
+  }
+  .stu-menu-list button:hover { background: var(--ink-100); color: var(--ink-900); }
+  .stu-menu-list button.is-danger { color: var(--danger-700); }
+  .stu-menu-list button.is-danger:hover { background: var(--danger-50); }
+  .stu-menu-list button svg { width: 14px; height: 14px; flex-shrink: 0; }
+  .stu-menu-list .menu-sep { height: 1px; background: var(--ink-100); margin: 4px 2px; }
+
+  /* Пагинация */
+  .pagination {
+    padding: 14px 16px;
+    border-top: 1px solid var(--ink-100);
+    display: flex; align-items: center; justify-content: space-between;
+    flex-wrap: wrap; gap: 12px;
+  }
+  .pagination .info { font-size: 13px; color: var(--ink-500); }
+  .pagination .pages { display: flex; gap: 4px; align-items: center; }
+  .pagination .page-btn {
+    height: 32px; min-width: 32px; padding: 0 8px;
+    border: 1px solid transparent;
+    background: transparent;
+    border-radius: var(--r-sm);
+    color: var(--ink-600);
+    font-weight: 600; font-size: 13px;
+    cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+    transition: all var(--t-fast) var(--ease);
+  }
+  .pagination .page-btn:hover { background: var(--ink-100); color: var(--ink-900); }
+  .pagination .page-btn.is-active {
+    background: var(--brand-50); border-color: var(--brand-200);
+    color: var(--brand-700);
+  }
+  .pagination .page-btn svg { width: 14px; height: 14px; }
+  .pagination .dots { padding: 0 6px; color: var(--ink-400); }
+
+  /* Карточный вид (альтернатива таблице) */
+  .stu-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 14px;
+  }
+  .stu-card {
+    background: var(--surface);
+    border: 1px solid var(--ink-200);
+    border-radius: var(--r-lg);
+    padding: 18px;
+    cursor: pointer;
+    transition: all var(--t-base) var(--ease);
+    text-decoration: none; color: inherit;
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  .stu-card:hover { border-color: var(--brand-300); box-shadow: 0 8px 24px rgba(15,23,42,0.08); transform: translateY(-2px); }
+  .stu-card .head { display: flex; align-items: center; gap: 12px; }
+  .stu-card .head .av { width: 44px; height: 44px; border-radius: 50%; background: linear-gradient(135deg, var(--brand-300), var(--brand-500)); color: white; display:flex; align-items:center; justify-content:center; font-weight: 700; font-size: 15px; flex-shrink: 0; }
+  .stu-card .name { font-weight: 700; color: var(--ink-900); font-size: 15px; }
+  .stu-card .email { font-size: 12px; color: var(--ink-500); }
+  .stu-card .row { display: flex; justify-content: space-between; font-size: 13px; }
+  .stu-card .row .l { color: var(--ink-500); }
+  .stu-card .row .v { color: var(--ink-900); font-weight: 600; }
+
+  /* View visibility */
+  body[data-view="table"] .stu-grid { display: none; }
+  body[data-view="cards"] .table-card { display: none; }
+
+  /* Status filter visibility */
+  body[data-status="all"] tr[data-status],
+  body[data-status="all"] .stu-card[data-status] { display: table-row; }
+  body[data-status="all"] .stu-card[data-status] { display: flex; }
+  body[data-status="alert"] tr[data-status]:not([data-status="alert"]),
+  body[data-status="alert"] .stu-card[data-status]:not([data-status="alert"]) { display: none; }
+  body[data-status="warn"] tr[data-status]:not([data-status="warn"]),
+  body[data-status="warn"] .stu-card[data-status]:not([data-status="warn"]) { display: none; }
+  body[data-status="ok"] tr[data-status]:not([data-status="ok"]),
+  body[data-status="ok"] .stu-card[data-status]:not([data-status="ok"]) { display: none; }
+
+  /* Class filter visibility */
+  body[data-class="10A"] tr[data-class]:not([data-class="10A"]),
+  body[data-class="10A"] .stu-card[data-class]:not([data-class="10A"]) { display: none; }
+  body[data-class="9A"] tr[data-class]:not([data-class="9A"]),
+  body[data-class="9A"] .stu-card[data-class]:not([data-class="9A"]) { display: none; }
+  body[data-class="11B"] tr[data-class]:not([data-class="11B"]),
+  body[data-class="11B"] .stu-card[data-class]:not([data-class="11B"]) { display: none; }
 </style>
 </head>
-<body>
+<body data-view="table" data-status="all" data-class="all">
 <div class="app-shell">
 
   <!-- ───────── SIDEBAR ───────── -->
@@ -150,20 +364,20 @@
     </div>
     <nav class="sidebar-section">
       <div class="sidebar-label">Рабочий стол</div>
-      <a class="nav-item" href="dashboard.html"><i data-lucide="layout-dashboard"></i>Главная</a>
-      <a class="nav-item" href="tools.html"><i data-lucide="wand-sparkles"></i>ИИ Генератор</a>
-      <a class="nav-item"><i data-lucide="calendar"></i>Календарь</a>
-      <a class="nav-item"><i data-lucide="book-open"></i>Материалы</a>
+      <a class="nav-item" href="dashboard.html"><i data-lucide="layout-dashboard"></i><span>Главная</span></a>
+      <a class="nav-item" href="tools.html"><i data-lucide="wand-sparkles"></i><span>ИИ Генератор</span></a>
+      <a class="nav-item" href="calendar.html"><i data-lucide="calendar"></i><span>Календарь</span></a>
+      <a class="nav-item" href="materials.html"><i data-lucide="book-open"></i><span>Материалы</span></a>
 
       <div class="sidebar-label">Класс</div>
-      <a class="nav-item is-active"><i data-lucide="users"></i>Ученики<span class="nav-badge">3</span></a>
-      <a class="nav-item"><i data-lucide="clipboard-check"></i>Проверка ДЗ</a>
-      <a class="nav-item"><i data-lucide="bar-chart-3"></i>Аналитика</a>
+      <a class="nav-item is-active"><i data-lucide="users"></i><span>Ученики</span><span class="nav-badge">3</span></a>
+      <a class="nav-item" href="grading.html"><i data-lucide="clipboard-check"></i><span>Проверка ДЗ</span></a>
+      <a class="nav-item" href="analytics.html"><i data-lucide="bar-chart-3"></i><span>Аналитика</span></a>
 
       <div class="sidebar-label">Прочее</div>
-      <a class="nav-item"><i data-lucide="gift"></i>Пригласить</a>
-      <a class="nav-item"><i data-lucide="message-circle"></i>Поддержка</a>
-      <a class="nav-item"><i data-lucide="settings"></i>Настройки</a>
+      <a class="nav-item" href="referrals.html"><i data-lucide="gift"></i><span>Пригласить</span></a>
+      <a class="nav-item"><i data-lucide="message-circle"></i><span>Поддержка</span></a>
+      <a class="nav-item" href="settings.html"><i data-lucide="settings"></i><span>Настройки</span></a>
     </nav>
     <div class="sidebar-footer">
       <div class="user-chip">
@@ -183,21 +397,25 @@
       <div>
         <h1>Ученики</h1>
         <div style="font-size:13px; color:var(--ink-500); margin-top:2px;">
-          47 учеников в 3 классах
+          47 учеников · 3 класса · средний балл 4,3
         </div>
       </div>
       <div class="actions">
-        <button class="btn btn-secondary"><i data-lucide="upload"></i> Импорт CSV</button>
-        <button class="btn btn-primary"><i data-lucide="user-plus"></i> Добавить ученика</button>
+        <button class="btn btn-ghost" id="tour-restart-header" aria-label="Запустить тур" style="height:32px; padding: 0 12px; gap: 6px;">
+          <i data-lucide="compass" style="width:14px;"></i>
+          <span style="font-size:12px; font-weight:600;">Тур</span>
+        </button>
+        <button class="btn btn-secondary btn-sm"><i data-lucide="upload"></i> Импорт CSV</button>
+        <button class="btn btn-primary btn-sm" data-tour="add"><i data-lucide="user-plus"></i> Добавить ученика</button>
       </div>
     </header>
 
     <div class="content">
 
       <!-- ─── At-risk banner ─── -->
-      <div class="at-risk-banner">
+      <div class="at-risk-banner" data-tour="risk-banner">
         <div class="icon"><i data-lucide="alert-triangle"></i></div>
-        <div style="flex:1;">
+        <div style="flex:1; min-width: 220px;">
           <div style="font-weight:700; color:var(--ink-900); font-size:14px;">
             3 ученика под наблюдением
           </div>
@@ -205,18 +423,16 @@
             Балл упал на 15% за 2 недели или пропустили 2+ дедлайна подряд
           </div>
         </div>
-        <button class="btn btn-secondary btn-sm">Посмотреть рекомендации</button>
+        <button class="btn btn-secondary btn-sm">Рекомендации</button>
         <button class="btn btn-primary btn-sm">Связаться с родителями</button>
       </div>
 
       <!-- ─── KPI row ─── -->
-      <div class="grid-bento" style="margin-bottom: 24px;">
+      <div class="grid-bento" data-tour="kpi" style="margin-bottom: 24px;">
         <div class="card col-3">
           <div class="stat">
             <div class="stat-label">
-              <span class="icon-tile" style="background:var(--brand-50); color:var(--brand-600);">
-                <i data-lucide="users"></i>
-              </span>
+              <span class="icon-tile" style="background:var(--brand-50); color:var(--brand-600);"><i data-lucide="users"></i></span>
               Всего учеников
             </div>
             <div class="stat-value tnum">47</div>
@@ -226,9 +442,7 @@
         <div class="card col-3">
           <div class="stat">
             <div class="stat-label">
-              <span class="icon-tile" style="background:var(--success-50); color:var(--success-700);">
-                <i data-lucide="trophy"></i>
-              </span>
+              <span class="icon-tile" style="background:var(--success-50); color:var(--success-700);"><i data-lucide="trophy"></i></span>
               Средний балл
             </div>
             <div class="stat-value tnum">4,3</div>
@@ -238,9 +452,7 @@
         <div class="card col-3">
           <div class="stat">
             <div class="stat-label">
-              <span class="icon-tile" style="background:var(--info-50); color:var(--info-700);">
-                <i data-lucide="check-circle"></i>
-              </span>
+              <span class="icon-tile" style="background:var(--info-50); color:var(--info-700);"><i data-lucide="check-circle"></i></span>
               Сдают ДЗ вовремя
             </div>
             <div class="stat-value tnum">87%</div>
@@ -250,9 +462,7 @@
         <div class="card col-3">
           <div class="stat">
             <div class="stat-label">
-              <span class="icon-tile" style="background:var(--warning-50); color:var(--warning-700);">
-                <i data-lucide="clock"></i>
-              </span>
+              <span class="icon-tile" style="background:var(--warning-50); color:var(--warning-700);"><i data-lucide="clock"></i></span>
               Активны на неделе
             </div>
             <div class="stat-value tnum">42 / 47</div>
@@ -261,283 +471,584 @@
         </div>
       </div>
 
-      <!-- ─── Filters ─── -->
-      <div class="filter-bar">
-        <div class="searchbar">
+      <!-- ─── Поиск ─── -->
+      <div style="margin-bottom: 14px;">
+        <div class="searchbar" data-tour="search" style="max-width: none;">
           <i data-lucide="search"></i>
           <input placeholder="Поиск по имени или email…" />
         </div>
+      </div>
 
-        <div style="height:24px; width:1px; background:var(--ink-200);"></div>
+      <!-- ─── Фильтры: одна строка из селектов + переключатель вида ─── -->
+      <div data-tour="filters" style="display:flex; align-items:center; gap:8px; margin-bottom:20px; flex-wrap: wrap;">
+        <div class="filter-select">
+          <select id="filter-status-select">
+            <option value="all">Все ученики · 47</option>
+            <option value="alert">🔴 На риске · 2</option>
+            <option value="warn">🟡 Снижение · 1</option>
+            <option value="ok">🟢 В норме · 44</option>
+          </select>
+        </div>
 
-        <button class="cat-tab is-active" style="height:32px;">Все <span class="count">47</span></button>
-        <button class="cat-tab" style="height:32px;">10А <span class="count">18</span></button>
-        <button class="cat-tab" style="height:32px;">9А <span class="count">15</span></button>
-        <button class="cat-tab" style="height:32px;">11Б <span class="count">14</span></button>
+        <div class="filter-select">
+          <select id="filter-class-select">
+            <option value="all">Все классы · 47</option>
+            <option value="10A">10А · 18 учеников</option>
+            <option value="9A">9А · 15 учеников</option>
+            <option value="11B">11Б · 14 учеников</option>
+          </select>
+        </div>
 
-        <div style="margin-left:auto; display:flex; gap:8px;">
-          <button class="btn btn-secondary btn-sm">
-            <i data-lucide="filter"></i> Фильтры
-          </button>
-          <button class="btn btn-secondary btn-sm">
-            <i data-lucide="arrow-up-down"></i> Сортировка
-          </button>
+        <div class="filter-select">
+          <select>
+            <option>Активность: все</option>
+            <option>Активные на этой неделе</option>
+            <option>Не выходили 3+ дней</option>
+            <option>Не выходили месяц</option>
+          </select>
+        </div>
+
+        <div class="filter-select">
+          <select>
+            <option>Сортировка: по фамилии А–Я</option>
+            <option>По фамилии Я–А</option>
+            <option>По баллу (низкий → высокий)</option>
+            <option>По баллу (высокий → низкий)</option>
+            <option>По активности (давно не был)</option>
+            <option>По дате добавления (новые)</option>
+          </select>
+        </div>
+
+        <div style="margin-left:auto;">
+          <div class="view-toggle" data-tour="view-toggle">
+            <button class="is-active" data-view="table"><i data-lucide="list"></i> Таблица</button>
+            <button data-view="cards"><i data-lucide="layout-grid"></i> Карточки</button>
+          </div>
         </div>
       </div>
 
-      <!-- ─── Table ─── -->
+      <!-- ─── Таблица ─── -->
       <div class="table-card">
-        <table class="stu-table">
-          <thead>
-            <tr>
-              <th style="width:30px;">
-                <input type="checkbox" style="width:16px; height:16px;" />
-              </th>
-              <th>Ученик</th>
-              <th>Класс</th>
-              <th class="numeric">Средний балл</th>
-              <th class="numeric">Сдано ДЗ</th>
-              <th>Статус</th>
-              <th>Последняя активность</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
+        <div class="table-scroll">
+          <table class="stu-table">
+            <thead>
+              <tr>
+                <th style="width:30px;"><input type="checkbox" style="width:16px; height:16px;" /></th>
+                <th>Ученик</th>
+                <th>Класс</th>
+                <th class="numeric">Средний балл</th>
+                <th class="numeric">Сдано ДЗ</th>
+                <th>Статус</th>
+                <th>Активность</th>
+                <th style="width:140px;"></th>
+              </tr>
+            </thead>
+            <tbody>
 
-            <!-- Row 1: at-risk -->
-            <tr>
-              <td><input type="checkbox" style="width:16px; height:16px;" /></td>
-              <td>
-                <div class="student-cell">
-                  <div class="av" style="background: linear-gradient(135deg, #FCA5A5, #DC2626);">КП</div>
-                  <div>
-                    <div class="name">Кирилл Петров</div>
-                    <div class="email">k.petrov@school.ru</div>
+              <tr data-status="alert" data-class="10A" data-tour="first-row">
+                <td><input type="checkbox" style="width:16px; height:16px;" /></td>
+                <td>
+                  <div class="student-cell">
+                    <div class="av" style="background: linear-gradient(135deg, #FCA5A5, #DC2626);">КП</div>
+                    <div>
+                      <div class="name">Кирилл Петров</div>
+                      <div class="email">k.petrov@school.ru</div>
+                    </div>
                   </div>
-                </div>
-              </td>
-              <td><span class="badge badge-neutral">10А</span></td>
-              <td class="numeric">
-                <span class="grade-cell">
-                  <span class="bar"><i style="width:48%; background:var(--danger-500);"></i></span>
-                  <strong style="color:var(--ink-900);">3,2</strong>
-                </span>
-              </td>
-              <td class="numeric"><span style="color:var(--danger-700); font-weight:600;">8 / 14</span></td>
-              <td><span class="risk-dot alert">Риск</span></td>
-              <td style="font-size:12px; color:var(--ink-500);">5 дней назад</td>
-              <td>
-                <div class="row-actions">
-                  <button title="Связаться"><i data-lucide="message-circle"></i></button>
-                  <button title="Открыть"><i data-lucide="chevron-right"></i></button>
-                </div>
-              </td>
-            </tr>
-
-            <!-- Row 2: at-risk -->
-            <tr>
-              <td><input type="checkbox" style="width:16px; height:16px;" /></td>
-              <td>
-                <div class="student-cell">
-                  <div class="av" style="background: linear-gradient(135deg, #FCA5A5, #DC2626);">АС</div>
-                  <div>
-                    <div class="name">Анна Соколова</div>
-                    <div class="email">a.sokolova@school.ru</div>
+                </td>
+                <td><span class="class-tag">10А</span></td>
+                <td class="numeric">
+                  <span class="grade-cell">
+                    <span class="bar"><i style="width:48%; background:var(--danger-500);"></i></span>
+                    <strong style="color:var(--ink-900);">3,2</strong>
+                  </span>
+                </td>
+                <td class="numeric"><span style="color:var(--danger-700); font-weight:600;">8 / 14</span></td>
+                <td><span class="risk-dot alert">Риск</span></td>
+                <td style="font-size:12px; color:var(--ink-500);">5 дней назад</td>
+                <td>
+                  <div class="row-actions" data-tour="row-actions">
+                    <button title="Сообщение"><i data-lucide="message-circle"></i></button>
+                    <button title="Назначить материал"><i data-lucide="file-plus-2"></i></button>
+                    <div class="stu-menu" onclick="toggleMenu(event, this)">
+                      <button title="Меню"><i data-lucide="more-horizontal"></i></button>
+                      <div class="stu-menu-list">
+                        <button><i data-lucide="user"></i> Открыть профиль</button>
+                        <button><i data-lucide="calendar-plus"></i> Запланировать урок</button>
+                        <button><i data-lucide="bar-chart-3"></i> Статистика</button>
+                        <button><i data-lucide="message-circle"></i> Написать родителям</button>
+                        <div class="menu-sep"></div>
+                        <button class="is-danger"><i data-lucide="user-x"></i> Удалить ученика</button>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </td>
-              <td><span class="badge badge-neutral">9А</span></td>
-              <td class="numeric">
-                <span class="grade-cell">
-                  <span class="bar"><i style="width:55%; background:var(--warning-500);"></i></span>
-                  <strong style="color:var(--ink-900);">3,5</strong>
-                </span>
-              </td>
-              <td class="numeric"><span style="color:var(--danger-700); font-weight:600;">9 / 14</span></td>
-              <td><span class="risk-dot alert">Риск</span></td>
-              <td style="font-size:12px; color:var(--ink-500);">2 дня назад</td>
-              <td>
-                <div class="row-actions">
-                  <button title="Связаться"><i data-lucide="message-circle"></i></button>
-                  <button title="Открыть"><i data-lucide="chevron-right"></i></button>
-                </div>
-              </td>
-            </tr>
+                </td>
+              </tr>
 
-            <!-- Row 3: warning -->
-            <tr>
-              <td><input type="checkbox" style="width:16px; height:16px;" /></td>
-              <td>
-                <div class="student-cell">
-                  <div class="av" style="background: linear-gradient(135deg, #FDE68A, #D97706);">МК</div>
-                  <div>
-                    <div class="name">Михаил Козлов</div>
-                    <div class="email">m.kozlov@school.ru</div>
+              <tr data-status="alert" data-class="9A">
+                <td><input type="checkbox" style="width:16px; height:16px;" /></td>
+                <td>
+                  <div class="student-cell">
+                    <div class="av" style="background: linear-gradient(135deg, #FCA5A5, #DC2626);">АС</div>
+                    <div>
+                      <div class="name">Анна Соколова</div>
+                      <div class="email">a.sokolova@school.ru</div>
+                    </div>
                   </div>
-                </div>
-              </td>
-              <td><span class="badge badge-neutral">11Б</span></td>
-              <td class="numeric">
-                <span class="grade-cell">
-                  <span class="bar"><i style="width:65%; background:var(--warning-500);"></i></span>
-                  <strong style="color:var(--ink-900);">3,8</strong>
-                </span>
-              </td>
-              <td class="numeric"><span style="font-weight:600;">11 / 14</span></td>
-              <td><span class="risk-dot warn">Снижение</span></td>
-              <td style="font-size:12px; color:var(--ink-500);">вчера</td>
-              <td>
-                <div class="row-actions">
-                  <button title="Связаться"><i data-lucide="message-circle"></i></button>
-                  <button title="Открыть"><i data-lucide="chevron-right"></i></button>
-                </div>
-              </td>
-            </tr>
-
-            <!-- Row 4: ok -->
-            <tr>
-              <td><input type="checkbox" style="width:16px; height:16px;" /></td>
-              <td>
-                <div class="student-cell">
-                  <div class="av">МИ</div>
-                  <div>
-                    <div class="name">Мария Иванова</div>
-                    <div class="email">m.ivanova@school.ru</div>
+                </td>
+                <td><span class="class-tag">9А</span></td>
+                <td class="numeric">
+                  <span class="grade-cell">
+                    <span class="bar"><i style="width:55%; background:var(--warning-500);"></i></span>
+                    <strong style="color:var(--ink-900);">3,5</strong>
+                  </span>
+                </td>
+                <td class="numeric"><span style="color:var(--danger-700); font-weight:600;">9 / 14</span></td>
+                <td><span class="risk-dot alert">Риск</span></td>
+                <td style="font-size:12px; color:var(--ink-500);">2 дня назад</td>
+                <td>
+                  <div class="row-actions">
+                    <button title="Сообщение"><i data-lucide="message-circle"></i></button>
+                    <button title="Назначить материал"><i data-lucide="file-plus-2"></i></button>
+                    <div class="stu-menu" onclick="toggleMenu(event, this)">
+                      <button title="Меню"><i data-lucide="more-horizontal"></i></button>
+                      <div class="stu-menu-list">
+                        <button><i data-lucide="user"></i> Открыть профиль</button>
+                        <button><i data-lucide="calendar-plus"></i> Запланировать урок</button>
+                        <button><i data-lucide="bar-chart-3"></i> Статистика</button>
+                        <button><i data-lucide="message-circle"></i> Написать родителям</button>
+                        <div class="menu-sep"></div>
+                        <button class="is-danger"><i data-lucide="user-x"></i> Удалить ученика</button>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </td>
-              <td><span class="badge badge-neutral">10А</span></td>
-              <td class="numeric">
-                <span class="grade-cell">
-                  <span class="bar"><i style="width:96%; background:var(--success-500);"></i></span>
-                  <strong style="color:var(--ink-900);">4,8</strong>
-                </span>
-              </td>
-              <td class="numeric"><span style="font-weight:600;">14 / 14</span></td>
-              <td><span class="risk-dot ok">В норме</span></td>
-              <td style="font-size:12px; color:var(--ink-500);">сегодня</td>
-              <td>
-                <div class="row-actions">
-                  <button title="Связаться"><i data-lucide="message-circle"></i></button>
-                  <button title="Открыть"><i data-lucide="chevron-right"></i></button>
-                </div>
-              </td>
-            </tr>
+                </td>
+              </tr>
 
-            <!-- Row 5: ok -->
-            <tr>
-              <td><input type="checkbox" style="width:16px; height:16px;" /></td>
-              <td>
-                <div class="student-cell">
-                  <div class="av">ДВ</div>
-                  <div>
-                    <div class="name">Дмитрий Волков</div>
-                    <div class="email">d.volkov@school.ru</div>
+              <tr data-status="warn" data-class="11B">
+                <td><input type="checkbox" style="width:16px; height:16px;" /></td>
+                <td>
+                  <div class="student-cell">
+                    <div class="av" style="background: linear-gradient(135deg, #FDE68A, #D97706);">МК</div>
+                    <div>
+                      <div class="name">Михаил Козлов</div>
+                      <div class="email">m.kozlov@school.ru</div>
+                    </div>
                   </div>
-                </div>
-              </td>
-              <td><span class="badge badge-neutral">11Б</span></td>
-              <td class="numeric">
-                <span class="grade-cell">
-                  <span class="bar"><i style="width:88%; background:var(--success-500);"></i></span>
-                  <strong style="color:var(--ink-900);">4,4</strong>
-                </span>
-              </td>
-              <td class="numeric"><span style="font-weight:600;">13 / 14</span></td>
-              <td><span class="risk-dot ok">В норме</span></td>
-              <td style="font-size:12px; color:var(--ink-500);">сегодня</td>
-              <td>
-                <div class="row-actions">
-                  <button title="Связаться"><i data-lucide="message-circle"></i></button>
-                  <button title="Открыть"><i data-lucide="chevron-right"></i></button>
-                </div>
-              </td>
-            </tr>
-
-            <!-- Row 6 -->
-            <tr>
-              <td><input type="checkbox" style="width:16px; height:16px;" /></td>
-              <td>
-                <div class="student-cell">
-                  <div class="av">ЕБ</div>
-                  <div>
-                    <div class="name">Елена Белова</div>
-                    <div class="email">e.belova@school.ru</div>
+                </td>
+                <td><span class="class-tag">11Б</span></td>
+                <td class="numeric">
+                  <span class="grade-cell">
+                    <span class="bar"><i style="width:65%; background:var(--warning-500);"></i></span>
+                    <strong style="color:var(--ink-900);">3,8</strong>
+                  </span>
+                </td>
+                <td class="numeric"><span style="font-weight:600;">11 / 14</span></td>
+                <td><span class="risk-dot warn">Снижение</span></td>
+                <td style="font-size:12px; color:var(--ink-500);">вчера</td>
+                <td>
+                  <div class="row-actions">
+                    <button title="Сообщение"><i data-lucide="message-circle"></i></button>
+                    <button title="Назначить материал"><i data-lucide="file-plus-2"></i></button>
+                    <div class="stu-menu" onclick="toggleMenu(event, this)">
+                      <button title="Меню"><i data-lucide="more-horizontal"></i></button>
+                      <div class="stu-menu-list">
+                        <button><i data-lucide="user"></i> Открыть профиль</button>
+                        <button><i data-lucide="calendar-plus"></i> Запланировать урок</button>
+                        <button><i data-lucide="bar-chart-3"></i> Статистика</button>
+                        <button><i data-lucide="message-circle"></i> Написать родителям</button>
+                        <div class="menu-sep"></div>
+                        <button class="is-danger"><i data-lucide="user-x"></i> Удалить ученика</button>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </td>
-              <td><span class="badge badge-neutral">9А</span></td>
-              <td class="numeric">
-                <span class="grade-cell">
-                  <span class="bar"><i style="width:84%; background:var(--success-500);"></i></span>
-                  <strong style="color:var(--ink-900);">4,2</strong>
-                </span>
-              </td>
-              <td class="numeric"><span style="font-weight:600;">14 / 14</span></td>
-              <td><span class="risk-dot ok">В норме</span></td>
-              <td style="font-size:12px; color:var(--ink-500);">2 ч назад</td>
-              <td>
-                <div class="row-actions">
-                  <button title="Связаться"><i data-lucide="message-circle"></i></button>
-                  <button title="Открыть"><i data-lucide="chevron-right"></i></button>
-                </div>
-              </td>
-            </tr>
+                </td>
+              </tr>
 
-            <!-- Row 7 -->
-            <tr>
-              <td><input type="checkbox" style="width:16px; height:16px;" /></td>
-              <td>
-                <div class="student-cell">
-                  <div class="av">НЛ</div>
-                  <div>
-                    <div class="name">Никита Лебедев</div>
-                    <div class="email">n.lebedev@school.ru</div>
+              <tr data-status="ok" data-class="10A">
+                <td><input type="checkbox" style="width:16px; height:16px;" /></td>
+                <td>
+                  <div class="student-cell">
+                    <div class="av">МИ</div>
+                    <div>
+                      <div class="name">Мария Иванова</div>
+                      <div class="email">m.ivanova@school.ru</div>
+                    </div>
                   </div>
-                </div>
-              </td>
-              <td><span class="badge badge-neutral">10А</span></td>
-              <td class="numeric">
-                <span class="grade-cell">
-                  <span class="bar"><i style="width:76%; background:var(--success-500);"></i></span>
-                  <strong style="color:var(--ink-900);">3,9</strong>
-                </span>
-              </td>
-              <td class="numeric"><span style="font-weight:600;">12 / 14</span></td>
-              <td><span class="risk-dot ok">В норме</span></td>
-              <td style="font-size:12px; color:var(--ink-500);">вчера</td>
-              <td>
-                <div class="row-actions">
-                  <button title="Связаться"><i data-lucide="message-circle"></i></button>
-                  <button title="Открыть"><i data-lucide="chevron-right"></i></button>
-                </div>
-              </td>
-            </tr>
+                </td>
+                <td><span class="class-tag">10А</span></td>
+                <td class="numeric">
+                  <span class="grade-cell">
+                    <span class="bar"><i style="width:96%; background:var(--success-500);"></i></span>
+                    <strong style="color:var(--ink-900);">4,8</strong>
+                  </span>
+                </td>
+                <td class="numeric"><span style="font-weight:600;">14 / 14</span></td>
+                <td><span class="risk-dot ok">В норме</span></td>
+                <td style="font-size:12px; color:var(--ink-500);">сегодня</td>
+                <td>
+                  <div class="row-actions">
+                    <button title="Сообщение"><i data-lucide="message-circle"></i></button>
+                    <button title="Назначить материал"><i data-lucide="file-plus-2"></i></button>
+                    <div class="stu-menu" onclick="toggleMenu(event, this)">
+                      <button title="Меню"><i data-lucide="more-horizontal"></i></button>
+                      <div class="stu-menu-list">
+                        <button><i data-lucide="user"></i> Открыть профиль</button>
+                        <button><i data-lucide="calendar-plus"></i> Запланировать урок</button>
+                        <button><i data-lucide="bar-chart-3"></i> Статистика</button>
+                        <button><i data-lucide="message-circle"></i> Написать родителям</button>
+                        <div class="menu-sep"></div>
+                        <button class="is-danger"><i data-lucide="user-x"></i> Удалить ученика</button>
+                      </div>
+                    </div>
+                  </div>
+                </td>
+              </tr>
 
-          </tbody>
-        </table>
+              <tr data-status="ok" data-class="11B">
+                <td><input type="checkbox" style="width:16px; height:16px;" /></td>
+                <td>
+                  <div class="student-cell">
+                    <div class="av">ДВ</div>
+                    <div>
+                      <div class="name">Дмитрий Волков</div>
+                      <div class="email">d.volkov@school.ru</div>
+                    </div>
+                  </div>
+                </td>
+                <td><span class="class-tag">11Б</span></td>
+                <td class="numeric">
+                  <span class="grade-cell">
+                    <span class="bar"><i style="width:88%; background:var(--success-500);"></i></span>
+                    <strong style="color:var(--ink-900);">4,4</strong>
+                  </span>
+                </td>
+                <td class="numeric"><span style="font-weight:600;">13 / 14</span></td>
+                <td><span class="risk-dot ok">В норме</span></td>
+                <td style="font-size:12px; color:var(--ink-500);">сегодня</td>
+                <td>
+                  <div class="row-actions">
+                    <button title="Сообщение"><i data-lucide="message-circle"></i></button>
+                    <button title="Назначить материал"><i data-lucide="file-plus-2"></i></button>
+                    <div class="stu-menu" onclick="toggleMenu(event, this)">
+                      <button title="Меню"><i data-lucide="more-horizontal"></i></button>
+                      <div class="stu-menu-list">
+                        <button><i data-lucide="user"></i> Открыть профиль</button>
+                        <button><i data-lucide="calendar-plus"></i> Запланировать урок</button>
+                        <button><i data-lucide="bar-chart-3"></i> Статистика</button>
+                        <button><i data-lucide="message-circle"></i> Написать родителям</button>
+                        <div class="menu-sep"></div>
+                        <button class="is-danger"><i data-lucide="user-x"></i> Удалить ученика</button>
+                      </div>
+                    </div>
+                  </div>
+                </td>
+              </tr>
 
-        <!-- Pagination -->
-        <div style="padding: 14px 16px; border-top: 1px solid var(--ink-100); display:flex; align-items:center; justify-content: space-between;">
-          <div style="font-size: 13px; color:var(--ink-500);">
-            Показано <strong style="color:var(--ink-900);">7</strong> из <strong style="color:var(--ink-900);">47</strong>
-          </div>
-          <div style="display: flex; gap: 4px; align-items: center;">
-            <button class="btn btn-ghost btn-sm"><i data-lucide="chevron-left"></i></button>
-            <button class="btn btn-secondary btn-sm" style="background: var(--brand-50); color: var(--brand-700); border-color: var(--brand-200); min-width: 32px; padding: 0;">1</button>
-            <button class="btn btn-ghost btn-sm" style="min-width: 32px; padding: 0;">2</button>
-            <button class="btn btn-ghost btn-sm" style="min-width: 32px; padding: 0;">3</button>
-            <span style="padding: 0 6px; color: var(--ink-400);">…</span>
-            <button class="btn btn-ghost btn-sm" style="min-width: 32px; padding: 0;">7</button>
-            <button class="btn btn-ghost btn-sm"><i data-lucide="chevron-right"></i></button>
+              <tr data-status="ok" data-class="9A">
+                <td><input type="checkbox" style="width:16px; height:16px;" /></td>
+                <td>
+                  <div class="student-cell">
+                    <div class="av">ЕБ</div>
+                    <div>
+                      <div class="name">Елена Белова</div>
+                      <div class="email">e.belova@school.ru</div>
+                    </div>
+                  </div>
+                </td>
+                <td><span class="class-tag">9А</span></td>
+                <td class="numeric">
+                  <span class="grade-cell">
+                    <span class="bar"><i style="width:84%; background:var(--success-500);"></i></span>
+                    <strong style="color:var(--ink-900);">4,2</strong>
+                  </span>
+                </td>
+                <td class="numeric"><span style="font-weight:600;">14 / 14</span></td>
+                <td><span class="risk-dot ok">В норме</span></td>
+                <td style="font-size:12px; color:var(--ink-500);">2 ч назад</td>
+                <td>
+                  <div class="row-actions">
+                    <button title="Сообщение"><i data-lucide="message-circle"></i></button>
+                    <button title="Назначить материал"><i data-lucide="file-plus-2"></i></button>
+                    <div class="stu-menu" onclick="toggleMenu(event, this)">
+                      <button title="Меню"><i data-lucide="more-horizontal"></i></button>
+                      <div class="stu-menu-list">
+                        <button><i data-lucide="user"></i> Открыть профиль</button>
+                        <button><i data-lucide="calendar-plus"></i> Запланировать урок</button>
+                        <button><i data-lucide="bar-chart-3"></i> Статистика</button>
+                        <button><i data-lucide="message-circle"></i> Написать родителям</button>
+                        <div class="menu-sep"></div>
+                        <button class="is-danger"><i data-lucide="user-x"></i> Удалить ученика</button>
+                      </div>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+
+              <tr data-status="ok" data-class="10A">
+                <td><input type="checkbox" style="width:16px; height:16px;" /></td>
+                <td>
+                  <div class="student-cell">
+                    <div class="av">НЛ</div>
+                    <div>
+                      <div class="name">Никита Лебедев</div>
+                      <div class="email">n.lebedev@school.ru</div>
+                    </div>
+                  </div>
+                </td>
+                <td><span class="class-tag">10А</span></td>
+                <td class="numeric">
+                  <span class="grade-cell">
+                    <span class="bar"><i style="width:76%; background:var(--success-500);"></i></span>
+                    <strong style="color:var(--ink-900);">3,9</strong>
+                  </span>
+                </td>
+                <td class="numeric"><span style="font-weight:600;">12 / 14</span></td>
+                <td><span class="risk-dot ok">В норме</span></td>
+                <td style="font-size:12px; color:var(--ink-500);">вчера</td>
+                <td>
+                  <div class="row-actions">
+                    <button title="Сообщение"><i data-lucide="message-circle"></i></button>
+                    <button title="Назначить материал"><i data-lucide="file-plus-2"></i></button>
+                    <div class="stu-menu" onclick="toggleMenu(event, this)">
+                      <button title="Меню"><i data-lucide="more-horizontal"></i></button>
+                      <div class="stu-menu-list">
+                        <button><i data-lucide="user"></i> Открыть профиль</button>
+                        <button><i data-lucide="calendar-plus"></i> Запланировать урок</button>
+                        <button><i data-lucide="bar-chart-3"></i> Статистика</button>
+                        <button><i data-lucide="message-circle"></i> Написать родителям</button>
+                        <div class="menu-sep"></div>
+                        <button class="is-danger"><i data-lucide="user-x"></i> Удалить ученика</button>
+                      </div>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Пагинация -->
+        <div class="pagination">
+          <div class="info">Показано <strong style="color:var(--ink-900);">7</strong> из <strong style="color:var(--ink-900);">47</strong></div>
+          <div class="pages">
+            <button class="page-btn"><i data-lucide="chevron-left"></i></button>
+            <button class="page-btn is-active">1</button>
+            <button class="page-btn">2</button>
+            <button class="page-btn">3</button>
+            <span class="dots">…</span>
+            <button class="page-btn">7</button>
+            <button class="page-btn"><i data-lucide="chevron-right"></i></button>
           </div>
         </div>
+      </div>
+
+      <!-- ─── Карточный вид (альтернатива) ─── -->
+      <div class="stu-grid">
+        <a class="stu-card" data-status="alert" data-class="10A">
+          <div class="head">
+            <div class="av" style="background: linear-gradient(135deg, #FCA5A5, #DC2626);">КП</div>
+            <div>
+              <div class="name">Кирилл Петров</div>
+              <div class="email">k.petrov@school.ru</div>
+            </div>
+          </div>
+          <span class="risk-dot alert" style="align-self:flex-start;">Риск</span>
+          <div class="row"><span class="l">Класс</span><span class="v">10А</span></div>
+          <div class="row"><span class="l">Средний балл</span><span class="v" style="color:var(--danger-700);">3,2</span></div>
+          <div class="row"><span class="l">Сдано ДЗ</span><span class="v">8 / 14</span></div>
+          <div class="row"><span class="l">Активность</span><span class="v">5 дней назад</span></div>
+        </a>
+
+        <a class="stu-card" data-status="alert" data-class="9A">
+          <div class="head">
+            <div class="av" style="background: linear-gradient(135deg, #FCA5A5, #DC2626);">АС</div>
+            <div>
+              <div class="name">Анна Соколова</div>
+              <div class="email">a.sokolova@school.ru</div>
+            </div>
+          </div>
+          <span class="risk-dot alert" style="align-self:flex-start;">Риск</span>
+          <div class="row"><span class="l">Класс</span><span class="v">9А</span></div>
+          <div class="row"><span class="l">Средний балл</span><span class="v" style="color:var(--danger-700);">3,5</span></div>
+          <div class="row"><span class="l">Сдано ДЗ</span><span class="v">9 / 14</span></div>
+          <div class="row"><span class="l">Активность</span><span class="v">2 дня назад</span></div>
+        </a>
+
+        <a class="stu-card" data-status="warn" data-class="11B">
+          <div class="head">
+            <div class="av" style="background: linear-gradient(135deg, #FDE68A, #D97706);">МК</div>
+            <div>
+              <div class="name">Михаил Козлов</div>
+              <div class="email">m.kozlov@school.ru</div>
+            </div>
+          </div>
+          <span class="risk-dot warn" style="align-self:flex-start;">Снижение</span>
+          <div class="row"><span class="l">Класс</span><span class="v">11Б</span></div>
+          <div class="row"><span class="l">Средний балл</span><span class="v">3,8</span></div>
+          <div class="row"><span class="l">Сдано ДЗ</span><span class="v">11 / 14</span></div>
+          <div class="row"><span class="l">Активность</span><span class="v">вчера</span></div>
+        </a>
+
+        <a class="stu-card" data-status="ok" data-class="10A">
+          <div class="head">
+            <div class="av">МИ</div>
+            <div>
+              <div class="name">Мария Иванова</div>
+              <div class="email">m.ivanova@school.ru</div>
+            </div>
+          </div>
+          <span class="risk-dot ok" style="align-self:flex-start;">В норме</span>
+          <div class="row"><span class="l">Класс</span><span class="v">10А</span></div>
+          <div class="row"><span class="l">Средний балл</span><span class="v" style="color:var(--success-700);">4,8</span></div>
+          <div class="row"><span class="l">Сдано ДЗ</span><span class="v">14 / 14</span></div>
+          <div class="row"><span class="l">Активность</span><span class="v">сегодня</span></div>
+        </a>
+
+        <a class="stu-card" data-status="ok" data-class="11B">
+          <div class="head">
+            <div class="av">ДВ</div>
+            <div>
+              <div class="name">Дмитрий Волков</div>
+              <div class="email">d.volkov@school.ru</div>
+            </div>
+          </div>
+          <span class="risk-dot ok" style="align-self:flex-start;">В норме</span>
+          <div class="row"><span class="l">Класс</span><span class="v">11Б</span></div>
+          <div class="row"><span class="l">Средний балл</span><span class="v">4,4</span></div>
+          <div class="row"><span class="l">Сдано ДЗ</span><span class="v">13 / 14</span></div>
+          <div class="row"><span class="l">Активность</span><span class="v">сегодня</span></div>
+        </a>
+
+        <a class="stu-card" data-status="ok" data-class="9A">
+          <div class="head">
+            <div class="av">ЕБ</div>
+            <div>
+              <div class="name">Елена Белова</div>
+              <div class="email">e.belova@school.ru</div>
+            </div>
+          </div>
+          <span class="risk-dot ok" style="align-self:flex-start;">В норме</span>
+          <div class="row"><span class="l">Класс</span><span class="v">9А</span></div>
+          <div class="row"><span class="l">Средний балл</span><span class="v">4,2</span></div>
+          <div class="row"><span class="l">Сдано ДЗ</span><span class="v">14 / 14</span></div>
+          <div class="row"><span class="l">Активность</span><span class="v">2 ч назад</span></div>
+        </a>
+
+        <a class="stu-card" data-status="ok" data-class="10A">
+          <div class="head">
+            <div class="av">НЛ</div>
+            <div>
+              <div class="name">Никита Лебедев</div>
+              <div class="email">n.lebedev@school.ru</div>
+            </div>
+          </div>
+          <span class="risk-dot ok" style="align-self:flex-start;">В норме</span>
+          <div class="row"><span class="l">Класс</span><span class="v">10А</span></div>
+          <div class="row"><span class="l">Средний балл</span><span class="v">3,9</span></div>
+          <div class="row"><span class="l">Сдано ДЗ</span><span class="v">12 / 14</span></div>
+          <div class="row"><span class="l">Активность</span><span class="v">вчера</span></div>
+        </a>
       </div>
 
     </div>
   </main>
 </div>
 
-<script>lucide.createIcons();</script>
+<script>
+  // Фильтр по статусу — селект
+  document.getElementById('filter-status-select')?.addEventListener('change', e => {
+    document.body.dataset.status = e.target.value;
+  });
+  // Фильтр по классу — селект
+  document.getElementById('filter-class-select')?.addEventListener('change', e => {
+    document.body.dataset.class = e.target.value;
+  });
+  // Переключение Таблица / Карточки
+  document.querySelectorAll('[data-view]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.view-toggle button').forEach(b => b.classList.remove('is-active'));
+      btn.classList.add('is-active');
+      document.body.dataset.view = btn.dataset.view;
+    });
+  });
+  // Меню «⋯» в строке
+  function toggleMenu(e, el) {
+    if (!e.target.closest('.stu-menu > button') && !e.target.closest('.stu-menu-list')) return;
+    e.preventDefault(); e.stopPropagation();
+    if (e.target.closest('.stu-menu-list button')) { el.classList.remove('is-open'); return; }
+    const wasOpen = el.classList.contains('is-open');
+    document.querySelectorAll('.stu-menu.is-open').forEach(m => m.classList.remove('is-open'));
+    if (!wasOpen) el.classList.add('is-open');
+  }
+  document.addEventListener('click', e => {
+    if (!e.target.closest('.stu-menu')) {
+      document.querySelectorAll('.stu-menu.is-open').forEach(m => m.classList.remove('is-open'));
+    }
+  });
+
+  lucide.createIcons();
+</script>
+
+<!-- ────────── Tour ────────── -->
+<script>
+  window.TOUR_LS_KEY = 'prepodavai_students_tour_v1';
+  window.TOUR_STEPS = [
+    {
+      target: null, isModal: true, illustration: '👥',
+      title: 'Управление учениками',
+      body: 'Здесь вы видите всех ваших учеников, их успеваемость и кому из них нужно внимание. Покажу за минуту, как это устроено.',
+      primaryLabel: 'Начнём'
+    },
+    {
+      target: '[data-tour="risk-banner"]', placement: 'bottom', padding: 6,
+      title: '⚠️ Кому нужно внимание',
+      body: 'Этот баннер появляется только когда есть проблема: ученики, у которых упал балл или они пропустили дедлайны. Кнопки сразу — «Рекомендации» и «Связаться с родителями».'
+    },
+    {
+      target: '[data-tour="kpi"]', placement: 'bottom', padding: 8,
+      title: 'Главные цифры',
+      body: 'Четыре карточки: сколько учеников, средний балл, процент сдающих ДЗ вовремя и активность на неделе. Стрелки ↑/↓ показывают динамику.'
+    },
+    {
+      target: '[data-tour="search"]', placement: 'bottom', padding: 4,
+      title: '🔎 Поиск',
+      body: 'Найти ученика по имени или email за секунду. Особенно удобно, когда учеников десятки.'
+    },
+    {
+      target: '[data-tour="filters"]', placement: 'bottom', padding: 8,
+      title: 'Фильтры — 4 селекта',
+      body: 'Статус (на риске / снижение / в норме), класс, активность (давно не был?), сортировка. Все работают вместе.'
+    },
+    {
+      target: '[data-tour="view-toggle"]', placement: 'left', padding: 6,
+      title: 'Таблица или карточки',
+      body: 'Таблица — компактно, можно сравнивать показатели. Карточки — крупнее, удобнее с планшета. Переключайтесь как удобнее.'
+    },
+    {
+      target: '[data-tour="first-row"]', placement: 'top', padding: 6,
+      title: 'Строка ученика',
+      body: 'Аватар + имя + email · класс · прогресс-бар балла · сданные ДЗ · цветной статус · последняя активность. Цвет балла и бара = статус (красный = риск).'
+    },
+    {
+      target: '[data-tour="row-actions"]', placement: 'left', padding: 4,
+      title: 'Действия в строке',
+      body: 'Без перехода на профиль: 💬 написать ученику, ➕ назначить материал из библиотеки. В меню «⋯» — открыть профиль, запланировать урок, статистика, написать родителям, удалить.'
+    },
+    {
+      target: '[data-tour="add"]', placement: 'bottom', padding: 6,
+      title: '➕ Добавить ученика',
+      body: 'Кнопка в шапке — добавить вручную, или импорт списка из CSV. Ученики получают приглашение в Telegram/email со ссылкой для входа.'
+    },
+    {
+      target: null, isModal: true, illustration: '🎉',
+      title: 'Готово!',
+      body: 'Тур всегда можно повторить — кнопка «Тур» в шапке.',
+      primaryLabel: 'К работе'
+    }
+  ];
+</script>
+<script src="assets/tour.js"></script>
 </body>
 </html>

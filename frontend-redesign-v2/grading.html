@@ -11,90 +11,181 @@
 <link rel="stylesheet" href="assets/components.css" />
 <script src="https://unpkg.com/lucide@latest"></script>
 <style>
-  /* Grading workspace */
+  /* ── Workspace 3-col (адаптивный) ── */
   .gr-workspace {
     display: grid;
-    grid-template-columns: 320px 1fr 360px;
+    grid-template-columns: minmax(280px, 320px) minmax(0, 1fr) minmax(300px, 360px);
     gap: 0;
     height: calc(100vh - 64px);
+    min-height: 600px;
   }
+  /* На средних экранах правая панель «сжимается» */
   @media (max-width: 1279px) {
-    .gr-workspace { grid-template-columns: 280px 1fr; }
+    .gr-workspace { grid-template-columns: minmax(260px, 300px) minmax(0, 1fr); }
     .gr-right { display: none; }
+    .gr-right.is-open {
+      display: flex;
+      position: fixed; top: 64px; right: 0; bottom: 0;
+      width: min(380px, 100vw);
+      z-index: 30;
+      box-shadow: -8px 0 32px rgba(0,0,0,0.12);
+    }
+    .gr-right-toggle { display: inline-flex !important; }
+  }
+  @media (max-width: 767px) {
+    .gr-workspace { grid-template-columns: 1fr; height: auto; min-height: 0; }
+    .gr-queue { max-height: 240px; }
   }
 
-  /* Left: queue list */
+  /* ── Левая: очередь ── */
   .gr-queue {
     background: var(--surface);
     border-right: 1px solid var(--ink-200);
     overflow-y: auto;
     display: flex;
     flex-direction: column;
+    min-width: 0;
   }
   .gr-queue-head {
-    padding: 16px;
+    padding: 14px 14px 12px;
     border-bottom: 1px solid var(--ink-200);
     position: sticky;
     top: 0;
     background: var(--surface);
     z-index: 2;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
   }
+
+  /* Сегмент «Ждут / Проверено» */
   .gr-tabs {
     display: flex;
     background: var(--ink-100);
     padding: 3px;
-    border-radius: var(--r-md);
-    margin-bottom: 12px;
+    border-radius: var(--r-full);
   }
   .gr-tabs button {
     flex: 1;
-    height: 30px;
+    height: 32px;
     border: none; background: transparent;
-    border-radius: var(--r-sm);
-    font-size: 12px;
+    border-radius: var(--r-full);
+    font-size: 13px;
     font-weight: 600;
     color: var(--ink-600);
     cursor: pointer;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 5px;
+    gap: 6px;
+    transition: all var(--t-fast) var(--ease);
   }
-  .gr-tabs button.is-active { background: white; color: var(--ink-900); box-shadow: var(--shadow-xs); }
+  .gr-tabs button:hover { color: var(--ink-900); }
+  .gr-tabs button.is-active {
+    background: white; color: var(--ink-900);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
   .gr-tabs .count {
-    background: var(--brand-500);
-    color: white;
-    font-size: 10px;
-    padding: 1px 6px;
+    background: var(--ink-200);
+    color: var(--ink-700);
+    font-size: 11px;
+    padding: 1px 7px;
     border-radius: var(--r-full);
     font-weight: 700;
+    font-variant-numeric: tabular-nums;
   }
-  .gr-tabs button:not(.is-active) .count { background: var(--ink-300); color: var(--ink-700); }
+  .gr-tabs button.is-active .count { background: var(--brand-100); color: var(--brand-700); }
 
+  /* Поиск */
   .gr-search { position: relative; }
-  .gr-search svg { position: absolute; left:10px; top:50%; transform:translateY(-50%); width:14px; color:var(--ink-500); }
+  .gr-search svg { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 15px; height: 15px; color: var(--ink-400); pointer-events: none; }
   .gr-search input {
-    height: 34px; width: 100%;
-    border: 1px solid var(--ink-200); border-radius: var(--r-sm);
-    padding: 0 12px 0 30px;
+    height: 36px; width: 100%;
+    border: 1px solid var(--ink-200); border-radius: var(--r-full);
+    padding: 0 14px 0 34px;
     font-family: inherit; font-size: 13px;
+    background: var(--surface);
+    transition: all var(--t-fast) var(--ease);
   }
-  .gr-search input:focus { outline:none; border-color: var(--brand-400); box-shadow: 0 0 0 3px rgba(255,126,88,0.12); }
+  .gr-search input::placeholder { color: var(--ink-400); }
+  .gr-search input:focus {
+    outline: none;
+    border-color: var(--brand-300);
+    box-shadow: 0 0 0 3px rgba(255,126,88,0.12);
+  }
 
-  .gr-queue-list {
-    flex: 1;
-    overflow-y: auto;
+  /* Группа маленьких select-фильтров */
+  .gr-filters {
+    display: flex; gap: 6px; flex-wrap: wrap;
   }
+  .mini-select { position: relative; flex: 1 1 auto; min-width: 0; }
+  .mini-select select {
+    appearance: none;
+    width: 100%;
+    height: 30px;
+    padding: 0 26px 0 10px;
+    background: var(--surface);
+    border: 1px solid var(--ink-200);
+    border-radius: var(--r-full);
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ink-700);
+    cursor: pointer;
+    transition: all var(--t-fast) var(--ease);
+  }
+  .mini-select select:hover { background: var(--ink-50); border-color: var(--ink-300); }
+  .mini-select select:focus { outline: none; border-color: var(--brand-300); box-shadow: 0 0 0 3px rgba(255,126,88,0.10); }
+  .mini-select::after {
+    content: '';
+    position: absolute; right: 10px; top: 50%;
+    width: 6px; height: 6px;
+    border-right: 1.5px solid var(--ink-500);
+    border-bottom: 1.5px solid var(--ink-500);
+    transform: translateY(-65%) rotate(45deg);
+    pointer-events: none;
+  }
+
+  /* Bulk-action бар */
+  .gr-bulk {
+    display: none;
+    align-items: center; gap: 10px;
+    padding: 10px 14px;
+    background: var(--brand-50);
+    border-bottom: 1px solid var(--brand-200);
+    font-size: 12px;
+    color: var(--brand-800);
+    font-weight: 600;
+  }
+  .gr-bulk.is-on { display: flex; }
+  .gr-bulk .grow { flex: 1; }
+  .gr-bulk button {
+    background: white; border: 1px solid var(--brand-200);
+    padding: 4px 10px; border-radius: var(--r-full);
+    font-size: 12px; font-weight: 600;
+    color: var(--brand-700); cursor: pointer;
+  }
+
+  /* Элементы очереди */
+  .gr-queue-list { flex: 1; overflow-y: auto; }
   .gr-item {
-    padding: 14px 16px;
+    padding: 14px 14px 14px 14px;
     border-bottom: 1px solid var(--ink-100);
-    display: flex;
-    gap: 12px;
+    display: flex; gap: 12px;
     cursor: pointer;
     transition: background var(--t-fast) var(--ease);
+    align-items: flex-start;
+    min-width: 0;
+    position: relative;
   }
   .gr-item:hover { background: var(--surface-soft); }
-  .gr-item.is-active { background: var(--brand-50); border-left: 3px solid var(--brand-500); padding-left: 13px; }
+  .gr-item.is-active { background: var(--brand-50); }
+  .gr-item.is-active::before {
+    content: '';
+    position: absolute; left: 0; top: 8px; bottom: 8px;
+    width: 3px; background: var(--brand-500);
+    border-radius: 0 2px 2px 0;
+  }
   .gr-item .av {
     width: 36px; height: 36px;
     border-radius: var(--r-full);
@@ -105,17 +196,21 @@
     font-size: 12px;
     flex-shrink: 0;
   }
+  .gr-item.is-overdue .av { background: linear-gradient(135deg, #FCA5A5, #DC2626); }
+  .gr-item .info { min-width: 0; flex: 1; }
   .gr-item .name {
     font-weight: 600;
-    font-size: 13px;
+    font-size: 13.5px;
     color: var(--ink-900);
     line-height: 1.2;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   .gr-item .task {
     font-size: 12px;
     color: var(--ink-600);
     margin: 4px 0;
     line-height: 1.4;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   .gr-item .meta {
     font-size: 11px;
@@ -123,16 +218,29 @@
     display: flex;
     align-items: center;
     gap: 6px;
+    flex-wrap: wrap;
   }
+  .gr-item .micro-badge {
+    font-size: 10px;
+    padding: 2px 7px;
+    border-radius: var(--r-full);
+    font-weight: 700;
+    text-transform: lowercase;
+    letter-spacing: 0;
+  }
+  .micro-badge.overdue { background: var(--danger-50); color: var(--danger-700); }
+  .micro-badge.done { background: var(--success-50); color: var(--success-700); }
+  .micro-badge.partial { background: var(--warning-50); color: var(--warning-700); }
+  .micro-badge.creative { background: var(--info-50); color: var(--info-700); }
 
-  /* Center: work to grade */
+  /* ── Центр: работа ── */
   .gr-main {
     background: var(--ink-50);
     padding: 24px;
     overflow-y: auto;
-    display: flex;
-    flex-direction: column;
+    display: flex; flex-direction: column;
     gap: 16px;
+    min-width: 0;
   }
   .gr-doc {
     background: white;
@@ -145,18 +253,40 @@
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
+    gap: 16px;
     padding-bottom: 16px;
     border-bottom: 1px solid var(--ink-100);
     margin-bottom: 20px;
+    flex-wrap: wrap;
   }
   .gr-doc h2 {
     font-family: var(--font-display);
     font-size: 20px;
     margin-bottom: 4px;
+    line-height: 1.25;
   }
   .gr-doc .header .sub {
     font-size: 13px;
     color: var(--ink-500);
+  }
+  /* Hotkeys hint */
+  .hotkey-hint {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 10px;
+    background: var(--ink-100);
+    border-radius: var(--r-full);
+    font-size: 11px;
+    color: var(--ink-600);
+    font-weight: 600;
+  }
+  .hotkey-hint .kbd {
+    background: white;
+    border: 1px solid var(--ink-200);
+    border-radius: 4px;
+    padding: 1px 5px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--ink-700);
   }
 
   .answer-block { margin-bottom: 18px; }
@@ -203,15 +333,23 @@
     margin-top: 1px;
   }
 
-  /* Right: grading panel */
+  /* ── Правая: панель оценки ── */
   .gr-right {
-    background: var(--surface);
+    background: var(--ink-50);
     border-left: 1px solid var(--ink-200);
-    padding: 24px;
+    padding: 16px;
     overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 18px;
+    display: flex; flex-direction: column;
+    gap: 12px;
+    min-width: 0;
+  }
+  /* Каждая секция — отдельная карточка с чёткой границей */
+  .gr-section {
+    background: var(--surface);
+    border: 1px solid var(--ink-200);
+    border-radius: var(--r-md);
+    padding: 16px;
+    box-shadow: 0 1px 2px rgba(15,23,42,0.03);
   }
   .gr-right h3 {
     font-size: 11px;
@@ -219,13 +357,18 @@
     font-weight: 700;
     color: var(--ink-500);
     letter-spacing: 0.06em;
-    margin-bottom: 10px;
+    margin: 0 0 12px;
+    display: flex; align-items: center; gap: 8px;
   }
+  .gr-right h3 svg { width: 13px; height: 13px; color: var(--ink-400); }
 
-  /* Grade picker */
-  .grade-picker { display: flex; gap: 8px; }
+  /* Grade picker (1-5 цифрами + цветом) */
+  .grade-picker {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+  }
   .grade-btn {
-    flex: 1;
     aspect-ratio: 1;
     border: 2px solid var(--ink-200);
     background: var(--surface);
@@ -236,27 +379,50 @@
     color: var(--ink-700);
     cursor: pointer;
     transition: all var(--t-fast) var(--ease);
+    position: relative;
   }
-  .grade-btn:hover { background: var(--ink-50); border-color: var(--ink-300); }
-  .grade-btn.is-active.g5 { background: var(--success-500); color: white; border-color: var(--success-500); }
-  .grade-btn.is-active.g4 { background: var(--success-500); color: white; border-color: var(--success-500); }
-  .grade-btn.is-active.g3 { background: var(--warning-500); color: white; border-color: var(--warning-500); }
-  .grade-btn.is-active.g2 { background: var(--danger-500); color: white; border-color: var(--danger-500); }
+  .grade-btn:hover { background: var(--ink-50); border-color: var(--ink-300); transform: translateY(-1px); }
+  .grade-btn .key-hint {
+    position: absolute; top: 4px; right: 6px;
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--ink-400);
+    font-weight: 500;
+  }
+  .grade-btn.is-active { color: white; }
+  .grade-btn.is-active.g5 { background: var(--success-500); border-color: var(--success-700); }
+  .grade-btn.is-active.g4 { background: var(--success-500); border-color: var(--success-700); }
+  .grade-btn.is-active.g3 { background: var(--warning-500); border-color: var(--warning-700); }
+  .grade-btn.is-active.g2 { background: var(--danger-500); border-color: var(--danger-700); }
+  .grade-btn.is-active .key-hint { color: rgba(255,255,255,0.7); }
 
-  .comment-area {
-    background: var(--ink-50);
-    border: 1px solid var(--ink-200);
+  /* Прогресс по работе */
+  .progress-mini {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+  }
+  .progress-mini .cell {
+    padding: 10px 8px;
     border-radius: var(--r-md);
-    padding: 12px;
-    font-family: inherit;
-    font-size: 13px;
-    color: var(--ink-800);
-    min-height: 100px;
-    width: 100%;
-    resize: vertical;
+    text-align: center;
   }
-  .comment-area:focus { outline:none; border-color: var(--brand-400); box-shadow: 0 0 0 3px rgba(255,126,88,0.12); background: white; }
+  .progress-mini .cell .v {
+    font-family: var(--font-display);
+    font-size: 20px;
+    font-weight: 800;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+  .progress-mini .cell .l {
+    font-size: 11px;
+    color: var(--ink-500);
+    font-weight: 600;
+    margin-top: 4px;
+  }
+  .progress-mini .cell-ok { background: var(--success-50); color: var(--success-700); }
+  .progress-mini .cell-err { background: var(--danger-50); color: var(--danger-700); }
+  .progress-mini .cell-all { background: var(--ink-100); color: var(--ink-700); }
 
+  /* AI suggestion */
   .ai-suggest {
     background: linear-gradient(165deg, #EEF2FF 0%, #FFFFFF 60%);
     border: 1px solid #C7D2FE;
@@ -272,9 +438,7 @@
     color: white;
     width: 24px; height: 24px;
     border-radius: var(--r-sm);
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
+    display: inline-flex; align-items: center; justify-content: center;
   }
   .ai-suggest .head .badge-ai svg { width: 14px; }
   .ai-suggest .head .title {
@@ -284,30 +448,77 @@
   }
   .ai-suggest .body { font-size: 13px; color: var(--ink-700); line-height: 1.5; }
   .ai-suggest .actions { display: flex; gap: 6px; margin-top: 10px; }
+
+  /* Comment textarea */
+  .comment-area {
+    background: var(--ink-50);
+    border: 1px solid var(--ink-200);
+    border-radius: var(--r-md);
+    padding: 12px;
+    font-family: inherit;
+    font-size: 13px;
+    color: var(--ink-800);
+    min-height: 100px;
+    width: 100%;
+    resize: vertical;
+    line-height: 1.55;
+  }
+  .comment-area:focus { outline: none; border-color: var(--brand-400); box-shadow: 0 0 0 3px rgba(255,126,88,0.12); background: white; }
+
+  /* Готовые шаблоны фидбэка (унифицированные pill) */
+  .preset-feedback {
+    display: flex; gap: 6px; flex-wrap: wrap;
+    margin-top: 10px;
+  }
+  .preset-fb {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 5px 12px;
+    border-radius: var(--r-full);
+    font-size: 12px;
+    font-weight: 600;
+    border: 1px solid;
+    background: transparent;
+    cursor: pointer;
+    transition: all var(--t-fast) var(--ease);
+    white-space: nowrap;
+  }
+  .preset-fb.ok { color: var(--success-700); border-color: #BBF7D0; background: var(--success-50); }
+  .preset-fb.ok:hover { background: #BBF7D0; }
+  .preset-fb.warn { color: var(--warning-700); border-color: #FDE68A; background: var(--warning-50); }
+  .preset-fb.warn:hover { background: #FDE68A; }
+  .preset-fb.info { color: var(--info-700); border-color: #BFDBFE; background: var(--info-50); }
+  .preset-fb.info:hover { background: #BFDBFE; }
+
+  /* Toggle для правой панели (на узком экране) */
+  .gr-right-toggle {
+    display: none;
+    align-items: center; gap: 6px;
+  }
 </style>
 </head>
 <body>
 <div class="app-shell">
   <aside class="sidebar">
     <div class="sidebar-brand">
-      <img src="assets/logo.png" alt="" /><span class="brand-name">Преподавай</span>
+      <img src="assets/logo.png" alt="" />
+      <span class="brand-name">Преподавай</span>
     </div>
     <nav class="sidebar-section">
       <div class="sidebar-label">Рабочий стол</div>
-      <a class="nav-item" href="dashboard.html"><i data-lucide="layout-dashboard"></i>Главная</a>
-      <a class="nav-item" href="tools.html"><i data-lucide="wand-sparkles"></i>ИИ Генератор</a>
-      <a class="nav-item" href="calendar.html"><i data-lucide="calendar"></i>Календарь</a>
-      <a class="nav-item" href="materials.html"><i data-lucide="book-open"></i>Материалы</a>
+      <a class="nav-item" href="dashboard.html"><i data-lucide="layout-dashboard"></i><span>Главная</span></a>
+      <a class="nav-item" href="tools.html"><i data-lucide="wand-sparkles"></i><span>ИИ Генератор</span></a>
+      <a class="nav-item" href="calendar.html"><i data-lucide="calendar"></i><span>Календарь</span></a>
+      <a class="nav-item" href="materials.html"><i data-lucide="book-open"></i><span>Материалы</span></a>
 
       <div class="sidebar-label">Класс</div>
-      <a class="nav-item" href="students.html"><i data-lucide="users"></i>Ученики<span class="nav-badge">3</span></a>
-      <a class="nav-item is-active"><i data-lucide="clipboard-check"></i>Проверка ДЗ<span class="nav-badge">12</span></a>
-      <a class="nav-item" href="analytics.html"><i data-lucide="bar-chart-3"></i>Аналитика</a>
+      <a class="nav-item" href="students.html"><i data-lucide="users"></i><span>Ученики</span><span class="nav-badge">3</span></a>
+      <a class="nav-item is-active"><i data-lucide="clipboard-check"></i><span>Проверка ДЗ</span><span class="nav-badge">12</span></a>
+      <a class="nav-item" href="analytics.html"><i data-lucide="bar-chart-3"></i><span>Аналитика</span></a>
 
       <div class="sidebar-label">Прочее</div>
-      <a class="nav-item" href="referrals.html"><i data-lucide="gift"></i>Пригласить</a>
-      <a class="nav-item"><i data-lucide="message-circle"></i>Поддержка</a>
-      <a class="nav-item" href="settings.html"><i data-lucide="settings"></i>Настройки</a>
+      <a class="nav-item" href="referrals.html"><i data-lucide="gift"></i><span>Пригласить</span></a>
+      <a class="nav-item"><i data-lucide="message-circle"></i><span>Поддержка</span></a>
+      <a class="nav-item" href="settings.html"><i data-lucide="settings"></i><span>Настройки</span></a>
     </nav>
     <div class="sidebar-footer">
       <div class="user-chip">
@@ -322,38 +533,86 @@
     <header class="topbar">
       <div>
         <h1>Проверка ДЗ</h1>
-        <div style="font-size:13px; color:var(--ink-500); margin-top:2px;">12 работ ждут проверки · 3 просрочены</div>
+        <div style="font-size:13px; color:var(--ink-500); margin-top:2px;">
+          12 работ ждут · 3 просрочены · средняя скорость проверки 1,5 мин
+        </div>
       </div>
       <div class="actions">
-        <button class="btn btn-secondary btn-sm"><i data-lucide="sparkles"></i> Проверить всё ИИ</button>
-        <button class="btn btn-primary btn-sm"><i data-lucide="zap"></i> Авто-проверка</button>
+        <button class="btn btn-ghost" id="tour-restart-header" aria-label="Запустить тур" style="height:32px; padding: 0 12px; gap: 6px;">
+          <i data-lucide="compass" style="width:14px;"></i>
+          <span style="font-size:12px; font-weight:600;">Тур</span>
+        </button>
+        <button class="btn btn-ghost btn-sm gr-right-toggle" onclick="document.querySelector('.gr-right').classList.toggle('is-open')">
+          <i data-lucide="sliders-horizontal"></i> Оценить
+        </button>
+        <button class="btn btn-secondary btn-sm" data-tour="ai-bulk"><i data-lucide="sparkles"></i> Проверить всё ИИ</button>
+        <button class="btn btn-primary btn-sm" data-tour="auto-check"><i data-lucide="zap"></i> Авто-проверка</button>
       </div>
     </header>
 
     <div class="gr-workspace">
 
-      <!-- ─── Queue ─── -->
-      <div class="gr-queue">
+      <!-- ───── Очередь учеников ───── -->
+      <div class="gr-queue" data-tour="queue">
         <div class="gr-queue-head">
           <div class="gr-tabs">
             <button class="is-active">Ждут <span class="count">12</span></button>
             <button>Проверено <span class="count">38</span></button>
           </div>
+
           <div class="gr-search">
             <i data-lucide="search"></i>
             <input placeholder="Поиск ученика…" />
           </div>
+
+          <!-- Расширенные фильтры -->
+          <div class="gr-filters">
+            <div class="mini-select">
+              <select>
+                <option>Все классы</option>
+                <option>10А</option><option>9А</option><option>11Б</option><option>8А</option>
+              </select>
+            </div>
+            <div class="mini-select">
+              <select>
+                <option>Все типы</option>
+                <option>Рабочие листы</option>
+                <option>Тесты</option>
+                <option>Презентации</option>
+                <option>Игры</option>
+              </select>
+            </div>
+          </div>
+          <div class="gr-filters">
+            <div class="mini-select">
+              <select>
+                <option>Сначала срочное</option>
+                <option>Сначала просроченное</option>
+                <option>Сначала новое</option>
+                <option>По фамилии А-Я</option>
+                <option>По классу</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bulk action bar (появляется при выделении) -->
+        <div class="gr-bulk">
+          <span>Выбрано: 3</span>
+          <span class="grow"></span>
+          <button><i data-lucide="sparkles" style="width:11px;"></i> Оценить ИИ</button>
+          <button>×</button>
         </div>
 
         <div class="gr-queue-list">
 
-          <div class="gr-item is-active">
-            <div class="av" style="background:linear-gradient(135deg,#FCA5A5,#DC2626);">КП</div>
-            <div style="min-width:0; flex:1;">
+          <div class="gr-item is-active is-overdue">
+            <div class="av">КП</div>
+            <div class="info">
               <div class="name">Кирилл Петров</div>
               <div class="task">Рабочий лист · Тригонометрия</div>
               <div class="meta">
-                <span class="badge badge-danger" style="font-size:10px; padding: 1px 6px;">просрочено</span>
+                <span class="micro-badge overdue">просрочено</span>
                 <span>10А · 2 дн</span>
               </div>
             </div>
@@ -361,11 +620,11 @@
 
           <div class="gr-item">
             <div class="av">МИ</div>
-            <div style="min-width:0; flex:1;">
+            <div class="info">
               <div class="name">Мария Иванова</div>
               <div class="task">Тест · Дискриминант</div>
               <div class="meta">
-                <span class="badge badge-success" style="font-size:10px; padding: 1px 6px;">сдано</span>
+                <span class="micro-badge done">сдано</span>
                 <span>10А · 3 ч</span>
               </div>
             </div>
@@ -373,11 +632,11 @@
 
           <div class="gr-item">
             <div class="av">ДВ</div>
-            <div style="min-width:0; flex:1;">
+            <div class="info">
               <div class="name">Дмитрий Волков</div>
               <div class="task">Рабочий лист · Тригонометрия</div>
               <div class="meta">
-                <span class="badge badge-success" style="font-size:10px; padding: 1px 6px;">сдано</span>
+                <span class="micro-badge done">сдано</span>
                 <span>11Б · 5 ч</span>
               </div>
             </div>
@@ -385,23 +644,23 @@
 
           <div class="gr-item">
             <div class="av">ЕБ</div>
-            <div style="min-width:0; flex:1;">
+            <div class="info">
               <div class="name">Елена Белова</div>
               <div class="task">Тест · Электромагнитная индукция</div>
               <div class="meta">
-                <span class="badge badge-success" style="font-size:10px; padding: 1px 6px;">сдано</span>
+                <span class="micro-badge done">сдано</span>
                 <span>9А · 6 ч</span>
               </div>
             </div>
           </div>
 
-          <div class="gr-item">
-            <div class="av" style="background:linear-gradient(135deg,#FCA5A5,#DC2626);">АС</div>
-            <div style="min-width:0; flex:1;">
+          <div class="gr-item is-overdue">
+            <div class="av">АС</div>
+            <div class="info">
               <div class="name">Анна Соколова</div>
               <div class="task">Рабочий лист · Past Continuous</div>
               <div class="meta">
-                <span class="badge badge-danger" style="font-size:10px; padding: 1px 6px;">просрочено</span>
+                <span class="micro-badge overdue">просрочено</span>
                 <span>9А · 1 дн</span>
               </div>
             </div>
@@ -409,11 +668,11 @@
 
           <div class="gr-item">
             <div class="av">НЛ</div>
-            <div style="min-width:0; flex:1;">
+            <div class="info">
               <div class="name">Никита Лебедев</div>
               <div class="task">Тест · Тригонометрия</div>
               <div class="meta">
-                <span class="badge badge-success" style="font-size:10px; padding: 1px 6px;">сдано</span>
+                <span class="micro-badge done">сдано</span>
                 <span>10А · вчера</span>
               </div>
             </div>
@@ -421,11 +680,11 @@
 
           <div class="gr-item">
             <div class="av">ПА</div>
-            <div style="min-width:0; flex:1;">
+            <div class="info">
               <div class="name">Полина Антонова</div>
               <div class="task">Презентация · Древний Рим</div>
               <div class="meta">
-                <span class="badge badge-info" style="font-size:10px; padding: 1px 6px;">творческое</span>
+                <span class="micro-badge creative">творческое</span>
                 <span>8А · вчера</span>
               </div>
             </div>
@@ -433,11 +692,11 @@
 
           <div class="gr-item">
             <div class="av">МК</div>
-            <div style="min-width:0; flex:1;">
+            <div class="info">
               <div class="name">Михаил Козлов</div>
               <div class="task">Рабочий лист · Интегралы</div>
               <div class="meta">
-                <span class="badge badge-warning" style="font-size:10px; padding: 1px 6px;">частично</span>
+                <span class="micro-badge partial">частично</span>
                 <span>11Б · вчера</span>
               </div>
             </div>
@@ -446,15 +705,19 @@
         </div>
       </div>
 
-      <!-- ─── Center: work ─── -->
-      <div class="gr-main">
+      <!-- ───── Центр: работа ───── -->
+      <div class="gr-main" data-tour="doc">
         <div class="gr-doc">
           <div class="header">
-            <div>
+            <div style="min-width: 0;">
               <h2>Рабочий лист · Тригонометрия: формулы приведения</h2>
               <div class="sub">Кирилл Петров · 10А · сдано 11 июня в 23:42 (на 2 дня позже)</div>
             </div>
-            <span class="badge badge-danger" style="padding: 4px 10px;"><i data-lucide="clock"></i> Просрочено</span>
+            <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+              <span class="hotkey-hint"><span class="kbd">1-5</span> оценка</span>
+              <span class="hotkey-hint"><span class="kbd">⌘ ↵</span> сохранить и далее</span>
+              <span class="micro-badge overdue" style="padding: 4px 10px; font-size: 11px;">⏰ Просрочено</span>
+            </div>
           </div>
 
           <div class="answer-block">
@@ -504,39 +767,39 @@
         </div>
       </div>
 
-      <!-- ─── Right: grading ─── -->
+      <!-- ───── Правая: панель оценки ───── -->
       <div class="gr-right">
 
-        <div>
-          <h3>Оценка</h3>
+        <div class="gr-section" data-tour="grade-picker">
+          <h3><i data-lucide="star"></i> Оценка</h3>
           <div class="grade-picker">
-            <button class="grade-btn g2">2</button>
-            <button class="grade-btn g3 is-active">3</button>
-            <button class="grade-btn g4">4</button>
-            <button class="grade-btn g5">5</button>
+            <button class="grade-btn g2">2<span class="key-hint">2</span></button>
+            <button class="grade-btn g3 is-active">3<span class="key-hint">3</span></button>
+            <button class="grade-btn g4">4<span class="key-hint">4</span></button>
+            <button class="grade-btn g5">5<span class="key-hint">5</span></button>
           </div>
         </div>
 
-        <div>
-          <h3>Прогресс по работе</h3>
-          <div style="display: flex; gap: 8px;">
-            <div style="flex: 1; padding: 10px; background: var(--success-50); border-radius: var(--r-md); text-align: center;">
-              <div style="font-family: var(--font-display); font-size: 18px; font-weight: 800; color: var(--success-700);">3</div>
-              <div style="font-size: 11px; color: var(--ink-500); font-weight: 600;">верно</div>
+        <div class="gr-section">
+          <h3><i data-lucide="bar-chart-3"></i> Прогресс по работе</h3>
+          <div class="progress-mini">
+            <div class="cell cell-ok">
+              <div class="v">3</div>
+              <div class="l">верно</div>
             </div>
-            <div style="flex: 1; padding: 10px; background: var(--danger-50); border-radius: var(--r-md); text-align: center;">
-              <div style="font-family: var(--font-display); font-size: 18px; font-weight: 800; color: var(--danger-700);">2</div>
-              <div style="font-size: 11px; color: var(--ink-500); font-weight: 600;">ошибки</div>
+            <div class="cell cell-err">
+              <div class="v">2</div>
+              <div class="l">ошибки</div>
             </div>
-            <div style="flex: 1; padding: 10px; background: var(--ink-50); border-radius: var(--r-md); text-align: center;">
-              <div style="font-family: var(--font-display); font-size: 18px; font-weight: 800; color: var(--ink-700);">5/5</div>
-              <div style="font-size: 11px; color: var(--ink-500); font-weight: 600;">всего</div>
+            <div class="cell cell-all">
+              <div class="v">5/5</div>
+              <div class="l">всего</div>
             </div>
           </div>
         </div>
 
-        <!-- AI suggestion -->
-        <div class="ai-suggest">
+        <!-- AI suggestion (свой стиль карточки) -->
+        <div class="ai-suggest" data-tour="ai-suggest">
           <div class="head">
             <span class="badge-ai"><i data-lucide="sparkles"></i></span>
             <span class="title">ИИ предлагает комментарий</span>
@@ -546,22 +809,22 @@
           </div>
           <div class="actions">
             <button class="btn btn-primary btn-sm" style="flex:1;"><i data-lucide="check"></i> Использовать</button>
-            <button class="btn btn-secondary btn-sm"><i data-lucide="refresh-cw"></i></button>
+            <button class="btn btn-secondary btn-sm" title="Сгенерировать новый"><i data-lucide="refresh-cw"></i></button>
           </div>
         </div>
 
-        <div>
-          <h3>Комментарий ученику</h3>
+        <div class="gr-section" data-tour="comment">
+          <h3><i data-lucide="message-square-text"></i> Комментарий ученику</h3>
           <textarea class="comment-area" placeholder="Что хорошо, что улучшить…">Кирилл, в целом верное направление, но есть две системные ошибки. Запомни: при переходе угла в нечётную четверть знак функции меняется. Пересмотри определения тангенса в IV четверти.</textarea>
-          <div style="display:flex; gap:6px; margin-top:8px;">
-            <button class="preset" style="background: var(--success-50); color: var(--success-700); border-color: var(--success-200);">Молодец 👏</button>
-            <button class="preset" style="background: var(--warning-50); color: var(--warning-700);">Подтянуть</button>
-            <button class="preset" style="background: var(--info-50); color: var(--info-700);">Повторить тему</button>
+          <div class="preset-feedback">
+            <button class="preset-fb ok">👏 Молодец</button>
+            <button class="preset-fb warn">📈 Подтянуть</button>
+            <button class="preset-fb info">📚 Повторить тему</button>
           </div>
         </div>
 
-        <div>
-          <h3>Действия</h3>
+        <div class="gr-section">
+          <h3><i data-lucide="zap"></i> Действия</h3>
           <div style="display:flex; flex-direction:column; gap:8px;">
             <button class="btn btn-primary"><i data-lucide="check"></i> Сохранить оценку</button>
             <button class="btn btn-secondary"><i data-lucide="arrow-right"></i> Сохранить и следующая</button>
@@ -574,6 +837,91 @@
     </div>
   </main>
 </div>
-<script>lucide.createIcons();</script>
+<script>
+  // Переключение элементов очереди
+  document.querySelectorAll('.gr-item').forEach(item => {
+    item.addEventListener('click', () => {
+      document.querySelectorAll('.gr-item').forEach(i => i.classList.remove('is-active'));
+      item.classList.add('is-active');
+    });
+  });
+  // Переключение оценки + горячие клавиши
+  document.querySelectorAll('.grade-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.grade-btn').forEach(b => b.classList.remove('is-active'));
+      btn.classList.add('is-active');
+    });
+  });
+  window.addEventListener('keydown', e => {
+    const target = e.target;
+    if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT')) return;
+    if (['2','3','4','5'].includes(e.key)) {
+      const grade = document.querySelector('.grade-btn.g' + e.key);
+      if (grade) {
+        document.querySelectorAll('.grade-btn').forEach(b => b.classList.remove('is-active'));
+        grade.classList.add('is-active');
+      }
+    }
+  });
+  // Закрытие правой панели при клике вне (на узком экране)
+  document.addEventListener('click', e => {
+    const panel = document.querySelector('.gr-right.is-open');
+    if (!panel) return;
+    if (!e.target.closest('.gr-right') && !e.target.closest('.gr-right-toggle')) {
+      panel.classList.remove('is-open');
+    }
+  });
+  lucide.createIcons();
+</script>
+
+<!-- ────────── Tour ────────── -->
+<script>
+  window.TOUR_LS_KEY = 'prepodavai_grading_tour_v1';
+  window.TOUR_STEPS = [
+    {
+      target: null, isModal: true, illustration: '✅',
+      title: 'Проверка домашних с ИИ',
+      body: 'Покажу, как ИИ помогает оценивать работы в несколько раз быстрее. Семь шагов — и вы освоите рабочий процесс.',
+      primaryLabel: 'Начнём'
+    },
+    {
+      target: '[data-tour="queue"]', placement: 'right', padding: 6,
+      title: '📋 Очередь учеников',
+      body: 'Слева — список тех, чьи работы ждут проверки. Сначала срочное / просроченное наверху. Жёлтые точки — давно ждут.'
+    },
+    {
+      target: '[data-tour="doc"]', placement: 'left', padding: 6,
+      title: '📄 Работа ученика',
+      body: 'В центре — все ответы выделены: ✅ зелёные верные, ❌ красные ошибочные. Под каждым — пояснение ИИ, почему верно/неверно.'
+    },
+    {
+      target: '[data-tour="grade-picker"]', placement: 'left', padding: 6,
+      title: '⭐ Поставить оценку',
+      body: 'Большие кнопки 2-3-4-5 справа. Или просто нажмите цифру на клавиатуре — быстрее. ИИ уже подсказал, какая оценка справедлива.'
+    },
+    {
+      target: '[data-tour="ai-suggest"]', placement: 'left', padding: 6,
+      title: '✨ ИИ предлагает комментарий',
+      body: 'Целый комментарий ученику уже написан — учитывает все ошибки. Жмёте «Использовать» — комментарий вставляется в поле ниже. Или «↻» — сгенерировать новый.'
+    },
+    {
+      target: '[data-tour="comment"]', placement: 'left', padding: 6,
+      title: '💬 Свой комментарий',
+      body: 'Если ИИ-комментарий не подходит, перепишите. Снизу — быстрые шаблоны: «👏 Молодец», «📈 Подтянуть», «📚 Повторить тему».'
+    },
+    {
+      target: '[data-tour="auto-check"]', placement: 'bottom', padding: 6,
+      title: '⚡ Авто-проверка',
+      body: 'Самое мощное: ИИ сам проверяет все работы в очереди, ставит оценки и пишет комментарии. Вы только просматриваете и подтверждаете. Кнопка справа в шапке.'
+    },
+    {
+      target: null, isModal: true, illustration: '🚀',
+      title: 'Готово!',
+      body: 'Горячие клавиши помнить не нужно — они показаны в подсказках над работой. Если что — кнопка «Тур» в шапке всегда поможет.',
+      primaryLabel: 'К работе'
+    }
+  ];
+</script>
+<script src="assets/tour.js"></script>
 </body>
 </html>

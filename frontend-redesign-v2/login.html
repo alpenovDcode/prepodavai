@@ -211,16 +211,17 @@
   .float-card .ft { font-size: 12px; font-weight: 600; color: var(--ink-900); line-height: 1.2; }
   .float-card .fm { font-size: 11px; color: var(--ink-500); margin-top: 2px; }
 
-  .float-1 { top: 18%; right: 8%; animation: floaty 6s ease-in-out infinite; }
-  .float-2 { top: 50%; left: 8%; animation: floaty 7s ease-in-out infinite reverse; }
-  .float-3 { top: 38%; right: 16%; animation: floaty 8s ease-in-out infinite; }
+  .float-1 { top: 30%; right: 6%;  animation: floaty 6s ease-in-out infinite; }
+  .float-2 { top: 62%; left: 4%;   animation: floaty 7s ease-in-out infinite reverse; }
+  .float-3 { top: 46%; right: 22%; animation: floaty 8s ease-in-out infinite; }
+  .float-4 { top: 40%; left: 6%;   animation: floaty 9s ease-in-out infinite reverse; }
 
   @keyframes floaty {
     0%,100% { transform: translateY(0); }
     50%     { transform: translateY(-10px); }
   }
   @media (prefers-reduced-motion: reduce) {
-    .float-1, .float-2, .float-3 { animation: none; }
+    .float-1, .float-2, .float-3, .float-4 { animation: none; }
   }
 
   .auth-side-head h2 {
@@ -285,23 +286,6 @@
           <i data-lucide="arrow-right"></i>
         </button>
 
-        <div class="divider">или</div>
-
-        <div class="social-row">
-          <button class="social-btn">
-            <div class="ico-circle" style="background:#0088CC;">
-              <i data-lucide="send"></i>
-            </div>
-            Войти через Telegram
-          </button>
-          <button class="social-btn">
-            <div class="ico-circle" style="background:linear-gradient(135deg,#5B47FB,#9747FB);">
-              <i data-lucide="message-circle"></i>
-            </div>
-            Войти через MAX
-          </button>
-        </div>
-
         <div class="auth-bottom">
           Ещё нет аккаунта? <a href="#">Зарегистрироваться</a>
         </div>
@@ -342,6 +326,14 @@
       <div>
         <div class="ft">+12% сдают вовремя</div>
         <div class="fm">10А · за этот месяц</div>
+      </div>
+    </div>
+
+    <div class="float-card float-4">
+      <div class="fci" style="background:var(--warning-50); color:var(--warning-700);"><i data-lucide="presentation"></i></div>
+      <div>
+        <div class="ft">Презентация готова</div>
+        <div class="fm">12 слайдов · «Война и мир»</div>
       </div>
     </div>
 

@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Тригонометрия: формулы приведения — Преподавай</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/tokens.css" />
+<link rel="stylesheet" href="assets/components.css" />
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+  /* ── Хлебные крошки ── */
+  .crumb { font-size: 13px; color: var(--ink-500); display: inline-flex; align-items: center; gap: 6px; }
+  .crumb a { color: var(--ink-500); text-decoration: none; transition: color var(--t-fast) var(--ease); }
+  .crumb a:hover { color: var(--ink-900); }
+  .crumb svg { width: 12px; height: 12px; flex-shrink: 0; }
+
+  /* ── Тип-чип ── */
+  .type-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 10px;
+    border-radius: var(--r-full);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .type-chip svg { width: 12px; height: 12px; }
+  .type-worksheet { background: var(--brand-50); color: var(--brand-700); }
+
+  /* ── Hero блок материала ── */
+  .mat-hero {
+    background: var(--surface);
+    border: 1px solid var(--ink-200);
+    border-radius: var(--r-xl);
+    padding: 24px 28px;
+    margin-bottom: 20px;
+  }
+  .mat-hero h1 {
+    font-size: 26px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+    color: var(--ink-900);
+    margin: 12px 0 14px;
+    display: inline-flex; align-items: center; gap: 10px;
+  }
+  .mat-hero h1 .edit-pencil {
+    width: 32px; height: 32px;
+    border-radius: var(--r-sm);
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--ink-400);
+    cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+    opacity: 0;
+    transition: all var(--t-fast) var(--ease);
+  }
+  .mat-hero h1:hover .edit-pencil { opacity: 1; }
+  .mat-hero h1 .edit-pencil:hover { background: var(--ink-100); border-color: var(--ink-200); color: var(--ink-700); }
+  .mat-hero h1 .edit-pencil svg { width: 16px; height: 16px; }
+
+  .mat-meta {
+    display: flex; align-items: center; gap: 8px;
+    flex-wrap: wrap;
+    font-size: 13px;
+    color: var(--ink-500);
+  }
+  .mat-meta .dot { color: var(--ink-300); }
+  .mat-meta .subject {
+    color: var(--ink-700);
+    font-weight: 600;
+    display: inline-flex; align-items: center; gap: 5px;
+  }
+  .mat-meta svg { width: 13px; height: 13px; }
+
+  /* Tags row */
+  .mat-tags {
+    display: flex; align-items: center; gap: 6px;
+    flex-wrap: wrap;
+    margin-top: 14px;
+  }
+  .mat-tags .tag {
+    background: var(--ink-100);
+    color: var(--ink-700);
+    font-size: 12px;
+    font-weight: 600;
+    padding: 3px 10px 3px 10px;
+    border-radius: var(--r-full);
+    display: inline-flex; align-items: center; gap: 4px;
+  }
+  .mat-tags .tag .remove {
+    cursor: pointer; color: var(--ink-500);
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    transition: all var(--t-fast) var(--ease);
+  }
+  .mat-tags .tag .remove:hover { background: var(--ink-300); color: var(--ink-900); }
+  .mat-tags .add-tag {
+    background: transparent;
+    border: 1px dashed var(--ink-300);
+    color: var(--ink-500);
+    font-size: 12px;
+    font-weight: 500;
+    padding: 3px 10px;
+    border-radius: var(--r-full);
+    cursor: pointer;
+    transition: all var(--t-fast) var(--ease);
+  }
+  .mat-tags .add-tag:hover { border-color: var(--brand-400); color: var(--brand-700); background: var(--brand-50); }
+
+  /* ── Tabs (Просмотр / С ответами / Редактировать) ── */
+  .mat-tabs {
+    display: flex; gap: 4px;
+    margin-bottom: 16px;
+    border-bottom: 1px solid var(--ink-200);
+  }
+  .mat-tab {
+    padding: 12px 16px;
+    background: transparent;
+    border: none;
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--ink-500);
+    cursor: pointer;
+    position: relative;
+    display: inline-flex; align-items: center; gap: 8px;
+    transition: color var(--t-fast) var(--ease);
+  }
+  .mat-tab:hover { color: var(--ink-900); }
+  .mat-tab.is-active { color: var(--brand-700); }
+  .mat-tab.is-active::after {
+    content: '';
+    position: absolute;
+    bottom: -1px; left: 12px; right: 12px;
+    height: 2px;
+    background: var(--brand-500);
+    border-radius: 2px;
+  }
+  .mat-tab svg { width: 16px; height: 16px; flex-shrink: 0; }
+
+  /* ── Содержимое материала (рабочий лист) ── */
+  .preview-sheet {
+    background: white;
+    border: 1px solid var(--ink-200);
+    border-radius: var(--r-lg);
+    padding: 48px 56px;
+    max-width: 820px;
+    margin: 0 auto 24px;
+    box-shadow: 0 2px 8px rgba(15,23,42,0.04);
+  }
+  .preview-sheet h1.doc {
+    font-family: var(--font-display);
+    font-size: 24px;
+    font-weight: 800;
+    color: var(--ink-900);
+    margin: 0;
+  }
+  .preview-sheet .meta-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin: 16px 0 24px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--ink-200);
+  }
+  .preview-sheet .meta-row .label {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--ink-500);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 8px;
+  }
+  .preview-sheet .meta-row .underline {
+    height: 24px;
+    border-bottom: 1px solid var(--ink-300);
+  }
+  .preview-sheet .info-box {
+    background: var(--info-50);
+    border-left: 3px solid var(--info-500);
+    padding: 14px 18px;
+    border-radius: 6px;
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--ink-700);
+    margin-bottom: 24px;
+  }
+  .preview-sheet .task-h {
+    font-family: var(--font-display);
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--ink-900);
+    margin: 24px 0 12px;
+  }
+  .preview-sheet .task-body { font-size: 14px; line-height: 1.7; color: var(--ink-700); }
+  .preview-sheet ol.tasks { padding-left: 22px; }
+  .preview-sheet ol.tasks li { margin-bottom: 10px; }
+  .preview-sheet .fill-blank {
+    display: inline-block;
+    min-width: 120px;
+    border-bottom: 1px solid var(--ink-400);
+    height: 18px;
+    vertical-align: -2px;
+    margin-left: 6px;
+  }
+  .preview-sheet .doc-footer {
+    margin-top: 28px;
+    padding-top: 18px;
+    border-top: 1px solid var(--ink-200);
+    display: flex; align-items: center; gap: 8px;
+    font-size: 11px; color: var(--ink-400);
+  }
+  .preview-sheet .doc-footer img { width: 16px; height: 16px; border-radius: 4px; opacity: 0.6; }
+
+  /* ── Меню действий «⋯» ── */
+  .mat-menu { position: relative; display: inline-block; }
+  .mat-menu-btn {
+    width: 36px; height: 36px;
+    border-radius: var(--r-md);
+    border: 1px solid var(--ink-200);
+    background: var(--surface);
+    color: var(--ink-600);
+    cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+    transition: all var(--t-fast) var(--ease);
+  }
+  .mat-menu-btn:hover { background: var(--ink-50); color: var(--ink-900); border-color: var(--ink-300); }
+  .mat-menu-btn svg { width: 16px; height: 16px; }
+
+  .mat-menu-list {
+    position: absolute; top: 100%; right: 0;
+    margin-top: 6px;
+    background: var(--surface);
+    border: 1px solid var(--ink-200);
+    border-radius: var(--r-md);
+    box-shadow: 0 12px 32px rgba(15,23,42,0.12);
+    padding: 6px;
+    min-width: 220px;
+    display: none;
+    z-index: 100;
+  }
+  .mat-menu.is-open .mat-menu-list { display: block; }
+  .mat-menu-list button {
+    display: flex; align-items: center; gap: 10px;
+    width: 100%;
+    padding: 9px 10px;
+    border: none;
+    background: transparent;
+    border-radius: var(--r-sm);
+    color: var(--ink-700);
+    font-size: 13.5px;
+    font-weight: 500;
+    cursor: pointer;
+    text-align: left;
+    transition: background var(--t-fast) var(--ease);
+  }
+  .mat-menu-list button:hover { background: var(--ink-100); color: var(--ink-900); }
+  .mat-menu-list button.is-danger { color: var(--danger-700); }
+  .mat-menu-list button.is-danger:hover { background: var(--danger-50); color: var(--danger-700); }
+  .mat-menu-list button svg { width: 14px; height: 14px; flex-shrink: 0; }
+  .mat-menu-list .menu-sep {
+    height: 1px;
+    background: var(--ink-100);
+    margin: 4px 2px;
+  }
+
+  /* Контент-обёртка для просмотра */
+  .mat-content { padding: 24px 32px 48px; max-width: 1100px; margin: 0 auto; width: 100%; }
+  @media (max-width: 767px) { .mat-content { padding: 16px; } }
+</style>
+</head>
+<body>
+<div class="app-shell">
+
+  <!-- ───────── SIDEBAR ───────── -->
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <img src="assets/logo.png" alt="" />
+      <span class="brand-name">Преподавай</span>
+    </div>
+    <nav class="sidebar-section">
+      <div class="sidebar-label">Рабочий стол</div>
+      <a class="nav-item" href="dashboard.html"><i data-lucide="layout-dashboard"></i><span>Главная</span></a>
+      <a class="nav-item" href="tools.html"><i data-lucide="wand-sparkles"></i><span>ИИ Генератор</span></a>
+      <a class="nav-item" href="calendar.html"><i data-lucide="calendar"></i><span>Календарь</span></a>
+      <a class="nav-item is-active" href="materials.html"><i data-lucide="book-open"></i><span>Материалы</span></a>
+
+      <div class="sidebar-label">Класс</div>
+      <a class="nav-item" href="students.html"><i data-lucide="users"></i><span>Ученики</span><span class="nav-badge">3</span></a>
+      <a class="nav-item" href="grading.html"><i data-lucide="clipboard-check"></i><span>Проверка ДЗ</span></a>
+      <a class="nav-item" href="analytics.html"><i data-lucide="bar-chart-3"></i><span>Аналитика</span></a>
+
+      <div class="sidebar-label">Прочее</div>
+      <a class="nav-item" href="referrals.html"><i data-lucide="gift"></i><span>Пригласить</span></a>
+      <a class="nav-item"><i data-lucide="message-circle"></i><span>Поддержка</span></a>
+      <a class="nav-item" href="settings.html"><i data-lucide="settings"></i><span>Настройки</span></a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="user-chip">
+        <div class="avatar">ЕА</div>
+        <div class="info">
+          <div class="name">Евгения А.</div>
+          <div class="plan">Тариф «Бизнес»</div>
+        </div>
+        <i data-lucide="chevron-up" style="color:var(--ink-400); width:16px;"></i>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ───────── MAIN ───────── -->
+  <main>
+    <header class="topbar">
+      <div>
+        <div class="crumb">
+          <a href="materials.html">Материалы</a>
+          <i data-lucide="chevron-right"></i>
+          <span>Тригонометрия: формулы приведения</span>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn btn-secondary btn-sm"><i data-lucide="share-2"></i> Поделиться</button>
+        <button class="btn btn-secondary btn-sm"><i data-lucide="download"></i> Скачать PDF</button>
+        <button class="btn btn-primary btn-sm"><i data-lucide="send"></i> Выдать ученикам</button>
+        <div class="mat-menu" onclick="toggleMenu(event, this)">
+          <button class="mat-menu-btn"><i data-lucide="more-horizontal"></i></button>
+          <div class="mat-menu-list">
+            <button><i data-lucide="pen-line"></i> Переименовать</button>
+            <button><i data-lucide="copy"></i> Дублировать</button>
+            <button><i data-lucide="edit-3"></i> Редактировать в редакторе</button>
+            <button><i data-lucide="wand-sparkles"></i> Открыть в Генераторе</button>
+            <button><i data-lucide="printer"></i> Печать</button>
+            <button><i data-lucide="link"></i> Скопировать ссылку</button>
+            <div class="menu-sep"></div>
+            <button class="is-danger"><i data-lucide="trash-2"></i> Удалить</button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <div class="mat-content">
+
+      <!-- ─── Hero: название + метаданные + теги ─── -->
+      <div class="mat-hero">
+        <span class="type-chip type-worksheet"><i data-lucide="file-text"></i> Рабочий лист</span>
+        <h1>
+          Тригонометрия: формулы приведения
+          <button class="edit-pencil" title="Переименовать"><i data-lucide="pen-line"></i></button>
+        </h1>
+        <div class="mat-meta">
+          <span class="subject"><i data-lucide="book"></i> Математика</span>
+          <span class="dot">·</span>
+          <span>10 класс</span>
+          <span class="dot">·</span>
+          <span><i data-lucide="clock" style="display:inline-block; vertical-align:-2px;"></i> Создано 13 июня</span>
+          <span class="dot">·</span>
+          <span>3 задания · ~15 минут на урок</span>
+        </div>
+        <div class="mat-tags">
+          <span class="tag">тригонометрия <i class="remove" data-lucide="x"></i></span>
+          <span class="tag">формулы <i class="remove" data-lucide="x"></i></span>
+          <span class="tag">10 класс <i class="remove" data-lucide="x"></i></span>
+          <button class="add-tag">+ Добавить тег</button>
+        </div>
+      </div>
+
+      <!-- ─── Tabs (виды просмотра) ─── -->
+      <div class="mat-tabs">
+        <button class="mat-tab is-active"><i data-lucide="file-text"></i> Превью</button>
+        <button class="mat-tab"><i data-lucide="key-round"></i> С ответами</button>
+        <button class="mat-tab"><i data-lucide="edit-3"></i> Редактировать</button>
+      </div>
+
+      <!-- ─── Сам материал ─── -->
+      <div class="preview-sheet">
+        <div style="display:flex; align-items:center; gap:12px; margin-bottom:24px;">
+          <img src="assets/logo.png" alt="" style="width:36px; height:36px; border-radius:8px;" />
+          <div>
+            <div style="font-size:11px; color:var(--ink-500); letter-spacing:0.04em; text-transform:uppercase;">Рабочий лист</div>
+            <h1 class="doc">Тригонометрия: формулы приведения</h1>
+          </div>
+        </div>
+
+        <div class="meta-row">
+          <div>
+            <div class="label">Ученик</div>
+            <div class="underline"></div>
+          </div>
+          <div>
+            <div class="label">Класс</div>
+            <div class="underline"></div>
+          </div>
+          <div>
+            <div class="label">Дата</div>
+            <div class="underline"></div>
+          </div>
+        </div>
+
+        <div class="info-box">
+          <strong>Справка.</strong> Формулы приведения позволяют свести тригонометрические функции любого аргумента к функциям острого угла. Запоминаются по правилу «лошадь — кивает, а человек — мотает».
+        </div>
+
+        <h2 class="task-h">Задание 1 · Базовые приведения</h2>
+        <div class="task-body">
+          Упростите выражения, используя формулы приведения:
+          <ol class="tasks" style="margin-top:8px;">
+            <li>sin(180° − α) = <span class="fill-blank"></span></li>
+            <li>cos(90° + α) = <span class="fill-blank"></span></li>
+            <li>tg(360° − α) = <span class="fill-blank"></span></li>
+            <li>ctg(270° − α) = <span class="fill-blank"></span></li>
+          </ol>
+        </div>
+
+        <h2 class="task-h">Задание 2 · Вычисления</h2>
+        <div class="task-body">
+          Найдите значения, не используя калькулятор:
+          <ol class="tasks" start="5" style="margin-top:8px;">
+            <li>sin 150° = <span class="fill-blank"></span></li>
+            <li>cos 120° = <span class="fill-blank"></span></li>
+            <li>tg 225° = <span class="fill-blank"></span></li>
+          </ol>
+        </div>
+
+        <h2 class="task-h">Задание 3 · Применение</h2>
+        <div class="task-body">
+          Решите уравнение sin(π − x) = √3 / 2 на отрезке [0; 2π]. Запишите все корни.
+          <div style="margin-top:12px; padding: 16px; border:1px dashed var(--ink-300); border-radius:8px; min-height: 80px;"></div>
+        </div>
+
+        <div class="doc-footer">
+          <img src="assets/logo.png" alt="" />
+          <span>Преподавай · сгенерировано ИИ · prepodavai.ru</span>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<script>
+  // Меню «⋯»
+  function toggleMenu(e, el) {
+    if (!e.target.closest('.mat-menu-btn') && !e.target.closest('.mat-menu-list')) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.target.closest('.mat-menu-list button')) {
+      el.classList.remove('is-open');
+      return;
+    }
+    const wasOpen = el.classList.contains('is-open');
+    document.querySelectorAll('.mat-menu.is-open').forEach(m => m.classList.remove('is-open'));
+    if (!wasOpen) el.classList.add('is-open');
+  }
+  document.addEventListener('click', e => {
+    if (!e.target.closest('.mat-menu')) {
+      document.querySelectorAll('.mat-menu.is-open').forEach(m => m.classList.remove('is-open'));
+    }
+  });
+
+  // Переключение табов превью
+  document.querySelectorAll('.mat-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.mat-tab').forEach(b => b.classList.remove('is-active'));
+      btn.classList.add('is-active');
+    });
+  });
+
+  lucide.createIcons();
+</script>
+</body>
+</html>

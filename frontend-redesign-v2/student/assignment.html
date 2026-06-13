@@ -182,23 +182,20 @@
   }
   .ws-input:focus { outline: none; border-color: var(--brand-400); box-shadow: 0 0 0 3px rgba(255,126,88,0.12); }
 
-  /* Submit panel — sticky */
-  .submit-panel {
+  /* Блок дополнительных материалов — в обычном потоке (под заданиями) */
+  .extra-block {
     background: var(--surface);
     border: 1px solid var(--ink-200);
     border-radius: var(--r-lg);
     padding: 20px;
-    position: sticky;
-    bottom: 16px;
-    margin-top: 16px;
-    box-shadow: var(--shadow-md);
+    margin-top: 24px;
   }
-  .submit-panel h3 {
+  .extra-block h3 {
     font-size: 14px;
     font-weight: 700;
     margin-bottom: 12px;
   }
-  .submit-panel .answer-textarea {
+  .extra-block .answer-textarea {
     width: 100%;
     min-height: 80px;
     padding: 12px 14px;
@@ -210,7 +207,49 @@
     resize: vertical;
     margin-bottom: 12px;
   }
-  .submit-panel .answer-textarea:focus { outline:none; border-color: var(--brand-400); box-shadow: 0 0 0 3px rgba(255,126,88,0.12); }
+  .extra-block .answer-textarea:focus { outline:none; border-color: var(--brand-400); box-shadow: 0 0 0 3px rgba(255,126,88,0.12); }
+
+  /* Компактная sticky-панель — только статус + 2 кнопки */
+  .submit-bar {
+    position: sticky;
+    bottom: 16px;
+    margin-top: 16px;
+    background: rgba(255, 255, 255, 0.9);
+    backdrop-filter: blur(14px) saturate(180%);
+    -webkit-backdrop-filter: blur(14px) saturate(180%);
+    border: 1px solid var(--ink-200);
+    border-radius: var(--r-full);
+    padding: 8px 8px 8px 20px;
+    box-shadow:
+      0 -4px 16px rgba(15, 23, 42, 0.05),
+      0 8px 24px rgba(15, 23, 42, 0.10);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    z-index: 5;
+    min-height: 56px;
+  }
+  .submit-bar .status {
+    font-size: 13px;
+    color: var(--ink-600);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex: 1;
+    min-width: 0;
+  }
+  .submit-bar .status svg { width: 14px; height: 14px; color: var(--success-700); flex-shrink: 0; }
+  .submit-bar .progress-mini {
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    color: var(--ink-800);
+  }
+  /* На мобильных кнопки могут переноситься */
+  @media (max-width: 600px) {
+    .submit-bar { border-radius: var(--r-lg); flex-wrap: wrap; padding: 12px; }
+  }
+  /* Контент должен иметь нижний отступ, чтобы последний блок не уходил под submit-bar */
+  .as-shell { padding-bottom: 100px; }
 
   .upload-strip {
     display: flex; align-items: center; gap: 8px;
@@ -268,8 +307,8 @@
       <a class="s-nav-item is-active"><i data-lucide="book-open"></i>Задания<span class="badge-num">7</span></a>
       <a class="s-nav-item" href="grades.html"><i data-lucide="graduation-cap"></i>Оценки</a>
       <a class="s-nav-item" href="ai-teacher.html"><i data-lucide="bot"></i>ИИ-учитель</a>
-      <a class="s-nav-item"><i data-lucide="trophy"></i>Достижения</a>
-      <a class="s-nav-item"><i data-lucide="bell"></i>Уведомления</a>
+      <a class="s-nav-item" href="achievements.html"><i data-lucide="trophy"></i>Достижения</a>
+      <a class="s-nav-item" href="notifications.html"><i data-lucide="bell"></i>Уведомления<span class="badge-num">5</span></a>
     </nav>
     <div class="s-profile">
       <div class="top">
@@ -292,6 +331,10 @@
         <h1 style="font-size:18px;">Задание</h1>
       </div>
       <div style="display:flex; gap:10px; align-items:center;">
+        <button class="btn btn-ghost" id="tour-restart-header" aria-label="Запустить тур" style="height:32px; padding: 0 12px; gap: 6px;">
+          <i data-lucide="compass" style="width:14px;"></i>
+          <span style="font-size:12px; font-weight:600;">Тур</span>
+        </button>
         <div class="xp-chip">
           <div class="ico"><i data-lucide="flame" style="width:12px;"></i></div>
           7 дней подряд
@@ -304,7 +347,7 @@
       <div class="as-shell">
 
         <!-- Hero -->
-        <div class="as-hero">
+        <div class="as-hero" data-tour="hero">
           <div class="crumb-row">
             <a href="dashboard.html">Задания</a>
             <i data-lucide="chevron-right"></i>
@@ -327,7 +370,7 @@
             </span>
           </div>
 
-          <div class="progress-wrap">
+          <div class="progress-wrap" data-tour="progress">
             <span class="v">4/10</span>
             <div class="bar"><i></i></div>
             <span style="font-size:12px; color:var(--ink-500);">Заполнено</span>
@@ -338,7 +381,7 @@
         <!-- Materials -->
 
         <!-- ── Worksheet (open) ── -->
-        <div class="acc is-open">
+        <div class="acc is-open" data-tour="worksheet">
           <div class="acc-head">
             <div class="acc-ico" style="background:var(--brand-50); color:var(--brand-700);">
               <i data-lucide="file-text"></i>
@@ -425,8 +468,8 @@
           </div>
         </div>
 
-        <!-- ── Submit panel ── -->
-        <div class="submit-panel">
+        <!-- ── Дополнительно (в обычном потоке) ── -->
+        <div class="extra-block" data-tour="extra">
           <h3>Дополнительно к ответам</h3>
           <textarea class="answer-textarea" placeholder="Если нужно — напиши решение, объяснение или вопрос учителю…"></textarea>
 
@@ -438,19 +481,20 @@
             <button class="btn btn-secondary btn-sm"><i data-lucide="image"></i> Выбрать</button>
           </div>
 
-          <div class="submit-actions">
-            <span style="font-size:13px; color:var(--ink-500); flex: 1;">
-              <i data-lucide="cloud-check" style="width:14px; display:inline-block; vertical-align:-2px; color:var(--success-700);"></i>
-              Сохранено · черновик
-            </span>
-            <button class="btn btn-secondary"><i data-lucide="save"></i> Сохранить</button>
-            <button class="btn btn-primary"><i data-lucide="send"></i> Отправить учителю</button>
-          </div>
-
-          <div class="reward-note">
+          <div class="reward-note" style="margin-top: 14px;">
             <i data-lucide="star"></i>
             <span>Сдай вовремя — получишь <strong style="color: var(--warning-700);">+30 XP</strong> и сохранишь стрик в 7 дней!</span>
           </div>
+        </div>
+
+        <!-- ── Компактная sticky-панель (статус + кнопки) ── -->
+        <div class="submit-bar" data-tour="submit">
+          <span class="status">
+            <i data-lucide="cloud-check"></i>
+            Сохранено · черновик · <span class="progress-mini">4 / 10</span>
+          </span>
+          <button class="btn btn-secondary btn-sm"><i data-lucide="save"></i> Сохранить</button>
+          <button class="btn btn-primary"><i data-lucide="send"></i> Отправить учителю</button>
         </div>
 
       </div>
@@ -459,5 +503,50 @@
   </main>
 </div>
 <script>lucide.createIcons();</script>
+
+<!-- ────────── Tour ────────── -->
+<script>
+  window.TOUR_LS_KEY = 'prepodavai_student_assignment_tour_v1';
+  window.TOUR_STEPS = [
+    {
+      target: null, isModal: true, illustration: '📝',
+      title: 'Это задание',
+      body: 'Покажу, как тут всё устроено: где смотреть прогресс, как отвечать на вопросы и как сдать работу учителю.',
+      primaryLabel: 'Покажи'
+    },
+    {
+      target: '[data-tour="hero"]', placement: 'bottom', padding: 8,
+      title: 'Шапка задания',
+      body: 'Тема, какой учитель задал, сколько материалов, дедлайн. Жёлтая пилюля «До завтра» — горит, когда срочно.'
+    },
+    {
+      target: '[data-tour="progress"]', placement: 'bottom', padding: 6,
+      title: '✅ Прогресс и автосохранение',
+      body: '«4/10» — сколько уже сделал. Полоса заполняется по мере ответов. Облачко «Черновик сохранён» — твои ответы сохраняются автоматически, даже если закроешь вкладку.'
+    },
+    {
+      target: '[data-tour="worksheet"]', placement: 'top', padding: 8,
+      title: 'Рабочий лист',
+      body: 'Главный материал. Все вопросы прямо здесь — пиши ответы в поля. Сверху справка, если что-то забыл по теме.'
+    },
+    {
+      target: '[data-tour="extra"]', placement: 'top', padding: 8,
+      title: 'Доп. ответ и фото',
+      body: 'Если есть решение на бумаге — сфоткай и прикрепи. Можешь дописать комментарий или задать вопрос учителю.'
+    },
+    {
+      target: '[data-tour="submit"]', placement: 'top', padding: 6,
+      title: '📤 Отправить учителю',
+      body: 'Когда всё готово — «Отправить учителю». «Сохранить» — отложить на потом, всё уже автосохраняется. Жёлтая плашка снизу про XP — сдай вовремя и получишь бонус.'
+    },
+    {
+      target: null, isModal: true, illustration: '💪',
+      title: 'Удачи!',
+      body: 'Не торопись, читай вопросы внимательно. Если что — кнопка «Тур» сверху всегда подскажет.',
+      primaryLabel: 'К заданию'
+    }
+  ];
+</script>
+<script src="../assets/tour.js"></script>
 </body>
 </html>

@@ -214,8 +214,8 @@
       <a class="s-nav-item"><i data-lucide="book-open"></i>Задания<span class="badge-num">7</span></a>
       <a class="s-nav-item" href="grades.html"><i data-lucide="graduation-cap"></i>Оценки</a>
       <a class="s-nav-item" href="ai-teacher.html"><i data-lucide="bot"></i>ИИ-учитель</a>
-      <a class="s-nav-item"><i data-lucide="trophy"></i>Достижения</a>
-      <a class="s-nav-item"><i data-lucide="bell"></i>Уведомления</a>
+      <a class="s-nav-item" href="achievements.html"><i data-lucide="trophy"></i>Достижения</a>
+      <a class="s-nav-item" href="notifications.html"><i data-lucide="bell"></i>Уведомления<span class="badge-num">5</span></a>
     </nav>
 
     <div class="s-profile">
@@ -246,11 +246,15 @@
         <h1>Мои задания</h1>
       </div>
       <div style="display:flex; gap:10px; align-items:center;">
-        <div class="xp-chip">
+        <button class="btn btn-ghost" id="tour-restart-header" aria-label="Запустить тур" style="height:36px; padding: 0 12px; gap: 6px;">
+          <i data-lucide="compass" style="width:14px;"></i>
+          <span style="font-size:13px; font-weight:600;">Тур</span>
+        </button>
+        <div class="xp-chip" data-tour="streak">
           <div class="ico"><i data-lucide="flame" style="width:12px;"></i></div>
           7 дней подряд
         </div>
-        <button class="btn btn-ghost" aria-label="Уведомления" style="height:36px; width:36px; padding:0; position:relative;">
+        <button class="btn btn-ghost" data-tour="bell" aria-label="Уведомления" style="height:36px; width:36px; padding:0; position:relative;">
           <i data-lucide="bell" style="width:18px;"></i>
           <span style="position:absolute; top:8px; right:8px; width:8px; height:8px; background:var(--brand-500); border-radius:50%; border:2px solid white;"></span>
         </button>
@@ -260,7 +264,7 @@
     <div class="s-content">
 
       <!-- Greeting -->
-      <div class="greet">
+      <div class="greet" data-tour="greet">
         <div>
           <h1>Привет, <span>Кирилл</span> 👋</h1>
           <p>У тебя <strong style="color: var(--ink-900);">5 заданий</strong> на этой неделе. Самое срочное — рабочий лист по тригонометрии, до завтра.</p>
@@ -282,7 +286,7 @@
       </div>
 
       <!-- Tabs filter -->
-      <div class="s-tabs">
+      <div class="s-tabs" data-tour="tabs">
         <button class="s-tab is-active">Все <span class="count">7</span></button>
         <button class="s-tab">К выполнению <span class="count">5</span></button>
         <button class="s-tab">На проверке <span class="count">1</span></button>
@@ -295,7 +299,7 @@
         Срочно · до завтра
       </div>
 
-      <a class="task-card is-urgent" href="assignment.html">
+      <a class="task-card is-urgent" href="assignment.html" data-tour="first-task">
         <div class="ico" style="background:var(--brand-50); color:var(--brand-700);"><i data-lucide="file-text"></i></div>
         <div>
           <h3>Рабочий лист · Тригонометрия: формулы приведения</h3>
@@ -470,5 +474,50 @@
   </main>
 </div>
 <script>lucide.createIcons();</script>
+
+<!-- ────────── Tour ────────── -->
+<script>
+  window.TOUR_LS_KEY = 'prepodavai_student_dashboard_tour_v1';
+  window.TOUR_STEPS = [
+    {
+      target: null, isModal: true, illustration: '👋',
+      title: 'Привет, Кирилл!',
+      body: 'Это твоя главная — здесь все задания, которые тебе задали учителя. Покажу за 30 секунд, как тут всё устроено.',
+      primaryLabel: 'Поехали'
+    },
+    {
+      target: '[data-tour="greet"]', placement: 'bottom', padding: 8,
+      title: 'Сводка дня',
+      body: 'Сколько заданий на этой неделе, что самое срочное. Справа — стрик (сколько дней подряд занимаешься), сколько ачивок собрал и средний балл.'
+    },
+    {
+      target: '[data-tour="streak"]', placement: 'bottom', padding: 6,
+      title: '🔥 Стрик',
+      body: 'Сколько дней подряд ты заходишь и что-то делаешь. Не пропускай — стрик помогает не забывать.'
+    },
+    {
+      target: '[data-tour="bell"]', placement: 'bottom', padding: 4,
+      title: '🔔 Уведомления',
+      body: 'Когда учитель проверил работу или задал новое задание — точка загорится. Кликни и увидишь список.'
+    },
+    {
+      target: '[data-tour="tabs"]', placement: 'bottom', padding: 6,
+      title: 'Фильтр заданий',
+      body: 'Все / К выполнению / На проверке / Завершено. Помогает не потеряться, когда заданий много.'
+    },
+    {
+      target: '[data-tour="first-task"]', placement: 'top', padding: 8,
+      title: 'Карточка задания',
+      body: 'Иконка типа, название и тема, предмет, сколько заданий и времени уйдёт. Справа — дедлайн и кнопка «Начать». Клик в любое место — открывается задание.'
+    },
+    {
+      target: null, isModal: true, illustration: '🚀',
+      title: 'Удачи!',
+      body: 'Если что забудешь — кнопка «Тур» сверху всегда подскажет. Можно начинать с самого срочного.',
+      primaryLabel: 'К заданиям'
+    }
+  ];
+</script>
+<script src="../assets/tour.js"></script>
 </body>
 </html>

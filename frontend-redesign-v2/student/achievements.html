@@ -1,0 +1,1198 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Достижения — Преподавай</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/tokens.css" />
+<link rel="stylesheet" href="../assets/components.css" />
+<link rel="stylesheet" href="student.css" />
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+  /* ── Hero уровня ─────────────────────────── */
+  .lvl-hero {
+    background: linear-gradient(135deg, #1A120C 0%, #2D1F15 50%, #4A2F1E 100%);
+    border-radius: var(--r-xl);
+    padding: 32px 36px;
+    color: white;
+    position: relative;
+    overflow: hidden;
+    margin-bottom: 28px;
+    box-shadow: 0 18px 50px rgba(26,20,12,.22);
+  }
+  .lvl-hero::before {
+    content: '';
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(circle at 18% 25%, rgba(249,115,22,.32), transparent 40%),
+      radial-gradient(circle at 85% 75%, rgba(245,158,11,.22), transparent 38%);
+    pointer-events: none;
+  }
+  .lvl-hero-inner { position: relative; display: grid; grid-template-columns: auto 1fr auto; gap: 28px; align-items: center; }
+  @media (max-width: 767px) { .lvl-hero-inner { grid-template-columns: 1fr; } }
+
+  .lvl-avatar {
+    width: 96px; height: 96px;
+    border-radius: 28px;
+    background: linear-gradient(135deg, #F97316, #EA580C);
+    color: white;
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 32px;
+    letter-spacing: -0.02em;
+    box-shadow: 0 12px 32px rgba(249,115,22,.4), inset 0 -3px 0 rgba(0,0,0,.15);
+    position: relative;
+  }
+  .lvl-avatar .lvl-badge {
+    position: absolute;
+    bottom: -6px; right: -6px;
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #FCD34D, #F59E0B);
+    color: #7C2D12;
+    border: 3px solid #1A120C;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 900;
+    font-size: 14px;
+    box-shadow: 0 4px 12px rgba(245,158,11,.4);
+  }
+  .lvl-info .rank {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #FBBF24;
+    margin-bottom: 6px;
+  }
+  .lvl-info h2 {
+    font-family: var(--font-display);
+    font-size: 28px;
+    font-weight: 800;
+    color: white;
+    margin-bottom: 14px;
+    letter-spacing: -0.02em;
+  }
+  .lvl-progress-row {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 8px;
+    font-size: 13px;
+    color: rgba(255,255,255,.6);
+  }
+  .lvl-progress-row b { color: white; }
+  .lvl-bar {
+    height: 10px;
+    background: rgba(255,255,255,.08);
+    border-radius: 99px;
+    overflow: hidden;
+    position: relative;
+  }
+  .lvl-bar > i {
+    display: block;
+    height: 100%;
+    width: 72%;
+    background: linear-gradient(90deg, #F97316, #FBBF24);
+    border-radius: 99px;
+    box-shadow: 0 0 16px rgba(249,115,22,.5);
+    position: relative;
+  }
+  .lvl-bar > i::after {
+    content: '';
+    position: absolute; right: -2px; top: -2px;
+    width: 14px; height: 14px;
+    background: white;
+    border-radius: 50%;
+    box-shadow: 0 0 12px rgba(255,255,255,.6);
+  }
+
+  .lvl-stats {
+    display: flex; gap: 22px;
+    padding: 14px 22px;
+    background: rgba(255,255,255,.06);
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: var(--r-lg);
+    backdrop-filter: blur(8px);
+  }
+  .lvl-stats > div { text-align: center; }
+  .lvl-stats .v {
+    font-family: var(--font-display);
+    font-size: 24px; font-weight: 800;
+    color: white;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .lvl-stats .v svg { width: 18px; height: 18px; }
+  .lvl-stats .l {
+    font-size: 11px;
+    color: rgba(255,255,255,.5);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-weight: 600;
+    margin-top: 6px;
+  }
+  .lvl-stats .sep { width: 1px; background: rgba(255,255,255,.08); }
+
+  /* ── Активные стрики ─────────────────────── */
+  .streaks-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 14px;
+    margin-bottom: 28px;
+  }
+  .streak-card {
+    background: white;
+    border: 1px solid var(--ink-200);
+    border-radius: var(--r-lg);
+    padding: 16px 18px;
+    display: flex; align-items: center; gap: 14px;
+    transition: all var(--t-fast) var(--ease);
+  }
+  .streak-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+  .streak-card .ico {
+    width: 48px; height: 48px;
+    border-radius: var(--r-md);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    font-size: 26px;
+    line-height: 1;
+  }
+  .streak-card.fire .ico { background: linear-gradient(135deg, #FED7AA, #FB923C); }
+  .streak-card.star .ico { background: linear-gradient(135deg, #FEF3C7, #FBBF24); }
+  .streak-card.bolt .ico { background: linear-gradient(135deg, #DBEAFE, #60A5FA); }
+  .streak-card.perfect .ico { background: linear-gradient(135deg, #D1FAE5, #34D399); }
+
+  .streak-card .v {
+    font-family: var(--font-display);
+    font-size: 28px;
+    font-weight: 800;
+    color: var(--ink-900);
+    letter-spacing: -0.02em;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+  .streak-card .l {
+    font-size: 12px;
+    color: var(--ink-500);
+    margin-top: 4px;
+  }
+
+  /* ── Категории-табы ─────────────────────── */
+  .cat-row {
+    display: flex; gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+  }
+  .cat-btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    height: 38px;
+    padding: 0 16px;
+    background: white;
+    border: 1px solid var(--ink-200);
+    border-radius: var(--r-full);
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--ink-700);
+    cursor: pointer;
+    transition: all var(--t-fast) var(--ease);
+  }
+  .cat-btn:hover { background: var(--ink-50); color: var(--ink-900); border-color: var(--ink-300); }
+  .cat-btn.is-active {
+    background: var(--brand-50);
+    border-color: var(--brand-300);
+    color: var(--brand-800);
+  }
+  .cat-btn .count {
+    background: var(--ink-100);
+    color: var(--ink-600);
+    padding: 1px 8px;
+    border-radius: var(--r-full);
+    font-size: 11px;
+    font-weight: 700;
+  }
+  .cat-btn.is-active .count { background: var(--brand-100); color: var(--brand-700); }
+
+  /* ── Заголовок секции ─────────────────────── */
+  .sec-head {
+    display: flex; align-items: center; justify-content: space-between;
+    margin: 28px 0 14px;
+  }
+  .sec-head h3 {
+    font-family: var(--font-display);
+    font-size: 18px;
+    font-weight: 700;
+    display: inline-flex; align-items: center; gap: 8px;
+  }
+  .sec-head .emoji { font-size: 22px; line-height: 1; }
+  .sec-head .sec-meta { font-size: 12px; color: var(--ink-500); }
+
+  /* ── Сетка ачивок ─────────────────────── */
+  .ach-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 14px;
+  }
+  .ach-card {
+    background: white;
+    border: 1px solid var(--ink-200);
+    border-radius: var(--r-lg);
+    padding: 18px 16px 14px;
+    position: relative;
+    transition: all var(--t-fast) var(--ease);
+    overflow: hidden;
+  }
+  .ach-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-md); }
+
+  .ach-card .medal {
+    width: 64px; height: 64px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 12px;
+    font-size: 32px;
+    line-height: 1;
+    position: relative;
+  }
+  .ach-card .medal-ring {
+    position: absolute;
+    inset: -6px;
+    border-radius: 50%;
+    border: 3px solid transparent;
+    background: linear-gradient(135deg, #FCD34D, #F97316) border-box;
+    -webkit-mask: linear-gradient(white 0 0) content-box, linear-gradient(white 0 0);
+    -webkit-mask-composite: xor;
+            mask-composite: exclude;
+  }
+
+  .ach-card h4 {
+    font-family: var(--font-display);
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--ink-900);
+    text-align: center;
+    margin-bottom: 4px;
+    line-height: 1.3;
+  }
+  .ach-card .desc {
+    font-size: 12px;
+    color: var(--ink-500);
+    text-align: center;
+    line-height: 1.45;
+    margin-bottom: 10px;
+    min-height: 32px;
+  }
+  .ach-card .when {
+    font-size: 11px;
+    text-align: center;
+    color: var(--success-700);
+    font-weight: 600;
+    background: var(--success-50);
+    padding: 4px 10px;
+    border-radius: var(--r-full);
+    display: inline-block;
+  }
+  .ach-card .when-wrap { text-align: center; }
+  .ach-card .xp-tag {
+    position: absolute; top: 10px; right: 10px;
+    background: var(--brand-50);
+    color: var(--brand-700);
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: var(--r-full);
+    display: inline-flex; align-items: center; gap: 3px;
+  }
+  .ach-card .xp-tag svg { width: 10px; height: 10px; }
+
+  .ach-card .rarity {
+    position: absolute; top: 10px; left: 10px;
+    font-size: 9px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 2px 7px;
+    border-radius: var(--r-sm);
+  }
+  .rarity-common   { background: #E5E7EB; color: #4B5563; }
+  .rarity-rare     { background: #DBEAFE; color: #1D4ED8; }
+  .rarity-epic     { background: #F3E8FF; color: #7E22CE; }
+  .rarity-legendary{ background: linear-gradient(135deg, #FEF3C7, #FBBF24); color: #92400E; }
+
+  /* Цвета медалей в зависимости от категории */
+  .medal.fire    { background: linear-gradient(135deg, #FED7AA, #F97316); }
+  .medal.star    { background: linear-gradient(135deg, #FEF3C7, #FBBF24); }
+  .medal.bolt    { background: linear-gradient(135deg, #DBEAFE, #60A5FA); }
+  .medal.book    { background: linear-gradient(135deg, #EDE9FE, #A78BFA); }
+  .medal.heart   { background: linear-gradient(135deg, #FECDD3, #FB7185); }
+  .medal.green   { background: linear-gradient(135deg, #D1FAE5, #34D399); }
+  .medal.cosmos  { background: linear-gradient(135deg, #C7D2FE, #6366F1); }
+  .medal.locked  { background: linear-gradient(135deg, #F1F5F9, #CBD5E1); }
+
+  /* Состояния */
+  .ach-card.is-locked { opacity: 0.55; }
+  .ach-card.is-locked .medal { filter: grayscale(1); }
+  .ach-card.is-locked h4 { color: var(--ink-500); }
+  .ach-card.is-locked .lock-overlay {
+    position: absolute; top: 14px; right: 14px;
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    background: var(--ink-700);
+    color: white;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .ach-card.is-locked .lock-overlay svg { width: 14px; height: 14px; }
+
+  .ach-card.in-progress .when {
+    background: var(--brand-50);
+    color: var(--brand-700);
+  }
+  .ach-card .pbar {
+    margin-top: 8px;
+    height: 6px;
+    background: var(--ink-100);
+    border-radius: 99px;
+    overflow: hidden;
+  }
+  .ach-card .pbar > i {
+    display: block;
+    height: 100%;
+    background: linear-gradient(90deg, #F97316, #FBBF24);
+    border-radius: 99px;
+  }
+  .ach-card .pbar-text {
+    text-align: center;
+    font-size: 11px;
+    color: var(--ink-500);
+    font-weight: 600;
+    margin-top: 5px;
+  }
+
+  /* ── Leaderboard ─────────────────────── */
+  .leader-wrap {
+    background: white;
+    border: 1px solid var(--ink-200);
+    border-radius: var(--r-lg);
+    padding: 6px;
+    margin-top: 12px;
+  }
+  .leader-row {
+    display: grid;
+    grid-template-columns: 36px 1fr auto auto;
+    gap: 14px;
+    align-items: center;
+    padding: 10px 14px;
+    border-radius: var(--r-md);
+    transition: background var(--t-fast) var(--ease);
+  }
+  .leader-row:hover { background: var(--ink-50); }
+  .leader-row.you { background: linear-gradient(135deg, var(--brand-50), white); border: 1px solid var(--brand-200); }
+  .leader-row .pos {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    background: var(--ink-100);
+    color: var(--ink-700);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800;
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+  }
+  .leader-row.gold .pos    { background: linear-gradient(135deg, #FCD34D, #F59E0B); color: white; }
+  .leader-row.silver .pos  { background: linear-gradient(135deg, #E2E8F0, #94A3B8); color: white; }
+  .leader-row.bronze .pos  { background: linear-gradient(135deg, #FED7AA, #C2410C); color: white; }
+  .leader-row .student {
+    display: flex; align-items: center; gap: 10px;
+    min-width: 0;
+  }
+  .leader-row .av-sm {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--brand-400), var(--brand-600));
+    color: white;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  .leader-row .av-sm.purple { background: linear-gradient(135deg, #A78BFA, #6366F1); }
+  .leader-row .av-sm.cyan { background: linear-gradient(135deg, #67E8F9, #06B6D4); }
+  .leader-row .av-sm.green { background: linear-gradient(135deg, #6EE7B7, #059669); }
+  .leader-row .av-sm.pink { background: linear-gradient(135deg, #FBCFE8, #DB2777); }
+  .leader-row .nm { font-weight: 600; font-size: 13px; color: var(--ink-900); }
+  .leader-row .mt { font-size: 11px; color: var(--ink-500); }
+  .leader-row .xp {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: var(--brand-50);
+    color: var(--brand-700);
+    padding: 4px 10px;
+    border-radius: var(--r-full);
+    font-size: 12px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  .leader-row .xp svg { width: 12px; height: 12px; }
+  .leader-row .ach-count {
+    font-size: 12px;
+    color: var(--ink-600);
+    font-weight: 600;
+    text-align: right;
+  }
+
+  /* Фильтр по статусу ачивок */
+  body[data-status="all"] .ach-card { display: block; }
+  body[data-status="unlocked"] .ach-card.is-locked,
+  body[data-status="unlocked"] .ach-card.in-progress { display: none; }
+  body[data-status="progress"] .ach-card.is-locked,
+  body[data-status="progress"] .ach-card.is-unlocked { display: none; }
+  body[data-status="locked"] .ach-card.is-unlocked,
+  body[data-status="locked"] .ach-card.in-progress { display: none; }
+</style>
+</head>
+<body data-status="all">
+<div class="s-shell">
+
+  <!-- ───────── SIDEBAR ───────── -->
+  <aside class="s-sidebar">
+    <div class="s-sidebar-brand">
+      <img src="../assets/logo.png" alt="" />
+      <span class="name">Преподавай</span>
+    </div>
+    <nav class="s-nav">
+      <a class="s-nav-item" href="dashboard.html"><i data-lucide="layout-dashboard"></i>Главная</a>
+      <a class="s-nav-item"><i data-lucide="book-open"></i>Задания<span class="badge-num">7</span></a>
+      <a class="s-nav-item" href="grades.html"><i data-lucide="graduation-cap"></i>Оценки</a>
+      <a class="s-nav-item" href="ai-teacher.html"><i data-lucide="bot"></i>ИИ-учитель</a>
+      <a class="s-nav-item is-active"><i data-lucide="trophy"></i>Достижения</a>
+      <a class="s-nav-item" href="notifications.html"><i data-lucide="bell"></i>Уведомления<span class="badge-num">5</span></a>
+    </nav>
+
+    <div class="s-profile">
+      <div class="top">
+        <div class="av">КП</div>
+        <div>
+          <div class="nm">Кирилл Петров</div>
+          <div class="mt">10А · математика</div>
+        </div>
+      </div>
+      <div class="stats">
+        <div>
+          <div class="v"><i data-lucide="flame" style="width:14px; color:#F59E0B;"></i> 12</div>
+          <div class="l">дней подряд</div>
+        </div>
+        <div>
+          <div class="v"><i data-lucide="star" style="width:14px; color:#F59E0B;"></i> 2 480</div>
+          <div class="l">опыт</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ───────── MAIN ───────── -->
+  <main>
+    <header class="s-topbar">
+      <div>
+        <h1>Достижения</h1>
+        <div style="font-size:13px; color:var(--ink-500); margin-top:2px;">Собирайте награды, прокачивайте уровень, обгоняйте одноклассников</div>
+      </div>
+      <div style="display:flex; gap:10px; align-items:center;">
+        <div class="xp-chip">
+          <span class="ico">🔥</span>
+          12 дней подряд
+        </div>
+      </div>
+    </header>
+
+    <div class="s-content">
+
+      <!-- ─── HERO: уровень ──────────────────── -->
+      <div class="lvl-hero" data-tour="hero">
+        <div class="lvl-hero-inner">
+          <div class="lvl-avatar">
+            КП
+            <span class="lvl-badge">14</span>
+          </div>
+          <div class="lvl-info">
+            <div class="rank">★ Юный математик</div>
+            <h2>Уровень 14 · 2 480 опыта</h2>
+            <div class="lvl-progress-row">
+              <span>До 15 уровня</span>
+              <span><b>720</b> / 1 000 XP</span>
+            </div>
+            <div class="lvl-bar"><i></i></div>
+            <div style="font-size: 12px; color: rgba(255,255,255,.5); margin-top: 8px;">
+              Следующий ранг: <b style="color:#FBBF24;">⚡ Мастер вычислений</b> на 18 уровне
+            </div>
+          </div>
+          <div class="lvl-stats">
+            <div>
+              <div class="v">23</div>
+              <div class="l">наград</div>
+            </div>
+            <div class="sep"></div>
+            <div>
+              <div class="v">68</div>
+              <div class="l">всего</div>
+            </div>
+            <div class="sep"></div>
+            <div>
+              <div class="v"><svg data-lucide="medal"></svg>3</div>
+              <div class="l">место в классе</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ─── Активные стрики ──────────────────── -->
+      <div class="streaks-row" data-tour="streaks">
+        <div class="streak-card fire">
+          <div class="ico">🔥</div>
+          <div>
+            <div class="v">12 <span style="font-size:14px; color:var(--ink-500); font-weight:600;">дней</span></div>
+            <div class="l">учусь подряд · до личного рекорда 6 дней</div>
+          </div>
+        </div>
+        <div class="streak-card star">
+          <div class="ico">⭐</div>
+          <div>
+            <div class="v">5 <span style="font-size:14px; color:var(--ink-500); font-weight:600;">пятёрок</span></div>
+            <div class="l">подряд · до награды 3</div>
+          </div>
+        </div>
+        <div class="streak-card perfect">
+          <div class="ico">💯</div>
+          <div>
+            <div class="v">3 <span style="font-size:14px; color:var(--ink-500); font-weight:600;">100%</span></div>
+            <div class="l">тестов идеально · так держать!</div>
+          </div>
+        </div>
+        <div class="streak-card bolt">
+          <div class="ico">⚡</div>
+          <div>
+            <div class="v">7 <span style="font-size:14px; color:var(--ink-500); font-weight:600;">домашек</span></div>
+            <div class="l">сданы в день получения</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ─── Категории ──────────────────── -->
+      <div class="cat-row" data-tour="categories">
+        <button class="cat-btn is-active" data-status="all">Все <span class="count">68</span></button>
+        <button class="cat-btn" data-status="unlocked"><i data-lucide="check-circle-2"></i> Получено <span class="count">23</span></button>
+        <button class="cat-btn" data-status="progress"><i data-lucide="loader-2"></i> В процессе <span class="count">9</span></button>
+        <button class="cat-btn" data-status="locked"><i data-lucide="lock"></i> Заблокировано <span class="count">36</span></button>
+      </div>
+
+      <!-- ════════════════════════════════════════════════════════ -->
+      <!-- ─── 🔥 СТРИКИ ───────────────────────────────────────── -->
+      <div class="sec-head">
+        <h3><span class="emoji">🔥</span> Стрики и постоянство</h3>
+        <span class="sec-meta">6 из 10 получено</span>
+      </div>
+      <div class="ach-grid">
+        <div class="ach-card is-unlocked" data-tour="first-ach">
+          <span class="rarity rarity-common">обычная</span>
+          <span class="xp-tag"><i data-lucide="star"></i> 50</span>
+          <div class="medal fire">🔥</div>
+          <h4>Огонёк</h4>
+          <div class="desc">3 дня подряд заходите учиться</div>
+          <div class="when-wrap"><span class="when">Получено 1 июня</span></div>
+        </div>
+
+        <div class="ach-card is-unlocked">
+          <span class="rarity rarity-common">обычная</span>
+          <span class="xp-tag"><i data-lucide="star"></i> 100</span>
+          <div class="medal fire">🔥</div>
+          <h4>Неделя огня</h4>
+          <div class="desc">7 дней подряд без пропусков</div>
+          <div class="when-wrap"><span class="when">Получено 5 июня</span></div>
+        </div>
+
+        <div class="ach-card in-progress">
+          <span class="rarity rarity-rare">редкая</span>
+          <span class="xp-tag"><i data-lucide="star"></i> 250</span>
+          <div class="medal fire">🌟</div>
+          <h4>Несгораемый</h4>
+          <div class="desc">14 дней подряд</div>
+          <div class="pbar"><i style="width: 85%;"></i></div>
+          <div class="pbar-text">12 / 14 дней</div>
+        </div>
+
+        <div class="ach-card is-locked">
+          <span class="rarity rarity-epic">эпическая</span>
+          <span class="xp-tag"><i data-lucide="star"></i> 500</span>
+          <div class="lock-overlay"><i data-lucide="lock"></i></div>
+          <div class="medal locked">🏔</div>
+          <h4>Месяц без пропуска</h4>
+          <div class="desc">30 дней подряд каждый день что-то делать</div>
+          <div class="pbar"><i style="width: 40%;"></i></div>
+          <div class="pbar-text">12 / 30 дней</div>
+        </div>
+
+        <div class="ach-card is-locked">
+          <span class="rarity rarity-legendary">легендарная</span>
+          <span class="xp-tag"><i data-lucide="star"></i> 2 000</span>
+          <div class="lock-overlay"><i data-lucide="lock"></i></div>
+          <div class="medal locked">💎</div>
+          <h4>Алмаз воли</h4>
+          <div class="desc">100 дней подряд. Реально круто.</div>
+          <div class="pbar"><i style="width: 12%;"></i></div>
+          <div class="pbar-text">12 / 100 дней</div>
+        </div>
+
+        <div class="ach-card is-unlocked">
+          <span class="rarity rarity-common">обычная</span>
+          <span class="xp-tag"><i data-lucide="star"></i> 30</span>
+          <div class="medal bolt">⚡</div>
+          <h4>В тот же день</h4>
+          <div class="desc">Сдать домашку в день получения</div>
+          <div class="when-wrap"><span class="when">Получено 3 июня</span></div>
+        </div>
+
+        <div class="ach-card is-unlocked">
+          <span class="rarity rarity-rare">редкая</span>
+          <span class="xp-tag"><i data-lucide="star"></i> 150</span>
+          <div class="medal bolt">⚡</div>
+          <h4>Скоростник</h4>
+          <div class="desc">5 домашек подряд сданы в день получения</div>
+          <div class="when-wrap"><span class="when">Получено вчера</span></div>
+        </div>
+
+        <div class="ach-card in-progress">
+          <span class="rarity rarity-rare">редкая</span>
+          <span class="xp-tag"><i data-lucide="star"></i> 200</span>
+          <div class="medal bolt">⚡⚡</div>
+          <h4>Молния</h4>
+          <div class="desc">10 домашек в день получения</div>
+          <div class="pbar"><i style="width: 70%;"></i></div>
+          <div class="pbar-text">7 / 10</div>
+        </div>
+
+        <div class="ach-card is-locked">
+          <span class="rarity rarity-epic">эпическая</span>
+          <span class="xp-tag"><i data-lucide="star"></i> 400</span>
+          <div class="lock-overlay"><i data-lucide="lock"></i></div>
+          <div class="medal locked">🦉</div>
+          <h4>Сова</h4>
+          <div class="desc">Учиться 5 раз после 22:00 (вредно, но эпично)</div>
+          <div class="pbar"><i style="width: 60%;"></i></div>
+          <div class="pbar-text">3 / 5</div>
+        </div>
+
+        <div class="ach-card is-locked">
+          <span class="rarity rarity-epic">эпическая</span>
+          <span class="xp-tag"><i data-lucide="star"></i> 400</span>
+          <div class="lock-overlay"><i data-lucide="lock"></i></div>
+          <div class="medal locked">🌅</div>
+          <h4>Ранняя пташка</h4>
+          <div class="desc">5 раз учиться до 7:00 утра</div>
+          <div class="pbar"><i style="width: 20%;"></i></div>
+          <div class="pbar-text">1 / 5</div>
+        </div>
+      </div>
+
+      <!-- ════════════════════════════════════════════════════════ -->
+      <!-- ─── ⭐ ОЦЕНКИ ──────────────────────────────────────── -->
+      <div class="sec-head">
+        <h3><span class="emoji">⭐</span> Оценки и баллы</h3>
+        <span class="sec-meta">5 из 12 получено</span>
+      </div>
+      <div class="ach-grid">
+        <div class="ach-card is-unlocked">
+          <span class="rarity rarity-common">обычная</span>
+          <span class="xp-tag"><i data-lucide="star"></i> 25</span>
+          <div class="medal star">⭐</div>
+          <h4>Первая пятёрка</h4>
+          <div class="desc">Получить первую отличную оценку</div>
+          <div class="when-wrap"><span class="when">12 апреля</span></div>
+        </div>
+
+        <div class="ach-card is-unlocked">
+          <span class="rarity rarity-common">обычная</span>
+          <span class="xp-tag"><i data-lucide="star"></i> 75</span>
+          <div class="medal star">⭐⭐</div>
+          <h4>Три пятёрки подряд</h4>
+          <div class="desc">3 отличные оценки одна за другой</div>
+          <div class="when-wrap"><span class="when">Получено</span></div>
+        </div>
+
+        <div class="ach-card in-progress">
+          <span class="rarity rarity-rare">редкая</span>
+          <span class="xp-tag"><i data-lucide="star"></i> 200</span>
+          <div class="medal star">🌟</div>
+          <h4>Звёздная серия</h4>
+          <div class="desc">10 пятёрок подряд</div>
+          <div class="pbar"><i style="width: 50%;"></i></div>
+          <div class="pbar-text">5 / 10</div>
+        </div>
+
+        <div class="ach-card is-unlocked">
+          <span class="rarity rarity-rare">редкая</span>
+          <span class="xp-tag"><i data-lucide="star"></i> 150</span>
+          <div class="medal green">💯</div>
+          <h4>Сотка!</h4>
+          <div class="desc">Тест на 100% правильных ответов</div>
+          <div class="when-wrap"><span class="when">3 раза</span></div>
+        </div>
+
+        <div class="ach-card in-progress">
+          <span class="rarity rarity-epic">эпическая</span>
+          <span class="xp-tag"><i data-lucide="star"></i> 400</span>
+          <div class="medal green">💯💯</div>
+          <h4>Идеальный</h4>
+          <div class="desc">5 тестов подряд на 100%</div>
+          <div class="pbar"><i style="width: 60%;"></i></div>
+          <div class="pbar-text">3 / 5</div>
+        </div>
+
+        <div class="ach-card is-locked">
+          <span class="rarity rarity-epic">эпическая</span>
+          <span class="xp-tag"><i data-lucide="star"></i> 500</span>
+          <div class="lock-overlay"><i data-lucide="lock"></i></div>
+          <div class="medal locked">🎯</div>
+          <h4>Без единой ошибки</h4>
+          <div class="desc">Неделя без снижения балла</div>
+        </div>
+
+        <div class="ach-card is-locked">
+          <span class="rarity rarity-legendary">легендарная</span>
+          <span class="xp-tag"><i data-lucide="star"></i> 1 500</span>
+          <div class="lock-overlay"><i data-lucide="lock"></i></div>
+          <div class="medal locked">👑</div>
+          <h4>Король четверти</h4>
+          <div class="desc">Средний балл 5.0 за всю четверть</div>
+          <div class="pbar"><i style="width: 78%;"></i></div>
+          <div class="pbar-text">средний: 4.6 / 5.0</div>
+        </div>
+
+        <div class="ach-card is-unlocked">
+          <span class="rarity rarity-rare">редкая</span>
+          <span class="xp-tag"><i data-lucide="star"></i> 120</span>
+          <div class="medal star">📈</div>
+          <h4>Подтянулся</h4>
+          <div class="desc">Поднять средний балл на 0,5</div>
+          <div class="when-wrap"><span class="when">Получено в апреле</span></div>
+        </div>
+
+        <div class="ach-card is-locked">
+          <span class="rarity rarity-rare">редкая</span>
+          <span class="xp-tag"><i data-lucide="star"></i> 200</span>
+          <div class="lock-overlay"><i data-lucide="lock"></i></div>
+          <div class="medal locked">🔄</div>
+          <h4>Реванш</h4>
+          <div class="desc">Исправить двойку на пятёрку с первой попытки</div>
+        </div>
+      </div>
+
+      <!-- ════════════════════════════════════════════════════════ -->
+      <!-- ─── 📚 ОБЪЁМ И ОПЫТ ────────────────────────────────── -->
+      <div class="sec-head">
+        <h3><span class="emoji">📚</span> Объём работы</h3>
+        <span class="sec-meta">5 из 11 получено</span>
+      </div>
+      <div class="ach-grid">
+        <div class="ach-card is-unlocked">
+          <span class="rarity rarity-common">обычная</span>
+          <span class="xp-tag"><i data-lucide="star"></i> 20</span>
+          <div class="medal book">📖</div>
+          <h4>Старт</h4>
+          <div class="desc">Сделать первую домашку</div>
+          <div class="when-wrap"><span class="when">28 марта</span></div>
+        </div>
+
+        <div class="ach-card is-unlocked">
+          <span class="rarity rarity-common">обычная</span>
+          <span class="xp-tag"><i data-lucide="star"></i> 50</span>
+          <div class="medal book">📚</div>
+          <h4>Десятка</h4>
+          <div class="desc">10 заданий выполнено</div>
+          <div class="when-wrap"><span class="when">Получено</span></div>
+        </div>
+
+        <div class="ach-card is-unlocked">
+          <span class="rarity rarity-common">обычная</span>
+          <span class="xp-tag"><i data-lucide="star"></i> 120</span>
+          <div class="medal book">📚📚</div>
+          <h4>Полусотня</h4>
+          <div class="desc">50 заданий выполнено</div>
+          <div class="when-wrap"><span class="when">Получено</span></div>
+        </div>
+
+        <div class="ach-card in-progress">
+          <span class="rarity rarity-rare">редкая</span>
+          <span class="xp-tag"><i data-lucide="star"></i> 300</span>
+          <div class="medal book">🎓</div>
+          <h4>Сотня</h4>
+          <div class="desc">100 заданий выполнено</div>
+          <div class="pbar"><i style="width: 67%;"></i></div>
+          <div class="pbar-text">67 / 100</div>
+        </div>
+
+        <div class="ach-card is-locked">
+          <span class="rarity rarity-epic">эпическая</span>
+          <span class="xp-tag"><i data-lucide="star"></i> 800</span>
+          <div class="lock-overlay"><i data-lucide="lock"></i></div>
+          <div class="medal locked">🏆</div>
+          <h4>Марафонец</h4>
+          <div class="desc">500 заданий выполнено</div>
+          <div class="pbar"><i style="width: 13%;"></i></div>
+          <div class="pbar-text">67 / 500</div>
+        </div>
+
+        <div class="ach-card is-locked">
+          <span class="rarity rarity-legendary">легендарная</span>
+          <span class="xp-tag"><i data-lucide="star"></i> 3 000</span>
+          <div class="lock-overlay"><i data-lucide="lock"></i></div>
+          <div class="medal locked">🌌</div>
+          <h4>Тысячник</h4>
+          <div class="desc">1 000 заданий выполнено. Космос.</div>
+        </div>
+
+        <div class="ach-card is-unlocked">
+          <span class="rarity rarity-rare">редкая</span>
+          <span class="xp-tag"><i data-lucide="star"></i> 100</span>
+          <div class="medal cosmos">🧠</div>
+          <h4>Многостаночник</h4>
+          <div class="desc">Сделать задания по 5 разным предметам</div>
+          <div class="when-wrap"><span class="when">Получено</span></div>
+        </div>
+
+        <div class="ach-card is-locked">
+          <span class="rarity rarity-epic">эпическая</span>
+          <span class="xp-tag"><i data-lucide="star"></i> 300</span>
+          <div class="lock-overlay"><i data-lucide="lock"></i></div>
+          <div class="medal locked">🧬</div>
+          <h4>Эрудит</h4>
+          <div class="desc">Задания по 10 разным предметам</div>
+          <div class="pbar"><i style="width: 50%;"></i></div>
+          <div class="pbar-text">5 / 10 предметов</div>
+        </div>
+      </div>
+
+      <!-- ════════════════════════════════════════════════════════ -->
+      <!-- ─── 🎓 ПРЕДМЕТНЫЕ МАСТЕРСТВА ─────────────────────── -->
+      <div class="sec-head">
+        <h3><span class="emoji">🎓</span> Мастерство по предметам</h3>
+        <span class="sec-meta">3 из 9 получено</span>
+      </div>
+      <div class="ach-grid">
+        <div class="ach-card is-unlocked">
+          <span class="rarity rarity-rare">редкая</span>
+          <span class="xp-tag"><i data-lucide="star"></i> 200</span>
+          <div class="medal cosmos">π</div>
+          <h4>Математик</h4>
+          <div class="desc">20 пятёрок по математике</div>
+          <div class="when-wrap"><span class="when">Получено</span></div>
+        </div>
+
+        <div class="ach-card in-progress">
+          <span class="rarity rarity-epic">эпическая</span>
+          <span class="xp-tag"><i data-lucide="star"></i> 500</span>
+          <div class="medal cosmos">∑</div>
+          <h4>Магистр математики</h4>
+          <div class="desc">50 пятёрок и 5 идеальных тестов</div>
+          <div class="pbar"><i style="width: 64%;"></i></div>
+          <div class="pbar-text">32 / 50 пятёрок · 3 / 5 тестов</div>
+        </div>
+
+        <div class="ach-card is-unlocked">
+          <span class="rarity rarity-rare">редкая</span>
+          <span class="xp-tag"><i data-lucide="star"></i> 200</span>
+          <div class="medal heart">📖</div>
+          <h4>Литератор</h4>
+          <div class="desc">Сдать 10 эссе с оценкой 4+</div>
+          <div class="when-wrap"><span class="when">Получено</span></div>
+        </div>
+
+        <div class="ach-card is-locked">
+          <span class="rarity rarity-rare">редкая</span>
+          <span class="xp-tag"><i data-lucide="star"></i> 200</span>
+          <div class="lock-overlay"><i data-lucide="lock"></i></div>
+          <div class="medal locked">⚛</div>
+          <h4>Физик</h4>
+          <div class="desc">20 пятёрок по физике</div>
+          <div class="pbar"><i style="width: 45%;"></i></div>
+          <div class="pbar-text">9 / 20</div>
+        </div>
+
+        <div class="ach-card is-locked">
+          <span class="rarity rarity-rare">редкая</span>
+          <span class="xp-tag"><i data-lucide="star"></i> 200</span>
+          <div class="lock-overlay"><i data-lucide="lock"></i></div>
+          <div class="medal locked">🧪</div>
+          <h4>Химик</h4>
+          <div class="desc">20 пятёрок по химии</div>
+        </div>
+
+        <div class="ach-card is-locked">
+          <span class="rarity rarity-rare">редкая</span>
+          <span class="xp-tag"><i data-lucide="star"></i> 200</span>
+          <div class="lock-overlay"><i data-lucide="lock"></i></div>
+          <div class="medal locked">🌍</div>
+          <h4>Полиглот</h4>
+          <div class="desc">Освоить 100 слов на английском</div>
+          <div class="pbar"><i style="width: 73%;"></i></div>
+          <div class="pbar-text">73 / 100</div>
+        </div>
+
+        <div class="ach-card is-unlocked">
+          <span class="rarity rarity-rare">редкая</span>
+          <span class="xp-tag"><i data-lucide="star"></i> 200</span>
+          <div class="medal heart">🏛</div>
+          <h4>Историк</h4>
+          <div class="desc">Прочитать 5 биографий исторических деятелей</div>
+          <div class="when-wrap"><span class="when">Получено в мае</span></div>
+        </div>
+
+        <div class="ach-card is-locked">
+          <span class="rarity rarity-legendary">легендарная</span>
+          <span class="xp-tag"><i data-lucide="star"></i> 1 000</span>
+          <div class="lock-overlay"><i data-lucide="lock"></i></div>
+          <div class="medal locked">🌟</div>
+          <h4>Звезда школы</h4>
+          <div class="desc">Получить «эпический» уровень по 3 разным предметам</div>
+        </div>
+      </div>
+
+      <!-- ════════════════════════════════════════════════════════ -->
+      <!-- ─── 🎯 ТОЧНОСТЬ И СКОРОСТЬ ─────────────────────────── -->
+      <div class="sec-head">
+        <h3><span class="emoji">🎯</span> Точность и скорость</h3>
+        <span class="sec-meta">2 из 8 получено</span>
+      </div>
+      <div class="ach-grid">
+        <div class="ach-card is-unlocked">
+          <span class="rarity rarity-rare">редкая</span>
+          <span class="xp-tag"><i data-lucide="star"></i> 150</span>
+          <div class="medal bolt">⏱</div>
+          <h4>Спринтер</h4>
+          <div class="desc">Тест за половину отведённого времени</div>
+          <div class="when-wrap"><span class="when">Получено</span></div>
+        </div>
+
+        <div class="ach-card in-progress">
+          <span class="rarity rarity-rare">редкая</span>
+          <span class="xp-tag"><i data-lucide="star"></i> 200</span>
+          <div class="medal bolt">🏎</div>
+          <h4>Гонщик</h4>
+          <div class="desc">5 тестов на скорость подряд</div>
+          <div class="pbar"><i style="width: 40%;"></i></div>
+          <div class="pbar-text">2 / 5</div>
+        </div>
+
+        <div class="ach-card is-unlocked">
+          <span class="rarity rarity-rare">редкая</span>
+          <span class="xp-tag"><i data-lucide="star"></i> 180</span>
+          <div class="medal green">🎯</div>
+          <h4>Снайпер</h4>
+          <div class="desc">10 правильных ответов подряд в тесте</div>
+          <div class="when-wrap"><span class="when">Получено</span></div>
+        </div>
+
+        <div class="ach-card is-locked">
+          <span class="rarity rarity-epic">эпическая</span>
+          <span class="xp-tag"><i data-lucide="star"></i> 500</span>
+          <div class="lock-overlay"><i data-lucide="lock"></i></div>
+          <div class="medal locked">🎖</div>
+          <h4>Без единого промаха</h4>
+          <div class="desc">25 правильных ответов подряд в одном тесте</div>
+        </div>
+
+        <div class="ach-card is-locked">
+          <span class="rarity rarity-epic">эпическая</span>
+          <span class="xp-tag"><i data-lucide="star"></i> 400</span>
+          <div class="lock-overlay"><i data-lucide="lock"></i></div>
+          <div class="medal locked">🚀</div>
+          <h4>Первый из класса</h4>
+          <div class="desc">Сдать тест раньше всех в классе</div>
+          <div class="pbar"><i style="width: 30%;"></i></div>
+          <div class="pbar-text">3 / 10 тестов</div>
+        </div>
+
+        <div class="ach-card is-locked">
+          <span class="rarity rarity-epic">эпическая</span>
+          <span class="xp-tag"><i data-lucide="star"></i> 600</span>
+          <div class="lock-overlay"><i data-lucide="lock"></i></div>
+          <div class="medal locked">⏱💯</div>
+          <h4>Молниеносный</h4>
+          <div class="desc">Тест за треть времени и на 100%</div>
+        </div>
+
+        <div class="ach-card is-locked">
+          <span class="rarity rarity-rare">редкая</span>
+          <span class="xp-tag"><i data-lucide="star"></i> 150</span>
+          <div class="lock-overlay"><i data-lucide="lock"></i></div>
+          <div class="medal locked">🤔</div>
+          <h4>Мыслитель</h4>
+          <div class="desc">Использовать ИИ-учителя 10 раз</div>
+          <div class="pbar"><i style="width: 60%;"></i></div>
+          <div class="pbar-text">6 / 10</div>
+        </div>
+
+        <div class="ach-card is-locked">
+          <span class="rarity rarity-legendary">легендарная</span>
+          <span class="xp-tag"><i data-lucide="star"></i> 1 200</span>
+          <div class="lock-overlay"><i data-lucide="lock"></i></div>
+          <div class="medal locked">🧠</div>
+          <h4>Безошибочный месяц</h4>
+          <div class="desc">Целый месяц без ошибок в тестах</div>
+        </div>
+      </div>
+
+      <!-- ════════════════════════════════════════════════════════ -->
+      <!-- ─── 💎 РЕДКИЕ И СЕКРЕТНЫЕ ──────────────────────────── -->
+      <div class="sec-head">
+        <h3><span class="emoji">💎</span> Редкие и секретные</h3>
+        <span class="sec-meta">2 из 10 получено</span>
+      </div>
+      <div class="ach-grid">
+        <div class="ach-card is-unlocked">
+          <span class="rarity rarity-rare">редкая</span>
+          <span class="xp-tag"><i data-lucide="star"></i> 250</span>
+          <div class="medal heart">🤝</div>
+          <h4>Помощник</h4>
+          <div class="desc">Помочь однокласснику с заданием (по словам учителя)</div>
+          <div class="when-wrap"><span class="when">Получено</span></div>
+        </div>
+
+        <div class="ach-card is-unlocked">
+          <span class="rarity rarity-epic">эпическая</span>
+          <span class="xp-tag"><i data-lucide="star"></i> 600</span>
+          <div class="medal heart">🌟</div>
+          <h4>Ученик недели</h4>
+          <div class="desc">Учитель отметил вас как ученика недели</div>
+          <div class="when-wrap"><span class="when">2 раза в этом месяце</span></div>
+        </div>
+
+        <div class="ach-card is-locked">
+          <span class="rarity rarity-epic">эпическая</span>
+          <span class="xp-tag"><i data-lucide="star"></i> 500</span>
+          <div class="lock-overlay"><i data-lucide="lock"></i></div>
+          <div class="medal locked">📨</div>
+          <h4>Дотошный</h4>
+          <div class="desc">Задать 25 вопросов ИИ-учителю</div>
+          <div class="pbar"><i style="width: 48%;"></i></div>
+          <div class="pbar-text">12 / 25</div>
+        </div>
+
+        <div class="ach-card is-locked">
+          <span class="rarity rarity-rare">редкая</span>
+          <span class="xp-tag"><i data-lucide="star"></i> 100</span>
+          <div class="lock-overlay"><i data-lucide="lock"></i></div>
+          <div class="medal locked">🎂</div>
+          <h4>День рождения</h4>
+          <div class="desc">Учиться в свой день рождения</div>
+        </div>
+
+        <div class="ach-card is-locked">
+          <span class="rarity rarity-epic">эпическая</span>
+          <span class="xp-tag"><i data-lucide="star"></i> 400</span>
+          <div class="lock-overlay"><i data-lucide="lock"></i></div>
+          <div class="medal locked">🎄</div>
+          <h4>Учу даже на каникулах</h4>
+          <div class="desc">Сделать задание в каникулы (никто не заставлял)</div>
+        </div>
+
+        <div class="ach-card is-locked">
+          <span class="rarity rarity-legendary">легендарная</span>
+          <span class="xp-tag"><i data-lucide="star"></i> 2 500</span>
+          <div class="lock-overlay"><i data-lucide="lock"></i></div>
+          <div class="medal locked">🏆</div>
+          <h4>Король четверти</h4>
+          <div class="desc">Первое место в классе по итогам четверти</div>
+        </div>
+
+        <div class="ach-card is-locked">
+          <span class="rarity rarity-legendary">легендарная</span>
+          <span class="xp-tag"><i data-lucide="star"></i> 5 000</span>
+          <div class="lock-overlay"><i data-lucide="lock"></i></div>
+          <div class="medal locked">👑</div>
+          <h4>Король школы</h4>
+          <div class="desc">Первое место в параллели</div>
+        </div>
+
+        <div class="ach-card is-locked">
+          <span class="rarity rarity-epic">эпическая</span>
+          <span class="xp-tag"><i data-lucide="star"></i> 500</span>
+          <div class="lock-overlay"><i data-lucide="lock"></i></div>
+          <div class="medal locked">🔮</div>
+          <h4>???</h4>
+          <div class="desc">Секретная награда — узнаете когда получите</div>
+        </div>
+
+        <div class="ach-card is-locked">
+          <span class="rarity rarity-legendary">легендарная</span>
+          <span class="xp-tag"><i data-lucide="star"></i> 1 000</span>
+          <div class="lock-overlay"><i data-lucide="lock"></i></div>
+          <div class="medal locked">🔮</div>
+          <h4>???</h4>
+          <div class="desc">Скрытая, легендарная награда</div>
+        </div>
+
+        <div class="ach-card is-locked">
+          <span class="rarity rarity-legendary">легендарная</span>
+          <span class="xp-tag"><i data-lucide="star"></i> 3 000</span>
+          <div class="lock-overlay"><i data-lucide="lock"></i></div>
+          <div class="medal locked">🌙</div>
+          <h4>Победитель олимпиады</h4>
+          <div class="desc">Победить в школьной олимпиаде</div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<script>
+  // Переключение фильтра по статусу
+  document.querySelectorAll('.cat-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('is-active'));
+      btn.classList.add('is-active');
+      document.body.dataset.status = btn.dataset.status;
+    });
+  });
+  lucide.createIcons();
+</script>
+
+<!-- ────────── Tour ────────── -->
+<script>
+  window.TOUR_LS_KEY = 'prepodavai_student_achievements_tour_v1';
+  window.TOUR_STEPS = [
+    {
+      target: null, isModal: true, illustration: '🏆',
+      title: 'Твои достижения',
+      body: 'Здесь видишь свой уровень, награды и сколько до следующего ранга. Учёба = игра, в которой можно прокачиваться. Покажу за минуту.',
+      primaryLabel: 'Покажи'
+    },
+    {
+      target: '[data-tour="hero"]', placement: 'bottom', padding: 8,
+      title: '⭐ Твой уровень',
+      body: 'Сейчас уровень 14. До следующего — 280 XP. Чем больше учишься и сдаёшь работы — тем выше ранг. Справа: сколько наград, какое место в классе.'
+    },
+    {
+      target: '[data-tour="streaks"]', placement: 'bottom', padding: 8,
+      title: '🔥 Активные стрики',
+      body: 'Серии подряд: 12 дней учусь, 5 пятёрок подряд, 3 идеальных теста, 7 быстрых домашек. Не пропускай — стрик прервётся, и придётся начинать заново.'
+    },
+    {
+      target: '[data-tour="categories"]', placement: 'bottom', padding: 6,
+      title: 'Фильтр наград',
+      body: 'Все 68 наград / 23 получено / 9 в процессе / 36 пока заблокированы. Кликай, чтобы посмотреть нужную категорию.'
+    },
+    {
+      target: '[data-tour="first-ach"]', placement: 'right', padding: 6,
+      title: '🎖 Карточка награды',
+      body: 'У каждой награды редкость (обычная/редкая/легендарная), условие получения и сколько XP даёт. Полученные — яркие, заблокированные — серые с замком.'
+    },
+    {
+      target: null, isModal: true, illustration: '🚀',
+      title: 'Вперёд за наградами!',
+      body: 'Хочешь быстрее набирать XP? Сдавай работы вовремя, поддерживай стрик и проходи тесты на 100%. Удачи!',
+      primaryLabel: 'К наградам'
+    }
+  ];
+</script>
+<script src="../assets/tour.js"></script>
+</body>
+</html>

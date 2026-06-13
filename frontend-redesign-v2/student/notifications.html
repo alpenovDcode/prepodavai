@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Уведомления — Преподавай</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/tokens.css" />
+<link rel="stylesheet" href="../assets/components.css" />
+<link rel="stylesheet" href="student.css" />
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+  /* Сводка сверху */
+  .notif-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+  .sum-card {
+    background: white;
+    border: 1px solid var(--ink-200);
+    border-radius: var(--r-lg);
+    padding: 16px 18px;
+    display: flex; align-items: center; gap: 14px;
+  }
+  .sum-card .ico {
+    width: 44px; height: 44px;
+    border-radius: var(--r-md);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; line-height: 1; flex-shrink: 0;
+  }
+  .sum-card.unread .ico    { background: linear-gradient(135deg, #FED7AA, #FB923C); }
+  .sum-card.teacher .ico   { background: linear-gradient(135deg, #DBEAFE, #60A5FA); }
+  .sum-card.homework .ico  { background: linear-gradient(135deg, #FEF3C7, #FBBF24); }
+  .sum-card.deadline .ico  { background: linear-gradient(135deg, #FECDD3, #FB7185); }
+  .sum-card .v {
+    font-family: var(--font-display);
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--ink-900);
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+  .sum-card .l {
+    font-size: 12px;
+    color: var(--ink-500);
+    margin-top: 4px;
+  }
+
+  /* Toolbar (фильтры + действия) */
+  .notif-toolbar {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 18px;
+  }
+  .filter-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+  .ft-btn {
+    display: inline-flex; align-items: center; gap: 7px;
+    height: 36px;
+    padding: 0 14px;
+    background: white;
+    border: 1px solid var(--ink-200);
+    border-radius: var(--r-full);
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--ink-700);
+    cursor: pointer;
+    transition: all var(--t-fast) var(--ease);
+  }
+  .ft-btn:hover { background: var(--ink-50); border-color: var(--ink-300); color: var(--ink-900); }
+  .ft-btn.is-active {
+    background: var(--brand-50);
+    border-color: var(--brand-300);
+    color: var(--brand-800);
+  }
+  .ft-btn svg { width: 14px; height: 14px; flex-shrink: 0; opacity: 0.7; }
+  .ft-btn.is-active svg { opacity: 1; color: var(--brand-600); }
+  .ft-btn .count {
+    background: var(--ink-100);
+    color: var(--ink-600);
+    padding: 1px 8px;
+    border-radius: var(--r-full);
+    font-size: 11px;
+    font-weight: 700;
+  }
+  .ft-btn.is-active .count { background: var(--brand-100); color: var(--brand-700); }
+
+  .toolbar-actions {
+    display: flex; gap: 8px;
+  }
+  .ta-btn {
+    display: inline-flex; align-items: center; gap: 7px;
+    height: 36px; padding: 0 14px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--r-md);
+    color: var(--ink-600);
+    font-weight: 600;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all var(--t-fast) var(--ease);
+  }
+  .ta-btn:hover { background: var(--ink-100); color: var(--ink-900); }
+  .ta-btn svg { width: 14px; height: 14px; flex-shrink: 0; }
+
+  /* Группа уведомлений по дате */
+  .group-title {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--ink-500);
+    margin: 24px 4px 10px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .group-title::after {
+    content: ''; flex: 1; height: 1px; background: var(--ink-200);
+  }
+
+  /* Карточка уведомления */
+  .notif-card {
+    background: white;
+    border: 1px solid var(--ink-200);
+    border-radius: var(--r-lg);
+    padding: 14px 16px 14px 14px;
+    margin-bottom: 8px;
+    display: grid;
+    grid-template-columns: 44px 1fr auto;
+    gap: 14px;
+    align-items: center;
+    cursor: pointer;
+    transition: all var(--t-fast) var(--ease);
+    position: relative;
+  }
+  .notif-card:hover {
+    border-color: var(--ink-300);
+    box-shadow: var(--shadow-sm);
+    transform: translateY(-1px);
+  }
+  .notif-card.unread {
+    background: linear-gradient(95deg, rgba(255,126,88,0.05) 0%, white 50%);
+    border-color: var(--brand-200);
+  }
+  .notif-card.unread::before {
+    content: '';
+    position: absolute; left: -1px; top: 8px; bottom: 8px;
+    width: 3px;
+    background: var(--brand-500);
+    border-radius: 0 3px 3px 0;
+  }
+
+  .notif-card .nc-icon {
+    width: 44px; height: 44px;
+    border-radius: var(--r-md);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; line-height: 1;
+    flex-shrink: 0;
+  }
+  /* Цвета иконок по типу */
+  .nc-icon.assignment { background: linear-gradient(135deg, #FEF3C7, #FBBF24); }
+  .nc-icon.grade      { background: linear-gradient(135deg, #DBEAFE, #60A5FA); }
+  .nc-icon.achievement{ background: linear-gradient(135deg, #FED7AA, #F97316); }
+  .nc-icon.message    { background: linear-gradient(135deg, #E0E7FF, #818CF8); }
+  .nc-icon.reminder   { background: linear-gradient(135deg, #FECDD3, #FB7185); }
+  .nc-icon.streak     { background: linear-gradient(135deg, #FED7AA, #FB7185); }
+  .nc-icon.ai         { background: linear-gradient(135deg, #D1FAE5, #34D399); }
+  .nc-icon.system     { background: linear-gradient(135deg, #F1F5F9, #94A3B8); }
+
+  .notif-card .nc-body { min-width: 0; }
+  .notif-card .nc-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--ink-900);
+    line-height: 1.35;
+    margin-bottom: 3px;
+    display: flex; align-items: center; gap: 8px;
+    flex-wrap: wrap;
+  }
+  .notif-card .nc-title .tag {
+    background: var(--ink-100);
+    color: var(--ink-600);
+    font-size: 10px;
+    font-weight: 700;
+    padding: 1px 7px;
+    border-radius: var(--r-full);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .notif-card .nc-title .tag.subject { background: var(--brand-50); color: var(--brand-700); }
+  .notif-card .nc-title .tag.urgent  { background: var(--danger-50); color: var(--danger-700); }
+  .notif-card .nc-title .tag.new     { background: var(--success-50); color: var(--success-700); }
+  .notif-card .nc-desc {
+    font-size: 13px;
+    color: var(--ink-600);
+    line-height: 1.5;
+  }
+  .notif-card .nc-from {
+    font-size: 12px;
+    color: var(--ink-500);
+    margin-top: 6px;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .notif-card .nc-from .av-tiny {
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--brand-400), var(--brand-600));
+    color: white;
+    font-size: 9px;
+    font-weight: 700;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+
+  .notif-card .nc-right {
+    display: flex; flex-direction: column; align-items: flex-end; gap: 8px;
+    flex-shrink: 0;
+  }
+  .notif-card .nc-time {
+    font-size: 12px;
+    color: var(--ink-500);
+    white-space: nowrap;
+  }
+  .notif-card .nc-action {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 5px 11px;
+    background: var(--brand-500);
+    color: white;
+    font-size: 12px;
+    font-weight: 700;
+    border-radius: var(--r-full);
+    border: none;
+    cursor: pointer;
+    transition: background var(--t-fast) var(--ease);
+  }
+  .notif-card .nc-action:hover { background: var(--brand-600); }
+  .notif-card .nc-action.secondary {
+    background: var(--ink-100);
+    color: var(--ink-700);
+  }
+  .notif-card .nc-action.secondary:hover { background: var(--ink-200); }
+  .notif-card .nc-action svg { width: 12px; height: 12px; flex-shrink: 0; }
+
+  /* Маркер «непрочитанное» — большая оранжевая точка */
+  .unread-dot {
+    width: 9px; height: 9px;
+    border-radius: 50%;
+    background: var(--brand-500);
+    box-shadow: 0 0 0 4px rgba(255,126,88,0.18);
+    flex-shrink: 0;
+  }
+
+  /* Сценарий «прочитанное» — приглушённый */
+  .notif-card.read .nc-title { color: var(--ink-700); font-weight: 600; }
+  .notif-card.read .nc-desc { color: var(--ink-500); }
+
+  /* Пусто */
+  .empty {
+    text-align: center;
+    padding: 64px 24px;
+    background: white;
+    border-radius: var(--r-lg);
+    border: 1px dashed var(--ink-200);
+  }
+  .empty .icon-bg {
+    width: 72px; height: 72px;
+    margin: 0 auto 14px;
+    background: var(--ink-100);
+    border-radius: var(--r-lg);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 36px;
+  }
+  .empty h3 { font-size: 18px; color: var(--ink-800); margin-bottom: 6px; }
+  .empty p { color: var(--ink-500); font-size: 14px; }
+
+  /* Фильтрация по типу */
+  body[data-filter="all"]         .notif-card { display: grid; }
+  body[data-filter="unread"]      .notif-card:not(.unread) { display: none; }
+  body[data-filter="assignment"]  .notif-card:not(.is-assignment) { display: none; }
+  body[data-filter="grade"]       .notif-card:not(.is-grade) { display: none; }
+  body[data-filter="achievement"] .notif-card:not(.is-achievement) { display: none; }
+  body[data-filter="message"]     .notif-card:not(.is-message) { display: none; }
+
+  /* На узком — скрываем правую колонку, действия снизу */
+  @media (max-width: 639px) {
+    .notif-card { grid-template-columns: 40px 1fr; }
+    .notif-card .nc-right { grid-column: 1 / -1; flex-direction: row; justify-content: space-between; align-items: center; }
+  }
+</style>
+</head>
+<body data-filter="all">
+<div class="s-shell">
+
+  <!-- ───────── SIDEBAR ───────── -->
+  <aside class="s-sidebar">
+    <div class="s-sidebar-brand">
+      <img src="../assets/logo.png" alt="" />
+      <span class="name">Преподавай</span>
+    </div>
+    <nav class="s-nav">
+      <a class="s-nav-item" href="dashboard.html"><i data-lucide="layout-dashboard"></i>Главная</a>
+      <a class="s-nav-item"><i data-lucide="book-open"></i>Задания<span class="badge-num">7</span></a>
+      <a class="s-nav-item" href="grades.html"><i data-lucide="graduation-cap"></i>Оценки</a>
+      <a class="s-nav-item" href="ai-teacher.html"><i data-lucide="bot"></i>ИИ-учитель</a>
+      <a class="s-nav-item" href="achievements.html"><i data-lucide="trophy"></i>Достижения</a>
+      <a class="s-nav-item is-active"><i data-lucide="bell"></i>Уведомления<span class="badge-num">5</span></a>
+    </nav>
+
+    <div class="s-profile">
+      <div class="top">
+        <div class="av">КП</div>
+        <div>
+          <div class="nm">Кирилл Петров</div>
+          <div class="mt">10А · математика</div>
+        </div>
+      </div>
+      <div class="stats">
+        <div>
+          <div class="v"><i data-lucide="flame" style="width:14px; color:#F59E0B;"></i> 12</div>
+          <div class="l">дней подряд</div>
+        </div>
+        <div>
+          <div class="v"><i data-lucide="star" style="width:14px; color:#F59E0B;"></i> 2 480</div>
+          <div class="l">опыт</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ───────── MAIN ───────── -->
+  <main>
+    <header class="s-topbar">
+      <div>
+        <h1>Уведомления</h1>
+        <div style="font-size:13px; color:var(--ink-500); margin-top:2px;">
+          Всё важное в одном месте — без спама
+        </div>
+      </div>
+      <div style="display:flex; gap:10px; align-items:center;">
+        <button class="ta-btn"><i data-lucide="settings-2"></i> Настроить</button>
+      </div>
+    </header>
+
+    <div class="s-content">
+
+      <!-- Сводка -->
+      <div class="notif-summary">
+        <div class="sum-card unread">
+          <div class="ico">🔔</div>
+          <div>
+            <div class="v">5</div>
+            <div class="l">непрочитанных</div>
+          </div>
+        </div>
+        <div class="sum-card teacher">
+          <div class="ico">💬</div>
+          <div>
+            <div class="v">2</div>
+            <div class="l">от учителя</div>
+          </div>
+        </div>
+        <div class="sum-card homework">
+          <div class="ico">📚</div>
+          <div>
+            <div class="v">3</div>
+            <div class="l">новых задания</div>
+          </div>
+        </div>
+        <div class="sum-card deadline">
+          <div class="ico">⏰</div>
+          <div>
+            <div class="v">1</div>
+            <div class="l">дедлайн сегодня</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Toolbar -->
+      <div class="notif-toolbar">
+        <div class="filter-tabs">
+          <button class="ft-btn is-active" data-filter="all">Все <span class="count">14</span></button>
+          <button class="ft-btn" data-filter="unread"><i data-lucide="circle"></i> Непрочитанные <span class="count">5</span></button>
+          <button class="ft-btn" data-filter="assignment"><i data-lucide="book-open"></i> Задания <span class="count">4</span></button>
+          <button class="ft-btn" data-filter="grade"><i data-lucide="graduation-cap"></i> Оценки <span class="count">3</span></button>
+          <button class="ft-btn" data-filter="achievement"><i data-lucide="trophy"></i> Награды <span class="count">2</span></button>
+          <button class="ft-btn" data-filter="message"><i data-lucide="message-circle"></i> От учителя <span class="count">3</span></button>
+        </div>
+        <div class="toolbar-actions">
+          <button class="ta-btn" id="mark-all-read"><i data-lucide="check-check"></i> Прочитать всё</button>
+          <button class="ta-btn"><i data-lucide="trash-2"></i> Очистить</button>
+        </div>
+      </div>
+
+      <!-- ─────── СЕГОДНЯ ─────── -->
+      <div class="group-title">Сегодня</div>
+
+      <!-- 1. Срочный дедлайн -->
+      <div class="notif-card unread is-assignment">
+        <div class="nc-icon reminder">⏰</div>
+        <div class="nc-body">
+          <div class="nc-title">
+            Дедлайн сегодня в 23:59
+            <span class="tag urgent">срочно</span>
+          </div>
+          <div class="nc-desc">«Тригонометрия: формулы приведения» — рабочий лист нужно сдать до конца дня.</div>
+          <div class="nc-from"><span class="av-tiny">ЕА</span> Евгения Александровна · математика</div>
+        </div>
+        <div class="nc-right">
+          <div class="nc-time">2 ч назад</div>
+          <button class="nc-action"><i data-lucide="arrow-right"></i> Открыть</button>
+        </div>
+      </div>
+
+      <!-- 2. Новое задание -->
+      <div class="notif-card unread is-assignment">
+        <div class="nc-icon assignment">📝</div>
+        <div class="nc-body">
+          <div class="nc-title">
+            Новое задание
+            <span class="tag new">новое</span>
+            <span class="tag subject">Биология</span>
+          </div>
+          <div class="nc-desc">«Строение клетки» — тест из 15 вопросов. Срок сдачи: 18 июня.</div>
+          <div class="nc-from"><span class="av-tiny" style="background: linear-gradient(135deg,#34D399,#059669);">ИП</span> Игорь Петрович · биология</div>
+        </div>
+        <div class="nc-right">
+          <div class="nc-time">3 ч назад</div>
+          <button class="nc-action"><i data-lucide="arrow-right"></i> Открыть</button>
+        </div>
+      </div>
+
+      <!-- 3. Оценка -->
+      <div class="notif-card unread is-grade">
+        <div class="nc-icon grade">⭐</div>
+        <div class="nc-body">
+          <div class="nc-title">
+            Получена оценка <b style="color: var(--success-700);">5</b>
+            <span class="tag subject">Литература</span>
+          </div>
+          <div class="nc-desc">За эссе «Образы Андрея Болконского и Пьера Безухова». «Сильный анализ, отличные цитаты.» — комментарий учителя.</div>
+          <div class="nc-from"><span class="av-tiny" style="background: linear-gradient(135deg,#A78BFA,#7C3AED);">МК</span> Мария Константиновна</div>
+        </div>
+        <div class="nc-right">
+          <div class="nc-time">4 ч назад</div>
+          <button class="nc-action secondary"><i data-lucide="eye"></i> Посмотреть</button>
+        </div>
+      </div>
+
+      <!-- 4. Достижение -->
+      <div class="notif-card unread is-achievement">
+        <div class="nc-icon achievement">🏆</div>
+        <div class="nc-body">
+          <div class="nc-title">
+            Новая награда — «Скоростник»!
+            <span class="tag new">+150 XP</span>
+          </div>
+          <div class="nc-desc">5 домашек подряд сданы в день получения. Так держать!</div>
+        </div>
+        <div class="nc-right">
+          <div class="nc-time">5 ч назад</div>
+          <button class="nc-action secondary"><i data-lucide="trophy"></i> Все награды</button>
+        </div>
+      </div>
+
+      <!-- 5. ИИ ответил -->
+      <div class="notif-card unread is-message">
+        <div class="nc-icon ai">🤖</div>
+        <div class="nc-body">
+          <div class="nc-title">ИИ-учитель ответил</div>
+          <div class="nc-desc">На ваш вопрос про производную сложной функции. С примером и пошаговым разбором.</div>
+        </div>
+        <div class="nc-right">
+          <div class="nc-time">сегодня</div>
+          <button class="nc-action secondary"><i data-lucide="message-circle"></i> Открыть чат</button>
+        </div>
+      </div>
+
+      <!-- ─────── ВЧЕРА ─────── -->
+      <div class="group-title">Вчера</div>
+
+      <!-- 6. Стрик -->
+      <div class="notif-card read is-achievement">
+        <div class="nc-icon streak">🔥</div>
+        <div class="nc-body">
+          <div class="nc-title">12 дней подряд!</div>
+          <div class="nc-desc">Личный рекорд побит. До «Несгораемого» (14 дней) — осталось 2 дня.</div>
+        </div>
+        <div class="nc-right">
+          <div class="nc-time">вчера, 18:42</div>
+        </div>
+      </div>
+
+      <!-- 7. Учитель оставил комментарий -->
+      <div class="notif-card read is-message">
+        <div class="nc-icon message">💬</div>
+        <div class="nc-body">
+          <div class="nc-title">
+            Комментарий учителя
+            <span class="tag subject">Математика</span>
+          </div>
+          <div class="nc-desc">«Кирилл, по теме «формулы приведения» рекомендую дополнительно посмотреть видео по ссылке — пригодится перед контрольной.»</div>
+          <div class="nc-from"><span class="av-tiny">ЕА</span> Евгения Александровна</div>
+        </div>
+        <div class="nc-right">
+          <div class="nc-time">вчера</div>
+          <button class="nc-action secondary"><i data-lucide="eye"></i> Открыть</button>
+        </div>
+      </div>
+
+      <!-- 8. Оценка -->
+      <div class="notif-card read is-grade">
+        <div class="nc-icon grade">⭐</div>
+        <div class="nc-body">
+          <div class="nc-title">
+            Получена оценка <b style="color: var(--success-700);">5</b>
+            <span class="tag subject">Математика</span>
+          </div>
+          <div class="nc-desc">За работу по теме «Тригонометрические уравнения». 10 из 10 заданий выполнено правильно.</div>
+        </div>
+        <div class="nc-right">
+          <div class="nc-time">вчера</div>
+        </div>
+      </div>
+
+      <!-- ─────── НА ЭТОЙ НЕДЕЛЕ ─────── -->
+      <div class="group-title">На этой неделе</div>
+
+      <!-- 9. Новое задание -->
+      <div class="notif-card read is-assignment">
+        <div class="nc-icon assignment">📝</div>
+        <div class="nc-body">
+          <div class="nc-title">
+            Новое задание
+            <span class="tag subject">История</span>
+          </div>
+          <div class="nc-desc">«Реформы Петра I» — эссе на 1–2 страницы. Срок: 20 июня.</div>
+          <div class="nc-from"><span class="av-tiny" style="background: linear-gradient(135deg,#FBBF24,#D97706);">СП</span> Сергей Павлович</div>
+        </div>
+        <div class="nc-right">
+          <div class="nc-time">10 июня</div>
+        </div>
+      </div>
+
+      <!-- 10. Оценка -->
+      <div class="notif-card read is-grade">
+        <div class="nc-icon grade">⭐</div>
+        <div class="nc-body">
+          <div class="nc-title">
+            Получена оценка <b style="color: var(--warning-700);">4</b>
+            <span class="tag subject">Физика</span>
+          </div>
+          <div class="nc-desc">За лабораторную «Закон Архимеда». Хороший результат, но в задании №3 ошибка в расчётах.</div>
+        </div>
+        <div class="nc-right">
+          <div class="nc-time">9 июня</div>
+        </div>
+      </div>
+
+      <!-- 11. Достижение -->
+      <div class="notif-card read is-achievement">
+        <div class="nc-icon achievement">🏆</div>
+        <div class="nc-body">
+          <div class="nc-title">
+            Награда — «Сотка!»
+            <span class="tag new">+150 XP</span>
+          </div>
+          <div class="nc-desc">Прошли тест по биологии на 100% правильных ответов. Уже 3 раза в этом месяце!</div>
+        </div>
+        <div class="nc-right">
+          <div class="nc-time">8 июня</div>
+        </div>
+      </div>
+
+      <!-- 12. Учитель похвалил -->
+      <div class="notif-card read is-message">
+        <div class="nc-icon message">💬</div>
+        <div class="nc-body">
+          <div class="nc-title">
+            Учитель отметил вас как «Ученика недели»
+            <span class="tag new">+600 XP</span>
+          </div>
+          <div class="nc-desc">«За инициативу и активную работу на уроках. Так держать!»</div>
+          <div class="nc-from"><span class="av-tiny">ЕА</span> Евгения Александровна · математика</div>
+        </div>
+        <div class="nc-right">
+          <div class="nc-time">7 июня</div>
+        </div>
+      </div>
+
+      <!-- ─────── РАНЕЕ ─────── -->
+      <div class="group-title">Ранее</div>
+
+      <!-- 13. Системное -->
+      <div class="notif-card read is-message">
+        <div class="nc-icon system">📢</div>
+        <div class="nc-body">
+          <div class="nc-title">Платформа обновилась</div>
+          <div class="nc-desc">Добавили новую тему оформления и игру «Кто хочет стать миллионером». Зайдите в раздел «Игры» — там много нового.</div>
+        </div>
+        <div class="nc-right">
+          <div class="nc-time">3 июня</div>
+        </div>
+      </div>
+
+      <!-- 14. Напоминание -->
+      <div class="notif-card read is-assignment">
+        <div class="nc-icon reminder">⏰</div>
+        <div class="nc-body">
+          <div class="nc-title">Контрольная через 3 дня</div>
+          <div class="nc-desc">«Тригонометрические функции» — материалы для подготовки уже доступны.</div>
+        </div>
+        <div class="nc-right">
+          <div class="nc-time">1 июня</div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<script>
+  // Фильтры
+  document.querySelectorAll('.ft-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.ft-btn').forEach(b => b.classList.remove('is-active'));
+      btn.classList.add('is-active');
+      document.body.dataset.filter = btn.dataset.filter;
+    });
+  });
+
+  // Клик по карточке — пометить прочитанной
+  document.querySelectorAll('.notif-card').forEach(card => {
+    card.addEventListener('click', e => {
+      if (e.target.closest('.nc-action')) return; // экшен-кнопки не блокируем
+      card.classList.remove('unread');
+      card.classList.add('read');
+      updateCounters();
+    });
+  });
+
+  // «Прочитать всё»
+  document.getElementById('mark-all-read').addEventListener('click', () => {
+    document.querySelectorAll('.notif-card.unread').forEach(c => {
+      c.classList.remove('unread');
+      c.classList.add('read');
+    });
+    updateCounters();
+  });
+
+  function updateCounters() {
+    const unreadCount = document.querySelectorAll('.notif-card.unread').length;
+    const badge = document.querySelector('.s-nav-item.is-active .badge-num');
+    if (badge) badge.textContent = unreadCount || '';
+    const filterUnread = document.querySelector('[data-filter="unread"] .count');
+    if (filterUnread) filterUnread.textContent = unreadCount;
+    const sumUnread = document.querySelector('.sum-card.unread .v');
+    if (sumUnread) sumUnread.textContent = unreadCount;
+  }
+
+  lucide.createIcons();
+</script>
+</body>
+</html>

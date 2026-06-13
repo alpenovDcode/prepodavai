@@ -14,11 +14,12 @@
   /* Workspace split: settings + preview */
   .workspace {
     display: grid;
-    grid-template-columns: 380px 1fr;
+    grid-template-columns: minmax(300px, 380px) minmax(0, 1fr);
     gap: 0;
     height: calc(100vh - 64px);
+    min-height: 600px;
   }
-  @media (max-width: 1023px) { .workspace { grid-template-columns: 1fr; height: auto; } }
+  @media (max-width: 1023px) { .workspace { grid-template-columns: 1fr; height: auto; min-height: 0; } }
 
   .ws-settings {
     background: var(--surface);
@@ -156,19 +157,23 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
     background: var(--surface);
     border: 1px solid var(--ink-200);
     border-radius: var(--r-md);
     padding: 8px 12px;
   }
-  .preview-toolbar .left { display: flex; gap: 4px; }
+  .preview-toolbar .left { display: flex; gap: 4px; flex-wrap: wrap; }
   .preview-toolbar .tab {
     height: 30px; padding: 0 12px;
     border-radius: var(--r-sm);
     font-size: 13px; font-weight: 600;
     color: var(--ink-600); cursor: pointer;
     border: none; background: transparent;
+    display: inline-flex; align-items: center; gap: 6px;
   }
+  .preview-toolbar .tab svg { width: 14px; height: 14px; flex-shrink: 0; }
   .preview-toolbar .tab:hover { background: var(--ink-100); color: var(--ink-900); }
   .preview-toolbar .tab.is-active { background: var(--ink-900); color: white; }
 
@@ -296,10 +301,10 @@
       </div>
       <div class="actions">
         <button class="btn btn-secondary btn-sm"><i data-lucide="history"></i> История</button>
-        <div class="token-chip">
-          <div class="spark"><i data-lucide="sparkles"></i></div>
-          <span class="tnum">9 375</span>
-        </div>
+        <button class="btn btn-ghost" id="tour-restart-header" aria-label="Запустить тур" style="height:32px; padding: 0 12px; gap: 6px;">
+          <i data-lucide="compass" style="width:14px;"></i>
+          <span style="font-size:12px; font-weight:600;">Тур</span>
+        </button>
       </div>
     </header>
 
@@ -307,7 +312,7 @@
 
       <!-- ───── Settings panel ───── -->
       <div class="ws-settings">
-        <div class="tool-hero">
+        <div class="tool-hero" data-tour="hero">
           <div class="icon"><i data-lucide="file-text"></i></div>
           <div>
             <h2>Рабочий лист</h2>
@@ -315,18 +320,10 @@
           </div>
         </div>
 
-        <div class="cost-bar">
-          <div class="left">
-            <div class="pill"><i data-lucide="sparkles"></i></div>
-            <div>
-              <div class="title">Стоимость: 3 токена</div>
-              <div class="meta">Бизнес-тариф — без лимита по штукам</div>
-            </div>
-          </div>
-        </div>
+        <!-- BACKLOG: cost-bar убрана с отказом от токенов -->
 
         <!-- Subject -->
-        <div class="field">
+        <div class="field" data-tour="subject">
           <label class="input-label">Предмет</label>
           <div class="select-wrap">
             <select>
@@ -343,7 +340,7 @@
         </div>
 
         <!-- Topic -->
-        <div class="field">
+        <div class="field" data-tour="topic">
           <label class="input-label">Тема</label>
           <input class="input" value="Тригонометрия: формулы приведения" />
           <div class="input-hint">Чем точнее тема — тем точнее задания</div>
@@ -357,7 +354,7 @@
         </div>
 
         <!-- Level -->
-        <div class="field">
+        <div class="field" data-tour="level">
           <label class="input-label">Уровень</label>
           <div class="chip-group">
             <button class="chip">5–6 класс</button>
@@ -368,7 +365,7 @@
         </div>
 
         <!-- Tasks count -->
-        <div class="field">
+        <div class="field" data-tour="count">
           <label class="input-label">Количество заданий</label>
           <div class="range-row">
             <input type="range" min="5" max="20" value="10" />
@@ -377,7 +374,7 @@
         </div>
 
         <!-- Optional sections -->
-        <div class="field">
+        <div class="field" data-tour="options">
           <label class="input-label">Включить в материал</label>
           <div style="display:flex; flex-direction:column; gap: 8px;">
             <label style="display:flex; align-items:center; gap:10px; cursor:pointer;">
@@ -396,7 +393,7 @@
         </div>
 
         <!-- Generate button -->
-        <button class="btn btn-primary btn-lg" style="width:100%;">
+        <button class="btn btn-primary btn-lg" data-tour="generate" style="width:100%;">
           <i data-lucide="wand-sparkles"></i>
           Сгенерировать
         </button>
@@ -407,15 +404,15 @@
       </div>
 
       <!-- ───── Preview panel ───── -->
-      <div class="ws-preview">
+      <div class="ws-preview" data-tour="preview">
 
-        <div class="preview-toolbar">
+        <div class="preview-toolbar" data-tour="preview-tabs">
           <div class="left">
             <button class="tab is-active"><i data-lucide="file-text" style="width:14px; display:inline-block; vertical-align:-2px; margin-right:4px;"></i> Превью</button>
             <button class="tab"><i data-lucide="key-round" style="width:14px; display:inline-block; vertical-align:-2px; margin-right:4px;"></i> С ответами</button>
             <button class="tab"><i data-lucide="edit-3" style="width:14px; display:inline-block; vertical-align:-2px; margin-right:4px;"></i> Редактировать</button>
           </div>
-          <div style="display:flex; gap:6px;">
+          <div style="display:flex; gap:6px; flex-wrap:wrap;">
             <button class="btn btn-secondary btn-sm"><i data-lucide="copy"></i> Копировать</button>
             <button class="btn btn-secondary btn-sm"><i data-lucide="download"></i> PDF</button>
             <button class="btn btn-primary btn-sm"><i data-lucide="send"></i> Выдать классу</button>
@@ -488,6 +485,65 @@
   </main>
 </div>
 
+<!-- ────────── Mini-tour for Рабочий лист ────────── -->
+<script>
+  window.TOUR_LS_KEY = 'prepodavai_worksheet_tour_v1';
+  window.TOUR_STEPS = [
+    {
+      target: null, isModal: true, illustration: '📄',
+      title: 'Как создать рабочий лист',
+      body: 'Покажу за минуту, как заполнить форму и получить готовый PDF. 8 коротких шагов — от темы до выдачи классу.',
+      primaryLabel: 'Начнём'
+    },
+    {
+      target: '[data-tour="subject"]', placement: 'right', padding: 6,
+      title: '1. Выберите предмет',
+      body: 'От предмета зависит подбор задач: математика, биология, история — ИИ использует разный материал и формулировки.'
+    },
+    {
+      target: '[data-tour="topic"]', placement: 'right', padding: 6,
+      title: '2. Опишите тему',
+      body: 'Главное поле. Можно подробно: «Тригонометрия: формулы приведения». Или коротко: «Фотосинтез». ИИ поймёт. Снизу — быстрые пресеты.'
+    },
+    {
+      target: '[data-tour="level"]', placement: 'right', padding: 6,
+      title: '3. Укажите уровень',
+      body: 'Класс или подготовка к экзамену. Под это подстраивается сложность задач и язык формулировок.'
+    },
+    {
+      target: '[data-tour="count"]', placement: 'right', padding: 6,
+      title: '4. Сколько заданий',
+      body: 'Слайдер от 5 до 20. Для пробного урока — 5–7, для контрольной — 12–15. По умолчанию 10 — золотая середина.'
+    },
+    {
+      target: '[data-tour="options"]', placement: 'right', padding: 6,
+      title: '5. Что добавить в материал',
+      body: 'Краткая теория перед заданиями, ответы для вас, подсказки к сложным задачам. Включайте, что нужно — отдельно генерировать не придётся.'
+    },
+    {
+      target: '[data-tour="generate"]', placement: 'top', padding: 6,
+      title: '6. Жмёте «Сгенерировать»',
+      body: 'Готово через 30 секунд. Кстати, ⌘ + ↵ запускает генерацию с клавиатуры — удобно, если делаете много материалов подряд.'
+    },
+    {
+      target: '[data-tour="preview-tabs"]', placement: 'bottom', padding: 6,
+      title: '7. Превью справа',
+      body: 'Три вкладки: «Превью» (как видит ученик), «С ответами» (для вас), «Редактировать» (правки прямо в браузере без скачивания).'
+    },
+    {
+      target: '[data-tour="preview"]', placement: 'left', padding: 6,
+      title: '8. Скачать или выдать',
+      body: 'Кнопки сверху: «Копировать» текст, «PDF» — скачать файл, «Выдать классу» — отправить ученикам в один клик с дедлайном.'
+    },
+    {
+      target: null, isModal: true, illustration: '🚀',
+      title: 'Готово!',
+      body: 'Это базовый рабочий лист, но логика та же во всех инструментах: заполнить поля → сгенерировать → проверить → выдать. Попробуйте сами.',
+      primaryLabel: 'Создать рабочий лист'
+    }
+  ];
+</script>
+<script src="assets/tour.js"></script>
 <script>lucide.createIcons();</script>
 </body>
 </html>
