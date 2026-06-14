@@ -91,8 +91,11 @@ window.MathJax = {
    */
   private normalizeBrandingBlocks(html: string): string {
     let processed = html;
-    const logoTag = '<img src="LOGO_PLACEHOLDER" alt="Logo">';
-    const headerLogoTag = '<img src="LOGO_PLACEHOLDER" class="header-logo" alt="Logo">';
+    // ВАЖНО: фиксированные размеры (width/height) — единый размер логотипа во ВСЕХ
+    // результатах генерации. Если модель сама добавит другие атрибуты, наш regex
+    // в normalizeBrandingBlocks их перепишет на эти. CSS в STYLES дублирует !important.
+    const logoTag = '<img src="LOGO_PLACEHOLDER" alt="Преподавай" width="32" height="32">';
+    const headerLogoTag = '<img src="LOGO_PLACEHOLDER" class="header-logo" alt="Преподавай" width="40" height="40">';
 
     // 1. Перестраиваем блок <div class="header">...</div> целиком:
     //    выбрасываем всё, что модель туда нагенерировала (фейковые бренды, свои лого и т.д.),

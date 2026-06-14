@@ -155,7 +155,44 @@ export class AnalyticsService {
 
     const topStudents = studentStats.sort((a, b) => b.scoreRaw - a.scoreRaw).slice(0, 5); // Return top 5
 
+    // ===== v2-доп: плоский список классов + сабмишены за неделю =====
+    // Подсчёт средней оценки по каждому классу + students.length
+    const classesV2 = await this.prisma.class.findMany({
+      where: { teacherId: userId },
+      include: {
+        _count: { select: { students: true } },
+        students: {
+          select: {
+            submissions: { select: { grade: true }, where: { grade: { not: null } } },
+          },
+        },
+      },
+    });
+
+    const classesFlat = classesV2.map((c) => {
+      const grades: number[] = [];
+      c.students.forEach((s) => s.submissions.forEach((sub) => sub.grade != null && grades.push(sub.grade)));
+      const avgGrade = grades.length ? grades.reduce((a, b) => a + b, 0) / grades.length : null;
+      return {
+        id: c.id,
+        name: c.name,
+        studentsCount: c._count.students,
+        avgGrade,
+      };
+    });
+
+    // Submissions за последние 7 дней
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const submissionsThisWeek = await this.prisma.submission.count({
+      where: {
+        createdAt: { gte: sevenDaysAgo },
+        assignment: { class: { teacherId: userId } },
+      },
+    });
+
     return {
+      // Старый формат — оставляем для legacy DashboardHome:
       stats: {
         totalStudents,
         tokensUsed,
@@ -164,6 +201,12 @@ export class AnalyticsService {
       },
       courseEngagement,
       topStudents,
+      // v2-формат — плоские поля для AnalyticsPageV2:
+      totalStudents,
+      coursesActive,
+      submissionsThisWeek,
+      averageGrade: gradeResult._avg.grade ?? null,
+      classes: classesFlat,
     };
   }
 
@@ -461,6 +504,46 @@ export class AnalyticsService {
         untaggedLessons: untaggedCount,
         unscheduledRecent,
       },
+    };
+  }
+
+  /**
+   * Активность за последние 7 дней (для bar-chart на главной v2).
+   * Считаем число завершённых генераций пользователя по дням Пн..Вс относительно
+   * текущей недели (понедельник — начало недели).
+   */
+  async getWeeklyActivity(userId: string) {
+    const dayLabels = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+
+    const now = new Date();
+    const startOfWeek = new Date(now);
+    startOfWeek.setHours(0, 0, 0, 0);
+    // JS getDay: 0=Sun, 1=Mon, ..., 6=Sat. Сдвиг к понедельнику.
+    const dow = startOfWeek.getDay();
+    const shiftToMonday = dow === 0 ? 6 : dow - 1;
+    startOfWeek.setDate(startOfWeek.getDate() - shiftToMonday);
+
+    const endOfWeek = new Date(startOfWeek);
+    endOfWeek.setDate(endOfWeek.getDate() + 7);
+
+    const generations = await this.prisma.userGeneration.findMany({
+      where: {
+        userId,
+        status: 'completed',
+        createdAt: { gte: startOfWeek, lt: endOfWeek },
+      },
+      select: { createdAt: true },
+    });
+
+    const buckets = new Array(7).fill(0);
+    for (const g of generations) {
+      const d = new Date(g.createdAt);
+      const idx = Math.floor((d.getTime() - startOfWeek.getTime()) / (24 * 60 * 60 * 1000));
+      if (idx >= 0 && idx < 7) buckets[idx] += 1;
+    }
+
+    return {
+      days: dayLabels.map((label, i) => ({ label, value: buckets[i] })),
     };
   }
 }

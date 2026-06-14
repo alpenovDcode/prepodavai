@@ -346,14 +346,28 @@ export class SubscriptionsService {
         available: false,
         subscription,
         plan,
-        cost: costConfig.creditCost,
+        cost: 0,
         message: 'Функция временно недоступна (технические работы)',
         isUnderMaintenance: true,
         planRestricted: false,
       };
     }
 
+    // В продукте всё бесплатно — никаких проверок тарифов, лимитов, баланса.
+    // Maintenance-check выше остаётся, чтобы можно было отключать инструменты при тех. работах.
+    return {
+      available: true,
+      subscription,
+      plan,
+      cost: 0,
+      message: undefined,
+      isUnderMaintenance: false,
+      planRestricted: false,
+    };
+
+    // ===== Старая логика лимитов и баланса (отключена) =====
     // Проверка: разрешена ли операция на текущем тарифе
+    // eslint-disable-next-line no-unreachable
     if (!isOperationAllowed(plan.planKey, operationType)) {
       return {
         available: false,
@@ -426,23 +440,18 @@ export class SubscriptionsService {
   ) {
     const check = await this.checkCreditsAvailable(userId, operationType);
 
+    // В продукте всё бесплатно — единственный способ получить available:false здесь это
+    // тех. работы (isUnderMaintenance). Возвращаем сообщение пользователю.
     if (!check.available) {
       return {
         success: false,
-        message: check.message || 'Недостаточно Токенов',
+        message: check.message || 'Функция временно недоступна',
       };
     }
 
-    const debit = await this.debitCredits(userId, operationType, generationRequestId);
-
-    if (!debit.success) {
-      return {
-        success: false,
-        message: debit.message || 'Ошибка списания Токенов',
-      };
-    }
-
-    return { success: true, transaction: debit.transaction };
+    // Списание отключено — пользоваться можно без ограничений.
+    // Возвращаем «успех» без транзакции, чтобы вызывающий код продолжил генерацию.
+    return { success: true, transaction: null as any };
   }
 
   /**

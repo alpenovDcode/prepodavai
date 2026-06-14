@@ -4,14 +4,19 @@ import { LOGO_BASE64 } from '../generation.constants';
  * Единая дизайн-система для всех AI-генераций (рабочие листы, квизы, планы уроков и т.д.)
  */
 export const DesignSystemConfig = {
-  // Токены дизайна
+  // Токены дизайна — единые для всех генераций.
+  // Совпадают с UI v2 (см. frontend/src/app/globals.css).
   TOKENS: {
-    PRIMARY_COLOR: '#4f46e5', // Приглушенный синий (индиго)
-    TEXT_COLOR: '#111827',    // Темно-серый
-    BG_COLOR: '#f9fafb',      // Светло-серый фон
-    BORDER_COLOR: '#e5e7eb',  // Граница
+    BRAND_COLOR:  '#FF7E58',  // Brand (corral) — акценты, СТА, активный
+    PRIMARY_COLOR: '#4f46e5', // Индиго — формулы, ссылки
+    TEXT_COLOR:   '#111827',  // Тёмный (ink-900)
+    BG_COLOR:     '#f9fafb',  // Фон страницы (ink-50)
+    BORDER_COLOR: '#e5e7eb',  // Границы (ink-200)
     CONTAINER_WIDTH: '800px',
     BORDER_RADIUS: '12px',
+    // Фиксированные размеры логотипа — ВСЕГДА одинаковые в результатах генерации.
+    LOGO_HEADER_SIZE: '40px',
+    LOGO_FOOTER_SIZE: '32px',
   },
 
   // Базовые стили для всех типов генераций
@@ -22,7 +27,8 @@ export const DesignSystemConfig = {
   body { background: #f9fafb; font-family: 'Inter', system-ui, -apple-system, sans-serif; color: #111827; line-height: 1.6; padding: 20px; }
   .container { max-width: 800px; margin: 0 auto; background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
   .header { display: flex; align-items: center; gap: 20px; margin-bottom: 30px; border-bottom: 2px solid #f3f4f6; padding-bottom: 20px; }
-  .header-logo { width: auto; height: 40px; }
+  /* Фиксированный размер логотипа — ВСЕГДА один и тот же квадрат, иначе печать ломается. */
+  .header-logo { width: 40px !important; height: 40px !important; object-fit: contain; flex-shrink: 0; }
   h1 { font-size: 28px; font-weight: 700; margin: 0; color: #111827; }
   h2 { font-size: 20px; font-weight: 600; margin-top: 32px; margin-bottom: 16px; color: #374151; }
   p { margin-bottom: 16px; }
@@ -37,8 +43,9 @@ export const DesignSystemConfig = {
   input[type="text"]:focus, textarea:focus { outline: none; border-color: #4f46e5; }
   .inline-input { display: inline-block; width: 150px; border: none; border-bottom: 1px solid #9ca3af; border-radius: 0; padding: 0 4px; background: transparent; }
 
-  .footer-logo { text-align: right; margin-top: 40px; padding-top: 20px; border-top: 1px solid #f3f4f6; }
-  .footer-logo img { width: 120px; opacity: 0.5; }
+  .footer-logo { text-align: right; margin-top: 40px; padding-top: 20px; border-top: 1px solid #f3f4f6; page-break-inside: avoid; }
+  /* Footer-логотип чуть меньше, но фиксированный — 32x32, всегда. */
+  .footer-logo img { width: 32px !important; height: 32px !important; object-fit: contain; opacity: 0.5; display: inline-block; }
   
   /* Таблицы */
   table { width: 100%; border-collapse: collapse; margin-top: 20px; margin-bottom: 20px; font-size: 14px; }
@@ -63,16 +70,18 @@ export const DesignSystemConfig = {
   // Скрипты MathJax теперь вставляются динамически через HtmlPostprocessorService
   MATHJAX_SCRIPTS: '',
 
-  // Готовые компоненты-заглушки (для сборки финального HTML)
+  // Готовые компоненты-заглушки. LOGO_PLACEHOLDER заменяется на base64 в HtmlPostprocessorService.
+  // Размеры строго заданы инлайном — даже если модель сама перепишет width/height,
+  // CSS `!important` в STYLES перебьёт это. Двойная защита.
   COMPONENTS: {
     HEADER: (title: string) => `
 <div class="header">
-  <img src="LOGO_PLACEHOLDER" class="header-logo" alt="Logo">
+  <img src="LOGO_PLACEHOLDER" class="header-logo" alt="Преподавай" width="40" height="40">
   <h1>${title}</h1>
 </div>`,
     FOOTER: `
 <div class="footer-logo">
-  <img src="LOGO_PLACEHOLDER" alt="Logo">
+  <img src="LOGO_PLACEHOLDER" alt="Преподавай" width="32" height="32">
 </div>`,
   },
 

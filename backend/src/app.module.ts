@@ -36,6 +36,7 @@ import { ReplicateModule } from './modules/replicate/replicate.module';
 import { LessonsModule } from './modules/lessons/lessons.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { GamificationModule } from './modules/gamification/gamification.module';
 import { ReferralsModule } from './modules/referrals/referrals.module';
 import { OnboardingQuestModule } from './modules/onboarding-quest/onboarding-quest.module';
 // import { PaymentsModule } from './modules/payments/payments.module';
@@ -107,6 +108,7 @@ import { SystemModule } from './modules/system/system.module';
     AnalyticsModule,
     EmailModule,
     NotificationsModule,
+    GamificationModule,
     ReferralsModule,
     OnboardingQuestModule,
     // PaymentsModule,

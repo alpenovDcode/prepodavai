@@ -6,9 +6,10 @@ import { PrismaModule } from '../../common/prisma/prisma.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { ReplicateModule } from '../replicate/replicate.module';
 import { ReferralsModule } from '../referrals/referrals.module';
+import { GamificationModule } from '../gamification/gamification.module';
 
 @Module({
-  imports: [PrismaModule, NotificationsModule, ReplicateModule, ReferralsModule],
+  imports: [PrismaModule, NotificationsModule, ReplicateModule, ReferralsModule, GamificationModule],
   controllers: [SubmissionsController],
   providers: [SubmissionsService, HomeworkDeadlineCronService],
   exports: [SubmissionsService],

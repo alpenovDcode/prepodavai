@@ -5,6 +5,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { ClassesService } from '../classes/classes.service';
 import { ReferralsService } from '../referrals/referrals.service';
 import { EmailService } from '../../common/services/email.service';
+import { GamificationService } from '../gamification/gamification.service';
 
 @Injectable()
 export class StudentsService {
@@ -15,6 +16,7 @@ export class StudentsService {
     private classesService: ClassesService,
     private referralsService: ReferralsService,
     private emailService: EmailService,
+    private gamificationService: GamificationService,
   ) {}
 
   async createStudent(
@@ -407,6 +409,16 @@ export class StudentsService {
     if (!student) {
       return null;
     }
+
+    // Подкачиваем gamification: streak, xp, level, achievements, counts.
+    // Если у ученика ещё нет записи — getProgress сам её создаст.
+    let gamification: any = null;
+    try {
+      gamification = await this.gamificationService.getProgress(studentId);
+    } catch {
+      // Не валим основной запрос, если gamification сломан.
+    }
+
     return {
       id: student.id,
       name: student.name,
@@ -414,6 +426,19 @@ export class StudentsService {
       avatar: student.avatar,
       className: student.class?.name || null,
       classId: student.classId,
+      // Сводка геймификации, потребляется фронтом StudentSidebar + StudentDashboard.
+      streakDays: gamification?.streakDays ?? 0,
+      xp: gamification?.xp ?? 0,
+      level: gamification?.level ?? 1,
+      nextLevelXp: gamification?.nextLevelXp ?? 500,
+      currentLevelStartXp: gamification?.currentLevelStartXp ?? 0,
+      progressToNextLevel: gamification?.progressToNextLevel ?? 0,
+      bestStreakDays: gamification?.bestStreakDays ?? 0,
+      counts: gamification?.counts ?? { submitted: 0, graded: 0, perfect: 0 },
+      achievements: gamification?.achievements
+        ?.filter((a: any) => a.unlocked)
+        ?.map((a: any) => ({ id: a.key, key: a.key, title: a.title, unlockedAt: a.unlockedAt }))
+        ?? [],
     };
   }
 

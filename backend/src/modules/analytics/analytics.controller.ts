@@ -25,4 +25,9 @@ export class AnalyticsController {
   async getTeacherOverview(@Request() req: any) {
     return this.analyticsService.getTeacherOverview(req.user.id);
   }
+
+  @Get('weekly-activity')
+  async getWeeklyActivity(@Request() req: any) {
+    return this.analyticsService.getWeeklyActivity(req.user.id);
+  }
 }

@@ -10,6 +10,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { ReplicateService } from '../replicate/replicate.service';
 import { ReferralsService } from '../referrals/referrals.service';
 import { EmailService } from '../../common/services/email.service';
+import { GamificationService } from '../gamification/gamification.service';
 
 @Injectable()
 export class SubmissionsService {
@@ -21,6 +22,7 @@ export class SubmissionsService {
     private replicateService: ReplicateService,
     private referralsService: ReferralsService,
     private emailService: EmailService,
+    private gamificationService: GamificationService,
   ) {}
 
   async createSubmission(
@@ -89,6 +91,12 @@ export class SubmissionsService {
 
     // Реферальная система: отслеживаем сдачу заданий учеником
     this.referralsService.onStudentSubmission(studentId).catch(() => {});
+
+    // Геймификация: +XP за сдачу, инкремент счётчика, проверка ачивок.
+    // Изолирован catch — не валим основной поток если gamification сбоит.
+    this.gamificationService
+      .onSubmissionCreated(studentId, submission.id)
+      .catch((e) => this.logger.warn(`gamification.onSubmissionCreated failed: ${e?.message}`));
 
     return submission;
   }
@@ -268,6 +276,11 @@ export class SubmissionsService {
           this.logger.warn(`Failed to send homework-graded email to ${studentEmail}: ${err?.message}`),
         );
     }
+
+    // Геймификация: +XP за оценку, инкремент grad ed/perfect, проверка ачивок.
+    this.gamificationService
+      .onSubmissionGraded(submission.studentId, submission.id, data.grade)
+      .catch((e) => this.logger.warn(`gamification.onSubmissionGraded failed: ${e?.message}`));
 
     return updated;
   }

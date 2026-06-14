@@ -391,6 +391,9 @@ model Student {
   assignments Assignment[]
   submissions Submission[]
   diaryEntries TeacherDiaryEntry[]
+  gamification StudentGamification?
+  unlockedAchievements StudentAchievement[]
+  xpEvents    XpEvent[]
 
   @@index([classId])
   @@map("students")
@@ -799,4 +802,84 @@ model SystemSetting {
   updatedBy String?  // appUser.id админа
 
   @@map("system_settings")
+}
+
+// ========== ГЕЙМИФИКАЦИЯ (PHASE 5 V2) ==========
+
+// Состояние геймификации для одного ученика.
+// Один Student = одна запись. Создаётся при первом действии.
+model StudentGamification {
+  id              String    @id @default(uuid())
+  studentId       String    @unique
+  // Опыт и уровень
+  xp              Int       @default(0)   // Накопленный опыт за всё время
+  level           Int       @default(1)   // Текущий уровень (вычислимо из xp, но кэшируем)
+  // Streak
+  streakDays      Int       @default(0)   // Подряд дней активности
+  bestStreakDays  Int       @default(0)   // Рекорд стрика
+  lastActiveDate  DateTime?               // День последнего «check-in» (нормализован на 00:00 UTC)
+  // Счётчики для ачивок
+  submittedCount  Int       @default(0)
+  gradedCount     Int       @default(0)
+  perfectCount    Int       @default(0)   // Кол-во работ с максимальной оценкой
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  student         Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@map("student_gamification")
+}
+
+// Каталог ачивок. Сидится миграцией.
+model Achievement {
+  key         String   @id            // 'first-step', 'streak-7' и т.д.
+  title       String                  // 'Первый шаг'
+  description String                  // 'Сдать первое задание'
+  category    String   @default("general") // 'submissions' | 'streak' | 'grades' | 'general'
+  // Условие — какое поле StudentGamification смотреть и какой порог.
+  conditionField String                // 'submittedCount' | 'streakDays' | 'perfectCount'
+  conditionValue Int                   // 1, 7, 30, ...
+  // Награда
+  xpReward    Int      @default(50)
+  // UI hint
+  iconKey     String   @default("trophy") // 'flame', 'star', 'trophy', 'zap', 'book-open', ...
+  color       String   @default("brand")  // 'brand' | 'success' | 'warning' | 'danger' | 'info' | 'indigo'
+  // Порядок отображения
+  sortOrder   Int      @default(0)
+  isActive    Boolean  @default(true)
+
+  unlocked    StudentAchievement[]
+
+  @@map("achievements")
+}
+
+// Какие ачивки разблокировал конкретный ученик.
+model StudentAchievement {
+  id             String   @id @default(uuid())
+  studentId      String
+  achievementKey String
+  unlockedAt     DateTime @default(now())
+
+  student     Student     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  achievement Achievement @relation(fields: [achievementKey], references: [key], onDelete: Cascade)
+
+  @@unique([studentId, achievementKey])
+  @@index([studentId])
+  @@map("student_achievements")
+}
+
+// Аудит-лог начисления опыта. Полезно для дебага и для UI «история XP».
+model XpEvent {
+  id        String   @id @default(uuid())
+  studentId String
+  amount    Int       // Может быть отрицательным (штраф)
+  reason    String    // 'submission_created' | 'submission_graded_perfect' | 'streak_milestone_7' | 'achievement_unlock'
+  metadata  Json?     // { submissionId?, achievementKey?, ... }
+  createdAt DateTime @default(now())
+
+  student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId])
+  @@index([createdAt])
+  @@map("xp_events")
 }

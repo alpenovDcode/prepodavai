@@ -46,6 +46,7 @@ ${DesignSystemConfig.PROMPT_MODULES.SYSTEM_INTRO}
 
 ЗАДАЧА: Сгенерировать документ «Распаковка экспертности» в формате HTML на основе ответов эксперта на 13 вопросов.
 
+${DesignSystemConfig.PROMPT_MODULES.MATHJAX_RULES}
 ${DesignSystemConfig.PROMPT_MODULES.CRITICAL_OUTPUT_RULES}
 
 ГЛАВНЫЕ ПРАВИЛА КАЧЕСТВА (не нарушать, приоритет сверху вниз):
