@@ -25,9 +25,13 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Прокидываем переменную API URL на этап сборки
+# Прокидываем публичные переменные на этап сборки.
+# ВАЖНО: все NEXT_PUBLIC_* должны быть доступны в `npm run build`, потому что
+# Next.js инлайнит их в клиентский бандл во время сборки, а не runtime.
 ARG NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+ARG NEXT_PUBLIC_REDESIGN_V2
+ENV NEXT_PUBLIC_REDESIGN_V2=${NEXT_PUBLIC_REDESIGN_V2}
 
 RUN npm run build
 

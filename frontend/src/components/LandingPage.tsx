@@ -303,12 +303,12 @@ export default function LandingPage({ autoOpenAuth = false }: { autoOpenAuth?: b
       `}</style>
 
       {/* ── HEADER ── */}
-      <header style={{ position: "sticky", top: 0, zIndex: 50, backdropFilter: "blur(20px)", background: "rgba(248,248,246,0.93)", borderBottom: "1px solid #ebebeb", padding: "0 32px", display: "flex", justifyContent: "space-between", alignItems: "center", height: 64, gap: 24 }}>
-        <a href="#top" style={{ display: "flex", alignItems: "center", gap: 9, textDecoration: "none", color: "inherit" }}>
-          <div style={{ width: 30, height: 30, borderRadius: 8, overflow: "hidden" }}>
+      <header style={{ position: "sticky", top: 0, zIndex: 50, backdropFilter: "blur(20px)", background: "rgba(248,248,246,0.93)", borderBottom: "1px solid #ebebeb", padding: "0 32px", display: "flex", justifyContent: "space-between", alignItems: "center", height: 72, gap: 24 }}>
+        <a href="#top" style={{ display: "flex", alignItems: "center", gap: 12, textDecoration: "none", color: "inherit" }}>
+          <div style={{ width: 44, height: 44, borderRadius: 10, overflow: "hidden", flexShrink: 0 }}>
             <img src="https://fs.cdn-chatium.io/thumbnail/image_gc_AmbUAlw8Yq.1024x1024.png/s/128x" alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
           </div>
-          <span style={{ fontSize: 17, fontWeight: 800, letterSpacing: "-0.03em" }}>Преподавай</span>
+          <span style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-0.03em" }}>Преподавай</span>
         </a>
         <nav className="hdr-nav" style={{ display: "flex", gap: 4, alignItems: "center", flex: 1, justifyContent: "center" }}>
           {[
