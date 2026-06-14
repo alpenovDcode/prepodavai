@@ -15,8 +15,7 @@ import GenerationProgress from '@/components/workspace/GenerationProgress'
 import toast from 'react-hot-toast'
 import QuizGeneratorV2 from '@/components/v2/QuizGeneratorV2'
 
-export default function QuizGenerator() {
-    if (process.env.NEXT_PUBLIC_REDESIGN_V2 === 'true') return <QuizGeneratorV2 />
+function QuizGeneratorLegacy() {
     const [form, setForm] = useState({
         subject: '',
         topic: '',
@@ -418,4 +417,10 @@ export default function QuizGenerator() {
             </div>
         </div>
     )
+}
+
+
+export default function Page() {
+    if (process.env.NEXT_PUBLIC_REDESIGN_V2 === 'true') return <QuizGeneratorV2 />
+    return <QuizGeneratorLegacy />
 }

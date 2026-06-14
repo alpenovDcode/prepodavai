@@ -61,8 +61,7 @@ const suggestionsByPersona: Record<string, string[]> = {
     ],
 }
 
-export default function AssistantGenerator() {
-    if (process.env.NEXT_PUBLIC_REDESIGN_V2 === 'true') return <AssistantV2 />
+function AssistantGeneratorLegacy() {
     const [messages, setMessages] = useState<ChatMessage[]>([
         {
             id: 'welcome',
@@ -336,4 +335,10 @@ export default function AssistantGenerator() {
             `}</style>
         </div>
     )
+}
+
+
+export default function Page() {
+    if (process.env.NEXT_PUBLIC_REDESIGN_V2 === 'true') return <AssistantV2 />
+    return <AssistantGeneratorLegacy />
 }

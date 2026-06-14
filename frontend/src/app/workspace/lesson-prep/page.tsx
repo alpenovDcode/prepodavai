@@ -38,8 +38,7 @@ const sectionFilenameSlug = (label: string | null | undefined): string => {
     return map[label] || label.toLowerCase().replace(/[^a-zа-я0-9]+/gi, '-').slice(0, 40) || 'section'
 }
 
-export default function LessonPrepGenerator() {
-    if (process.env.NEXT_PUBLIC_REDESIGN_V2 === 'true') return <LessonPrepV2 />
+function LessonPrepGeneratorLegacy() {
     const [subject, setSubject] = useState('')
     const [topic, setTopic] = useState('')
     const [level, setLevel] = useState('5')
@@ -507,4 +506,10 @@ export default function LessonPrepGenerator() {
             />
         </div>
     )
+}
+
+
+export default function Page() {
+    if (process.env.NEXT_PUBLIC_REDESIGN_V2 === 'true') return <LessonPrepV2 />
+    return <LessonPrepGeneratorLegacy />
 }
