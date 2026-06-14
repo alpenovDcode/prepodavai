@@ -1,9 +1,10 @@
 'use client'
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
 import { Toaster } from 'react-hot-toast'
 import MaintenanceGate from '@/components/MaintenanceGate'
+import { AnalyticsProvider } from '@/components/AnalyticsProvider'
 // import FloatingBalance from '@/components/workspace/FloatingBalance'
 
 export function Providers({ children }: { children: React.ReactNode }) {
@@ -21,7 +22,13 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <MaintenanceGate>{children}</MaintenanceGate>
+      {/* Suspense нужен из-за useSearchParams внутри AnalyticsProvider —
+          в Next.js 14 этот хук требует Suspense-границы. */}
+      <Suspense fallback={null}>
+        <AnalyticsProvider>
+          <MaintenanceGate>{children}</MaintenanceGate>
+        </AnalyticsProvider>
+      </Suspense>
       {/* <FloatingBalance /> */}
       <Toaster
         position="top-right"
@@ -37,4 +44,3 @@ export function Providers({ children }: { children: React.ReactNode }) {
     </QueryClientProvider>
   )
 }
-

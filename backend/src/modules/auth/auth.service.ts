@@ -551,7 +551,7 @@ export class AuthService {
   async verifyEmailCode(email: string, code: string, firstName?: string, utm?: {
     utmSource?: string; utmMedium?: string; utmCampaign?: string;
     utmContent?: string; utmTerm?: string; utmLandingPage?: string; utmLinkId?: string;
-  }) {
+  }, anonId?: string | null) {
     const record = await this.prisma.verificationCode.findFirst({
       where: {
         phone: email,
@@ -587,6 +587,7 @@ export class AuthService {
     // Аналитика: фиксируем регистрацию для funnel-расчётов
     await this.analyticsEvents.track({
       userId: user.id,
+      anonId: anonId || null,
       eventType: EVENT_TYPES.USER_REGISTERED,
       eventName: 'email',
       payload: { source: user.source, firstName: user.firstName },
@@ -596,6 +597,12 @@ export class AuthService {
       utmContent: utm?.utmContent,
       utmTerm: utm?.utmTerm,
     });
+
+    // Привязываем все pre-reg события (page_view, click) к этому userId.
+    // Без этого верх воронки (показы блогера, клик) повисает с anonId и не связан с регой.
+    if (anonId) {
+      await this.analyticsEvents.claimAnonEvents(anonId, user.id);
+    }
 
     return {
       success: true,

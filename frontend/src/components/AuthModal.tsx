@@ -91,6 +91,13 @@ export default function AuthModal({ onClose, onSuccess, initialMode = 'login' }:
   const handleRegisterSendCode = async () => {
     setLoading(true); resetErrors()
     try {
+      // Funnels: трек CTA-клика «Получить код». Делаем перед запросом, чтобы
+      // событие точно попало в очередь даже если запрос упадёт.
+      try {
+        const { track } = await import('@/lib/analytics/tracker')
+        track('click', { eventName: 'cta_register_send_code', payload: { email_filled: !!registerForm.email.trim() } })
+      } catch { /* tracker недоступен — не страшно */ }
+
       const res = await apiClient.post('/auth/register-by-email', { email: registerForm.email.trim() })
       if (res.data.success && res.data.pending) {
         const code = registerForm.referralCode.trim()
@@ -116,13 +123,31 @@ export default function AuthModal({ onClose, onSuccess, initialMode = 'login' }:
         try { const r = localStorage.getItem('prepodavai_utm'); return r ? JSON.parse(r).params : {} }
         catch { return {} }
       })()
+
+      // Funnels: anonId захватываем ДО запроса, чтобы прокинуть в бэк.
+      // Бэк после успешной верификации сделает claim всех pre-reg событий.
+      let anonId: string | null = null
+      try {
+        const { getAnonId } = await import('@/lib/analytics/tracker')
+        anonId = getAnonId()
+      } catch { /* не критично */ }
+
       const res = await apiClient.post('/auth/verify-email-code', {
         email: registerForm.email.trim(),
         code: registerCode.trim(),
         firstName: registerForm.name.trim() || undefined,
+        anonId,
         ...utmParams,
       })
       if (res.data.success) {
+        // После успешной реги — UTM очищаем, чтобы при возврате с другим источником
+        // не атрибуцировались старому каналу.
+        try {
+          const { clearUtm, track, flush } = await import('@/lib/analytics/tracker')
+          track('user_registered_client', { eventName: 'email', payload: { source: 'web' } })
+          await flush()
+          clearUtm()
+        } catch { /* ignore */ }
         saveAndLogin(res.data, res.data.userHash || res.data.user?.id)
       } else {
         setErrorMessage(res.data.error || 'Ошибка подтверждения')

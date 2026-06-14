@@ -183,7 +183,7 @@ export class AuthController {
       utmTerm: body.utmTerm,
       utmLandingPage: body.utmLandingPage,
       utmLinkId: body.utmLinkId,
-    });
+    }, (body as any).anonId || null);
     if (result && result.token) {
       this.setTokenCookie(res, result.token, req);
     }
