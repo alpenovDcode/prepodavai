@@ -256,16 +256,18 @@ export default function MaterialViewerV2({ lessonId, generationId, isEditable = 
                 setError(null)
                 let g: Generation | undefined
 
-                // Try lesson first; if it 404s, skip and go straight to direct fetch
-                try {
-                    const res = await apiClient.get(`/lessons/${lessonId}`)
-                    if (!cancelled) {
-                        const l: Lesson = res.data
-                        setLesson(l)
-                        g = l.generations?.find(x => x.id === generationId)
+                // Skip lesson fetch in v2 navigation where lessonId === generationId
+                if (lessonId !== generationId) {
+                    try {
+                        const res = await apiClient.get(`/lessons/${lessonId}`)
+                        if (!cancelled) {
+                            const l: Lesson = res.data
+                            setLesson(l)
+                            g = l.generations?.find(x => x.id === generationId)
+                        }
+                    } catch {
+                        // Lesson not found — fine, will try direct fetch below
                     }
-                } catch {
-                    // Lesson not found — fine, will try direct fetch below
                 }
 
                 if (!g) {
@@ -468,7 +470,7 @@ export default function MaterialViewerV2({ lessonId, generationId, isEditable = 
         try {
             await apiClient.delete(`/generate/${generation.id}`)
             toast.success('Материал удалён')
-            router.push(`/dashboard/courses/${lessonId}`)
+            router.push('/dashboard/courses')
         } catch (err: any) {
             toast.error(err?.response?.data?.message || 'Не удалось удалить')
         }
@@ -493,8 +495,8 @@ export default function MaterialViewerV2({ lessonId, generationId, isEditable = 
                 <Topbar title="Материал" onMobileMenuToggle={menu.toggle} hideSearch />
                 <div className="max-w-xl mx-auto py-16 px-6 text-center">
                     <h2 className="font-display font-bold text-[20px] text-ink-900 mb-2">{error || 'Материал не найден'}</h2>
-                    <Button variant="secondary" leftIcon={<ArrowLeft className="w-4 h-4" />} onClick={() => router.push(`/dashboard/courses/${lessonId}`)}>
-                        К уроку
+                    <Button variant="secondary" leftIcon={<ArrowLeft className="w-4 h-4" />} onClick={() => router.push('/dashboard/courses')}>
+                        К материалам
                     </Button>
                 </div>
             </>
@@ -512,7 +514,7 @@ export default function MaterialViewerV2({ lessonId, generationId, isEditable = 
                     leading={
                         <button
                             type="button"
-                            onClick={() => router.push(`/dashboard/courses/${lessonId}`)}
+                            onClick={() => router.push('/dashboard/courses')}
                             className="w-9 h-9 inline-flex items-center justify-center rounded-md text-ink-600 hover:bg-ink-100 transition-colors"
                             aria-label="Назад"
                         >
@@ -569,7 +571,7 @@ export default function MaterialViewerV2({ lessonId, generationId, isEditable = 
                 leading={
                     <button
                         type="button"
-                        onClick={() => router.push(`/dashboard/courses/${lessonId}`)}
+                        onClick={() => router.push('/dashboard/courses')}
                         className="w-9 h-9 inline-flex items-center justify-center rounded-md text-ink-600 hover:bg-ink-100 transition-colors print-hide"
                         aria-label="Назад"
                     >

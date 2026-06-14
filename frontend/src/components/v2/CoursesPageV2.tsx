@@ -12,6 +12,7 @@ import { apiClient } from '@/lib/api/client'
 import { Topbar } from '@/components/layout/v2/Topbar'
 import { useMobileMenu } from '@/components/layout/v2/DashboardLayoutV2'
 import { Button } from '@/components/ui/v2/Button'
+import { Modal } from '@/components/ui/v2/Modal'
 import { cn } from '@/lib/utils/cn'
 import { useTour } from '@/lib/tour/useTour'
 
@@ -206,11 +207,12 @@ function FilterPill({
 // ── Контекстное меню карточки ─────────────────────────────────────────────────
 
 function CardMenu({
-    genId, type, onDelete,
+    genId, type, onDelete, onRename,
 }: {
     genId: string
     type: string
     onDelete: () => void
+    onRename: () => void
 }) {
     const router = useRouter()
     const [open, setOpen] = useState(false)
@@ -246,7 +248,7 @@ function CardMenu({
                 <div className="absolute top-full right-0 mt-1 bg-surface border border-ink-200 rounded-lg shadow-[0_12px_32px_rgba(15,23,42,0.12)] py-1.5 min-w-[200px] z-[100]">
                     <MenuItem icon={<Eye />} onClick={action(() => router.push(`/dashboard/courses/${genId}/materials/${genId}`))}>Открыть</MenuItem>
                     <MenuItem icon={<Edit3 />} onClick={action(() => router.push(`/dashboard/courses/${genId}/materials/${genId}`))}>Редактировать</MenuItem>
-                    <MenuItem icon={<PenLine />} onClick={action(() => toast('Переименование — скоро будет'))}>Переименовать</MenuItem>
+                    <MenuItem icon={<PenLine />} onClick={action(() => onRename())}>Переименовать</MenuItem>
                     <MenuItem icon={<Copy />} onClick={action(() => toast('Дублирование — скоро будет'))}>Дублировать</MenuItem>
                     {type === 'presentation' ? (
                         <>
@@ -310,7 +312,7 @@ function MenuItem({ icon, children, onClick, danger }: {
 
 // ── Карточка материала ────────────────────────────────────────────────────────
 
-function MatCard({ gen, onDelete }: { gen: Generation; onDelete: () => void }) {
+function MatCard({ gen, onDelete, onRename }: { gen: Generation; onDelete: () => void; onRename: (id: string, title: string) => void }) {
     const router = useRouter()
     const ft = normalizeType(gen.type)
     const cfg = TYPE_CONFIG[ft] || TYPE_CONFIG['worksheet']
@@ -337,7 +339,7 @@ function MatCard({ gen, onDelete }: { gen: Generation; onDelete: () => void }) {
                     <cfg.Icon className="w-3 h-3" />
                     {cfg.label}
                 </span>
-                <CardMenu genId={gen.id} type={ft} onDelete={onDelete} />
+                <CardMenu genId={gen.id} type={ft} onDelete={onDelete} onRename={() => onRename(gen.id, gen.title || title)} />
             </div>
 
             {/* Title */}
@@ -375,7 +377,7 @@ function MatCard({ gen, onDelete }: { gen: Generation; onDelete: () => void }) {
 
 // ── Строка материала (list view) ──────────────────────────────────────────────
 
-function MatListRow({ gen, onDelete }: { gen: Generation; onDelete: () => void }) {
+function MatListRow({ gen, onDelete, onRename }: { gen: Generation; onDelete: () => void; onRename: (id: string, title: string) => void }) {
     const router = useRouter()
     const ft = normalizeType(gen.type)
     const cfg = TYPE_CONFIG[ft] || TYPE_CONFIG['worksheet']
@@ -414,7 +416,7 @@ function MatListRow({ gen, onDelete }: { gen: Generation; onDelete: () => void }
                 {relativeDate(gen.createdAt)}
             </span>
             <div className="flex-shrink-0" onClick={e => e.stopPropagation()}>
-                <CardMenu genId={gen.id} type={ft} onDelete={onDelete} />
+                <CardMenu genId={gen.id} type={ft} onDelete={onDelete} onRename={() => onRename(gen.id, gen.title || title)} />
             </div>
         </div>
     )
@@ -486,6 +488,32 @@ export default function CoursesPageV2() {
             toast.error('Не удалось удалить материал')
         }
     }, [])
+
+    const [renameGenId, setRenameGenId] = useState<string | null>(null)
+    const [renameDraft, setRenameDraft] = useState('')
+    const [renaming, setRenaming] = useState(false)
+
+    const handleStartRename = useCallback((id: string, currentTitle: string) => {
+        setRenameGenId(id)
+        setRenameDraft(currentTitle)
+    }, [])
+
+    const handleSaveRename = async () => {
+        if (!renameGenId) return
+        const next = renameDraft.trim()
+        if (!next) { toast.error('Название не может быть пустым'); return }
+        setRenaming(true)
+        try {
+            await apiClient.patch(`/generate/${renameGenId}`, { title: next })
+            setItems(prev => prev.map(g => g.id === renameGenId ? { ...g, title: next } : g))
+            toast.success('Название обновлено')
+            setRenameGenId(null)
+        } catch {
+            toast.error('Не удалось переименовать')
+        } finally {
+            setRenaming(false)
+        }
+    }
 
     const resetFilters = () => {
         setActiveType('all')
@@ -682,18 +710,42 @@ export default function CoursesPageV2() {
                 ) : viewMode === 'list' ? (
                     <div className="flex flex-col divide-y divide-ink-100 border border-ink-200 rounded-xl overflow-hidden bg-surface">
                         {filtered.map(gen => (
-                            <MatListRow key={gen.id} gen={gen} onDelete={() => handleDelete(gen.id)} />
+                            <MatListRow key={gen.id} gen={gen} onDelete={() => handleDelete(gen.id)} onRename={(id, t) => handleStartRename(id, t)} />
                         ))}
                     </div>
                 ) : (
                     <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
                         {filtered.map(gen => (
-                            <MatCard key={gen.id} gen={gen} onDelete={() => handleDelete(gen.id)} />
+                            <MatCard key={gen.id} gen={gen} onDelete={() => handleDelete(gen.id)} onRename={(id, t) => handleStartRename(id, t)} />
                         ))}
                     </div>
                 )}
                 </div>
             </div>
+
+            <Modal
+                open={!!renameGenId}
+                onClose={() => setRenameGenId(null)}
+                title="Переименовать материал"
+                size="sm"
+            >
+                <form onSubmit={e => { e.preventDefault(); handleSaveRename() }} className="p-5 flex flex-col gap-4">
+                    <input
+                        autoFocus
+                        value={renameDraft}
+                        onChange={e => setRenameDraft(e.target.value)}
+                        maxLength={200}
+                        placeholder="Название материала"
+                        className="h-10 px-3.5 rounded-lg border border-ink-200 text-sm text-ink-900 placeholder:text-ink-400 focus:outline-none focus:border-brand-400 focus:ring-[3px] focus:ring-brand-400/15 transition-all"
+                    />
+                    <div className="flex gap-2">
+                        <Button type="button" variant="secondary" className="flex-1" onClick={() => setRenameGenId(null)}>Отмена</Button>
+                        <Button type="submit" variant="primary" className="flex-1" disabled={!renameDraft.trim() || renaming}>
+                            {renaming ? 'Сохраняем…' : 'Сохранить'}
+                        </Button>
+                    </div>
+                </form>
+            </Modal>
         </>
     )
 }

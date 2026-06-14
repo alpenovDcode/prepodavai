@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import useSWR, { mutate } from 'swr'
 import {
     Users, Plus, BookOpen, ChevronRight, GraduationCap,
-    Layers, Pencil, Trash2,
+    Layers, Pencil, Trash2, Check, X,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { cn } from '@/lib/utils/cn'
@@ -74,6 +74,33 @@ export default function ClassesPageV2() {
             toast.success('Класс удалён')
         } catch {
             toast.error('Не удалось удалить класс')
+        }
+    }
+
+    const [editClassId, setEditClassId] = useState<string | null>(null)
+    const [editName, setEditName] = useState('')
+    const [editDesc, setEditDesc] = useState('')
+    const [saving, setSaving] = useState(false)
+
+    const handleStartEdit = (cls: ClassItem) => {
+        setEditClassId(cls.id)
+        setEditName(cls.name)
+        setEditDesc(cls.description || '')
+    }
+
+    const handleSaveEdit = async (e: React.FormEvent) => {
+        e.preventDefault()
+        if (!editClassId || !editName.trim()) return
+        setSaving(true)
+        try {
+            await apiClient.put(`/classes/${editClassId}`, { name: editName.trim(), description: editDesc.trim() || undefined })
+            mutate('/classes')
+            setEditClassId(null)
+            toast.success('Класс обновлён')
+        } catch {
+            toast.error('Не удалось сохранить')
+        } finally {
+            setSaving(false)
         }
     }
 
@@ -146,6 +173,7 @@ export default function ClassesPageV2() {
                                 cls={cls}
                                 onOpen={() => router.push(`/dashboard/classes/${cls.id}`)}
                                 onDelete={() => handleDelete(cls.id, cls.name)}
+                                onEdit={() => handleStartEdit(cls)}
                             />
                         ))}
 
@@ -212,6 +240,44 @@ export default function ClassesPageV2() {
                     </div>
                 </form>
             </Modal>
+
+            {/* Модал редактирования класса */}
+            <Modal
+                open={!!editClassId}
+                onClose={() => setEditClassId(null)}
+                title="Редактировать класс"
+                size="sm"
+            >
+                <form onSubmit={handleSaveEdit} className="p-5 flex flex-col gap-4">
+                    <div className="flex flex-col gap-1.5">
+                        <label className="text-[13px] font-semibold text-ink-700">Название класса*</label>
+                        <input
+                            autoFocus
+                            value={editName}
+                            onChange={(e) => setEditName(e.target.value)}
+                            placeholder="10А, Английский-Advanced…"
+                            className="h-10 px-3.5 rounded-lg border border-ink-200 text-sm text-ink-900 placeholder:text-ink-400 focus:outline-none focus:border-brand-400 focus:ring-[3px] focus:ring-brand-400/15 transition-all"
+                            required
+                        />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                        <label className="text-[13px] font-semibold text-ink-700">Описание</label>
+                        <textarea
+                            value={editDesc}
+                            onChange={(e) => setEditDesc(e.target.value)}
+                            placeholder="Необязательно"
+                            rows={3}
+                            className="px-3.5 py-2.5 rounded-lg border border-ink-200 text-sm text-ink-900 placeholder:text-ink-400 focus:outline-none focus:border-brand-400 focus:ring-[3px] focus:ring-brand-400/15 transition-all resize-none"
+                        />
+                    </div>
+                    <div className="flex gap-2 pt-1">
+                        <Button type="button" variant="secondary" className="flex-1" onClick={() => setEditClassId(null)}>Отмена</Button>
+                        <Button type="submit" variant="primary" className="flex-1" disabled={!editName.trim() || saving}>
+                            {saving ? 'Сохраняем…' : 'Сохранить'}
+                        </Button>
+                    </div>
+                </form>
+            </Modal>
         </>
     )
 }
@@ -220,10 +286,12 @@ function ClassCard({
     cls,
     onOpen,
     onDelete,
+    onEdit,
 }: {
     cls: ClassItem
     onOpen: () => void
     onDelete: () => void
+    onEdit: () => void
 }) {
     const createdDate = new Date(cls.createdAt).toLocaleDateString('ru-RU', {
         day: 'numeric', month: 'long', year: 'numeric',
@@ -246,14 +314,24 @@ function ClassCard({
                         <div className="text-xs text-ink-500 mt-0.5">создан {createdDate}</div>
                     </div>
                 </div>
+                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all flex-shrink-0">
+                <button
+                    type="button"
+                    title="Редактировать класс"
+                    onClick={(e) => { e.stopPropagation(); onEdit() }}
+                    className="w-8 h-8 rounded-md flex items-center justify-center text-ink-400 hover:text-brand-600 hover:bg-brand-50 transition-all"
+                >
+                    <Pencil className="w-4 h-4" />
+                </button>
                 <button
                     type="button"
                     title="Удалить класс"
                     onClick={(e) => { e.stopPropagation(); onDelete() }}
-                    className="opacity-0 group-hover:opacity-100 w-8 h-8 rounded-md flex items-center justify-center text-ink-400 hover:text-danger-600 hover:bg-danger-50 transition-all flex-shrink-0"
+                    className="w-8 h-8 rounded-md flex items-center justify-center text-ink-400 hover:text-danger-600 hover:bg-danger-50 transition-all"
                 >
                     <Trash2 className="w-4 h-4" />
                 </button>
+                </div>
             </div>
 
             {cls.description && (
