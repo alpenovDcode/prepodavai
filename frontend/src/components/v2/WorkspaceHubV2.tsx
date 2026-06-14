@@ -3,9 +3,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-    BookOpen, HelpCircle, Gamepad2, PenTool, MessageSquare, Image as ImageIcon, Video, Sparkles,
-    ClipboardList, ChevronRight, FileEdit, MessageCircle, PackageOpen, LineChart, Camera, FileAudio,
-    MonitorPlay, ClipboardCheck, GraduationCap, FileText, Mail, Wrench,
+    BookOpen, HelpCircle, Gamepad2, PenTool, MessageSquare, Image as ImageIcon, Sparkles,
+    MessageCircle, MonitorPlay, ClipboardCheck, FileText, Mail, Wrench, PackageOpen, LineChart,
     Wand2, Zap, Compass,
 } from 'lucide-react'
 import { apiClient } from '@/lib/api/client'
@@ -17,6 +16,7 @@ import { IconTile, IconTileColor } from '@/components/ui/v2/IconTile'
 import { Badge } from '@/components/ui/v2/Badge'
 import { SearchBar } from '@/components/ui/v2/SearchBar'
 import { cn } from '@/lib/utils/cn'
+import { useTour } from '@/lib/tour/useTour'
 
 interface ToolDef {
     id: string
@@ -27,10 +27,9 @@ interface ToolDef {
     path: string
     cost: number
     opKey: string
-    /** Категория для табов. */
     cat: CategoryKey
-    /** ~ ETA. */
     eta?: string
+    tourId?: string
 }
 
 type CategoryKey = 'all' | 'materials' | 'assessment' | 'media' | 'comms' | 'other'
@@ -45,34 +44,35 @@ const CATEGORIES: { key: CategoryKey; label: string; icon: any }[] = [
 ]
 
 const TOOLS: ToolDef[] = [
-    { id: 'lesson-planner',  title: 'Конструктор уроков',   description: 'Подробный план с целями, таймингом и материалами.',                icon: BookOpen,        color: 'info',    path: '/workspace/lesson-planner',  cost: 3,  opKey: 'lesson_plan',          cat: 'materials',  eta: '~40 сек' },
-    { id: 'worksheet',       title: 'Рабочий лист',         description: 'Готовый PDF-лист с заданиями по теме и уровню класса.',           icon: PenTool,         color: 'brand',   path: '/workspace/worksheet',       cost: 3,  opKey: 'worksheet',            cat: 'materials',  eta: '~30 сек' },
-    { id: 'vocabulary',      title: 'Словарь',              description: 'Тематический словарь на 10 языках с переводом и примерами.',      icon: BookOpen,        color: 'success', path: '/workspace/vocabulary',      cost: 2,  opKey: 'vocabulary',           cat: 'materials',  eta: '~20 сек' },
-    { id: 'adaptation',      title: 'Адаптация текста',     description: 'Подстройка учебного материала под уровень и возраст.',            icon: FileEdit,        color: 'teal',    path: '/workspace/adaptation',      cost: 2,  opKey: 'content_adaptation',   cat: 'materials',  eta: '~30 сек' },
-    { id: 'lesson-prep',     title: 'Вау-урок',             description: 'Комплект «под ключ»: план + рабочий лист + тест за минуту.',      icon: Sparkles,        color: 'warning', path: '/workspace/lesson-prep',     cost: 5,  opKey: 'lesson_preparation',   cat: 'materials',  eta: '~1 мин' },
+    { id: 'lesson-planner',  title: 'Конструктор уроков',      description: 'Подробный план с целями, таймингом и материалами.',                icon: BookOpen,        color: 'info',    path: '/workspace/lesson-planner',  cost: 3,  opKey: 'lesson_plan',          cat: 'materials',  eta: '~40 сек',         tourId: 'tool-plan' },
+    { id: 'worksheet',       title: 'Рабочий лист',            description: 'Готовый PDF-лист с заданиями по теме и уровню класса.',           icon: PenTool,         color: 'brand',   path: '/workspace/worksheet',       cost: 3,  opKey: 'worksheet',            cat: 'materials',  eta: '~30 сек',         tourId: 'tool-worksheet' },
+    { id: 'vocabulary',      title: 'Словарь',                 description: 'Тематический словарь на 10 языках с переводом и примерами.',      icon: BookOpen,        color: 'success', path: '/workspace/vocabulary',      cost: 2,  opKey: 'vocabulary',           cat: 'materials',  eta: '~20 сек',         tourId: 'tool-vocab' },
+    // BACKLOG: { id: 'adaptation', title: 'Адаптация текста', ... cat: 'materials' }
+    { id: 'lesson-prep',     title: 'Вау-урок',                description: 'Комплект «под ключ»: план + рабочий лист + тест за минуту.',      icon: Sparkles,        color: 'warning', path: '/workspace/lesson-prep',     cost: 5,  opKey: 'lesson_preparation',   cat: 'materials',  eta: '~1 мин' },
 
-    { id: 'quiz',            title: 'Генератор тестов',     description: 'Тест с выбором ответа: 5–25 вопросов, 2–4 варианта.',             icon: HelpCircle,      color: 'info',    path: '/workspace/quiz-generator',  cost: 2,  opKey: 'quiz',                 cat: 'assessment', eta: '~30 сек' },
-    { id: 'games',           title: 'Обучающие игры',       description: 'Memory, флэш-карты и интерактивные активности.',                  icon: Gamepad2,        color: 'indigo',  path: '/workspace/games',           cost: 15, opKey: 'game_generation',      cat: 'assessment', eta: '~1 мин' },
-    { id: 'exam',            title: 'Варианты ОГЭ/ЕГЭ',     description: 'Тренировочные варианты экзаменов по спецификациям ФИПИ.',         icon: GraduationCap,   color: 'danger',  path: '/workspace/exam',            cost: 20, opKey: 'exam_variant',         cat: 'assessment', eta: '~2 мин' },
-    { id: 'homework',        title: 'Проверка ДЗ',          description: 'AI-помощь в проверке работ учеников и выставлении оценок.',       icon: ClipboardCheck,  color: 'warning', path: '/workspace/homework',        cost: 0,  opKey: 'transcription',        cat: 'assessment', eta: 'по работе' },
-    { id: 'feedback',        title: 'Фидбек',               description: 'Развёрнутая обратная связь по любой работе ученика.',             icon: MessageCircle,   color: 'pink',    path: '/workspace/feedback',        cost: 2,  opKey: 'feedback',             cat: 'assessment', eta: '~20 сек' },
+    { id: 'quiz',            title: 'Генератор тестов',        description: 'Тест с выбором ответа: 5–25 вопросов, 2–4 варианта.',             icon: HelpCircle,      color: 'info',    path: '/workspace/quiz-generator',  cost: 2,  opKey: 'quiz',                 cat: 'assessment', eta: '~30 сек',         tourId: 'tool-test' },
+    { id: 'games',           title: 'Обучающие игры',          description: 'Memory, флэш-карты и интерактивные активности.',                  icon: Gamepad2,        color: 'indigo',  path: '/workspace/games',           cost: 15, opKey: 'game_generation',      cat: 'assessment', eta: '~1 мин',          tourId: 'tool-game' },
+    // BACKLOG: { id: 'exam', title: 'Варианты ОГЭ/ЕГЭ', ... cat: 'assessment' }
+    { id: 'homework',        title: 'Проверка ДЗ',             description: 'AI-помощь в проверке работ учеников и выставлении оценок.',       icon: ClipboardCheck,  color: 'warning', path: '/dashboard/grading',         cost: 0,  opKey: 'transcription',        cat: 'assessment', eta: 'по работе',       tourId: 'tool-check' },
+    // BACKLOG: { id: 'feedback', title: 'Фидбек', ... cat: 'assessment' }
 
-    { id: 'presentation',    title: 'Презентации',          description: 'Визуально привлекательные слайды + экспорт в PDF/PPTX.',          icon: MonitorPlay,     color: 'success', path: '/workspace/presentations',   cost: 8,  opKey: 'presentation',         cat: 'media',      eta: '~2 мин' },
-    { id: 'image',           title: 'Генератор изображений', description: 'Уникальные иллюстрации и визуал для учебных материалов.',         icon: ImageIcon,       color: 'teal',    path: '/workspace/image',           cost: 5,  opKey: 'image_generation',     cat: 'media',      eta: '~40 сек' },
-    { id: 'photosession',    title: 'AI-фотосессия',        description: 'Серия изображений в едином профессиональном стиле.',              icon: Camera,          color: 'indigo',  path: '/workspace/photosession',    cost: 10, opKey: 'photosession',         cat: 'media',      eta: '~2 мин' },
-    { id: 'transcription',   title: 'Транскрибация видео',  description: 'Конвертация видео и лекций в структурированный текст.',           icon: FileAudio,       color: 'danger',  path: '/workspace/transcription',   cost: 15, opKey: 'transcription',        cat: 'media',      eta: '~3 мин' },
-    { id: 'video-analysis',  title: 'Анализ видео',         description: 'Ключевые моменты видеоурока и рекомендации.',                     icon: Video,           color: 'indigo',  path: '/workspace/video-analysis',  cost: 15, opKey: 'video_analysis',       cat: 'media',      eta: '~3 мин' },
+    { id: 'presentation',    title: 'Презентации',             description: 'Визуально привлекательные слайды + экспорт в PDF/PPTX.',          icon: MonitorPlay,     color: 'success', path: '/workspace/presentations',   cost: 8,  opKey: 'presentation',         cat: 'media',      eta: '~2 мин',          tourId: 'tool-presentation' },
+    { id: 'image',           title: 'Генератор изображений',   description: 'Уникальные иллюстрации и визуал для учебных материалов.',         icon: ImageIcon,       color: 'teal',    path: '/workspace/image',           cost: 5,  opKey: 'image_generation',     cat: 'media',      eta: '~40 сек',         tourId: 'tool-image' },
+    // BACKLOG: { id: 'photosession', title: 'AI-фотосессия', ... cat: 'media' }
+    // BACKLOG: { id: 'transcription', title: 'Транскрибация видео', ... cat: 'media' }
+    // BACKLOG: { id: 'video-analysis', title: 'Анализ видео', ... cat: 'media' }
 
-    { id: 'assistant',       title: 'AI-ассистент',         description: 'Умный помощник для мозгового штурма и сложных задач.',            icon: MessageSquare,   color: 'warning', path: '/workspace/assistant',       cost: 3,  opKey: 'message',              cat: 'comms',      eta: 'в реальном времени' },
-    { id: 'messages',        title: 'Сообщения родителям',  description: 'Шаблонные тексты для общения с родителями учеников.',             icon: Mail,            color: 'info',    path: '/workspace/messages',        cost: 1,  opKey: 'parent_message',       cat: 'comms',      eta: '~10 сек' },
+    { id: 'assistant',       title: 'AI-ассистент',            description: 'Умный помощник для мозгового штурма и сложных задач.',            icon: MessageSquare,   color: 'warning', path: '/workspace/assistant',       cost: 3,  opKey: 'message',              cat: 'comms',      eta: 'в реальном времени' },
+    { id: 'messages',        title: 'Сообщения родителям',     description: 'Шаблонные тексты для общения с родителями учеников.',             icon: Mail,            color: 'info',    path: '/workspace/messages',        cost: 1,  opKey: 'parent_message',       cat: 'comms',      eta: '~10 сек',         tourId: 'tool-message' },
 
-    { id: 'unpacking',       title: 'Распаковка экспертности', description: 'Структурировать знания в понятный формат.',                    icon: PackageOpen,     color: 'teal',    path: '/workspace/unpacking',       cost: 5,  opKey: 'unpacking',            cat: 'other',      eta: '~1 мин' },
-    { id: 'sales-advisor',   title: 'ИИ-продажник',         description: 'Анализ переписок с клиентами и рекомендации по продажам.',        icon: LineChart,       color: 'success', path: '/workspace/sales-advisor',   cost: 10, opKey: 'sales_advisor',        cat: 'other',      eta: '~1 мин' },
+    // BACKLOG: { id: 'unpacking', title: 'Распаковка экспертности', ... cat: 'other' }
+    // BACKLOG: { id: 'sales-advisor', title: 'ИИ-продажник', ... cat: 'other' }
 ]
 
 export default function WorkspaceHubV2() {
     const router = useRouter()
     const menu = useMobileMenu()
+    const tour = useTour()
 
     const [query, setQuery] = useState('')
     const [activeCat, setActiveCat] = useState<CategoryKey>('all')
@@ -122,13 +122,14 @@ export default function WorkspaceHubV2() {
                 onMobileMenuToggle={menu.toggle}
                 hideSearch
                 actions={(
-                    <Button variant="ghost" size="sm" leftIcon={<Compass className="w-4 h-4" />}>Тур</Button>
+                    <Button variant="ghost" size="sm" leftIcon={<Compass className="w-4 h-4" />} onClick={tour.start}>Тур</Button>
                 )}
             />
 
             <div className="max-w-[1240px] w-full mx-auto p-8 max-md:p-4">
                 {/* Hero — Вау-урок */}
                 <Card
+                    data-tour="hero-wow"
                     interactive
                     onClick={() => router.push('/workspace/lesson-prep')}
                     className="mb-6 p-7 cursor-pointer hover:border-brand-300 transition-colors"
@@ -162,7 +163,7 @@ export default function WorkspaceHubV2() {
                 </Card>
 
                 {/* Search + filters row */}
-                <div className="mb-5 flex items-center gap-3 flex-wrap">
+                <div data-tour="search" className="mb-5 flex items-center gap-3 flex-wrap">
                     <SearchBar
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
@@ -172,7 +173,7 @@ export default function WorkspaceHubV2() {
                 </div>
 
                 {/* Category tabs */}
-                <div className="mb-6 pb-4 border-b border-ink-200 flex gap-1.5 flex-wrap">
+                <div data-tour="categories" className="mb-6 pb-4 border-b border-ink-200 flex gap-1.5 flex-wrap">
                     {CATEGORIES.map(c => {
                         const Icon = c.icon
                         const isActive = activeCat === c.key
@@ -222,6 +223,7 @@ function ToolCard({ tool, maintenance, onClick }: { tool: ToolDef; maintenance: 
     const Icon = tool.icon
     return (
         <Card
+            data-tour={tool.tourId}
             interactive={!maintenance}
             padding="md"
             onClick={maintenance ? undefined : onClick}

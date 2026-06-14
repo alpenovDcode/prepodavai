@@ -5,6 +5,8 @@ import { Suspense, useState } from 'react'
 import { Toaster } from 'react-hot-toast'
 import MaintenanceGate from '@/components/MaintenanceGate'
 import { AnalyticsProvider } from '@/components/AnalyticsProvider'
+import { TourProvider } from '@/lib/tour/TourContext'
+import { TourOverlay } from '@/lib/tour/TourOverlay'
 // import FloatingBalance from '@/components/workspace/FloatingBalance'
 
 export function Providers({ children }: { children: React.ReactNode }) {
@@ -13,7 +15,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       new QueryClient({
         defaultOptions: {
           queries: {
-            staleTime: 60 * 1000, // 1 minute
+            staleTime: 60 * 1000,
             refetchOnWindowFocus: false,
           },
         },
@@ -26,7 +28,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
           в Next.js 14 этот хук требует Suspense-границы. */}
       <Suspense fallback={null}>
         <AnalyticsProvider>
-          <MaintenanceGate>{children}</MaintenanceGate>
+          <TourProvider>
+            <MaintenanceGate>{children}</MaintenanceGate>
+            <TourOverlay />
+          </TourProvider>
         </AnalyticsProvider>
       </Suspense>
       {/* <FloatingBalance /> */}

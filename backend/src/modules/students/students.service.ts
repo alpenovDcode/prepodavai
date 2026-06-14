@@ -172,6 +172,225 @@ export class StudentsService {
   }
 
   /**
+   * Сводка по всем ученикам учителя: метрики на каждого + суммарные KPI.
+   * Используется на странице списка учеников (V2).
+   * Считается одним проходом по assignments/submissions, чтобы не дёргать БД на каждого ученика.
+   */
+  async getStudentsOverview(userId: string) {
+    const students = await this.prisma.student.findMany({
+      where: { class: { teacherId: userId } },
+      include: { class: { select: { id: true, name: true } } },
+      orderBy: { name: 'asc' },
+    });
+
+    if (students.length === 0) {
+      return {
+        summary: {
+          total: 0,
+          classCount: 0,
+          avgGrade: null,
+          onTimeRate: null,
+          activeThisWeek: 0,
+          atRiskCount: 0,
+          newThisMonth: 0,
+        },
+        students: [],
+      };
+    }
+
+    const studentIds = students.map((s) => s.id);
+    const classIds = Array.from(new Set(students.map((s) => s.classId)));
+
+    const assignments = await this.prisma.assignment.findMany({
+      where: {
+        OR: [
+          { studentId: { in: studentIds } },
+          { classId: { in: classIds } },
+        ],
+      },
+      select: {
+        id: true,
+        classId: true,
+        studentId: true,
+        dueDate: true,
+        submissions: {
+          where: { studentId: { in: studentIds } },
+          select: { id: true, studentId: true, grade: true, createdAt: true },
+        },
+      },
+    });
+
+    const now = new Date();
+    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+    const studentAssignments = new Map<string, { id: string; dueDate: Date | null }[]>();
+    const studentSubmissions = new Map<
+      string,
+      { grade: number | null; createdAt: Date; assignmentDue: Date | null }[]
+    >();
+
+    for (const s of students) {
+      studentAssignments.set(s.id, []);
+      studentSubmissions.set(s.id, []);
+    }
+
+    for (const a of assignments) {
+      const targetIds: string[] = a.studentId
+        ? [a.studentId]
+        : students.filter((s) => s.classId === a.classId).map((s) => s.id);
+      for (const sid of targetIds) {
+        const list = studentAssignments.get(sid);
+        if (list) list.push({ id: a.id, dueDate: a.dueDate });
+      }
+      for (const sub of a.submissions) {
+        const list = studentSubmissions.get(sub.studentId);
+        if (list)
+          list.push({ grade: sub.grade, createdAt: sub.createdAt, assignmentDue: a.dueDate });
+      }
+    }
+
+    // delta metrics for KPI cards (current month vs previous month, current week vs previous week)
+    const fourWeeksAgo = new Date(now.getTime() - 28 * 24 * 60 * 60 * 1000);
+    const twoWeeksAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+    const allSubs: { grade: number | null; createdAt: Date; assignmentDue: Date | null }[] = [];
+    studentSubmissions.forEach((subs) => allSubs.push(...subs));
+
+    const thisMonthGrades = allSubs
+      .filter((s) => s.grade !== null && s.createdAt >= monthAgo)
+      .map((s) => s.grade as number);
+    const lastMonthGrades = allSubs
+      .filter((s) => s.grade !== null && s.createdAt >= fourWeeksAgo && s.createdAt < monthAgo)
+      .map((s) => s.grade as number);
+    const avgGradeDelta: number | null =
+      thisMonthGrades.length >= 2 && lastMonthGrades.length >= 2
+        ? Math.round(
+            (thisMonthGrades.reduce((a, b) => a + b, 0) / thisMonthGrades.length -
+              lastMonthGrades.reduce((a, b) => a + b, 0) / lastMonthGrades.length) *
+              10,
+          ) / 10
+        : null;
+
+    const thisWeekWithDue = allSubs.filter((s) => s.assignmentDue && s.createdAt >= weekAgo);
+    const lastWeekWithDue = allSubs.filter(
+      (s) => s.assignmentDue && s.createdAt >= twoWeeksAgo && s.createdAt < weekAgo,
+    );
+    const onTimeRateDelta: number | null =
+      thisWeekWithDue.length >= 2 && lastWeekWithDue.length >= 2
+        ? Math.round(
+            (thisWeekWithDue.filter((s) => s.createdAt <= (s.assignmentDue as Date)).length /
+              thisWeekWithDue.length -
+              lastWeekWithDue.filter((s) => s.createdAt <= (s.assignmentDue as Date)).length /
+                lastWeekWithDue.length) *
+              100,
+          )
+        : null;
+
+    let totalGradeSum = 0;
+    let totalGradeCount = 0;
+    let onTimeSum = 0;
+    let onTimeDenom = 0;
+    let activeThisWeek = 0;
+    let atRiskCount = 0;
+    let newThisMonth = 0;
+
+    const studentRows = students.map((s) => {
+      const aList = studentAssignments.get(s.id) || [];
+      const sList = studentSubmissions.get(s.id) || [];
+      const graded = sList.filter((x) => x.grade !== null);
+      const avgGrade =
+        graded.length > 0
+          ? Math.round((graded.reduce((sum, x) => sum + (x.grade || 0), 0) / graded.length) * 10) /
+            10
+          : null;
+
+      const totalAssigned = aList.length;
+      const totalSubmitted = sList.length;
+      const submissionRate = totalAssigned > 0 ? totalSubmitted / totalAssigned : 0;
+
+      const withDeadline = sList.filter((x) => x.assignmentDue);
+      const onTimeCount = withDeadline.filter(
+        (x) => x.createdAt <= (x.assignmentDue as Date),
+      ).length;
+      const onTimeRate =
+        withDeadline.length > 0 ? onTimeCount / withDeadline.length : null;
+
+      const lastActivityAt =
+        sList.length > 0
+          ? sList.map((x) => x.createdAt).sort((a, b) => b.getTime() - a.getTime())[0]
+          : null;
+
+      let risk: 'good' | 'watch' | 'risk' | 'unknown' = 'unknown';
+      if (graded.length >= 3) {
+        const last3 = graded
+          .slice()
+          .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+          .slice(-3)
+          .map((x) => x.grade as number);
+        const last3Avg = last3.reduce((a, b) => a + b, 0) / last3.length;
+
+        if (avgGrade !== null && avgGrade < 3) risk = 'risk';
+        else if (last3Avg < 3) risk = 'risk';
+        else if (submissionRate < 0.5 && totalAssigned >= 3) risk = 'risk';
+        else if (avgGrade !== null && avgGrade < 3.7) risk = 'watch';
+        else if (submissionRate < 0.7 && totalAssigned >= 3) risk = 'watch';
+        else if (onTimeRate !== null && onTimeRate < 0.6) risk = 'watch';
+        else risk = 'good';
+      }
+
+      if (avgGrade !== null) {
+        totalGradeSum += avgGrade;
+        totalGradeCount += 1;
+      }
+      if (onTimeRate !== null) {
+        onTimeSum += onTimeRate;
+        onTimeDenom += 1;
+      }
+      if (lastActivityAt && lastActivityAt >= weekAgo) activeThisWeek += 1;
+      if (risk === 'risk') atRiskCount += 1;
+      if (s.createdAt >= monthAgo) newThisMonth += 1;
+
+      return {
+        id: s.id,
+        name: s.name,
+        email: s.email,
+        avatar: s.avatar,
+        accessCode: s.accessCode,
+        status: (s as any).status ?? 'active',
+        createdAt: s.createdAt,
+        classId: s.classId,
+        class: { id: s.class.id, name: s.class.name },
+        avgGrade,
+        totalAssigned,
+        totalSubmitted,
+        submissionRate: Math.round(submissionRate * 100) / 100,
+        onTimeRate: onTimeRate !== null ? Math.round(onTimeRate * 100) / 100 : null,
+        lastActivityAt,
+        risk,
+      };
+    });
+
+    return {
+      summary: {
+        total: students.length,
+        classCount: classIds.length,
+        avgGrade:
+          totalGradeCount > 0
+            ? Math.round((totalGradeSum / totalGradeCount) * 10) / 10
+            : null,
+        avgGradeDelta,
+        onTimeRate:
+          onTimeDenom > 0 ? Math.round((onTimeSum / onTimeDenom) * 100) : null,
+        onTimeRateDelta,
+        activeThisWeek,
+        atRiskCount,
+        newThisMonth,
+      },
+      students: studentRows,
+    };
+  }
+
+  /**
    * Расширенная аналитика по ученику: тренд оценок, агрегаты, уровень риска.
    * Используется на странице профиля ученика.
    */
@@ -306,6 +525,139 @@ export class StudentsService {
         level: riskLevel,
         reasons,
       },
+    };
+  }
+
+  async getMyGrades(studentId: string) {
+    const student = await this.prisma.student.findUnique({
+      where: { id: studentId },
+      include: {
+        class: {
+          include: {
+            teacher: { select: { subject: true, firstName: true, lastName: true } },
+          },
+        },
+      },
+    });
+    if (!student) throw new NotFoundException('Student not found');
+
+    const subject = (student.class as any).teacher?.subject || student.class.name || 'Предмет';
+
+    const assignments = await this.prisma.assignment.findMany({
+      where: { OR: [{ studentId }, { classId: student.classId }] },
+      include: {
+        lesson: { select: { id: true, title: true } },
+        generation: { select: { id: true, generationType: true } },
+        submissions: {
+          where: { studentId },
+          select: { id: true, grade: true, feedback: true, status: true, createdAt: true, updatedAt: true },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const now = new Date();
+    const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+    const allSubs = assignments.flatMap((a) =>
+      a.submissions.map((s) => ({ ...s, assignment: a })),
+    );
+    const gradedSubs = allSubs.filter((s) => s.grade !== null);
+    const pendingSubs = allSubs.filter((s) => s.grade === null);
+
+    const avgGrade =
+      gradedSubs.length > 0
+        ? Math.round(
+            (gradedSubs.reduce((sum, s) => sum + (s.grade || 0), 0) / gradedSubs.length) * 10,
+          ) / 10
+        : 0;
+
+    const gradedThisMonth = gradedSubs.filter((s) => s.updatedAt >= monthAgo);
+    const gradedBeforeMonth = gradedSubs.filter((s) => s.updatedAt < monthAgo);
+    const avgThisMonth =
+      gradedThisMonth.length > 0
+        ? gradedThisMonth.reduce((sum, s) => sum + (s.grade || 0), 0) / gradedThisMonth.length
+        : null;
+    const avgBeforeMonth =
+      gradedBeforeMonth.length > 0
+        ? gradedBeforeMonth.reduce((sum, s) => sum + (s.grade || 0), 0) / gradedBeforeMonth.length
+        : null;
+    const monthDelta =
+      avgThisMonth !== null && avgBeforeMonth !== null
+        ? Math.round((avgThisMonth - avgBeforeMonth) * 10) / 10
+        : null;
+
+    let gamification: any = null;
+    try {
+      gamification = await this.gamificationService.getProgress(studentId);
+    } catch {
+      // ignore
+    }
+
+    const xp = gamification?.xp ?? 0;
+    const nextLevelXp = gamification?.nextLevelXp ?? 500;
+    const xpToNextLevel = Math.max(0, nextLevelXp - xp);
+    const streakDays = gamification?.streakDays ?? 0;
+
+    const recentAch = (gamification?.achievements ?? [])
+      .filter(
+        (a: any) => a.unlocked && a.unlockedAt && new Date(a.unlockedAt) >= sevenDaysAgo,
+      )
+      .sort((a: any, b: any) => new Date(b.unlockedAt).getTime() - new Date(a.unlockedAt).getTime())[0];
+
+    const newAchievement = recentAch
+      ? { id: recentAch.key, title: recentAch.title, xp: recentAch.xpReward, description: recentAch.description }
+      : undefined;
+
+    const typeLabel = (gen: { generationType: string } | null): string => {
+      if (!gen) return 'Задание';
+      const t = gen.generationType;
+      if (t === 'quiz') return 'Тест';
+      if (t === 'worksheet') return 'Рабочий лист';
+      if (t === 'vocabulary') return 'Словарь';
+      if (t === 'presentation') return 'Презентация';
+      if (t === 'games') return 'Игра';
+      return 'Задание';
+    };
+
+    const bySubject = [{ subject, gradesCount: gradedSubs.length, pendingCount: pendingSubs.length, avgGrade }];
+
+    const pending = pendingSubs.slice(0, 10).map((s) => ({
+      id: s.id,
+      title: s.assignment.lesson.title,
+      type: typeLabel(s.assignment.generation),
+      subject,
+      submittedAt: s.createdAt,
+    }));
+
+    const graded = gradedSubs
+      .slice()
+      .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
+      .slice(0, 20)
+      .map((s) => ({
+        id: s.id,
+        title: s.assignment.lesson.title,
+        type: typeLabel(s.assignment.generation),
+        subject,
+        grade: s.grade as number,
+        gradedAt: s.updatedAt,
+        feedback: s.feedback,
+      }));
+
+    return {
+      avgGrade,
+      monthDelta,
+      submittedCount: allSubs.length,
+      totalAssignments: assignments.length,
+      pendingCount: pendingSubs.length,
+      xp,
+      xpToNextLevel,
+      streakDays,
+      bySubject,
+      pending,
+      graded,
+      newAchievement,
     };
   }
 

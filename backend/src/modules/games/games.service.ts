@@ -9,6 +9,10 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 // import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { LessonsService } from '../lessons/lessons.service';
 
+function clampCount(n: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, Math.floor(n)));
+}
+
 @Injectable()
 export class GamesService {
   private readonly logger = new Logger(GamesService.name);
@@ -37,11 +41,11 @@ export class GamesService {
 
   async generateGame(dto: CreateGameDto, userId: string) {
     // Modified signature
-    const { topic, type } = dto;
+    const { topic, type, level, count } = dto;
     this.logger.log(`Generating game ${type} for topic: ${topic}`);
 
     // 1. Get Prompt
-    const prompt = this.getPrompt(type, topic);
+    const prompt = this.getPrompt(type, topic, level, count);
 
     // 2. Call AI
     const jsonResponse = await this.callAi(prompt);
@@ -274,12 +278,21 @@ export class GamesService {
     }
   }
 
-  private getPrompt(type: GameType, topic: string): string {
+  private getPrompt(type: GameType, topic: string, level?: string, count?: number): string {
+    const levelHint = level
+      ? `Уровень — ${level} класс: подбирай сложность, формулировки и язык под этот возраст.`
+      : '';
+    const nMillionaire = clampCount(count ?? 15, 5, 30);
+    const nFlash = clampCount(count ?? 12, 5, 30);
+    const nMemory = clampCount(count ?? 8, 4, 16);
+    const nCross = clampCount(count ?? 12, 5, 25);
+    const nTF = clampCount(count ?? 15, 5, 30);
     switch (type) {
       case GameType.MILLIONAIRE:
         return `
 Создай базу вопросов для игры "Кто хочет стать миллионером" на тему "${topic}".
-Нужно 15 вопросов разной сложности (от легких к сложным).
+Нужно ровно ${nMillionaire} вопросов разной сложности (от легких к сложным).
+${levelHint}
 Верни ТОЛЬКО валидный JSON массив объектов без лишнего текста и разметки.
 Формат:
 [
@@ -293,7 +306,8 @@ export class GamesService {
       case GameType.FLASHCARDS:
         return `
 Создай набор флеш-карточек для изучения темы "${topic}".
-Нужно 10-15 карточек.
+Нужно ровно ${nFlash} карточек.
+${levelHint}
 Верни ТОЛЬКО валидный JSON массив объектов без лишнего текста.
 Формат:
 [
@@ -305,9 +319,10 @@ export class GamesService {
 `;
       case GameType.MEMORY:
         return `
-Создай 8 пар карточек для игры "Найди пару" (Memory) на тему "${topic}".
+Создай ${nMemory} пар карточек для игры "Найди пару" (Memory) на тему "${topic}".
 Каждая пара — это два связанных понятия по теме (термин и определение, формула и её название, понятие и пример, и т.п.).
-Верни ТОЛЬКО валидный JSON массив из 8 объектов без лишнего текста и разметки.
+${levelHint}
+Верни ТОЛЬКО валидный JSON массив из ${nMemory} объектов без лишнего текста и разметки.
 Формат:
 [
   { "id": 1, "card1": "...", "card2": "..." },
@@ -318,12 +333,13 @@ export class GamesService {
   { "id": 1, "card1": "D = b² - 4ac", "card2": "Формула дискриминанта" },
   { "id": 2, "card1": "D > 0", "card2": "Два различных корня" }
 ]
-Теперь создай 8 пар именно для темы "${topic}".
+Теперь создай ${nMemory} пар именно для темы "${topic}".
 `;
       case GameType.CROSSWORD:
         return `
 Создай список слов для кроссворда/филворда на тему "${topic}".
-Нужно 10-15 слов с подсказками.
+Нужно ровно ${nCross} слов с подсказками.
+${levelHint}
 ВАЖНО: Слова должны быть БЕЗ ПРОБЕЛОВ. Если термин состоит из нескольких слов, объедини их (например, "МАТЕМАТИЧЕСКОЕОЖИДАНИЕ" вместо "МАТЕМАТИЧЕСКОЕ ОЖИДАНИЕ").
 Верни ТОЛЬКО валидный JSON массив объектов без лишнего текста.
 Формат:
@@ -337,7 +353,8 @@ export class GamesService {
       case GameType.TRUE_FALSE:
         return `
 Создай список утверждений для игры "Правда или Ложь" на тему "${topic}".
-Нужно 15 утверждений.
+Нужно ровно ${nTF} утверждений.
+${levelHint}
 Верни ТОЛЬКО валидный JSON массив объектов без лишнего текста.
 Формат:
 [

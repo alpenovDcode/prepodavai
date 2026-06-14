@@ -24,6 +24,14 @@ export interface NavItem {
     badge?: number | string
     /** Если true — пункт всегда отображается активным (для кастомных кейсов). */
     forceActive?: boolean
+    /** data-tour атрибут для тура */
+    tourId?: string
+    /** Ссылка открывается в новой вкладке */
+    external?: boolean
+    /** Заблокировано — некликабельно, серое */
+    disabled?: boolean
+    /** Показывает бейдж «Скоро» и блокирует клик */
+    comingSoon?: boolean
 }
 
 export interface NavSection {
@@ -58,6 +66,7 @@ export function Sidebar({ sections, user, brandName = 'Преподавай', op
             )}
 
             <aside
+                data-tour="sidebar"
                 className={cn(
                     'bg-surface border-r border-ink-200 flex flex-col w-[260px] flex-shrink-0',
                     'transition-transform duration-base ease-out-expo',
@@ -136,15 +145,20 @@ export function Sidebar({ sections, user, brandName = 'Преподавай', op
 
 function SidebarNavItem({ item }: { item: NavItem }) {
     const pathname = usePathname()
-    const isActive = item.forceActive || (item.href ? pathname === item.href || pathname?.startsWith(item.href + '/') : false)
+    const isDisabled = item.disabled || item.comingSoon
+    const isActive = !isDisabled && (item.forceActive || (item.href ? pathname === item.href || pathname?.startsWith(item.href + '/') : false))
 
     const content = (
-        <span className={cn(
-            'flex items-center gap-3 px-3 py-2.5 rounded-md font-medium text-sm cursor-pointer',
+        <span
+            data-tour={item.tourId}
+            className={cn(
+            'flex items-center gap-3 px-3 py-2.5 rounded-md font-medium text-sm',
             'transition-colors duration-fast ease-out-expo',
-            isActive
-                ? 'bg-brand-50 text-brand-700'
-                : 'text-ink-600 hover:bg-ink-100 hover:text-ink-900',
+            isDisabled
+                ? 'text-ink-300 cursor-not-allowed opacity-60'
+                : isActive
+                    ? 'bg-brand-50 text-brand-700 cursor-pointer'
+                    : 'text-ink-600 hover:bg-ink-100 hover:text-ink-900 cursor-pointer',
         )}>
             <span className={cn(
                 'flex-shrink-0',
@@ -153,7 +167,12 @@ function SidebarNavItem({ item }: { item: NavItem }) {
                 {item.icon}
             </span>
             <span className="flex-1 truncate">{item.label}</span>
-            {item.badge != null && (
+            {item.comingSoon && (
+                <span className="ml-auto bg-ink-100 text-ink-400 text-[10px] font-semibold px-1.5 py-0.5 rounded-full">
+                    Скоро
+                </span>
+            )}
+            {!item.comingSoon && item.badge != null && (
                 <span className="ml-auto bg-brand-500 text-white text-[11px] font-semibold px-1.5 py-0.5 rounded-full">
                     {item.badge}
                 </span>
@@ -161,6 +180,10 @@ function SidebarNavItem({ item }: { item: NavItem }) {
         </span>
     )
 
+    if (isDisabled) return content
+    if (item.external && item.href) {
+        return <a href={item.href} target="_blank" rel="noopener noreferrer">{content}</a>
+    }
     return item.href ? <Link href={item.href}>{content}</Link> : content
 }
 
@@ -174,26 +197,26 @@ export function getTeacherNavSections(badges: { studentsAtRisk?: number; pending
         {
             label: 'Рабочий стол',
             items: [
-                { label: 'Главная',       href: '/dashboard',                 icon: i(LayoutDashboard) },
-                { label: 'ИИ Генератор',  href: '/workspace',                 icon: i(Wand2) },
-                { label: 'Календарь',     href: '/dashboard/calendar',        icon: i(Calendar) },
-                { label: 'Материалы',     href: '/dashboard/courses',         icon: i(BookOpen) },
+                { label: 'Главная',       href: '/dashboard',              icon: i(LayoutDashboard), tourId: 'nav-home' },
+                { label: 'ИИ Генератор',  href: '/workspace',              icon: i(Wand2),           tourId: 'nav-ai' },
+                { label: 'Календарь',     href: '/dashboard/calendar',     icon: i(Calendar),        tourId: 'nav-calendar', comingSoon: true },
+                { label: 'Материалы',     href: '/dashboard/courses',      icon: i(BookOpen),        tourId: 'nav-materials' },
             ],
         },
         {
             label: 'Класс',
             items: [
-                { label: 'Ученики',       href: '/dashboard/students',        icon: i(Users),         badge: badges.studentsAtRisk },
-                { label: 'Проверка ДЗ',   href: '/dashboard/grading',         icon: i(ClipboardCheck), badge: badges.pendingGrading },
-                { label: 'Аналитика',     href: '/dashboard/analytics',       icon: i(BarChart3) },
+                { label: 'Ученики',       href: '/dashboard/students',     icon: i(Users),           badge: badges.studentsAtRisk, tourId: 'nav-students' },
+                { label: 'Проверка ДЗ',   href: '/dashboard/grading',      icon: i(ClipboardCheck),  badge: badges.pendingGrading, tourId: 'nav-grading' },
+                { label: 'Аналитика',     href: '/dashboard/analytics',    icon: i(BarChart3),       tourId: 'nav-analytics' },
             ],
         },
         {
             label: 'Прочее',
             items: [
-                { label: 'Пригласить',    href: '/dashboard/referrals',       icon: i(Gift) },
-                { label: 'Поддержка',     href: '/dashboard/support',         icon: i(MessageCircle) },
-                { label: 'Настройки',     href: '/dashboard/settings',        icon: i(Settings) },
+                { label: 'Пригласить',    href: '/dashboard/referrals',    icon: i(Gift),            tourId: 'nav-invite' },
+                { label: 'Поддержка',     href: 'https://t.me/prepodavai_help_bot', icon: i(MessageCircle), tourId: 'nav-support', external: true },
+                { label: 'Настройки',     href: '/dashboard/settings',     icon: i(Settings),        tourId: 'nav-settings' },
             ],
         },
     ]

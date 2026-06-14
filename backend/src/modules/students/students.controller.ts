@@ -23,6 +23,11 @@ export class StudentsController {
     return this.studentsService.getMe(req.user.id);
   }
 
+  @Get('me/grades')
+  getMyGrades(@Request() req) {
+    return this.studentsService.getMyGrades(req.user.id);
+  }
+
   @Post()
   create(
     @Request() req,
@@ -35,6 +40,11 @@ export class StudentsController {
   @Get()
   findAll(@Request() req, @Query('classId') classId?: string) {
     return this.studentsService.getStudents(req.user.id, classId);
+  }
+
+  @Get('overview')
+  overview(@Request() req) {
+    return this.studentsService.getStudentsOverview(req.user.id);
   }
 
   @Get(':id')

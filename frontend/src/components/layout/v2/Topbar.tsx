@@ -27,6 +27,8 @@ export interface TopbarProps {
     onSearch?: () => void
     /** Скрыть поиск. */
     hideSearch?: boolean
+    /** Опциональный leading-слот: рендерится слева от заголовка (между бургером и title). Например — back-стрелка. */
+    leading?: ReactNode
 }
 
 /**
@@ -42,6 +44,7 @@ export function Topbar({
     onMobileMenuToggle,
     onSearch,
     hideSearch,
+    leading,
 }: TopbarProps) {
     return (
         <header className={cn(
@@ -60,6 +63,7 @@ export function Topbar({
                         <Menu className="w-5 h-5" />
                     </button>
                 )}
+                {leading}
                 <div className="min-w-0">
                     <h1 className="font-display text-[20px] font-bold text-ink-900 tracking-tight truncate">
                         {title}
@@ -72,18 +76,24 @@ export function Topbar({
 
             <div className="flex items-center gap-3 flex-shrink-0">
                 {!hideSearch && (
-                    <SearchBar
-                        placeholder="Поиск материалов, учеников…"
-                        kbdHint="⌘K"
-                        readOnly
-                        onClick={onSearch}
-                        className="hidden lg:block w-[280px]"
-                    />
+                    <span data-tour="search">
+                        <SearchBar
+                            placeholder="Поиск материалов, учеников…"
+                            kbdHint="⌘K"
+                            readOnly
+                            onClick={onSearch}
+                            className="hidden lg:block w-[280px]"
+                        />
+                    </span>
                 )}
 
                 {actions}
 
-                {!hideNotifications && <NotificationBellV2 audience={notificationsAudience} />}
+                {!hideNotifications && (
+                    <span data-tour="notifications">
+                        <NotificationBellV2 audience={notificationsAudience} />
+                    </span>
+                )}
             </div>
         </header>
     )

@@ -11,6 +11,7 @@ import AssignTaskButton from '@/components/AssignTaskButton'
 import GenerationProgress from '@/components/workspace/GenerationProgress'
 import DownloadPdfModal from '@/components/workspace/DownloadPdfModal'
 import { ensureMathJaxInHtml } from '@/lib/utils/ensureMathJax'
+import LessonPrepV2 from '@/components/v2/LessonPrepV2'
 
 // Разделы, в конце которых лежит ключ для учителя — модалка предложит
 // выбрать «с ответами / без ответов». Совпадает с лейблами getTypeLabel в backend.
@@ -38,6 +39,7 @@ const sectionFilenameSlug = (label: string | null | undefined): string => {
 }
 
 export default function LessonPrepGenerator() {
+    if (process.env.NEXT_PUBLIC_REDESIGN_V2 === 'true') return <LessonPrepV2 />
     const [subject, setSubject] = useState('')
     const [topic, setTopic] = useState('')
     const [level, setLevel] = useState('5')

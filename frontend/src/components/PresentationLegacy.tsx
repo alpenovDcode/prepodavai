@@ -1,0 +1,1044 @@
+'use client'
+
+import { useState, useRef, useEffect, useCallback } from 'react'
+import DOMPurify from 'isomorphic-dompurify'
+import { useSearchParams } from 'next/navigation'
+import {
+    MonitorPlay, RefreshCw, Loader2, Download, ArrowLeft, Plus,
+    Edit3, Eye, Type, Sparkles, Trash2, Trash,
+    PlusSquare, X, Upload, Image as ImageIcon
+} from 'lucide-react'
+import { useGenerations } from '@/lib/hooks/useGenerations'
+import AssignTaskButton from '@/components/AssignTaskButton'
+import GenerationProgress from '@/components/workspace/GenerationProgress'
+import { SlideDocEditor } from '@/components/SlideDocEditor'
+import { SlideDoc, SLIDE_THEMES, SlideThemeId } from '@/types/slide-doc'
+
+interface SlideData {
+    id: string;
+    html: string;
+    css: string;
+    js: string;
+}
+
+const FALLBACK_SLIDE_CSS = `
+  body { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); }
+  body > * { color: #fff; }
+  h1, h2, h3 { font-weight: 800; text-shadow: 0 2px 8px rgba(0,0,0,0.4); }
+`;
+
+function buildSlideSrcDoc(slide: SlideData): string {
+    const css = slide.css?.trim() || FALLBACK_SLIDE_CSS
+    return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; font-family: 'Segoe UI', system-ui, sans-serif; }
+${css}
+</style>
+<script>window.MathJax={tex:{inlineMath:[['$','$'],['\\\\(','\\\\)']],displayMath:[['$$','$$'],['\\\\[','\\\\]']],processEscapes:true},svg:{fontCache:'global'}};</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+</head>
+<body>
+${slide.html}
+<script>
+try { ${slide.js || ''} } catch(e) { console.warn('slide js error', e); }
+</script>
+</body>
+</html>`;
+}
+
+function SlideThumbnail({ slide, index, isActive, onClick }: {
+    slide: SlideData; index: number; isActive: boolean; onClick: () => void;
+}) {
+    return (
+        <div
+            onClick={onClick}
+            className={`relative cursor-pointer rounded-lg overflow-hidden border-2 flex-shrink-0 transition-all ${isActive ? 'border-blue-500 shadow-md' : 'border-gray-200 hover:border-blue-300'}`}
+            style={{ width: '100%', aspectRatio: '16/9' }}
+        >
+            <iframe
+                srcDoc={buildSlideSrcDoc(slide)}
+                className="w-full h-full border-0 pointer-events-none"
+                style={{ transform: 'scale(0.25)', transformOrigin: 'top left', width: '400%', height: '400%' }}
+                sandbox="allow-scripts allow-popups allow-modals"
+                title={`Slide ${index + 1}`}
+            />
+            <div className="absolute bottom-1 left-2 text-[9px] font-bold text-white/80 bg-black/30 rounded px-1">
+                {index + 1}
+            </div>
+        </div>
+    );
+}
+
+export default function PresentationLegacy() {
+    const [topic, setTopic] = useState('')
+    const [duration, setDuration] = useState('15')
+    const [style, setStyle] = useState('modern')
+    const [targetAudience, setTargetAudience] = useState('students')
+    const [themeId, setThemeId] = useState<SlideThemeId>('indigo')
+    const [errorMsg, setErrorMsg] = useState('')
+
+    const [slideDoc, setSlideDoc] = useState<SlideDoc | null>(null)
+    const [pdfUrl, setPdfUrl] = useState<string | null>(null)
+    const [slides, setSlides] = useState<SlideData[]>([])
+    const [activeSlideIndex, setActiveSlideIndex] = useState(0)
+    const [isEditorMode, setIsEditorMode] = useState(false)
+    const [editMode, setEditMode] = useState(false)
+    const [activeTab, setActiveTab] = useState<'config' | 'preview'>('config')
+    const [isMobile, setIsMobile] = useState(false)
+    const [isLoading, setIsLoading] = useState(false)
+    const [isExporting, setIsExporting] = useState(false)
+    const [showDownloadMenu, setShowDownloadMenu] = useState(false)
+
+    const [showAiImageModal, setShowAiImageModal] = useState(false)
+    const [aiImagePrompt, setAiImagePrompt] = useState('')
+    const [aiImageUrl, setAiImageUrl] = useState<string | null>(null)
+    const [isGeneratingImage, setIsGeneratingImage] = useState(false)
+
+    const canvasIframeRef = useRef<HTMLIFrameElement>(null)
+    const fileInputRef = useRef<HTMLInputElement>(null)
+    const { generate: startGeneration, pollStatus, generateAndWait, isGenerating, activeGenerationId } = useGenerations()
+    const presentationGenerationIdRef = useRef<string | null>(null)
+    const searchParams = useSearchParams()
+
+    useEffect(() => {
+        const checkMobile = () => {
+            setIsMobile(window.innerWidth < 768)
+        }
+        checkMobile()
+        window.addEventListener('resize', checkMobile)
+        return () => window.removeEventListener('resize', checkMobile)
+    }, [])
+
+    useEffect(() => {
+        if (searchParams?.get('loadFromSession') !== '1') return
+        try {
+            const raw = sessionStorage.getItem('pendingPresentationSlides')
+            const title = sessionStorage.getItem('pendingPresentationTitle')
+            if (raw) {
+                const loaded = JSON.parse(raw)
+                if (Array.isArray(loaded) && loaded.length > 0) {
+                    setSlides(loaded)
+                    setIsEditorMode(true)
+                    if (title) setTopic(title)
+                }
+            }
+            sessionStorage.removeItem('pendingPresentationSlides')
+            sessionStorage.removeItem('pendingPresentationTitle')
+        } catch (e) {
+            console.error('Failed to load slides from sessionStorage:', e)
+        }
+    }, [searchParams])
+
+    useEffect(() => {
+        const handleMessage = (e: MessageEvent) => {
+            if (e.origin !== window.location.origin) return
+            if (e.data?.type === 'slide-html') {
+                setSlides(prev => prev.map((s, i) =>
+                    i === activeSlideIndex ? { ...s, html: e.data.html } : s
+                ))
+            }
+        }
+        window.addEventListener('message', handleMessage)
+        return () => window.removeEventListener('message', handleMessage)
+    }, [activeSlideIndex])
+
+    const getIframeDoc = useCallback(() => {
+        try {
+            return canvasIframeRef.current?.contentDocument ?? null
+        } catch { return null }
+    }, [])
+
+    const injectDragScript = useCallback((doc: Document) => {
+        if (doc.getElementById('__drag-script__')) return
+        const parentOrigin = window.location.origin
+        const s = doc.createElement('script')
+        s.id = '__drag-script__'
+        s.textContent = `
+        (function () {
+            var active = null, isDragging = false, startX, startY;
+            var tx = 0, ty = 0, baseTx = 0, baseTy = 0;
+
+            function getTransform(el) {
+                var m = el.style.transform.match(/translate\\(([-0-9.]+)px,\\s*([-0-9.]+)px\\)/);
+                return m ? { x: parseFloat(m[1]), y: parseFloat(m[2]) } : { x: 0, y: 0 };
+            }
+
+            function onDown(e) {
+                if (e.button !== 0) return;
+                var target = e.target.closest('[data-edit], img');
+                if (!target) return;
+
+                active = target;
+                isDragging = false;
+                startX = e.clientX;
+                startY = e.clientY;
+
+                var t = getTransform(active);
+                baseTx = t.x;
+                baseTy = t.y;
+            }
+
+            function onMove(e) {
+                if (!active) return;
+                var dx = e.clientX - startX;
+                var dy = e.clientY - startY;
+
+                if (!isDragging && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) {
+                    isDragging = true;
+                    if (document.activeElement === active) active.blur();
+                    active.style.cursor = 'grabbing';
+                    active.style.zIndex = '9999';
+                    active.style.outline = '2px solid rgba(99,102,241,0.85)';
+                }
+
+                if (isDragging) {
+                    e.preventDefault();
+                    tx = baseTx + dx;
+                    ty = baseTy + dy;
+                    active.style.transform = 'translate(' + tx + 'px, ' + ty + 'px)';
+                }
+            }
+
+            function onUp(e) {
+                if (!active) return;
+                if (isDragging) {
+                    active.style.cursor = '';
+                    active.style.zIndex = '';
+                    active.style.outline = '';
+                    e.preventDefault();
+                    e.stopPropagation();
+                    window.parent.postMessage({ type: 'slide-html', html: document.body.innerHTML }, '${parentOrigin}');
+                }
+                active = null;
+                isDragging = false;
+            }
+
+            document.addEventListener('mousedown', onDown, true);
+            document.addEventListener('mousemove', onMove, true);
+            document.addEventListener('mouseup', onUp, true);
+
+            document.addEventListener('mouseover', function (e) {
+                var target = e.target.closest('[data-edit], img');
+                if (target && target !== active && !isDragging) {
+                    target.style.outline = '1px dashed rgba(99,102,241,0.6)';
+                    target.style.cursor = target.isContentEditable ? 'text' : 'grab';
+                }
+            }, true);
+            document.addEventListener('mouseout', function (e) {
+                var target = e.target.closest('[data-edit], img');
+                if (target && target !== active) {
+                    target.style.outline = '';
+                }
+            }, true);
+        })();
+    `
+        doc.body.appendChild(s)
+    }, [])
+
+    const enableEditing = useCallback(() => {
+        const doc = getIframeDoc()
+        if (!doc) return
+
+        const style = doc.createElement('style')
+        style.id = '__edit-styles__'
+        style.textContent = `
+    [data - edit] {
+        outline: 2px dashed rgba(99, 102, 241, 0.45);
+        outline - offset: 2px;
+        cursor: text;
+        border - radius: 3px;
+        min - height: 1em;
+    }
+    [data - edit]:hover { outline - color: rgba(99, 102, 241, 0.85); }
+    [data - edit]:focus { outline: 2px solid #6366f1; }
+    `
+        doc.head.appendChild(style)
+
+        const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT)
+        const textParents = new Set<Element>()
+        let node: Node | null
+        while ((node = walker.nextNode())) {
+            if (node.textContent?.trim() && node.parentElement && node.parentElement !== doc.body) {
+                textParents.add(node.parentElement)
+            }
+        }
+        textParents.forEach(el => {
+            const htmlEl = el as HTMLElement
+            htmlEl.contentEditable = 'true'
+            htmlEl.setAttribute('data-edit', '1')
+            htmlEl.spellcheck = false
+        })
+
+        const handler = () => {
+            const html = doc.body.innerHTML
+            setSlides(prev => prev.map((s, i) =>
+                i === activeSlideIndex ? { ...s, html } : s
+            ))
+        }
+        doc.body.addEventListener('input', handler)
+            ; (doc as any).__editHandler = handler
+
+        injectDragScript(doc)
+    }, [getIframeDoc, activeSlideIndex, injectDragScript])
+
+    const disableEditing = useCallback(() => {
+        const doc = getIframeDoc()
+        if (!doc) return
+        doc.getElementById('__edit-styles__')?.remove()
+        doc.querySelectorAll('[data-edit]').forEach(el => {
+            (el as HTMLElement).removeAttribute('contenteditable')
+            el.removeAttribute('data-edit')
+        })
+        if ((doc as any).__editHandler) {
+            doc.body.removeEventListener('input', (doc as any).__editHandler)
+            delete (doc as any).__editHandler
+        }
+    }, [getIframeDoc])
+
+    useEffect(() => {
+        if (!isEditorMode) return
+        const iframe = canvasIframeRef.current
+        if (!iframe) return
+
+        if (!editMode) return
+
+        const activate = () => enableEditing()
+
+        if (iframe.contentDocument?.readyState === 'complete') {
+            activate()
+        } else {
+            iframe.addEventListener('load', activate, { once: true })
+        }
+
+        return () => {
+            iframe.removeEventListener('load', activate)
+        }
+    }, [editMode, isEditorMode, activeSlideIndex, enableEditing])
+
+    const execCmd = (cmd: string) => {
+        const doc = getIframeDoc()
+        if (!doc) return
+        doc.execCommand(cmd)
+        const html = doc.body.innerHTML
+        setSlides(prev => prev.map((s, i) =>
+            i === activeSlideIndex ? { ...s, html } : s
+        ))
+    }
+
+    const addTextBlock = () => {
+        const doc = getIframeDoc()
+        if (!doc) return
+        const p = doc.createElement('p')
+        p.textContent = 'Новый текст'
+        p.contentEditable = 'true'
+        p.setAttribute('data-edit', '1')
+        p.spellcheck = false
+        p.style.cssText = 'margin: 8px; font-size: 1.1rem; cursor: text;'
+        doc.body.appendChild(p)
+        setSlides(prev => prev.map((s, i) =>
+            i === activeSlideIndex ? { ...s, html: doc.body.innerHTML } : s
+        ))
+        p.focus()
+    }
+
+    const deleteSelectedBlock = () => {
+        const doc = getIframeDoc()
+        if (!doc) return
+        const sel = doc.getSelection()
+        if (!sel || sel.rangeCount === 0) return
+        const node = sel.getRangeAt(0).commonAncestorContainer
+        const target = (node.nodeType === 1 ? node : node.parentElement) as HTMLElement | null
+        if (target && target !== doc.body && target.tagName !== 'HTML' && target.tagName !== 'BODY') {
+            target.remove()
+            setSlides(prev => prev.map((s, i) =>
+                i === activeSlideIndex ? { ...s, html: doc.body.innerHTML } : s
+            ))
+        }
+    }
+
+    const insertImageIntoSlide = (url: string) => {
+        const doc = getIframeDoc()
+        if (!doc) return
+
+        if (!doc.body.style.position || doc.body.style.position === 'static') {
+            doc.body.style.position = 'relative'
+        }
+
+        const img = doc.createElement('img')
+        img.src = url
+        img.style.cssText = [
+            'position: absolute',
+            'left: 50%',
+            'top: 50%',
+            'transform: translate(-50%, -50%)',
+            'max-width: 40%',
+            'max-height: 40vh',
+            'object-fit: contain',
+            'border-radius: 8px',
+            'cursor: grab',
+            'z-index: 100',
+            'box-shadow: 0 4px 20px rgba(0,0,0,0.3)',
+        ].join(';')
+        doc.body.appendChild(img)
+
+        injectDragScript(doc)
+
+        setSlides(prev => prev.map((s, i) =>
+            i === activeSlideIndex ? { ...s, html: doc.body.innerHTML } : s
+        ))
+    }
+
+    const handleFileImage = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+        const reader = new FileReader()
+        reader.onload = ev => {
+            const url = ev.target?.result as string
+            insertImageIntoSlide(url)
+        }
+        reader.readAsDataURL(file)
+        e.target.value = ''
+    }
+
+    const generateAiImage = async () => {
+        if (!aiImagePrompt) return
+        setIsGeneratingImage(true)
+        try {
+            const status = await generateAndWait({ type: 'image', params: { prompt: aiImagePrompt, style: 'illustration' } })
+            const r = status.result
+            const imageData: string =
+                (typeof r === 'string' ? r : null) ??
+                r?.content ??
+                r?.imageUrl ??
+                ''
+            if (imageData && (imageData.startsWith('http') || imageData.startsWith('data:image'))) {
+                setAiImageUrl(imageData)
+            } else {
+                const kw = aiImagePrompt.split(' ').filter((w: string) => w.length > 3).slice(0, 2).join(',')
+                setAiImageUrl(`https://picsum.photos/seed/${encodeURIComponent(kw || 'education')}/800/450`)
+            }
+        } catch (e: any) {
+            console.warn('AI image failed, using fallback:', e?.message)
+            const kw = aiImagePrompt.split(' ').filter((w: string) => w.length > 3).slice(0, 2).join('-')
+            setAiImageUrl(`https://picsum.photos/seed/${encodeURIComponent(kw || 'education')}/800/450`)
+        }
+        setIsGeneratingImage(false)
+    }
+
+
+    const insertAiImage = () => {
+        if (!aiImageUrl) return
+        insertImageIntoSlide(aiImageUrl)
+        setShowAiImageModal(false)
+        setAiImageUrl(null)
+    }
+
+    const captureSlideAsImage = async (slide: SlideData): Promise<string> => {
+        const h2c = (await import('html2canvas')).default
+        const W = 1280, H = 720
+        const container = document.createElement('div')
+        container.style.cssText = `position:fixed;left:-${W + 100}px;top:0;width:${W}px;height:${H}px;overflow:hidden;pointer-events:none;z-index:-9999;`
+
+        const styleEl = document.createElement('style')
+        styleEl.textContent = `*,*::before,*::after{box-sizing:border-box}html,body{margin:0;padding:0}${slide.css?.trim() || FALLBACK_SLIDE_CSS}`
+        container.appendChild(styleEl)
+
+        const tmp = document.createElement('div')
+        tmp.innerHTML = DOMPurify.sanitize(slide.html, { FORBID_TAGS: ['script'] })
+        tmp.style.cssText = `width:${W}px;height:${H}px;overflow:hidden;`
+        container.appendChild(tmp)
+
+        document.body.appendChild(container)
+        await new Promise(r => setTimeout(r, 150))
+
+        try {
+            const canvas = await h2c(container, {
+                width: W, height: H, scale: 1, useCORS: true, allowTaint: true,
+                windowWidth: W, windowHeight: H, logging: false, imageTimeout: 5000,
+            })
+            return canvas.toDataURL('image/jpeg', 0.88)
+        } finally {
+            try { document.body.removeChild(container) } catch (_) { }
+        }
+    }
+
+    const captureAllSlides = () => Promise.all(slides.map(s => captureSlideAsImage(s)))
+
+    const downloadPDF = async () => {
+        setIsExporting(true)
+        setShowDownloadMenu(false)
+        try {
+            const [images, { jsPDF }] = await Promise.all([
+                captureAllSlides(),
+                import('jspdf'),
+            ])
+            const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: [297, 167.25] })
+            images.forEach((imgData, i) => {
+                if (i > 0) pdf.addPage([297, 167.25], 'landscape')
+                pdf.addImage(imgData, 'JPEG', 0, 0, 297, 167.25)
+            })
+            pdf.save(`${topic || 'presentation'}.pdf`)
+        } catch (e) { console.error('PDF export failed', e) }
+        setIsExporting(false)
+    }
+
+    const downloadPPTX = async () => {
+        setIsExporting(true)
+        setShowDownloadMenu(false)
+        try {
+            const [images, PptxGenJS] = await Promise.all([
+                captureAllSlides(),
+                import('pptxgenjs').then(m => m.default),
+            ])
+            const prs = new PptxGenJS()
+            prs.layout = 'LAYOUT_16x9'
+            images.forEach(imgData => {
+                const prsSlide = prs.addSlide()
+                prsSlide.addImage({ data: imgData, x: 0, y: 0, w: 10, h: 5.625 })
+            })
+            await prs.writeFile({ fileName: `${topic || 'presentation'}.pptx` })
+        } catch (e) { console.error('PPTX export failed', e) }
+        setIsExporting(false)
+    }
+
+    const deleteActiveSlide = () => {
+        if (slides.length <= 1) return
+        const newSlides = slides.filter((_, i) => i !== activeSlideIndex)
+        setSlides(newSlides)
+        setActiveSlideIndex(Math.max(0, activeSlideIndex - 1))
+        setEditMode(false)
+    }
+
+    const handleAddSlide = () => {
+        const newSlide: SlideData = {
+            id: `slide_${Date.now()}`,
+            html: `<div class="s"><h1>Новый слайд</h1><p>Добавьте содержание</p></div>`,
+            css: `.s { background: #1A202C; color: white; display:flex; flex-direction:column; justify-content:center; align-items:center; height:100vh; font-family:sans-serif; padding:2rem; overflow:hidden; } h1 { font-size:2.5rem; margin-bottom:1rem; } p { font-size:1.2rem; opacity:0.8; }`,
+            js: ''
+        }
+        if (editMode) {
+            disableEditing()
+            setEditMode(false)
+        }
+        setSlides(prev => [...prev, newSlide])
+        setActiveSlideIndex(slides.length)
+    }
+
+    const switchSlide = (index: number) => {
+        if (editMode) {
+            disableEditing()
+            setEditMode(false)
+        }
+        setActiveSlideIndex(index)
+    }
+
+    const generate = async () => {
+        if (!topic || isLoading) return;
+        setIsLoading(true)
+        try {
+            setErrorMsg('')
+            setIsEditorMode(false)
+            setSlides([])
+            setSlideDoc(null)
+            setPdfUrl(null)
+            setEditMode(false)
+            if (isMobile) setActiveTab('preview')
+
+            const params = { topic, duration, style, targetAudience, themeId }
+            const requestId = await startGeneration({ type: 'presentation', params })
+            if (!requestId) throw new Error('Не удалось создать запрос')
+            presentationGenerationIdRef.current = requestId
+            const status = await pollStatus(requestId, 300)
+            const r = status.result
+
+            if (r?.slideDoc?.slides?.length > 0) {
+                setSlideDoc(r.slideDoc)
+                setPdfUrl(r.pdfUrl || null)
+                setActiveSlideIndex(0)
+                setIsEditorMode(true)
+                return
+            }
+
+            const resultData = r?.slides || r
+            let parsed: SlideData[] = []
+            if (Array.isArray(resultData) && resultData.length > 0 && resultData[0]?.html) {
+                parsed = resultData
+            } else if (typeof resultData === 'string') {
+                try {
+                    const arr = JSON.parse(resultData)
+                    if (Array.isArray(arr) && arr[0]?.html) parsed = arr
+                } catch (_) { }
+            }
+
+            if (parsed.length > 0) {
+                setSlides(parsed)
+                setActiveSlideIndex(0)
+                setIsEditorMode(true)
+            } else {
+                setErrorMsg('Не удалось получить слайды. Попробуйте ещё раз.')
+            }
+        } catch (e: any) {
+            setErrorMsg(`Ошибка: ${e.message}`)
+        } finally {
+            setIsLoading(false)
+        }
+    }
+
+    const durations = [
+        { value: '5', label: '5 минут (~5 слайдов)' },
+        { value: '15', label: '15 минут (~10 слайдов)' },
+        { value: '30', label: '30 минут (~20 слайдов)' },
+        { value: '45', label: '45+ минут (~30 слайдов)' }
+    ]
+    const styles = [
+        { value: 'modern', label: 'Современный (Минимализм)' },
+        { value: 'academic', label: 'Академический (Строгий)' },
+        { value: 'creative', label: 'Креативный (Яркий)' },
+        { value: 'corporate', label: 'Корпоративный (Деловой)' }
+    ]
+    const audiences = [
+        { value: 'students', label: 'Школьники / Студенты' },
+        { value: 'colleagues', label: 'Коллеги / Учителя' },
+        { value: 'parents', label: 'Родители' },
+        { value: 'general', label: 'Широкая аудитория' }
+    ]
+
+    if (isEditorMode && slideDoc) {
+        const presentationId = presentationGenerationIdRef.current;
+
+        const downloadExport = async (format: 'pdf' | 'pptx') => {
+            if (!presentationId) return;
+            setIsExporting(true);
+            try {
+                const { apiClient } = await import('@/lib/api/client');
+                const res = await apiClient.post(`/generate/${presentationId}/presentation/${format}`, {}, { responseType: 'blob' });
+                const blob = res.data as Blob;
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${slideDoc.topic || 'presentation'}.${format}`;
+                a.click();
+                URL.revokeObjectURL(url);
+            } catch (e) {
+                console.error(`${format.toUpperCase()} export failed`, e);
+            } finally {
+                setIsExporting(false);
+            }
+        };
+
+        const saveDoc = async (next: SlideDoc) => {
+            if (!presentationId) return;
+            const { apiClient } = await import('@/lib/api/client');
+            await apiClient.patch(`/generate/${presentationId}`, {
+                outputData: {
+                    slideDoc: next,
+                    pdfUrl,
+                    exportUrl: pdfUrl,
+                    topic: next.topic,
+                    provider: 'Replicate',
+                    mode: 'presentation',
+                },
+            });
+            setSlideDoc(next);
+        };
+
+        const regenerateImage = async (_slideIdx: number, prompt: string): Promise<string | null> => {
+            try {
+                const status = await generateAndWait({
+                    type: 'image',
+                    params: { prompt, style: 'illustration', model: 'black-forest-labs/flux-2-pro' },
+                });
+                const r = status.result;
+                const imageData: string =
+                    (typeof r === 'string' ? r : null) ??
+                    r?.content ??
+                    r?.imageUrl ??
+                    '';
+                if (imageData && (imageData.startsWith('http') || imageData.startsWith('data:image'))) {
+                    return imageData;
+                }
+                alert('Не удалось создать картинку: модель вернула пустой ответ. Попробуйте уточнить промпт.');
+                return null;
+            } catch (e: any) {
+                console.error('Image regen failed', e);
+                const msg = e?.message || 'неизвестная ошибка';
+                alert(`Не удалось создать картинку: ${msg}\n\nПопробуйте изменить промпт (например, без имён персонажей или брендов).`);
+                return null;
+            }
+        };
+
+        return (
+            <div className="flex flex-col w-full h-full bg-[#F9FAFB] overflow-hidden">
+                <div className="h-14 bg-white border-b border-gray-200 flex items-center justify-between px-4 flex-shrink-0 shadow-sm">
+                    <div className="flex items-center gap-3 overflow-hidden">
+                        <button onClick={() => { setIsEditorMode(false); setSlideDoc(null); }} className="p-2 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0">
+                            <ArrowLeft className="w-5 h-5 text-gray-600" />
+                        </button>
+                        <div className="overflow-hidden">
+                            <h1 className="font-bold text-sm text-gray-900 leading-tight truncate">{slideDoc.topic || 'Презентация'}</h1>
+                            <p className="text-[10px] text-gray-400">{slideDoc.slides.length} слайдов · {SLIDE_THEMES[slideDoc.themeId]?.label}</p>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <button onClick={() => downloadExport('pdf')} disabled={isExporting || !presentationId} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-colors disabled:opacity-50">
+                            {isExporting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />} PDF
+                        </button>
+                        <button onClick={() => downloadExport('pptx')} disabled={isExporting || !presentationId} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors disabled:opacity-50">
+                            {isExporting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />} PPTX
+                        </button>
+                        <button onClick={generate} disabled={isLoading} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors disabled:opacity-40">
+                            {isLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                            <span className="hidden md:inline">Регенерировать</span>
+                        </button>
+                        {!isGenerating && (
+                            <AssignTaskButton
+                                generationId={presentationId}
+                                topic={slideDoc.topic}
+                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition-colors disabled:opacity-60"
+                            />
+                        )}
+                    </div>
+                </div>
+                <div className="flex-1 min-h-0">
+                    <SlideDocEditor
+                        initialDoc={slideDoc}
+                        onSave={saveDoc}
+                        onRegenerateImage={regenerateImage}
+                    />
+                </div>
+            </div>
+        );
+    }
+
+    if (isEditorMode) {
+        const activeSlide = slides[activeSlideIndex]
+        return (
+            <div className="flex flex-col w-full h-full bg-[#F9FAFB] overflow-hidden">
+                <div className="h-14 md:h-16 bg-white border-b border-gray-200 flex items-center justify-between px-3 md:px-5 flex-shrink-0 shadow-sm">
+                    <div className="flex items-center gap-2 md:gap-3 overflow-hidden">
+                        <button onClick={() => { disableEditing(); setIsEditorMode(false); setEditMode(false); }} className="p-2 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0">
+                            <ArrowLeft className="w-5 h-5 text-gray-600" />
+                        </button>
+                        <div className="overflow-hidden">
+                            <h1 className="font-bold text-xs md:text-sm text-gray-900 leading-tight truncate">{topic || 'Презентация'}</h1>
+                            <p className="text-[10px] md:text-xs text-gray-400">{slides.length} слайдов</p>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-1 md:gap-2">
+                        {!isMobile && (
+                            <button
+                                onClick={() => setEditMode(m => !m)}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${editMode ? 'bg-indigo-500 text-white hover:bg-indigo-600' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                            >
+                                {editMode ? <><Eye className="w-3.5 h-3.5" /> Просмотр</> : <><Edit3 className="w-3.5 h-3.5" /> Редактировать</>}
+                            </button>
+                        )}
+                        <div className="relative">
+                            <button
+                                onClick={() => setShowDownloadMenu(m => !m)}
+                                disabled={isExporting}
+                                className="flex items-center gap-1.5 px-2 md:px-3 py-1.5 text-xs font-semibold bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-colors disabled:opacity-50"
+                            >
+                                {isExporting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+                                <span className="hidden xs:inline">{isExporting ? 'Экспорт...' : 'Скачать ▾'}</span>
+                                {isMobile && !isExporting && <span>▾</span>}
+                            </button>
+                            {showDownloadMenu && !isExporting && (
+                                <div className="absolute right-0 top-9 z-50 bg-white border border-gray-200 rounded-xl shadow-xl py-1.5 min-w-[160px]" onMouseLeave={() => setShowDownloadMenu(false)}>
+                                    <button onClick={downloadPDF} className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-orange-50 hover:text-orange-700 transition-colors">
+                                        <Download className="w-4 h-4" /> PDF
+                                    </button>
+                                    <button onClick={downloadPPTX} className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-700 transition-colors">
+                                        <Download className="w-4 h-4" /> PPTX
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                        <button onClick={generate} disabled={isLoading} className="flex items-center gap-1.5 px-2 md:px-3 py-1.5 text-xs font-semibold bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors disabled:opacity-40">
+                            {isLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                            <span className="hidden md:inline">Регенерировать</span>
+                        </button>
+                        {slides.length > 0 && !isGenerating && (
+                            <AssignTaskButton
+                                generationId={activeGenerationId}
+                                topic={topic}
+                                className="flex items-center gap-1.5 px-2 md:px-3 py-1.5 text-xs font-semibold bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition-colors disabled:opacity-60"
+                            />
+                        )}
+                    </div>
+                </div>
+
+                {isExporting && (
+                    <div className="absolute inset-0 z-50 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center gap-4">
+                        <div className="bg-white rounded-2xl p-8 flex flex-col items-center gap-4 shadow-2xl">
+                            <Loader2 className="w-10 h-10 text-orange-500 animate-spin" />
+                            <p className="font-bold text-gray-800">Экспортируем слайды...</p>
+                            <p className="text-sm text-gray-500">Это займёт несколько секунд</p>
+                        </div>
+                    </div>
+                )}
+
+
+                <div className={`flex flex-1 ${isMobile ? 'flex-col' : 'flex-row'} overflow-hidden`}>
+                    <div className={`
+                        ${isMobile ? 'order-2 w-full h-[120px] border-t' : 'w-[200px] h-full border-r'}
+                        bg-white border-gray-200 flex flex-col flex-shrink-0
+                    `}>
+                        <div className="p-3 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
+                            <span className="font-bold text-[10px] md:text-xs text-gray-500 uppercase tracking-wider">Слайды</span>
+                            <button onClick={handleAddSlide} className="p-1 hover:bg-blue-50 text-blue-600 rounded transition-colors">
+                                <Plus className="w-4 h-4" />
+                            </button>
+                        </div>
+                        <div className={`
+                            flex-1 overflow-auto p-3 space-y-3 scrollbar-thin scrollbar-thumb-gray-200
+                            ${isMobile ? 'flex flex-row space-y-0 space-x-3 items-center overflow-x-auto overflow-y-hidden py-2' : ''}
+                        `}>
+                            {slides.map((slide, index) => (
+                                <div key={slide.id} className={isMobile ? 'min-w-[140px] w-[140px] flex-shrink-0' : 'w-full'}>
+                                    <SlideThumbnail slide={slide} index={index} isActive={activeSlideIndex === index} onClick={() => switchSlide(index)} />
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="flex-1 flex flex-col bg-gray-100 h-full overflow-hidden order-1">
+                        {editMode && (
+                            <div className="bg-white border-b border-gray-200 px-4 py-2 flex items-center gap-1 flex-shrink-0 flex-wrap">
+                                <button onClick={() => execCmd('bold')} title="Жирный" className="p-2 hover:bg-gray-100 rounded text-gray-700 transition-colors font-bold text-sm">B</button>
+                                <button onClick={() => execCmd('italic')} title="Курсив" className="p-2 hover:bg-gray-100 rounded text-gray-700 transition-colors italic text-sm">I</button>
+                                <button onClick={() => execCmd('removeFormat')} title="Обычный" className="p-2 hover:bg-gray-100 rounded text-gray-700 transition-colors">
+                                    <Type className="w-4 h-4" />
+                                </button>
+                                <div className="w-px h-6 bg-gray-200 mx-1" />
+                                <button onClick={addTextBlock} className="flex items-center gap-1.5 px-2.5 py-1.5 hover:bg-green-50 rounded text-green-700 text-xs font-medium border border-green-200 transition-colors">
+                                    <PlusSquare className="w-3.5 h-3.5" /> Добавить блок
+                                </button>
+                                <button onClick={deleteSelectedBlock} className="flex items-center gap-1.5 px-2.5 py-1.5 hover:bg-red-50 rounded text-red-600 text-xs font-medium border border-red-200 transition-colors">
+                                    <Trash className="w-3.5 h-3.5" /> Удалить блок
+                                </button>
+                                <div className="w-px h-6 bg-gray-200 mx-1" />
+                                <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-1.5 px-2.5 py-1.5 hover:bg-blue-50 rounded text-blue-700 text-xs font-medium border border-blue-200 transition-colors">
+                                    <Upload className="w-3.5 h-3.5" /> Картинка
+                                </button>
+                                <button onClick={() => { setAiImagePrompt(`Educational illustration: ${slides[activeSlideIndex]?.html.match(/<h\d[^>]*>([^<]+)/)?.[1] || topic}`); setShowAiImageModal(true); }} className="flex items-center gap-1.5 px-2.5 py-1.5 hover:bg-purple-50 rounded text-purple-700 text-xs font-medium border border-purple-200 transition-colors">
+                                    <Sparkles className="w-3.5 h-3.5" /> ИИ Картинка
+                                </button>
+                                <div className="w-px h-6 bg-gray-200 mx-1" />
+                                <button onClick={deleteActiveSlide} disabled={slides.length <= 1} className="flex items-center gap-1.5 px-2.5 py-1.5 hover:bg-red-50 rounded text-red-600 text-xs font-medium border border-red-200 transition-colors disabled:opacity-40">
+                                    <Trash2 className="w-3.5 h-3.5" /> Удалить слайд
+                                </button>
+                                <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileImage} className="hidden" />
+                            </div>
+                        )}
+
+                        <div className="flex-1 overflow-auto p-2 md:p-6 flex items-center justify-center">
+                            {activeSlide && (
+                                <div className="w-full max-w-[960px] flex flex-col gap-3 md:gap-4">
+                                    <div
+                                        className={`w-full rounded-xl md:rounded-2xl overflow-hidden border-2 transition-all ${editMode ? 'border-indigo-400 shadow-lg shadow-indigo-100' : 'border-gray-200 shadow-xl'}`}
+                                        style={{ aspectRatio: '16/9' }}
+                                    >
+                                        <iframe
+                                            ref={canvasIframeRef}
+                                            key={activeSlide.id}
+                                            srcDoc={buildSlideSrcDoc(activeSlide)}
+                                            className="w-full h-full border-0"
+                                            sandbox="allow-scripts allow-popups allow-modals"
+                                            title={`Slide ${activeSlideIndex + 1}`}
+                                        />
+                                    </div>
+                                    <div className="flex items-center justify-center gap-3 md:gap-4">
+                                        <button onClick={() => switchSlide(Math.max(0, activeSlideIndex - 1))} disabled={activeSlideIndex === 0} className="px-3 md:px-4 py-1.5 md:py-2 text-xs md:text-sm bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40 transition-colors font-medium">← Назад</button>
+                                        <span className="text-xs md:text-m text-gray-500 font-medium">{activeSlideIndex + 1} / {slides.length}</span>
+                                        <button onClick={() => switchSlide(Math.min(slides.length - 1, activeSlideIndex + 1))} disabled={activeSlideIndex === slides.length - 1} className="px-3 md:px-4 py-1.5 md:py-2 text-xs md:text-sm bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40 transition-colors font-medium">Вперёд →</button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+
+                {showAiImageModal && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 mx-4">
+                            <div className="flex items-center justify-between mb-4">
+                                <h3 className="font-bold text-lg flex items-center gap-2"><Sparkles className="w-5 h-5 text-purple-500" /> ИИ Картинка для слайда</h3>
+                                <button onClick={() => { setShowAiImageModal(false); setAiImageUrl(null); }} className="p-1.5 hover:bg-gray-100 rounded-lg"><X className="w-4 h-4" /></button>
+                            </div>
+                            <textarea value={aiImagePrompt} onChange={e => setAiImagePrompt(e.target.value)} rows={3} placeholder="Опишите желаемое изображение..." className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-purple-500 resize-none mb-3" />
+                            {aiImageUrl && (
+                                <div className="mb-3 rounded-xl overflow-hidden border border-gray-200 aspect-video">
+                                    <img src={aiImageUrl} alt="AI generated" className="w-full h-full object-cover" />
+                                </div>
+                            )}
+                            <div className="flex gap-2">
+                                <button onClick={generateAiImage} disabled={isGeneratingImage || !aiImagePrompt.trim()} className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-xl transition-colors disabled:opacity-50 text-sm">
+                                    {isGeneratingImage ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                                    {aiImageUrl ? 'Регенерировать' : 'Создать'}
+                                </button>
+                                {aiImageUrl && (
+                                    <button onClick={insertAiImage} className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl transition-colors text-sm">
+                                        <ImageIcon className="w-4 h-4" /> Вставить на слайд
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
+        )
+    }
+    return (
+        <div className="flex flex-col md:flex-row w-full h-full bg-[#F9FAFB] overflow-hidden">
+            {isMobile && (
+                <div className="flex p-2 bg-white border-b border-gray-100 gap-2 flex-shrink-0">
+                    <button
+                        onClick={() => setActiveTab('config')}
+                        className={`flex-1 py-2 text-sm font-bold rounded-xl transition-all ${activeTab === 'config' ? 'bg-purple-500 text-white shadow-md' : 'text-gray-500 bg-gray-50'}`}
+                    >
+                        Настройка
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('preview')}
+                        className={`flex-1 py-2 text-sm font-bold rounded-xl transition-all ${activeTab === 'preview' ? 'bg-purple-500 text-white shadow-md' : 'text-gray-500 bg-gray-50'}`}
+                    >
+                        Результат
+                    </button>
+                </div>
+            )}
+
+            <div className={`
+                ${isMobile && activeTab !== 'config' ? 'hidden' : 'flex'}
+                w-full md:w-[320px] bg-white border-r border-gray-200 flex-col h-full flex-shrink-0 z-10 shadow-[4px_0_24px_rgba(0,0,0,0.02)]
+            `}>
+                <div className="p-5 border-b border-gray-100 flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center text-purple-600">
+                        <MonitorPlay className="w-5 h-5" />
+                    </div>
+                    <div>
+                        <div className="flex items-center gap-2">
+                            <h2 className="font-bold text-lg">Презентации</h2>
+                        </div>
+                        <p className="text-xs text-gray-500 font-medium tracking-tight">Преподавай 2.0</p>
+                    </div>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-5 scrollbar-thin scrollbar-thumb-gray-200">
+                    <div className="space-y-6">
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-2 font-display">Тема презентации</label>
+                            <textarea
+                                value={topic}
+                                onChange={e => setTopic(e.target.value)}
+                                placeholder="Строение Солнечной системы..."
+                                rows={isMobile ? 6 : 4}
+                                className="block w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-purple-500 focus:bg-white transition-all text-gray-900 placeholder-gray-400 resize-none"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-2 font-display">Целевая аудитория</label>
+                            <select
+                                value={targetAudience}
+                                onChange={e => setTargetAudience(e.target.value)}
+                                className="block w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-purple-500 focus:bg-white transition-all text-gray-900"
+                            >
+                                {audiences.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-2 font-display">Длительность</label>
+                            <select
+                                value={duration}
+                                onChange={e => setDuration(e.target.value)}
+                                className="block w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-purple-500 focus:bg-white transition-all text-gray-900"
+                            >
+                                {durations.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-2 font-display">Стиль дизайна</label>
+                            <select
+                                value={style}
+                                onChange={e => setStyle(e.target.value)}
+                                className="block w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-purple-500 focus:bg-white transition-all text-gray-900"
+                            >
+                                {styles.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-2 font-display">Цветовая тема</label>
+                            <div className="grid grid-cols-5 gap-2">
+                                {(Object.keys(SLIDE_THEMES) as SlideThemeId[]).map(id => {
+                                    const t = SLIDE_THEMES[id];
+                                    const selected = id === themeId;
+                                    return (
+                                        <button
+                                            key={id}
+                                            type="button"
+                                            onClick={() => setThemeId(id)}
+                                            title={t.label}
+                                            className={`aspect-square rounded-xl border-2 transition-all ${selected ? 'border-gray-900 shadow-md scale-105' : 'border-gray-200 hover:border-gray-400'}`}
+                                            style={{ background: t.accent }}
+                                            aria-label={t.label}
+                                        />
+                                    );
+                                })}
+                            </div>
+                            <p className="mt-2 text-xs text-gray-500">{SLIDE_THEMES[themeId].label}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="p-5 border-t border-gray-100 bg-white">
+                    <button
+                        onClick={generate}
+                        disabled={isLoading || !topic.trim()}
+                        className="w-full relative group overflow-hidden rounded-xl bg-gradient-to-r from-purple-500 to-indigo-600 p-px font-bold shadow-lg active:scale-[0.98] transition-all disabled:opacity-50 disabled:shadow-none"
+                    >
+                        <div className="absolute inset-0 bg-white/20 group-hover:bg-transparent transition-all"></div>
+                        <div className="relative flex items-center justify-center gap-2 px-4 py-3.5 bg-gradient-to-r from-purple-500 to-indigo-600 rounded-[11px] text-white">
+                            {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <RefreshCw className="w-5 h-5" />}
+                            <span>{isLoading ? 'Создаём...' : 'Создать презентацию'}</span>
+                        </div>
+                    </button>
+                    {errorMsg && <p className="mt-3 text-xs text-center text-red-500 font-bold">{errorMsg}</p>}
+                </div>
+            </div>
+
+            <div className={`
+                ${isMobile && activeTab !== 'preview' ? 'hidden' : 'flex'}
+                flex-1 flex-col min-w-0 bg-[#F9FAFB] px-4 py-4 md:px-8 md:py-8 overflow-hidden h-full
+            `}>
+                <div className="flex flex-col h-full bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+                    <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
+                        {isLoading ? (
+                            <GenerationProgress active={isLoading} title="Создаём презентацию..." accentClassName="bg-purple-500" estimatedSeconds={75} />
+                        ) : (
+                            <div className="flex flex-col items-center max-w-[400px]">
+                                <div className="w-16 h-16 rounded-2xl bg-gray-50 flex items-center justify-center mb-6">
+                                    <MonitorPlay className="w-8 h-8 text-gray-300" />
+                                </div>
+                                <h3 className="text-xl font-bold text-gray-900 mb-2">Готов к работе</h3>
+                                <p className="text-gray-400 text-sm mb-6">Введите тему и получите красивую презентацию с редактором.</p>
+                                {isMobile && (
+                                    <button
+                                        onClick={() => setActiveTab('config')}
+                                        className="px-8 py-3 bg-indigo-600 text-white rounded-xl font-bold text-sm shadow-md active:scale-95 transition-all"
+                                    >
+                                        Начать настройку
+                                    </button>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}

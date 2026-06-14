@@ -322,16 +322,34 @@ model Material {
   @@map("materials")
 }
 
+// Чаты ИИ-учителя
+model AiChat {
+  id        String        @id @default(uuid())
+  userId    String
+  title     String        @default("Новый диалог")
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  messages  ChatMessage[]
+
+  @@index([userId])
+  @@map("ai_chats")
+}
+
 // Сообщения чата
 model ChatMessage {
   id          String   @id @default(uuid())
+  chatId      String?
   userId      String
   role        String   // 'user', 'assistant'
   content     String
+  model       String?
   metadata    Json?
   createdAt   DateTime @default(now())
 
+  chat        AiChat?  @relation(fields: [chatId], references: [id], onDelete: Cascade)
+
   @@index([userId])
+  @@index([chatId])
   @@map("chat_messages")
 }
 
@@ -929,7 +947,7 @@ model Achievement {
   key         String   @id            // 'first-step', 'streak-7' и т.д.
   title       String                  // 'Первый шаг'
   description String                  // 'Сдать первое задание'
-  category    String   @default("general") // 'submissions' | 'streak' | 'grades' | 'general'
+  category    String   @default("general") // 'streak' | 'grade' | 'subject' | 'game' | 'social'
   // Условие — какое поле StudentGamification смотреть и какой порог.
   conditionField String                // 'submittedCount' | 'streakDays' | 'perfectCount'
   conditionValue Int                   // 1, 7, 30, ...
@@ -938,6 +956,8 @@ model Achievement {
   // UI hint
   iconKey     String   @default("trophy") // 'flame', 'star', 'trophy', 'zap', 'book-open', ...
   color       String   @default("brand")  // 'brand' | 'success' | 'warning' | 'danger' | 'info' | 'indigo'
+  emoji       String   @default("🏆")     // Эмодзи медали
+  rarity      String   @default("common") // 'common' | 'rare' | 'epic' | 'legendary'
   // Порядок отображения
   sortOrder   Int      @default(0)
   isActive    Boolean  @default(true)

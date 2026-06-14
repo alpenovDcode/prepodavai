@@ -15,6 +15,7 @@ import { Card } from '@/components/ui/v2/Card'
 import { Button } from '@/components/ui/v2/Button'
 import { IconTile } from '@/components/ui/v2/IconTile'
 import { Badge } from '@/components/ui/v2/Badge'
+import { useTour } from '@/lib/tour/useTour'
 
 const fetcher = (url: string) => apiClient.get(url).then((r: any) => r.data)
 
@@ -98,11 +99,12 @@ export default function DashboardHomeV2() {
     const firstName = fullName.split(' ')[0]
     const menu = useMobileMenu()
     const palette = useCommandPalette()
+    const tour = useTour()
 
     const { data: overview } = useSWR<TeacherOverview>('/analytics/teacher-overview', fetcher, {
         refreshInterval: 60_000,
     })
-    const { data: recentGens } = useSWR<{ generations?: RecentGeneration[] }>('/generations/history?limit=4', fetcher)
+    const { data: recentGens } = useSWR<{ generations?: RecentGeneration[] }>('/generate/history?limit=4', fetcher)
     const { data: weeklyActivity } = useSWR<{ days?: { label: string; value: number }[] }>('/analytics/weekly-activity', fetcher)
 
     const subtitleParts = useMemo(() => {
@@ -121,13 +123,14 @@ export default function DashboardHomeV2() {
                 onMobileMenuToggle={menu.toggle}
                 onSearch={palette.open}
                 actions={(
-                    <Button variant="ghost" size="sm" leftIcon={<Compass className="w-4 h-4" />}>Тур</Button>
+                    <Button variant="ghost" size="sm" leftIcon={<Compass className="w-4 h-4" />} onClick={tour.start}>Тур</Button>
                 )}
             />
 
             <div className="max-w-[1240px] w-full mx-auto p-8 max-md:p-4">
                 {/* Bento — что важно сегодня */}
                 <Section
+                    tourId="today"
                     title="Что важно сегодня"
                     subtitle="Чтобы день прошёл спокойно"
                     action={<Button variant="ghost" size="sm">Скрыть</Button>}
@@ -179,6 +182,7 @@ export default function DashboardHomeV2() {
 
                 {/* Часто используете */}
                 <Section
+                    tourId="favorites"
                     title="Часто используете"
                     subtitle="Запустить инструмент в один клик"
                     action={
@@ -210,7 +214,7 @@ export default function DashboardHomeV2() {
                 {/* Расписание + последние материалы */}
                 <Section>
                     <div className="grid grid-cols-12 gap-4 max-lg:grid-cols-1">
-                        <Card padding="lg" className="col-span-6 max-lg:col-span-1">
+                        <Card padding="lg" className="col-span-6 max-lg:col-span-1" data-tour="schedule">
                             <SectionHead
                                 title="Расписание сегодня"
                                 action={<a className="text-sm font-semibold text-brand-600 cursor-pointer" onClick={() => router.push('/dashboard/calendar')}>Открыть календарь →</a>}
@@ -225,7 +229,7 @@ export default function DashboardHomeV2() {
                             </div>
                         </Card>
 
-                        <Card padding="lg" className="col-span-6 max-lg:col-span-1">
+                        <Card padding="lg" className="col-span-6 max-lg:col-span-1" data-tour="recent-materials">
                             <SectionHead
                                 title="Последние материалы"
                                 action={<a className="text-sm font-semibold text-brand-600 cursor-pointer" onClick={() => router.push('/dashboard/courses')}>Вся история →</a>}
@@ -245,7 +249,7 @@ export default function DashboardHomeV2() {
                 {/* Активность за неделю + подсказка */}
                 <Section>
                     <div className="grid grid-cols-12 gap-4 max-lg:grid-cols-1">
-                        <Card padding="lg" className="col-span-8 max-lg:col-span-1">
+                        <Card padding="lg" className="col-span-8 max-lg:col-span-1" data-tour="activity">
                             <SectionHead
                                 title="Активность за неделю"
                                 subtitle="Генерации и проверки ДЗ"
@@ -270,9 +274,9 @@ export default function DashboardHomeV2() {
 
 /* ---------- helpers ---------- */
 
-function Section({ title, subtitle, action, children }: { title?: string; subtitle?: string; action?: React.ReactNode; children: React.ReactNode }) {
+function Section({ title, subtitle, action, children, tourId }: { title?: string; subtitle?: string; action?: React.ReactNode; children: React.ReactNode; tourId?: string }) {
     return (
-        <section className="mb-8">
+        <section className="mb-8" data-tour={tourId}>
             {(title || action) && (
                 <SectionHead title={title} subtitle={subtitle} action={action} />
             )}

@@ -1,4 +1,5 @@
-import { IsEnum, IsNotEmpty, IsString } from 'class-validator';
+import { IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, Max, Min } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export enum GameType {
   MILLIONAIRE = 'millionaire',
@@ -16,4 +17,15 @@ export class CreateGameDto {
   @IsNotEmpty()
   @IsEnum(GameType)
   type: GameType;
+
+  @IsOptional()
+  @IsString()
+  level?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(3)
+  @Max(40)
+  count?: number;
 }

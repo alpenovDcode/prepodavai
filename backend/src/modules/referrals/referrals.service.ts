@@ -457,11 +457,41 @@ export class ReferralsService {
    * Статистика рефералов пользователя
    */
   async getReferralStats(userId: string) {
-    const [totalReferrals, activated, converted] = await Promise.all([
+    // Реферальный код пользователя
+    const referralCode = await this.prisma.referralCode.findFirst({
+      where: { userId, isActive: true },
+    });
+
+    const code = referralCode?.code ?? null;
+    const shareUrl = code ? `https://prepodavai.ru/?ref=${code}` : null;
+
+    // Считаем приглашённых учителей
+    const monthStart = new Date();
+    monthStart.setDate(1);
+    monthStart.setHours(0, 0, 0, 0);
+
+    const [totalInvited, monthlyDelta, totalReferrals, activated, converted] = await Promise.all([
+      this.prisma.referral.count({ where: { referrerUserId: userId, referredType: 'teacher' } }),
+      this.prisma.referral.count({ where: { referrerUserId: userId, referredType: 'teacher', createdAt: { gte: monthStart } } }),
       this.prisma.referral.count({ where: { referrerUserId: userId } }),
       this.prisma.referral.count({ where: { referrerUserId: userId, status: 'activated' } }),
       this.prisma.referral.count({ where: { referrerUserId: userId, status: 'converted' } }),
     ]);
+
+    // Уровни наград (tiers)
+    const tier1Status = totalInvited >= 1 ? 'unlocked' : 'locked';
+    const tier2Status = totalInvited >= 3 ? 'unlocked' : totalInvited > 0 ? 'progress' : 'locked';
+    const tier3Status = totalInvited >= 8 ? 'unlocked' : totalInvited > 0 ? 'progress' : 'locked';
+
+    const tiers = [
+      { id: 'materials', label: 'Эксклюзивные материалы', required: 1, current: totalInvited, status: tier1Status },
+      { id: 'webinars',  label: 'Закрытые вебинары',      required: 3, current: totalInvited, status: tier2Status },
+      { id: 'mentor',    label: 'Статус Наставник',        required: 8, current: totalInvited, status: tier3Status },
+    ];
+
+    const exclusiveMaterials = tier1Status === 'unlocked' ? 25 : 0;
+    const webinarsAvailable  = tier2Status === 'unlocked' ? 2  : 0;
+    const nextWebinarAt      = webinarsAvailable > 0 ? '2026-06-18T19:00:00+03:00' : null;
 
     // Подсчитываем заработанные Токены из CreditTransaction
     const creditTransactions = await this.prisma.creditTransaction.findMany({
@@ -486,6 +516,16 @@ export class ReferralsService {
     ) || TEACHER_REWARD_TIERS[0];
 
     return {
+      // V2 UI поля
+      code,
+      shareUrl,
+      totalInvited,
+      monthlyDelta,
+      exclusiveMaterials,
+      webinarsAvailable,
+      nextWebinarAt,
+      tiers,
+      // Legacy поля
       totalReferrals,
       activated,
       converted,
@@ -500,68 +540,65 @@ export class ReferralsService {
 
   /**
    * Список рефералов пользователя с пагинацией.
-   * Использует batch-запросы вместо N+1.
+   * Возвращает { items, total } с materialsCreated и статусом для V2 UI.
    */
   async getReferralsList(userId: string, limit = MAX_REFERRALS_PER_PAGE, offset = 0) {
     const safeLimit = Math.min(Math.max(1, limit), MAX_REFERRALS_PER_PAGE);
     const safeOffset = Math.max(0, offset);
 
-    const referrals = await this.prisma.referral.findMany({
-      where: { referrerUserId: userId },
-      orderBy: { createdAt: 'desc' },
-      take: safeLimit,
-      skip: safeOffset,
-    });
+    const [referrals, total] = await Promise.all([
+      this.prisma.referral.findMany({
+        where: { referrerUserId: userId, referredType: 'teacher' },
+        orderBy: { createdAt: 'desc' },
+        take: safeLimit,
+        skip: safeOffset,
+      }),
+      this.prisma.referral.count({ where: { referrerUserId: userId, referredType: 'teacher' } }),
+    ]);
 
-    if (referrals.length === 0) return [];
+    if (referrals.length === 0) return { items: [], total };
 
-    // Batch-запросы вместо N+1
-    const teacherIds = referrals.filter((r) => r.referredType === 'teacher').map((r) => r.referredUserId);
-    const studentIds = referrals.filter((r) => r.referredType === 'student').map((r) => r.referredUserId);
+    const teacherIds = referrals.map((r) => r.referredUserId);
 
-    const [teachers, students] = await Promise.all([
-      teacherIds.length > 0
-        ? this.prisma.appUser.findMany({
-          where: { id: { in: teacherIds } },
-          select: { id: true, firstName: true, lastName: true, username: true },
-        })
-        : [],
-      studentIds.length > 0
-        ? this.prisma.student.findMany({
-          where: { id: { in: studentIds } },
-          select: { id: true, name: true },
-        })
-        : [],
+    const [teachers, genGroups] = await Promise.all([
+      this.prisma.appUser.findMany({
+        where: { id: { in: teacherIds } },
+        select: { id: true, firstName: true, lastName: true, username: true },
+      }),
+      this.prisma.userGeneration.groupBy({
+        by: ['userId'],
+        where: { userId: { in: teacherIds }, status: 'completed' },
+        _count: { id: true },
+      }),
     ]);
 
     const teacherMap = new Map(teachers.map((t: any) => [t.id, t] as [string, any]));
-    const studentMap = new Map(students.map((s: any) => [s.id, s] as [string, any]));
+    const genMap = new Map(genGroups.map((g: any) => [g.userId, g._count.id] as [string, number]));
 
-    return referrals.map((r) => {
-      let referredName = 'Пользователь';
-      if (r.referredType === 'teacher') {
-        const user = teacherMap.get(r.referredUserId) as any;
-        referredName = user?.firstName
-          ? `${user.firstName} ${user.lastName?.[0] || ''}.`
-          : user?.username || 'Учитель';
-      } else {
-        const student = studentMap.get(r.referredUserId) as any;
-        referredName = student?.name || 'Ученик';
-      }
+    const items = referrals.map((r) => {
+      const user = teacherMap.get(r.referredUserId) as any;
+      const name = user?.firstName
+        ? `${user.firstName}${user.lastName ? ' ' + user.lastName[0] + '.' : ''}`
+        : user?.username || 'Учитель';
+
+      const materialsCreated = genMap.get(r.referredUserId) ?? 0;
+      const status = materialsCreated >= 10 ? 'master' : materialsCreated >= 1 ? 'active' : 'pending';
+
+      const contributedTiers: string[] = [];
+      if (materialsCreated >= 1) contributedTiers.push('materials', 'webinars');
+      if (materialsCreated >= 10) contributedTiers.push('mentor');
 
       return {
         id: r.id,
-        referredName,
-        referredType: r.referredType,
-        referralType: r.referralType,
-        status: r.status,
-        rewardGranted: r.rewardGranted,
-        conversionRewardGranted: r.conversionRewardGranted,
-        createdAt: r.createdAt,
-        activatedAt: r.activatedAt,
-        convertedAt: r.convertedAt,
+        name,
+        registeredAt: r.createdAt,
+        materialsCreated,
+        status,
+        contributedTiers,
       };
     });
+
+    return { items, total };
   }
 
   // ========== Приватные методы ==========

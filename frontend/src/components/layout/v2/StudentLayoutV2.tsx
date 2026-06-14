@@ -33,6 +33,11 @@ export function StudentLayoutV2({ children }: { children: ReactNode }) {
 
     const { data: profile } = useSWR<StudentProfile>('/students/me', fetcher)
     const { data: assignments } = useSWR<any[]>('/assignments/my', fetcher)
+    const { data: notifCount } = useSWR<{ count: number }>(
+        '/notifications/student/unread-count',
+        fetcher,
+        { refreshInterval: 30_000 },
+    )
 
     const pendingAssignments = Array.isArray(assignments)
         ? assignments.filter((a: any) => {
@@ -49,7 +54,10 @@ export function StudentLayoutV2({ children }: { children: ReactNode }) {
         xp: profile?.xp ?? 0,
     }
 
-    const sections = getStudentNavSections({ assignments: pendingAssignments })
+    const sections = getStudentNavSections({
+        assignments: pendingAssignments,
+        notifications: notifCount?.count ?? 0,
+    })
 
     return (
         <MobileMenuContext.Provider value={{ toggle: () => setMobileOpen(v => !v) }}>

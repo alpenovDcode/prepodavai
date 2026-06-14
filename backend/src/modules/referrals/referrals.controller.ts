@@ -107,11 +107,11 @@ export class ReferralsController {
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
   ) {
-    const referrals = await this.referralsService.getReferralsList(
+    const result = await this.referralsService.getReferralsList(
       req.user.id,
       limit ? parseInt(limit, 10) : undefined,
       offset ? parseInt(offset, 10) : undefined,
     );
-    return { success: true, referrals };
+    return { success: true, referrals: result };
   }
 }

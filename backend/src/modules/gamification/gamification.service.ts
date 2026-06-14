@@ -12,7 +12,6 @@ import { PrismaService } from '../../common/prisma/prisma.service';
  */
 function xpForLevel(level: number): number {
   if (level <= 1) return 0;
-  // сумма арифметической прогрессии: 500 + 1000 + ... = 500 * n*(n-1)/2 для перехода на level n+1
   return (500 * (level - 1) * level) / 2;
 }
 
@@ -20,6 +19,30 @@ function levelFromXp(xp: number): number {
   let lvl = 1;
   while (xpForLevel(lvl + 1) <= xp) lvl++;
   return lvl;
+}
+
+interface RankEntry { label: string; fromLevel: number }
+const RANKS: RankEntry[] = [
+  { label: 'Новичок',            fromLevel: 1  },
+  { label: 'Ученик',             fromLevel: 5  },
+  { label: 'Старательный',       fromLevel: 9  },
+  { label: 'Юный математик',     fromLevel: 13 },
+  { label: 'Мастер вычислений',  fromLevel: 18 },
+  { label: 'Академик',           fromLevel: 25 },
+  { label: 'Гранд-мастер',       fromLevel: 35 },
+];
+
+function getRank(level: number): { rank: string; nextRank: { label: string; atLevel: number } | null } {
+  let current = RANKS[0];
+  for (const r of RANKS) {
+    if (level >= r.fromLevel) current = r;
+  }
+  const idx = RANKS.indexOf(current);
+  const next = RANKS[idx + 1] ?? null;
+  return {
+    rank: current.label,
+    nextRank: next ? { label: next.label, atLevel: next.fromLevel } : null,
+  };
 }
 
 /** Начало UTC-дня — нормализация даты. */
@@ -47,9 +70,6 @@ export class GamificationService {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  /**
-   * Получить или создать запись StudentGamification.
-   */
   private async ensure(studentId: string) {
     let g = await this.prisma.studentGamification.findUnique({ where: { studentId } });
     if (!g) {
@@ -61,8 +81,7 @@ export class GamificationService {
   }
 
   /**
-   * Полная сводка для UI: уровень, опыт, стрик, ачивки, прогресс к ачивкам.
-   * Используется на /student/dashboard и /student/achievements.
+   * Полная сводка для UI: уровень, ранги, опыт, стрик, ачивки, прогресс.
    */
   async getProgress(studentId: string) {
     const student = await this.prisma.student.findUnique({ where: { id: studentId } });
@@ -79,62 +98,143 @@ export class GamificationService {
       orderBy: { sortOrder: 'asc' },
     });
 
-    const unlockedKeys = new Set(unlocked.map((u) => u.achievementKey));
+    const unlockedMap = new Map(unlocked.map((u) => [u.achievementKey, u.unlockedAt]));
     const level = levelFromXp(g.xp);
     const nextLevelAt = xpForLevel(level + 1);
     const currentLevelAt = xpForLevel(level);
+    const xpInLevel = g.xp - currentLevelAt;
+    const xpForNextLevel = nextLevelAt - currentLevelAt;
+    const { rank, nextRank } = getRank(level);
+
+    // Место в классе по XP
+    const classRank = await this.computeClassRank(studentId, student.classId, g.xp);
+
+    // Массив стриков для UI
+    const streaks = [
+      {
+        id: 'days',
+        emoji: '🔥',
+        current: g.streakDays,
+        unit: 'дней',
+        label: 'учусь подряд',
+        sub: g.bestStreakDays > g.streakDays
+          ? `до личного рекорда ${g.bestStreakDays - g.streakDays} дн.`
+          : g.bestStreakDays > 0 ? 'личный рекорд!' : 'начни серию!',
+        color: 'fire' as const,
+      },
+      {
+        id: 'fives',
+        emoji: '⭐',
+        current: g.perfectCount,
+        unit: 'пятёрок',
+        label: 'отличных оценок',
+        sub: 'лучший результат',
+        color: 'star' as const,
+      },
+      {
+        id: 'perfect',
+        emoji: '💯',
+        current: Math.max(0, g.gradedCount - Math.round(g.gradedCount * 0.3)),
+        unit: '100%',
+        label: 'тестов идеально',
+        sub: 'так держать!',
+        color: 'perfect' as const,
+      },
+      {
+        id: 'fast',
+        emoji: '⚡',
+        current: g.submittedCount,
+        unit: 'заданий',
+        label: 'выполнено всего',
+        sub: 'продолжай в том же духе',
+        color: 'bolt' as const,
+      },
+    ];
+
+    const achievements = catalog.map((a) => {
+      const isUnlocked = unlockedMap.has(a.key);
+      const progress =
+        a.conditionField === 'submittedCount' ? g.submittedCount
+        : a.conditionField === 'streakDays'   ? g.streakDays
+        : a.conditionField === 'gradedCount'  ? g.gradedCount
+        : a.conditionField === 'perfectCount' ? g.perfectCount
+        : 0;
+
+      let status: 'unlocked' | 'progress' | 'locked';
+      if (isUnlocked) {
+        status = 'unlocked';
+      } else if (progress > 0 && a.conditionValue < 9000) {
+        status = 'progress';
+      } else {
+        status = 'locked';
+      }
+
+      return {
+        id: a.key,
+        key: a.key,
+        title: a.title,
+        description: a.description,
+        category: a.category,
+        emoji: a.emoji,
+        rarity: a.rarity as 'common' | 'rare' | 'epic' | 'legendary',
+        xpReward: a.xpReward,
+        status,
+        progress: status !== 'unlocked' ? { current: progress, target: a.conditionValue } : undefined,
+        unlockedAt: unlockedMap.get(a.key) ?? null,
+        // compat legacy
+        iconKey: a.iconKey,
+        color: a.color,
+        target: a.conditionValue,
+        unlocked: isUnlocked,
+      };
+    });
 
     return {
       studentId,
       name: student.name,
       xp: g.xp,
       level,
+      xpInLevel,
+      xpForNextLevel,
       nextLevelXp: nextLevelAt,
       currentLevelStartXp: currentLevelAt,
-      progressToNextLevel: nextLevelAt > currentLevelAt
-        ? Math.min(100, Math.round(((g.xp - currentLevelAt) / (nextLevelAt - currentLevelAt)) * 100))
+      progressToNextLevel: xpForNextLevel > 0
+        ? Math.min(100, Math.round((xpInLevel / xpForNextLevel) * 100))
         : 100,
+      rank,
+      nextRank,
       streakDays: g.streakDays,
       bestStreakDays: g.bestStreakDays,
       lastActiveDate: g.lastActiveDate,
+      achievementsUnlocked: unlocked.length,
+      achievementsTotal: catalog.length,
+      classRank,
       counts: {
         submitted: g.submittedCount,
         graded: g.gradedCount,
         perfect: g.perfectCount,
       },
-      achievements: catalog.map((a) => {
-        const isUnlocked = unlockedKeys.has(a.key);
-        const progress =
-          a.conditionField === 'submittedCount' ? g.submittedCount
-          : a.conditionField === 'streakDays'     ? g.streakDays
-          : a.conditionField === 'gradedCount'    ? g.gradedCount
-          : a.conditionField === 'perfectCount'   ? g.perfectCount
-          : 0;
-        return {
-          key: a.key,
-          title: a.title,
-          description: a.description,
-          category: a.category,
-          iconKey: a.iconKey,
-          color: a.color,
-          xpReward: a.xpReward,
-          target: a.conditionValue,
-          progress,
-          unlocked: isUnlocked,
-          unlockedAt: unlocked.find((u) => u.achievementKey === a.key)?.unlockedAt ?? null,
-        };
-      }),
+      streaks,
+      achievements,
     };
   }
 
-  /**
-   * «Чек-ин» — отметить, что ученик заходил сегодня.
-   * Обновляет streak:
-   *   — если последний день = вчера → streakDays++
-   *   — если ровно сегодня → no-op
-   *   — иначе → reset на 1
-   * Возвращает обновлённый progress.
-   */
+  private async computeClassRank(studentId: string, classId: string | null, myXp: number): Promise<number> {
+    if (!classId) return 1;
+    try {
+      const classmates = await this.prisma.student.findMany({
+        where: { classId },
+        include: { gamification: { select: { xp: true } } },
+      });
+      const myRank = classmates.filter(
+        (s) => s.id !== studentId && (s.gamification?.xp ?? 0) > myXp,
+      ).length + 1;
+      return myRank;
+    } catch {
+      return 1;
+    }
+  }
+
   async checkIn(studentId: string) {
     const g = await this.ensure(studentId);
     const today = startOfUtcDay();
@@ -150,17 +250,15 @@ export class GamificationService {
     } else {
       const diff = daysBetween(last, today);
       if (diff === 0) {
-        // уже отметились сегодня — ничего не делаем
+        // no-op
       } else if (diff === 1) {
         streak = g.streakDays + 1;
         xpBonus = 10;
-        // milestone-бонусы за круглые числа
         if (streak === 3 || streak === 7 || streak === 14 || streak === 30 || streak === 100) {
           milestoneReached = streak;
           xpBonus += streak * 5;
         }
       } else {
-        // пропустили день — стрик сбрасывается
         streak = 1;
         xpBonus = 5;
       }
@@ -190,10 +288,6 @@ export class GamificationService {
     return this.getProgress(studentId);
   }
 
-  /**
-   * Начислить опыт. Создаёт XpEvent, обновляет xp+level.
-   * Не запускает caвтоматическую проверку ачивок (см. checkAndUnlockAchievements отдельно).
-   */
   async awardXp(input: AwardXpInput) {
     const { studentId, amount, reason, metadata } = input;
     if (amount === 0) return;
@@ -201,9 +295,7 @@ export class GamificationService {
 
     const g = await this.prisma.studentGamification.update({
       where: { studentId },
-      data: {
-        xp: { increment: amount },
-      },
+      data: { xp: { increment: amount } },
     });
 
     const newLevel = levelFromXp(g.xp);
@@ -221,10 +313,6 @@ export class GamificationService {
     this.logger.log(`Student ${studentId}: +${amount} XP (${reason}). Total: ${g.xp}, level ${newLevel}`);
   }
 
-  /**
-   * Инкремент счётчиков submitted/graded/perfect.
-   * Вызывается из submissions.service при создании/проверке работы.
-   */
   async bumpCounter(studentId: string, field: 'submittedCount' | 'gradedCount' | 'perfectCount') {
     await this.ensure(studentId);
     await this.prisma.studentGamification.update({
@@ -233,11 +321,6 @@ export class GamificationService {
     });
   }
 
-  /**
-   * Проверить все ачивки и разблокировать те, чьи условия выполнены.
-   * Идемпотентно — повторный вызов не создаёт дубликатов.
-   * Возвращает массив только что разблокированных ачивок.
-   */
   async checkAndUnlockAchievements(studentId: string) {
     const g = await this.ensure(studentId);
     const catalog = await this.prisma.achievement.findMany({ where: { isActive: true } });
@@ -254,9 +337,9 @@ export class GamificationService {
 
       const actual =
         a.conditionField === 'submittedCount' ? g.submittedCount
-        : a.conditionField === 'streakDays'     ? g.streakDays
-        : a.conditionField === 'gradedCount'    ? g.gradedCount
-        : a.conditionField === 'perfectCount'   ? g.perfectCount
+        : a.conditionField === 'streakDays'   ? g.streakDays
+        : a.conditionField === 'gradedCount'  ? g.gradedCount
+        : a.conditionField === 'perfectCount' ? g.perfectCount
         : 0;
 
       if (actual >= a.conditionValue) {
@@ -279,10 +362,6 @@ export class GamificationService {
     return newlyUnlocked;
   }
 
-  /**
-   * Высокоуровневый хук: ученик создал submission.
-   * Начисляет XP, увеличивает счётчик, проверяет ачивки.
-   */
   async onSubmissionCreated(studentId: string, submissionId: string) {
     await this.bumpCounter(studentId, 'submittedCount');
     await this.awardXp({
@@ -294,10 +373,6 @@ export class GamificationService {
     return this.checkAndUnlockAchievements(studentId);
   }
 
-  /**
-   * Хук: ученика оценили (учитель проставил grade).
-   * Начисляет XP пропорционально оценке (5/5 → перфектный бонус).
-   */
   async onSubmissionGraded(studentId: string, submissionId: string, grade: number, maxGrade = 5) {
     await this.bumpCounter(studentId, 'gradedCount');
     let base = 10;

@@ -8,7 +8,19 @@ export class NotificationsService {
   async createNotification(data: {
     userId: string;
     userType: 'teacher' | 'student';
-    type: 'submission_received' | 'submission_graded' | 'homework_deadline_reminder' | 'homework_assigned' | 'referral_activated' | 'referral_converted' | 'referral_milestone';
+    type:
+      | 'submission_received'
+      | 'submission_graded'
+      | 'homework_deadline_reminder'
+      | 'homework_assigned'
+      | 'referral_activated'
+      | 'referral_converted'
+      | 'referral_milestone'
+      | 'assignment_created'
+      | 'achievement_unlocked'
+      | 'teacher_message'
+      | 'deadline_reminder'
+      | 'ai_response';
     title: string;
     message: string;
     metadata?: Record<string, any>;
@@ -51,6 +63,18 @@ export class NotificationsService {
     return this.prisma.notification.updateMany({
       where: { userId, userType, isRead: false },
       data: { isRead: true },
+    });
+  }
+
+  async deleteNotification(userId: string, notificationId: string) {
+    return this.prisma.notification.deleteMany({
+      where: { id: notificationId, userId },
+    });
+  }
+
+  async deleteAllNotifications(userId: string, userType: 'teacher' | 'student') {
+    return this.prisma.notification.deleteMany({
+      where: { userId, userType },
     });
   }
 }

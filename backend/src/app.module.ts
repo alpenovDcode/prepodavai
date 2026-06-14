@@ -45,6 +45,7 @@ import { OnboardingQuestModule } from './modules/onboarding-quest/onboarding-que
 import { TeacherDiaryModule } from './modules/teacher-diary/teacher-diary.module';
 import { PopupsModule } from './modules/popups/popups.module';
 import { SystemModule } from './modules/system/system.module';
+import { AiChatsModule } from './modules/ai-chats/ai-chats.module';
 
 @Module({
   imports: [
@@ -119,6 +120,7 @@ import { SystemModule } from './modules/system/system.module';
     TeacherDiaryModule,
     PopupsModule,
     SystemModule,
+    AiChatsModule,
   ],
   controllers: [AppController],
   providers: [

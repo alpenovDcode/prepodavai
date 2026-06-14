@@ -220,6 +220,7 @@ export class AssignmentsService {
               where: { status: 'completed' },
               orderBy: { createdAt: 'desc' },
             },
+            user: { select: { firstName: true, lastName: true, subject: true } },
           },
         },
         class: true,
@@ -310,7 +311,7 @@ export class AssignmentsService {
         student: { select: { name: true } },
         submissions: {
           where: { studentId: studentId },
-          select: { status: true, createdAt: true },
+          select: { status: true, createdAt: true, grade: true },
         },
       },
       orderBy: { createdAt: 'desc' },

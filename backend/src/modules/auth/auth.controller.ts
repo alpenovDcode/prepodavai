@@ -35,7 +35,7 @@ export class AuthController {
     res.cookie('prepodavai_token', token, {
       httpOnly: true,
       secure: isProduction || req.secure || req.header('x-forwarded-proto') === 'https',
-      sameSite: isProduction ? 'lax' : 'none',
+      sameSite: isProduction ? 'lax' : 'lax',
       maxAge: 30 * 24 * 60 * 60 * 1000,
       path: '/',
       domain: isProduction ? '.prepodavai.ru' : undefined,

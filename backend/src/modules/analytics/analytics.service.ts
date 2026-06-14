@@ -512,7 +512,7 @@ export class AnalyticsService {
    * Считаем число завершённых генераций пользователя по дням Пн..Вс относительно
    * текущей недели (понедельник — начало недели).
    */
-  async getWeeklyActivity(userId: string) {
+  async getWeeklyActivity(userId: string, _range: 'week' | 'month' = 'week') {
     const dayLabels = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
 
     const now = new Date();
@@ -545,5 +545,558 @@ export class AnalyticsService {
     return {
       days: dayLabels.map((label, i) => ({ label, value: buckets[i] })),
     };
+  }
+
+  // ===================================================================
+  // V2 страница /dashboard/analytics — единый агрегирующий метод
+  // ===================================================================
+
+  private rangeWindow(range: string) {
+    const map: Record<string, number> = { week: 7, month: 30, semester: 180, year: 365 };
+    const days = map[range] ?? 30;
+    const end = new Date();
+    const start = new Date(end);
+    start.setDate(start.getDate() - days);
+    const prevEnd = new Date(start);
+    const prevStart = new Date(start);
+    prevStart.setDate(prevStart.getDate() - days);
+    return { start, end, prevStart, prevEnd, days };
+  }
+
+  private engagementLevel(ratio: number | null): 0 | 1 | 2 | 3 | 4 | 5 {
+    if (ratio == null) return 0;
+    if (ratio >= 0.9) return 5;
+    if (ratio >= 0.75) return 4;
+    if (ratio >= 0.55) return 3;
+    if (ratio >= 0.3) return 2;
+    if (ratio > 0) return 1;
+    return 0;
+  }
+
+  private trendDirection(series: number[]): 'up' | 'down' | 'flat' {
+    if (series.length < 2) return 'flat';
+    const half = Math.floor(series.length / 2);
+    const first = series.slice(0, half);
+    const second = series.slice(-half);
+    if (!first.length || !second.length) return 'flat';
+    const avg = (a: number[]) => a.reduce((x, y) => x + y, 0) / a.length;
+    const diff = avg(second) - avg(first);
+    if (diff > 0.15) return 'up';
+    if (diff < -0.15) return 'down';
+    return 'flat';
+  }
+
+  private initialsFor(name: string): string {
+    const cleaned = name.trim();
+    if (/^\d/.test(cleaned)) return cleaned.slice(0, 3).toUpperCase();
+    const parts = cleaned.split(/\s+/);
+    if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+    return cleaned.slice(0, 2).toUpperCase();
+  }
+
+  async getOverviewV2(
+    userId: string,
+    opts: { range: string; classId?: string; filter?: string },
+  ) {
+    const { range, classId, filter } = opts;
+    const win = this.rangeWindow(range);
+
+    const classes = await this.prisma.class.findMany({
+      where: { teacherId: userId, ...(classId ? { id: classId } : {}) },
+      include: {
+        students: { select: { id: true, name: true } },
+        assignments: {
+          select: {
+            id: true,
+            createdAt: true,
+            dueDate: true,
+            lesson: { select: { id: true, title: true, topic: true, createdAt: true } },
+          },
+        },
+      },
+    });
+
+    const studentIds = classes.flatMap((c) => c.students.map((s) => s.id));
+
+    const wideStart = new Date(win.end);
+    wideStart.setDate(wideStart.getDate() - 365);
+
+    const submissions = studentIds.length
+      ? await this.prisma.submission.findMany({
+          where: {
+            studentId: { in: studentIds },
+            createdAt: { gte: wideStart, lte: win.end },
+          },
+          select: {
+            id: true,
+            studentId: true,
+            grade: true,
+            createdAt: true,
+            assignment: {
+              select: {
+                id: true,
+                createdAt: true,
+                dueDate: true,
+                classId: true,
+                lesson: { select: { id: true, title: true, topic: true } },
+              },
+            },
+          },
+        })
+      : [];
+
+    const lessons = await this.prisma.lesson.findMany({
+      where: { userId, ...(classId ? { classId } : {}) },
+      select: { id: true, createdAt: true },
+    });
+
+    const inWin = (d: Date) => d >= win.start && d <= win.end;
+    const inPrev = (d: Date) => d >= win.prevStart && d < win.prevEnd;
+    const subsNow = submissions.filter((s) => inWin(s.createdAt));
+    const subsPrev = submissions.filter((s) => inPrev(s.createdAt));
+
+    const gradedNow = subsNow.filter((s) => s.grade != null);
+    const gradedPrev = subsPrev.filter((s) => s.grade != null);
+    const avg = (arr: number[]) => (arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0);
+    const avgGradeNow = avg(gradedNow.map((s) => s.grade as number));
+    const avgGradePrev = avg(gradedPrev.map((s) => s.grade as number));
+
+    type SubsArr = typeof submissions;
+    const onTimeRate = (subs: SubsArr) => {
+      const withDue = subs.filter((s) => s.assignment.dueDate);
+      if (!withDue.length) return null;
+      const onTime = withDue.filter((s) => s.createdAt <= (s.assignment.dueDate as Date)).length;
+      return onTime / withDue.length;
+    };
+    const onTimeNow = onTimeRate(subsNow);
+    const onTimePrev = onTimeRate(subsPrev);
+
+    const activeStudentIds = new Set(subsNow.map((s) => s.studentId));
+    const totalStudents = studentIds.length;
+
+    const subTimesNow = subsNow
+      .map((s) => (s.createdAt.getTime() - s.assignment.createdAt.getTime()) / 86_400_000)
+      .filter((d) => d >= 0 && d < 60);
+    const avgSubmitDays = subTimesNow.length ? avg(subTimesNow) : null;
+    const subTimesPrev = subsPrev
+      .map((s) => (s.createdAt.getTime() - s.assignment.createdAt.getTime()) / 86_400_000)
+      .filter((d) => d >= 0 && d < 60);
+    const avgSubmitDaysPrev = subTimesPrev.length ? avg(subTimesPrev) : null;
+
+    const materialsTotal = lessons.length;
+    const materialsThisPeriod = lessons.filter((l) => inWin(l.createdAt)).length;
+
+    let watchCount = 0;
+    let riskCount = 0;
+    const weekMs = 7 * 86_400_000;
+    const studentStatsList: Array<{
+      id: string;
+      name: string;
+      classId: string;
+      className: string;
+      avgGrade: number;
+      submittedPct: number;
+      onTimePct: number | null;
+      trend: number[];
+      level: 'risk' | 'watch' | 'good';
+      direction: 'up' | 'down' | 'flat';
+    }> = [];
+
+    for (const cls of classes) {
+      for (const st of cls.students) {
+        const mySubs = submissions.filter((s) => s.studentId === st.id);
+        const mySubsNow = mySubs.filter((s) => inWin(s.createdAt));
+        const myGraded = mySubsNow.filter((s) => s.grade != null);
+        const stAvg = myGraded.length ? avg(myGraded.map((x) => x.grade as number)) : 0;
+
+        const totalAssign = cls.assignments.length;
+        const submittedPct = totalAssign ? (mySubsNow.length / totalAssign) * 100 : 0;
+        const myOnTime = onTimeRate(mySubsNow);
+
+        const trend: number[] = [];
+        for (let i = 6; i >= 0; i--) {
+          const wkEnd = new Date(win.end.getTime() - i * weekMs);
+          const wkStart = new Date(wkEnd.getTime() - weekMs);
+          const wkGraded = mySubs.filter(
+            (s) => s.grade != null && s.createdAt >= wkStart && s.createdAt < wkEnd,
+          );
+          trend.push(wkGraded.length ? avg(wkGraded.map((x) => x.grade as number)) : 0);
+        }
+        const direction = this.trendDirection(trend.filter((v) => v > 0));
+
+        let level: 'good' | 'watch' | 'risk' = 'good';
+        if (myGraded.length >= 3) {
+          if (stAvg < 3) level = 'risk';
+          else if (submittedPct < 50 && totalAssign >= 3) level = 'risk';
+          else if (stAvg < 3.7) level = 'watch';
+          else if (submittedPct < 70 && totalAssign >= 3) level = 'watch';
+          else if (myOnTime !== null && myOnTime < 0.6) level = 'watch';
+        }
+        if (level === 'risk') riskCount++;
+        if (level === 'watch') watchCount++;
+
+        studentStatsList.push({
+          id: st.id,
+          name: st.name,
+          classId: cls.id,
+          className: cls.name,
+          avgGrade: Math.round(stAvg * 10) / 10,
+          submittedPct: Math.round(submittedPct),
+          onTimePct: myOnTime == null ? null : Math.round(myOnTime * 100),
+          trend,
+          level,
+          direction,
+        });
+      }
+    }
+
+    const trendMonthsCount = range === 'year' ? 12 : 6;
+    const monthLabels = ['Янв','Фев','Мар','Апр','Май','Июн','Июл','Авг','Сен','Окт','Ноя','Дек'];
+    const gradeTrend: Array<{ month: string; currentScore: number | null; prevScore: number | null }> = [];
+    for (let i = trendMonthsCount - 1; i >= 0; i--) {
+      const refNow = new Date(win.end);
+      refNow.setMonth(refNow.getMonth() - i);
+      const mStart = new Date(refNow.getFullYear(), refNow.getMonth(), 1);
+      const mEnd = new Date(refNow.getFullYear(), refNow.getMonth() + 1, 1);
+      const cur = submissions.filter(
+        (s) => s.grade != null && s.createdAt >= mStart && s.createdAt < mEnd,
+      );
+      const refPrev = new Date(refNow);
+      refPrev.setFullYear(refPrev.getFullYear() - 1);
+      const pStart = new Date(refPrev.getFullYear(), refPrev.getMonth(), 1);
+      const pEnd = new Date(refPrev.getFullYear(), refPrev.getMonth() + 1, 1);
+      const prv = submissions.filter(
+        (s) => s.grade != null && s.createdAt >= pStart && s.createdAt < pEnd,
+      );
+      gradeTrend.push({
+        month: monthLabels[mStart.getMonth()],
+        currentScore: cur.length ? Math.round(avg(cur.map((x) => x.grade as number)) * 100) / 100 : null,
+        prevScore: prv.length ? Math.round(avg(prv.map((x) => x.grade as number)) * 100) / 100 : null,
+      });
+    }
+
+    const dist = { five: 0, four: 0, three: 0, two: 0 };
+    gradedNow.forEach((s) => {
+      const g = s.grade as number;
+      if (g >= 5) dist.five++;
+      else if (g >= 4) dist.four++;
+      else if (g >= 3) dist.three++;
+      else dist.two++;
+    });
+    const gradeDistribution = {
+      total: gradedNow.length,
+      fives: dist.five,
+      fours: dist.four,
+      threes: dist.three,
+      twos: dist.two,
+    };
+
+    const heatClasses = [...classes]
+      .sort((a, b) => b.students.length - a.students.length)
+      .slice(0, 5);
+    const heatmap = {
+      weeks: Array.from({ length: 12 }, (_, i) => `Н${i + 1}`),
+      classes: heatClasses.map((cls) => {
+        const weeks: number[] = [];
+        for (let i = 11; i >= 0; i--) {
+          const wkEnd = new Date(win.end.getTime() - i * weekMs);
+          const wkStart = new Date(wkEnd.getTime() - weekMs);
+          const wkSubs = submissions.filter(
+            (s) => s.assignment.classId === cls.id && s.createdAt >= wkStart && s.createdAt < wkEnd,
+          );
+          const withDue = wkSubs.filter((s) => s.assignment.dueDate);
+          if (!cls.students.length || !withDue.length) {
+            weeks.push(0);
+            continue;
+          }
+          const onTime = withDue.filter((s) => s.createdAt <= (s.assignment.dueDate as Date)).length;
+          weeks.push(this.engagementLevel(onTime / withDue.length));
+        }
+        return { id: cls.id, name: cls.name, weeks };
+      }),
+    };
+
+    const topicMap = new Map<string, { total: number; hard: number }>();
+    gradedNow.forEach((s) => {
+      const topic = s.assignment.lesson?.topic || s.assignment.lesson?.title;
+      if (!topic) return;
+      const e = topicMap.get(topic) ?? { total: 0, hard: 0 };
+      e.total++;
+      if ((s.grade as number) <= 3) e.hard++;
+      topicMap.set(topic, e);
+    });
+    const topicDifficulty = [...topicMap.entries()]
+      .filter(([, v]) => v.total >= 2)
+      .map(([topic, v]) => ({
+        topic,
+        difficulty: Math.round((v.hard / v.total) * 100),
+        total: v.total,
+      }))
+      .sort((a, b) => b.difficulty - a.difficulty)
+      .slice(0, 6);
+
+    const weekdayBuckets = [0, 0, 0, 0, 0, 0, 0];
+    subsNow.forEach((s) => {
+      const d = s.createdAt.getDay();
+      const idx = d === 0 ? 6 : d - 1;
+      weekdayBuckets[idx]++;
+    });
+    const submissionTimesByWeekday = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map(
+      (day, i) => ({ day, count: weekdayBuckets[i] }),
+    );
+
+    const lessonMap = new Map<string, {
+      lessonId: string;
+      title: string;
+      grades: number[];
+      submitted: number;
+      potentialSubmissions: number;
+      classNames: Set<string>;
+      lateDays: number[];
+    }>();
+    classes.forEach((cls) =>
+      cls.assignments.forEach((a) => {
+        if (!a.lesson) return;
+        const e = lessonMap.get(a.lesson.id) ?? {
+          lessonId: a.lesson.id,
+          title: a.lesson.title,
+          grades: [],
+          submitted: 0,
+          potentialSubmissions: 0,
+          classNames: new Set<string>(),
+          lateDays: [],
+        };
+        e.potentialSubmissions += cls.students.length || 0;
+        e.classNames.add(cls.name);
+        lessonMap.set(a.lesson.id, e);
+      }),
+    );
+    subsNow.forEach((s) => {
+      const lessonId = s.assignment.lesson?.id;
+      if (!lessonId) return;
+      const e = lessonMap.get(lessonId);
+      if (!e) return;
+      e.submitted++;
+      if (s.grade != null) e.grades.push(s.grade as number);
+      if (s.assignment.createdAt) {
+        const days = (s.createdAt.getTime() - s.assignment.createdAt.getTime()) / 86_400_000;
+        if (days >= 0 && days < 60) e.lateDays.push(days);
+      }
+    });
+    const topMaterials = [...lessonMap.values()]
+      .filter((e) => e.grades.length > 0)
+      .map((e) => ({
+        lessonId: e.lessonId,
+        title: e.title,
+        className: [...e.classNames].join(', '),
+        avgGrade: Math.round(avg(e.grades) * 10) / 10,
+        submittedPct: e.potentialSubmissions
+          ? Math.min(100, Math.round((e.submitted / e.potentialSubmissions) * 100))
+          : 0,
+        avgDays: e.lateDays.length ? Math.round(avg(e.lateDays) * 10) / 10 : null,
+      }))
+      .sort((a, b) => b.avgGrade - a.avgGrade)
+      .slice(0, 4);
+
+    const classComparison = classes.map((cls) => {
+      const myStudents = studentStatsList.filter((s) => s.classId === cls.id);
+      const clsAvg = myStudents.length
+        ? avg(myStudents.map((s) => s.avgGrade).filter((g) => g > 0))
+        : 0;
+      const trend: number[] = [];
+      for (let i = 6; i >= 0; i--) {
+        const wkEnd = new Date(win.end.getTime() - i * weekMs);
+        const wkStart = new Date(wkEnd.getTime() - weekMs);
+        const wkGrades = submissions
+          .filter(
+            (s) =>
+              s.assignment.classId === cls.id &&
+              s.grade != null &&
+              s.createdAt >= wkStart &&
+              s.createdAt < wkEnd,
+          )
+          .map((s) => s.grade as number);
+        trend.push(wkGrades.length ? avg(wkGrades) : 0);
+      }
+      const clsSubsNow = subsNow.filter((s) => s.assignment.classId === cls.id);
+      const ot = onTimeRate(clsSubsNow);
+      const direction = this.trendDirection(trend.filter((v) => v > 0));
+      return {
+        id: cls.id,
+        name: cls.name,
+        initials: this.initialsFor(cls.name),
+        studentsCount: cls.students.length,
+        avgGrade: clsAvg > 0 ? Math.round(clsAvg * 10) / 10 : null,
+        onTimePct: ot == null ? null : Math.round(ot * 100),
+        trend,
+        direction,
+      };
+    });
+
+    const bestStudents = [...studentStatsList]
+      .filter((s) => s.avgGrade > 0)
+      .sort((a, b) => b.avgGrade - a.avgGrade)
+      .slice(0, 3);
+
+    const watchStudents = [...studentStatsList]
+      .filter((s) => s.level === 'risk' || s.level === 'watch')
+      .sort((a, b) => {
+        if (a.level !== b.level) return a.level === 'risk' ? -1 : 1;
+        return a.avgGrade - b.avgGrade;
+      })
+      .slice(0, 3);
+
+    let levelOtl = 0, levelHor = 0, levelUdv = 0, levelRisk = 0;
+    studentStatsList.forEach((s) => {
+      if (s.avgGrade >= 4.5) levelOtl++;
+      else if (s.avgGrade >= 3.5) levelHor++;
+      else if (s.avgGrade >= 3) levelUdv++;
+      else if (s.avgGrade > 0) levelRisk++;
+    });
+    let dynUp = 0, dynFlat = 0, dynDown = 0;
+    studentStatsList.forEach((s) => {
+      if (s.avgGrade <= 0) return;
+      if (s.direction === 'up') dynUp++;
+      else if (s.direction === 'down') dynDown++;
+      else dynFlat++;
+    });
+
+    const classOptions = (classId
+      ? await this.prisma.class.findMany({
+          where: { teacherId: userId },
+          select: { id: true, name: true },
+        })
+      : classes.map((c) => ({ id: c.id, name: c.name })));
+
+    return {
+      range,
+      classId: classId ?? null,
+      filter: filter ?? 'all',
+      kpi: {
+        avgGrade: gradedNow.length ? Math.round(avgGradeNow * 10) / 10 : null,
+        avgGradeDelta: gradedPrev.length ? Math.round((avgGradeNow - avgGradePrev) * 10) / 10 : null,
+        onTimePct: onTimeNow == null ? null : Math.round(onTimeNow * 100),
+        onTimeDelta:
+          onTimeNow == null || onTimePrev == null
+            ? null
+            : Math.round((onTimeNow - onTimePrev) * 100),
+        activeStudents: activeStudentIds.size,
+        totalStudents,
+        engagementPct: totalStudents
+          ? Math.round((activeStudentIds.size / totalStudents) * 100)
+          : 0,
+        watchCount: watchCount + riskCount,
+        riskCount,
+        avgSubmitDays: avgSubmitDays == null ? null : Math.round(avgSubmitDays * 10) / 10,
+        avgSubmitDaysDelta:
+          avgSubmitDays == null || avgSubmitDaysPrev == null
+            ? null
+            : Math.round((avgSubmitDays - avgSubmitDaysPrev) * 10) / 10,
+        materialsThisPeriod,
+        materialsTotal,
+      },
+      gradeTrend,
+      gradeDistribution,
+      heatmap,
+      topicDifficulty,
+      submissionTimesByWeekday,
+      topMaterials,
+      classComparison,
+      bestStudents,
+      watchStudents,
+      levelDistribution: {
+        total: studentStatsList.filter((s) => s.avgGrade > 0).length,
+        excellent: levelOtl,
+        good: levelHor,
+        average: levelUdv,
+        risk: levelRisk,
+      },
+      studentDynamics: { up: dynUp, flat: dynFlat, down: dynDown },
+      classes: classOptions.sort((a, b) => a.name.localeCompare(b.name)),
+    };
+  }
+
+  async getStudentsLeaderboard(
+    userId: string,
+    opts: { range: string; classId?: string; page: number; pageSize: number },
+  ) {
+    const { range, classId, page, pageSize } = opts;
+    const win = this.rangeWindow(range);
+
+    const classes = await this.prisma.class.findMany({
+      where: { teacherId: userId, ...(classId ? { id: classId } : {}) },
+      select: {
+        id: true,
+        name: true,
+        students: { select: { id: true, name: true } },
+        _count: { select: { assignments: true } },
+      },
+    });
+    const studentIds = classes.flatMap((c) => c.students.map((s) => s.id));
+    if (!studentIds.length) {
+      return { total: 0, page, pageSize, items: [] };
+    }
+
+    const wideStart = new Date(win.end);
+    wideStart.setDate(wideStart.getDate() - 90);
+    const submissions = await this.prisma.submission.findMany({
+      where: {
+        studentId: { in: studentIds },
+        createdAt: { gte: wideStart, lte: win.end },
+      },
+      select: {
+        studentId: true,
+        grade: true,
+        createdAt: true,
+        assignment: { select: { dueDate: true, classId: true } },
+      },
+    });
+
+    const avg = (arr: number[]) => (arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0);
+    const inWin = (d: Date) => d >= win.start && d <= win.end;
+    const weekMs = 7 * 86_400_000;
+
+    const items = classes.flatMap((cls) =>
+      cls.students.map((st) => {
+        const mine = submissions.filter((s) => s.studentId === st.id);
+        const mineNow = mine.filter((s) => inWin(s.createdAt));
+        const graded = mineNow.filter((s) => s.grade != null);
+        const stAvg = graded.length ? avg(graded.map((g) => g.grade as number)) : 0;
+        const totalAssign = cls._count.assignments;
+        const submittedPct = totalAssign
+          ? Math.round((mineNow.length / totalAssign) * 100)
+          : 0;
+        const trend: number[] = [];
+        for (let i = 6; i >= 0; i--) {
+          const wkEnd = new Date(win.end.getTime() - i * weekMs);
+          const wkStart = new Date(wkEnd.getTime() - weekMs);
+          const wkGraded = mine.filter(
+            (s) => s.grade != null && s.createdAt >= wkStart && s.createdAt < wkEnd,
+          );
+          trend.push(wkGraded.length ? avg(wkGraded.map((g) => g.grade as number)) : 0);
+        }
+        const direction = this.trendDirection(trend.filter((v) => v > 0));
+        return {
+          id: st.id,
+          name: st.name,
+          classId: cls.id,
+          className: cls.name,
+          avgGrade: Math.round(stAvg * 10) / 10,
+          submittedPct: Math.min(100, submittedPct),
+          trend,
+          direction,
+        };
+      }),
+    );
+
+    const sorted = items
+      .filter((i) => i.avgGrade > 0 || i.submittedPct > 0)
+      .sort((a, b) => b.avgGrade - a.avgGrade);
+
+    const total = sorted.length;
+    const start = (page - 1) * pageSize;
+    const slice = sorted.slice(start, start + pageSize);
+
+    return { total, page, pageSize, items: slice };
   }
 }

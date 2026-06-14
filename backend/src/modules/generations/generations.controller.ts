@@ -300,13 +300,18 @@ export class GenerationsController {
     @Request() req: any,
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
+    @Query('type') type?: string,
+    @Query('period') period?: string,
+    @Query('search') search?: string,
+    @Query('sort') sort?: string,
   ) {
-    const parsedLimit = Math.min(Math.max(parseInt(limit ?? '50', 10) || 50, 1), 200);
+    const parsedLimit = Math.min(Math.max(parseInt(limit ?? '100', 10) || 100, 1), 200);
     const parsedOffset = Math.max(parseInt(offset ?? '0', 10) || 0, 0);
     return this.generationsService.getGenerationHistory(
       this.userId(req),
       parsedLimit,
       parsedOffset,
+      { type, period, search, sort },
     );
   }
 
@@ -359,6 +364,12 @@ export class GenerationsController {
       this.userId(req),
       body.instruction,
     );
+  }
+
+  @Post(':id/duplicate')
+  @UseGuards(JwtAuthGuard)
+  async duplicateGeneration(@Request() req: any, @Param('id') id: string) {
+    return this.generationsService.duplicateGeneration(id, this.userId(req));
   }
 
   @Post(':id/link-lesson')

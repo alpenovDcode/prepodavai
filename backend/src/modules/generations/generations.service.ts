@@ -1661,6 +1661,8 @@ export class GenerationsService {
       success: true,
       requestId: generation.id,
       title: ug?.title ?? null,
+      generationType: ug?.generationType ?? generation.type ?? null,
+      inputParams: ug?.inputParams ?? generation.params ?? null,
       status: {
         status,
         result,
@@ -1673,42 +1675,161 @@ export class GenerationsService {
     };
   }
 
+  async duplicateGeneration(id: string, userId: string) {
+    let ug = await this.prisma.userGeneration.findUnique({ where: { id } });
+    if (!ug) {
+      const req = await this.resolveGenerationByAnyId(id);
+      ug = req?.userGeneration ?? null;
+    }
+    if (!ug) throw new NotFoundException('Генерация не найдена');
+    if (ug.userId !== userId) throw new ForbiddenException('Доступ запрещён');
+
+    const newReq = await this.prisma.generationRequest.create({
+      data: {
+        userId,
+        type: ug.generationType,
+        params: (ug.inputParams as any) ?? {},
+        status: 'completed',
+        result: (ug.outputData as any) ?? {},
+      },
+    });
+
+    const newUg = await this.prisma.userGeneration.create({
+      data: {
+        userId,
+        generationType: ug.generationType,
+        status: 'completed',
+        title: ug.title ? `${ug.title} (копия)` : null,
+        inputParams: ug.inputParams as any,
+        outputData: ug.outputData as any,
+        generationRequestId: newReq.id,
+      },
+    });
+
+    return { id: newUg.id };
+  }
+
   /**
    * Получить историю генераций пользователя
    */
-  async getGenerationHistory(userId: string, limit = 50, offset = 0) {
-    const generations = await this.prisma.userGeneration.findMany({
-      where: { userId },
-      include: {
-        generationRequest: true,
-      },
-      orderBy: { createdAt: 'desc' },
-      take: limit,
-      skip: offset,
-    });
+  private static readonly TYPE_TO_DB: Record<string, string[]> = {
+    worksheet: ['worksheet'],
+    quiz: ['quiz'],
+    presentation: ['presentation'],
+    lessonPlan: ['lesson-plan', 'lesson_plan', 'lessonPlan'],
+    image: ['image_generation', 'image'],
+    game: ['game_generation', 'game'],
+    vocabulary: ['vocabulary'],
+  };
 
-    const total = await this.prisma.userGeneration.count({
-      where: { userId },
-    });
+  private static dbToFrontend(dbType: string): string {
+    const map: Record<string, string> = {
+      worksheet: 'worksheet',
+      quiz: 'quiz',
+      presentation: 'presentation',
+      'lesson-plan': 'lessonPlan',
+      lesson_plan: 'lessonPlan',
+      lessonPlan: 'lessonPlan',
+      image_generation: 'image',
+      image: 'image',
+      game_generation: 'game',
+      game: 'game',
+      vocabulary: 'vocabulary',
+    };
+    return map[dbType] || dbType;
+  }
+
+  async getGenerationHistory(
+    userId: string,
+    limit = 100,
+    offset = 0,
+    filters?: { type?: string; period?: string; search?: string; sort?: string },
+  ) {
+    const where: Record<string, any> = { userId };
+
+    if (filters?.type && filters.type !== 'all') {
+      const dbTypes = GenerationsService.TYPE_TO_DB[filters.type];
+      if (dbTypes) {
+        where.generationType = { in: dbTypes };
+      }
+    }
+
+    if (filters?.period && filters.period !== 'all') {
+      const now = new Date();
+      let fromDate: Date | null = null;
+      switch (filters.period) {
+        case 'today':
+          fromDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          break;
+        case 'week':
+          fromDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+          break;
+        case 'month':
+          fromDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+          break;
+        case 'halfyear':
+          fromDate = new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000);
+          break;
+      }
+      if (fromDate) where.createdAt = { gte: fromDate };
+    }
+
+    if (filters?.search) {
+      where.title = { contains: filters.search, mode: 'insensitive' };
+    }
+
+    let orderBy: Record<string, string> = { createdAt: 'desc' };
+    switch (filters?.sort) {
+      case 'oldest': orderBy = { createdAt: 'asc' }; break;
+      case 'az': orderBy = { title: 'asc' }; break;
+      case 'za': orderBy = { title: 'desc' }; break;
+      default: orderBy = { createdAt: 'desc' };
+    }
+
+    const [generations, total, countsByType] = await Promise.all([
+      this.prisma.userGeneration.findMany({
+        where,
+        include: { generationRequest: true },
+        orderBy,
+        take: limit,
+        skip: offset,
+      }),
+      this.prisma.userGeneration.count({ where }),
+      this.prisma.userGeneration.groupBy({
+        by: ['generationType'],
+        where: { userId },
+        _count: { generationType: true },
+      }),
+    ]);
+
+    const counts: Record<string, number> = {};
+    for (const row of countsByType) {
+      const ft = GenerationsService.dbToFrontend(row.generationType);
+      counts[ft] = (counts[ft] || 0) + row._count.generationType;
+    }
+
+    const items = generations.map((gen) => ({
+      id: gen.id,
+      userId: gen.userId,
+      type: gen.generationType,
+      title: (gen as any).title ?? null,
+      status: gen.status,
+      params: gen.inputParams,
+      result: gen.outputData || gen.generationRequest?.result,
+      error: gen.errorMessage || gen.generationRequest?.error,
+      createdAt: gen.createdAt,
+      updatedAt: gen.updatedAt,
+      model: gen.model,
+      tokensUsed: (gen as any).tokensUsed,
+      creditCost: (gen as any).creditCost,
+    }));
 
     return {
       success: true,
-      generations: generations.map((gen) => ({
-        id: gen.id,
-        userId: gen.userId,
-        type: gen.generationType,
-        title: (gen as any).title ?? null,
-        status: gen.status,
-        params: gen.inputParams,
-        result: gen.outputData || gen.generationRequest?.result,
-        error: gen.errorMessage || gen.generationRequest?.error,
-        createdAt: gen.createdAt,
-        updatedAt: gen.updatedAt,
-        model: gen.model,
-        tokensUsed: (gen as any).tokensUsed,
-        creditCost: (gen as any).creditCost,
-      })),
+      items,
+      generations: items,
       total,
+      counts,
       limit,
       offset,
     };

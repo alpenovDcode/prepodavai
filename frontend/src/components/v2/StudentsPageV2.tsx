@@ -1,187 +1,1267 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Users, Copy, Check, AlertTriangle } from 'lucide-react'
+import {
+    Plus,
+    Users,
+    Upload,
+    AlertTriangle,
+    TrendingUp,
+    TrendingDown,
+    Trophy,
+    CheckCircle,
+    Clock,
+    Compass,
+    Search,
+    List,
+    LayoutGrid,
+    MessageCircle,
+    FilePlus2,
+    MoreHorizontal,
+    User,
+    CalendarPlus,
+    BarChart3,
+    UserX,
+    ChevronLeft,
+    ChevronRight,
+    Link2,
+} from 'lucide-react'
 import toast from 'react-hot-toast'
+import { cn } from '@/lib/utils/cn'
 import { apiClient } from '@/lib/api/client'
 import { Topbar } from '@/components/layout/v2/Topbar'
 import { useMobileMenu } from '@/components/layout/v2/DashboardLayoutV2'
 import { Card } from '@/components/ui/v2/Card'
 import { Button } from '@/components/ui/v2/Button'
-import { Badge } from '@/components/ui/v2/Badge'
-import { SearchBar } from '@/components/ui/v2/SearchBar'
-import { Avatar } from '@/components/ui/v2/Avatar'
+import { IconTile } from '@/components/ui/v2/IconTile'
+import { useTour } from '@/lib/tour/useTour'
 
-interface Klass {
+type RiskLevel = 'good' | 'watch' | 'risk' | 'unknown'
+
+interface StudentRow {
     id: string
     name: string
-    description?: string
-    _count?: { students: number }
-}
-
-interface Student {
-    id: string
-    name: string
-    email?: string
-    avatar?: string
-    accessCode?: string
-    status?: 'active' | 'pending'
-    class: { id?: string; name: string }
+    email: string | null
+    avatar: string | null
+    accessCode: string | null
+    status: string
     createdAt: string
+    classId: string
+    class: { id: string; name: string }
+    avgGrade: number | null
+    totalAssigned: number
+    totalSubmitted: number
+    submissionRate: number
+    onTimeRate: number | null
+    lastActivityAt: string | null
+    risk: RiskLevel
 }
+
+interface OverviewSummary {
+    total: number
+    classCount: number
+    avgGrade: number | null
+    avgGradeDelta: number | null
+    onTimeRate: number | null
+    onTimeRateDelta: number | null
+    activeThisWeek: number
+    atRiskCount: number
+    newThisMonth: number
+}
+
+type StatusFilter = 'all' | 'risk' | 'watch' | 'good'
+type ActivityFilter = 'all' | 'week' | '3days' | 'month'
+type SortMode = 'name-asc' | 'name-desc' | 'grade-asc' | 'grade-desc' | 'activity' | 'created-new'
+type ViewMode = 'table' | 'cards'
+
+const PAGE_SIZE = 12
 
 export default function StudentsPageV2() {
     const router = useRouter()
     const menu = useMobileMenu()
 
-    const [classes, setClasses] = useState<Klass[]>([])
-    const [students, setStudents] = useState<Student[]>([])
+    const [students, setStudents] = useState<StudentRow[]>([])
+    const [summary, setSummary] = useState<OverviewSummary | null>(null)
     const [loading, setLoading] = useState(true)
+
     const [query, setQuery] = useState('')
-    const [activeClass, setActiveClass] = useState<string | 'all'>('all')
-    const [copiedCode, setCopiedCode] = useState<string | null>(null)
+    const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
+    const [classFilter, setClassFilter] = useState<string>('all')
+    const [activityFilter, setActivityFilter] = useState<ActivityFilter>('all')
+    const [sortMode, setSortMode] = useState<SortMode>('name-asc')
+    const [view, setView] = useState<ViewMode>('table')
+    const [page, setPage] = useState(1)
+    const [selected, setSelected] = useState<Set<string>>(new Set())
+    const [openMenu, setOpenMenu] = useState<string | null>(null)
+    const tour = useTour()
+
+    const [classes, setClasses] = useState<Array<{id: string; name: string}>>([])
+    // Add student modal
+    const [showAddStudent, setShowAddStudent] = useState(false)
+    const [studentName, setStudentName] = useState('')
+    const [studentEmail, setStudentEmail] = useState('')
+    const [studentPhone, setStudentPhone] = useState('')
+    const [studentPassword, setStudentPassword] = useState('')
+    const [studentClassId, setStudentClassId] = useState('')
+    const [addingStudent, setAddingStudent] = useState(false)
+    // Invite modal
+    const [showInviteModal, setShowInviteModal] = useState(false)
+    const [inviteClassId, setInviteClassId] = useState('')
+    const [inviteUrl, setInviteUrl] = useState<string | null>(null)
+    const [inviteLoading, setInviteLoading] = useState(false)
+    const [inviteCopied, setInviteCopied] = useState(false)
+    // Confirm dialog
+    const [confirmModal, setConfirmModal] = useState<{ msg: string; onConfirm: () => void } | null>(null)
 
     useEffect(() => {
-        Promise.all([
-            apiClient.get('/classes').catch(() => ({ data: [] })),
-            apiClient.get('/students').catch(() => ({ data: [] })),
-        ]).then(([cr, sr]: any) => {
-            setClasses(cr.data || [])
-            setStudents(sr.data || [])
-        }).finally(() => setLoading(false))
+        apiClient
+            .get('/students/overview')
+            .then((r: any) => {
+                setStudents(r.data?.students || [])
+                setSummary(r.data?.summary || null)
+            })
+            .catch(() => {
+                toast.error('Не удалось загрузить учеников')
+            })
+            .finally(() => setLoading(false))
     }, [])
+
+    useEffect(() => {
+        if (!openMenu) return
+        const handler = (e: MouseEvent) => {
+            const t = e.target as HTMLElement
+            if (!t.closest('[data-row-menu]')) setOpenMenu(null)
+        }
+        document.addEventListener('click', handler)
+        return () => document.removeEventListener('click', handler)
+    }, [openMenu])
+
+    const classOptions = useMemo(() => {
+        const map = new Map<string, { id: string; name: string; count: number }>()
+        for (const s of students) {
+            const cur = map.get(s.class.id)
+            if (cur) cur.count += 1
+            else map.set(s.class.id, { id: s.class.id, name: s.class.name, count: 1 })
+        }
+        return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name))
+    }, [students])
+
+    const statusCounts = useMemo(() => {
+        const c = { risk: 0, watch: 0, good: 0 }
+        for (const s of students) {
+            if (s.risk === 'risk') c.risk += 1
+            else if (s.risk === 'watch') c.watch += 1
+            else if (s.risk === 'good') c.good += 1
+        }
+        return c
+    }, [students])
 
     const filtered = useMemo(() => {
         const q = query.toLowerCase().trim()
-        return students.filter(s => {
-            if (activeClass !== 'all' && s.class?.name !== classes.find(c => c.id === activeClass)?.name) return false
-            if (!q) return true
-            return s.name.toLowerCase().includes(q) || (s.email || '').toLowerCase().includes(q)
-        })
-    }, [students, query, activeClass, classes])
+        const now = Date.now()
+        const dayMs = 24 * 60 * 60 * 1000
+        return students
+            .filter((s) => {
+                if (q && !s.name.toLowerCase().includes(q) && !(s.email || '').toLowerCase().includes(q))
+                    return false
+                if (statusFilter !== 'all' && s.risk !== statusFilter) return false
+                if (classFilter !== 'all' && s.classId !== classFilter) return false
+                if (activityFilter !== 'all') {
+                    const last = s.lastActivityAt ? new Date(s.lastActivityAt).getTime() : 0
+                    const diff = now - last
+                    if (activityFilter === 'week' && (!last || diff > 7 * dayMs)) return false
+                    if (activityFilter === '3days' && (!last || diff < 3 * dayMs)) return false
+                    if (activityFilter === 'month' && (!last || diff < 30 * dayMs)) return false
+                }
+                return true
+            })
+            .sort((a, b) => {
+                switch (sortMode) {
+                    case 'name-desc':
+                        return b.name.localeCompare(a.name)
+                    case 'grade-asc':
+                        return (a.avgGrade ?? -1) - (b.avgGrade ?? -1)
+                    case 'grade-desc':
+                        return (b.avgGrade ?? -1) - (a.avgGrade ?? -1)
+                    case 'activity': {
+                        const la = a.lastActivityAt ? new Date(a.lastActivityAt).getTime() : 0
+                        const lb = b.lastActivityAt ? new Date(b.lastActivityAt).getTime() : 0
+                        return la - lb
+                    }
+                    case 'created-new':
+                        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+                    default:
+                        return a.name.localeCompare(b.name)
+                }
+            })
+    }, [students, query, statusFilter, classFilter, activityFilter, sortMode])
 
-    const pendingCount = students.filter(s => s.status === 'pending').length
+    const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+    const safePage = Math.min(page, totalPages)
+    const paged = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
 
-    const copyCode = async (code: string) => {
+    useEffect(() => {
+        setPage(1)
+    }, [query, statusFilter, classFilter, activityFilter, sortMode, view])
+
+    useEffect(() => {
+        apiClient.get('/classes').then((r: any) => setClasses(r.data || [])).catch(() => {})
+    }, [])
+
+    const refetchStudents = useCallback(() => {
+        setLoading(true)
+        apiClient.get('/students/overview')
+            .then((r: any) => {
+                setStudents(r.data?.students || [])
+                setSummary(r.data?.summary || null)
+            })
+            .catch(() => toast.error('Не удалось обновить список'))
+            .finally(() => setLoading(false))
+    }, [])
+
+    const handleCreateStudent = async (e: React.FormEvent) => {
+        e.preventDefault()
+        if (!studentClassId) { toast.error('Выберите класс'); return }
+        setAddingStudent(true)
         try {
-            await navigator.clipboard.writeText(code)
-            setCopiedCode(code)
-            toast.success('Код скопирован')
-            setTimeout(() => setCopiedCode(null), 1500)
-        } catch {
-            toast.error('Не удалось скопировать')
+            await apiClient.post('/students', {
+                name: studentName,
+                email: studentEmail || undefined,
+                phone: studentPhone || undefined,
+                password: studentPassword,
+                classId: studentClassId,
+            })
+            toast.success('Ученик добавлен')
+            setShowAddStudent(false)
+            setStudentName(''); setStudentEmail(''); setStudentPhone('')
+            setStudentPassword(''); setStudentClassId('')
+            refetchStudents()
+        } catch (err: any) {
+            const msg = err?.response?.data?.message || 'Ошибка при добавлении'
+            if (err?.response?.status === 403) toast.error(`Лимит тарифа: ${msg}`)
+            else toast.error(msg)
+        } finally {
+            setAddingStudent(false)
         }
+    }
+
+    const handleApproveStudent = async (id: string) => {
+        try {
+            await apiClient.post(`/students/${id}/approve`)
+            setStudents(prev => prev.map(s => s.id === id ? { ...s, status: 'active' } : s))
+            toast.success('Ученик принят')
+        } catch { toast.error('Не удалось принять ученика') }
+    }
+
+    const handleRejectStudent = (id: string, name: string) => {
+        setConfirmModal({
+            msg: `Отклонить заявку «${name}»? Аккаунт будет удалён.`,
+            onConfirm: async () => {
+                try {
+                    await apiClient.post(`/students/${id}/reject`)
+                    setStudents(prev => prev.filter(s => s.id !== id))
+                    toast.success('Заявка отклонена')
+                } catch { toast.error('Не удалось отклонить') }
+            },
+        })
+    }
+
+    const handleDeleteStudent = (id: string, name: string) => {
+        setConfirmModal({
+            msg: `Удалить ученика «${name}»? Это действие нельзя отменить.`,
+            onConfirm: async () => {
+                try {
+                    await apiClient.delete(`/students/${id}`)
+                    setStudents(prev => prev.filter(s => s.id !== id))
+                    toast.success('Ученик удалён')
+                } catch { toast.error('Не удалось удалить ученика') }
+            },
+        })
+    }
+
+    const handleCreateInvite = async () => {
+        setInviteLoading(true)
+        try {
+            const res: any = await apiClient.post('/student-invites', { classId: inviteClassId || undefined })
+            setInviteUrl(`${window.location.origin}/invite/${res.data.token}`)
+        } catch { toast.error('Не удалось создать приглашение') }
+        finally { setInviteLoading(false) }
+    }
+
+    const toggleSelectAll = () => {
+        if (selected.size === paged.length) setSelected(new Set())
+        else setSelected(new Set(paged.map((s) => s.id)))
+    }
+
+    const toggleSelect = (id: string) => {
+        setSelected((prev) => {
+            const next = new Set(prev)
+            if (next.has(id)) next.delete(id)
+            else next.add(id)
+            return next
+        })
     }
 
     return (
         <>
             <Topbar
                 title="Ученики"
-                subtitle={`${students.length} ${pluralizeRu(students.length, 'ученик', 'ученика', 'учеников')} в ${classes.length} ${pluralizeRu(classes.length, 'классе', 'классах', 'классах')}`}
+                subtitle={
+                    summary
+                        ? `${summary.total} ${pluralizeRu(summary.total, 'ученик', 'ученика', 'учеников')} · ${summary.classCount} ${pluralizeRu(summary.classCount, 'класс', 'класса', 'классов')}${summary.avgGrade !== null ? ` · средний балл ${formatGrade(summary.avgGrade)}` : ''}`
+                        : undefined
+                }
                 onMobileMenuToggle={menu.toggle}
                 hideSearch
                 actions={
-                    <Button variant="primary" size="sm" leftIcon={<Plus className="w-4 h-4" />}>Добавить</Button>
+                    <div className="flex items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={tour.start}
+                            className="h-8 px-3 inline-flex items-center gap-1.5 rounded-md text-[12px] font-semibold text-ink-700 hover:bg-ink-100 hover:text-ink-900 transition-colors"
+                        >
+                            <Compass className="w-3.5 h-3.5" />
+                            Тур
+                        </button>
+                        <Button variant="secondary" size="sm" leftIcon={<Users className="w-4 h-4" />} onClick={() => router.push('/dashboard/classes')}>
+                            Создать класс
+                        </Button>
+                        <Button variant="secondary" size="sm" leftIcon={<Link2 className="w-4 h-4" />} onClick={() => { setInviteUrl(null); setInviteClassId(''); setShowInviteModal(true) }}>
+                            Пригласить
+                        </Button>
+                        <Button variant="secondary" size="sm" leftIcon={<Upload className="w-4 h-4" />}>
+                            Импорт CSV
+                        </Button>
+                        <Button data-tour="add-student" variant="primary" size="sm" leftIcon={<Plus className="w-4 h-4" />} onClick={() => setShowAddStudent(true)}>
+                            Добавить ученика
+                        </Button>
+                    </div>
                 }
-                notificationsCount={pendingCount}
+                notificationsCount={summary?.atRiskCount}
             />
 
-            <div className="max-w-[1240px] w-full mx-auto p-8 max-md:p-4">
-                <div className="grid grid-cols-12 gap-4 max-lg:grid-cols-1">
-                    {/* Classes sidebar */}
-                    <Card padding="md" className="col-span-3 max-lg:col-span-1 h-fit sticky top-20">
-                        <div className="text-[11px] font-bold uppercase tracking-wider text-ink-500 px-2 mb-2">Классы</div>
+            {/* Sub-navigation */}
+            <div className="border-b border-ink-200 bg-surface px-8 max-md:px-4">
+                <div className="flex gap-0 max-w-[1320px] mx-auto">
+                    {([
+                        { label: 'Ученики', href: '/dashboard/students', active: true },
+                        { label: 'Классы', href: '/dashboard/classes', active: false },
+                        { label: 'Домашние задания', href: '/dashboard/grading', active: false },
+                        { label: 'Аналитика', href: '/dashboard/analytics', active: false },
+                        { label: 'Дневник учителя', href: '/dashboard/diary', active: false },
+                    ] as const).map(({ label, href, active }) => (
                         <button
+                            key={label}
                             type="button"
-                            onClick={() => setActiveClass('all')}
-                            className={`w-full text-left px-3 py-2 rounded-md text-sm font-medium ${activeClass === 'all' ? 'bg-brand-50 text-brand-700' : 'text-ink-700 hover:bg-ink-100'}`}
+                            onClick={() => router.push(href)}
+                            className={cn(
+                                'relative px-4 py-3 text-[14px] font-semibold transition-colors whitespace-nowrap',
+                                active ? 'text-brand-700' : 'text-ink-500 hover:text-ink-900',
+                            )}
                         >
-                            Все ученики <span className="float-right tnum text-ink-500">{students.length}</span>
+                            {label}
+                            {active && <span className="absolute bottom-0 left-3 right-3 h-0.5 rounded-t bg-brand-500" />}
                         </button>
-                        {classes.map(c => (
-                            <button
-                                key={c.id}
-                                type="button"
-                                onClick={() => setActiveClass(c.id)}
-                                className={`w-full text-left px-3 py-2 rounded-md text-sm font-medium ${activeClass === c.id ? 'bg-brand-50 text-brand-700' : 'text-ink-700 hover:bg-ink-100'}`}
+                    ))}
+                </div>
+            </div>
+
+            <div className="max-w-[1320px] w-full mx-auto p-8 max-md:p-4">
+                {loading ? (
+                    <div className="text-center py-24 text-ink-500">Загрузка…</div>
+                ) : (
+                    <>
+                        {summary && summary.atRiskCount > 0 && (
+                            <div
+                                data-tour="alert"
+                                className="mb-5 flex items-center gap-4 flex-wrap px-5 py-4 rounded-lg border"
+                                style={{
+                                    background: 'linear-gradient(90deg, #FEF2F2 0%, #FFFFFF 80%)',
+                                    borderColor: '#FECACA',
+                                }}
                             >
-                                {c.name} <span className="float-right tnum text-ink-500">{c._count?.students ?? 0}</span>
-                            </button>
-                        ))}
-                        <button
-                            type="button"
-                            className="w-full mt-2 text-left px-3 py-2 rounded-md text-sm font-semibold text-brand-600 hover:bg-brand-50 inline-flex items-center gap-1.5"
-                        >
-                            <Plus className="w-3.5 h-3.5" />
-                            Новый класс
-                        </button>
-                    </Card>
+                                <div
+                                    className="w-11 h-11 rounded-md bg-white flex items-center justify-center flex-shrink-0"
+                                    style={{ border: '1px solid #FCA5A5', color: 'var(--danger-500)' }}
+                                >
+                                    <AlertTriangle className="w-[22px] h-[22px]" />
+                                </div>
+                                <div className="flex-1 min-w-[220px]">
+                                    <div className="font-bold text-ink-900 text-sm">
+                                        {summary.atRiskCount}{' '}
+                                        {pluralizeRu(summary.atRiskCount, 'ученик', 'ученика', 'учеников')} под наблюдением
+                                    </div>
+                                    <div className="text-[13px] text-ink-600 mt-0.5">
+                                        Балл упал на 15% за 2 недели или пропустили 2+ дедлайна подряд
+                                    </div>
+                                </div>
+                                <Button variant="secondary" size="sm" onClick={() => toast('Рекомендации скоро')}>
+                                    Рекомендации
+                                </Button>
+                                <Button
+                                    variant="primary"
+                                    size="sm"
+                                    onClick={() => toast('Связь с родителями появится позже')}
+                                >
+                                    Связаться с родителями
+                                </Button>
+                            </div>
+                        )}
 
-                    {/* Students list */}
-                    <div className="col-span-9 max-lg:col-span-1 flex flex-col gap-4">
-                        <SearchBar
-                            value={query}
-                            onChange={e => setQuery(e.target.value)}
-                            placeholder="Найти ученика по имени или email…"
-                            className="w-full"
-                        />
-
-                        {loading ? (
-                            <div className="text-center py-16 text-ink-500">Загрузка…</div>
-                        ) : filtered.length === 0 ? (
-                            <Card padding="lg" className="text-center">
-                                <Users className="w-10 h-10 mx-auto text-ink-300 mb-3" />
-                                <h3 className="font-display font-bold text-ink-900 mb-1">Учеников пока нет</h3>
-                                <p className="text-[13px] text-ink-500 mb-4">Добавьте первого ученика, чтобы начать.</p>
-                                <Button variant="primary" leftIcon={<Plus className="w-4 h-4" />}>Добавить</Button>
+                        <div data-tour="stats" className="grid grid-cols-4 max-lg:grid-cols-2 max-sm:grid-cols-1 gap-4 mb-6">
+                            <Card className="flex flex-col gap-2">
+                                <div className="text-[13px] font-medium text-ink-500 flex items-center gap-2">
+                                    <IconTile color="brand" size="sm"><Users className="w-3.5 h-3.5" /></IconTile>
+                                    Всего учеников
+                                </div>
+                                <div className="font-display text-[28px] font-extrabold text-ink-900 leading-none tnum">
+                                    {summary?.total ?? 0}
+                                </div>
+                                {!!summary?.newThisMonth && (
+                                    <div className="text-xs font-semibold inline-flex items-center gap-1 text-success-700">
+                                        <TrendingUp className="w-3 h-3" />+{summary.newThisMonth} в этом месяце
+                                    </div>
+                                )}
                             </Card>
-                        ) : (
-                            <Card padding="none">
-                                <div className="divide-y divide-ink-100">
-                                    {filtered.map(s => (
-                                        <div
-                                            key={s.id}
-                                            className="px-5 py-3.5 flex items-center gap-3 cursor-pointer hover:bg-ink-50 transition-colors"
-                                            onClick={() => router.push(`/dashboard/students/${s.id}`)}
-                                        >
-                                            <Avatar name={s.name} size="md" src={s.avatar} />
-                                            <div className="flex-1 min-w-0">
-                                                <div className="font-semibold text-[14px] text-ink-900 truncate">{s.name}</div>
-                                                <div className="text-[11px] text-ink-500 truncate">
-                                                    {s.class?.name}{s.email ? ` · ${s.email}` : ''}
-                                                </div>
-                                            </div>
-                                            {s.status === 'pending' && s.accessCode && (
-                                                <Button
-                                                    variant="secondary"
-                                                    size="sm"
-                                                    onClick={(e) => { e.stopPropagation(); copyCode(s.accessCode!) }}
-                                                    leftIcon={copiedCode === s.accessCode ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                                                >
-                                                    {s.accessCode}
-                                                </Button>
-                                            )}
-                                            {s.status === 'pending' && (
-                                                <Badge variant="warning" icon={<AlertTriangle className="w-3 h-3" />}>не активирован</Badge>
-                                            )}
-                                            {s.status === 'active' && (
-                                                <Badge variant="success">активен</Badge>
-                                            )}
-                                        </div>
-                                    ))}
+
+                            <Card className="flex flex-col gap-2">
+                                <div className="text-[13px] font-medium text-ink-500 flex items-center gap-2">
+                                    <IconTile color="success" size="sm"><Trophy className="w-3.5 h-3.5" /></IconTile>
+                                    Средний балл
+                                </div>
+                                <div className="font-display text-[28px] font-extrabold text-ink-900 leading-none tnum">
+                                    {summary?.avgGrade !== null && summary?.avgGrade !== undefined
+                                        ? formatGrade(summary.avgGrade)
+                                        : '—'}
+                                </div>
+                                {summary?.avgGradeDelta !== null && summary?.avgGradeDelta !== undefined ? (
+                                    <div className={`text-xs font-semibold inline-flex items-center gap-1 ${summary.avgGradeDelta >= 0 ? 'text-success-700' : 'text-danger-700'}`}>
+                                        {summary.avgGradeDelta >= 0
+                                            ? <TrendingUp className="w-3 h-3" />
+                                            : <TrendingDown className="w-3 h-3" />}
+                                        {summary.avgGradeDelta >= 0 ? '+' : ''}{formatGrade(summary.avgGradeDelta)} за месяц
+                                    </div>
+                                ) : (
+                                    <div className="text-xs text-ink-500">по всем работам</div>
+                                )}
+                            </Card>
+
+                            <Card className="flex flex-col gap-2">
+                                <div className="text-[13px] font-medium text-ink-500 flex items-center gap-2">
+                                    <IconTile color="info" size="sm"><CheckCircle className="w-3.5 h-3.5" /></IconTile>
+                                    Сдают ДЗ вовремя
+                                </div>
+                                <div className="font-display text-[28px] font-extrabold text-ink-900 leading-none tnum">
+                                    {summary?.onTimeRate !== null && summary?.onTimeRate !== undefined
+                                        ? `${summary.onTimeRate}%`
+                                        : '—'}
+                                </div>
+                                {summary?.onTimeRateDelta !== null && summary?.onTimeRateDelta !== undefined ? (
+                                    <div className={`text-xs font-semibold inline-flex items-center gap-1 ${summary.onTimeRateDelta >= 0 ? 'text-success-700' : 'text-danger-700'}`}>
+                                        {summary.onTimeRateDelta >= 0
+                                            ? <TrendingUp className="w-3 h-3" />
+                                            : <TrendingDown className="w-3 h-3" />}
+                                        {summary.onTimeRateDelta >= 0 ? '+' : ''}{summary.onTimeRateDelta}% за неделю
+                                    </div>
+                                ) : (
+                                    <div className="text-xs text-ink-500">за всё время</div>
+                                )}
+                            </Card>
+
+                            <Card className="flex flex-col gap-2">
+                                <div className="text-[13px] font-medium text-ink-500 flex items-center gap-2">
+                                    <IconTile color="warning" size="sm"><Clock className="w-3.5 h-3.5" /></IconTile>
+                                    Активны на неделе
+                                </div>
+                                <div className="font-display text-[28px] font-extrabold text-ink-900 leading-none tnum">
+                                    {summary?.activeThisWeek ?? 0}
+                                    <span className="text-ink-400"> / {summary?.total ?? 0}</span>
+                                </div>
+                                <div className="text-xs text-ink-500">
+                                    {summary && summary.total > 0
+                                        ? `${Math.round((summary.activeThisWeek / summary.total) * 100)}% вовлечённость`
+                                        : '—'}
                                 </div>
                             </Card>
+                        </div>
+
+                        <div data-tour="search" className="relative mb-3.5">
+                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-400 pointer-events-none" />
+                            <input
+                                value={query}
+                                onChange={(e) => setQuery(e.target.value)}
+                                placeholder="Поиск по имени или email…"
+                                className="w-full h-11 pl-11 pr-4 rounded-full bg-surface border border-ink-200 text-sm text-ink-900 placeholder:text-ink-400 focus:outline-none focus:border-brand-400 focus:ring-[3px] focus:ring-brand-400/15 transition-all"
+                            />
+                        </div>
+
+                        <div data-tour="filters" className="flex items-center gap-2 mb-5 flex-wrap">
+                            <FilterSelect
+                                value={statusFilter}
+                                onChange={(v) => setStatusFilter(v as StatusFilter)}
+                                options={[
+                                    { value: 'all', label: `Все ученики · ${summary?.total ?? 0}` },
+                                    { value: 'risk', label: `🔴 На риске · ${statusCounts.risk}` },
+                                    { value: 'watch', label: `🟡 Снижение · ${statusCounts.watch}` },
+                                    { value: 'good', label: `🟢 В норме · ${statusCounts.good}` },
+                                ]}
+                            />
+                            <FilterSelect
+                                value={classFilter}
+                                onChange={setClassFilter}
+                                options={[
+                                    { value: 'all', label: `Все классы · ${students.length}` },
+                                    ...classOptions.map((c) => ({
+                                        value: c.id,
+                                        label: `${c.name} · ${c.count} ${pluralizeRu(c.count, 'ученик', 'ученика', 'учеников')}`,
+                                    })),
+                                ]}
+                            />
+                            <FilterSelect
+                                value={activityFilter}
+                                onChange={(v) => setActivityFilter(v as ActivityFilter)}
+                                options={[
+                                    { value: 'all', label: 'Активность: все' },
+                                    { value: 'week', label: 'Активные на этой неделе' },
+                                    { value: '3days', label: 'Не выходили 3+ дней' },
+                                    { value: 'month', label: 'Не выходили месяц' },
+                                ]}
+                            />
+                            <FilterSelect
+                                value={sortMode}
+                                onChange={(v) => setSortMode(v as SortMode)}
+                                options={[
+                                    { value: 'name-asc', label: 'Сортировка: имя А–Я' },
+                                    { value: 'name-desc', label: 'Имя Я–А' },
+                                    { value: 'grade-asc', label: 'Балл (низкий → высокий)' },
+                                    { value: 'grade-desc', label: 'Балл (высокий → низкий)' },
+                                    { value: 'activity', label: 'Активность (давно не был)' },
+                                    { value: 'created-new', label: 'Новые сначала' },
+                                ]}
+                            />
+
+                            <div data-tour="view-toggle" className="ml-auto inline-flex bg-ink-100 rounded-full p-1">
+                                <button
+                                    type="button"
+                                    onClick={() => setView('table')}
+                                    className={`h-7 px-3 rounded-full text-[13px] font-semibold inline-flex items-center gap-1.5 transition-all ${
+                                        view === 'table'
+                                            ? 'bg-white text-ink-900 shadow-sm'
+                                            : 'text-ink-600 hover:text-ink-900'
+                                    }`}
+                                >
+                                    <List className="w-3.5 h-3.5" /> Таблица
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setView('cards')}
+                                    className={`h-7 px-3 rounded-full text-[13px] font-semibold inline-flex items-center gap-1.5 transition-all ${
+                                        view === 'cards'
+                                            ? 'bg-white text-ink-900 shadow-sm'
+                                            : 'text-ink-600 hover:text-ink-900'
+                                    }`}
+                                >
+                                    <LayoutGrid className="w-3.5 h-3.5" /> Карточки
+                                </button>
+                            </div>
+                        </div>
+
+                        <div data-tour="content">
+                        {filtered.length === 0 ? (
+                            <Card padding="lg" className="text-center">
+                                <Users className="w-10 h-10 mx-auto text-ink-300 mb-3" />
+                                <h3 className="font-display font-bold text-ink-900 mb-1">
+                                    {students.length === 0 ? 'Учеников пока нет' : 'Никого не нашли'}
+                                </h3>
+                                <p className="text-[13px] text-ink-500 mb-4">
+                                    {students.length === 0
+                                        ? 'Добавьте первого ученика, чтобы начать.'
+                                        : 'Попробуйте смягчить фильтры или поиск.'}
+                                </p>
+                                {students.length === 0 && (
+                                    <Button variant="primary" leftIcon={<Plus className="w-4 h-4" />}>
+                                        Добавить
+                                    </Button>
+                                )}
+                            </Card>
+                        ) : view === 'table' ? (
+                            <Card padding="none" className="overflow-hidden">
+                                <div className="overflow-x-auto">
+                                    <table className="w-full min-w-[900px] border-collapse">
+                                        <thead className="bg-surface-soft border-b border-ink-200">
+                                            <tr>
+                                                <th className="w-10 px-4 py-3 text-left">
+                                                    <input
+                                                        type="checkbox"
+                                                        className="w-4 h-4 accent-brand-500"
+                                                        checked={
+                                                            paged.length > 0 && selected.size === paged.length
+                                                        }
+                                                        onChange={toggleSelectAll}
+                                                    />
+                                                </th>
+                                                <Th>Ученик</Th>
+                                                <Th>Класс</Th>
+                                                <Th numeric>Средний балл</Th>
+                                                <Th numeric>Сдано ДЗ</Th>
+                                                <Th>Статус</Th>
+                                                <Th>Активность</Th>
+                                                <th className="w-[140px]"></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {paged.map((s) => (
+                                                <tr
+                                                    key={s.id}
+                                                    className="border-b border-ink-100 last:border-b-0 hover:bg-surface-soft transition-colors cursor-pointer"
+                                                    onClick={() => router.push(`/dashboard/students/${s.id}`)}
+                                                >
+                                                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                                                        <input
+                                                            type="checkbox"
+                                                            className="w-4 h-4 accent-brand-500"
+                                                            checked={selected.has(s.id)}
+                                                            onChange={() => toggleSelect(s.id)}
+                                                        />
+                                                    </td>
+                                                    <td className="px-4 py-3.5">
+                                                        <div className="flex items-center gap-3">
+                                                            <RiskAvatar name={s.name} risk={s.risk} />
+                                                            <div className="min-w-0">
+                                                                <div className="font-semibold text-ink-900 text-sm truncate">
+                                                                    {s.name}
+                                                                </div>
+                                                                {s.email && (
+                                                                    <div className="text-xs text-ink-500 truncate">
+                                                                        {s.email}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-4 py-3.5">
+                                                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-ink-100 text-ink-700">
+                                                            {s.class.name}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-4 py-3.5 text-right">
+                                                        <GradeCell grade={s.avgGrade} />
+                                                    </td>
+                                                    <td className="px-4 py-3.5 text-right tnum">
+                                                        <span
+                                                            className={`font-semibold ${
+                                                                s.totalAssigned > 0 && s.submissionRate < 0.5
+                                                                    ? 'text-danger-700'
+                                                                    : 'text-ink-900'
+                                                            }`}
+                                                        >
+                                                            {s.totalSubmitted} / {s.totalAssigned}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-4 py-3.5">
+                                                        <RiskBadge risk={s.risk} />
+                                                    </td>
+                                                    <td className="px-4 py-3.5 text-xs text-ink-500">
+                                                        {formatRelativeTime(s.lastActivityAt)}
+                                                    </td>
+                                                    <td className="px-4 py-3.5" onClick={(e) => e.stopPropagation()}>
+                                                        {s.status === 'pending' ? (
+                                                            <div className="flex gap-1.5 justify-end">
+                                                                <button type="button" onClick={() => handleApproveStudent(s.id)}
+                                                                    className="px-3 py-1.5 text-xs font-bold bg-success-600 text-white rounded-md hover:bg-success-700 transition-colors">
+                                                                    Принять
+                                                                </button>
+                                                                <button type="button" onClick={() => handleRejectStudent(s.id, s.name)}
+                                                                    className="px-3 py-1.5 text-xs font-bold border border-danger-300 text-danger-700 rounded-md hover:bg-danger-50 transition-colors">
+                                                                    Отклонить
+                                                                </button>
+                                                            </div>
+                                                        ) : (
+                                                            <RowActions
+                                                                isOpen={openMenu === s.id}
+                                                                onToggle={() =>
+                                                                    setOpenMenu(openMenu === s.id ? null : s.id)
+                                                                }
+                                                                onView={() =>
+                                                                    router.push(`/dashboard/students/${s.id}`)
+                                                                }
+                                                                onDelete={() => handleDeleteStudent(s.id, s.name)}
+                                                            />
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                {totalPages > 1 && (
+                                    <div className="px-4 py-3.5 border-t border-ink-100 flex items-center justify-between flex-wrap gap-3">
+                                        <div className="text-[13px] text-ink-500">
+                                            Показано{' '}
+                                            <strong className="text-ink-900">{paged.length}</strong> из{' '}
+                                            <strong className="text-ink-900">{filtered.length}</strong>
+                                        </div>
+                                        <Pagination
+                                            page={safePage}
+                                            totalPages={totalPages}
+                                            onChange={setPage}
+                                        />
+                                    </div>
+                                )}
+                            </Card>
+                        ) : (
+                            <>
+                                <div className="grid gap-3.5 grid-cols-[repeat(auto-fill,minmax(280px,1fr))]">
+                                    {paged.map((s) => (
+                                        <button
+                                            key={s.id}
+                                            type="button"
+                                            onClick={() => router.push(`/dashboard/students/${s.id}`)}
+                                            className="text-left bg-surface border border-ink-200 rounded-lg p-4 cursor-pointer hover:border-brand-300 hover:shadow-md hover:-translate-y-0.5 transition-all flex flex-col gap-3"
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <RiskAvatar name={s.name} risk={s.risk} large />
+                                                <div className="min-w-0">
+                                                    <div className="font-bold text-ink-900 text-[15px] truncate">
+                                                        {s.name}
+                                                    </div>
+                                                    {s.email && (
+                                                        <div className="text-xs text-ink-500 truncate">
+                                                            {s.email}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <RiskBadge risk={s.risk} className="self-start" />
+                                            <div className="flex justify-between text-[13px]">
+                                                <span className="text-ink-500">Класс</span>
+                                                <span className="text-ink-900 font-semibold">{s.class.name}</span>
+                                            </div>
+                                            <div className="flex justify-between text-[13px]">
+                                                <span className="text-ink-500">Средний балл</span>
+                                                <span className={`font-semibold tnum ${gradeColor(s.avgGrade)}`}>
+                                                    {s.avgGrade !== null ? formatGrade(s.avgGrade) : '—'}
+                                                </span>
+                                            </div>
+                                            <div className="flex justify-between text-[13px]">
+                                                <span className="text-ink-500">Сдано ДЗ</span>
+                                                <span className="font-semibold text-ink-900 tnum">
+                                                    {s.totalSubmitted} / {s.totalAssigned}
+                                                </span>
+                                            </div>
+                                            <div className="flex justify-between text-[13px]">
+                                                <span className="text-ink-500">Активность</span>
+                                                <span className="font-semibold text-ink-900">
+                                                    {formatRelativeTime(s.lastActivityAt)}
+                                                </span>
+                                            </div>
+                                        </button>
+                                    ))}
+                                </div>
+                                {totalPages > 1 && (
+                                    <div className="mt-4 flex items-center justify-between flex-wrap gap-3">
+                                        <div className="text-[13px] text-ink-500">
+                                            Показано{' '}
+                                            <strong className="text-ink-900">{paged.length}</strong> из{' '}
+                                            <strong className="text-ink-900">{filtered.length}</strong>
+                                        </div>
+                                        <Pagination
+                                            page={safePage}
+                                            totalPages={totalPages}
+                                            onChange={setPage}
+                                        />
+                                    </div>
+                                )}
+                            </>
+                        )}
+                        </div>
+                    </>
+                )}
+            </div>
+
+            {selected.size > 0 && (
+                <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 inline-flex items-center gap-4 bg-ink-900 text-white rounded-full px-6 py-3 shadow-2xl">
+                    <span className="text-sm font-semibold whitespace-nowrap">
+                        Выбрано {selected.size}
+                    </span>
+                    <button
+                        type="button"
+                        onClick={() => toast('Массовые действия скоро')}
+                        className="text-xs font-semibold bg-white/15 hover:bg-white/25 px-3 py-1.5 rounded-full transition-colors"
+                    >
+                        Действия
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setSelected(new Set())}
+                        className="w-6 h-6 rounded-full flex items-center justify-center text-white/60 hover:text-white hover:bg-white/15 transition-colors text-lg leading-none"
+                        aria-label="Снять выделение"
+                    >
+                        ×
+                    </button>
+                </div>
+            )}
+
+            {showAddStudent && (
+                <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={() => setShowAddStudent(false)}>
+                    <div className="bg-surface rounded-t-2xl sm:rounded-2xl p-6 w-full sm:max-w-md shadow-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+                        <h2 className="text-lg font-bold text-ink-900 mb-5">Добавить ученика</h2>
+                        <form onSubmit={handleCreateStudent} className="space-y-4">
+                            <div>
+                                <label className="block text-[12px] font-semibold text-ink-700 mb-1.5 uppercase tracking-wider">Имя и фамилия</label>
+                                <input type="text" required value={studentName} onChange={e => setStudentName(e.target.value)}
+                                    placeholder="Иван Иванов"
+                                    className="w-full h-10 px-3 rounded-md border border-ink-200 text-sm text-ink-900 focus:outline-none focus:border-brand-400 focus:ring-[3px] focus:ring-brand-400/15" />
+                            </div>
+                            <div>
+                                <label className="block text-[12px] font-semibold text-ink-700 mb-1.5 uppercase tracking-wider">Email</label>
+                                <input type="email" required value={studentEmail} onChange={e => setStudentEmail(e.target.value)}
+                                    placeholder="ivan@example.com"
+                                    className="w-full h-10 px-3 rounded-md border border-ink-200 text-sm text-ink-900 focus:outline-none focus:border-brand-400 focus:ring-[3px] focus:ring-brand-400/15" />
+                            </div>
+                            <div>
+                                <label className="block text-[12px] font-semibold text-ink-700 mb-1.5 uppercase tracking-wider">Телефон <span className="font-normal text-ink-400">(необязательно)</span></label>
+                                <input type="tel" value={studentPhone} onChange={e => setStudentPhone(e.target.value)}
+                                    placeholder="+7 999 123-45-67"
+                                    className="w-full h-10 px-3 rounded-md border border-ink-200 text-sm text-ink-900 focus:outline-none focus:border-brand-400 focus:ring-[3px] focus:ring-brand-400/15" />
+                            </div>
+                            <div>
+                                <label className="block text-[12px] font-semibold text-ink-700 mb-1.5 uppercase tracking-wider">Пароль</label>
+                                <input type="password" required minLength={6} value={studentPassword} onChange={e => setStudentPassword(e.target.value)}
+                                    placeholder="Минимум 6 символов"
+                                    className="w-full h-10 px-3 rounded-md border border-ink-200 text-sm text-ink-900 focus:outline-none focus:border-brand-400 focus:ring-[3px] focus:ring-brand-400/15" />
+                            </div>
+                            <div>
+                                <label className="block text-[12px] font-semibold text-ink-700 mb-1.5 uppercase tracking-wider">Класс</label>
+                                <select required value={studentClassId} onChange={e => setStudentClassId(e.target.value)}
+                                    className="w-full h-10 px-3 rounded-md border border-ink-200 text-sm text-ink-900 focus:outline-none focus:border-brand-400 focus:ring-[3px] focus:ring-brand-400/15 bg-surface">
+                                    <option value="">Выберите класс</option>
+                                    {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                </select>
+                            </div>
+                            <div className="flex gap-2 pt-2">
+                                <button type="button" onClick={() => setShowAddStudent(false)}
+                                    className="flex-1 h-10 rounded-md border border-ink-200 text-sm font-semibold text-ink-700 hover:bg-ink-50 transition-colors">
+                                    Отмена
+                                </button>
+                                <button type="submit" disabled={addingStudent}
+                                    className="flex-1 h-10 rounded-md bg-brand-600 hover:bg-brand-700 text-white text-sm font-bold transition-colors disabled:opacity-60">
+                                    {addingStudent ? 'Добавляем…' : 'Добавить'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {showInviteModal && (
+                <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={() => setShowInviteModal(false)}>
+                    <div className="bg-surface rounded-t-2xl sm:rounded-2xl p-6 w-full sm:max-w-md shadow-2xl" onClick={e => e.stopPropagation()}>
+                        <h3 className="text-lg font-bold text-ink-900 mb-1">Пригласить ученика</h3>
+                        <p className="text-[13px] text-ink-500 mb-4">Создайте ссылку-приглашение. Ученик зарегистрируется по ней и будет закреплён за вами.</p>
+                        {!inviteUrl ? (
+                            <>
+                                <label className="block text-[12px] font-semibold text-ink-700 mb-1.5 uppercase tracking-wider">Класс <span className="font-normal text-ink-400">(необязательно)</span></label>
+                                <select value={inviteClassId} onChange={e => setInviteClassId(e.target.value)}
+                                    className="w-full h-10 px-3 rounded-md border border-ink-200 text-sm text-ink-900 mb-4 bg-surface focus:outline-none focus:border-brand-400">
+                                    <option value="">Без привязки к классу</option>
+                                    {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                </select>
+                                <div className="flex gap-2">
+                                    <button type="button" onClick={() => setShowInviteModal(false)}
+                                        className="flex-1 h-10 rounded-md border border-ink-200 text-sm font-semibold text-ink-700 hover:bg-ink-50 transition-colors">
+                                        Отмена
+                                    </button>
+                                    <button type="button" onClick={handleCreateInvite} disabled={inviteLoading}
+                                        className="flex-1 h-10 rounded-md bg-brand-600 hover:bg-brand-700 text-white text-sm font-bold transition-colors disabled:opacity-60">
+                                        {inviteLoading ? 'Создаём…' : 'Создать ссылку'}
+                                    </button>
+                                </div>
+                            </>
+                        ) : (
+                            <>
+                                <div className="flex gap-2 mb-4">
+                                    <input readOnly value={inviteUrl}
+                                        className="flex-1 h-10 px-3 rounded-md border border-ink-200 text-sm text-ink-700 font-mono bg-surface-soft" />
+                                    <button type="button"
+                                        onClick={() => { navigator.clipboard.writeText(inviteUrl); setInviteCopied(true); setTimeout(() => setInviteCopied(false), 2000) }}
+                                        className="px-4 h-10 rounded-md bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold transition-colors">
+                                        {inviteCopied ? 'Скопировано!' : 'Копировать'}
+                                    </button>
+                                </div>
+                                <button type="button" onClick={() => setShowInviteModal(false)}
+                                    className="w-full h-10 rounded-md border border-ink-200 text-sm font-semibold text-ink-700 hover:bg-ink-50 transition-colors">
+                                    Закрыть
+                                </button>
+                            </>
                         )}
                     </div>
                 </div>
-            </div>
+            )}
+
+            {confirmModal && (
+                <div className="fixed inset-0 bg-black/40 z-[100] flex items-center justify-center p-4">
+                    <div className="bg-surface rounded-2xl shadow-2xl w-full max-w-sm p-6">
+                        <div className="w-11 h-11 rounded-full bg-danger-100 flex items-center justify-center mx-auto mb-4">
+                            <AlertTriangle className="w-5 h-5 text-danger-600" />
+                        </div>
+                        <p className="text-sm text-ink-700 text-center mb-5 leading-relaxed">{confirmModal.msg}</p>
+                        <div className="flex gap-2">
+                            <button type="button" onClick={() => setConfirmModal(null)}
+                                className="flex-1 h-10 rounded-md border border-ink-200 text-sm font-semibold text-ink-700 hover:bg-ink-50 transition-colors">
+                                Отмена
+                            </button>
+                            <button type="button" onClick={() => { confirmModal.onConfirm(); setConfirmModal(null) }}
+                                className="flex-1 h-10 rounded-md bg-danger-600 hover:bg-danger-700 text-white text-sm font-bold transition-colors">
+                                Подтвердить
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </>
     )
 }
 
+function Th({ children, numeric }: { children: React.ReactNode; numeric?: boolean }) {
+    return (
+        <th
+            className={`px-4 py-3 text-[11px] font-bold uppercase tracking-wider text-ink-500 whitespace-nowrap ${numeric ? 'text-right' : 'text-left'}`}
+        >
+            {children}
+        </th>
+    )
+}
+
+function FilterSelect({
+    value,
+    onChange,
+    options,
+}: {
+    value: string
+    onChange: (v: string) => void
+    options: { value: string; label: string }[]
+}) {
+    return (
+        <div className="relative inline-flex items-center">
+            <select
+                value={value}
+                onChange={(e) => onChange(e.target.value)}
+                className="h-9 pl-3.5 pr-9 appearance-none rounded-full bg-surface border border-ink-200 text-[13.5px] font-semibold text-ink-700 cursor-pointer hover:bg-ink-50 hover:border-ink-300 hover:text-ink-900 focus:outline-none focus:border-brand-300 focus:ring-[3px] focus:ring-brand-400/15 transition-all"
+            >
+                {options.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                    </option>
+                ))}
+            </select>
+            <span
+                className="absolute right-3.5 top-1/2 w-2 h-2 pointer-events-none"
+                style={{
+                    transform: 'translateY(-65%) rotate(45deg)',
+                    borderRight: '1.5px solid var(--ink-500)',
+                    borderBottom: '1.5px solid var(--ink-500)',
+                }}
+            />
+        </div>
+    )
+}
+
+function RiskAvatar({ name, risk, large }: { name: string; risk: RiskLevel; large?: boolean }) {
+    const initials = nameToInitials(name)
+    const size = large ? 'w-11 h-11 text-[15px]' : 'w-9 h-9 text-[13px]'
+    const gradient =
+        risk === 'risk'
+            ? 'linear-gradient(135deg, #FCA5A5, #DC2626)'
+            : risk === 'watch'
+              ? 'linear-gradient(135deg, #FDE68A, #D97706)'
+              : 'linear-gradient(135deg, var(--brand-300), var(--brand-500))'
+    return (
+        <span
+            className={`inline-flex items-center justify-center rounded-full text-white font-bold flex-shrink-0 ${size}`}
+            style={{ background: gradient }}
+            aria-hidden
+        >
+            {initials}
+        </span>
+    )
+}
+
+function GradeCell({ grade }: { grade: number | null }) {
+    if (grade === null) return <span className="text-ink-400">—</span>
+    const pct = Math.max(4, Math.min(100, (grade / 5) * 100))
+    const barColor =
+        grade < 3.5
+            ? 'var(--danger-500)'
+            : grade < 4
+              ? 'var(--warning-500)'
+              : 'var(--success-500)'
+    return (
+        <span className="inline-flex items-center gap-2 tnum">
+            <span className="w-16 h-1.5 bg-ink-100 rounded-full overflow-hidden">
+                <i
+                    className="block h-full rounded-full"
+                    style={{ width: `${pct}%`, background: barColor }}
+                />
+            </span>
+            <strong className="text-ink-900">{formatGrade(grade)}</strong>
+        </span>
+    )
+}
+
+function RiskBadge({ risk, className }: { risk: RiskLevel; className?: string }) {
+    const map: Record<RiskLevel, { label: string; bg: string; color: string; dot: string }> = {
+        good:    { label: 'В норме',     bg: 'var(--success-50)', color: 'var(--success-700)', dot: 'var(--success-500)' },
+        watch:   { label: 'Снижение',    bg: 'var(--warning-50)', color: 'var(--warning-700)', dot: 'var(--warning-500)' },
+        risk:    { label: 'Риск',        bg: 'var(--danger-50)',  color: 'var(--danger-700)',  dot: 'var(--danger-500)'  },
+        unknown: { label: 'Нет данных',  bg: 'var(--ink-100)',    color: 'var(--ink-600)',     dot: 'var(--ink-400)'     },
+    }
+    const conf = map[risk]
+    return (
+        <span
+            className={`inline-flex items-center gap-1.5 text-[12.5px] font-semibold px-2.5 py-1 rounded-full whitespace-nowrap ${className || ''}`}
+            style={{ background: conf.bg, color: conf.color }}
+        >
+            <span className="w-[7px] h-[7px] rounded-full" style={{ background: conf.dot }} />
+            {conf.label}
+        </span>
+    )
+}
+
+function RowActions({
+    isOpen,
+    onToggle,
+    onView,
+    onDelete,
+}: {
+    isOpen: boolean
+    onToggle: () => void
+    onView: () => void
+    onDelete: () => void
+}) {
+    const stub = (label: string) => () => {
+        toast(`${label} — появится позже`)
+        onToggle()
+    }
+    return (
+        <div className="flex gap-1 justify-end items-center" data-row-menu>
+            <button
+                type="button"
+                title="Сообщение"
+                onClick={stub('Сообщение ученику')}
+                className="w-8 h-8 rounded-sm flex items-center justify-center text-ink-500 hover:bg-ink-100 hover:text-ink-900 transition-colors"
+            >
+                <MessageCircle className="w-[15px] h-[15px]" />
+            </button>
+            <button
+                type="button"
+                title="Назначить материал"
+                onClick={stub('Назначить материал')}
+                className="w-8 h-8 rounded-sm flex items-center justify-center text-ink-500 hover:bg-ink-100 hover:text-ink-900 transition-colors"
+            >
+                <FilePlus2 className="w-[15px] h-[15px]" />
+            </button>
+            <div className="relative">
+                <button
+                    type="button"
+                    title="Меню"
+                    onClick={(e) => {
+                        e.stopPropagation()
+                        onToggle()
+                    }}
+                    className="w-8 h-8 rounded-sm flex items-center justify-center text-ink-500 hover:bg-ink-100 hover:text-ink-900 transition-colors"
+                >
+                    <MoreHorizontal className="w-[15px] h-[15px]" />
+                </button>
+                {isOpen && (
+                    <div
+                        className="absolute top-full right-0 mt-1 bg-surface border border-ink-200 rounded-md p-1.5 min-w-[220px] z-50"
+                        style={{ boxShadow: '0 12px 32px rgba(15,23,42,0.12)' }}
+                    >
+                        <MenuItem
+                            icon={<User className="w-3.5 h-3.5" />}
+                            label="Открыть профиль"
+                            onClick={() => {
+                                onView()
+                                onToggle()
+                            }}
+                        />
+                        <MenuItem
+                            icon={<CalendarPlus className="w-3.5 h-3.5" />}
+                            label="Запланировать урок"
+                            onClick={stub('Планировщик уроков')}
+                        />
+                        <MenuItem
+                            icon={<BarChart3 className="w-3.5 h-3.5" />}
+                            label="Статистика"
+                            onClick={() => {
+                                onView()
+                                onToggle()
+                            }}
+                        />
+                        <MenuItem
+                            icon={<MessageCircle className="w-3.5 h-3.5" />}
+                            label="Написать родителям"
+                            onClick={stub('Письмо родителям')}
+                        />
+                        <div className="h-px bg-ink-100 my-1 mx-0.5" />
+                        <MenuItem
+                            danger
+                            icon={<UserX className="w-3.5 h-3.5" />}
+                            label="Удалить ученика"
+                            onClick={() => { onDelete(); onToggle() }}
+                        />
+                    </div>
+                )}
+            </div>
+        </div>
+    )
+}
+
+function MenuItem({
+    icon,
+    label,
+    onClick,
+    danger,
+}: {
+    icon: React.ReactNode
+    label: string
+    onClick: () => void
+    danger?: boolean
+}) {
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            className={`flex items-center gap-2.5 w-full px-2.5 py-2 rounded-sm text-[13px] font-medium text-left transition-colors ${
+                danger
+                    ? 'text-danger-700 hover:bg-danger-50'
+                    : 'text-ink-700 hover:bg-ink-100 hover:text-ink-900'
+            }`}
+        >
+            {icon}
+            {label}
+        </button>
+    )
+}
+
+function Pagination({
+    page,
+    totalPages,
+    onChange,
+}: {
+    page: number
+    totalPages: number
+    onChange: (p: number) => void
+}) {
+    const pages = buildPageList(page, totalPages)
+    return (
+        <div className="flex gap-1 items-center">
+            <PageButton disabled={page === 1} onClick={() => onChange(page - 1)}>
+                <ChevronLeft className="w-3.5 h-3.5" />
+            </PageButton>
+            {pages.map((p, i) =>
+                p === '…' ? (
+                    <span key={`d-${i}`} className="px-1.5 text-ink-400">
+                        …
+                    </span>
+                ) : (
+                    <PageButton key={p} active={p === page} onClick={() => onChange(p)}>
+                        {p}
+                    </PageButton>
+                ),
+            )}
+            <PageButton disabled={page === totalPages} onClick={() => onChange(page + 1)}>
+                <ChevronRight className="w-3.5 h-3.5" />
+            </PageButton>
+        </div>
+    )
+}
+
+function PageButton({
+    children,
+    active,
+    disabled,
+    onClick,
+}: {
+    children: React.ReactNode
+    active?: boolean
+    disabled?: boolean
+    onClick?: () => void
+}) {
+    return (
+        <button
+            type="button"
+            disabled={disabled}
+            onClick={onClick}
+            className={`h-8 min-w-[32px] px-2 rounded-sm border text-[13px] font-semibold inline-flex items-center justify-center transition-all ${
+                active
+                    ? 'bg-brand-50 border-brand-200 text-brand-700'
+                    : 'border-transparent text-ink-600 hover:bg-ink-100 hover:text-ink-900'
+            } ${disabled ? 'opacity-40 cursor-not-allowed' : ''}`}
+        >
+            {children}
+        </button>
+    )
+}
+
+function buildPageList(current: number, total: number): (number | '…')[] {
+    if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1)
+    const set = new Set<number>([1, total, current - 1, current, current + 1])
+    const list = Array.from(set)
+        .filter((p) => p >= 1 && p <= total)
+        .sort((a, b) => a - b)
+    const out: (number | '…')[] = []
+    for (let i = 0; i < list.length; i++) {
+        if (i > 0 && list[i] - list[i - 1] > 1) out.push('…')
+        out.push(list[i])
+    }
+    return out
+}
+
+function nameToInitials(name: string): string {
+    const parts = name.trim().split(/\s+/)
+    if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase()
+    return (parts[0]?.slice(0, 2) || '?').toUpperCase()
+}
+
+function formatGrade(g: number): string {
+    return g.toFixed(1).replace('.', ',')
+}
+
+function gradeColor(g: number | null): string {
+    if (g === null) return 'text-ink-400'
+    if (g < 3.5) return 'text-danger-700'
+    if (g < 4) return 'text-warning-700'
+    return 'text-success-700'
+}
+
+function formatRelativeTime(iso: string | null): string {
+    if (!iso) return 'нет данных'
+    const d = new Date(iso).getTime()
+    const now = Date.now()
+    const diff = now - d
+    const min = 60 * 1000
+    const hour = 60 * min
+    const day = 24 * hour
+    if (diff < hour) return `${Math.max(1, Math.floor(diff / min))} мин назад`
+    if (diff < day) {
+        const h = Math.floor(diff / hour)
+        return `${h} ч назад`
+    }
+    const days = Math.floor(diff / day)
+    if (days === 0) return 'сегодня'
+    if (days === 1) return 'вчера'
+    if (days < 30) return `${days} ${pluralizeRu(days, 'день', 'дня', 'дней')} назад`
+    const months = Math.floor(days / 30)
+    return `${months} ${pluralizeRu(months, 'месяц', 'месяца', 'месяцев')} назад`
+}
+
 function pluralizeRu(n: number, one: string, few: string, many: string) {
-    const mod10 = n % 10, mod100 = n % 100
+    const mod10 = n % 10
+    const mod100 = n % 100
     if (mod10 === 1 && mod100 !== 11) return one
     if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return few
     return many

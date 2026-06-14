@@ -627,6 +627,185 @@ ${textAnswer || '(текстовый ответ отсутствует)'}${formD
     return { feedback: text, grade: null };
   }
 
+  /**
+   * Лента «Проверка» для V2: список submissions учителя с фильтрами/сортировкой.
+   * status: 'pending' — сданные, но без оценки; 'done' — проверенные.
+   */
+  async getQueue(
+    teacherId: string,
+    opts: {
+      status: 'pending' | 'done';
+      classId: string | null;
+      type: string | null;
+      search: string | null;
+      sort: 'urgent' | 'overdue' | 'new' | 'name' | 'class';
+    },
+  ) {
+    const submissions = await this.prisma.submission.findMany({
+      where: {
+        assignment: {
+          OR: [
+            { class: { teacherId } },
+            { student: { class: { teacherId } } },
+          ],
+          ...(opts.classId ? { classId: opts.classId } : {}),
+        },
+        ...(opts.status === 'pending' ? { grade: null } : { grade: { not: null } }),
+      },
+      include: {
+        student: { select: { id: true, name: true, avatar: true, class: { select: { id: true, name: true } } } },
+        assignment: {
+          include: {
+            class: { select: { id: true, name: true } },
+            lesson: { select: { title: true, topic: true } },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+    });
+
+    const filtered = submissions.filter((s) => {
+      if (opts.search) {
+        const q = opts.search.toLowerCase();
+        const hay = `${s.student?.name || ''} ${s.assignment?.lesson?.title || ''}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+
+    const now = Date.now();
+    const items = filtered.map((s) => {
+      const due = s.assignment?.dueDate ? new Date(s.assignment.dueDate).getTime() : null;
+      const isOverdue = !!(due && due < now && s.grade === null);
+      return {
+        id: s.id,
+        createdAt: s.createdAt,
+        grade: s.grade,
+        student: s.student
+          ? {
+              id: s.student.id,
+              name: s.student.name,
+              avatar: s.student.avatar,
+              className: s.student.class?.name || s.assignment?.class?.name || null,
+            }
+          : null,
+        assignment: {
+          id: s.assignmentId,
+          title: s.assignment?.lesson?.title || 'Без названия',
+          topic: s.assignment?.lesson?.topic || null,
+          dueDate: s.assignment?.dueDate,
+          className: s.assignment?.class?.name || null,
+        },
+        isOverdue,
+      };
+    });
+
+    items.sort((a, b) => {
+      switch (opts.sort) {
+        case 'overdue':
+          return (b.isOverdue ? 1 : 0) - (a.isOverdue ? 1 : 0);
+        case 'name':
+          return (a.student?.name || '').localeCompare(b.student?.name || '');
+        case 'class':
+          return (a.assignment.className || '').localeCompare(b.assignment.className || '');
+        case 'new':
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        case 'urgent':
+        default: {
+          const ad = a.assignment.dueDate ? new Date(a.assignment.dueDate).getTime() : Infinity;
+          const bd = b.assignment.dueDate ? new Date(b.assignment.dueDate).getTime() : Infinity;
+          return ad - bd;
+        }
+      }
+    });
+
+    return { items, total: items.length };
+  }
+
+  /**
+   * Готовые шаблоны фидбэка для V2-страницы /dashboard/grading/[id].
+   * Возвращаем статикой — не хранится в БД.
+   */
+  getFeedbackTemplates() {
+    return {
+      templates: [
+        { id: 'great', label: 'Отлично', text: 'Великолепная работа! Все ответы верны, видна вдумчивая работа над темой.' },
+        { id: 'good', label: 'Хорошо', text: 'Хороший результат. Несколько мелких ошибок — обрати внимание на разбор.' },
+        { id: 'mixed', label: 'Есть над чем поработать', text: 'Часть ответов верна, но есть пробелы. Повтори материал и попробуй ещё раз.' },
+        { id: 'redo', label: 'Нужна доработка', text: 'Большинство ответов неверные. Давай разберём ошибки вместе на следующем уроке.' },
+      ],
+    };
+  }
+
+  /**
+   * Детальная карточка работы для V2 /dashboard/grading/[id].
+   */
+  async getSubmissionDetail(teacherId: string, submissionId: string) {
+    const submission = await this.prisma.submission.findUnique({
+      where: { id: submissionId },
+      include: {
+        student: { select: { id: true, name: true, avatar: true, email: true, class: { select: { id: true, name: true } } } },
+        assignment: {
+          include: {
+            class: { select: { id: true, name: true, teacherId: true } },
+            student: { include: { class: { select: { teacherId: true } } } },
+            lesson: {
+              select: {
+                title: true,
+                topic: true,
+                generations: {
+                  select: { id: true, generationType: true, outputData: true },
+                  orderBy: { createdAt: 'desc' },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!submission) throw new NotFoundException('Submission not found');
+
+    const ownerId =
+      submission.assignment.class?.teacherId ||
+      submission.assignment.student?.class?.teacherId;
+    if (ownerId !== teacherId) throw new ForbiddenException('Access denied');
+
+    return {
+      id: submission.id,
+      status: submission.status,
+      grade: submission.grade,
+      feedback: submission.feedback,
+      content: submission.content,
+      attachments: submission.attachments,
+      formData: (submission as any).formData ?? null,
+      createdAt: submission.createdAt,
+      updatedAt: submission.updatedAt,
+      student: submission.student
+        ? {
+            id: submission.student.id,
+            name: submission.student.name,
+            avatar: submission.student.avatar,
+            email: submission.student.email,
+            className: submission.student.class?.name || null,
+          }
+        : null,
+      assignment: {
+        id: submission.assignmentId,
+        title: submission.assignment.lesson.title,
+        topic: submission.assignment.lesson.topic,
+        dueDate: submission.assignment.dueDate,
+        className: submission.assignment.class?.name || null,
+        generations: submission.assignment.lesson.generations.map((g) => ({
+          id: g.id,
+          type: g.generationType,
+          outputData: g.outputData,
+        })),
+      },
+    };
+  }
+
   async getTeacherDashboard(teacherId: string) {
     const classes = await this.prisma.class.findMany({
       where: { teacherId },

@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '@/lib/api/client'
 
-interface ReferralCode {
+export interface ReferralCode {
   code: string
   link: string
   usageCount: number
@@ -9,7 +9,25 @@ interface ReferralCode {
   createdAt: string
 }
 
-interface ReferralStats {
+export interface ReferralTier {
+  id: string
+  label: string
+  required: number
+  current: number
+  status: 'unlocked' | 'progress' | 'locked'
+}
+
+export interface ReferralStats {
+  // V2 UI
+  code: string | null
+  shareUrl: string | null
+  totalInvited: number
+  monthlyDelta: number
+  exclusiveMaterials: number
+  webinarsAvailable: number
+  nextWebinarAt: string | null
+  tiers: ReferralTier[]
+  // Legacy
   totalReferrals: number
   activated: number
   converted: number
@@ -25,17 +43,18 @@ interface ReferralStats {
   }>
 }
 
-interface ReferralItem {
+export interface ReferralListItem {
   id: string
-  referredName: string
-  referredType: 'teacher' | 'student'
-  referralType: string
-  status: 'registered' | 'activated' | 'converted'
-  rewardGranted: boolean
-  conversionRewardGranted: boolean
-  createdAt: string
-  activatedAt: string | null
-  convertedAt: string | null
+  name: string
+  registeredAt: string
+  materialsCreated: number
+  status: 'master' | 'active' | 'pending'
+  contributedTiers: string[]
+}
+
+export interface ReferralListResponse {
+  items: ReferralListItem[]
+  total: number
 }
 
 export function useReferralCode() {
@@ -64,7 +83,7 @@ export function useReferralsList() {
   return useQuery({
     queryKey: ['referrals-list'],
     queryFn: async () => {
-      const res = await apiClient.get<{ success: boolean; referrals: ReferralItem[] }>('/referrals/list')
+      const res = await apiClient.get<{ success: boolean; referrals: ReferralListResponse }>('/referrals/list')
       return res.data.referrals
     },
     staleTime: 1000 * 60 * 2,
@@ -83,6 +102,7 @@ export function useCreateReferralCode() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['referral-code'] })
+      queryClient.invalidateQueries({ queryKey: ['referral-stats'] })
     },
   })
 }

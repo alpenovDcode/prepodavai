@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import useSWR, { mutate as globalMutate } from 'swr'
-import { Bell, Check, CheckCheck, MailOpen } from 'lucide-react'
+import Link from 'next/link'
+import { Bell, CheckCheck, MailOpen, ArrowRight } from 'lucide-react'
 import { apiClient } from '@/lib/api/client'
 import { cn } from '@/lib/utils/cn'
 
@@ -111,6 +112,17 @@ export function NotificationBellV2({ audience }: NotificationBellV2Props) {
                         )}
                     </div>
 
+                    {audience === 'student' && (
+                        <div className="px-4 py-2 border-b border-ink-100">
+                            <Link
+                                href="/student/notifications"
+                                onClick={() => setOpen(false)}
+                                className="text-[12px] font-semibold text-brand-600 hover:text-brand-700 inline-flex items-center gap-1"
+                            >
+                                Все уведомления <ArrowRight className="w-3 h-3" />
+                            </Link>
+                        </div>
+                    )}
                     <div className="max-h-[420px] overflow-y-auto">
                         {!notifications ? (
                             <div className="px-4 py-8 text-center text-ink-500 text-[13px]">Загрузка…</div>

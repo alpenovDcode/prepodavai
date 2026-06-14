@@ -8,15 +8,13 @@ import {
 } from 'lucide-react'
 
 const STATUS_MAP: Record<string, { label: string; color: string; icon: typeof Clock }> = {
+  pending:  { label: 'Ещё не начал(а)', color: 'text-gray-500 bg-gray-50', icon: Clock },
+  active:   { label: 'Активный',         color: 'text-green-600 bg-green-50', icon: CheckCircle },
+  master:   { label: 'Опытный',          color: 'text-purple-600 bg-purple-50', icon: CreditCard },
+  // legacy
   registered: { label: 'Зарегистрирован', color: 'text-gray-500 bg-gray-50', icon: Clock },
-  activated: { label: 'Активирован', color: 'text-green-600 bg-green-50', icon: CheckCircle },
-  converted: { label: 'Оплатил подписку', color: 'text-purple-600 bg-purple-50', icon: CreditCard },
-}
-
-const REFERRAL_TYPE_MAP: Record<string, string> = {
-  teacher_teacher: 'Учитель',
-  teacher_student: 'Ученик',
-  student_student: 'Ученик',
+  activated:  { label: 'Активирован',     color: 'text-green-600 bg-green-50', icon: CheckCircle },
+  converted:  { label: 'Конверсия',       color: 'text-purple-600 bg-purple-50', icon: CreditCard },
 }
 
 const MILESTONE_LABELS: Record<string, string> = {
@@ -325,7 +323,7 @@ export default function ReferralsPage() {
           <div className="flex justify-center py-8">
             <Loader2 className="w-6 h-6 text-gray-400 animate-spin" />
           </div>
-        ) : !referrals || referrals.length === 0 ? (
+        ) : !referrals || referrals.items.length === 0 ? (
           <div className="text-center py-8">
             <Users className="w-12 h-12 text-gray-300 mx-auto mb-3" />
             <p className="text-gray-500 font-medium">Пока нет приглашённых</p>
@@ -333,7 +331,7 @@ export default function ReferralsPage() {
           </div>
         ) : (
           <div className="space-y-3">
-            {referrals.map((ref) => {
+            {referrals.items.map((ref) => {
               const statusInfo = STATUS_MAP[ref.status] || STATUS_MAP.registered
               const StatusIcon = statusInfo.icon
               return (
@@ -343,14 +341,14 @@ export default function ReferralsPage() {
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="w-9 h-9 rounded-full bg-primary-100 flex items-center justify-center text-primary-700 font-bold text-sm shrink-0">
-                      {ref.referredName[0]?.toUpperCase() || '?'}
+                      {ref.name[0]?.toUpperCase() || '?'}
                     </div>
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold text-gray-900 truncate">{ref.referredName}</p>
+                      <p className="text-sm font-semibold text-gray-900 truncate">{ref.name}</p>
                       <p className="text-xs text-gray-400">
-                        {REFERRAL_TYPE_MAP[ref.referralType] || ref.referralType}
+                        \u0423\u0447\u0438\u0442\u0435\u043B\u044C
                         {' \u00B7 '}
-                        {new Date(ref.createdAt).toLocaleDateString('ru-RU')}
+                        {new Date(ref.registeredAt).toLocaleDateString('ru-RU')}
                       </p>
                     </div>
                   </div>

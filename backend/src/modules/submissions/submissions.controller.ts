@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Body, Param, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Body, Param, Query, UseGuards, Request } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { SubmissionsService } from './submissions.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -47,6 +47,34 @@ export class SubmissionsController {
   @Get('teacher-dashboard')
   teacherDashboard(@Request() req) {
     return this.submissionsService.getTeacherDashboard(req.user.id);
+  }
+
+  @Get('queue')
+  queue(
+    @Request() req,
+    @Query('status') status?: 'pending' | 'done',
+    @Query('classId') classId?: string,
+    @Query('type') type?: string,
+    @Query('search') search?: string,
+    @Query('sort') sort?: 'urgent' | 'overdue' | 'new' | 'name' | 'class',
+  ) {
+    return this.submissionsService.getQueue(req.user.id, {
+      status: status || 'pending',
+      classId: classId || null,
+      type: type || null,
+      search: search || null,
+      sort: sort || 'urgent',
+    });
+  }
+
+  @Get('feedback-templates')
+  feedbackTemplates() {
+    return this.submissionsService.getFeedbackTemplates();
+  }
+
+  @Get(':id/detail')
+  detail(@Request() req, @Param('id') id: string) {
+    return this.submissionsService.getSubmissionDetail(req.user.id, id);
   }
 
   @Post(':id/ai-feedback')

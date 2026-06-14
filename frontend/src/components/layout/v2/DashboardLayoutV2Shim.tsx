@@ -1,6 +1,6 @@
 'use client'
 
-import { ReactNode } from 'react'
+import { ReactNode, useEffect, useState } from 'react'
 import { useUser } from '@/lib/hooks/useUser'
 import { DashboardLayoutV2 } from './DashboardLayoutV2'
 import { getTeacherNavSections } from './Sidebar'
@@ -24,17 +24,19 @@ export function DashboardLayoutV2Shim({ children }: { children: ReactNode }) {
 }
 
 function DashboardLayoutV2Inner({ children }: { children: ReactNode }) {
+    // useUser зависит от localStorage → SSR и первый клиентский рендер отдают
+    // разные initials/fullName, что ломает гидрацию. Mount-gate подаёт в Sidebar
+    // одни и те же безопасные плейсхолдеры на SSR + первый клиентский рендер,
+    // а реальные данные подменяет уже после mount.
+    const [mounted, setMounted] = useState(false)
+    useEffect(() => { setMounted(true) }, [])
     const { fullName, initials, user } = useUser()
     const sections = getTeacherNavSections()
+    const userProps = mounted
+        ? { name: fullName, initials, plan: user?.email }
+        : { name: 'Загрузка…', initials: '…', plan: undefined }
     return (
-        <DashboardLayoutV2
-            sections={sections}
-            user={{
-                name: fullName,
-                initials,
-                plan: user?.email,
-            }}
-        >
+        <DashboardLayoutV2 sections={sections} user={userProps}>
             {children}
         </DashboardLayoutV2>
     )

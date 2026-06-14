@@ -5,6 +5,7 @@ import { MessageSquare, Send, Loader2, Bot, User, Trash2, Sparkles } from 'lucid
 import { useGenerations } from '@/lib/hooks/useGenerations'
 // import GenerationCostBadge from '@/components/workspace/GenerationCostBadge'
 import DOMPurify from 'isomorphic-dompurify'
+import AssistantV2 from '@/components/v2/AssistantV2'
 
 interface ChatMessage {
     id: string
@@ -61,6 +62,7 @@ const suggestionsByPersona: Record<string, string[]> = {
 }
 
 export default function AssistantGenerator() {
+    if (process.env.NEXT_PUBLIC_REDESIGN_V2 === 'true') return <AssistantV2 />
     const [messages, setMessages] = useState<ChatMessage[]>([
         {
             id: 'welcome',

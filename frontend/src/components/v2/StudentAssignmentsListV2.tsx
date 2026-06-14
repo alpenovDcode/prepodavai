@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import useSWR from 'swr'
-import { FileText, HelpCircle, BookOpen, Clock, CheckCircle, Sparkles, AlertCircle } from 'lucide-react'
+import { FileText, HelpCircle, BookOpen, Clock, CheckCircle, Sparkles, AlertCircle, Compass } from 'lucide-react'
 import { apiClient } from '@/lib/api/client'
 import { Topbar } from '@/components/layout/v2/Topbar'
 import { useStudentMobileMenu } from '@/components/layout/v2/StudentLayoutV2'
@@ -12,6 +12,8 @@ import { Badge } from '@/components/ui/v2/Badge'
 import { IconTile } from '@/components/ui/v2/IconTile'
 import { Tabs } from '@/components/ui/v2/Tabs'
 import { SearchBar } from '@/components/ui/v2/SearchBar'
+import { Button } from '@/components/ui/v2/Button'
+import { useTour } from '@/lib/tour/useTour'
 
 const fetcher = (url: string) => apiClient.get(url).then((r: any) => r.data)
 
@@ -27,6 +29,7 @@ type Filter = 'all' | 'pending' | 'submitted' | 'done'
 export default function StudentAssignmentsListV2() {
     const router = useRouter()
     const menu = useStudentMobileMenu()
+    const tour = useTour()
     const [query, setQuery] = useState('')
     const [filter, setFilter] = useState<Filter>('all')
 
@@ -59,13 +62,19 @@ export default function StudentAssignmentsListV2() {
                 onMobileMenuToggle={menu.toggle}
                 notificationsAudience="student"
                 hideSearch
+                actions={
+                    <Button variant="ghost" size="sm" leftIcon={<Compass size={14} />} onClick={tour.start}>
+                        Тур
+                    </Button>
+                }
             />
 
             <div className="max-w-[1240px] w-full mx-auto p-8 max-md:p-4">
-                <div className="mb-4">
+                <div data-tour="search" className="mb-4">
                     <SearchBar value={query} onChange={e => setQuery(e.target.value)} placeholder="Найти задание…" className="w-full sm:w-[420px]" />
                 </div>
 
+                <div data-tour="tabs">
                 <Tabs
                     variant="pill"
                     items={[
@@ -78,6 +87,7 @@ export default function StudentAssignmentsListV2() {
                     onChange={(k) => setFilter(k as Filter)}
                     className="mb-6"
                 />
+                </div>
 
                 {isLoading ? (
                     <div className="text-center py-16 text-ink-500">Загрузка…</div>
@@ -88,7 +98,7 @@ export default function StudentAssignmentsListV2() {
                         <p className="text-[13px] text-ink-500">Учитель скоро добавит задания.</p>
                     </Card>
                 ) : (
-                    <div className="flex flex-col gap-2">
+                    <div data-tour="list" className="flex flex-col gap-2">
                         {visible.map(a => <AssignmentRow key={a.id} a={a} onOpen={() => router.push(`/student/assignments/${a.id}`)} />)}
                     </div>
                 )}

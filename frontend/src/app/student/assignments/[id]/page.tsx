@@ -1,5 +1,7 @@
 'use client'
 
+import StudentAssignmentV2 from '@/components/v2/StudentAssignmentV2'
+import { StudentLayoutV2 } from '@/components/layout/v2/StudentLayoutV2'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { apiClient } from '@/lib/api/client'
 import { useRouter } from 'next/navigation'
@@ -117,9 +119,20 @@ function getGameTypeLabel(t?: string) {
 }
 
 
-// ─── Основная страница ────────────────────────────────────────────────────────
+// ─── Роутер V2 / legacy ───────────────────────────────────────────────────────
 
-export default function StudentAssignmentPage({ params }: { params: { id: string } }) {
+export default function Page({ params }: { params: { id: string } }) {
+  if (process.env.NEXT_PUBLIC_REDESIGN_V2 === 'true') {
+    return (
+      <StudentLayoutV2>
+        <StudentAssignmentV2 assignmentId={params.id} />
+      </StudentLayoutV2>
+    )
+  }
+  return <StudentAssignmentPage params={params} />
+}
+
+function StudentAssignmentPage({ params }: { params: { id: string } }) {
   const router = useRouter()
   const [assignment, setAssignment] = useState<Assignment | null>(null)
   const [loading, setLoading] = useState(true)
