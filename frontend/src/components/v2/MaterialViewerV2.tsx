@@ -621,7 +621,7 @@ export default function MaterialViewerV2({ lessonId, generationId, isEditable = 
                 }
             />
 
-            <div className="max-w-[1100px] mx-auto px-8 py-6 max-md:px-4">
+            <div className="max-w-[1320px] mx-auto px-8 py-6 max-md:px-4">
                 {/* Hero */}
                 <Card padding="lg" className="mb-5 print-hide">
                     {/* Type chip */}
@@ -760,10 +760,7 @@ export default function MaterialViewerV2({ lessonId, generationId, isEditable = 
 
                 {/* Preview frame */}
                 {srcDoc ? (
-                    <div className={cn(
-                        'relative bg-white border border-ink-200 rounded-lg overflow-hidden mx-auto',
-                        'max-w-[860px] shadow-sm print-frame',
-                    )}>
+                    <div className="relative bg-white border border-ink-200 rounded-lg overflow-hidden shadow-sm print-frame">
                         {iframeLoading && (
                             <div className="absolute inset-0 z-10 flex items-center justify-center bg-white">
                                 <div className="flex flex-col items-center gap-3">
@@ -777,7 +774,7 @@ export default function MaterialViewerV2({ lessonId, generationId, isEditable = 
                             srcDoc={srcDoc}
                             title="material-preview"
                             className="w-full bg-white border-0 print-frame"
-                            style={{ minHeight: '760px', height: '78vh' }}
+                            style={{ minHeight: '600px', height: '80vh' }}
                             sandbox="allow-scripts allow-same-origin allow-popups allow-modals"
                         />
                     </div>
