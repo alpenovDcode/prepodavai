@@ -347,28 +347,26 @@ export default function WorksheetGeneratorV2(): React.ReactElement {
                     </div>
 
                     {/* Preview area */}
-                    <div className="flex-1 min-h-0 bg-ink-50 overflow-hidden" data-tour="preview">
+                    <div className="flex-1 min-h-0 overflow-hidden" data-tour="preview">
                         {isGenerating ? (
-                            <div className="h-full p-6 flex items-center justify-center">
+                            <div className="h-full flex items-center justify-center">
                                 <GenerationProgress active={isGenerating} title="Создаём рабочий лист…" accentClassName="bg-brand-500" estimatedSeconds={30} />
                             </div>
                         ) : srcDoc ? (
-                            <div className="h-full rounded-[inherit] overflow-hidden">
-                                <iframe
-                                    ref={iframeRef}
-                                    srcDoc={srcDoc}
-                                    className="w-full h-full bg-white"
-                                    title="worksheet-preview"
-                                    sandbox="allow-scripts allow-same-origin allow-forms"
-                                    style={editMode ? { boxShadow: 'inset 0 0 0 3px #FF7E58' } : undefined}
-                                    onLoad={() => {
-                                        const doc = iframeRef.current?.contentDocument
-                                        if (doc && editMode) doc.body.contentEditable = 'true'
-                                    }}
-                                />
-                            </div>
+                            <iframe
+                                ref={iframeRef}
+                                srcDoc={srcDoc}
+                                className="w-full h-full bg-white border-0"
+                                title="worksheet-preview"
+                                sandbox="allow-scripts allow-same-origin allow-forms"
+                                style={editMode ? { boxShadow: 'inset 0 0 0 3px #FF7E58' } : undefined}
+                                onLoad={() => {
+                                    const doc = iframeRef.current?.contentDocument
+                                    if (doc && editMode) doc.body.contentEditable = 'true'
+                                }}
+                            />
                         ) : (
-                            <div className="h-full flex flex-col items-center justify-center text-center p-10 border-2 border-dashed border-ink-200 rounded-lg bg-surface text-ink-500 min-h-[400px]">
+                            <div className="h-full flex flex-col items-center justify-center text-center p-10 text-ink-500">
                                 <div className="w-[72px] h-[72px] rounded-lg bg-ink-100 inline-flex items-center justify-center text-ink-400 mb-4">
                                     <FileText className="w-9 h-9" />
                                 </div>

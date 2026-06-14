@@ -401,28 +401,26 @@ export default function VocabularyV2() {
                         )}
                     </div>
 
-                    <div data-tour="preview" className="flex-1 min-h-0 bg-ink-50 overflow-hidden p-6 max-md:p-3">
+                    <div data-tour="preview" className="flex-1 min-h-0 overflow-hidden">
                         {isGenerating ? (
                             <div className="h-full flex items-center justify-center">
                                 <GenerationProgress active={isGenerating} title="Генерируем словарь…" accentClassName="bg-brand-500" estimatedSeconds={25} />
                             </div>
                         ) : srcDoc ? (
-                            <div className="h-full rounded-lg overflow-hidden bg-white border border-ink-200">
-                                <iframe
-                                    ref={iframeRef}
-                                    srcDoc={srcDoc}
-                                    className="w-full h-full bg-white"
-                                    title="vocabulary-preview"
-                                    sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
-                                    style={editMode ? { boxShadow: 'inset 0 0 0 3px #FF7E58' } : undefined}
-                                    onLoad={() => {
-                                        const doc = iframeRef.current?.contentDocument
-                                        if (doc && editMode) doc.body.contentEditable = 'true'
-                                    }}
-                                />
-                            </div>
+                            <iframe
+                                ref={iframeRef}
+                                srcDoc={srcDoc}
+                                className="w-full h-full bg-white border-0"
+                                title="vocabulary-preview"
+                                sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
+                                style={editMode ? { boxShadow: 'inset 0 0 0 3px #FF7E58' } : undefined}
+                                onLoad={() => {
+                                    const doc = iframeRef.current?.contentDocument
+                                    if (doc && editMode) doc.body.contentEditable = 'true'
+                                }}
+                            />
                         ) : (
-                            <div className="h-full flex flex-col items-center justify-center text-center p-10 border-2 border-dashed border-ink-200 rounded-lg bg-surface text-ink-500 min-h-[400px]">
+                            <div className="h-full flex flex-col items-center justify-center text-center p-10 text-ink-500">
                                 <div className="w-[72px] h-[72px] rounded-lg bg-ink-100 inline-flex items-center justify-center text-ink-400 mb-4">
                                     <BookMarked className="w-9 h-9" />
                                 </div>

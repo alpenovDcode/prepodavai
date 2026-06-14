@@ -141,7 +141,34 @@ export default function AnalyticsPageV2() {
               ))}
             </div>
             <button
-              onClick={() => alert('Скоро')}
+              onClick={() => {
+                if (!ov) return
+                const rows: string[][] = [['Показатель', 'Значение']]
+                rows.push(['Средняя оценка', String(ov.kpi.avgGrade ?? '—')])
+                rows.push(['Активные ученики', String(ov.kpi.activeStudents)])
+                rows.push(['Всего учеников', String(ov.kpi.totalStudents)])
+                rows.push(['Сдано вовремя %', String(ov.kpi.onTimePct ?? '—')])
+                rows.push(['Вовлечённость %', String(ov.kpi.engagementPct)])
+                rows.push(['Под наблюдением', String(ov.kpi.riskCount)])
+                rows.push([])
+                rows.push(['Классы', 'Ср. оценка', 'Вовремя %', 'Учеников'])
+                for (const c of (ov.classComparison ?? [])) {
+                  rows.push([c.name, String(c.avgGrade ?? '—'), String(c.onTimePct ?? '—'), String(c.studentsCount)])
+                }
+                rows.push([])
+                rows.push(['Ученики', 'Класс', 'Ср. оценка', 'Сдано %'])
+                for (const s of [...(ov.bestStudents ?? []), ...(ov.watchStudents ?? [])]) {
+                  rows.push([s.name, s.className, String(s.avgGrade), String(s.submittedPct)])
+                }
+                const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n')
+                const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
+                const url = URL.createObjectURL(blob)
+                const a = document.createElement('a')
+                a.href = url
+                a.download = `analytics_${range}.csv`
+                a.click()
+                URL.revokeObjectURL(url)
+              }}
               className="h-8 px-3 flex items-center gap-1.5 rounded-lg text-[13px] font-semibold text-ink-700 bg-surface border border-ink-200 hover:bg-ink-50 hover:border-ink-300 transition-colors"
             >
               <Download className="w-3.5 h-3.5" />

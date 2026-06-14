@@ -195,6 +195,8 @@ export default function GradingPageV2() {
   const [saving, setSaving] = useState(false)
   const [rightOpen, setRightOpen] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [aiDrafts, setAiDrafts] = useState<Record<string, { feedback: string; grade: number | null }>>({})
+  const [batchAiLoading, setBatchAiLoading] = useState(false)
   const commentRef = useRef<HTMLTextAreaElement>(null)
 
   const debouncedSearch = useDebounce(search, 250)
@@ -239,7 +241,12 @@ export default function GradingPageV2() {
 
   // Auto-load AI suggestion when detail is loaded and no AI text yet
   useEffect(() => {
-    if (detail && !detail.grade && !aiText && !aiLoading) {
+    if (!detail) return
+    const cached = aiDrafts[detail.id]
+    if (cached) {
+      setAiText(cached.feedback)
+      if (cached.grade !== null && !detail.grade) setSelectedGrade(cached.grade)
+    } else if (!detail.grade && !aiText && !aiLoading) {
       handleAiSuggest()
     }
   }, [detail?.id])
@@ -291,11 +298,49 @@ export default function GradingPageV2() {
       const data = res.data as { feedback: string; grade: number | null }
       setAiText(data.feedback)
       if (data.grade && !selectedGrade) setSelectedGrade(data.grade)
+      setAiDrafts(prev => ({ ...prev, [selectedId]: data }))
     } catch {
       showToast('Ошибка ИИ-предложения', 'error')
     } finally {
       setAiLoading(false)
     }
+  }
+
+  async function handleCheckAll() {
+    const pendingItems = pendingData?.items ?? []
+    if (!pendingItems.length) {
+      showToast('Нет работ для проверки', 'info')
+      return
+    }
+    setBatchAiLoading(true)
+    let processed = 0
+    for (const item of pendingItems) {
+      if (aiDrafts[item.id]) { processed++; continue }
+      try {
+        const res = await apiClient.post(`/submissions/${item.id}/ai-feedback`, {})
+        setAiDrafts(prev => ({ ...prev, [item.id]: res.data as { feedback: string; grade: number | null } }))
+        processed++
+      } catch { /* пропускаем, продолжаем */ }
+    }
+    showToast(`ИИ разобрал ${processed} ${processed === 1 ? 'работу' : processed < 5 ? 'работы' : 'работ'}`, 'success')
+    setBatchAiLoading(false)
+  }
+
+  async function handleBulkAiGrade() {
+    const ids = [...selectedIds]
+    if (!ids.length) return
+    setBatchAiLoading(true)
+    let processed = 0
+    for (const id of ids) {
+      if (aiDrafts[id]) { processed++; continue }
+      try {
+        const res = await apiClient.post(`/submissions/${id}/ai-feedback`, {})
+        setAiDrafts(prev => ({ ...prev, [id]: res.data as { feedback: string; grade: number | null } }))
+        processed++
+      } catch { /* пропускаем */ }
+    }
+    showToast(`ИИ оценил ${processed} работ`, 'success')
+    setBatchAiLoading(false)
   }
 
   async function handleSave(andNext = false) {
@@ -356,17 +401,14 @@ export default function GradingPageV2() {
             </button>
             <button
               type="button"
-              onClick={() => showToast('В разработке', 'info')}
-              className="h-8 px-3 inline-flex items-center gap-1.5 rounded-full bg-ink-100 text-ink-700 text-[12px] font-semibold hover:bg-ink-200 transition-colors"
+              onClick={handleCheckAll}
+              disabled={batchAiLoading || !pendingData?.items.length}
+              className="h-8 px-3 inline-flex items-center gap-1.5 rounded-full bg-ink-100 text-ink-700 text-[12px] font-semibold hover:bg-ink-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <Sparkles className="w-3.5 h-3.5" /> Проверить всё ИИ
-            </button>
-            <button
-              type="button"
-              onClick={() => showToast('В разработке', 'info')}
-              className="h-8 px-3 inline-flex items-center gap-1.5 rounded-full bg-[var(--brand-500)] text-white text-[12px] font-semibold hover:bg-[var(--brand-600)] transition-colors"
-            >
-              <Zap className="w-3.5 h-3.5" /> Авто-проверка
+              {batchAiLoading
+                ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                : <Sparkles className="w-3.5 h-3.5" />}
+              Проверить всё ИИ
             </button>
           </div>
         }
@@ -439,10 +481,14 @@ export default function GradingPageV2() {
               <div className="flex-1" />
               <button
                 type="button"
-                onClick={() => showToast('В разработке', 'info')}
-                className="flex items-center gap-1 bg-white border border-[var(--brand-200)] px-2.5 py-1 rounded-full text-[12px] font-semibold text-[var(--brand-700)] hover:bg-[var(--brand-50)] transition-colors"
+                onClick={handleBulkAiGrade}
+                disabled={batchAiLoading}
+                className="flex items-center gap-1 bg-white border border-[var(--brand-200)] px-2.5 py-1 rounded-full text-[12px] font-semibold text-[var(--brand-700)] hover:bg-[var(--brand-50)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <Sparkles className="w-3 h-3" /> Оценить ИИ
+                {batchAiLoading
+                  ? <Loader2 className="w-3 h-3 animate-spin" />
+                  : <Sparkles className="w-3 h-3" />}
+                Оценить ИИ
               </button>
               <button
                 type="button"

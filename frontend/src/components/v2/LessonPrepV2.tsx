@@ -200,9 +200,9 @@ export default function LessonPrepV2() {
     const currentSectionHasAnswers = useMemo(() => SECTIONS_WITH_ANSWERS.has(currentResultType || ''), [currentResultType])
 
     return (
-        <div className="flex flex-col h-full overflow-hidden">
+        <div className="flex-1 min-h-0 flex flex-col">
             {/* Mobile tabs */}
-            <div className="border-b border-ink-200 bg-surface px-4 flex lg:hidden">
+            <div className="lg:hidden border-b border-ink-200 bg-surface px-4 pt-2">
                 <Tabs
                     variant="underline"
                     items={[
@@ -214,14 +214,19 @@ export default function LessonPrepV2() {
                 />
             </div>
 
-            <div className="flex flex-1 overflow-hidden min-h-0">
-                {/* ─── Sidebar ─── */}
-                <div className={cn(
-                    'bg-surface border-r border-ink-200 overflow-y-auto flex-shrink-0',
-                    'hidden lg:flex lg:flex-col lg:w-[300px]',
-                    mobileTab === 'config' && '!flex flex-col w-full lg:w-[300px]',
-                )}>
-                    <div className="p-5 space-y-5">
+            <div className="flex-1 min-h-0 grid grid-cols-12 gap-4 p-6 max-md:p-3 max-lg:grid-cols-1">
+                {/* ─── Config card ─── */}
+                <Card padding="none" className={cn('col-span-4 max-lg:col-span-1 flex flex-col overflow-hidden', mobileTab !== 'config' && 'max-lg:hidden')}>
+                    <div className="flex items-center gap-3.5 px-5 py-4 border-b border-ink-100 flex-shrink-0">
+                        <span className="w-11 h-11 rounded-md inline-flex items-center justify-center flex-shrink-0" style={{ background: '#FFF7ED', color: '#C2410C' }}>
+                            <Sparkles className="w-[22px] h-[22px]" />
+                        </span>
+                        <div>
+                            <h2 className="font-display font-bold text-[18px] text-ink-900">Вау-урок</h2>
+                            <div className="text-[12px] text-ink-500 mt-0.5">Полный комплект сразу · ~60 секунд</div>
+                        </div>
+                    </div>
+                    <div className="flex-1 overflow-y-auto p-5 space-y-5">
                         {/* Предмет */}
                         <Field label="Предмет">
                             <input
@@ -347,13 +352,10 @@ export default function LessonPrepV2() {
                             {isGenerating ? 'Создаём…' : 'Сгенерировать'}
                         </Button>
                     </div>
-                </div>
+                </Card>
 
-                {/* ─── Preview ─── */}
-                <div className={cn(
-                    'flex-1 flex flex-col min-w-0 bg-surface-soft overflow-hidden',
-                    mobileTab === 'config' && 'hidden lg:flex',
-                )}>
+                {/* ─── Preview card ─── */}
+                <Card padding="none" className={cn('col-span-8 max-lg:col-span-1 flex flex-col h-[calc(100vh-200px)] max-lg:h-[calc(100vh-220px)] overflow-hidden', mobileTab !== 'preview' && 'max-lg:hidden')}>
                     {/* Toolbar */}
                     {hasResult && (
                         <div className="flex items-center gap-2 px-4 py-2.5 border-b border-ink-200 bg-surface flex-wrap flex-shrink-0">
@@ -448,7 +450,7 @@ export default function LessonPrepV2() {
                     )}
 
                     {/* Iframe / empty */}
-                    <div className="flex-1 overflow-hidden relative">
+                    <div className="flex-1 overflow-hidden">
                         {!localContent && !isGenerating ? (
                             <div className="h-full flex flex-col items-center justify-center text-center p-8">
                                 <div className="w-16 h-16 rounded-full bg-brand-50 flex items-center justify-center mb-4">
@@ -473,7 +475,7 @@ export default function LessonPrepV2() {
                             />
                         )}
                     </div>
-                </div>
+                </Card>
             </div>
 
             {showPdfModal && activeGenerationId && results.length > 0 && (

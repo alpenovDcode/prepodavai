@@ -369,6 +369,51 @@ export default function SettingsPageV2() {
     const [saving, setSaving] = useState(false)
     const [uploadingAvatar, setUploadingAvatar] = useState(false)
     const fileRef = useRef<HTMLInputElement>(null)
+    const [exportingData, setExportingData] = useState(false)
+    const [clearingHistory, setClearingHistory] = useState(false)
+
+    const handleExportData = async () => {
+        setExportingData(true)
+        try {
+            const [meRes, histRes] = await Promise.all([
+                apiClient.get('/users/me'),
+                apiClient.get('/generate/history?limit=1000'),
+            ])
+            const exportPayload = {
+                exportedAt: new Date().toISOString(),
+                profile: meRes.data?.user ?? null,
+                materials: histRes.data?.items ?? [],
+            }
+            const blob = new Blob([JSON.stringify(exportPayload, null, 2)], { type: 'application/json' })
+            const url = URL.createObjectURL(blob)
+            const a = document.createElement('a')
+            a.href = url
+            a.download = `prepodavai_export_${new Date().toISOString().slice(0, 10)}.json`
+            a.click()
+            URL.revokeObjectURL(url)
+        } catch {
+            toast.error('Не удалось экспортировать данные')
+        } finally {
+            setExportingData(false)
+        }
+    }
+
+    const handleClearHistory = async () => {
+        if (!window.confirm('Все материалы из ИИ Генератора будут удалены навсегда. Продолжить?')) return
+        setClearingHistory(true)
+        try {
+            const res = await apiClient.get('/generate/history?limit=1000')
+            const items: Array<{ id: string }> = res.data?.items ?? []
+            for (const item of items) {
+                await apiClient.delete(`/generate/${item.id}`)
+            }
+            toast.success(`Удалено материалов: ${items.length}`)
+        } catch {
+            toast.error('Ошибка при очистке истории')
+        } finally {
+            setClearingHistory(false)
+        }
+    }
 
     const [profile, setProfile] = useState<ProfileState>({
         firstName: '', lastName: '', email: '', phone: '',
@@ -735,12 +780,13 @@ export default function SettingsPageV2() {
                             {[
                                 {
                                     title: 'Экспортировать все данные',
-                                    desc: 'JSON со всеми материалами, оценками и историей',
+                                    desc: 'JSON со всеми материалами и профилем',
                                     action: (
                                         <Button
                                             variant="secondary" size="sm" leftIcon={<Download size={14} />}
-                                            onClick={() => toast('Эта функция скоро будет доступна', { icon: 'ℹ️' })}
-                                        >Экспорт</Button>
+                                            onClick={handleExportData}
+                                            disabled={exportingData}
+                                        >{exportingData ? 'Готовим…' : 'Экспорт'}</Button>
                                     ),
                                 },
                                 {
@@ -750,8 +796,9 @@ export default function SettingsPageV2() {
                                         <Button
                                             variant="secondary" size="sm" leftIcon={<Trash2 size={14} />}
                                             className="text-danger-700"
-                                            onClick={() => toast('Эта функция скоро будет доступна', { icon: 'ℹ️' })}
-                                        >Очистить</Button>
+                                            onClick={handleClearHistory}
+                                            disabled={clearingHistory}
+                                        >{clearingHistory ? 'Удаляем…' : 'Очистить'}</Button>
                                     ),
                                 },
                                 {

@@ -325,10 +325,29 @@ function NotifCard({
 const LIST_URL  = '/notifications/student'
 const COUNT_URL = '/notifications/student/unread-count'
 
+const PREFS_KEY = 'student_notif_prefs'
+const DEFAULT_PREFS = { assignments: true, grades: true, deadlines: true, achievements: true }
+
+function loadPrefs() {
+    try { return { ...DEFAULT_PREFS, ...JSON.parse(localStorage.getItem(PREFS_KEY) ?? '{}') } } catch { return DEFAULT_PREFS }
+}
+
 export default function StudentNotificationsV2() {
     const router = useRouter()
     const menu = useStudentMobileMenu()
     const [filter, setFilter] = useState<FilterType>('all')
+    const [showSettings, setShowSettings] = useState(false)
+    const [prefs, setPrefs] = useState(DEFAULT_PREFS)
+
+    useEffect(() => { setPrefs(loadPrefs()) }, [])
+
+    const togglePref = (key: keyof typeof DEFAULT_PREFS) => {
+        setPrefs(prev => {
+            const next = { ...prev, [key]: !prev[key] }
+            localStorage.setItem(PREFS_KEY, JSON.stringify(next))
+            return next
+        })
+    }
 
     const { data: raw, isLoading } = useSWR<Notification[]>(LIST_URL, fetcher, {
         refreshInterval: 30_000,
@@ -439,8 +458,11 @@ export default function StudentNotificationsV2() {
                 actions={
                     <button
                         type="button"
-                        onClick={() => toast('Настройки уведомлений скоро появятся', { icon: '⚙️' })}
-                        className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-md text-[13px] font-semibold text-ink-600 hover:bg-ink-100 hover:text-ink-900 transition-colors"
+                        onClick={() => setShowSettings(s => !s)}
+                        className={cn(
+                            'inline-flex items-center gap-1.5 h-9 px-3.5 rounded-md text-[13px] font-semibold transition-colors',
+                            showSettings ? 'bg-ink-100 text-ink-900' : 'text-ink-600 hover:bg-ink-100 hover:text-ink-900',
+                        )}
                     >
                         <Settings2 className="w-3.5 h-3.5" />
                         Настроить
@@ -449,6 +471,41 @@ export default function StudentNotificationsV2() {
             />
 
             <div className="max-w-[860px] w-full mx-auto p-8 max-md:p-4">
+
+                {/* Settings panel */}
+                {showSettings && (
+                    <div className="mb-6 bg-white border border-ink-200 rounded-xl p-5">
+                        <h3 className="font-display font-bold text-[15px] text-ink-900 mb-4">Типы уведомлений</h3>
+                        <div className="space-y-3">
+                            {([
+                                { key: 'assignments', label: 'Новые задания', icon: '📚' },
+                                { key: 'grades', label: 'Выставленные оценки', icon: '⭐' },
+                                { key: 'deadlines', label: 'Напоминания о дедлайнах', icon: '⏰' },
+                                { key: 'achievements', label: 'Достижения', icon: '🏆' },
+                            ] as const).map(({ key, label, icon }) => (
+                                <label key={key} className="flex items-center justify-between cursor-pointer py-1">
+                                    <span className="flex items-center gap-2 text-[14px] text-ink-700">
+                                        <span>{icon}</span>{label}
+                                    </span>
+                                    <button
+                                        type="button"
+                                        onClick={() => togglePref(key)}
+                                        className={cn(
+                                            'relative w-10 h-5 rounded-full transition-colors',
+                                            prefs[key] ? 'bg-brand-500' : 'bg-ink-200',
+                                        )}
+                                    >
+                                        <span className={cn(
+                                            'absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform',
+                                            prefs[key] ? 'translate-x-5' : 'translate-x-0.5',
+                                        )} />
+                                    </button>
+                                </label>
+                            ))}
+                        </div>
+                        <p className="text-[11px] text-ink-400 mt-3">Фильтрует отображение уведомлений в этом разделе.</p>
+                    </div>
+                )}
 
                 {/* Summary cards */}
                 <div

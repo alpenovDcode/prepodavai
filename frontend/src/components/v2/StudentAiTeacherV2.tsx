@@ -162,9 +162,12 @@ export default function StudentAiTeacherV2() {
   const [isSending, setIsSending] = useState(false)
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [showMenu, setShowMenu] = useState(false)
+  const [isListening, setIsListening] = useState(false)
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const recognitionRef = useRef<any>(null)
 
   const { data: chatsData, mutate: mutateChats } = useSWR<{ items: ChatItem[] }>('/ai-chats', fetcher)
   const chats = chatsData?.items ?? []
@@ -298,6 +301,47 @@ export default function StudentAiTeacherV2() {
       setIsSending(false)
     }
   }, [activeId, isSending])
+
+  const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+    const MAX_TEXT_SIZE = 50_000
+    const textTypes = ['text/plain', 'text/csv', 'text/markdown', 'application/json', 'text/html']
+    if (textTypes.some(t => file.type.startsWith(t)) && file.size <= MAX_TEXT_SIZE) {
+      const text = await file.text()
+      setInput(prev => prev ? `${prev}\n\n[Файл: ${file.name}]\n${text}` : `[Файл: ${file.name}]\n${text}`)
+    } else {
+      setInput(prev => prev ? `${prev} [Прикреплён файл: ${file.name}]` : `[Файл: ${file.name}]`)
+    }
+    textareaRef.current?.focus()
+  }, [])
+
+  const handleVoiceInput = useCallback(() => {
+    const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    if (!SpeechRec) {
+      toast.error('Голосовой ввод не поддерживается в этом браузере')
+      return
+    }
+    if (isListening && recognitionRef.current) {
+      recognitionRef.current.stop()
+      return
+    }
+    const rec = new SpeechRec()
+    rec.lang = 'ru-RU'
+    rec.interimResults = false
+    rec.maxAlternatives = 1
+    recognitionRef.current = rec
+    rec.onstart = () => setIsListening(true)
+    rec.onend = () => { setIsListening(false); recognitionRef.current = null }
+    rec.onerror = () => { setIsListening(false); recognitionRef.current = null; toast.error('Ошибка записи голоса') }
+    rec.onresult = (ev: any) => {
+      const text = ev.results[0][0].transcript
+      setInput(prev => prev ? `${prev} ${text}` : text)
+      textareaRef.current?.focus()
+    }
+    rec.start()
+  }, [isListening])
 
   const handleKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -574,6 +618,7 @@ export default function StudentAiTeacherV2() {
 
             {/* composer-input */}
             <div data-tour="composer" className="max-w-[760px] mx-auto bg-white border border-ink-300 rounded-xl p-1 flex items-end gap-2 shadow-sm focus-within:border-brand-400 focus-within:ring-[3px] focus-within:ring-brand-400/10 transition-all">
+              <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileSelect} accept=".txt,.md,.csv,.json,.html" />
               <textarea
                 ref={textareaRef}
                 value={input}
@@ -588,16 +633,19 @@ export default function StudentAiTeacherV2() {
                 <button
                   type="button"
                   title="Прикрепить файл"
-                  onClick={() => toast('В разработке', { icon: '📎' })}
+                  onClick={() => fileInputRef.current?.click()}
                   className="w-9 h-9 inline-flex items-center justify-center rounded-md text-ink-500 hover:bg-ink-100 hover:text-ink-900 transition-colors"
                 >
                   <Paperclip className="w-[18px] h-[18px]" />
                 </button>
                 <button
                   type="button"
-                  title="Голосовой ввод"
-                  onClick={() => toast('В разработке', { icon: '🎤' })}
-                  className="w-9 h-9 inline-flex items-center justify-center rounded-md text-ink-500 hover:bg-ink-100 hover:text-ink-900 transition-colors"
+                  title={isListening ? 'Остановить запись' : 'Голосовой ввод'}
+                  onClick={handleVoiceInput}
+                  className={cn(
+                    'w-9 h-9 inline-flex items-center justify-center rounded-md transition-colors',
+                    isListening ? 'bg-danger-50 text-danger-700 animate-pulse' : 'text-ink-500 hover:bg-ink-100 hover:text-ink-900',
+                  )}
                 >
                   <Mic className="w-[18px] h-[18px]" />
                 </button>

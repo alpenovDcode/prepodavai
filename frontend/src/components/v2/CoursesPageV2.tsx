@@ -207,12 +207,14 @@ function FilterPill({
 // ── Контекстное меню карточки ─────────────────────────────────────────────────
 
 function CardMenu({
-    genId, type, onDelete, onRename,
+    genId, type, onDelete, onRename, onDuplicated, onAssign,
 }: {
     genId: string
     type: string
     onDelete: () => void
     onRename: () => void
+    onDuplicated?: () => void
+    onAssign?: (genId: string) => void
 }) {
     const router = useRouter()
     const [open, setOpen] = useState(false)
@@ -235,6 +237,42 @@ function CardMenu({
         fn()
     }
 
+    const handleDuplicate = async () => {
+        try {
+            await apiClient.post(`/generate/${genId}/duplicate`)
+            toast.success('Материал скопирован')
+            onDuplicated?.()
+        } catch {
+            toast.error('Не удалось дублировать')
+        }
+    }
+
+    const handleAssignClick = () => {
+        onAssign?.(genId)
+    }
+
+    const handleDownloadPptx = async () => {
+        try {
+            const response = await apiClient.post(`/generate/${genId}/presentation/pptx`, {}, { responseType: 'blob' })
+            const url = URL.createObjectURL(response.data)
+            const a = document.createElement('a')
+            a.href = url
+            a.download = 'presentation.pptx'
+            document.body.appendChild(a)
+            a.click()
+            document.body.removeChild(a)
+            URL.revokeObjectURL(url)
+        } catch {
+            toast.error('Ошибка скачивания')
+        }
+    }
+
+    const handleCopyGameLink = async () => {
+        const url = `${window.location.origin}/api/games/${genId}`
+        await navigator.clipboard.writeText(url)
+        toast.success('Ссылка скопирована')
+    }
+
     return (
         <div ref={ref} className="relative" onClick={stop}>
             <button
@@ -249,10 +287,10 @@ function CardMenu({
                     <MenuItem icon={<Eye />} onClick={action(() => router.push(`/dashboard/courses/${genId}/materials/${genId}`))}>Открыть</MenuItem>
                     <MenuItem icon={<Edit3 />} onClick={action(() => router.push(`/dashboard/courses/${genId}/materials/${genId}`))}>Редактировать</MenuItem>
                     <MenuItem icon={<PenLine />} onClick={action(() => onRename())}>Переименовать</MenuItem>
-                    <MenuItem icon={<Copy />} onClick={action(() => toast('Дублирование — скоро будет'))}>Дублировать</MenuItem>
+                    <MenuItem icon={<Copy />} onClick={action(handleDuplicate)}>Дублировать</MenuItem>
                     {type === 'presentation' ? (
                         <>
-                            <MenuItem icon={<Download />} onClick={action(() => toast('Скачать PPTX — скоро'))}>Скачать PPTX</MenuItem>
+                            <MenuItem icon={<Download />} onClick={action(handleDownloadPptx)}>Скачать PPTX</MenuItem>
                             <MenuItem icon={<Download />} onClick={action(() => window.open(`/api/generate/${genId}/pdf`, '_blank'))}>Скачать PDF</MenuItem>
                         </>
                     ) : type === 'image' ? (
@@ -262,13 +300,13 @@ function CardMenu({
                         </>
                     ) : type === 'game' ? (
                         <>
-                            <MenuItem icon={<Link2 />} onClick={action(() => toast('Ссылка скопирована'))}>Скопировать ссылку</MenuItem>
+                            <MenuItem icon={<Link2 />} onClick={action(handleCopyGameLink)}>Скопировать ссылку</MenuItem>
                             <MenuItem icon={<QrCode />} onClick={action(() => toast('QR — скоро'))}>Показать QR</MenuItem>
                         </>
                     ) : (
                         <>
                             <MenuItem icon={<Download />} onClick={action(() => window.open(`/api/generate/${genId}/pdf`, '_blank'))}>Скачать PDF</MenuItem>
-                            <MenuItem icon={<Send />} onClick={action(() => toast('Выдача заданий — скоро'))}>Выдать ученикам</MenuItem>
+                            <MenuItem icon={<Send />} onClick={action(handleAssignClick)}>Выдать ученикам</MenuItem>
                         </>
                     )}
                     <div className="h-px bg-ink-100 my-1 mx-0.5" />
@@ -312,7 +350,7 @@ function MenuItem({ icon, children, onClick, danger }: {
 
 // ── Карточка материала ────────────────────────────────────────────────────────
 
-function MatCard({ gen, onDelete, onRename }: { gen: Generation; onDelete: () => void; onRename: (id: string, title: string) => void }) {
+function MatCard({ gen, onDelete, onRename, onDuplicated, onAssign }: { gen: Generation; onDelete: () => void; onRename: (id: string, title: string) => void; onDuplicated?: () => void; onAssign?: (genId: string) => void }) {
     const router = useRouter()
     const ft = normalizeType(gen.type)
     const cfg = TYPE_CONFIG[ft] || TYPE_CONFIG['worksheet']
@@ -339,7 +377,7 @@ function MatCard({ gen, onDelete, onRename }: { gen: Generation; onDelete: () =>
                     <cfg.Icon className="w-3 h-3" />
                     {cfg.label}
                 </span>
-                <CardMenu genId={gen.id} type={ft} onDelete={onDelete} onRename={() => onRename(gen.id, gen.title || title)} />
+                <CardMenu genId={gen.id} type={ft} onDelete={onDelete} onRename={() => onRename(gen.id, gen.title || title)} onDuplicated={onDuplicated} onAssign={onAssign} />
             </div>
 
             {/* Title */}
@@ -377,7 +415,7 @@ function MatCard({ gen, onDelete, onRename }: { gen: Generation; onDelete: () =>
 
 // ── Строка материала (list view) ──────────────────────────────────────────────
 
-function MatListRow({ gen, onDelete, onRename }: { gen: Generation; onDelete: () => void; onRename: (id: string, title: string) => void }) {
+function MatListRow({ gen, onDelete, onRename, onDuplicated, onAssign }: { gen: Generation; onDelete: () => void; onRename: (id: string, title: string) => void; onDuplicated?: () => void; onAssign?: (genId: string) => void }) {
     const router = useRouter()
     const ft = normalizeType(gen.type)
     const cfg = TYPE_CONFIG[ft] || TYPE_CONFIG['worksheet']
@@ -416,7 +454,7 @@ function MatListRow({ gen, onDelete, onRename }: { gen: Generation; onDelete: ()
                 {relativeDate(gen.createdAt)}
             </span>
             <div className="flex-shrink-0" onClick={e => e.stopPropagation()}>
-                <CardMenu genId={gen.id} type={ft} onDelete={onDelete} onRename={() => onRename(gen.id, gen.title || title)} />
+                <CardMenu genId={gen.id} type={ft} onDelete={onDelete} onRename={() => onRename(gen.id, gen.title || title)} onDuplicated={onDuplicated} onAssign={onAssign} />
             </div>
         </div>
     )
@@ -492,6 +530,56 @@ export default function CoursesPageV2() {
     const [renameGenId, setRenameGenId] = useState<string | null>(null)
     const [renameDraft, setRenameDraft] = useState('')
     const [renaming, setRenaming] = useState(false)
+
+    // ── Assign modal ─────────────────────────────────────────────────────────
+    const [assignGenId, setAssignGenId] = useState<string | null>(null)
+    const [assignClasses, setAssignClasses] = useState<Array<{ id: string; name: string }>>([])
+    const [assignClassId, setAssignClassId] = useState('')
+    const [assignDueDate, setAssignDueDate] = useState('')
+    const [assignLoading, setAssignLoading] = useState(false)
+    const [assignSubmitting, setAssignSubmitting] = useState(false)
+
+    const handleOpenAssign = useCallback(async (genId: string) => {
+        setAssignGenId(genId)
+        setAssignClassId('')
+        setAssignDueDate('')
+        setAssignLoading(true)
+        try {
+            const res = await apiClient.get('/classes')
+            setAssignClasses(res.data ?? [])
+        } catch {
+            toast.error('Не удалось загрузить классы')
+        } finally {
+            setAssignLoading(false)
+        }
+    }, [])
+
+    const handleSubmitAssign = async () => {
+        if (!assignGenId || !assignClassId) return
+        setAssignSubmitting(true)
+        try {
+            // Каждый материал создаётся в уроке «ИИ генерации» — находим его
+            const lessonsRes = await apiClient.get('/lessons')
+            const lessons: Array<{ id: string; title: string }> = lessonsRes.data ?? []
+            const defaultLesson = lessons.find(l => l.title === 'ИИ генерации')
+            if (!defaultLesson) {
+                toast.error('Не удалось найти урок для назначения')
+                return
+            }
+            await apiClient.post('/assignments', {
+                lessonId: defaultLesson.id,
+                generationId: assignGenId,
+                classId: assignClassId,
+                dueDate: assignDueDate || undefined,
+            })
+            toast.success('Задание выдано классу!')
+            setAssignGenId(null)
+        } catch (err: any) {
+            toast.error(err?.response?.data?.message || 'Не удалось выдать задание')
+        } finally {
+            setAssignSubmitting(false)
+        }
+    }
 
     const handleStartRename = useCallback((id: string, currentTitle: string) => {
         setRenameGenId(id)
@@ -710,18 +798,66 @@ export default function CoursesPageV2() {
                 ) : viewMode === 'list' ? (
                     <div className="flex flex-col divide-y divide-ink-100 border border-ink-200 rounded-xl overflow-hidden bg-surface">
                         {filtered.map(gen => (
-                            <MatListRow key={gen.id} gen={gen} onDelete={() => handleDelete(gen.id)} onRename={(id, t) => handleStartRename(id, t)} />
+                            <MatListRow key={gen.id} gen={gen} onDelete={() => handleDelete(gen.id)} onRename={(id, t) => handleStartRename(id, t)} onDuplicated={load} onAssign={handleOpenAssign} />
                         ))}
                     </div>
                 ) : (
                     <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
                         {filtered.map(gen => (
-                            <MatCard key={gen.id} gen={gen} onDelete={() => handleDelete(gen.id)} onRename={(id, t) => handleStartRename(id, t)} />
+                            <MatCard key={gen.id} gen={gen} onDelete={() => handleDelete(gen.id)} onRename={(id, t) => handleStartRename(id, t)} onDuplicated={load} onAssign={handleOpenAssign} />
                         ))}
                     </div>
                 )}
                 </div>
             </div>
+
+            <Modal
+                open={!!assignGenId}
+                onClose={() => setAssignGenId(null)}
+                title="Выдать ученикам"
+                size="sm"
+            >
+                <div className="p-5 flex flex-col gap-4">
+                    {assignLoading ? (
+                        <div className="text-center py-6 text-ink-500 text-[14px]">Загрузка классов…</div>
+                    ) : assignClasses.length === 0 ? (
+                        <div className="text-center py-6 text-ink-500 text-[14px]">
+                            У вас нет классов. Сначала создайте класс в разделе «Ученики».
+                        </div>
+                    ) : (
+                        <>
+                            <div className="flex flex-col gap-1.5">
+                                <label className="text-[13px] font-semibold text-ink-700">Класс</label>
+                                <select
+                                    value={assignClassId}
+                                    onChange={e => setAssignClassId(e.target.value)}
+                                    className="h-10 px-3.5 rounded-lg border border-ink-200 text-sm text-ink-900 focus:outline-none focus:border-brand-400 focus:ring-[3px] focus:ring-brand-400/15 transition-all"
+                                >
+                                    <option value="">Выберите класс</option>
+                                    {assignClasses.map(c => (
+                                        <option key={c.id} value={c.id}>{c.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div className="flex flex-col gap-1.5">
+                                <label className="text-[13px] font-semibold text-ink-700">Срок сдачи <span className="font-normal text-ink-400">(необязательно)</span></label>
+                                <input
+                                    type="date"
+                                    value={assignDueDate}
+                                    onChange={e => setAssignDueDate(e.target.value)}
+                                    className="h-10 px-3.5 rounded-lg border border-ink-200 text-sm text-ink-900 focus:outline-none focus:border-brand-400 focus:ring-[3px] focus:ring-brand-400/15 transition-all"
+                                />
+                            </div>
+                            <div className="flex gap-2 pt-1">
+                                <Button type="button" variant="secondary" className="flex-1" onClick={() => setAssignGenId(null)}>Отмена</Button>
+                                <Button type="button" variant="primary" className="flex-1" disabled={!assignClassId || assignSubmitting} onClick={handleSubmitAssign}>
+                                    {assignSubmitting ? 'Выдаём…' : 'Выдать'}
+                                </Button>
+                            </div>
+                        </>
+                    )}
+                </div>
+            </Modal>
 
             <Modal
                 open={!!renameGenId}
