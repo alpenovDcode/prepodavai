@@ -327,7 +327,7 @@ function ClassCard({
                     type="button"
                     title="Удалить класс"
                     onClick={(e) => { e.stopPropagation(); onDelete() }}
-                    className="w-8 h-8 rounded-md flex items-center justify-center text-ink-400 hover:text-danger-600 hover:bg-danger-50 transition-all"
+                    className="w-8 h-8 rounded-md flex items-center justify-center text-ink-400 hover:text-danger-700 hover:bg-danger-50 transition-all"
                 >
                     <Trash2 className="w-4 h-4" />
                 </button>

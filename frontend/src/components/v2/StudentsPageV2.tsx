@@ -673,7 +673,7 @@ export default function StudentsPageV2() {
                                                                     Принять
                                                                 </button>
                                                                 <button type="button" onClick={() => handleRejectStudent(s.id, s.name)}
-                                                                    className="px-3 py-1.5 text-xs font-bold border border-danger-300 text-danger-700 rounded-md hover:bg-danger-50 transition-colors">
+                                                                    className="px-3 py-1.5 text-xs font-bold border border-danger-500 text-danger-700 rounded-md hover:bg-danger-50 transition-colors">
                                                                     Отклонить
                                                                 </button>
                                                             </div>
@@ -904,8 +904,8 @@ export default function StudentsPageV2() {
             {confirmModal && (
                 <div className="fixed inset-0 bg-black/40 z-[100] flex items-center justify-center p-4">
                     <div className="bg-surface rounded-2xl shadow-2xl w-full max-w-sm p-6">
-                        <div className="w-11 h-11 rounded-full bg-danger-100 flex items-center justify-center mx-auto mb-4">
-                            <AlertTriangle className="w-5 h-5 text-danger-600" />
+                        <div className="w-11 h-11 rounded-full bg-danger-50 flex items-center justify-center mx-auto mb-4">
+                            <AlertTriangle className="w-5 h-5 text-danger-700" />
                         </div>
                         <p className="text-sm text-ink-700 text-center mb-5 leading-relaxed">{confirmModal.msg}</p>
                         <div className="flex gap-2">
@@ -914,7 +914,7 @@ export default function StudentsPageV2() {
                                 Отмена
                             </button>
                             <button type="button" onClick={() => { confirmModal.onConfirm(); setConfirmModal(null) }}
-                                className="flex-1 h-10 rounded-md bg-danger-600 hover:bg-danger-700 text-white text-sm font-bold transition-colors">
+                                className="flex-1 h-10 rounded-md bg-danger-500 hover:bg-danger-700 text-white text-sm font-bold transition-colors">
                                 Подтвердить
                             </button>
                         </div>

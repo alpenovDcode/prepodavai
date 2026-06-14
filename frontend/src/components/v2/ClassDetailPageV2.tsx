@@ -421,7 +421,7 @@ export default function ClassDetailPageV2({ id }: { id: string }) {
                                                     <Button size="sm" variant="secondary" onClick={() => approveStudent(student.id)} className="text-green-700 border-green-200 hover:bg-green-50">
                                                         Принять
                                                     </Button>
-                                                    <Button size="sm" variant="secondary" onClick={() => rejectStudent(student.id)} className="text-danger-600 border-danger-200 hover:bg-danger-50">
+                                                    <Button size="sm" variant="secondary" onClick={() => rejectStudent(student.id)} className="text-danger-700 border-danger-500 hover:bg-danger-50">
                                                         Отклонить
                                                     </Button>
                                                 </div>

@@ -1,13 +1,13 @@
 'use client'
 
-import { ReactNode } from 'react'
+import { ReactNode, useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import Image from 'next/image'
 import {
     LayoutDashboard, Wand2, Calendar, BookOpen,
     Users, ClipboardCheck, BarChart3,
-    Gift, MessageCircle, Settings, ChevronUp,
+    Gift, MessageCircle, Settings, ChevronUp, LogOut,
 } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 
@@ -116,30 +116,76 @@ export function Sidebar({ sections, user, brandName = 'Преподавай', op
                 </nav>
 
                 {/* User footer */}
-                <div className="p-4 border-t border-ink-100 bg-surface-soft">
-                    <button
-                        type="button"
-                        className="w-full flex items-center gap-3 p-2.5 rounded-md bg-surface border border-ink-200 hover:bg-ink-50 transition-colors text-left"
-                        aria-label="Меню пользователя"
-                    >
-                        <span className="w-9 h-9 rounded-full bg-gradient-to-br from-brand-400 to-brand-600 text-white flex items-center justify-center font-bold text-sm flex-shrink-0">
-                            {user.initials || user.name.slice(0, 2).toUpperCase()}
-                        </span>
-                        <span className="flex-1 min-w-0">
-                            <span className="block font-semibold text-[13px] text-ink-900 leading-tight truncate">
-                                {user.name}
-                            </span>
-                            {user.plan && (
-                                <span className="block text-[11px] text-ink-500 leading-tight mt-0.5 truncate">
-                                    {user.plan}
-                                </span>
-                            )}
-                        </span>
-                        <ChevronUp className="w-4 h-4 text-ink-400 flex-shrink-0" />
-                    </button>
-                </div>
+                <UserFooter user={user} />
             </aside>
         </>
+    )
+}
+
+function UserFooter({ user }: { user: SidebarUserInfo }) {
+    const [open, setOpen] = useState(false)
+    const ref = useRef<HTMLDivElement>(null)
+
+    useEffect(() => {
+        if (!open) return
+        const handler = (e: MouseEvent) => {
+            if (!ref.current?.contains(e.target as Node)) setOpen(false)
+        }
+        document.addEventListener('mousedown', handler)
+        return () => document.removeEventListener('mousedown', handler)
+    }, [open])
+
+    const handleLogout = () => {
+        localStorage.removeItem('prepodavai_authenticated')
+        localStorage.removeItem('prepodavai_user')
+        window.location.reload()
+    }
+
+    return (
+        <div className="p-4 border-t border-ink-100 bg-surface-soft relative" ref={ref}>
+            {open && (
+                <div className="absolute bottom-full left-4 right-4 mb-2 bg-surface border border-ink-200 rounded-lg shadow-lg overflow-hidden z-10">
+                    <Link
+                        href="/dashboard/settings"
+                        onClick={() => setOpen(false)}
+                        className="flex items-center gap-2.5 px-3 py-2.5 text-[13px] text-ink-700 hover:bg-ink-50 transition-colors"
+                    >
+                        <Settings className="w-4 h-4 text-ink-400" />
+                        Настройки
+                    </Link>
+                    <div className="h-px bg-ink-100" />
+                    <button
+                        type="button"
+                        onClick={handleLogout}
+                        className="w-full flex items-center gap-2.5 px-3 py-2.5 text-[13px] text-danger-700 hover:bg-danger-50 transition-colors"
+                    >
+                        <LogOut className="w-4 h-4" />
+                        Выйти
+                    </button>
+                </div>
+            )}
+            <button
+                type="button"
+                onClick={() => setOpen(v => !v)}
+                className="w-full flex items-center gap-3 p-2.5 rounded-md bg-surface border border-ink-200 hover:bg-ink-50 transition-colors text-left"
+                aria-label="Меню пользователя"
+            >
+                <span className="w-9 h-9 rounded-full bg-gradient-to-br from-brand-400 to-brand-600 text-white flex items-center justify-center font-bold text-sm flex-shrink-0">
+                    {user.initials || user.name.slice(0, 2).toUpperCase()}
+                </span>
+                <span className="flex-1 min-w-0">
+                    <span className="block font-semibold text-[13px] text-ink-900 leading-tight truncate">
+                        {user.name}
+                    </span>
+                    {user.plan && (
+                        <span className="block text-[11px] text-ink-500 leading-tight mt-0.5 truncate">
+                            {user.plan}
+                        </span>
+                    )}
+                </span>
+                <ChevronUp className={cn('w-4 h-4 text-ink-400 flex-shrink-0 transition-transform duration-150', !open && 'rotate-180')} />
+            </button>
+        </div>
     )
 }
 
