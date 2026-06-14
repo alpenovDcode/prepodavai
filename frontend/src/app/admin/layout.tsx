@@ -20,6 +20,7 @@ import {
     FlaskConical,
     Bell,
     CrownIcon,
+    Filter,
 } from 'lucide-react'
 
 export default function AdminLayout({
@@ -72,6 +73,7 @@ export default function AdminLayout({
         { name: 'UTM-ссылки', href: '/admin/utm', icon: Link2 },
         { name: 'Тарифы', href: '/admin/tariffs', icon: CrownIcon },
         { name: 'Продукт', href: '/admin/product-analytics', icon: FlaskConical },
+        { name: 'Воронки', href: '/admin/funnels', icon: Filter },
         { name: 'Алерты', href: '/admin/alerts', icon: Bell },
         { name: 'Логи', href: '/admin/system-logs', icon: ScrollText },
         { name: 'Администраторы', href: '/admin/admins', icon: Shield },

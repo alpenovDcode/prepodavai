@@ -69,6 +69,7 @@ model AppUser {
   studentInvites        StudentInvite[]
   diaryEntries          TeacherDiaryEntry[]
   botUser               BotUser?
+  analyticsEvents       AnalyticsEvent[]
 
   @@index([telegramId])
   @@index([maxId])
@@ -802,6 +803,99 @@ model SystemSetting {
   updatedBy String?  // appUser.id админа
 
   @@map("system_settings")
+}
+
+// ========== АНАЛИТИКА И ВОРОНКИ (FUNNELS) ==========
+
+/// Универсальный лог событий пользователя. Источник истины для всех воронок и когорт.
+/// Записывается из:
+///   — сервер: registerByEmail / generation_created / referral_used / tg_linked / channel_subscribed
+///   — клиент: pageview / button_click / onboarding_step (через POST /analytics/track)
+///   — бот: channel_subscribed (через chat_member webhook)
+model AnalyticsEvent {
+  id        String   @id @default(uuid())
+  /// Анонимный ID из cookie (живёт до регистрации). После регистрации в userId
+  /// ставится AppUser.id, anonId остаётся для склейки до-реги активности.
+  anonId    String?
+  userId    String?  // null до регистрации
+  /// Категория события: 'page_view' | 'click' | 'user_registered' | 'generation_created' | 'tg_linked' | ...
+  eventType String
+  /// Дополнительный ключ внутри типа: для page_view — путь, для generation_created — тип генерации.
+  eventName String?
+  /// Произвольная нагрузка: {generationType, sourceClass, durationMs, ...}
+  payload   Json?
+  /// UTM-атрибуция копируется на момент события (immutable). Если пользователь
+  /// сменит источник в новой сессии — у нового события будут новые UTM.
+  utmSource   String?
+  utmMedium   String?
+  utmCampaign String?
+  utmContent  String?
+  utmTerm     String?
+  /// Идентификатор сессии (один день / одна вкладка). Для расчёта bounce.
+  sessionId   String?
+  /// Тех. срезы.
+  userAgent   String?
+  ipHash      String?   // SHA-256 от IP — для DAU, не PII
+  referer     String?
+  createdAt   DateTime  @default(now())
+
+  user      AppUser?  @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([eventType, createdAt])
+  @@index([userId, createdAt])
+  @@index([anonId, createdAt])
+  @@index([utmSource, createdAt])
+  @@map("analytics_events")
+}
+
+/// Определение воронки. Создаётся админом в /admin/funnels.
+model Funnel {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  /// Кто создал. Используется как owner для аудита, но смотреть могут все админы.
+  ownerId     String?
+  isActive    Boolean  @default(true)
+  /// Дополнительный фильтр уровня воронки: '{"utmSource": "instagram"}' и т.д.
+  /// Применяется ко всем шагам.
+  globalFilters Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  steps       FunnelStep[]
+
+  @@index([isActive])
+  @@map("funnels")
+}
+
+/// Один шаг воронки.
+/// При расчёте: user, попавший в шаг N, должен попасть в шаг N+1 не раньше шага N.
+model FunnelStep {
+  id        String   @id @default(uuid())
+  funnelId  String
+  /// Порядковый номер. 0 — точка входа.
+  order     Int
+  /// Человеко-читаемый заголовок: «Конверсия из реги в первую генерацию»
+  label     String
+  /// Какое событие из AnalyticsEvent.eventType должен совершить пользователь.
+  /// Спец-значения:
+  ///   'generation_created:nth=1' — первая генерация
+  ///   'generation_created:nth=3' — третья (для N→M)
+  eventType String
+  /// JSON-фильтр на payload и UTM. Пример:
+  ///   {"payload.generationType": "worksheet"}
+  ///   {"utmSource": "blogger_xxx"}
+  eventFilters Json?
+  /// Если true — этот шаг используется как "якорь когорты" (дата отсчёта).
+  /// Обычно первый шаг.
+  isCohortAnchor Boolean @default(false)
+  createdAt DateTime @default(now())
+
+  funnel    Funnel   @relation(fields: [funnelId], references: [id], onDelete: Cascade)
+
+  @@unique([funnelId, order])
+  @@index([funnelId])
+  @@map("funnel_steps")
 }
 
 // ========== ГЕЙМИФИКАЦИЯ (PHASE 5 V2) ==========

@@ -15,6 +15,8 @@ import { SkipThrottle } from '@nestjs/throttler';
 import { TelegramService } from './telegram.service';
 import { WebhookAuthGuard } from '../webhooks/guards/webhook-auth.guard';
 import { EmailService } from '../../common/services/email.service';
+import { AnalyticsEventsService } from '../analytics-events/analytics-events.service';
+import { PrismaService } from '../../common/prisma/prisma.service';
 
 @Controller('webhook/telegram')
 export class TelegramController {
@@ -22,6 +24,8 @@ export class TelegramController {
     private readonly telegramService: TelegramService,
     private readonly configService: ConfigService,
     private readonly emailService: EmailService,
+    private readonly analyticsEvents: AnalyticsEventsService,
+    private readonly prisma: PrismaService,
   ) {}
 
   /**
@@ -89,6 +93,60 @@ export class TelegramController {
       throw new BadRequestException('username, password and email are required');
     }
     await this.emailService.sendWelcomeEmail(body.username, body.password, body.email);
+    return { ok: true };
+  }
+
+  /**
+   * Внутренний endpoint: бот сообщает о подписке/отписке от ТГ-канала.
+   * Используется в воронке «клик → подписка на канал → первая генерация».
+   * Защищён x-bot-secret header (как и send-welcome-email).
+   */
+  @Post('internal/channel-event')
+  @HttpCode(200)
+  @SkipThrottle()
+  async channelEventInternal(
+    @Body() body: {
+      telegramId: string;
+      channelId: string;
+      eventType: 'channel_subscribed' | 'channel_unsubscribed';
+      username?: string | null;
+      firstName?: string | null;
+    },
+    @Headers('x-bot-secret') secret: string,
+  ) {
+    const botToken = this.configService.get<string>('TELEGRAM_BOT_TOKEN');
+    if (!botToken || secret !== botToken) {
+      throw new UnauthorizedException('Invalid secret');
+    }
+    if (!body?.telegramId || !body?.eventType) {
+      throw new BadRequestException('telegramId and eventType required');
+    }
+
+    // Если этот ТГ-юзер уже привязан к веб-аккаунту — фиксируем userId.
+    // Если нет — пишем событие с anonId=telegramId, чтобы потом склеить
+    // при привязке (claimAnonEvents в auth flow).
+    let userId: string | null = null;
+    try {
+      const appUser = await this.prisma.appUser.findFirst({
+        where: { telegramId: body.telegramId },
+        select: { id: true },
+      });
+      userId = appUser?.id ?? null;
+    } catch { /* ignore */ }
+
+    await this.analyticsEvents.track({
+      userId,
+      anonId: userId ? null : `tg:${body.telegramId}`,
+      eventType: body.eventType,
+      payload: {
+        telegramId: body.telegramId,
+        channelId: body.channelId,
+        username: body.username || null,
+        firstName: body.firstName || null,
+        source: 'bot_webhook',
+      },
+    });
+
     return { ok: true };
   }
 }

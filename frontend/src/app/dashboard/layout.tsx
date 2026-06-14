@@ -1,5 +1,5 @@
-import DashboardLayout from '@/components/DashboardLayout'
+import { DashboardLayoutV2Shim } from '@/components/layout/v2/DashboardLayoutV2Shim'
 
 export default function Layout({ children }: { children: React.ReactNode }) {
-    return <DashboardLayout>{children}</DashboardLayout>
+    return <DashboardLayoutV2Shim>{children}</DashboardLayoutV2Shim>
 }

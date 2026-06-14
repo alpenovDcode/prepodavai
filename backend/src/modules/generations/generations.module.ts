@@ -21,6 +21,7 @@ import { ReplicateModule } from '../replicate/replicate.module';
 import { LessonsModule } from '../lessons/lessons.module';
 import { ReferralsModule } from '../referrals/referrals.module';
 import { OnboardingQuestModule } from '../onboarding-quest/onboarding-quest.module';
+import { AnalyticsEventsModule } from '../analytics-events/analytics-events.module';
 import { TelegramModule } from '../telegram/telegram.module';
 import { AssemblyAiService } from '../integrations/assemblyai.service';
 import { VideoAnalysisProcessor } from './processors/video-analysis.processor';
@@ -78,6 +79,7 @@ import { VideoAnalysisStrategy } from './strategies/video-analysis.strategy';
     FilesModule,
     ReplicateModule,
     LessonsModule,
+    AnalyticsEventsModule,
   ],
   controllers: [GenerationsController],
   providers: [

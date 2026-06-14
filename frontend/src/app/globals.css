@@ -3,6 +3,7 @@
 @tailwind utilities;
 
 :root {
+  /* ─── Legacy theme tokens (Telegram WebApp + старые компоненты) ───────── */
   --tg-theme-bg-color: #F9FAFB;
   --tg-theme-text-color: #1F2937;
   --tg-theme-hint-color: #9CA3AF;
@@ -21,7 +22,98 @@
   --tg-theme-accent-bg: #FFF7ED;
   --tg-theme-accent-color: #FF7E58;
   --sidebar-width: 240px;
+
+  /* ─── Redesign v2 — Brand (preserved) ────────────────────────────────── */
+  --brand-50:  #FFF4F0;
+  --brand-100: #FFE3D9;
+  --brand-200: #FFC7B3;
+  --brand-300: #FFA88A;
+  --brand-400: #FF8E69;
+  --brand-500: #FF7E58;
+  --brand-600: #F26339;
+  --brand-700: #D14B23;
+  --brand-800: #A93A1B;
+  --brand-900: #7A2A14;
+
+  /* ─── Redesign v2 — Neutrals (slate scale) ───────────────────────────── */
+  --ink-900: #0F172A;
+  --ink-800: #1E293B;
+  --ink-700: #334155;
+  --ink-600: #475569;
+  --ink-500: #64748B;
+  --ink-400: #94A3B8;
+  --ink-300: #CBD5E1;
+  --ink-200: #E2E8F0;
+  --ink-100: #F1F5F9;
+  --ink-50:  #F8FAFC;
+
+  /* ─── Redesign v2 — Surfaces ─────────────────────────────────────────── */
+  --surface:        #FFFFFF;
+  --surface-soft:   #FAFAFA;
+  --surface-sunken: #F4F5F7;
+
+  /* ─── Redesign v2 — Semantic ─────────────────────────────────────────── */
+  --success-50:  #ECFDF5;
+  --success-500: #10B981;
+  --success-700: #047857;
+
+  --warning-50:  #FFFBEB;
+  --warning-500: #F59E0B;
+  --warning-700: #B45309;
+
+  --danger-50:   #FEF2F2;
+  --danger-500:  #EF4444;
+  --danger-700:  #B91C1C;
+
+  --info-50:     #EFF6FF;
+  --info-500:    #3B82F6;
+  --info-700:    #1D4ED8;
+
+  /* ─── Redesign v2 — Typography ───────────────────────────────────────── */
+  /* Next.js font variables подключаются в app/layout.tsx через next/font/google */
+  --font-display: var(--font-display-var), 'Plus Jakarta Sans', system-ui, sans-serif;
+  --font-sans:    var(--font-sans-var, var(--font-display-var)), system-ui, sans-serif;
+  --font-mono:    var(--font-mono-var), 'JetBrains Mono', ui-monospace, monospace;
 }
+
+/* ─── Redesign v2 — Dark mode ─────────────────────────────────────────────
+   Активируется через `<html class="dark">` (управляется ThemeToggle в Settings).
+   Инвертируем ink-* и surface-* — все наши компоненты сразу станут тёмными
+   без дополнительных dark: utility-классов (так как они используют CSS-vars).
+   Brand остаётся тёплым коралловым на тёмном фоне.
+*/
+.dark {
+  --ink-900: #F8FAFC;
+  --ink-800: #F1F5F9;
+  --ink-700: #E2E8F0;
+  --ink-600: #CBD5E1;
+  --ink-500: #94A3B8;
+  --ink-400: #64748B;
+  --ink-300: #475569;
+  --ink-200: #334155;
+  --ink-100: #1E293B;
+  --ink-50:  #0F172A;
+
+  --surface:        #0F172A;
+  --surface-soft:   #1E293B;
+  --surface-sunken: #020617;
+
+  --success-50:  #064E3B;
+  --warning-50:  #78350F;
+  --danger-50:   #7F1D1D;
+  --info-50:     #1E3A8A;
+  --brand-50:    #4A2A1A;
+  --brand-100:   #5A3220;
+}
+
+/* Эти классы используются ТОЛЬКО в новых v2-компонентах (не в legacy).
+   Чтобы случайно не зацепить legacy UI — отдельный wrapper-класс. */
+.v2 {
+  font-feature-settings: 'cv02','cv03','cv04','cv11';
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+.v2 .tnum { font-variant-numeric: tabular-nums; }
 
 body {
   color: #1F2937;

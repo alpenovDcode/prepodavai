@@ -1,11 +1,30 @@
 import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
+import { Inter, Plus_Jakarta_Sans, JetBrains_Mono } from 'next/font/google'
 import './globals.css'
 import { Providers } from './providers'
 import Script from 'next/script'
 import UtmCapture from '@/components/UtmCapture'
 
-const inter = Inter({ subsets: ['latin', 'cyrillic'], display: 'swap' })
+// Inter — body шрифт (используется и в legacy, и в v2).
+const inter = Inter({
+  subsets: ['latin', 'cyrillic'],
+  display: 'swap',
+  variable: '--font-sans-var',
+})
+// Plus Jakarta Sans — headings в redesign v2.
+const jakarta = Plus_Jakarta_Sans({
+  subsets: ['latin'],
+  weight: ['500', '600', '700', '800'],
+  display: 'swap',
+  variable: '--font-display-var',
+})
+// JetBrains Mono — для табличных цифр и моноширинного текста.
+const mono = JetBrains_Mono({
+  subsets: ['latin'],
+  weight: ['500'],
+  display: 'swap',
+  variable: '--font-mono-var',
+})
 
 export const metadata: Metadata = {
   title: 'Преподавай',
@@ -89,7 +108,7 @@ export default function RootLayout({
           `}
         </Script>
       </head>
-      <body className={inter.className}>
+      <body className={`${inter.className} ${jakarta.variable} ${mono.variable}`}>
         <Providers>{children}</Providers>
         <UtmCapture />
       </body>

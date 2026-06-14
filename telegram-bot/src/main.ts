@@ -2911,6 +2911,67 @@ bot.on('my_chat_member', (ctx) => {
   }
 });
 
+/**
+ * Подписка/отписка от канала Преподавай.
+ * Требует:
+ *   1) бот добавлен админом в канал (с правом видеть подписчиков)
+ *   2) bot.start({allowed_updates: ['chat_member', ...]})
+ * Шлём событие в backend, чтобы funnel-аналитика увидела «клик→подписка на канал».
+ */
+bot.on('chat_member', async (ctx) => {
+  try {
+    const chat = ctx.chatMember?.chat;
+    if (!chat) return;
+
+    // Ловим события только в нужном канале (если CHANNEL_ID задан).
+    const chatId = String(chat.id);
+    if (TELEGRAM_CHANNEL_ID && chatId !== TELEGRAM_CHANNEL_ID) return;
+
+    const oldStatus = ctx.chatMember?.old_chat_member?.status;
+    const newStatus = ctx.chatMember?.new_chat_member?.status;
+    const userId = ctx.chatMember?.from?.id?.toString();
+    if (!userId) return;
+
+    // Считаем подпиской переходы: left/kicked/restricted → member/administrator
+    const subscribed =
+      ['member', 'administrator', 'creator'].includes(newStatus || '') &&
+      !['member', 'administrator', 'creator'].includes(oldStatus || '');
+
+    const unsubscribed =
+      ['left', 'kicked'].includes(newStatus || '') &&
+      ['member', 'administrator', 'restricted'].includes(oldStatus || '');
+
+    if (!subscribed && !unsubscribed) return;
+
+    // Локальный аналитический трек (тот же канал, что my_bot_was_stopped).
+    tgtrack(subscribed ? 'channel_subscribed' : 'channel_unsubscribed', {
+      user_id: userId,
+      channel_id: chatId,
+      old_status: oldStatus,
+      new_status: newStatus,
+    });
+
+    // И в backend — для воронок.
+    try {
+      await fetch(`${API_URL}/api/webhook/telegram/internal/channel-event`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          telegramId: userId,
+          channelId: chatId,
+          eventType: subscribed ? 'channel_subscribed' : 'channel_unsubscribed',
+          username: ctx.chatMember?.from?.username || null,
+          firstName: ctx.chatMember?.from?.first_name || null,
+        }),
+      });
+    } catch (e) {
+      console.warn('[Bot] failed to notify backend about channel event:', (e as any)?.message);
+    }
+  } catch (e) {
+    console.error('[Bot] chat_member handler error:', e);
+  }
+});
+
 // ── Запуск ────────────────────────────────────────────────────────────────────
 bot.catch((err) => {
   console.error('[Bot] Uncaught middleware error:', err.error ?? err);
@@ -2960,6 +3021,12 @@ async function bootstrap() {
   // grammY сам ретраит сетевые ошибки getUpdates, поэтому единичные блипы прокси
   // переживёт без падения. Логируем фатальный обрыв поллинга, если он случится.
   bot.start({
+    // ВАЖНО: chat_member нужно явно включать в allowed_updates,
+    // иначе Telegram не шлёт эти апдейты ни через polling, ни через webhook.
+    allowed_updates: [
+      'message', 'edited_message', 'callback_query',
+      'my_chat_member', 'chat_member',
+    ] as any,
     onStart: () => console.log('🤖 Telegram bot connected and polling'),
   }).catch((err) => {
     console.error('[Bot] FATAL: polling упал:', err);

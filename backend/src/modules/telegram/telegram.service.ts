@@ -8,6 +8,7 @@ import * as bcrypt from 'bcryptjs';
 import { HtmlExportService } from '../../common/services/html-export.service';
 import { EmailService } from '../../common/services/email.service';
 import { FilesService } from '../files/files.service';
+import { AnalyticsEventsService } from '../analytics-events/analytics-events.service';
 
 // ── Типы состояний диалога регистрации ──────────────────────────────────────
 type RegStep = 'awaiting_email';
@@ -35,6 +36,7 @@ export class TelegramService {
     private readonly htmlExportService: HtmlExportService,
     private readonly emailService: EmailService,
     private readonly filesService: FilesService,
+    private readonly analyticsEvents: AnalyticsEventsService,
   ) {
     const token = this.configService.get<string>('TELEGRAM_BOT_TOKEN');
     if (token) {
@@ -321,6 +323,16 @@ export class TelegramService {
         data: { status: 'completed', linkedId: user.id.toString(), linkedName: platformName },
       }),
     ]);
+
+    // Аналитика: ключевая конверсия «из реги в привязку ТГ»
+    this.analyticsEvents.track({
+      userId: linkToken.userId,
+      eventType: 'tg_linked',
+      payload: {
+        telegramId: user.id.toString(),
+        username: user.username || null,
+      },
+    }).catch(() => { /* silent */ });
 
     this.regStates.delete(user.id.toString());
 

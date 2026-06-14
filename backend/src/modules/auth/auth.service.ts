@@ -9,6 +9,7 @@ import * as bcrypt from 'bcryptjs';
 
 import { StudentsService } from '../students/students.service';
 import { EmailService } from '../../common/services/email.service';
+import { AnalyticsEventsService, EVENT_TYPES } from '../analytics-events/analytics-events.service';
 
 @Injectable()
 export class AuthService {
@@ -24,6 +25,7 @@ export class AuthService {
     private prisma: PrismaService,
     private smscService: SmscService,
     private emailService: EmailService,
+    private analyticsEvents: AnalyticsEventsService,
   ) {}
 
   /**
@@ -581,6 +583,19 @@ export class AuthService {
 
     // Генерируем JWT токен
     const token = this.generateJwtToken(user.id);
+
+    // Аналитика: фиксируем регистрацию для funnel-расчётов
+    await this.analyticsEvents.track({
+      userId: user.id,
+      eventType: EVENT_TYPES.USER_REGISTERED,
+      eventName: 'email',
+      payload: { source: user.source, firstName: user.firstName },
+      utmSource: utm?.utmSource,
+      utmMedium: utm?.utmMedium,
+      utmCampaign: utm?.utmCampaign,
+      utmContent: utm?.utmContent,
+      utmTerm: utm?.utmTerm,
+    });
 
     return {
       success: true,

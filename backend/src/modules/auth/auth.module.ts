@@ -8,12 +8,14 @@ import { JwtStrategy } from './strategies/jwt.strategy';
 import { UsersModule } from '../users/users.module';
 import { StudentsModule } from '../students/students.module';
 import { SmscModule } from '../smsc/smsc.module';
+import { AnalyticsEventsModule } from '../analytics-events/analytics-events.module';
 
 @Module({
   imports: [
     UsersModule,
     StudentsModule,
     SmscModule,
+    AnalyticsEventsModule,
     PassportModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
