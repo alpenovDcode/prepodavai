@@ -18,32 +18,52 @@ import { useTour } from '@/lib/tour/useTour'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-interface ChatItem {
-  id: string
-  title: string
-  lastMessageAt: string
-  messagesCount: number
-}
-
 interface ChatMessage {
   id: string
   role: 'user' | 'assistant'
   content: string
   createdAt: string
-  model: string | null
 }
 
-interface ChatDetail {
+interface Chat {
   id: string
   title: string
   messages: ChatMessage[]
+  updatedAt: string
 }
 
 type DateGroup = 'today' | 'yesterday' | 'week' | 'older'
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// ─── Constants ───────────────────────────────────────────────────────────────
+
+// Локальное хранилище чатов. AI-учитель ученика — stateless: ходит в
+// /ai-assistant/student-chat без БД, история живёт в localStorage браузера.
+const STORAGE_KEY = 'student_ai_chats_v1'
+const MODEL_LABEL = 'AI Assistant'
 
 const fetcher = (url: string) => apiClient.get(url).then((r: any) => r.data)
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function uid(): string {
+  return `c_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
+}
+
+function loadChats(): Chat[] {
+  if (typeof window === 'undefined') return []
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) return []
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return []
+    return parsed.filter((c: any) => c && typeof c.id === 'string' && Array.isArray(c.messages))
+  } catch { return [] }
+}
+
+function saveChats(chats: Chat[]): void {
+  if (typeof window === 'undefined') return
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(chats)) } catch {}
+}
 
 function formatTime(iso: string): string {
   const d = new Date(iso)
@@ -90,26 +110,19 @@ const GROUP_LABELS: Record<DateGroup, string> = {
   older: 'Раньше',
 }
 
-/** Simple markdown → safe HTML */
 function renderMarkdown(raw: string): string {
   if (!raw) return ''
-  // Strip any embedded HTML first
   let t = DOMPurify.sanitize(raw, { ALLOWED_TAGS: [], ALLOWED_ATTR: [] })
 
-  // Fenced code blocks
   t = t.replace(/```[\w]*\n?([\s\S]*?)```/g, (_m, code) =>
     `<pre style="background:var(--ink-50);border-radius:6px;padding:10px 12px;font-size:13px;overflow-x:auto;margin:8px 0">${code.trim()}</pre>`)
 
-  // Inline code
   t = t.replace(/`([^`\n]+)`/g,
     '<code style="background:var(--ink-50);border-radius:4px;padding:2px 6px;font-size:13px">$1</code>')
 
-  // Bold
   t = t.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-  // Italic
   t = t.replace(/\*([^*\n]+)\*/g, '<em>$1</em>')
 
-  // Lists
   const lines = t.split('\n')
   const out: string[] = []
   let inUl = false
@@ -129,7 +142,6 @@ function renderMarkdown(raw: string): string {
   if (inUl) out.push('</ul>')
   t = out.join('\n')
 
-  // Paragraphs / line-breaks
   t = t.replace(/\n\n/g, '</p><p style="margin:8px 0">')
   t = t.replace(/\n/g, '<br>')
   return `<p style="margin:0">${t}</p>`
@@ -156,8 +168,8 @@ export default function StudentAiTeacherV2() {
   const tour = useTour()
   const { initials } = useUser()
 
+  const [chats, setChats] = useState<Chat[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)
-  const [activeChat, setActiveChat] = useState<ChatDetail | null>(null)
   const [input, setInput] = useState('')
   const [isSending, setIsSending] = useState(false)
   const [copiedId, setCopiedId] = useState<string | null>(null)
@@ -169,22 +181,21 @@ export default function StudentAiTeacherV2() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const recognitionRef = useRef<any>(null)
 
-  const { data: chatsData, mutate: mutateChats } = useSWR<{ items: ChatItem[] }>('/ai-chats', fetcher)
-  const chats = chatsData?.items ?? []
-
+  // Стрик пока единственный сетевой запрос — лёгкий, без БД-таблиц.
   const { data: studentProfile } = useSWR<{ streakDays?: number }>('/students/me', fetcher)
   const streak = studentProfile?.streakDays ?? 0
 
-  // Load chat detail when activeId changes
+  // Initial load from localStorage
   useEffect(() => {
-    if (!activeId) return
-    apiClient.get(`/ai-chats/${activeId}`).then((r: any) => setActiveChat(r.data)).catch(() => setActiveChat(null))
-  }, [activeId])
+    const loaded = loadChats()
+    setChats(loaded)
+    if (loaded.length > 0) setActiveId(loaded[0].id)
+  }, [])
 
-  // Auto-select first chat on initial load
-  useEffect(() => {
-    if (!activeId && chats.length > 0) setActiveId(chats[0].id)
-  }, [chats, activeId])
+  // Persist whenever chats change
+  useEffect(() => { saveChats(chats) }, [chats])
+
+  const activeChat = chats.find(c => c.id === activeId) ?? null
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -198,82 +209,94 @@ export default function StudentAiTeacherV2() {
     ta.style.height = `${Math.min(Math.max(ta.scrollHeight, 40), 144)}px`
   }, [])
 
-  const startNew = useCallback(async () => {
-    try {
-      const r = await apiClient.post('/ai-chats', {})
-      const id: string = r.data.id
-      setActiveId(id)
-      setActiveChat({ id, title: 'Новый диалог', messages: [] })
-      await mutateChats()
-      setInput('')
-      if (textareaRef.current) textareaRef.current.style.height = '40px'
-      setTimeout(() => textareaRef.current?.focus(), 50)
-    } catch {
-      toast.error('Не удалось создать чат')
-    }
-  }, [mutateChats])
+  const startNew = useCallback(() => {
+    const now = new Date().toISOString()
+    const chat: Chat = { id: uid(), title: 'Новый диалог', messages: [], updatedAt: now }
+    setChats(prev => [chat, ...prev])
+    setActiveId(chat.id)
+    setInput('')
+    if (textareaRef.current) textareaRef.current.style.height = '40px'
+    setTimeout(() => textareaRef.current?.focus(), 50)
+  }, [])
 
-  const deleteChatById = useCallback(async (id: string) => {
-    try {
-      await apiClient.delete(`/ai-chats/${id}`)
-      if (activeId === id) {
-        setActiveId(null)
-        setActiveChat(null)
-      }
-      await mutateChats()
-    } catch {
-      toast.error('Не удалось удалить чат')
-    }
-  }, [activeId, mutateChats])
+  const deleteChatById = useCallback((id: string) => {
+    setChats(prev => {
+      const next = prev.filter(c => c.id !== id)
+      if (activeId === id) setActiveId(next[0]?.id ?? null)
+      return next
+    })
+  }, [activeId])
 
   const sendMessage = useCallback(async (preset?: string) => {
     const content = (preset ?? input).trim()
     if (!content || isSending) return
 
+    // Создаём чат на лету, если активного нет
     let chatId = activeId
+    let snapshot: Chat | undefined
     if (!chatId) {
-      try {
-        const r = await apiClient.post('/ai-chats', {})
-        chatId = r.data.id
-        setActiveId(chatId)
-      } catch {
-        toast.error('Не удалось создать чат')
-        return
-      }
+      const now = new Date().toISOString()
+      const fresh: Chat = { id: uid(), title: content.slice(0, 40), messages: [], updatedAt: now }
+      chatId = fresh.id
+      snapshot = fresh
+      setChats(prev => [fresh, ...prev])
+      setActiveId(fresh.id)
+    } else {
+      snapshot = chats.find(c => c.id === chatId)
     }
 
-    const tempId = `temp-${Date.now()}`
-    const tempUser: ChatMessage = { id: tempId, role: 'user', content, createdAt: new Date().toISOString(), model: null }
+    const userMsg: ChatMessage = {
+      id: `u_${Date.now()}`,
+      role: 'user',
+      content,
+      createdAt: new Date().toISOString(),
+    }
 
-    setActiveChat(prev => prev
-      ? { ...prev, messages: [...prev.messages, tempUser] }
-      : { id: chatId!, title: content.slice(0, 40), messages: [tempUser] })
+    // История для бэка — всё, что было до этого сообщения
+    const history = (snapshot?.messages ?? []).map(m => ({ role: m.role, content: m.content }))
+
+    setChats(prev => prev.map(c => c.id === chatId
+      ? {
+          ...c,
+          title: c.messages.length === 0 ? content.slice(0, 40) + (content.length > 40 ? '…' : '') : c.title,
+          messages: [...c.messages, userMsg],
+          updatedAt: userMsg.createdAt,
+        }
+      : c))
 
     setInput('')
     setIsSending(true)
     if (textareaRef.current) textareaRef.current.style.height = '40px'
 
     try {
-      const r = await apiClient.post(`/ai-chats/${chatId}/messages`, { content })
-      const { messages: newMsgs } = r.data
-      setActiveChat(prev => {
-        if (!prev) return null
-        const filtered = prev.messages.filter(m => m.id !== tempId)
-        return { ...prev, messages: [...filtered, ...newMsgs] }
+      const r = await apiClient.post<{ response: string }>('/ai-assistant/student-chat', {
+        message: content,
+        history,
       })
-      await mutateChats()
+      const aiMsg: ChatMessage = {
+        id: `a_${Date.now()}`,
+        role: 'assistant',
+        content: r.data.response || 'Извините, не удалось получить ответ.',
+        createdAt: new Date().toISOString(),
+      }
+      setChats(prev => prev.map(c => c.id === chatId
+        ? { ...c, messages: [...c.messages, aiMsg], updatedAt: aiMsg.createdAt }
+        : c))
     } catch {
       const errMsg: ChatMessage = {
-        id: `err-${Date.now()}`, role: 'assistant',
+        id: `err_${Date.now()}`,
+        role: 'assistant',
         content: 'Извините, произошла ошибка. Попробуйте ещё раз.',
-        createdAt: new Date().toISOString(), model: null,
+        createdAt: new Date().toISOString(),
       }
-      setActiveChat(prev => prev ? { ...prev, messages: [...prev.messages, errMsg] } : null)
+      setChats(prev => prev.map(c => c.id === chatId
+        ? { ...c, messages: [...c.messages, errMsg], updatedAt: errMsg.createdAt }
+        : c))
     } finally {
       setIsSending(false)
       requestAnimationFrame(() => textareaRef.current?.focus())
     }
-  }, [input, isSending, activeId, mutateChats])
+  }, [input, isSending, activeId, chats])
 
   const copyMessage = useCallback(async (content: string, id: string) => {
     try {
@@ -288,19 +311,40 @@ export default function StudentAiTeacherV2() {
 
   const regenerate = useCallback(async (msgId: string) => {
     if (!activeId || isSending) return
+    const chat = chats.find(c => c.id === activeId)
+    if (!chat) return
+    const idx = chat.messages.findIndex(m => m.id === msgId)
+    if (idx === -1) return
+
+    // История до целевого AI-сообщения; берём последнее user-сообщение в ней
+    const beforeTarget = chat.messages.slice(0, idx)
+    const lastUser = [...beforeTarget].reverse().find(m => m.role === 'user')
+    if (!lastUser) { toast.error('Нет вопроса для перегенерации'); return }
+    const historyForApi = beforeTarget
+      .slice(0, beforeTarget.lastIndexOf(lastUser))
+      .map(m => ({ role: m.role, content: m.content }))
+
     setIsSending(true)
     try {
-      const r = await apiClient.post(`/ai-chats/${activeId}/messages/${msgId}/regenerate`)
-      const newMsg: ChatMessage = r.data
-      setActiveChat(prev => prev
-        ? { ...prev, messages: prev.messages.map(m => m.id === msgId ? newMsg : m) }
-        : null)
+      const r = await apiClient.post<{ response: string }>('/ai-assistant/student-chat', {
+        message: lastUser.content,
+        history: historyForApi,
+      })
+      const newMsg: ChatMessage = {
+        id: `a_${Date.now()}`,
+        role: 'assistant',
+        content: r.data.response || 'Извините, не удалось получить ответ.',
+        createdAt: new Date().toISOString(),
+      }
+      setChats(prev => prev.map(c => c.id === activeId
+        ? { ...c, messages: c.messages.map(m => m.id === msgId ? newMsg : m), updatedAt: newMsg.createdAt }
+        : c))
     } catch {
       toast.error('Ошибка при перегенерации')
     } finally {
       setIsSending(false)
     }
-  }, [activeId, isSending])
+  }, [activeId, chats, isSending])
 
   const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -351,8 +395,8 @@ export default function StudentAiTeacherV2() {
   }
 
   // Group chats by date period
-  const grouped = chats.reduce<Partial<Record<DateGroup, ChatItem[]>>>((acc, c) => {
-    const g = getDateGroup(c.lastMessageAt)
+  const grouped = chats.reduce<Partial<Record<DateGroup, Chat[]>>>((acc, c) => {
+    const g = getDateGroup(c.updatedAt)
     acc[g] = [...(acc[g] ?? []), c]
     return acc
   }, {})
@@ -450,7 +494,7 @@ export default function StudentAiTeacherV2() {
                             {chat.title}
                           </div>
                           <div className="text-[11px] text-ink-500 mt-0.5">
-                            {formatLastMsg(chat.messagesCount, chat.lastMessageAt)}
+                            {formatLastMsg(chat.messages.length, chat.updatedAt)}
                           </div>
                         </div>
                         <button
@@ -762,7 +806,7 @@ function MessageBubble({ msg, userInitials, copied, onCopy, onRegenerate, onThum
         </div>
         {/* meta */}
         <div className="text-[11px] text-ink-400 mt-1.5">
-          {time}{msg.model ? ` · ${msg.model}` : ''}
+          {time} · {MODEL_LABEL}
         </div>
       </div>
     </div>
