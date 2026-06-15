@@ -28,4 +28,8 @@ export class CreateGameDto {
   @Min(3)
   @Max(40)
   count?: number;
+
+  @IsOptional()
+  @IsEnum(['easy', 'medium', 'hard'])
+  difficulty?: 'easy' | 'medium' | 'hard';
 }

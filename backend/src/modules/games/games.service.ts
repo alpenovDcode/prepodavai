@@ -41,11 +41,11 @@ export class GamesService {
 
   async generateGame(dto: CreateGameDto, userId: string) {
     // Modified signature
-    const { topic, type, level, count } = dto;
+    const { topic, type, level, count, difficulty } = dto;
     this.logger.log(`Generating game ${type} for topic: ${topic}`);
 
     // 1. Get Prompt
-    const prompt = this.getPrompt(type, topic, level, count);
+    const prompt = this.getPrompt(type, topic, level, count, difficulty);
 
     // 2. Call AI
     const jsonResponse = await this.callAi(prompt);
@@ -278,10 +278,26 @@ export class GamesService {
     }
   }
 
-  private getPrompt(type: GameType, topic: string, level?: string, count?: number): string {
+  private getPrompt(
+    type: GameType,
+    topic: string,
+    level?: string,
+    count?: number,
+    difficulty?: 'easy' | 'medium' | 'hard',
+  ): string {
     const levelHint = level
       ? `Уровень — ${level} класс: подбирай сложность, формулировки и язык под этот возраст.`
       : '';
+    const difficultyHint = difficulty
+      ? `Общая сложность заданий: ${
+          difficulty === 'easy'
+            ? 'лёгкая — короткие, прямые вопросы по базовым понятиям.'
+            : difficulty === 'hard'
+              ? 'сложная — требующая глубокого понимания темы и анализа.'
+              : 'средняя — баланс между базовыми и нетривиальными заданиями.'
+        }`
+      : '';
+    const hints = [levelHint, difficultyHint].filter(Boolean).join('\n');
     const nMillionaire = clampCount(count ?? 15, 5, 30);
     const nFlash = clampCount(count ?? 12, 5, 30);
     const nMemory = clampCount(count ?? 8, 4, 16);
@@ -292,7 +308,7 @@ export class GamesService {
         return `
 Создай базу вопросов для игры "Кто хочет стать миллионером" на тему "${topic}".
 Нужно ровно ${nMillionaire} вопросов разной сложности (от легких к сложным).
-${levelHint}
+${hints}
 Верни ТОЛЬКО валидный JSON массив объектов без лишнего текста и разметки.
 Формат:
 [
@@ -307,7 +323,7 @@ ${levelHint}
         return `
 Создай набор флеш-карточек для изучения темы "${topic}".
 Нужно ровно ${nFlash} карточек.
-${levelHint}
+${hints}
 Верни ТОЛЬКО валидный JSON массив объектов без лишнего текста.
 Формат:
 [
@@ -321,7 +337,7 @@ ${levelHint}
         return `
 Создай ${nMemory} пар карточек для игры "Найди пару" (Memory) на тему "${topic}".
 Каждая пара — это два связанных понятия по теме (термин и определение, формула и её название, понятие и пример, и т.п.).
-${levelHint}
+${hints}
 Верни ТОЛЬКО валидный JSON массив из ${nMemory} объектов без лишнего текста и разметки.
 Формат:
 [
@@ -339,7 +355,7 @@ ${levelHint}
         return `
 Создай список слов для кроссворда/филворда на тему "${topic}".
 Нужно ровно ${nCross} слов с подсказками.
-${levelHint}
+${hints}
 ВАЖНО: Слова должны быть БЕЗ ПРОБЕЛОВ. Если термин состоит из нескольких слов, объедини их (например, "МАТЕМАТИЧЕСКОЕОЖИДАНИЕ" вместо "МАТЕМАТИЧЕСКОЕ ОЖИДАНИЕ").
 Верни ТОЛЬКО валидный JSON массив объектов без лишнего текста.
 Формат:
@@ -354,7 +370,7 @@ ${levelHint}
         return `
 Создай список утверждений для игры "Правда или Ложь" на тему "${topic}".
 Нужно ровно ${nTF} утверждений.
-${levelHint}
+${hints}
 Верни ТОЛЬКО валидный JSON массив объектов без лишнего текста.
 Формат:
 [
