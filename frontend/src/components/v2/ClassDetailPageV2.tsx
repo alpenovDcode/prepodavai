@@ -7,7 +7,8 @@ import {
     BarChart, Bar, LineChart, Line, XAxis, YAxis,
     Tooltip, ResponsiveContainer, CartesianGrid, Cell,
 } from 'recharts'
-import { ArrowLeft, Users, BookOpen, BarChart2, UserPlus, Share2, AlertTriangle, ChevronRight } from 'lucide-react'
+import { ArrowLeft, Users, BookOpen, BarChart2, UserPlus, Share2, AlertTriangle, ChevronRight, Compass } from 'lucide-react'
+import { useTour } from '@/lib/tour/useTour'
 import { cn } from '@/lib/utils/cn'
 import { apiClient } from '@/lib/api/client'
 import { Topbar } from '@/components/layout/v2/Topbar'
@@ -103,6 +104,7 @@ type Tab = 'students' | 'assignments' | 'analytics'
 export default function ClassDetailPageV2({ id }: { id: string }) {
     const router = useRouter()
     const menu = useMobileMenu()
+    const tour = useTour()
 
     const [classData, setClassData] = useState<ClassDetail | null>(null)
     const [loading, setLoading] = useState(true)
@@ -239,6 +241,16 @@ export default function ClassDetailPageV2({ id }: { id: string }) {
             actions={
                 classData ? (
                     <div className="flex items-center gap-2">
+                        {tour.hasConfig && (
+                            <button
+                                type="button"
+                                onClick={tour.start}
+                                className="h-8 px-3 inline-flex items-center gap-1.5 rounded-md text-[12px] font-semibold text-ink-700 hover:bg-ink-100 hover:text-ink-900 transition-colors"
+                            >
+                                <Compass className="w-3.5 h-3.5" />
+                                Тур
+                            </button>
+                        )}
                         <Button
                             variant="secondary"
                             size="sm"

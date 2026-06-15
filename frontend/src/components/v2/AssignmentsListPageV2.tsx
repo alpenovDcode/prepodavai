@@ -3,12 +3,13 @@
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import useSWR from 'swr'
-import { ArrowLeft, Clock, Users, BookOpen, ChevronRight, Search } from 'lucide-react'
+import { ArrowLeft, Clock, Users, BookOpen, ChevronRight, Search, Compass } from 'lucide-react'
 
 import { apiClient } from '@/lib/api/client'
 import { Topbar } from '@/components/layout/v2/Topbar'
 import { useMobileMenu } from '@/components/layout/v2/DashboardLayoutV2'
 import { Card } from '@/components/ui/v2/Card'
+import { useTour } from '@/lib/tour/useTour'
 import { cn } from '@/lib/utils/cn'
 
 interface Assignment {
@@ -41,6 +42,7 @@ function formatDate(iso: string): string {
 export default function AssignmentsListPageV2() {
     const router = useRouter()
     const menu = useMobileMenu()
+    const tour = useTour()
 
     const { data, isLoading } = useSWR<Assignment[]>('/assignments', fetcher)
     const [search, setSearch] = useState('')
@@ -80,6 +82,16 @@ export default function AssignmentsListPageV2() {
                 subtitle={`Всего: ${counts.all} · Активные: ${counts.open} · Завершённые: ${counts.done}`}
                 onMobileMenuToggle={menu.toggle}
                 hideSearch
+                actions={tour.hasConfig ? (
+                    <button
+                        type="button"
+                        onClick={tour.start}
+                        className="h-8 px-3 inline-flex items-center gap-1.5 rounded-md text-[12px] font-semibold text-ink-700 hover:bg-ink-100 hover:text-ink-900 transition-colors"
+                    >
+                        <Compass className="w-3.5 h-3.5" />
+                        Тур
+                    </button>
+                ) : undefined}
                 leading={
                     <button
                         type="button"

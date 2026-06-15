@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { apiClient } from '@/lib/api/client'
 import { useRouter } from 'next/navigation'
+import { useTour } from '@/lib/tour/useTour'
 import {
     LineChart,
     Line,
@@ -61,6 +62,7 @@ export default function StudentProfilePage({ params }: { params: { id: string } 
     const [analytics, setAnalytics] = useState<AnalyticsResponse | null>(null)
     const [loading, setLoading] = useState(true)
     const router = useRouter()
+    const tour = useTour()
 
     // Password change state
     const [newPassword, setNewPassword] = useState('')
@@ -144,10 +146,22 @@ export default function StudentProfilePage({ params }: { params: { id: string } 
 
     return (
         <div className="max-w-5xl mx-auto p-6">
-            {/* Back */}
-            <button onClick={() => router.back()} className="text-gray-500 hover:text-gray-700 mb-6 flex items-center gap-2">
-                <i className="fas fa-arrow-left"></i> Назад к списку
-            </button>
+            {/* Back + Тур */}
+            <div className="flex items-center justify-between mb-6">
+                <button onClick={() => router.back()} className="text-gray-500 hover:text-gray-700 flex items-center gap-2">
+                    <i className="fas fa-arrow-left"></i> Назад к списку
+                </button>
+                {tour.hasConfig && (
+                    <button
+                        type="button"
+                        onClick={tour.start}
+                        className="h-8 px-3 inline-flex items-center gap-1.5 rounded-md text-[12px] font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors"
+                    >
+                        <i className="fas fa-compass"></i>
+                        Тур
+                    </button>
+                )}
+            </div>
 
             {/* Header */}
             <div data-tour="header" className="flex items-center gap-6 mb-8">

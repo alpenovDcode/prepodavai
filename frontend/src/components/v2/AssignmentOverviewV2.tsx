@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import useSWR from 'swr'
 import {
     ArrowLeft, ChevronRight, Clock, Users, CheckCircle2, AlertCircle, Hourglass,
-    Eye, Loader2, FileText, ChevronDown,
+    Eye, Loader2, FileText, ChevronDown, Compass,
 } from 'lucide-react'
 
 import { apiClient } from '@/lib/api/client'
@@ -13,6 +13,7 @@ import { Topbar } from '@/components/layout/v2/Topbar'
 import { useMobileMenu } from '@/components/layout/v2/DashboardLayoutV2'
 import { Button } from '@/components/ui/v2/Button'
 import { Card } from '@/components/ui/v2/Card'
+import { useTour } from '@/lib/tour/useTour'
 import { cn } from '@/lib/utils/cn'
 
 interface Props {
@@ -123,6 +124,7 @@ function buildPreviewSrcDoc(html: string): string {
 export default function AssignmentOverviewV2({ assignmentId }: Props) {
     const router = useRouter()
     const menu = useMobileMenu()
+    const tour = useTour()
     const [previewOpen, setPreviewOpen] = useState(true)
 
     const { data, error, isLoading } = useSWR<OverviewResponse>(`/assignments/${assignmentId}/overview`, fetcher)
@@ -186,6 +188,16 @@ export default function AssignmentOverviewV2({ assignmentId }: Props) {
                         <ArrowLeft className="w-4 h-4" />
                     </button>
                 }
+                actions={tour.hasConfig ? (
+                    <button
+                        type="button"
+                        onClick={tour.start}
+                        className="h-8 px-3 inline-flex items-center gap-1.5 rounded-md text-[12px] font-semibold text-ink-700 hover:bg-ink-100 hover:text-ink-900 transition-colors"
+                    >
+                        <Compass className="w-3.5 h-3.5" />
+                        Тур
+                    </button>
+                ) : undefined}
             />
 
             <div className="max-w-[1320px] mx-auto px-8 py-6 max-md:px-4">

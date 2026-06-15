@@ -83,6 +83,32 @@ export function TourProvider({ children }: { children: ReactNode }) {
     return () => clearTimeout(timer)
   }, [pathname])
 
+  // Auto-skip: если у не-модального шага таргета нет в DOM — переходим дальше
+  useEffect(() => {
+    if (!isActive) return
+    const cfg = configRef.current
+    if (!cfg) return
+    const step = cfg.steps[stepIdx]
+    if (!step) return
+    if ('isModal' in step) return
+    if (!step.target) return
+    let cancelled = false
+    let attempts = 0
+    const tryFind = () => {
+      if (cancelled) return
+      if (document.querySelector(step.target as string)) return
+      attempts++
+      if (attempts >= 6) {
+        // 6 × 100ms = 600ms окно ожидания — потом пропускаем шаг
+        next()
+        return
+      }
+      setTimeout(tryFind, 100)
+    }
+    tryFind()
+    return () => { cancelled = true }
+  }, [isActive, stepIdx, next])
+
   // Keyboard shortcuts when tour is active
   useEffect(() => {
     if (!isActive) return
