@@ -484,11 +484,16 @@ export default function CoursesPageV2() {
 
     // Один запрос на все материалы — фильтрация/сортировка делаются на клиенте,
     // чтобы не дёргать бэкенд при каждом переключении вкладки (и не ловить 429).
+    //
+    // Кешируем в localStorage (не sessionStorage), чтобы данные пережили закрытие
+    // вкладки. При повторном заходе и обновлении страницы — мгновенный показ
+    // последнего снапшота, а свежие данные подтягиваются в фоне через SWR.
     const SWR_KEY = '/generate/history?limit=200'
+    const CACHE_KEY = 'courses_v2_cache'
     const [cachedData] = useState<HistoryResponse | undefined>(() => {
         if (typeof window === 'undefined') return undefined
         try {
-            const s = sessionStorage.getItem('courses_v2_cache')
+            const s = localStorage.getItem(CACHE_KEY)
             return s ? JSON.parse(s) : undefined
         } catch { return undefined }
     })
@@ -499,12 +504,13 @@ export default function CoursesPageV2() {
         {
             revalidateOnFocus: false,
             fallbackData: cachedData,
+            keepPreviousData: true,
         },
     )
 
     useEffect(() => {
         if (data) {
-            try { sessionStorage.setItem('courses_v2_cache', JSON.stringify(data)) } catch {}
+            try { localStorage.setItem(CACHE_KEY, JSON.stringify(data)) } catch {}
         }
     }, [data])
 
