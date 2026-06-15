@@ -300,8 +300,10 @@ ${p.text ? `ИСХОДНЫЕ ТЕЗИСЫ/ТЕКСТ:\n${p.text}\n` : ''}
   /**
    * Загружает HTML-шаблон, подставляет {{DATA}}, {{TITLE}}, {{TOPIC}},
    * цветовые vars и LOGO_URL.
+   * Публичный — используется и в generate(), и в migration-скрипте для
+   * пересборки HTML из уже существующего PresentationData без LLM-вызова.
    */
-  private async renderHtml(data: PresentationData): Promise<string> {
+  async renderHtml(data: PresentationData): Promise<string> {
     const tplPath = path.resolve(
       __dirname,
       `../../../templates/presentations/${data.style}.html`,
