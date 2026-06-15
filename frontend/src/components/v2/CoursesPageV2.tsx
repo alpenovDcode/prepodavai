@@ -482,16 +482,9 @@ export default function CoursesPageV2() {
         return () => clearTimeout(t)
     }, [query])
 
-    const swrKey = useMemo(() => {
-        const params: Record<string, string> = { limit: '200' }
-        if (activeType !== 'all') params.type = activeType
-        if (period !== 'all') params.period = period
-        if (debouncedQuery) params.search = debouncedQuery
-        if (sort !== 'newest') params.sort = sort
-        return `/generate/history?${new URLSearchParams(params).toString()}`
-    }, [activeType, period, debouncedQuery, sort])
-
-    const BASE_SWR_KEY = '/generate/history?limit=200'
+    // Один запрос на все материалы — фильтрация/сортировка делаются на клиенте,
+    // чтобы не дёргать бэкенд при каждом переключении вкладки (и не ловить 429).
+    const SWR_KEY = '/generate/history?limit=200'
     const [cachedData] = useState<HistoryResponse | undefined>(() => {
         if (typeof window === 'undefined') return undefined
         try {
@@ -501,30 +494,88 @@ export default function CoursesPageV2() {
     })
 
     const { data, isLoading: loading, mutate } = useSWR<HistoryResponse>(
-        swrKey,
+        SWR_KEY,
         (url: string) => apiClient.get<HistoryResponse>(url).then(r => r.data),
         {
             revalidateOnFocus: false,
-            fallbackData: swrKey === BASE_SWR_KEY ? cachedData : undefined,
+            fallbackData: cachedData,
         },
     )
 
     useEffect(() => {
-        if (data && swrKey === BASE_SWR_KEY) {
+        if (data) {
             try { sessionStorage.setItem('courses_v2_cache', JSON.stringify(data)) } catch {}
         }
-    }, [data, swrKey])
+    }, [data])
 
-    const items = data?.items || []
+    const allItems = data?.items || []
     const counts = data?.counts || {}
 
     const totalCount = useMemo(() => Object.values(counts).reduce((s, n) => s + n, 0), [counts])
 
-    // Client-side subject filter
+    // Маппинг UI-категорий на ключи типов в данных (как было на проде)
+    const TYPE_GROUPS: Record<string, string[]> = useMemo(() => ({
+        worksheet:    ['worksheet'],
+        quiz:         ['quiz'],
+        presentation: ['presentation'],
+        lessonPlan:   ['lesson_plan', 'lesson-plan', 'plan', 'lessonPlan'],
+        image:        ['image', 'image_generation', 'photosession'],
+        game:         ['game', 'game_generation'],
+    }), [])
+
+    // Клиентская фильтрация + сортировка
     const filtered = useMemo(() => {
-        if (!subject) return items
-        return items.filter(g => getSubject(g).toLowerCase() === subject.toLowerCase())
-    }, [items, subject])
+        let res = allItems
+
+        if (activeType !== 'all') {
+            const allowed = new Set(TYPE_GROUPS[activeType] || [activeType])
+            res = res.filter(g => allowed.has(g.type))
+        }
+
+        if (subject) {
+            const s = subject.toLowerCase()
+            res = res.filter(g => getSubject(g).toLowerCase() === s)
+        }
+
+        if (period !== 'all') {
+            const now = Date.now()
+            const periods: Record<string, number> = {
+                today:    24 * 60 * 60 * 1000,
+                week:     7 * 24 * 60 * 60 * 1000,
+                month:    30 * 24 * 60 * 60 * 1000,
+                halfyear: 180 * 24 * 60 * 60 * 1000,
+            }
+            const window = periods[period]
+            if (window) res = res.filter(g => now - new Date(g.createdAt).getTime() <= window)
+        }
+
+        if (debouncedQuery) {
+            const q = debouncedQuery.toLowerCase()
+            res = res.filter(g => (g.title || '').toLowerCase().includes(q))
+        }
+
+        const sorted = [...res]
+        switch (sort) {
+            case 'oldest':
+                sorted.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+                break
+            case 'az':
+                sorted.sort((a, b) => (a.title || '').localeCompare(b.title || '', 'ru'))
+                break
+            case 'za':
+                sorted.sort((a, b) => (b.title || '').localeCompare(a.title || '', 'ru'))
+                break
+            case 'subject':
+                sorted.sort((a, b) => getSubject(a).localeCompare(getSubject(b), 'ru'))
+                break
+            case 'newest':
+            default:
+                sorted.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        }
+        return sorted
+    }, [allItems, activeType, subject, period, debouncedQuery, sort, TYPE_GROUPS])
+
+    const items = allItems
 
     const handleDelete = useCallback(async (id: string) => {
         try {
