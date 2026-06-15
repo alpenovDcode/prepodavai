@@ -27,12 +27,7 @@ const SUBJECTS = [
     'Литература', 'Английский язык', 'География', 'Информатика', 'Обществознание',
 ]
 
-const LEVELS = [
-    { label: '5–6 класс', value: '5-6 класс' },
-    { label: '7–8 класс', value: '7-8 класс' },
-    { label: '9–11 класс', value: '9-11 класс' },
-    { label: 'Подготовка к ЕГЭ', value: 'ЕГЭ' },
-]
+const LEVELS = Array.from({ length: 11 }, (_, i) => ({ label: `${i + 1} класс`, value: `${i + 1} класс` }))
 
 const TOPIC_PRESETS_BY_SUBJECT: Record<string, string[]> = {
     'Математика': ['Уравнения', 'Графики функций', 'Векторы', 'Стереометрия'],
@@ -55,7 +50,7 @@ export default function WorksheetGeneratorV2(): React.ReactElement {
     // form
     const [topic, setTopic] = useState('')
     const [subject, setSubject] = useState('Математика')
-    const [level, setLevel] = useState(LEVELS[2].value)
+    const [level, setLevel] = useState('5 класс')
     const [questionsCount, setQuestionsCount] = useState(10)
 
     // result
@@ -241,13 +236,15 @@ export default function WorksheetGeneratorV2(): React.ReactElement {
                         {/* Level chip-group */}
                         <div data-tour="level">
                             <label className="block text-[12px] font-semibold text-ink-700 mb-2 uppercase tracking-wider">Уровень</label>
-                            <div className="flex gap-1.5 flex-wrap">
+                            <select
+                                value={level}
+                                onChange={e => setLevel(e.target.value)}
+                                className="block w-full h-10 px-3 rounded-md border border-ink-200 bg-surface text-[14px] text-ink-900 focus:outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-400/15 transition-colors"
+                            >
                                 {LEVELS.map(l => (
-                                    <ChipButton key={l.value} active={level === l.value} onClick={() => setLevel(l.value)}>
-                                        {l.label}
-                                    </ChipButton>
+                                    <option key={l.value} value={l.value}>{l.label}</option>
                                 ))}
-                            </div>
+                            </select>
                         </div>
 
                         {/* Questions count */}

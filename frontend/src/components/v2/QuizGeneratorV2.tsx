@@ -31,12 +31,7 @@ const SUBJECTS = [
     'Литература', 'Английский язык', 'География', 'Информатика', 'Обществознание',
 ]
 
-const LEVELS = [
-    { label: '5–6',  value: '6 Класс' },
-    { label: '7–8',  value: '8 Класс' },
-    { label: '9–11', value: '10 Класс' },
-    { label: 'ЕГЭ',  value: 'ЕГЭ' },
-]
+const LEVELS = Array.from({ length: 11 }, (_, i) => ({ label: `${i + 1} класс`, value: `${i + 1} класс` }))
 
 const ANSWERS_OPTIONS = [2, 3, 4]
 
@@ -58,7 +53,7 @@ export default function QuizGeneratorV2() {
     // form
     const [subject, setSubject] = useState('Биология')
     const [topic, setTopic] = useState('')
-    const [level, setLevel] = useState(LEVELS[2].value)
+    const [level, setLevel] = useState('5 класс')
     const [questionsCount, setQuestionsCount] = useState(10)
     const [answersCount, setAnswersCount] = useState(4)
 
@@ -276,13 +271,15 @@ export default function QuizGeneratorV2() {
                         {/* Level chips */}
                         <div data-tour="level">
                             <label className="block text-[12px] font-semibold text-ink-700 mb-2 uppercase tracking-wider">Класс</label>
-                            <div className="flex gap-1.5 flex-wrap">
+                            <select
+                                value={level}
+                                onChange={e => setLevel(e.target.value)}
+                                className="block w-full h-10 px-3 rounded-md border border-ink-200 bg-surface text-[14px] text-ink-900 focus:outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-400/15 transition-colors"
+                            >
                                 {LEVELS.map(l => (
-                                    <ChipButton key={l.value} active={level === l.value} onClick={() => setLevel(l.value)}>
-                                        {l.label}
-                                    </ChipButton>
+                                    <option key={l.value} value={l.value}>{l.label}</option>
                                 ))}
-                            </div>
+                            </select>
                         </div>
 
                         {/* Questions count slider */}

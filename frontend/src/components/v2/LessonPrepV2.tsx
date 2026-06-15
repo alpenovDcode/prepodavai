@@ -465,7 +465,7 @@ export default function LessonPrepV2() {
 
                     {/* Iframe / empty / progress */}
                     <div className="flex-1 overflow-hidden">
-                        {isGenerating && !localContent ? (
+                        {isGenerating ? (
                             <div className="h-full flex items-center justify-center p-8">
                                 <WowProgress />
                             </div>

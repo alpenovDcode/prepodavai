@@ -38,21 +38,14 @@ const DIFFICULTIES = [
     { value: 'hard',   label: 'Сложная' },
 ]
 
-const LEVELS = [
-    { label: '5',     value: '5' },
-    { label: '6',     value: '6' },
-    { label: '7',     value: '7' },
-    { label: '8',     value: '8' },
-    { label: '9',     value: '9' },
-    { label: '10–11', value: '10-11' },
-]
+const LEVELS = Array.from({ length: 11 }, (_, i) => ({ label: `${i + 1} класс`, value: `${i + 1} класс` }))
 
 const TOPIC_PRESETS = ['История Древнего Рима', 'Митоз', 'Past Simple', 'Законы Ньютона']
 
 export default function GamesV2() {
     const [type, setType] = useState<GameType>('memory')
     const [topic, setTopic] = useState('История Древнего Рима')
-    const [level, setLevel] = useState(LEVELS[1].value)
+    const [level, setLevel] = useState('5 класс')
     const [count, setCount] = useState(15)
     const [difficulty, setDifficulty] = useState('medium')
 
@@ -211,13 +204,15 @@ export default function GamesV2() {
                             <label className="block text-[12px] font-semibold text-ink-700 mb-2 uppercase tracking-wider">
                                 Класс
                             </label>
-                            <div className="flex gap-1.5 flex-wrap">
-                                {LEVELS.map((l) => (
-                                    <ChipButton key={l.value} active={level === l.value} onClick={() => setLevel(l.value)}>
-                                        {l.label}
-                                    </ChipButton>
+                            <select
+                                value={level}
+                                onChange={e => setLevel(e.target.value)}
+                                className="block w-full h-10 px-3 rounded-md border border-ink-200 bg-surface text-[14px] text-ink-900 focus:outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-400/15 transition-colors"
+                            >
+                                {LEVELS.map(l => (
+                                    <option key={l.value} value={l.value}>{l.label}</option>
                                 ))}
-                            </div>
+                            </select>
                         </div>
 
                         {/* Count slider */}
