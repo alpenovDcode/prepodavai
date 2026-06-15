@@ -592,9 +592,10 @@ function StudentAssignmentPage({ params }: { params: { id: string } }) {
               }}
               src={gameUrl}
               className="w-full bg-white"
-              style={{ height: '70vh', minHeight: 480, border: 'none' }}
+              style={{ height: '85vh', minHeight: 680, border: 'none' }}
               title={out.topic || 'Мини-игра'}
               allow="fullscreen"
+              allowFullScreen
             />
             {result && (
               <div className="px-4 py-3 flex flex-wrap items-center gap-2 bg-green-50 border-t border-green-100 text-sm text-green-800">

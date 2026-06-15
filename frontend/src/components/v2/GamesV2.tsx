@@ -272,7 +272,7 @@ export default function GamesV2() {
 
                 {/* RIGHT: preview */}
                 <Card padding="none"
-                      className={`col-span-8 max-lg:col-span-1 flex flex-col h-[calc(100vh-200px)] max-lg:h-[calc(100vh-220px)] overflow-hidden max-lg:${mobileTab === 'preview' ? '' : 'hidden'}`}>
+                      className={`col-span-8 max-lg:col-span-1 flex flex-col h-[calc(100vh-120px)] max-lg:h-[calc(100vh-160px)] overflow-hidden max-lg:${mobileTab === 'preview' ? '' : 'hidden'}`}>
                     {/* preview-toolbar */}
                     <div className="flex items-center gap-2 px-4 py-3 border-b border-ink-100 flex-wrap">
                         <div className="flex items-center gap-1.5 text-[13px] font-semibold text-ink-700">
@@ -355,7 +355,7 @@ export default function GamesV2() {
                                         <img
                                             src={qrSrc}
                                             alt="QR-код для запуска игры"
-                                            className="w-[88px] h-[88px] rounded-sm border border-ink-200 bg-white"
+                                            className="w-[64px] h-[64px] rounded-sm border border-ink-200 bg-white"
                                         />
                                     )}
                                     <div className="flex-1 min-w-[200px]">
@@ -371,13 +371,14 @@ export default function GamesV2() {
                                     </div>
                                 </div>
                                 {/* iframe */}
-                                <div className="flex-1 min-h-0 rounded-lg overflow-hidden bg-white border border-ink-200">
+                                <div className="flex-1 min-h-[640px] rounded-lg overflow-hidden bg-white border border-ink-200">
                                     <iframe
                                         ref={iframeRef}
                                         src={result.url}
                                         className="w-full h-full border-0"
                                         sandbox="allow-same-origin allow-scripts allow-popups allow-modals"
                                         title="game-preview"
+                                        allowFullScreen
                                     />
                                 </div>
                             </div>
