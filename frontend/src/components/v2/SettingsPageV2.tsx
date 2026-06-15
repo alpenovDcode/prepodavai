@@ -3,9 +3,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
 import {
-    UserCircle, Bell, ShieldCheck, Link as LinkIcon, Palette, Languages, Trash2,
+    UserCircle, Bell, ShieldCheck, Link as LinkIcon, Palette, Languages,
     Check, Upload, CheckCircle, Send, MessageCircle, Calendar as CalendarIcon, Cloud,
-    Download, Sun, Moon, Laptop, Eye, EyeOff, Compass,
+    Sun, Moon, Laptop, Eye, EyeOff, Compass,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -25,7 +25,7 @@ import { Toggle } from '@/components/ui/v2/Toggle'
 
 type NavId =
     | 'profile' | 'notifications' | 'security' | 'integrations'
-    | 'appearance' | 'language' | 'danger'
+    | 'appearance' | 'language'
 
 const NAV: { id: NavId; label: string; icon: any; danger?: boolean }[] = [
     { id: 'profile',       label: 'Профиль',         icon: UserCircle },
@@ -33,7 +33,6 @@ const NAV: { id: NavId; label: string; icon: any; danger?: boolean }[] = [
     { id: 'security',      label: 'Безопасность',    icon: ShieldCheck },
     { id: 'integrations',  label: 'Интеграции',      icon: LinkIcon },
     { id: 'language',      label: 'Язык и регион',   icon: Languages },
-    { id: 'danger',        label: 'Удалить аккаунт', icon: Trash2, danger: true },
 ]
 
 // ─── маленькие переиспользуемые элементы ─────────────────────────────────────
@@ -369,51 +368,6 @@ export default function SettingsPageV2() {
     const [saving, setSaving] = useState(false)
     const [uploadingAvatar, setUploadingAvatar] = useState(false)
     const fileRef = useRef<HTMLInputElement>(null)
-    const [exportingData, setExportingData] = useState(false)
-    const [clearingHistory, setClearingHistory] = useState(false)
-
-    const handleExportData = async () => {
-        setExportingData(true)
-        try {
-            const [meRes, histRes] = await Promise.all([
-                apiClient.get('/users/me'),
-                apiClient.get('/generate/history?limit=1000'),
-            ])
-            const exportPayload = {
-                exportedAt: new Date().toISOString(),
-                profile: meRes.data?.user ?? null,
-                materials: histRes.data?.items ?? [],
-            }
-            const blob = new Blob([JSON.stringify(exportPayload, null, 2)], { type: 'application/json' })
-            const url = URL.createObjectURL(blob)
-            const a = document.createElement('a')
-            a.href = url
-            a.download = `prepodavai_export_${new Date().toISOString().slice(0, 10)}.json`
-            a.click()
-            URL.revokeObjectURL(url)
-        } catch {
-            toast.error('Не удалось экспортировать данные')
-        } finally {
-            setExportingData(false)
-        }
-    }
-
-    const handleClearHistory = async () => {
-        if (!window.confirm('Все материалы из ИИ Генератора будут удалены навсегда. Продолжить?')) return
-        setClearingHistory(true)
-        try {
-            const res = await apiClient.get('/generate/history?limit=1000')
-            const items: Array<{ id: string }> = res.data?.items ?? []
-            for (const item of items) {
-                await apiClient.delete(`/generate/${item.id}`)
-            }
-            toast.success(`Удалено материалов: ${items.length}`)
-        } catch {
-            toast.error('Ошибка при очистке истории')
-        } finally {
-            setClearingHistory(false)
-        }
-    }
 
     const [profile, setProfile] = useState<ProfileState>({
         firstName: '', lastName: '', email: '', phone: '',
@@ -764,70 +718,6 @@ export default function SettingsPageV2() {
                                 </Button>
                             </div>
                         </Panel>
-
-                        {/* Опасная зона */}
-                        <div
-                            id="danger"
-                            className="scroll-mt-24 rounded-lg p-[22px] border"
-                            style={{
-                                borderColor: '#FECACA',
-                                background: 'linear-gradient(165deg,#FEF2F2 0%,#FFFFFF 60%)',
-                            }}
-                        >
-                            <h2 className="font-display font-bold text-[16px] text-danger-700 mb-1">Опасная зона</h2>
-                            <div className="text-[13px] text-ink-600 mb-4">Эти действия необратимы. Подумайте дважды.</div>
-
-                            {[
-                                {
-                                    title: 'Экспортировать все данные',
-                                    desc: 'JSON со всеми материалами и профилем',
-                                    action: (
-                                        <Button
-                                            variant="secondary" size="sm" leftIcon={<Download size={14} />}
-                                            onClick={handleExportData}
-                                            disabled={exportingData}
-                                        >{exportingData ? 'Готовим…' : 'Экспорт'}</Button>
-                                    ),
-                                },
-                                {
-                                    title: 'Очистить историю генераций',
-                                    desc: 'Материалы исчезнут навсегда',
-                                    action: (
-                                        <Button
-                                            variant="secondary" size="sm" leftIcon={<Trash2 size={14} />}
-                                            className="text-danger-700"
-                                            onClick={handleClearHistory}
-                                            disabled={clearingHistory}
-                                        >{clearingHistory ? 'Удаляем…' : 'Очистить'}</Button>
-                                    ),
-                                },
-                                {
-                                    title: 'Удалить аккаунт',
-                                    desc: 'Профиль, классы, ученики, история — всё будет удалено',
-                                    action: (
-                                        <Button
-                                            variant="secondary" size="sm" leftIcon={<Trash2 size={14} />}
-                                            className="text-danger-700"
-                                            onClick={() => toast('Свяжитесь с поддержкой, чтобы удалить аккаунт', { icon: '⚠️' })}
-                                        >Удалить</Button>
-                                    ),
-                                },
-                            ].map((r, idx) => (
-                                <div
-                                    key={r.title}
-                                    className={`flex items-center justify-between gap-3 py-3.5 flex-wrap ${
-                                        idx > 0 ? 'border-t' : ''
-                                    }`}
-                                    style={idx > 0 ? { borderColor: '#FECACA' } : undefined}
-                                >
-                                    <div className="min-w-0">
-                                        <div className="font-bold text-ink-900 text-sm">{r.title}</div>
-                                        <div className="text-[12px] text-ink-600 mt-0.5">{r.desc}</div>
-                                    </div>
-                                    {r.action}
-                                </div>
-                            ))}
-                        </div>
 
                     </div>
                 </div>
