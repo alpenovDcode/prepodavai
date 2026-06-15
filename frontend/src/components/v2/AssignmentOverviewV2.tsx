@@ -90,60 +90,65 @@ function pickHtmlGeneration(gens: OverviewResponse['lesson']['generations']) {
 
 function buildPreviewSrcDoc(html: string): string {
     const BASE = `
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         body { background: #f9fafb; font-family: 'Inter', system-ui, -apple-system, sans-serif; color: #111827; line-height: 1.6; padding: 20px; }
         .container { max-width: 800px; margin: 0 auto; background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
         .header { display: flex; align-items: center; gap: 20px; margin-bottom: 30px; border-bottom: 2px solid #f3f4f6; padding-bottom: 20px; }
-        .header-logo { width: 40px; height: 40px; object-fit: contain; }
-        h1 { font-size: 28px; font-weight: 700; color: #111827; }
+        .header-logo { width: 40px; height: 40px; object-fit: contain; flex-shrink: 0; }
+        h1 { font-size: 28px; font-weight: 700; margin: 0; color: #111827; }
         h2 { font-size: 20px; font-weight: 600; margin-top: 32px; margin-bottom: 16px; color: #374151; }
         h3 { font-size: 17px; font-weight: 600; margin-top: 24px; margin-bottom: 12px; color: #374151; }
         p { margin-bottom: 16px; }
         ul, ol { padding-left: 24px; margin-bottom: 20px; }
         li { margin-bottom: 8px; }
-        input, textarea, select, button { pointer-events: none; opacity: 0.85; }
+        input[type="text"], textarea { width: 100%; border: 1px solid #d1d5db; border-radius: 6px; padding: 8px 12px; font-family: inherit; font-size: inherit; background: white; pointer-events: none; opacity: 0.85; }
+        .inline-input { display: inline-block; width: 150px; border: none; border-bottom: 1px solid #9ca3af; border-radius: 0; padding: 0 4px; background: transparent; }
+        .meta-info { margin-bottom: 30px; background: #fafafa; padding: 15px; border-radius: 8px; border: 1px solid #e5e7eb; }
+        .callout { background: #f0f9ff; border-left: 4px solid #0ea5e9; padding: 16px; margin: 20px 0; border-radius: 0 8px 8px 0; }
+        .teacher-answers-only { margin-top: 40px; padding-top: 20px; border-top: 2px dashed #d1d5db; }
+        .teacher-answers-only h2 { color: #dc2626; }
+        .footer-logo { text-align: right; margin-top: 40px; padding-top: 20px; border-top: 1px solid #f3f4f6; }
+        .footer-logo img { width: 32px; height: 32px; opacity: 0.5; }
         table { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 14px; }
         th, td { padding: 12px; border: 1px solid #e5e7eb; }
         th { background: #f9fafb; font-weight: 600; text-align: left; }
     `
     const MATH = `<script>window.MathJax={tex:{inlineMath:[['$','$'],['\\\\(','\\\\)']],displayMath:[['$$','$$'],['\\\\[','\\\\]']],processEscapes:true},chtml:{fontCache:'global'}};</script><script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>`
-    let base = html
-        .replace(/<script[^>]+src=["'][^"']*polyfill\.io[^"']*["'][^>]*>[\s\S]*?<\/script>/gi, '')
-        .replace(/<meta[^>]+name=["']viewport["'][^>]*>/gi, '')
-    const viewportMeta = `<meta name="viewport" content="width=device-width, initial-scale=1">`
-    const styleBlock = `<style>${BASE}</style>`
-    const overrideBlock = `<style>
-        html { width: 100% !important; max-width: none !important; min-width: 0 !important; }
-        body {
-            display: block !important;
-            width: 100% !important;
-            max-width: none !important;
-            min-width: 0 !important;
-            box-sizing: border-box !important;
-        }
-        body > .container,
-        body .container {
-            display: block !important;
-            box-sizing: border-box !important;
-            max-width: 800px !important;
-            width: 100% !important;
-            margin-left: auto !important;
-            margin-right: auto !important;
-            float: none !important;
-        }
-    </style>`
-    const hasMath = /mathjax/i.test(base)
-    const headInjection = `${viewportMeta}${styleBlock}${hasMath ? '' : MATH}`
 
-    const hasHead = /<head[\s>]/i.test(base)
-    const hasBody = /<body[\s>]/i.test(base)
-    if (hasHead) return base
-        .replace(/<head([^>]*)>/i, `<head$1>${headInjection}`)
-        .replace(/<\/head>/i, `${overrideBlock}</head>`)
-    if (hasBody) return base.replace(/<body([^>]*)>/i, `<head>${headInjection}${overrideBlock}</head><body$1`)
-    const hasContainer = /class\s*=\s*["'][^"']*\bcontainer\b/i.test(base)
-    const body = hasContainer ? base : `<div class="container">${base}</div>`
-    return `<!DOCTYPE html><html><head>${headInjection}${overrideBlock}</head><body>${body}</body></html>`
+    // Та же стратегия, что в MaterialViewerV2: берём ТОЛЬКО body innerHTML,
+    // выбрасываем все AI-стили/скрипты/мета, оборачиваем в свою канонічну
+    // оболочку. Бесполезно бороться с CSS модели через !important — проще
+    // не давать ему загрузиться.
+    let raw = html
+    const bodyMatch = raw.match(/<body[^>]*>([\s\S]*?)<\/body>/i)
+    let content = bodyMatch ? bodyMatch[1] : raw
+    content = content
+        .replace(/<!DOCTYPE[^>]*>/gi, '')
+        .replace(/<\/?html[^>]*>/gi, '')
+        .replace(/<head[\s\S]*?<\/head>/gi, '')
+        .replace(/<\/?body[^>]*>/gi, '')
+        .replace(/<style[\s\S]*?<\/style>/gi, '')
+        .replace(/<script[^>]+src=["'][^"']*polyfill\.io[^"']*["'][^>]*>[\s\S]*?<\/script>/gi, '')
+        .replace(/<script[^>]*>\s*window\.MathJax[\s\S]*?<\/script>/gi, '')
+        .replace(/<script[^>]+src=["'][^"']*mathjax[^"']*["'][^>]*>[\s\S]*?<\/script>/gi, '')
+        .trim()
+
+    const hasContainer = /class\s*=\s*["'][^"']*\bcontainer\b/i.test(content)
+    const body = hasContainer ? content : `<div class="container">${content}</div>`
+    const hasMath = /\\\(|\\\[|\$\$|\$[^$\n]+\$/.test(content)
+    const mathBlock = hasMath ? MATH : ''
+
+    return `<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>${BASE}</style>
+${mathBlock}
+</head>
+<body>${body}</body>
+</html>`
 }
 
 export default function AssignmentOverviewV2({ assignmentId }: Props) {

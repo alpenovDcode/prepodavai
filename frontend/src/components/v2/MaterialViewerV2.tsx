@@ -112,25 +112,30 @@ const TYPE_TOOL_ROUTE: Record<string, string> = {
     image_generation: '/workspace/image',
 }
 
-// База — повторяет DesignSystemConfig.STYLES бэкенда. Под эти классы
-// натренированы AI-промпты: .container 800px центрировано, header-flex, etc.
+// Канонический CSS дизайн-системы — 1-в-1 с
+// backend/src/modules/generations/config/design-system.config.ts STYLES.
+// Под эти классы натренированы AI-промпты.
 const IFRAME_BASE_STYLES = `
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 body { background: #f9fafb; font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: #111827; line-height: 1.6; padding: 20px; }
 .container { max-width: 800px; margin: 0 auto; background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
 .header { display: flex; align-items: center; gap: 20px; margin-bottom: 30px; border-bottom: 2px solid #f3f4f6; padding-bottom: 20px; }
-.header-logo { width: auto; height: 40px; }
-h1 { font-size: 28px; font-weight: 700; color: #111827; }
+.header-logo { width: 40px; height: 40px; object-fit: contain; flex-shrink: 0; }
+h1 { font-size: 28px; font-weight: 700; margin: 0; color: #111827; }
 h2 { font-size: 20px; font-weight: 600; margin-top: 32px; margin-bottom: 16px; color: #374151; }
 h3 { font-size: 17px; font-weight: 600; margin-top: 24px; margin-bottom: 12px; color: #374151; }
 p { margin-bottom: 16px; }
 ul, ol { padding-left: 24px; margin-bottom: 20px; }
 li { margin-bottom: 8px; }
-input[type="text"], textarea { width: 100%; border: 1px solid #d1d5db; border-radius: 6px; padding: 8px 12px; font-family: inherit; font-size: inherit; background: white; }
+input[type="text"], textarea {
+    width: 100%; border: 1px solid #d1d5db; border-radius: 6px; padding: 8px 12px;
+    font-family: inherit; font-size: inherit; background: white; transition: border-color 0.2s;
+}
 input[type="text"]:focus, textarea:focus { outline: none; border-color: #4f46e5; }
 .inline-input { display: inline-block; width: 150px; border: none; border-bottom: 1px solid #9ca3af; border-radius: 0; padding: 0 4px; background: transparent; }
 .footer-logo { text-align: right; margin-top: 40px; padding-top: 20px; border-top: 1px solid #f3f4f6; }
-.footer-logo img { width: 120px; opacity: 0.5; }
+.footer-logo img { width: 32px; height: 32px; object-fit: contain; opacity: 0.5; display: inline-block; }
 table { width: 100%; border-collapse: collapse; margin-top: 20px; margin-bottom: 20px; font-size: 14px; }
 th { background-color: #f9fafb; font-weight: 600; text-align: left; padding: 12px; border: 1px solid #d1d5db; }
 td { padding: 12px; border: 1px solid #e5e7eb; vertical-align: top; }
@@ -138,6 +143,7 @@ td { padding: 12px; border: 1px solid #e5e7eb; vertical-align: top; }
 .callout { background: #f0f9ff; border-left: 4px solid #0ea5e9; padding: 16px; margin: 20px 0; border-radius: 0 8px 8px 0; }
 .teacher-answers-only { margin-top: 40px; padding-top: 20px; border-top: 2px dashed #d1d5db; }
 .teacher-answers-only h2 { color: #dc2626; }
+@media (max-width: 640px) { .container { padding: 20px; } h1 { font-size: 24px; } }
 `
 
 const MATHJAX_SCRIPT = `<script>window.MathJax={tex:{inlineMath:[['$','$'],['\\\\(','\\\\)']],displayMath:[['$$','$$'],['\\\\[','\\\\]']],processEscapes:true},chtml:{fontCache:'global'},startup:{typeset:true}};</script><script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>`
@@ -167,77 +173,62 @@ function extractHtml(outputData: any): string | null {
     return raw
 }
 
-function buildSrcDoc(html: string, opts: { hideAnswers: boolean; editing: boolean }): string {
-    let base = html
-        .replace(/LOGO_PLACEHOLDER/g, LOGO_BASE64)
+/**
+ * Извлекаем только КОНТЕНТ из AI-HTML, выбрасывая всё, что может
+ * сломать вёрстку в iframe (свой CSS, свой <head>, кастомные scripts,
+ * meta viewport с мобильной шириной). После этого оборачиваем тело в
+ * каноническую оболочку с дизайн-системой бэка. Так мы перестаём «бороться»
+ * с фантазиями модели — она задаёт смысловую структуру, а вид определяем мы.
+ */
+function extractBodyContent(html: string): string {
+    let raw = html.replace(/LOGO_PLACEHOLDER/g, LOGO_BASE64)
+    // Берём только то, что лежит между <body>...</body>, иначе — весь текст.
+    const bodyMatch = raw.match(/<body[^>]*>([\s\S]*?)<\/body>/i)
+    let inner = bodyMatch ? bodyMatch[1] : raw
+    // Если <body> не было — фрагмент мог содержать <html>, <head>, <style>.
+    // Чистим всё, что относится к doc-shell.
+    inner = inner
+        .replace(/<!DOCTYPE[^>]*>/gi, '')
+        .replace(/<\/?html[^>]*>/gi, '')
+        .replace(/<head[\s\S]*?<\/head>/gi, '')
+        .replace(/<\/?body[^>]*>/gi, '')
+    // Полностью убираем все AI-style блоки — наша дизайн-система авторитет.
+    inner = inner.replace(/<style[\s\S]*?<\/style>/gi, '')
+    // Убираем рискованные/мусорные скрипты, MathJax вставим сами.
+    inner = inner
         .replace(/<script[^>]+src=["'][^"']*polyfill\.io[^"']*["'][^>]*>[\s\S]*?<\/script>/gi, '')
-        // Сбрасываем любые AI-сгенерированные <meta name="viewport"> — модель
-        // иногда вставляет width=400 / initial-scale=0.5 и т.п., из-за чего
-        // содержимое рендерится как на узком телефоне.
-        .replace(/<meta[^>]+name=["']viewport["'][^>]*>/gi, '')
+        .replace(/<script[^>]*>\s*window\.MathJax[\s\S]*?<\/script>/gi, '')
+        .replace(/<script[^>]+src=["'][^"']*mathjax[^"']*["'][^>]*>[\s\S]*?<\/script>/gi, '')
+    return inner.trim()
+}
 
-    if (opts.editing) {
-        base = base
-            .replace(/<script[^>]*>\s*window\.MathJax[\s\S]*?<\/script>/gi, '')
-            .replace(/<script[^>]+src=["'][^"']*mathjax[^"']*["'][^>]*>[\s\S]*?<\/script>/gi, '')
-    }
+function buildSrcDoc(html: string, opts: { hideAnswers: boolean; editing: boolean }): string {
+    const content = extractBodyContent(html)
+    // Если AI уже завернул в .container — не вкладываем повторно.
+    const hasContainer = /class\s*=\s*["'][^"']*\bcontainer\b/i.test(content)
+    const body = hasContainer ? content : `<div class="container">${content}</div>`
 
-    const hasMath = /mathjax/i.test(base)
-    const viewportMeta = `<meta name="viewport" content="width=device-width, initial-scale=1">`
-    // Override-стили — идут ПОСЛЕДНИМИ в <head>, чтобы перебить любые
-    // собственные стили AI-HTML, которые могли уехать с узким .container
-    // (модель иногда генерит вложенные карточки с собственным max-width
-    // или забывает margin:0 auto на .container).
-    const overrideBlock = `<style>
-        html { width: 100% !important; max-width: none !important; min-width: 0 !important; }
-        body {
-            display: block !important;
-            width: 100% !important;
-            max-width: none !important;
-            min-width: 0 !important;
-            box-sizing: border-box !important;
-        }
-        /* AI часто делает body { display: flex; justify-content: center } —
-           тогда .container ужимается до своей intrinsic ширины. Сбрасываем
-           display на block + явный width:100% (НЕ auto) гарантирует, что
-           .container заполнит доступную ширину до max-width: 800px. */
-        body > .container,
-        body .container {
-            display: block !important;
-            box-sizing: border-box !important;
-            max-width: 800px !important;
-            width: 100% !important;
-            margin-left: auto !important;
-            margin-right: auto !important;
-            float: none !important;
-        }
-        ${opts.hideAnswers ? '.teacher-answers-only { display: none !important; }' : ''}
-    </style>`
-    const styleBlock = `<style>${IFRAME_BASE_STYLES}</style>`
-    const mathBlock = opts.editing || hasMath ? '' : MATHJAX_SCRIPT
-    const tailInjection = READY_SCRIPT
+    const hasMath = /\\\(|\\\[|\$\$|\$[^$\n]+\$/.test(content) || /class\s*=\s*["'][^"']*\b(math|mjx)/i.test(content)
+    const mathBlock = !opts.editing && hasMath ? MATHJAX_SCRIPT : ''
+    const hideAnswersCss = opts.hideAnswers
+        ? `<style>.teacher-answers-only { display: none !important; }</style>`
+        : ''
 
-    const hasHead = /<head[\s>]/i.test(base)
-    const hasBody = /<body[\s>]/i.test(base)
-    let out = base
-    if (hasHead) {
-        // viewport-мета + база + MathJax в НАЧАЛО head, override-стили —
-        // В КОНЕЦ head, чтобы выиграть каскад против AI-style блоков.
-        out = out
-            .replace(/<head([^>]*)>/i, `<head$1>${viewportMeta}${styleBlock}${mathBlock}`)
-            .replace(/<\/head>/i, `${overrideBlock}</head>`)
-    } else if (hasBody) {
-        out = out.replace(/<body([^>]*)>/i, `<head>${viewportMeta}${styleBlock}${mathBlock}${overrideBlock}</head><body$1`)
-    } else {
-        // Если AI HTML уже содержит свой .container — не оборачиваем повторно,
-        // иначе получим вложенные .container и контент сожмётся в узкую колонку.
-        const hasContainer = /class\s*=\s*["'][^"']*\bcontainer\b/i.test(out)
-        const body = hasContainer ? out : `<div class="container">${out}</div>`
-        return `<!DOCTYPE html><html><head>${viewportMeta}${styleBlock}${mathBlock}${overrideBlock}</head><body>${body}${tailInjection}</body></html>`
-    }
-    if (/<\/body>/i.test(out)) out = out.replace(/<\/body>/i, `${tailInjection}</body>`)
-    else out += tailInjection
-    return out
+    return `<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Материал</title>
+<style>${IFRAME_BASE_STYLES}</style>
+${hideAnswersCss}
+${mathBlock}
+</head>
+<body>
+${body}
+${READY_SCRIPT}
+</body>
+</html>`
 }
 
 function typeHasAnswers(t: string) {
