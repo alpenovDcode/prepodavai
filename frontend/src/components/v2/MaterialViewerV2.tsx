@@ -112,12 +112,8 @@ const TYPE_TOOL_ROUTE: Record<string, string> = {
     image_generation: '/workspace/image',
 }
 
-// Стили строго копируют дизайн-систему бэкенда (DesignSystemConfig.STYLES)
-// и оригинальный MaterialViewer на проде. AI-генерации сделаны под эти
-// классы: .container с фиксированным max-width 800px по центру, header-логотип
-// 40×40, шрифты и паддинги ровно как тут. Любое отклонение (width:auto,
-// max-width:100%) ломает вёрстку — заголовок в шапке заворачивается в 3
-// строки, контент сжимается под формулу и текст обрезается.
+// База — повторяет DesignSystemConfig.STYLES бэкенда. Под эти классы
+// натренированы AI-промпты: .container 800px центрировано, header-flex, etc.
 const IFRAME_BASE_STYLES = `
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 body { background: #f9fafb; font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: #111827; line-height: 1.6; padding: 20px; }
@@ -183,23 +179,36 @@ function buildSrcDoc(html: string, opts: { hideAnswers: boolean; editing: boolea
     }
 
     const hasMath = /mathjax/i.test(base)
-    const styleBlock = `<style>${IFRAME_BASE_STYLES}${opts.hideAnswers ? '.teacher-answers-only{display:none!important;}' : ''}</style>`
-    const headInjection = `${styleBlock}${opts.editing || hasMath ? '' : MATHJAX_SCRIPT}`
+    // Override-стили — идут ПОСЛЕДНИМИ в <head>, чтобы перебить любые
+    // собственные стили AI-HTML, которые могли уехать с узким .container
+    // (модель иногда генерит вложенные карточки с собственным max-width
+    // или забывает margin:0 auto на .container).
+    const overrideBlock = `<style>
+        html, body { width: 100% !important; }
+        body > .container, body .container { max-width: 800px !important; width: auto !important; margin-left: auto !important; margin-right: auto !important; }
+        ${opts.hideAnswers ? '.teacher-answers-only { display: none !important; }' : ''}
+    </style>`
+    const styleBlock = `<style>${IFRAME_BASE_STYLES}</style>`
+    const mathBlock = opts.editing || hasMath ? '' : MATHJAX_SCRIPT
     const tailInjection = READY_SCRIPT
 
     const hasHead = /<head[\s>]/i.test(base)
     const hasBody = /<body[\s>]/i.test(base)
     let out = base
     if (hasHead) {
-        out = out.replace(/<head([^>]*)>/i, `<head$1>${headInjection}`)
+        // База + MathJax в НАЧАЛО head, override-стили — В КОНЕЦ head, чтобы
+        // выиграть каскад против AI-style блоков.
+        out = out
+            .replace(/<head([^>]*)>/i, `<head$1>${styleBlock}${mathBlock}`)
+            .replace(/<\/head>/i, `${overrideBlock}</head>`)
     } else if (hasBody) {
-        out = out.replace(/<body([^>]*)>/i, `<head>${headInjection}</head><body$1`)
+        out = out.replace(/<body([^>]*)>/i, `<head>${styleBlock}${mathBlock}${overrideBlock}</head><body$1`)
     } else {
         // Если AI HTML уже содержит свой .container — не оборачиваем повторно,
         // иначе получим вложенные .container и контент сожмётся в узкую колонку.
         const hasContainer = /class\s*=\s*["'][^"']*\bcontainer\b/i.test(out)
         const body = hasContainer ? out : `<div class="container">${out}</div>`
-        return `<!DOCTYPE html><html><head>${headInjection}</head><body>${body}${tailInjection}</body></html>`
+        return `<!DOCTYPE html><html><head>${styleBlock}${mathBlock}${overrideBlock}</head><body>${body}${tailInjection}</body></html>`
     }
     if (/<\/body>/i.test(out)) out = out.replace(/<\/body>/i, `${tailInjection}</body>`)
     else out += tailInjection
