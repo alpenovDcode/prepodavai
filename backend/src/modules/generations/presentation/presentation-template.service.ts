@@ -236,31 +236,67 @@ ${p.text ? `ИСХОДНЫЕ ТЕЗИСЫ/ТЕКСТ:\n${p.text}\n` : ''}
   }
 
   /**
-   * Парсит ответ LLM. Терпим к мусору вокруг JSON (markdown, преамбула).
+   * Парсит ответ LLM. Терпим к мусору вокруг JSON и к типичным «грязным» паттернам,
+   * которые любит выдавать модель:
+   *   — markdown ```json ... ```
+   *   — smart-quotes "«»"
+   *   — комментарии //
+   *   — НЕвалидные backslash-escapes (\frac, \( и т.д. — LaTeX-команды
+   *     ломают JSON.parse, потому что \f в JSON — это form-feed, а не "\\f")
+   *   — trailing commas ,]
+   *   — обрезанный ответ (ставим } и ] до победного)
+   *   — control characters внутри строк (модель вставляет реальный \n вместо \\n)
    */
   private parseSlides(raw: string, expected: number): PresentationSlide[] {
-    // Снимаем markdown-обёртку
     let cleaned = raw.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
-    // Берём первый массив
     const m = cleaned.match(/\[[\s\S]*\]/);
     if (!m) throw new Error('LLM вернул не JSON-массив');
 
-    let json = m[0]
-      .replace(/[""]/g, '"')
-      .replace(/['']/g, "'")
-      .replace(/,\s*([\]}])/g, '$1')
-      .replace(/\/\/[^\n]*/g, '');
+    let json = m[0];
+
+    // 1) smart quotes → обычные
+    json = json.replace(/[“”]/g, '"').replace(/[‘’]/g, "'");
+
+    // 2) однострочные // комментарии
+    json = json.replace(/\/\/[^\n]*/g, '');
+
+    // 3) НЕВАЛИДНЫЕ escape-последовательности.
+    //    Валидные JSON-escapes: \" \\ \/ \b \f \n \r \t \uXXXX
+    //    LaTeX-команды (\frac, \ln, \(, \[) и одиночные \ в кириллице ломают JSON.
+    //    Переэкранируем их в \\X.
+    json = json.replace(/\\(u[0-9a-fA-F]{4}|[^])/g, (match, group1) => {
+      // \uXXXX оставляем как есть
+      if (group1.length === 5 && group1.startsWith('u')) return match;
+      const ch = group1;
+      // Валидные одиночные escapes JSON
+      if (['"', '\\', '/', 'b', 'f', 'n', 'r', 't'].includes(ch)) return match;
+      // Невалидный — экранируем backslash
+      return '\\\\' + ch;
+    });
+
+    // 4) trailing commas перед ] или }
+    json = json.replace(/,(\s*[\]}])/g, '$1');
+
+    // 5) реальные переводы строки внутри строковых значений — заменяем на пробел.
+    //    JSON запрещает literal newlines внутри "..." — модель иногда их вставляет.
+    //    Простая эвристика: считаем кавычки и заменяем \n/\r на пробел, если мы внутри строки.
+    json = this.escapeRawNewlinesInStrings(json);
 
     let parsed: any[];
     try {
       parsed = JSON.parse(json);
     } catch (e: any) {
       this.logger.warn(`JSON parse failed: ${e?.message}. Trying recovery...`);
-      // Обрезаем до последней закрывающей скобки
+      // Recovery: режем до последнего ']' и пытаемся снова
       const lastBracket = json.lastIndexOf(']');
       if (lastBracket > 0) {
-        json = json.slice(0, lastBracket + 1);
-        parsed = JSON.parse(json);
+        const truncated = json.slice(0, lastBracket + 1);
+        try {
+          parsed = JSON.parse(truncated);
+        } catch (e2: any) {
+          this.logger.error(`JSON recovery failed: ${e2?.message}. First 200 chars: ${json.slice(0, 200)}`);
+          throw new Error('Невалидный JSON от LLM (после recovery)');
+        }
       } else {
         throw new Error('Невалидный JSON от LLM');
       }
@@ -295,6 +331,44 @@ ${p.text ? `ИСХОДНЫЕ ТЕЗИСЫ/ТЕКСТ:\n${p.text}\n` : ''}
       this.logger.warn(`Expected ${expected} slides, got ${slides.length}`);
     }
     return slides;
+  }
+
+  /**
+   * Заменяет literal \n / \r внутри строковых значений JSON на \\n / \\r.
+   * LLM иногда вставляет настоящие переводы строки в "...", что ломает JSON.parse.
+   *
+   * Проходимся посимвольно с отслеживанием контекста: внутри строки / снаружи.
+   * Escape-последовательности (\") учитываем, чтобы не сломать состояние in_string.
+   */
+  private escapeRawNewlinesInStrings(input: string): string {
+    let out = '';
+    let inString = false;
+    let escapeNext = false;
+    for (let i = 0; i < input.length; i++) {
+      const ch = input[i];
+      if (escapeNext) {
+        out += ch;
+        escapeNext = false;
+        continue;
+      }
+      if (ch === '\\' && inString) {
+        out += ch;
+        escapeNext = true;
+        continue;
+      }
+      if (ch === '"') {
+        inString = !inString;
+        out += ch;
+        continue;
+      }
+      if (inString) {
+        if (ch === '\n') { out += '\\n'; continue; }
+        if (ch === '\r') { out += '\\r'; continue; }
+        if (ch === '\t') { out += '\\t'; continue; }
+      }
+      out += ch;
+    }
+    return out;
   }
 
   /**
