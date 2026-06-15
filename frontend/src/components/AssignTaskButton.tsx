@@ -53,8 +53,11 @@ export default function AssignTaskButton({
             setModalLessonId(newLessonId)
             setShowModal(true)
         } catch (error: any) {
-            console.error('Failed to prepare assignment:', error)
-            alert(error?.response?.data?.message || 'Ошибка при подготовке к выдаче')
+            // Раскрываем серверный месседж — раньше всегда «Ошибка при подготовке к выдаче»
+            const serverMsg = error?.response?.data?.message
+            const text = Array.isArray(serverMsg) ? serverMsg.join('; ') : serverMsg
+            console.error('Failed to prepare assignment:', error?.response?.status, text || error)
+            alert(text || `Ошибка ${error?.response?.status ?? ''}: не удалось подготовить материал к выдаче`)
         } finally {
             setPreparing(false)
         }

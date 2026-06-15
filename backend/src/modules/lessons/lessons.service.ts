@@ -1,24 +1,40 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger, InternalServerErrorException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { ReplicateService } from '../replicate/replicate.service';
 
 @Injectable()
 export class LessonsService {
+  private readonly logger = new Logger(LessonsService.name);
+
   constructor(
     private prisma: PrismaService,
     private replicateService: ReplicateService,
   ) {}
 
   async createLesson(userId: string, data: { topic: string; grade?: string; duration?: number }) {
-    return (this.prisma as any).lesson.create({
-      data: {
-        userId,
-        title: data.topic,
-        topic: data.topic,
-        grade: data.grade,
-        duration: data.duration,
-      },
-    });
+    if (!userId) {
+      throw new BadRequestException('Не удалось определить учителя (нет userId в токене)');
+    }
+    const topic = (data?.topic ?? '').toString().trim() || 'AI генерация';
+    try {
+      return await (this.prisma as any).lesson.create({
+        data: {
+          userId,
+          title: topic,
+          topic,
+          grade: data?.grade,
+          duration: data?.duration,
+        },
+      });
+    } catch (e: any) {
+      // На проде уходило в 500 без объяснений — теперь конкретный текст.
+      this.logger.error(`createLesson failed for userId=${userId}: ${e?.code ?? ''} ${e?.message ?? e}`);
+      if (e?.code === 'P2003') {
+        // FK на app_users не нашёл запись (учётка учителя удалена / drift).
+        throw new BadRequestException('Аккаунт учителя не найден в БД, переавторизуйтесь');
+      }
+      throw new InternalServerErrorException(e?.message || 'Не удалось создать урок');
+    }
   }
 
   async getUserLessons(
