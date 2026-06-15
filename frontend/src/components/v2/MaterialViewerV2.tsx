@@ -191,7 +191,11 @@ function buildSrcDoc(html: string, opts: { hideAnswers: boolean; editing: boolea
     } else if (hasBody) {
         out = out.replace(/<body([^>]*)>/i, `<head>${headInjection}</head><body$1`)
     } else {
-        return `<!DOCTYPE html><html><head>${headInjection}</head><body><div class="container">${out}</div>${tailInjection}</body></html>`
+        // Если AI HTML уже содержит свой .container — не оборачиваем повторно,
+        // иначе получим вложенные .container и контент сожмётся в узкую колонку.
+        const hasContainer = /class\s*=\s*["'][^"']*\bcontainer\b/i.test(out)
+        const body = hasContainer ? out : `<div class="container">${out}</div>`
+        return `<!DOCTYPE html><html><head>${headInjection}</head><body>${body}${tailInjection}</body></html>`
     }
     if (/<\/body>/i.test(out)) out = out.replace(/<\/body>/i, `${tailInjection}</body>`)
     else out += tailInjection
