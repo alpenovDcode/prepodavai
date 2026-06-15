@@ -62,6 +62,26 @@ const PRESETS: Preset[] = [
       style: 'illustration' },
 ]
 
+function pickImageExt(mime: string, url: string): string {
+    const m = (mime || '').toLowerCase()
+    if (m.includes('jpeg') || m.includes('jpg')) return 'jpg'
+    if (m.includes('png')) return 'png'
+    if (m.includes('webp')) return 'webp'
+    if (m.includes('gif')) return 'gif'
+    if (m.includes('avif')) return 'avif'
+    // Фолбэк по URL — для data: и .jpg/.png/.webp в пути.
+    const u = (url || '').toLowerCase()
+    const dataMatch = u.match(/^data:image\/([a-z0-9+-]+)/)
+    if (dataMatch) {
+        const sub = dataMatch[1]
+        if (sub === 'jpeg') return 'jpg'
+        return sub
+    }
+    const pathMatch = u.match(/\.(jpe?g|png|webp|gif|avif)(?:\?|#|$)/)
+    if (pathMatch) return pathMatch[1] === 'jpeg' ? 'jpg' : pathMatch[1]
+    return 'jpg'
+}
+
 const flipImageBlob = async (srcBlob: Blob): Promise<Blob> => {
     const bitmap = await createImageBitmap(srcBlob)
     const canvas = document.createElement('canvas')
@@ -160,18 +180,22 @@ export default function ImageGeneratorV2() {
             if (isFlipped) {
                 try { blob = await flipImageBlob(blob) } catch { /* отдадим оригинал */ }
             }
+            // Расширение берём по реальному MIME, иначе macOS Preview ругается
+            // на несовпадение magic-bytes и .png (AI часто отдаёт JPEG/WebP).
+            const ext = pickImageExt(blob.type, selectedUrl)
             const url = window.URL.createObjectURL(blob)
             const link = document.createElement('a')
             link.href = url
-            link.download = `image-${Date.now()}.png`
+            link.download = `image-${Date.now()}.${ext}`
             document.body.appendChild(link)
             link.click()
             document.body.removeChild(link)
             window.URL.revokeObjectURL(url)
         } catch {
+            const ext = pickImageExt('', selectedUrl)
             const link = document.createElement('a')
             link.href = selectedUrl
-            link.download = `image-${Date.now()}.png`
+            link.download = `image-${Date.now()}.${ext}`
             link.target = '_blank'
             document.body.appendChild(link)
             link.click()
