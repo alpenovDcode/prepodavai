@@ -171,6 +171,10 @@ function buildSrcDoc(html: string, opts: { hideAnswers: boolean; editing: boolea
     let base = html
         .replace(/LOGO_PLACEHOLDER/g, LOGO_BASE64)
         .replace(/<script[^>]+src=["'][^"']*polyfill\.io[^"']*["'][^>]*>[\s\S]*?<\/script>/gi, '')
+        // Сбрасываем любые AI-сгенерированные <meta name="viewport"> — модель
+        // иногда вставляет width=400 / initial-scale=0.5 и т.п., из-за чего
+        // содержимое рендерится как на узком телефоне.
+        .replace(/<meta[^>]+name=["']viewport["'][^>]*>/gi, '')
 
     if (opts.editing) {
         base = base
@@ -179,13 +183,18 @@ function buildSrcDoc(html: string, opts: { hideAnswers: boolean; editing: boolea
     }
 
     const hasMath = /mathjax/i.test(base)
+    const viewportMeta = `<meta name="viewport" content="width=device-width, initial-scale=1">`
     // Override-стили — идут ПОСЛЕДНИМИ в <head>, чтобы перебить любые
     // собственные стили AI-HTML, которые могли уехать с узким .container
     // (модель иногда генерит вложенные карточки с собственным max-width
     // или забывает margin:0 auto на .container).
     const overrideBlock = `<style>
-        html, body { width: 100% !important; }
+        html { width: 100% !important; max-width: none !important; min-width: 0 !important; }
+        body { width: 100% !important; max-width: none !important; min-width: 0 !important; }
         body > .container, body .container { max-width: 800px !important; width: auto !important; margin-left: auto !important; margin-right: auto !important; }
+        /* Подстраховка: если AI генерит карточку-обёртку без класса .container,
+           всё равно растягиваем прямого ребёнка body до полной ширины. */
+        body > main, body > article, body > section, body > div { max-width: none; }
         ${opts.hideAnswers ? '.teacher-answers-only { display: none !important; }' : ''}
     </style>`
     const styleBlock = `<style>${IFRAME_BASE_STYLES}</style>`
@@ -196,19 +205,19 @@ function buildSrcDoc(html: string, opts: { hideAnswers: boolean; editing: boolea
     const hasBody = /<body[\s>]/i.test(base)
     let out = base
     if (hasHead) {
-        // База + MathJax в НАЧАЛО head, override-стили — В КОНЕЦ head, чтобы
-        // выиграть каскад против AI-style блоков.
+        // viewport-мета + база + MathJax в НАЧАЛО head, override-стили —
+        // В КОНЕЦ head, чтобы выиграть каскад против AI-style блоков.
         out = out
-            .replace(/<head([^>]*)>/i, `<head$1>${styleBlock}${mathBlock}`)
+            .replace(/<head([^>]*)>/i, `<head$1>${viewportMeta}${styleBlock}${mathBlock}`)
             .replace(/<\/head>/i, `${overrideBlock}</head>`)
     } else if (hasBody) {
-        out = out.replace(/<body([^>]*)>/i, `<head>${styleBlock}${mathBlock}${overrideBlock}</head><body$1`)
+        out = out.replace(/<body([^>]*)>/i, `<head>${viewportMeta}${styleBlock}${mathBlock}${overrideBlock}</head><body$1`)
     } else {
         // Если AI HTML уже содержит свой .container — не оборачиваем повторно,
         // иначе получим вложенные .container и контент сожмётся в узкую колонку.
         const hasContainer = /class\s*=\s*["'][^"']*\bcontainer\b/i.test(out)
         const body = hasContainer ? out : `<div class="container">${out}</div>`
-        return `<!DOCTYPE html><html><head>${styleBlock}${mathBlock}${overrideBlock}</head><body>${body}${tailInjection}</body></html>`
+        return `<!DOCTYPE html><html><head>${viewportMeta}${styleBlock}${mathBlock}${overrideBlock}</head><body>${body}${tailInjection}</body></html>`
     }
     if (/<\/body>/i.test(out)) out = out.replace(/<\/body>/i, `${tailInjection}</body>`)
     else out += tailInjection

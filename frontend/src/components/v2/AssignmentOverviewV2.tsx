@@ -107,18 +107,28 @@ function buildPreviewSrcDoc(html: string): string {
         th { background: #f9fafb; font-weight: 600; text-align: left; }
     `
     const MATH = `<script>window.MathJax={tex:{inlineMath:[['$','$'],['\\\\(','\\\\)']],displayMath:[['$$','$$'],['\\\\[','\\\\]']],processEscapes:true},chtml:{fontCache:'global'}};</script><script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>`
-    let base = html.replace(/<script[^>]+src=["'][^"']*polyfill\.io[^"']*["'][^>]*>[\s\S]*?<\/script>/gi, '')
+    let base = html
+        .replace(/<script[^>]+src=["'][^"']*polyfill\.io[^"']*["'][^>]*>[\s\S]*?<\/script>/gi, '')
+        .replace(/<meta[^>]+name=["']viewport["'][^>]*>/gi, '')
+    const viewportMeta = `<meta name="viewport" content="width=device-width, initial-scale=1">`
     const styleBlock = `<style>${BASE}</style>`
+    const overrideBlock = `<style>
+        html { width: 100% !important; max-width: none !important; min-width: 0 !important; }
+        body { width: 100% !important; max-width: none !important; min-width: 0 !important; }
+        body > .container, body .container { max-width: 800px !important; width: auto !important; margin-left: auto !important; margin-right: auto !important; }
+    </style>`
     const hasMath = /mathjax/i.test(base)
-    const headInjection = `${styleBlock}${hasMath ? '' : MATH}`
+    const headInjection = `${viewportMeta}${styleBlock}${hasMath ? '' : MATH}`
 
     const hasHead = /<head[\s>]/i.test(base)
     const hasBody = /<body[\s>]/i.test(base)
-    if (hasHead) return base.replace(/<head([^>]*)>/i, `<head$1>${headInjection}`)
-    if (hasBody) return base.replace(/<body([^>]*)>/i, `<head>${headInjection}</head><body$1`)
+    if (hasHead) return base
+        .replace(/<head([^>]*)>/i, `<head$1>${headInjection}`)
+        .replace(/<\/head>/i, `${overrideBlock}</head>`)
+    if (hasBody) return base.replace(/<body([^>]*)>/i, `<head>${headInjection}${overrideBlock}</head><body$1`)
     const hasContainer = /class\s*=\s*["'][^"']*\bcontainer\b/i.test(base)
     const body = hasContainer ? base : `<div class="container">${base}</div>`
-    return `<!DOCTYPE html><html><head>${headInjection}</head><body>${body}</body></html>`
+    return `<!DOCTYPE html><html><head>${headInjection}${overrideBlock}</head><body>${body}</body></html>`
 }
 
 export default function AssignmentOverviewV2({ assignmentId }: Props) {
