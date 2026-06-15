@@ -1,5 +1,6 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { ACHIEVEMENT_SEED } from './achievement-seed';
 
 /**
  * Шкала уровней. XP_TO_NEXT_LEVEL(level) — сколько накопленного XP нужно для перехода на level+1.
@@ -93,10 +94,31 @@ export class GamificationService {
       include: { achievement: true },
       orderBy: { unlockedAt: 'desc' },
     });
-    const catalog = await this.prisma.achievement.findMany({
+    let catalog = await this.prisma.achievement.findMany({
       where: { isActive: true },
       orderBy: { sortOrder: 'asc' },
     });
+
+    // Ленивый сид: если каталог пуст (бэк стартовал до миграции и onModuleInit
+    // молча упал), посеять прямо сейчас, чтобы ачивки сразу появились в UI.
+    if (catalog.length === 0) {
+      try {
+        for (const a of ACHIEVEMENT_SEED) {
+          await this.prisma.achievement.upsert({
+            where: { key: a.key },
+            update: { ...a, isActive: true },
+            create: { ...a, isActive: true },
+          });
+        }
+        catalog = await this.prisma.achievement.findMany({
+          where: { isActive: true },
+          orderBy: { sortOrder: 'asc' },
+        });
+        this.logger.log(`Lazy-seeded ${catalog.length} achievements`);
+      } catch (e: any) {
+        this.logger.warn(`Lazy achievement seed failed: ${e?.message}`);
+      }
+    }
 
     const unlockedMap = new Map(unlocked.map((u) => [u.achievementKey, u.unlockedAt]));
     const level = levelFromXp(g.xp);
