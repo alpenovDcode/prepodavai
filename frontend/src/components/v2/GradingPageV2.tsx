@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { useSearchParams } from 'next/navigation'
 import useSWR from 'swr'
 import {
@@ -153,6 +153,107 @@ function extractAnswerBlocks(detail: SubmissionDetail) {
   }
 
   return blocks
+}
+
+// Берём первую генерацию задания, у которой есть HTML-контент. Это тот же
+// HTML, что показывается ученику в просмотре материала — нам он нужен,
+// чтобы отрисовать «лист с заданиями и ответами ученика».
+function pickWorksheetGen(detail: SubmissionDetail): { id: string; type: string; html: string } | null {
+    const gens = detail.assignment.generations || []
+    for (const gen of gens) {
+        const od = gen.outputData as any
+        if (!od) continue
+        const raw = typeof od === 'string' ? od : (od.content ?? od.htmlResult ?? od.html ?? '')
+        if (typeof raw === 'string' && /<[a-z][^>]*>/i.test(raw)) {
+            return { id: gen.id, type: gen.type, html: raw }
+        }
+    }
+    return null
+}
+
+// Собираем srcDoc для iframe: оригинальный HTML листа + базовые стили +
+// скрипт, который после загрузки подставляет ответы ученика в соответствующие
+// поля (по `name`) и блокирует ввод. Учитель видит лист точно как ученик,
+// только с уже заполненными ответами.
+function buildWorksheetSrcDoc(html: string, studentAnswers: Record<string, string>): string {
+    const BASE_STYLES = `
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        body { background: #f9fafb; font-family: 'Inter', system-ui, -apple-system, sans-serif; color: #111827; line-height: 1.6; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+        .header { display: flex; align-items: center; gap: 20px; margin-bottom: 30px; border-bottom: 2px solid #f3f4f6; padding-bottom: 20px; }
+        .header-logo { width: auto; height: 40px; }
+        h1 { font-size: 28px; font-weight: 700; color: #111827; }
+        h2 { font-size: 20px; font-weight: 600; margin-top: 32px; margin-bottom: 16px; color: #374151; }
+        h3 { font-size: 17px; font-weight: 600; margin-top: 24px; margin-bottom: 12px; color: #374151; }
+        p { margin-bottom: 16px; }
+        ul, ol { padding-left: 24px; margin-bottom: 20px; }
+        li { margin-bottom: 8px; }
+        input[type="text"], textarea { width: 100%; border: 1px solid #d1d5db; border-radius: 6px; padding: 8px 12px; font: inherit; background: #fff; }
+        .inline-input { display: inline-block; width: 150px; border: none; border-bottom: 1px solid #9ca3af; border-radius: 0; padding: 0 4px; background: transparent; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 14px; }
+        th { background: #f9fafb; font-weight: 600; text-align: left; padding: 12px; border: 1px solid #d1d5db; }
+        td { padding: 12px; border: 1px solid #e5e7eb; vertical-align: top; }
+        .callout { background: #f0f9ff; border-left: 4px solid #0ea5e9; padding: 16px; margin: 20px 0; border-radius: 0 8px 8px 0; }
+        /* Подсветка студенческих ответов */
+        [data-student-answer] { background: #FFF7ED !important; border-color: #F59E0B !important; }
+    `
+    const MATHJAX = `<script>window.MathJax={tex:{inlineMath:[['$','$'],['\\\\(','\\\\)']],displayMath:[['$$','$$'],['\\\\[','\\\\]']],processEscapes:true},chtml:{fontCache:'global'}};</script><script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>`
+
+    const answersJson = JSON.stringify(studentAnswers)
+    const FILL_SCRIPT = `<script>
+(function(){
+  var answers = ${answersJson};
+  function fill() {
+    Object.keys(answers).forEach(function(name){
+      var val = answers[name];
+      if (val === undefined || val === null) return;
+      var nodes = document.getElementsByName(name);
+      for (var i=0;i<nodes.length;i++){
+        var el = nodes[i];
+        if (el.tagName === 'INPUT' && (el.type === 'radio' || el.type === 'checkbox')) {
+          el.checked = String(el.value) === String(val);
+        } else if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
+          el.value = String(val);
+          el.setAttribute('data-student-answer', '1');
+        } else if (el.tagName === 'SELECT') {
+          el.value = String(val);
+        }
+        el.setAttribute('readonly','readonly');
+        el.setAttribute('disabled','disabled');
+      }
+    });
+  }
+  if (document.readyState === 'complete' || document.readyState === 'interactive') fill();
+  else document.addEventListener('DOMContentLoaded', fill);
+  // блокируем кнопки/submit
+  document.addEventListener('click', function(e){
+    var t = e.target;
+    if (t && (t.tagName === 'BUTTON' || (t.tagName === 'INPUT' && t.type === 'submit'))) e.preventDefault();
+  }, true);
+})();
+</script>`
+
+    let base = html.replace(/<script[^>]+src=["'][^"']*polyfill\.io[^"']*["'][^>]*>[\s\S]*?<\/script>/gi, '')
+    const styleBlock = `<style>${BASE_STYLES}</style>`
+    const hasMath = /mathjax/i.test(base)
+    const headInjection = `${styleBlock}${hasMath ? '' : MATHJAX}`
+    const tailInjection = FILL_SCRIPT
+
+    const hasHead = /<head[\s>]/i.test(base)
+    const hasBody = /<body[\s>]/i.test(base)
+    let out = base
+    if (hasHead) {
+        out = out.replace(/<head([^>]*)>/i, `<head$1>${headInjection}`)
+    } else if (hasBody) {
+        out = out.replace(/<body([^>]*)>/i, `<head>${headInjection}</head><body$1`)
+    } else {
+        const hasContainer = /class\s*=\s*["'][^"']*\bcontainer\b/i.test(out)
+        const body = hasContainer ? out : `<div class="container">${out}</div>`
+        return `<!DOCTYPE html><html><head>${headInjection}</head><body>${body}${tailInjection}</body></html>`
+    }
+    if (/<\/body>/i.test(out)) out = out.replace(/<\/body>/i, `${tailInjection}</body>`)
+    else out += tailInjection
+    return out
 }
 
 // ─── Grade color helpers ─────────────────────────────────────────────────────
@@ -397,6 +498,15 @@ export default function GradingPageV2() {
   const wrongCount = answerBlocks.filter(b => b.correct === false).length
   const totalCount = answerBlocks.length
 
+  // Лист с заданиями + предзаполненные ответы ученика — для центрального
+  // iframe-предпросмотра. Если нет HTML-генерации, падаем в старый список.
+  const worksheetGen = detail ? pickWorksheetGen(detail) : null
+  const worksheetSrcDoc = useMemo(() => {
+    if (!worksheetGen || !detail) return ''
+    const studentAnswers = detail.formData?.[worksheetGen.id] ?? {}
+    return buildWorksheetSrcDoc(worksheetGen.html, studentAnswers)
+  }, [worksheetGen, detail])
+
   const templates = templatesData?.templates ?? []
 
   return (
@@ -613,8 +723,21 @@ export default function GradingPageV2() {
                   </div>
                 </div>
 
-                {/* Answer blocks */}
-                {answerBlocks.length === 0 ? (
+                {/* Лист с заданиями + предзаполненные ответы ученика. Если у
+                    задания нет HTML-генерации (старые формы), показываем
+                    компактный список «вопрос-ответ». */}
+                {worksheetSrcDoc ? (
+                  <div className="bg-white border border-ink-200 rounded-lg overflow-hidden shadow-sm">
+                    <iframe
+                      srcDoc={worksheetSrcDoc}
+                      title="student-work"
+                      width="100%"
+                      className="block bg-white border-0"
+                      style={{ width: '100%', minHeight: '600px', height: '75vh' }}
+                      sandbox="allow-scripts allow-same-origin"
+                    />
+                  </div>
+                ) : answerBlocks.length === 0 ? (
                   <div className="text-[14px] text-ink-500 italic">Ответы не найдены</div>
                 ) : answerBlocks.map((block, i) => (
                   <div key={i} className="mb-[18px]">
