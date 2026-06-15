@@ -328,7 +328,7 @@ export default function WorksheetGeneratorV2(): React.ReactElement {
                                         <PdfDownloadButton
                                             generationId={activeGenerationId}
                                             filename={`${topic || 'worksheet'}.pdf`}
-                                            hasAnswers={canvasTab === 'answers'}
+                                            hasAnswers
                                             className="inline-flex items-center gap-1.5 h-8 px-3 text-[12px] font-semibold bg-ink-100 hover:bg-ink-200 text-ink-700 rounded-md transition-colors"
                                         />
                                         <AssignTaskButton
