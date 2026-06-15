@@ -150,7 +150,7 @@ export default function StudentProfilePage({ params }: { params: { id: string } 
             </button>
 
             {/* Header */}
-            <div className="flex items-center gap-6 mb-8">
+            <div data-tour="header" className="flex items-center gap-6 mb-8">
                 <div className="w-24 h-24 rounded-full bg-primary-100 flex items-center justify-center text-primary-700 font-bold text-3xl flex-shrink-0">
                     {student.avatar || student.name.charAt(0)}
                 </div>
@@ -195,7 +195,7 @@ export default function StudentProfilePage({ params }: { params: { id: string } 
             )}
 
             {/* Stats */}
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
+            <div data-tour="stats" className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
                 <StatCard label="Всего заданий" value={summary?.totalAssigned ?? 0} />
                 <StatCard
                     label="Сдано"
@@ -223,7 +223,7 @@ export default function StudentProfilePage({ params }: { params: { id: string } 
             </div>
 
             {/* Trend chart */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-8">
+            <div data-tour="trend" className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-8">
                 <div className="flex items-center justify-between mb-4">
                     <h2 className="text-lg font-bold text-gray-900">Динамика оценок</h2>
                     <span className="text-xs text-gray-500">Последние {trendData.length} работ</span>
@@ -263,7 +263,7 @@ export default function StudentProfilePage({ params }: { params: { id: string } 
             </div>
 
             {/* Password block */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-8">
+            <div data-tour="password" className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-8">
                 <h2 className="text-lg font-bold text-gray-900 mb-1">Пароль для входа</h2>
                 <p className="text-sm text-gray-500 mb-4">
                     Ученик входит по адресу <span className="font-medium text-gray-700">{student.email}</span> и этому паролю.
@@ -298,7 +298,7 @@ export default function StudentProfilePage({ params }: { params: { id: string } 
             </div>
 
             {/* Assignments */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div data-tour="assignments" className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                 <div className="p-6 border-b border-gray-100">
                     <h2 className="text-xl font-bold text-gray-900">История заданий</h2>
                 </div>

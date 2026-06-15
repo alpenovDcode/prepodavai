@@ -266,7 +266,7 @@ export default function DashboardHomeV2() {
                             <ActivityChart days={weeklyActivity?.days} />
                         </Card>
 
-                        <TipsCard className="col-span-4 max-lg:col-span-1" />
+                        <TipsCard className="col-span-4 max-lg:col-span-1" onStartTour={tour.start} hasTour={tour.hasConfig} />
                     </div>
                 </Section>
             </div>
@@ -436,7 +436,7 @@ function ActivityChart({ days }: { days?: { label: string; value: number }[] }) 
     )
 }
 
-function TipsCard({ className }: { className?: string }) {
+function TipsCard({ className, onStartTour, hasTour }: { className?: string; onStartTour?: () => void; hasTour?: boolean }) {
     return (
         <div
             className={`relative overflow-hidden rounded-xl p-6 border ${className || ''}`}
@@ -463,7 +463,14 @@ function TipsCard({ className }: { className?: string }) {
                     Покажу за минуту, где что находится. Можно перезапустить в любой момент.
                 </p>
                 <div className="flex gap-2">
-                    <Button variant="primary" size="sm" leftIcon={<Play className="w-3.5 h-3.5" />} className="flex-1">
+                    <Button
+                        variant="primary"
+                        size="sm"
+                        leftIcon={<Play className="w-3.5 h-3.5" />}
+                        className="flex-1"
+                        onClick={onStartTour}
+                        disabled={!hasTour}
+                    >
                         Запустить тур
                     </Button>
                     <a

@@ -333,7 +333,7 @@ export default function ClassDetailPageV2({ id }: { id: string }) {
             <div className="max-w-[1320px] w-full mx-auto p-8 max-md:p-4 space-y-6">
 
                 {/* Stats pills */}
-                <div className="flex flex-wrap gap-3">
+                <div data-tour="stats" className="flex flex-wrap gap-3">
                     <span className="inline-flex items-center gap-1.5 bg-brand-50 text-brand-700 px-3 py-1.5 rounded-lg text-sm font-medium">
                         <Users className="w-3.5 h-3.5" />
                         {classData.students.length} учеников
@@ -353,7 +353,7 @@ export default function ClassDetailPageV2({ id }: { id: string }) {
                 </div>
 
                 {/* Tabs */}
-                <div className="flex gap-1 border-b border-ink-200">
+                <div data-tour="tabs" className="flex gap-1 border-b border-ink-200">
                     {TABS.map(tab => (
                         <button
                             key={tab.key}
@@ -377,7 +377,7 @@ export default function ClassDetailPageV2({ id }: { id: string }) {
 
                 {/* Tab Content */}
                 {activeTab === 'students' && (
-                    <Card padding="none" className="overflow-hidden">
+                    <Card data-tour="tab-content" padding="none" className="overflow-hidden">
                         <table className="w-full">
                             <thead>
                                 <tr className="border-b border-ink-100 bg-ink-50/50">

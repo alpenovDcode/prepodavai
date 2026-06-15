@@ -95,7 +95,7 @@ export default function AssignmentsListPageV2() {
             <div className="max-w-[1320px] mx-auto px-8 py-6 max-md:px-4">
                 {/* Поиск + статус-фильтры */}
                 <div className="flex gap-3 mb-4 flex-wrap items-center">
-                    <div className="relative flex-1 min-w-[240px]">
+                    <div data-tour="search" className="relative flex-1 min-w-[240px]">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-400 pointer-events-none" />
                         <input
                             type="text"
@@ -105,7 +105,7 @@ export default function AssignmentsListPageV2() {
                             className="w-full pl-10 pr-3 py-2.5 rounded-lg border border-ink-200 bg-surface text-[14px] text-ink-900 placeholder:text-ink-400 focus:outline-none focus:border-brand-300 focus:ring-[3px] focus:ring-brand-400/10 transition-all"
                         />
                     </div>
-                    <div className="flex gap-1.5 flex-wrap">
+                    <div data-tour="status-tabs" className="flex gap-1.5 flex-wrap">
                         {([
                             ['all', `Все · ${counts.all}`],
                             ['open', `Активные · ${counts.open}`],
@@ -136,7 +136,7 @@ export default function AssignmentsListPageV2() {
                         {search || statusFilter !== 'all' ? 'Ничего не найдено по фильтрам' : 'У вас пока нет заданий.'}
                     </Card>
                 ) : (
-                    <div className="grid gap-2.5">
+                    <div data-tour="list" className="grid gap-2.5">
                         {filtered.map((a) => {
                             const overdue = isOverdue(a)
                             return (

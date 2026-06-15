@@ -190,7 +190,7 @@ export default function AssignmentOverviewV2({ assignmentId }: Props) {
 
             <div className="max-w-[1320px] mx-auto px-8 py-6 max-md:px-4">
                 {/* Hero */}
-                <Card padding="lg" className="mb-5">
+                <Card data-tour="hero" padding="lg" className="mb-5">
                     <div className="flex items-start justify-between gap-4 flex-wrap">
                         <div className="min-w-0">
                             <h1 className="font-display text-[26px] font-extrabold tracking-tight leading-tight text-ink-900">
@@ -229,7 +229,7 @@ export default function AssignmentOverviewV2({ assignmentId }: Props) {
                         </div>
 
                         {/* Quick stats */}
-                        <div className="flex items-center gap-2">
+                        <div data-tour="stats" className="flex items-center gap-2">
                             <Stat tone="success" label="Оценено" value={totals.graded} />
                             <Stat tone="info" label="Ждут проверки" value={totals.pending} />
                             <Stat tone="danger" label="Просрочено" value={totals.overdue} />
@@ -240,7 +240,7 @@ export default function AssignmentOverviewV2({ assignmentId }: Props) {
 
                 {/* Material preview (collapsible) */}
                 {srcDoc ? (
-                    <Card padding="none" className="mb-5 overflow-hidden">
+                    <Card data-tour="material" padding="none" className="mb-5 overflow-hidden">
                         <button
                             type="button"
                             onClick={() => setPreviewOpen((v) => !v)}
@@ -268,7 +268,7 @@ export default function AssignmentOverviewV2({ assignmentId }: Props) {
                 ) : null}
 
                 {/* Students list */}
-                <Card padding="none">
+                <Card data-tour="students" padding="none">
                     <div className="px-5 py-4 border-b border-ink-100 flex items-center justify-between">
                         <h2 className="font-display font-bold text-[16px] text-ink-900">
                             Ученики <span className="text-ink-400 font-medium">· {students.length}</span>

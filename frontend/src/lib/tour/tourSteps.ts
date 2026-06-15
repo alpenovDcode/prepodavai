@@ -72,7 +72,6 @@ export const TOUR_CONFIGS: Record<string, TourConfig> = {
       { target: '[data-tour="topic"]', placement: 'right', title: 'Введите тему', body: 'Чем точнее тема — тем точнее задания. Или выберите одну из быстрых подсказок под полем.' },
       { target: '[data-tour="level"]', placement: 'right', title: 'Уровень класса', body: 'Сложность задания адаптируется под выбранный класс: 5–6, 7–8, 9–11 или подготовка к ЕГЭ.' },
       { target: '[data-tour="count"]', placement: 'right', title: 'Количество заданий', body: 'От 5 до 25. Для 45-минутного урока оптимально 10–12 заданий.' },
-      { target: '[data-tour="options"]', placement: 'right', title: 'Дополнительные опции', body: 'Включить краткую теорию перед заданиями, ответы для учителя или подсказки к сложным задачам.' },
       { target: '[data-tour="generate"]', placement: 'top', title: '⚡ Сгенерировать', body: 'Нажмите — и через ~30 секунд рабочий лист появится справа. Горячая клавиша: ⌘+↵.' },
       { target: '[data-tour="preview-tabs"]', placement: 'bottom', title: 'Три вкладки', body: '«Превью» — чистый лист для ученика. «С ответами» — версия для учителя. «Редактировать» — правите прямо в браузере.' },
       { target: '[data-tour="preview"]', placement: 'left', title: 'Область предпросмотра', body: 'Готовый HTML с форматированием. Можно скачать PDF, скопировать HTML или сразу выдать ученикам.' },
@@ -89,7 +88,6 @@ export const TOUR_CONFIGS: Record<string, TourConfig> = {
       { target: '[data-tour="topic"]', placement: 'right', title: 'Тема теста', body: 'Введите тему — или выберите из подсказок. Можно конкретизировать: «Митоз: фазы и характеристики».' },
       { target: '[data-tour="level"]', placement: 'right', title: 'Класс', body: 'Вопросы адаптируются под уровень: терминология, сложность формулировок и число вариантов.' },
       { target: '[data-tour="count"]', placement: 'right', title: 'Количество вопросов', body: 'От 5 до 25 вопросов. Для 10-минутной проверки — 5–8, для контрольной — 15–20.' },
-      { target: '[data-tour="options"]', placement: 'right', title: 'Опции', body: 'Включить объяснения к ответам и ключ для учителя. Рекомендуем оставить оба включёнными.' },
       { target: '[data-tour="generate"]', placement: 'top', title: '⚡ Сгенерировать', body: 'Нажмите — тест готов за ~30 секунд. Появится в области справа.' },
       { target: '[data-tour="preview"]', placement: 'left', title: 'Предпросмотр', body: 'HTML-версия теста с форматированием. Скачайте PDF или выдайте ученикам — кнопки в панели сверху.' },
       { target: null, isModal: true, illustration: '🎉', title: 'Готово!', body: 'Заполните тему и нажмите «Сгенерировать». Тест сохранится в «Материалах».', primaryLabel: 'Попробовать' },
@@ -321,6 +319,53 @@ export const TOUR_CONFIGS: Record<string, TourConfig> = {
     ],
   },
 
+  'assignments-list': {
+    storageKey: 'prepodavai_assignments_list_tour_v1',
+    steps: [
+      { target: null, isModal: true, illustration: '📋', title: 'Все домашние задания', body: 'Один список всех ДЗ — выданных классам и персонально. Можно искать, фильтровать по статусу и проваливаться в карточку. Покажу за минуту.', primaryLabel: 'Начнём' },
+      { target: '[data-tour="search"]', placement: 'bottom', title: '🔎 Поиск', body: 'Ищите по названию урока, теме, классу или имени ученика. Работает мгновенно, без Enter.' },
+      { target: '[data-tour="status-tabs"]', placement: 'bottom', title: 'Фильтр по статусу', body: 'Все · Активные (ждут сдачи) · Завершённые (оценены) · Просрочено. Цифры рядом показывают сколько в каждой категории.' },
+      { target: '[data-tour="list"]', placement: 'top', padding: 6, title: '📝 Карточки заданий', body: 'Видно класс/ученика, срок, сколько работ сдано и статус. Клик по карточке — провалитесь в обзор задания со списком учеников и материалом.' },
+      { target: null, isModal: true, illustration: '🎉', title: 'Готово!', body: 'Используйте «Просрочено», чтобы быстро найти, кому ещё не выдали или не сдали вовремя.', primaryLabel: 'Понятно' },
+    ],
+  },
+
+  'assignment-overview': {
+    storageKey: 'prepodavai_assignment_overview_tour_v1',
+    steps: [
+      { target: null, isModal: true, illustration: '📄', title: 'Обзор задания', body: 'Здесь вся информация по конкретному ДЗ: материал, статистика и список учеников с их статусами. За минуту покажу.', primaryLabel: 'Начнём' },
+      { target: '[data-tour="hero"]', placement: 'bottom', padding: 8, title: 'Шапка задания', body: 'Название, тема, класс или персональный получатель, дата выдачи и срок. Если срок истёк — отметка «истёк» подсветится красным.' },
+      { target: '[data-tour="stats"]', placement: 'left', title: '📊 Статистика', body: 'Оценено · Ждут проверки · Просрочено · Всего. Сразу видно, на чём сосредоточиться.' },
+      { target: '[data-tour="material"]', placement: 'bottom', padding: 6, title: '📑 Материал задания', body: 'Клик по блоку — раскроется превью самого листа, который видят ученики. Удобно проверить, что выдали именно то.' },
+      { target: '[data-tour="students"]', placement: 'top', padding: 6, title: '👥 Ученики и статусы', body: 'Каждая строка — ученик с его статусом (оценено/сдано/просрочено/не сдано). Кнопка «Проверить» открывает работу в проверке ДЗ.' },
+      { target: null, isModal: true, illustration: '🎉', title: 'Готово!', body: 'Кликайте «Проверить» рядом со сданной работой — попадёте в инструмент оценки. Возврат — кнопка «Назад» в шапке.', primaryLabel: 'Понятно' },
+    ],
+  },
+
+  'class-detail': {
+    storageKey: 'prepodavai_class_detail_tour_v1',
+    steps: [
+      { target: null, isModal: true, illustration: '🏫', title: 'Карточка класса', body: 'Здесь ученики, выданные задания и аналитика по классу — три вкладки в одном окне. Быстро покажу.', primaryLabel: 'Начнём' },
+      { target: '[data-tour="stats"]', placement: 'bottom', padding: 6, title: 'Сводка по классу', body: 'Сколько учеников, заданий и какой процент выполнен. Быстрая оценка состояния класса с одного взгляда.' },
+      { target: '[data-tour="tabs"]', placement: 'bottom', title: 'Три вкладки', body: '«Ученики» — список с возможностью пригласить, выдать ссылку, открыть карточку. «Задания» — все ДЗ для этого класса. «Аналитика» — графики и зоны риска.' },
+      { target: '[data-tour="tab-content"]', placement: 'top', padding: 8, title: 'Контент вкладки', body: 'В таблице учеников можно открыть карточку каждого и скопировать ссылку для входа. Для нового ученика — кнопка «Пригласить» в шапке.' },
+      { target: null, isModal: true, illustration: '🎉', title: 'Готово!', body: 'Чтобы выдать материал всему классу — кнопка «Выдать материал» в шапке. Аналитика подсветит, кто отстаёт.', primaryLabel: 'Понятно' },
+    ],
+  },
+
+  'student-profile': {
+    storageKey: 'prepodavai_student_profile_tour_v1',
+    steps: [
+      { target: null, isModal: true, illustration: '👤', title: 'Карточка ученика', body: 'Профиль, статистика, динамика оценок, пароль для входа и история заданий — всё в одном месте. Покажу основное.', primaryLabel: 'Начнём' },
+      { target: '[data-tour="header"]', placement: 'bottom', padding: 8, title: 'Шапка профиля', body: 'Имя, класс, email и статус риска (стабильно / под наблюдением / отстаёт). Статус считается автоматически по оценкам и просрочкам.' },
+      { target: '[data-tour="stats"]', placement: 'bottom', padding: 6, title: '📊 Ключевые цифры', body: 'Всего заданий, сколько сдано, средний балл, % вовремя и просрочено. Цвет подсвечивает проблемные зоны.' },
+      { target: '[data-tour="trend"]', placement: 'top', padding: 6, title: '📈 Динамика оценок', body: 'График по последним проверенным работам. Сразу видно, идёт ли ученик вверх или скатывается ниже порога.' },
+      { target: '[data-tour="password"]', placement: 'top', padding: 6, title: '🔑 Сброс пароля', body: 'Если ученик забыл пароль — задайте новый прямо здесь и сообщите ему. Минимум 6 символов.' },
+      { target: '[data-tour="assignments"]', placement: 'top', padding: 8, title: '📝 История заданий', body: 'Все выданные ДЗ с оценками и пометкой «Поздняя сдача». Помогает понять контекст перед разговором с родителями.' },
+      { target: null, isModal: true, illustration: '🎉', title: 'Готово!', body: 'Используйте динамику и статус риска как ранний сигнал — лучше заметить тренд до родительского собрания.', primaryLabel: 'Понятно' },
+    ],
+  },
+
   courses: {
     storageKey: 'prepodavai_courses_tour_v1',
     steps: [
@@ -354,6 +399,10 @@ export function matchTourConfig(pathname: string): string | null {
   if (pathname === '/dashboard/analytics') return 'analytics'
   if (pathname === '/dashboard/referrals') return 'referrals'
   if (pathname === '/dashboard/settings') return 'settings'
+  if (pathname === '/dashboard/assignments') return 'assignments-list'
+  if (/^\/dashboard\/assignments\/[^/]+$/.test(pathname)) return 'assignment-overview'
+  if (/^\/dashboard\/classes\/[^/]+$/.test(pathname)) return 'class-detail'
+  if (/^\/dashboard\/students\/[^/]+$/.test(pathname)) return 'student-profile'
   if (pathname === '/student/dashboard') return 'student-dashboard'
   if (pathname === '/student/assignments') return 'student-assignments'
   if (pathname === '/student/grades') return 'student-grades'

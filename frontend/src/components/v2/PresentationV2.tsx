@@ -196,7 +196,7 @@ export default function PresentationV2() {
 
             <div className="flex-1 min-h-0 grid grid-cols-12 gap-4 p-6 max-md:p-3 max-lg:grid-cols-1">
                 {/* LEFT: params */}
-                <Card padding="lg" className={`col-span-4 max-lg:col-span-1 h-fit max-lg:${mobileTab === 'config' ? '' : 'hidden'}`}>
+                <Card data-tour="hero" padding="lg" className={`col-span-4 max-lg:col-span-1 h-fit max-lg:${mobileTab === 'config' ? '' : 'hidden'}`}>
                     <div className="flex items-center gap-2 mb-5">
                         <IconTile color="success" size="md"><PresentationIcon className="w-[18px] h-[18px]" /></IconTile>
                         <div>
@@ -206,6 +206,7 @@ export default function PresentationV2() {
                     </div>
 
                     <div className="flex flex-col gap-4">
+                        <div data-tour="topic">
                         <Input
                             label="Тема презентации *"
                             value={topic}
@@ -213,6 +214,7 @@ export default function PresentationV2() {
                             placeholder="Эволюция животного мира"
                             hint="Главная тема или название"
                         />
+                        </div>
 
                         <div>
                             <label className="block text-[11px] font-bold uppercase tracking-wider text-ink-700 mb-1.5">
@@ -227,7 +229,7 @@ export default function PresentationV2() {
                             />
                         </div>
 
-                        <div>
+                        <div data-tour="style">
                             <label className="block text-[11px] font-bold uppercase tracking-wider text-ink-700 mb-1.5">
                                 Количество слайдов: <span className="text-brand-600 tnum">{slidesCount}</span>
                             </label>
@@ -310,7 +312,7 @@ export default function PresentationV2() {
                         </div>
 
                         {/* Generate button */}
-                        <div className="pt-2 border-t border-ink-100">
+                        <div data-tour="generate" className="pt-2 border-t border-ink-100">
                             <Button
                                 variant="primary"
                                 size="lg"
@@ -330,7 +332,7 @@ export default function PresentationV2() {
                 </Card>
 
                 {/* RIGHT: preview */}
-                <Card padding="none"
+                <Card data-tour="preview" padding="none"
                       className={`col-span-8 max-lg:col-span-1 flex flex-col h-[calc(100vh-200px)] max-lg:h-[calc(100vh-220px)] overflow-hidden max-lg:${mobileTab === 'preview' ? '' : 'hidden'}`}>
                     {/* Preview toolbar */}
                     <div className="flex items-center gap-2 px-4 py-3 border-b border-ink-100 flex-wrap">
