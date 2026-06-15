@@ -488,8 +488,8 @@ export default function CoursesPageV2() {
     // Кешируем в localStorage (не sessionStorage), чтобы данные пережили закрытие
     // вкладки. При повторном заходе и обновлении страницы — мгновенный показ
     // последнего снапшота, а свежие данные подтягиваются в фоне через SWR.
-    const SWR_KEY = '/generate/history?limit=200'
-    const CACHE_KEY = 'courses_v2_cache'
+    const SWR_KEY = '/generate/history?limit=200&slim=1'
+    const CACHE_KEY = 'courses_v2_cache_slim'
     const [cachedData] = useState<HistoryResponse | undefined>(() => {
         if (typeof window === 'undefined') return undefined
         try {

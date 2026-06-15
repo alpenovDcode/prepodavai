@@ -304,6 +304,7 @@ export class GenerationsController {
     @Query('period') period?: string,
     @Query('search') search?: string,
     @Query('sort') sort?: string,
+    @Query('slim') slim?: string,
   ) {
     const parsedLimit = Math.min(Math.max(parseInt(limit ?? '100', 10) || 100, 1), 200);
     const parsedOffset = Math.max(parseInt(offset ?? '0', 10) || 0, 0);
@@ -311,7 +312,7 @@ export class GenerationsController {
       this.userId(req),
       parsedLimit,
       parsedOffset,
-      { type, period, search, sort },
+      { type, period, search, sort, slim: slim === '1' || slim === 'true' },
     );
   }
 

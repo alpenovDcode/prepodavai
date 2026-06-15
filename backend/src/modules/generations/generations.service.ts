@@ -1743,7 +1743,7 @@ export class GenerationsService {
     userId: string,
     limit = 100,
     offset = 0,
-    filters?: { type?: string; period?: string; search?: string; sort?: string },
+    filters?: { type?: string; period?: string; search?: string; sort?: string; slim?: boolean },
   ) {
     const where: Record<string, any> = { userId };
 
@@ -1786,10 +1786,14 @@ export class GenerationsService {
       default: orderBy = { createdAt: 'desc' };
     }
 
+    // Slim-режим: не джойнимся к generationRequest (его result может быть огромным
+    // HTML/JSON на 5-50 KB на запись) и режем inputParams до 4 полей, нужных списку.
+    const slim = !!filters?.slim;
+
     const [generations, total, countsByType] = await Promise.all([
       this.prisma.userGeneration.findMany({
         where,
-        include: { generationRequest: true },
+        include: slim ? undefined : { generationRequest: true },
         orderBy,
         take: limit,
         skip: offset,
@@ -1808,21 +1812,42 @@ export class GenerationsService {
       counts[ft] = (counts[ft] || 0) + row._count.generationType;
     }
 
-    const items = generations.map((gen) => ({
-      id: gen.id,
-      userId: gen.userId,
-      type: gen.generationType,
-      title: (gen as any).title ?? null,
-      status: gen.status,
-      params: gen.inputParams,
-      result: gen.outputData || gen.generationRequest?.result,
-      error: gen.errorMessage || gen.generationRequest?.error,
-      createdAt: gen.createdAt,
-      updatedAt: gen.updatedAt,
-      model: gen.model,
-      tokensUsed: (gen as any).tokensUsed,
-      creditCost: (gen as any).creditCost,
-    }));
+    const trimParams = (p: any): Record<string, any> | null => {
+      if (!p || typeof p !== 'object') return null;
+      const out: Record<string, any> = {};
+      const keys = ['topic', 'title', 'subject', 'discipline', 'grade', 'level', 'numQuestions', 'questionCount', 'numTasks', 'taskCount', 'numWords', 'numSlides', 'duration'];
+      for (const k of keys) if (p[k] !== undefined) out[k] = p[k];
+      return out;
+    };
+
+    const items = generations.map((gen) => {
+      if (slim) {
+        return {
+          id: gen.id,
+          type: gen.generationType,
+          title: (gen as any).title ?? null,
+          status: gen.status,
+          params: trimParams(gen.inputParams),
+          createdAt: gen.createdAt,
+          updatedAt: gen.updatedAt,
+        };
+      }
+      return {
+        id: gen.id,
+        userId: gen.userId,
+        type: gen.generationType,
+        title: (gen as any).title ?? null,
+        status: gen.status,
+        params: gen.inputParams,
+        result: gen.outputData || gen.generationRequest?.result,
+        error: gen.errorMessage || gen.generationRequest?.error,
+        createdAt: gen.createdAt,
+        updatedAt: gen.updatedAt,
+        model: gen.model,
+        tokensUsed: (gen as any).tokensUsed,
+        creditCost: (gen as any).creditCost,
+      };
+    });
 
     return {
       success: true,
