@@ -378,19 +378,17 @@ ${p.text ? `ИСХОДНЫЕ ТЕЗИСЫ/ТЕКСТ:\n${p.text}\n` : ''}
    * пересборки HTML из уже существующего PresentationData без LLM-вызова.
    */
   async renderHtml(data: PresentationData): Promise<string> {
-    const tplPath = path.resolve(
-      __dirname,
-      `../../../templates/presentations/${data.style}.html`,
-    );
+    // HTML-шаблоны лежат в src/templates/ — tsc build их не копирует в dist,
+    // поэтому путь строим от process.cwd() (= /app в Docker), а не от __dirname.
+    // Та же логика что в games.service.ts:30.
+    const templatesDir = path.join(process.cwd(), 'src', 'templates', 'presentations');
+    const tplPath = path.join(templatesDir, `${data.style}.html`);
     let tpl: string;
     try {
       tpl = await fs.readFile(tplPath, 'utf-8');
     } catch (e: any) {
-      this.logger.warn(`Template ${data.style} not found, falling back to modern: ${e?.message}`);
-      tpl = await fs.readFile(
-        path.resolve(__dirname, '../../../templates/presentations/modern.html'),
-        'utf-8',
-      );
+      this.logger.warn(`Template ${data.style} not found at ${tplPath}, falling back to modern: ${e?.message}`);
+      tpl = await fs.readFile(path.join(templatesDir, 'modern.html'), 'utf-8');
     }
 
     const palette = PRESENTATION_COLORS[data.color];
