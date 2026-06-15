@@ -1,8 +1,9 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import useSWR from 'swr'
+import toast from 'react-hot-toast'
 import {
     ClipboardList, Clock, AlertTriangle, CalendarX, FileText, HelpCircle,
     Presentation, ArrowRight, ChevronRight, ImageIcon, Play, MessageCircle, Compass,
@@ -104,6 +105,17 @@ export default function DashboardHomeV2() {
     const { data: overview } = useSWR<TeacherOverview>('/analytics/teacher-overview', fetcher, {
         refreshInterval: 60_000,
     })
+
+    // «Скрыть» панель «Что важно сегодня». Состояние сохраняется в localStorage.
+    const [todayHidden, setTodayHidden] = useState(false)
+    useEffect(() => {
+        try { if (localStorage.getItem('dashboard_today_hidden') === '1') setTodayHidden(true) } catch {}
+    }, [])
+    const hideToday = () => {
+        setTodayHidden(true)
+        try { localStorage.setItem('dashboard_today_hidden', '1') } catch {}
+    }
+    const showCalendarSoon = () => toast('Календарь скоро будет доступен', { icon: '📅' })
     const { data: recentGens } = useSWR<{ generations?: RecentGeneration[] }>('/generate/history?limit=4', fetcher)
     const { data: weeklyActivity } = useSWR<{ days?: { label: string; value: number }[] }>('/analytics/weekly-activity', fetcher)
 
@@ -129,11 +141,12 @@ export default function DashboardHomeV2() {
 
             <div className="max-w-[1240px] w-full mx-auto p-8 max-md:p-4">
                 {/* Bento — что важно сегодня */}
+                {!todayHidden && (
                 <Section
                     tourId="today"
                     title="Что важно сегодня"
                     subtitle="Чтобы день прошёл спокойно"
-                    action={<Button variant="ghost" size="sm">Скрыть</Button>}
+                    action={<Button variant="ghost" size="sm" onClick={hideToday}>Скрыть</Button>}
                 >
                     <div className="grid grid-cols-12 gap-4 max-md:grid-cols-1">
                         <KpiCard
@@ -153,7 +166,7 @@ export default function DashboardHomeV2() {
                             value={overview?.schedule?.nextLesson?.scheduledAt ? formatTime(overview.schedule.nextLesson.scheduledAt) : '—'}
                             valueSize="md"
                             sub={nextLessonSub(overview)}
-                            onClick={() => router.push('/dashboard/calendar')}
+                            onClick={showCalendarSoon}
                         />
                         <KpiCard
                             className="col-span-3 max-lg:col-span-6 max-md:col-span-1"
@@ -179,6 +192,7 @@ export default function DashboardHomeV2() {
                         />
                     </div>
                 </Section>
+                )}
 
                 {/* Часто используете */}
                 <Section
@@ -217,7 +231,7 @@ export default function DashboardHomeV2() {
                         <Card padding="lg" className="col-span-6 max-lg:col-span-1" data-tour="schedule">
                             <SectionHead
                                 title="Расписание сегодня"
-                                action={<a className="text-sm font-semibold text-brand-600 cursor-pointer" onClick={() => router.push('/dashboard/calendar')}>Открыть календарь →</a>}
+                                action={<a className="text-sm font-semibold text-ink-400 cursor-not-allowed" onClick={showCalendarSoon}>Скоро →</a>}
                                 small
                             />
                             <div className="flex flex-col gap-3">
