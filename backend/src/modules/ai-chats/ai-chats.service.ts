@@ -8,13 +8,66 @@ const AI_MODEL = 'google/gemini-3-flash';
 @Injectable()
 export class AiChatsService {
   private readonly logger = new Logger(AiChatsService.name);
+  private tablesEnsured = false;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly aiAssistant: AiAssistantService,
   ) {}
 
+  /**
+   * Ленивое создание таблиц ai_chats и chat_messages, если миграция ещё не
+   * накатана на окружении (например, после отката). Идемпотентно: на чистой
+   * базе после миграции это no-op.
+   */
+  private async ensureTables(): Promise<void> {
+    if (this.tablesEnsured) return;
+    try {
+      await this.prisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "ai_chats" (
+          "id" TEXT NOT NULL,
+          "userId" TEXT NOT NULL,
+          "title" TEXT NOT NULL DEFAULT 'Новый диалог',
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          CONSTRAINT "ai_chats_pkey" PRIMARY KEY ("id")
+        );
+      `);
+      await this.prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "ai_chats_userId_idx" ON "ai_chats"("userId");`);
+      await this.prisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "chat_messages" (
+          "id" TEXT NOT NULL,
+          "chatId" TEXT,
+          "userId" TEXT NOT NULL,
+          "role" TEXT NOT NULL,
+          "content" TEXT NOT NULL,
+          "model" TEXT,
+          "metadata" JSONB,
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          CONSTRAINT "chat_messages_pkey" PRIMARY KEY ("id")
+        );
+      `);
+      await this.prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "chat_messages_userId_idx" ON "chat_messages"("userId");`);
+      await this.prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "chat_messages_chatId_idx" ON "chat_messages"("chatId");`);
+      await this.prisma.$executeRawUnsafe(`
+        DO $$
+        BEGIN
+          IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chat_messages_chatId_fkey') THEN
+            ALTER TABLE "chat_messages"
+              ADD CONSTRAINT "chat_messages_chatId_fkey"
+              FOREIGN KEY ("chatId") REFERENCES "ai_chats"("id")
+              ON DELETE CASCADE ON UPDATE CASCADE;
+          END IF;
+        END $$;
+      `);
+      this.tablesEnsured = true;
+    } catch (e: any) {
+      this.logger.warn(`ensureTables failed: ${e.message}`);
+    }
+  }
+
   async listChats(userId: string) {
+    await this.ensureTables();
     const chats = await this.prisma.aiChat.findMany({
       where: { userId },
       orderBy: { updatedAt: 'desc' },
@@ -35,6 +88,7 @@ export class AiChatsService {
   }
 
   async createChat(userId: string, title?: string) {
+    await this.ensureTables();
     const chat = await this.prisma.aiChat.create({
       data: { userId, title: title ?? 'Новый диалог' },
     });

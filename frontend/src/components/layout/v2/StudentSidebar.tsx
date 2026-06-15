@@ -1,10 +1,12 @@
 'use client'
 
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import Image from 'next/image'
 import {
     LayoutDashboard, BookOpen, GraduationCap, Bot, Trophy, Bell, Flame, Star,
+    LogOut, ChevronUp,
 } from 'lucide-react'
 import { NavItem, NavSection } from './Sidebar'
 import { cn } from '@/lib/utils/cn'
@@ -76,46 +78,92 @@ export function StudentSidebar({ sections, student, open = true, onClose }: Stud
                     ))}
                 </nav>
 
-                {/* Gamified profile */}
-                <div className="m-3 p-3.5 rounded-lg border border-brand-200 bg-gradient-to-br from-brand-50 to-white">
-                    <div className="flex items-center gap-2.5 mb-3">
-                        <span className="w-10 h-10 rounded-full bg-gradient-to-br from-brand-400 to-brand-600 text-white flex items-center justify-center font-bold text-sm flex-shrink-0">
-                            {student.initials || student.name.slice(0, 2).toUpperCase()}
-                        </span>
-                        <div className="min-w-0">
-                            <div className="font-bold text-[13px] text-ink-900 leading-tight truncate">
-                                {student.name}
+                {/* Gamified profile + logout */}
+                <StudentProfileFooter student={student} />
+            </aside>
+        </>
+    )
+}
+
+function StudentProfileFooter({ student }: { student: StudentInfo }) {
+    const [open, setOpen] = useState(false)
+    const ref = useRef<HTMLDivElement>(null)
+
+    useEffect(() => {
+        if (!open) return
+        const handler = (e: MouseEvent) => {
+            if (!ref.current?.contains(e.target as Node)) setOpen(false)
+        }
+        document.addEventListener('mousedown', handler)
+        return () => document.removeEventListener('mousedown', handler)
+    }, [open])
+
+    const handleLogout = () => {
+        try {
+            localStorage.removeItem('prepodavai_authenticated')
+            localStorage.removeItem('prepodavai_user')
+        } catch {}
+        window.location.href = '/'
+    }
+
+    return (
+        <div className="m-3 relative" ref={ref}>
+            {open && (
+                <div className="absolute bottom-full left-0 right-0 mb-2 bg-surface border border-ink-200 rounded-lg shadow-lg overflow-hidden z-10">
+                    <button
+                        type="button"
+                        onClick={handleLogout}
+                        className="w-full flex items-center gap-2.5 px-3 py-2.5 text-[13px] text-danger-700 hover:bg-danger-50 transition-colors"
+                    >
+                        <LogOut className="w-4 h-4" />
+                        Выйти
+                    </button>
+                </div>
+            )}
+            <button
+                type="button"
+                onClick={() => setOpen(v => !v)}
+                aria-label="Меню профиля"
+                className="w-full p-3.5 rounded-lg border border-brand-200 bg-gradient-to-br from-brand-50 to-white text-left hover:border-brand-300 transition-colors"
+            >
+                <div className="flex items-center gap-2.5 mb-3">
+                    <span className="w-10 h-10 rounded-full bg-gradient-to-br from-brand-400 to-brand-600 text-white flex items-center justify-center font-bold text-sm flex-shrink-0">
+                        {student.initials || student.name.slice(0, 2).toUpperCase()}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                        <div className="font-bold text-[13px] text-ink-900 leading-tight truncate">
+                            {student.name}
+                        </div>
+                        {student.className && (
+                            <div className="text-[11px] text-ink-500 leading-tight mt-0.5 truncate">
+                                {student.className}
                             </div>
-                            {student.className && (
-                                <div className="text-[11px] text-ink-500 leading-tight mt-0.5 truncate">
-                                    {student.className}
-                                </div>
-                            )}
+                        )}
+                    </div>
+                    <ChevronUp className={cn('w-4 h-4 text-ink-400 transition-transform', open ? '' : 'rotate-180')} />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                    <div className="bg-white rounded text-center py-2 px-2.5">
+                        <div className="font-display font-extrabold text-[16px] text-ink-900 tnum inline-flex items-center gap-1 leading-none">
+                            <Flame className="w-3.5 h-3.5 text-amber-500" />
+                            {student.streakDays ?? 0}
+                        </div>
+                        <div className="text-[10px] uppercase font-semibold tracking-wide text-ink-500 mt-1">
+                            стрик
                         </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-2">
-                        <div className="bg-white rounded text-center py-2 px-2.5">
-                            <div className="font-display font-extrabold text-[16px] text-ink-900 tnum inline-flex items-center gap-1 leading-none">
-                                <Flame className="w-3.5 h-3.5 text-amber-500" />
-                                {student.streakDays ?? 0}
-                            </div>
-                            <div className="text-[10px] uppercase font-semibold tracking-wide text-ink-500 mt-1">
-                                стрик
-                            </div>
+                    <div className="bg-white rounded text-center py-2 px-2.5">
+                        <div className="font-display font-extrabold text-[16px] text-ink-900 tnum inline-flex items-center gap-1 leading-none">
+                            <Star className="w-3.5 h-3.5 text-amber-500" />
+                            {student.xp ?? 0}
                         </div>
-                        <div className="bg-white rounded text-center py-2 px-2.5">
-                            <div className="font-display font-extrabold text-[16px] text-ink-900 tnum inline-flex items-center gap-1 leading-none">
-                                <Star className="w-3.5 h-3.5 text-amber-500" />
-                                {student.xp ?? 0}
-                            </div>
-                            <div className="text-[10px] uppercase font-semibold tracking-wide text-ink-500 mt-1">
-                                опыт
-                            </div>
+                        <div className="text-[10px] uppercase font-semibold tracking-wide text-ink-500 mt-1">
+                            опыт
                         </div>
                     </div>
                 </div>
-            </aside>
-        </>
+            </button>
+        </div>
     )
 }
 
