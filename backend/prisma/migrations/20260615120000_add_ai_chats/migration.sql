@@ -1,7 +1,9 @@
 -- Чаты ИИ-учителя (для учителя и ученика). Модель была в schema.prisma,
--- но миграция отсутствовала — на проде таблиц не было, /api/ai-chats падал 500.
+-- но миграция отсутствовала. На части окружений таблицы уже созданы вручную
+-- (через prisma db push), поэтому используем IF NOT EXISTS — миграция
+-- идемпотентна и применима как к чистой базе, так и к существующей.
 
-CREATE TABLE "ai_chats" (
+CREATE TABLE IF NOT EXISTS "ai_chats" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "title" TEXT NOT NULL DEFAULT 'Новый диалог',
@@ -11,9 +13,9 @@ CREATE TABLE "ai_chats" (
     CONSTRAINT "ai_chats_pkey" PRIMARY KEY ("id")
 );
 
-CREATE INDEX "ai_chats_userId_idx" ON "ai_chats"("userId");
+CREATE INDEX IF NOT EXISTS "ai_chats_userId_idx" ON "ai_chats"("userId");
 
-CREATE TABLE "chat_messages" (
+CREATE TABLE IF NOT EXISTS "chat_messages" (
     "id" TEXT NOT NULL,
     "chatId" TEXT,
     "userId" TEXT NOT NULL,
@@ -26,10 +28,18 @@ CREATE TABLE "chat_messages" (
     CONSTRAINT "chat_messages_pkey" PRIMARY KEY ("id")
 );
 
-CREATE INDEX "chat_messages_userId_idx" ON "chat_messages"("userId");
-CREATE INDEX "chat_messages_chatId_idx" ON "chat_messages"("chatId");
+CREATE INDEX IF NOT EXISTS "chat_messages_userId_idx" ON "chat_messages"("userId");
+CREATE INDEX IF NOT EXISTS "chat_messages_chatId_idx" ON "chat_messages"("chatId");
 
-ALTER TABLE "chat_messages"
-    ADD CONSTRAINT "chat_messages_chatId_fkey"
-    FOREIGN KEY ("chatId") REFERENCES "ai_chats"("id")
-    ON DELETE CASCADE ON UPDATE CASCADE;
+-- FK добавляем только если ещё нет (ADD CONSTRAINT IF NOT EXISTS появилось в PG 9.6+)
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'chat_messages_chatId_fkey'
+    ) THEN
+        ALTER TABLE "chat_messages"
+            ADD CONSTRAINT "chat_messages_chatId_fkey"
+            FOREIGN KEY ("chatId") REFERENCES "ai_chats"("id")
+            ON DELETE CASCADE ON UPDATE CASCADE;
+    END IF;
+END $$;
