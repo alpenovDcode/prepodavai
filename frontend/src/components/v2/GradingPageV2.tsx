@@ -155,16 +155,36 @@ function extractAnswerBlocks(detail: SubmissionDetail) {
   return blocks
 }
 
-// Берём первую генерацию задания, у которой есть HTML-контент. Это тот же
-// HTML, что показывается ученику в просмотре материала — нам он нужен,
-// чтобы отрисовать «лист с заданиями и ответами ученика».
+// Берём генерацию задания, на которую ученик реально отвечал в этом
+// сабмишене: ищем первую с HTML-контентом, у которой в formData есть
+// непустые ответы. Если таких нет — fallback на первую HTML-гену.
+// Без учёта formData у задания с несколькими генерациями (тест + рабочий
+// лист + план) во всех сабмишенах показывалась бы одна и та же первая гена.
 function pickWorksheetGen(detail: SubmissionDetail): { id: string; type: string; html: string } | null {
     const gens = detail.assignment.generations || []
+    const extract = (od: any): string => {
+        if (!od) return ''
+        if (typeof od === 'string') return od
+        return od.content ?? od.htmlResult ?? od.html ?? ''
+    }
+    const isHtml = (raw: string) => typeof raw === 'string' && /<[a-z][^>]*>/i.test(raw)
+    const hasStudentData = (genId: string) => {
+        const fields = detail.formData?.[genId]
+        if (!fields) return false
+        return Object.entries(fields).some(([k, v]) => k !== '_game' && v !== '' && v !== null && v !== undefined)
+    }
+
+    // 1) HTML + есть ответы ученика
     for (const gen of gens) {
-        const od = gen.outputData as any
-        if (!od) continue
-        const raw = typeof od === 'string' ? od : (od.content ?? od.htmlResult ?? od.html ?? '')
-        if (typeof raw === 'string' && /<[a-z][^>]*>/i.test(raw)) {
+        const raw = extract(gen.outputData)
+        if (isHtml(raw) && hasStudentData(gen.id)) {
+            return { id: gen.id, type: gen.type, html: raw }
+        }
+    }
+    // 2) Fallback: просто первая HTML-гена
+    for (const gen of gens) {
+        const raw = extract(gen.outputData)
+        if (isHtml(raw)) {
             return { id: gen.id, type: gen.type, html: raw }
         }
     }
@@ -199,7 +219,9 @@ function buildWorksheetSrcDoc(html: string, studentAnswers: Record<string, strin
     `
     const MATHJAX = `<script>window.MathJax={tex:{inlineMath:[['$','$'],['\\\\(','\\\\)']],displayMath:[['$$','$$'],['\\\\[','\\\\]']],processEscapes:true},chtml:{fontCache:'global'}};</script><script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>`
 
-    const answersJson = JSON.stringify(studentAnswers)
+    // Экранируем '</' → '<\/' чтобы литерал '</script>' внутри ответа ученика
+    // не закрыл наш скрипт-тег.
+    const answersJson = JSON.stringify(studentAnswers).replace(/<\//g, '<\\/')
     const FILL_SCRIPT = `<script>
 (function(){
   var answers = ${answersJson};
@@ -726,9 +748,13 @@ export default function GradingPageV2() {
                 {/* Лист с заданиями + предзаполненные ответы ученика. Если у
                     задания нет HTML-генерации (старые формы), показываем
                     компактный список «вопрос-ответ». */}
-                {worksheetSrcDoc ? (
+                {worksheetSrcDoc && worksheetGen ? (
                   <div className="bg-white border border-ink-200 rounded-lg overflow-hidden shadow-sm">
                     <iframe
+                      // key форсит полный ремоунт iframe при смене сабмишена/гены,
+                      // иначе React переиспользует тот же элемент и fill-скрипт
+                      // не перезапускается на новых ответах
+                      key={`${detail!.id}_${worksheetGen.id}`}
                       srcDoc={worksheetSrcDoc}
                       title="student-work"
                       width="100%"
