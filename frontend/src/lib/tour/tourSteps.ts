@@ -47,6 +47,22 @@ export const TOUR_CONFIGS: Record<string, TourConfig> = {
     ],
   },
 
+  'lesson-prep': {
+    storageKey: 'prepodavai_lesson_prep_tour_v1',
+    steps: [
+      { target: null, isModal: true, illustration: '⚡', title: 'Вау-урок', body: 'Один запрос — комплект «под ключ»: план урока, рабочий лист, тест и адаптация материала. Покажу, как заполнить форму за минуту.', primaryLabel: 'Поехали' },
+      { target: '[data-tour="subject"]', placement: 'right', title: 'Предмет', body: 'Выберите предмет — ИИ подберёт терминологию и стиль для всех материалов комплекта.' },
+      { target: '[data-tour="topic"]', placement: 'right', title: 'Тема урока', body: 'Конкретная тема — точнее результат. Например, «Квадратные уравнения: дискриминант» вместо «Алгебра».' },
+      { target: '[data-tour="level"]', placement: 'right', title: 'Класс', body: 'От 1 до 11. Сложность задач, словарный запас и формулировки адаптируются под возраст.' },
+      { target: '[data-tour="interests"]', placement: 'right', title: 'Интересы учеников', body: 'Необязательно, но сильно улучшает результат. Введите «спорт, музыка» — ИИ вплетёт примеры в задания.' },
+      { target: '[data-tour="gen-types"]', placement: 'right', title: 'Что генерировать', body: 'Выберите нужные части комплекта: план урока, рабочий лист, материал для адаптации, тест. Можно несколько сразу.' },
+      { target: '[data-tour="depth"]', placement: 'right', title: 'Глубина проработки', body: 'Кратко — быстро и по сути. Стандарт — сбалансировано. Подробно — максимум деталей и пояснений.' },
+      { target: '[data-tour="generate"]', placement: 'top', title: '⚡ Сгенерировать', body: 'Нажмите — за ~30-60 секунд получите готовый комплект справа. Можно переключаться между частями вкладками.' },
+      { target: '[data-tour="preview"]', placement: 'left', title: 'Превью', body: 'Тут появятся материалы. Каждую часть можно отредактировать прямо в браузере, скачать PDF или выдать ученикам.' },
+      { target: null, isModal: true, illustration: '🎉', title: 'Готово!', body: 'Заполните форму и нажмите «Сгенерировать». Все материалы сохранятся в «Материалах».', primaryLabel: 'Попробовать' },
+    ],
+  },
+
   worksheet: {
     storageKey: 'prepodavai_worksheet_tour_v1',
     steps: [
@@ -323,6 +339,7 @@ export const TOUR_CONFIGS: Record<string, TourConfig> = {
 export function matchTourConfig(pathname: string): string | null {
   if (pathname === '/dashboard') return 'dashboard'
   if (pathname === '/workspace') return 'workspace'
+  if (pathname === '/workspace/lesson-prep') return 'lesson-prep'
   if (pathname === '/workspace/worksheet') return 'worksheet'
   if (pathname === '/workspace/quiz-generator') return 'quiz'
   if (pathname === '/workspace/lesson-planner') return 'lesson-planner'

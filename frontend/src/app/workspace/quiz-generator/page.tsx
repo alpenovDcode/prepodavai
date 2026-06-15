@@ -273,17 +273,9 @@ function QuizGeneratorLegacy() {
                                     onChange={e => setForm({ ...form, level: e.target.value })}
                                     className="block w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-green-500 focus:bg-white transition-all text-gray-900"
                                 >
-                                    <option>1 Класс</option>
-                                    <option>2 Класс</option>
-                                    <option>3 Класс</option>
-                                    <option>4 Класс</option>
-                                    <option>5 Класс</option>
-                                    <option>6 Класс</option>
-                                    <option>7 Класс</option>
-                                    <option>8 Класс</option>
-                                    <option>9 Класс</option>
-                                    <option>10 Класс</option>
-                                    <option>11 Класс</option>
+                                    {Array.from({ length: 11 }, (_, i) => (
+                                        <option key={i + 1} value={`${i + 1} Класс`}>{i + 1} класс</option>
+                                    ))}
                                 </select>
                             </div>
                         </div>

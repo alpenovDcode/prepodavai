@@ -228,6 +228,7 @@ export default function LessonPrepV2() {
                     </div>
                     <div className="flex-1 overflow-y-auto p-5 space-y-5">
                         {/* Предмет */}
+                        <div data-tour="subject">
                         <Field label="Предмет">
                             <input
                                 value={subject}
@@ -236,8 +237,10 @@ export default function LessonPrepV2() {
                                 className={fieldCls}
                             />
                         </Field>
+                        </div>
 
                         {/* Тема */}
+                        <div data-tour="topic">
                         <Field label="Тема урока">
                             <input
                                 value={topic}
@@ -246,8 +249,10 @@ export default function LessonPrepV2() {
                                 className={fieldCls}
                             />
                         </Field>
+                        </div>
 
                         {/* Класс */}
+                        <div data-tour="level">
                         <Field label="Класс">
                             <select
                                 value={level}
@@ -259,8 +264,10 @@ export default function LessonPrepV2() {
                                 ))}
                             </select>
                         </Field>
+                        </div>
 
                         {/* Интересы */}
+                        <div data-tour="interests">
                         <Field label="Интересы учеников (необяз.)">
                             <input
                                 value={interests}
@@ -269,8 +276,10 @@ export default function LessonPrepV2() {
                                 className={fieldCls}
                             />
                         </Field>
+                        </div>
 
                         {/* Типы генерации */}
+                        <div data-tour="gen-types">
                         <Field label="Что генерировать">
                             <div className="grid grid-cols-2 gap-2">
                                 {GEN_TYPES.map(gt => {
@@ -297,8 +306,10 @@ export default function LessonPrepV2() {
                                 })}
                             </div>
                         </Field>
+                        </div>
 
                         {/* Детализация */}
+                        <div data-tour="depth">
                         <Field label="Детализация">
                             <div className="flex bg-ink-100 rounded-full p-[3px]">
                                 {DEPTHS.map(d => (
@@ -317,6 +328,7 @@ export default function LessonPrepV2() {
                                 ))}
                             </div>
                         </Field>
+                        </div>
 
                         {/* Количество вопросов для листа/теста */}
                         {genTypes.includes('worksheet') && (
@@ -342,6 +354,7 @@ export default function LessonPrepV2() {
                             </Field>
                         )}
 
+                        <div data-tour="generate">
                         <Button
                             variant="primary"
                             className="w-full"
@@ -351,11 +364,12 @@ export default function LessonPrepV2() {
                         >
                             {isGenerating ? 'Создаём…' : 'Сгенерировать'}
                         </Button>
+                        </div>
                     </div>
                 </Card>
 
                 {/* ─── Preview card ─── */}
-                <Card padding="none" className={cn('col-span-8 max-lg:col-span-1 flex flex-col h-[calc(100vh-200px)] max-lg:h-[calc(100vh-220px)] overflow-hidden', mobileTab !== 'preview' && 'max-lg:hidden')}>
+                <Card data-tour="preview" padding="none" className={cn('col-span-8 max-lg:col-span-1 flex flex-col h-[calc(100vh-200px)] max-lg:h-[calc(100vh-220px)] overflow-hidden', mobileTab !== 'preview' && 'max-lg:hidden')}>
                     {/* Toolbar */}
                     {hasResult && (
                         <div className="flex items-center gap-2 px-4 py-2.5 border-b border-ink-200 bg-surface flex-wrap flex-shrink-0">
@@ -449,9 +463,13 @@ export default function LessonPrepV2() {
                         </div>
                     )}
 
-                    {/* Iframe / empty */}
+                    {/* Iframe / empty / progress */}
                     <div className="flex-1 overflow-hidden">
-                        {!localContent && !isGenerating ? (
+                        {isGenerating && !localContent ? (
+                            <div className="h-full flex items-center justify-center p-8">
+                                <WowProgress />
+                            </div>
+                        ) : !localContent ? (
                             <div className="h-full flex flex-col items-center justify-center text-center p-8">
                                 <div className="w-16 h-16 rounded-full bg-brand-50 flex items-center justify-center mb-4">
                                     <Sparkles className="w-8 h-8 text-brand-500" />
@@ -502,3 +520,39 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 const fieldCls = 'h-10 px-3.5 rounded-lg border border-ink-200 text-sm text-ink-900 bg-surface focus:outline-none focus:border-brand-400 focus:ring-[3px] focus:ring-brand-400/10 transition-all w-full'
+
+const PROGRESS_STAGES = [
+    { until: 15,  title: 'Анализируем тему',       hint: 'Подбираем структуру' },
+    { until: 35,  title: 'Готовим план урока',     hint: 'Цели, этапы, тайминг' },
+    { until: 55,  title: 'Создаём рабочий лист',   hint: 'Проверяем соответствие' },
+    { until: 75,  title: 'Адаптируем материал',    hint: 'Под класс и интересы' },
+    { until: 90,  title: 'Собираем тест',          hint: 'Проверяем правильность' },
+    { until: 100, title: 'Финальная сборка',       hint: 'Ещё чуть-чуть' },
+]
+
+function WowProgress() {
+    const [progress, setProgress] = useState(0)
+    useEffect(() => {
+        const totalMs = 35_000
+        const step = 200
+        const inc = 90 / (totalMs / step)
+        const t = setInterval(() => setProgress(p => p >= 90 ? 90 : p + inc), step)
+        return () => clearInterval(t)
+    }, [])
+    const stage = PROGRESS_STAGES.find(s => progress < s.until) ?? PROGRESS_STAGES[PROGRESS_STAGES.length - 1]
+    return (
+        <div className="w-full max-w-[520px]">
+            <div className="flex items-center justify-between mb-3">
+                <span className="text-[15px] font-semibold text-ink-900">{stage.title}…</span>
+                <span className="text-[14px] font-bold text-ink-400">{Math.round(progress)}%</span>
+            </div>
+            <div className="h-2 w-full bg-ink-100 rounded-full overflow-hidden">
+                <div
+                    className="h-full bg-brand-500 rounded-full transition-all duration-300 ease-out"
+                    style={{ width: `${progress}%` }}
+                />
+            </div>
+            <p className="text-center text-[13px] text-ink-500 mt-4">{stage.hint}…</p>
+        </div>
+    )
+}
