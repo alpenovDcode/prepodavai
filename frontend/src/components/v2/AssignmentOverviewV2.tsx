@@ -114,8 +114,23 @@ function buildPreviewSrcDoc(html: string): string {
     const styleBlock = `<style>${BASE}</style>`
     const overrideBlock = `<style>
         html { width: 100% !important; max-width: none !important; min-width: 0 !important; }
-        body { width: 100% !important; max-width: none !important; min-width: 0 !important; }
-        body > .container, body .container { max-width: 800px !important; width: auto !important; margin-left: auto !important; margin-right: auto !important; }
+        body {
+            display: block !important;
+            width: 100% !important;
+            max-width: none !important;
+            min-width: 0 !important;
+            box-sizing: border-box !important;
+        }
+        body > .container,
+        body .container {
+            display: block !important;
+            box-sizing: border-box !important;
+            max-width: 800px !important;
+            width: 100% !important;
+            margin-left: auto !important;
+            margin-right: auto !important;
+            float: none !important;
+        }
     </style>`
     const hasMath = /mathjax/i.test(base)
     const headInjection = `${viewportMeta}${styleBlock}${hasMath ? '' : MATH}`

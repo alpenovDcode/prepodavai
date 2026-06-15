@@ -190,11 +190,27 @@ function buildSrcDoc(html: string, opts: { hideAnswers: boolean; editing: boolea
     // или забывает margin:0 auto на .container).
     const overrideBlock = `<style>
         html { width: 100% !important; max-width: none !important; min-width: 0 !important; }
-        body { width: 100% !important; max-width: none !important; min-width: 0 !important; }
-        body > .container, body .container { max-width: 800px !important; width: auto !important; margin-left: auto !important; margin-right: auto !important; }
-        /* Подстраховка: если AI генерит карточку-обёртку без класса .container,
-           всё равно растягиваем прямого ребёнка body до полной ширины. */
-        body > main, body > article, body > section, body > div { max-width: none; }
+        body {
+            display: block !important;
+            width: 100% !important;
+            max-width: none !important;
+            min-width: 0 !important;
+            box-sizing: border-box !important;
+        }
+        /* AI часто делает body { display: flex; justify-content: center } —
+           тогда .container ужимается до своей intrinsic ширины. Сбрасываем
+           display на block + явный width:100% (НЕ auto) гарантирует, что
+           .container заполнит доступную ширину до max-width: 800px. */
+        body > .container,
+        body .container {
+            display: block !important;
+            box-sizing: border-box !important;
+            max-width: 800px !important;
+            width: 100% !important;
+            margin-left: auto !important;
+            margin-right: auto !important;
+            float: none !important;
+        }
         ${opts.hideAnswers ? '.teacher-answers-only { display: none !important; }' : ''}
     </style>`
     const styleBlock = `<style>${IFRAME_BASE_STYLES}</style>`
