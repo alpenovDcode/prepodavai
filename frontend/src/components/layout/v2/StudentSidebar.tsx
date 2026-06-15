@@ -103,7 +103,7 @@ function StudentProfileFooter({ student }: { student: StudentInfo }) {
             localStorage.removeItem('prepodavai_authenticated')
             localStorage.removeItem('prepodavai_user')
         } catch {}
-        window.location.href = '/'
+        window.location.href = '/student/login'
     }
 
     return (
