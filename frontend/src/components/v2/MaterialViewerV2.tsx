@@ -115,7 +115,9 @@ const TYPE_TOOL_ROUTE: Record<string, string> = {
 const IFRAME_BASE_STYLES = `
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 body { background:#fff; font-family:'Inter',system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; color:#111827; line-height:1.6; padding:24px; }
-.container { max-width:100%; margin:0 auto; background:#fff; padding:40px; border-radius:12px; }
+body > * { max-width: 100% !important; }
+.container, [class*="container"], .wrapper, [class*="wrapper"], main, article, section { max-width: 100% !important; width: auto !important; margin-left: 0 !important; margin-right: 0 !important; }
+.container { background:#fff; padding:40px; border-radius:12px; }
 h1 { font-size:26px; font-weight:800; color:#0F172A; }
 h2 { font-size:18px; font-weight:700; margin-top:24px; margin-bottom:12px; color:#1F2937; }
 h3 { font-size:15px; font-weight:600; margin-top:18px; margin-bottom:10px; color:#1F2937; }
@@ -319,7 +321,15 @@ export default function MaterialViewerV2({ lessonId, generationId, isEditable = 
     const isHtml = !!html
     const genType = generation?.generationType || ''
     const isHtmlType = isHtml && (HTML_TYPES.has(genType) || isHtml)
-    const showAsLegacy = !!generation && !isHtmlType
+    const isImageType = genType === 'image' || genType === 'image_generation' || genType === 'photosession'
+    const imageUrl = useMemo(() => {
+        if (!isImageType) return null
+        const od: any = generation?.outputData
+        if (!od) return null
+        if (typeof od === 'string') return od.startsWith('http') || od.startsWith('data:') ? od : null
+        return od.imageUrl || od.imageUrls?.[0] || od.url || od.image || null
+    }, [generation?.outputData, isImageType])
+    const showAsLegacy = !!generation && !isHtmlType && !(isImageType && imageUrl)
     const displayTitle = (generation?.title?.trim() || lesson?.title || 'Материал').trim()
 
     const srcDoc = useMemo(() => {
@@ -756,7 +766,16 @@ export default function MaterialViewerV2({ lessonId, generationId, isEditable = 
                 </div>
 
                 {/* Preview frame */}
-                {srcDoc ? (
+                {isImageType && imageUrl ? (
+                    <div className="relative bg-white border border-ink-200 rounded-lg overflow-hidden shadow-sm flex items-center justify-center p-6 print-frame">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                            src={imageUrl}
+                            alt={displayTitle}
+                            className="max-w-full max-h-[80vh] h-auto object-contain rounded-md"
+                        />
+                    </div>
+                ) : srcDoc ? (
                     <div className="relative bg-white border border-ink-200 rounded-lg overflow-hidden shadow-sm print-frame">
                         {iframeLoading && (
                             <div className="absolute inset-0 z-10 flex items-center justify-center bg-white">

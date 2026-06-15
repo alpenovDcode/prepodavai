@@ -779,7 +779,7 @@ export default function CoursesPageV2() {
 
                 {/* Content */}
                 <div data-tour="content">
-                {loading ? (
+                {loading && !data ? (
                     <div className="text-center py-16 text-ink-500">Загрузка…</div>
                 ) : filtered.length === 0 ? (
                     <div className="text-center py-16 bg-surface border border-dashed border-ink-200 rounded-lg">
