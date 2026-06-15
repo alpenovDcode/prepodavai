@@ -138,7 +138,7 @@ function UserFooter({ user }: { user: SidebarUserInfo }) {
     const handleLogout = () => {
         localStorage.removeItem('prepodavai_authenticated')
         localStorage.removeItem('prepodavai_user')
-        window.location.reload()
+        window.location.href = '/'
     }
 
     return (

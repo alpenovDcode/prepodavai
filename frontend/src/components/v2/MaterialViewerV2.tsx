@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
     ArrowLeft, ChevronRight, FileText, Book, Clock, Pencil, X, Plus,
-    Eye, KeyRound, Edit3, MoreHorizontal, Share2, Download, Send,
+    Eye, KeyRound, Edit3, MoreHorizontal, Download, Send,
     Loader2, Save, Copy, Printer, Link2, Trash2, Wand2, PenLine,
     HelpCircle, Monitor, CalendarDays, Gamepad2, MessageCircle,
     BookOpen, ClipboardList, ImageIcon,
@@ -115,7 +115,7 @@ const TYPE_TOOL_ROUTE: Record<string, string> = {
 const IFRAME_BASE_STYLES = `
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 body { background:#fff; font-family:'Inter',system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; color:#111827; line-height:1.6; padding:24px; }
-.container { max-width:800px; margin:0 auto; background:#fff; padding:40px; border-radius:12px; }
+.container { max-width:100%; margin:0 auto; background:#fff; padding:40px; border-radius:12px; }
 h1 { font-size:26px; font-weight:800; color:#0F172A; }
 h2 { font-size:18px; font-weight:700; margin-top:24px; margin-bottom:12px; color:#1F2937; }
 h3 { font-size:15px; font-weight:600; margin-top:18px; margin-bottom:10px; color:#1F2937; }
@@ -580,9 +580,6 @@ export default function MaterialViewerV2({ lessonId, generationId, isEditable = 
                 }
                 actions={
                     <div className="flex items-center gap-1.5 print-hide">
-                        <Button variant="secondary" size="sm" leftIcon={<Share2 className="w-3.5 h-3.5" />} onClick={copyLink}>
-                            Поделиться
-                        </Button>
                         <Button
                             variant="secondary"
                             size="sm"

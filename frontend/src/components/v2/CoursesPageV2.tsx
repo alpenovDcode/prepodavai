@@ -491,11 +491,29 @@ export default function CoursesPageV2() {
         return `/generate/history?${new URLSearchParams(params).toString()}`
     }, [activeType, period, debouncedQuery, sort])
 
+    const BASE_SWR_KEY = '/generate/history?limit=200'
+    const [cachedData] = useState<HistoryResponse | undefined>(() => {
+        if (typeof window === 'undefined') return undefined
+        try {
+            const s = sessionStorage.getItem('courses_v2_cache')
+            return s ? JSON.parse(s) : undefined
+        } catch { return undefined }
+    })
+
     const { data, isLoading: loading, mutate } = useSWR<HistoryResponse>(
         swrKey,
         (url: string) => apiClient.get<HistoryResponse>(url).then(r => r.data),
-        { revalidateOnFocus: false },
+        {
+            revalidateOnFocus: false,
+            fallbackData: swrKey === BASE_SWR_KEY ? cachedData : undefined,
+        },
     )
+
+    useEffect(() => {
+        if (data && swrKey === BASE_SWR_KEY) {
+            try { sessionStorage.setItem('courses_v2_cache', JSON.stringify(data)) } catch {}
+        }
+    }, [data, swrKey])
 
     const items = data?.items || []
     const counts = data?.counts || {}
