@@ -208,7 +208,7 @@ function FilterPill({
 // ── Контекстное меню карточки ─────────────────────────────────────────────────
 
 function CardMenu({
-    genId, type, onDelete, onRename, onDuplicated, onAssign,
+    genId, type, onDelete, onRename, onDuplicated, onAssign, onOpenChange,
 }: {
     genId: string
     type: string
@@ -216,10 +216,13 @@ function CardMenu({
     onRename: () => void
     onDuplicated?: () => void
     onAssign?: (genId: string) => void
+    onOpenChange?: (open: boolean) => void
 }) {
     const router = useRouter()
     const [open, setOpen] = useState(false)
     const ref = useRef<HTMLDivElement>(null)
+
+    useEffect(() => { onOpenChange?.(open) }, [open, onOpenChange])
 
     useEffect(() => {
         if (!open) return
@@ -358,6 +361,7 @@ function MatCard({ gen, onDelete, onRename, onDuplicated, onAssign }: { gen: Gen
     const title = getTitle(gen)
     const subject = getSubject(gen)
     const tags = getTags(gen)
+    const [menuOpen, setMenuOpen] = useState(false)
 
     return (
         <div
@@ -367,6 +371,7 @@ function MatCard({ gen, onDelete, onRename, onDuplicated, onAssign }: { gen: Gen
                 'transition-all duration-200 flex flex-col gap-3.5 relative',
                 'hover:shadow-[0_8px_24px_rgba(15,23,42,0.08)] hover:-translate-y-0.5',
                 cfg.hoverBorder,
+                menuOpen && 'z-50',
             )}
         >
             {/* Head: type-chip + menu */}
@@ -378,7 +383,7 @@ function MatCard({ gen, onDelete, onRename, onDuplicated, onAssign }: { gen: Gen
                     <cfg.Icon className="w-3 h-3" />
                     {cfg.label}
                 </span>
-                <CardMenu genId={gen.id} type={ft} onDelete={onDelete} onRename={() => onRename(gen.id, gen.title || title)} onDuplicated={onDuplicated} onAssign={onAssign} />
+                <CardMenu genId={gen.id} type={ft} onDelete={onDelete} onRename={() => onRename(gen.id, gen.title || title)} onDuplicated={onDuplicated} onAssign={onAssign} onOpenChange={setMenuOpen} />
             </div>
 
             {/* Title */}
@@ -423,11 +428,15 @@ function MatListRow({ gen, onDelete, onRename, onDuplicated, onAssign }: { gen: 
     const title = getTitle(gen)
     const subject = getSubject(gen)
     const tags = getTags(gen)
+    const [menuOpen, setMenuOpen] = useState(false)
 
     return (
         <div
             onClick={() => router.push(`/dashboard/courses/${gen.id}/materials/${gen.id}`)}
-            className="flex items-center gap-4 px-4 py-3 cursor-pointer hover:bg-ink-50 transition-colors group"
+            className={cn(
+                'flex items-center gap-4 px-4 py-3 cursor-pointer hover:bg-ink-50 transition-colors group relative bg-surface',
+                menuOpen && 'z-50',
+            )}
         >
             <span className={cn(
                 'inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-[0.04em] flex-shrink-0',
@@ -455,7 +464,7 @@ function MatListRow({ gen, onDelete, onRename, onDuplicated, onAssign }: { gen: 
                 {relativeDate(gen.createdAt)}
             </span>
             <div className="flex-shrink-0" onClick={e => e.stopPropagation()}>
-                <CardMenu genId={gen.id} type={ft} onDelete={onDelete} onRename={() => onRename(gen.id, gen.title || title)} onDuplicated={onDuplicated} onAssign={onAssign} />
+                <CardMenu genId={gen.id} type={ft} onDelete={onDelete} onRename={() => onRename(gen.id, gen.title || title)} onDuplicated={onDuplicated} onAssign={onAssign} onOpenChange={setMenuOpen} />
             </div>
         </div>
     )
@@ -862,7 +871,7 @@ export default function CoursesPageV2() {
                         )}
                     </div>
                 ) : viewMode === 'list' ? (
-                    <div className="flex flex-col divide-y divide-ink-100 border border-ink-200 rounded-xl overflow-hidden bg-surface">
+                    <div className="flex flex-col divide-y divide-ink-100 border border-ink-200 rounded-xl bg-surface">
                         {filtered.map(gen => (
                             <MatListRow key={gen.id} gen={gen} onDelete={() => handleDelete(gen.id)} onRename={(id, t) => handleStartRename(id, t)} onDuplicated={() => mutate()} onAssign={handleOpenAssign} />
                         ))}
