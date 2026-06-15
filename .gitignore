@@ -40,6 +40,11 @@ Thumbs.db
 
 # Docker
 docker-compose.override.yml
+docker-compose.dev.yml
+
+# Lock files (используем npm только в Docker-сборке)
+package-lock.json
+yarn.lock
 
 # Logs
 logs/
