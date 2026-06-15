@@ -56,3 +56,6 @@ temp/
 
 # Uploads
 backend/uploads/
+
+# TypeScript build cache (auto-generated)
+**/tsconfig.tsbuildinfo
