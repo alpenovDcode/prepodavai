@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{TITLE}}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --accent:{{ACCENT}};
+  --accent-light:{{ACCENT_LIGHT}};
+  --accent-dark:{{ACCENT_DARK}};
+  --bg:#0B0B14; --surface:#13131F;
+  --text:#FFFFFF; --text-soft:#C7C9D9; --text-mute:#7D8099;
+  --border:rgba(255,255,255,.08); --border-soft:rgba(255,255,255,.04);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{font-family:'Plus Jakarta Sans','Inter',system-ui,sans-serif;background:var(--bg);color:var(--text);overflow:hidden;height:100vh}
+.deck{position:relative;width:100vw;height:100vh}
+.slide{position:absolute;inset:0;display:none;flex-direction:column;padding:64px 80px 96px;background:var(--bg);opacity:0;transition:opacity .25s ease;overflow:hidden}
+.slide.active{display:flex;opacity:1}
+.blob{position:absolute;border-radius:50%;filter:blur(80px);opacity:.55;pointer-events:none;z-index:0}
+.blob.a{top:-200px;right:-150px;width:520px;height:520px;background:var(--accent)}
+.blob.b{bottom:-180px;left:-160px;width:460px;height:460px;background:var(--accent-light)}
+.slide > *{position:relative;z-index:1}
+.slide-num{position:absolute;top:32px;left:80px;font-size:13px;font-weight:700;letter-spacing:.12em;color:var(--accent);text-transform:uppercase;z-index:2}
+.footer-logo{position:absolute;bottom:24px;right:32px;width:32px;height:32px;opacity:.6;object-fit:contain;z-index:2}
+
+h1,h2,h3{letter-spacing:-.025em;line-height:1.1;font-weight:800}
+h1{font-size:72px;background:linear-gradient(135deg,#fff 0%,var(--accent-light) 100%);-webkit-background-clip:text;background-clip:text;color:transparent}
+h2{font-size:44px;color:#fff;margin-bottom:28px}
+h3{font-size:24px;color:var(--accent-light);margin-bottom:14px;font-weight:700;letter-spacing:-.005em}
+p,li{font-size:22px;line-height:1.55;color:var(--text-soft)}
+
+/* layout: title */
+.layout-title{justify-content:center;align-items:flex-start}
+.layout-title .eyebrow{display:inline-flex;align-items:center;gap:8px;padding:6px 14px;background:rgba(255,255,255,.06);border:1px solid var(--border);border-radius:999px;font-size:12px;font-weight:700;letter-spacing:.12em;color:var(--accent-light);text-transform:uppercase;margin-bottom:32px}
+.layout-title .eyebrow::before{content:'';width:6px;height:6px;background:var(--accent);border-radius:50%}
+.layout-title h1{font-size:92px;font-weight:800;max-width:1200px;line-height:1.05}
+.layout-title .subtitle{font-size:28px;font-weight:500;color:var(--text-soft);margin-top:28px;max-width:900px;line-height:1.4}
+.layout-title .meta{position:absolute;bottom:80px;left:80px;color:var(--text-mute);font-size:13px;letter-spacing:.1em;text-transform:uppercase;font-weight:600}
+
+/* layout: bullets */
+.layout-bullets ul{list-style:none;padding:0;display:flex;flex-direction:column;gap:16px;max-width:1100px}
+.layout-bullets li{display:flex;gap:18px;align-items:flex-start;font-size:22px;line-height:1.5;padding:16px 20px;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:12px;backdrop-filter:blur(6px);transition:transform .2s,border-color .2s}
+.layout-bullets li:hover{transform:translateX(4px);border-color:var(--accent)}
+.layout-bullets li .dot{flex-shrink:0;width:10px;height:10px;border-radius:50%;background:var(--accent);margin-top:12px;box-shadow:0 0 12px var(--accent)}
+
+/* layout: two-column */
+.layout-two-column .cols{display:grid;grid-template-columns:1fr 1fr;gap:32px;max-width:1280px;margin-top:8px}
+.layout-two-column .col{padding:28px;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:16px;backdrop-filter:blur(6px)}
+.layout-two-column .col h3{font-size:22px;color:var(--accent);margin-bottom:14px;font-weight:700}
+.layout-two-column .col p{font-size:20px}
+
+/* layout: quote */
+.layout-quote{justify-content:center;align-items:flex-start}
+.layout-quote .q{font-size:52px;font-weight:700;color:#fff;line-height:1.2;letter-spacing:-.015em;max-width:1100px}
+.layout-quote .q::before{content:'\201C';display:block;font-size:160px;line-height:.4;margin-bottom:24px;background:linear-gradient(135deg,var(--accent) 0%,var(--accent-light) 100%);-webkit-background-clip:text;background-clip:text;color:transparent;font-family:Georgia,serif}
+.layout-quote .author{font-size:18px;color:var(--accent-light);margin-top:32px;letter-spacing:.16em;text-transform:uppercase;font-weight:700}
+
+/* layout: summary */
+.layout-summary .items{display:grid;grid-template-columns:repeat(2,1fr);gap:20px;max-width:1280px}
+.layout-summary .item{padding:24px;background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:16px;position:relative;overflow:hidden}
+.layout-summary .item::before{content:'';position:absolute;top:0;left:0;width:4px;height:100%;background:var(--accent)}
+.layout-summary .item .n{font-size:36px;font-weight:800;color:var(--accent);line-height:1;margin-bottom:10px;font-family:'Inter';letter-spacing:-.02em}
+.layout-summary .item .t{font-size:18px;font-weight:600;color:#fff;line-height:1.35}
+
+/* layout: content */
+.layout-content .body{max-width:1100px}
+.layout-content .body p{margin-bottom:18px;font-size:22px;color:var(--text-soft);line-height:1.55}
+.layout-content .body p strong{color:var(--accent-light);font-weight:700}
+.layout-content .body p:last-child{margin-bottom:0}
+
+/* math — for dark bg */
+mjx-container{color:var(--text)!important}
+mjx-container[display="true"]{margin:16px 0;font-size:1.1em!important}
+
+/* nav */
+.nav{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:8px;z-index:50;background:rgba(19,19,31,.85);backdrop-filter:blur(12px);border:1px solid var(--border);border-radius:999px;padding:6px 10px;box-shadow:0 8px 32px rgba(0,0,0,.4)}
+.nav button{width:36px;height:36px;border:none;background:transparent;cursor:pointer;color:var(--text-soft);border-radius:99px;display:inline-flex;align-items:center;justify-content:center;font-size:18px;transition:background .15s,color .15s}
+.nav button:hover:not(:disabled){background:var(--accent);color:#fff}
+.nav button:disabled{opacity:.3;cursor:not-allowed}
+.nav .counter{font-size:13px;font-weight:700;color:var(--text);padding:0 8px;letter-spacing:.05em;min-width:60px;text-align:center}
+
+@media print{.nav{display:none}.slide{display:flex!important;opacity:1!important;page-break-after:always;background:var(--bg)!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+@media (max-width:900px){
+  .slide{padding:32px 32px 80px}
+  h1{font-size:48px}.layout-title h1{font-size:56px}
+  h2{font-size:32px}p,li{font-size:18px}
+  .layout-two-column .cols{grid-template-columns:1fr;gap:20px}
+  .layout-summary .items{grid-template-columns:1fr}
+  .layout-quote .q{font-size:32px}
+}
+</style>
+</head>
+<body>
+<div class="deck" id="deck"></div>
+<div class="nav" id="nav">
+  <button id="prev">←</button>
+  <span class="counter" id="counter">1 / 1</span>
+  <button id="next">→</button>
+</div>
+<script>
+window.PRESENTATION_DATA = {{DATA}};
+const LOGO_URL = '{{LOGO_URL}}';
+function esc(s){return String(s??'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}
+function renderMath(s){if(!s)return '';return String(s).replace(/\$\$([^$]+)\$\$/g,'\\[$1\\]').replace(/\$([^$\n]+)\$/g,'\\($1\\)');}
+function renderSlide(s,idx,total){
+  const num=`<div class="slide-num">${String(idx+1).padStart(2,'0')} of ${String(total).padStart(2,'0')}</div>`;
+  const blobs='<div class="blob a"></div><div class="blob b"></div>';
+  const logo=`<img class="footer-logo" src="${LOGO_URL}" alt="Преподавай">`;
+  let body='';
+  switch(s.layout){
+    case 'title':
+      body=`${s.eyebrow?`<div class="eyebrow">${esc(s.eyebrow)}</div>`:''}<h1>${esc(s.title)}</h1>${s.subtitle?`<div class="subtitle">${esc(s.subtitle)}</div>`:''}${s.meta?`<div class="meta">${esc(s.meta)}</div>`:''}`;
+      break;
+    case 'bullets':
+      body=`<h2>${esc(s.title)}</h2><ul>${(s.items||[]).map(i=>`<li><span class="dot"></span><span>${renderMath(esc(i))}</span></li>`).join('')}</ul>`;
+      break;
+    case 'two-column':
+      body=`<h2>${esc(s.title)}</h2><div class="cols"><div class="col"><h3>${esc(s.leftTitle||'')}</h3><p>${renderMath(esc(s.leftText||''))}</p></div><div class="col"><h3>${esc(s.rightTitle||'')}</h3><p>${renderMath(esc(s.rightText||''))}</p></div></div>`;
+      break;
+    case 'quote':
+      body=`<div class="q">${renderMath(esc(s.text||''))}</div>${s.author?`<div class="author">— ${esc(s.author)}</div>`:''}`;
+      break;
+    case 'summary':
+      body=`<h2>${esc(s.title)}</h2><div class="items">${(s.items||[]).map((it,i)=>`<div class="item"><div class="n">${String(i+1).padStart(2,'0')}</div><div class="t">${renderMath(esc(it))}</div></div>`).join('')}</div>`;
+      break;
+    case 'content':
+      body=`<h2>${esc(s.title)}</h2><div class="body">${(s.paragraphs||[]).map(p=>`<p>${renderMath(esc(p))}</p>`).join('')}</div>`;
+      break;
+    default:
+      body=`<h2>${esc(s.title||s.layout)}</h2><p>${renderMath(esc(s.text||''))}</p>`;
+  }
+  return `<div class="slide layout-${s.layout}" data-idx="${idx}">${blobs}${num}${body}${logo}</div>`;
+}
+let current=0;
+const slides=PRESENTATION_DATA.slides||[];
+const deck=document.getElementById('deck');
+deck.innerHTML=slides.map((s,i)=>renderSlide(s,i,slides.length)).join('');
+const slideEls=deck.querySelectorAll('.slide');
+slideEls[0]?.classList.add('active');
+function go(to){current=Math.max(0,Math.min(slides.length-1,to));slideEls.forEach((el,i)=>el.classList.toggle('active',i===current));document.getElementById('counter').textContent=`${current+1} / ${slides.length}`;document.getElementById('prev').disabled=current===0;document.getElementById('next').disabled=current===slides.length-1;if(window.MathJax?.typesetPromise)window.MathJax.typesetPromise([slideEls[current]]).catch(()=>{});}
+document.getElementById('prev').onclick=()=>go(current-1);
+document.getElementById('next').onclick=()=>go(current+1);
+document.addEventListener('keydown',e=>{if(e.key==='ArrowRight'||e.key===' '||e.key==='PageDown'){e.preventDefault();go(current+1);}if(e.key==='ArrowLeft'||e.key==='PageUp'){e.preventDefault();go(current-1);}if(e.key==='Home')go(0);if(e.key==='End')go(slides.length-1);});
+go(0);
+window.MathJax={loader:{load:['[tex]/mhchem']},tex:{inlineMath:[['\\(','\\)']],displayMath:[['\\[','\\]']],packages:{'[+]':['mhchem']}},options:{enableMenu:false}};
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+</body>
+</html>

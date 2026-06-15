@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{TITLE}}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --accent:{{ACCENT}};
+  --accent-light:{{ACCENT_LIGHT}};
+  --accent-dark:{{ACCENT_DARK}};
+  --bg:#FAFAFA; --surface:#FFFFFF;
+  --text:#0F172A; --text-soft:#475569; --text-mute:#94A3B8;
+  --border:#E2E8F0; --border-soft:#F1F5F9;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);overflow:hidden;height:100vh}
+.deck{position:relative;width:100vw;height:100vh}
+.slide{position:absolute;inset:0;display:none;flex-direction:column;padding:56px 80px 96px;background:var(--surface);opacity:0;transition:opacity .25s ease}
+.slide.active{display:flex;opacity:1}
+.slide-num{position:absolute;top:32px;left:80px;font-size:13px;font-weight:600;letter-spacing:.08em;color:var(--text-mute);text-transform:uppercase}
+.accent-bar{position:absolute;top:0;left:0;width:6px;height:100%;background:var(--accent)}
+.footer-logo{position:absolute;bottom:24px;right:32px;width:32px;height:32px;opacity:.5;object-fit:contain}
+h1,h2,h3{letter-spacing:-.02em;line-height:1.15;font-weight:800}
+h1{font-size:64px;color:var(--text)}
+h2{font-size:42px;color:var(--text);margin-bottom:28px}
+h3{font-size:28px;color:var(--text-soft);margin-bottom:16px;font-weight:600;letter-spacing:-.01em}
+p,li{font-size:22px;line-height:1.55;color:var(--text-soft)}
+
+/* layout: title */
+.layout-title{justify-content:center;align-items:flex-start}
+.layout-title .eyebrow{font-size:14px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);margin-bottom:24px}
+.layout-title h1{font-size:84px;max-width:1100px}
+.layout-title .subtitle{font-size:30px;font-weight:500;color:var(--text-soft);margin-top:24px;max-width:900px}
+.layout-title .meta{position:absolute;bottom:80px;left:80px;color:var(--text-mute);font-size:14px;letter-spacing:.05em}
+
+/* layout: bullets */
+.layout-bullets ul{list-style:none;padding:0;display:flex;flex-direction:column;gap:18px;max-width:1100px}
+.layout-bullets li{display:flex;gap:18px;align-items:flex-start;font-size:22px;line-height:1.5}
+.layout-bullets li::before{content:'';flex-shrink:0;width:8px;height:8px;border-radius:2px;background:var(--accent);margin-top:14px}
+
+/* layout: two-column */
+.layout-two-column .cols{display:grid;grid-template-columns:1fr 1fr;gap:64px;max-width:1280px}
+.layout-two-column .col h3{font-size:24px;color:var(--accent);margin-bottom:12px;font-weight:700;letter-spacing:0}
+.layout-two-column .col p{font-size:20px}
+
+/* layout: quote */
+.layout-quote{justify-content:center;align-items:flex-start}
+.layout-quote .q{font-size:48px;font-weight:600;color:var(--text);line-height:1.25;letter-spacing:-.01em;max-width:1100px;position:relative;padding-left:28px}
+.layout-quote .q::before{content:'';position:absolute;left:0;top:8px;bottom:8px;width:6px;background:var(--accent);border-radius:3px}
+.layout-quote .author{font-size:20px;color:var(--text-mute);margin-top:32px;letter-spacing:.04em}
+
+/* layout: summary */
+.layout-summary .items{display:grid;grid-template-columns:repeat(2,1fr);gap:24px;max-width:1280px}
+.layout-summary .item{padding:24px;border:1px solid var(--border);border-radius:12px;background:var(--surface)}
+.layout-summary .item .n{font-size:14px;font-weight:700;color:var(--accent);letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px}
+.layout-summary .item .t{font-size:20px;font-weight:600;color:var(--text);line-height:1.3}
+
+/* layout: content */
+.layout-content .body{max-width:1100px}
+.layout-content .body p{margin-bottom:20px;font-size:22px;color:var(--text);line-height:1.55}
+.layout-content .body p:last-child{margin-bottom:0}
+.layout-content h3{margin-top:24px}
+
+/* math */
+mjx-container[display="true"]{margin:16px 0;font-size:1.1em!important}
+
+/* nav */
+.nav{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:8px;z-index:50;background:rgba(255,255,255,.92);backdrop-filter:blur(8px);border:1px solid var(--border);border-radius:99px;padding:6px 10px;box-shadow:0 4px 16px rgba(0,0,0,.04)}
+.nav button{width:36px;height:36px;border:none;background:transparent;cursor:pointer;color:var(--text-soft);border-radius:99px;display:inline-flex;align-items:center;justify-content:center;font-size:18px;transition:background .15s}
+.nav button:hover:not(:disabled){background:var(--accent-light);color:var(--accent)}
+.nav button:disabled{opacity:.3;cursor:not-allowed}
+.nav .counter{font-size:13px;font-weight:600;color:var(--text-soft);padding:0 8px;letter-spacing:.05em;min-width:50px;text-align:center}
+
+@media print{.nav{display:none}.slide{display:flex!important;opacity:1!important;page-break-after:always;height:100vh}}
+@media (max-width:900px){
+  .slide{padding:32px 32px 80px}
+  h1{font-size:48px}.layout-title h1{font-size:56px}
+  h2{font-size:32px}p,li{font-size:18px}
+  .layout-two-column .cols{grid-template-columns:1fr;gap:32px}
+  .layout-summary .items{grid-template-columns:1fr}
+  .layout-quote .q{font-size:32px}
+}
+</style>
+</head>
+<body>
+<div class="deck" id="deck"></div>
+<div class="nav" id="nav">
+  <button id="prev" aria-label="Назад">←</button>
+  <span class="counter" id="counter">1 / 1</span>
+  <button id="next" aria-label="Вперёд">→</button>
+</div>
+
+<script>
+window.PRESENTATION_DATA = {{DATA}};
+const LOGO_URL = '{{LOGO_URL}}';
+
+function esc(s){return String(s??'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}
+function renderMath(s){
+  if(!s) return '';
+  return String(s).replace(/\$\$([^$]+)\$\$/g,'\\[$1\\]').replace(/\$([^$\n]+)\$/g,'\\($1\\)');
+}
+
+function renderSlide(s, idx, total){
+  const num = `<div class="slide-num">Слайд ${idx+1} / ${total}</div>`;
+  const bar = '<div class="accent-bar"></div>';
+  const logo = `<img class="footer-logo" src="${LOGO_URL}" alt="Преподавай">`;
+  let body = '';
+  switch(s.layout){
+    case 'title':
+      body = `${s.eyebrow?`<div class="eyebrow">${esc(s.eyebrow)}</div>`:''}<h1>${esc(s.title)}</h1>${s.subtitle?`<div class="subtitle">${esc(s.subtitle)}</div>`:''}${s.meta?`<div class="meta">${esc(s.meta)}</div>`:''}`;
+      break;
+    case 'bullets':
+      body = `<h2>${esc(s.title)}</h2><ul>${(s.items||[]).map(i=>`<li>${renderMath(esc(i))}</li>`).join('')}</ul>`;
+      break;
+    case 'two-column':
+      body = `<h2>${esc(s.title)}</h2><div class="cols"><div class="col"><h3>${esc(s.leftTitle||'')}</h3><p>${renderMath(esc(s.leftText||''))}</p></div><div class="col"><h3>${esc(s.rightTitle||'')}</h3><p>${renderMath(esc(s.rightText||''))}</p></div></div>`;
+      break;
+    case 'quote':
+      body = `<div class="q">«${renderMath(esc(s.text||''))}»</div>${s.author?`<div class="author">— ${esc(s.author)}</div>`:''}`;
+      break;
+    case 'summary':
+      body = `<h2>${esc(s.title)}</h2><div class="items">${(s.items||[]).map((it,i)=>`<div class="item"><div class="n">${String(i+1).padStart(2,'0')}</div><div class="t">${renderMath(esc(it))}</div></div>`).join('')}</div>`;
+      break;
+    case 'content':
+      body = `<h2>${esc(s.title)}</h2><div class="body">${(s.paragraphs||[]).map(p=>`<p>${renderMath(esc(p))}</p>`).join('')}</div>`;
+      break;
+    default:
+      body = `<h2>${esc(s.title||s.layout)}</h2><p>${renderMath(esc(s.text||''))}</p>`;
+  }
+  return `<div class="slide layout-${s.layout}" data-idx="${idx}">${bar}${num}${body}${logo}</div>`;
+}
+
+let current = 0;
+const slides = PRESENTATION_DATA.slides || [];
+const deck = document.getElementById('deck');
+deck.innerHTML = slides.map((s,i)=>renderSlide(s,i,slides.length)).join('');
+const slideEls = deck.querySelectorAll('.slide');
+slideEls[0]?.classList.add('active');
+
+function go(to){
+  current = Math.max(0, Math.min(slides.length-1, to));
+  slideEls.forEach((el,i)=>el.classList.toggle('active', i===current));
+  document.getElementById('counter').textContent = `${current+1} / ${slides.length}`;
+  document.getElementById('prev').disabled = current===0;
+  document.getElementById('next').disabled = current===slides.length-1;
+  if(window.MathJax?.typesetPromise) window.MathJax.typesetPromise([slideEls[current]]).catch(()=>{});
+}
+document.getElementById('prev').onclick = ()=>go(current-1);
+document.getElementById('next').onclick = ()=>go(current+1);
+document.addEventListener('keydown', e=>{
+  if(e.key==='ArrowRight'||e.key===' '||e.key==='PageDown') { e.preventDefault(); go(current+1); }
+  if(e.key==='ArrowLeft'||e.key==='PageUp') { e.preventDefault(); go(current-1); }
+  if(e.key==='Home') go(0);
+  if(e.key==='End') go(slides.length-1);
+});
+go(0);
+
+window.MathJax = {
+  loader: { load: ['[tex]/mhchem'] },
+  tex: { inlineMath: [['\\(','\\)']], displayMath: [['\\[','\\]']], packages: { '[+]': ['mhchem'] } },
+  options: { enableMenu: false }
+};
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+</body>
+</html>

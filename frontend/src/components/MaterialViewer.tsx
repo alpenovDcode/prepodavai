@@ -4,9 +4,8 @@ import { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 're
 import { apiClient } from '@/lib/api/client'
 import { useRouter } from 'next/navigation'
 import { getGenerationTypeLabel } from '@/lib/utils/translations'
-import PresentationEditor, { PresentationEditorRef } from './PresentationEditor'
-import PresentationPlayer from './PresentationPlayer'
-import { SlideDocEditor } from './SlideDocEditor'
+// V2 презентации: больше нет тяжёлого редактора слайдов. Контент приходит как
+// готовый HTML с встроенным просмотрщиком (← →, MathJax), просто показываем в iframe.
 import { SlideDoc } from '@/types/slide-doc'
 import { useGenerations } from '@/lib/hooks/useGenerations'
 import { Save, Download, ChevronLeft, ChevronRight, ExternalLink, ArrowLeft, Loader2, Edit3, X } from 'lucide-react'
@@ -428,7 +427,7 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
     const htmlPreviewRef = useRef<FullHtmlPreviewHandle>(null)
     const downloadMenuRef = useRef<HTMLDivElement>(null)
     const router = useRouter()
-    const editorRef = useRef<PresentationEditorRef>(null)
+    const editorRef = useRef<any>(null)
     const contentRef = useRef<HTMLDivElement>(null)
     const { generateAndWait } = useGenerations()
 
@@ -1029,51 +1028,15 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
             {/* Content Viewer */}
             <div className="flex-1 overflow-hidden relative">
                 {generationType === 'presentation' ? (
-                    isSlideDoc ? (
-                        isSlideDocEditing ? (
-                            <SlideDocEditor
-                                initialDoc={slideDoc as SlideDoc}
-                                onSave={async (next) => {
-                                    if (!generationId) return;
-                                    // Wrap into outputData for the validator,
-                                    // and merge so we don't drop pdfUrl/topic/etc.
-                                    const merged = {
-                                        ...(presentationData || {}),
-                                        slideDoc: next,
-                                        topic: next.topic,
-                                    };
-                                    await apiClient.patch(`/generate/${generationId}`, { outputData: merged });
-                                    // Reflect locally so the editor's "saved" indicator is honest.
-                                    setContent(JSON.stringify(merged));
-                                }}
-                                onRegenerateImage={async (_idx, prompt) => {
-                                    try {
-                                        const status = await generateAndWait({
-                                            type: 'image',
-                                            params: { prompt, style: 'illustration', model: 'black-forest-labs/flux-2-pro' },
-                                        });
-                                        const r = status.result;
-                                        const imageData: string =
-                                            (typeof r === 'string' ? r : null) ??
-                                            r?.content ??
-                                            r?.imageUrl ??
-                                            '';
-                                        if (imageData && (imageData.startsWith('http') || imageData.startsWith('data:image'))) {
-                                            return imageData;
-                                        }
-                                        alert('Не удалось создать картинку: модель вернула пустой ответ.');
-                                        return null;
-                                    } catch (e: any) {
-                                        alert(`Не удалось создать картинку: ${e?.message || 'ошибка'}.\nПопробуйте переформулировать промпт.`);
-                                        return null;
-                                    }
-                                }}
-                            />
-                        ) : (
-                            <div className="h-full bg-gray-900">
-                                <PresentationPlayer slideDoc={slideDoc} />
-                            </div>
-                        )
+                    // V2: бекенд кладёт готовый HTML в outputData.content — там встроенный
+                    // просмотрщик слайдов с MathJax, навигация ← →. Просто показываем в iframe.
+                    typeof content === 'string' && content.includes('<html') ? (
+                        <iframe
+                            srcDoc={content}
+                            className="w-full h-full border-none bg-white"
+                            title="Presentation"
+                            sandbox="allow-scripts allow-same-origin"
+                        />
                     ) : isHtmlSlides && htmlSlides.length > 0 ? (
                         // HTML/CSS slides: iframe viewer with drag-n-drop + dark backgrounds preserved
                         <div className="flex h-full">
@@ -1120,9 +1083,6 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
                                 </div>
                             </div>
                         </div>
-                    ) : slides.length > 0 ? (
-                        // Legacy element-format slides: use PresentationEditor
-                        <PresentationEditor ref={editorRef} initialData={slides} onSave={handleSave} />
                     ) : (presentationData?.pptxUrl || presentationData?.exportUrl) ? (
                         <iframe
                             src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(presentationData.pptxUrl || presentationData.exportUrl)}`}

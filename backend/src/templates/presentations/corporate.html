@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{TITLE}}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --accent:{{ACCENT}};
+  --accent-light:{{ACCENT_LIGHT}};
+  --accent-dark:{{ACCENT_DARK}};
+  --bg:#FFFFFF; --surface:#FFFFFF;
+  --text:#0A0E1A; --text-soft:#3D4659; --text-mute:#8A93A8;
+  --border:#D9DEE8; --border-soft:#EAEEF5;
+  --grid:#F4F6FA;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text);overflow:hidden;height:100vh}
+.deck{position:relative;width:100vw;height:100vh}
+.slide{position:absolute;inset:0;display:none;flex-direction:column;padding:88px 80px 96px;background:var(--surface);opacity:0;transition:opacity .25s ease}
+.slide.active{display:flex;opacity:1}
+
+/* Грид-фон (сетка как у бизнес-документов) */
+.slide::before{content:'';position:absolute;inset:0;background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);background-size:80px 80px;background-position:-1px -1px;opacity:.5;pointer-events:none}
+.slide > *{position:relative;z-index:1}
+
+/* Header bar */
+.slide-header{position:absolute;top:0;left:0;right:0;height:48px;border-bottom:1px solid var(--border);background:var(--surface);display:flex;align-items:center;padding:0 80px;z-index:2;font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:500;letter-spacing:.1em;color:var(--text-mute);text-transform:uppercase}
+.slide-header .topic{flex:1}
+.slide-header .num{color:var(--accent);font-weight:600}
+.slide-header::before{content:'';position:absolute;left:0;top:0;height:100%;width:6px;background:var(--accent)}
+
+.footer-logo{position:absolute;bottom:24px;right:32px;width:32px;height:32px;opacity:.55;object-fit:contain;z-index:2}
+.footer-rule{position:absolute;bottom:60px;left:80px;right:120px;height:1px;background:var(--border-soft);z-index:1}
+.footer-meta{position:absolute;bottom:30px;left:80px;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.1em;color:var(--text-mute);text-transform:uppercase;z-index:2;font-weight:500}
+
+h1,h2,h3{letter-spacing:-.02em;line-height:1.1;font-weight:700}
+h1{font-size:56px;color:var(--text)}
+h2{font-size:36px;color:var(--text);margin-bottom:24px;font-weight:700}
+h3{font-size:18px;color:var(--text);margin-bottom:12px;font-weight:600;font-family:'IBM Plex Mono',monospace;letter-spacing:.08em;text-transform:uppercase}
+p,li{font-size:20px;line-height:1.5;color:var(--text-soft)}
+
+/* layout: title */
+.layout-title{justify-content:center;align-items:flex-start}
+.layout-title .eyebrow{font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);margin-bottom:24px;padding:6px 14px;border:1px solid var(--accent);display:inline-block}
+.layout-title h1{font-size:72px;font-weight:800;max-width:1100px;line-height:1.05}
+.layout-title .subtitle{font-size:26px;font-weight:500;color:var(--text-soft);margin-top:24px;max-width:900px;line-height:1.4}
+.layout-title .accent-block{position:absolute;bottom:96px;right:80px;width:120px;height:8px;background:var(--accent)}
+.layout-title .meta{position:absolute;bottom:96px;left:80px;font-family:'IBM Plex Mono',monospace;color:var(--text-mute);font-size:12px;letter-spacing:.1em;text-transform:uppercase}
+
+/* layout: bullets */
+.layout-bullets ul{list-style:none;padding:0;display:grid;grid-template-columns:repeat(2,1fr);gap:16px 24px;max-width:1280px}
+.layout-bullets li{display:flex;gap:14px;align-items:flex-start;font-size:18px;line-height:1.45;padding:18px;background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--accent)}
+.layout-bullets li .index{font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;color:var(--accent);letter-spacing:.08em;flex-shrink:0;padding-top:2px;min-width:24px}
+
+/* layout: two-column */
+.layout-two-column .cols{display:grid;grid-template-columns:1fr 1fr;gap:0;max-width:1280px;border:1px solid var(--border)}
+.layout-two-column .col{padding:32px;background:var(--surface)}
+.layout-two-column .col + .col{border-left:1px solid var(--border)}
+.layout-two-column .col h3{font-size:14px;color:var(--accent);margin-bottom:16px;font-weight:600;font-family:'IBM Plex Mono',monospace;letter-spacing:.12em;text-transform:uppercase}
+.layout-two-column .col p{font-size:19px}
+
+/* layout: quote */
+.layout-quote{justify-content:center;align-items:flex-start}
+.layout-quote .q{font-size:42px;font-weight:600;color:var(--text);line-height:1.3;letter-spacing:-.01em;max-width:1100px;padding:32px 40px;border-left:6px solid var(--accent);background:var(--grid)}
+.layout-quote .author{font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--text-mute);margin-top:24px;letter-spacing:.12em;text-transform:uppercase;font-weight:500;padding-left:46px}
+
+/* layout: summary */
+.layout-summary h2{margin-bottom:32px}
+.layout-summary .items{display:grid;grid-template-columns:repeat(2,1fr);gap:0;max-width:1280px;border:1px solid var(--border)}
+.layout-summary .item{padding:24px;background:var(--surface);border-right:1px solid var(--border);border-bottom:1px solid var(--border)}
+.layout-summary .item:nth-child(2n){border-right:none}
+.layout-summary .item:nth-last-child(-n+2){border-bottom:none}
+.layout-summary .item .n{font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;color:var(--accent);letter-spacing:.12em;margin-bottom:8px;display:flex;align-items:center;gap:8px}
+.layout-summary .item .n::after{content:'';flex:1;height:1px;background:var(--border-soft)}
+.layout-summary .item .t{font-size:18px;font-weight:600;color:var(--text);line-height:1.4}
+
+/* layout: content */
+.layout-content .body{max-width:1100px;display:grid;grid-template-columns:160px 1fr;gap:32px}
+.layout-content .body .label{font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;color:var(--accent);letter-spacing:.14em;text-transform:uppercase;padding-top:4px}
+.layout-content .body .text p{margin-bottom:18px;font-size:21px;color:var(--text);line-height:1.55}
+.layout-content .body .text p:last-child{margin-bottom:0}
+
+/* math */
+mjx-container[display="true"]{margin:18px 0;font-size:1.05em!important}
+
+/* nav */
+.nav{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:0;z-index:50;background:var(--surface);border:1px solid var(--border);border-radius:0;font-family:'IBM Plex Mono',monospace}
+.nav button{width:40px;height:40px;border:none;background:transparent;cursor:pointer;color:var(--text-soft);font-size:18px;transition:background .15s,color .15s;border-right:1px solid var(--border)}
+.nav button:last-child{border-right:none}
+.nav button:hover:not(:disabled){background:var(--accent);color:#fff}
+.nav button:disabled{opacity:.3;cursor:not-allowed}
+.nav .counter{font-size:12px;font-weight:600;color:var(--text);padding:0 16px;letter-spacing:.1em;min-width:80px;text-align:center;border-right:1px solid var(--border);height:40px;display:inline-flex;align-items:center;justify-content:center}
+
+@media print{.nav{display:none}.slide{display:flex!important;opacity:1!important;page-break-after:always}}
+@media (max-width:900px){
+  .slide{padding:64px 32px 80px}
+  .slide-header{padding:0 32px;font-size:10px}
+  .footer-meta,.footer-rule{left:32px;right:60px}
+  h1{font-size:38px}.layout-title h1{font-size:48px}
+  h2{font-size:28px}p,li{font-size:17px}
+  .layout-bullets ul,.layout-two-column .cols,.layout-summary .items{grid-template-columns:1fr}
+  .layout-two-column .col + .col{border-left:none;border-top:1px solid var(--border)}
+  .layout-summary .item{border-right:none}
+  .layout-quote .q{font-size:28px;padding:20px 24px}
+  .layout-content .body{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<div class="deck" id="deck"></div>
+<div class="nav" id="nav">
+  <button id="prev">←</button>
+  <span class="counter" id="counter">01 / 01</span>
+  <button id="next">→</button>
+</div>
+<script>
+window.PRESENTATION_DATA = {{DATA}};
+const LOGO_URL = '{{LOGO_URL}}';
+const TOPIC = '{{TOPIC}}';
+function esc(s){return String(s??'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}
+function renderMath(s){if(!s)return '';return String(s).replace(/\$\$([^$]+)\$\$/g,'\\[$1\\]').replace(/\$([^$\n]+)\$/g,'\\($1\\)');}
+function renderSlide(s,idx,total){
+  const header=`<div class="slide-header"><div class="topic">${esc(TOPIC)}</div><div class="num">${String(idx+1).padStart(2,'0')} / ${String(total).padStart(2,'0')}</div></div>`;
+  const foot=`<div class="footer-rule"></div><div class="footer-meta">Преподавай · ИИ Генератор</div>`;
+  const logo=`<img class="footer-logo" src="${LOGO_URL}" alt="Преподавай">`;
+  let body='';
+  switch(s.layout){
+    case 'title':
+      body=`${s.eyebrow?`<div class="eyebrow">${esc(s.eyebrow)}</div>`:''}<h1>${esc(s.title)}</h1>${s.subtitle?`<div class="subtitle">${esc(s.subtitle)}</div>`:''}${s.meta?`<div class="meta">${esc(s.meta)}</div>`:''}<div class="accent-block"></div>`;
+      break;
+    case 'bullets':
+      body=`<h2>${esc(s.title)}</h2><ul>${(s.items||[]).map((i,k)=>`<li><span class="index">${String(k+1).padStart(2,'0')}</span><span>${renderMath(esc(i))}</span></li>`).join('')}</ul>`;
+      break;
+    case 'two-column':
+      body=`<h2>${esc(s.title)}</h2><div class="cols"><div class="col"><h3>${esc(s.leftTitle||'')}</h3><p>${renderMath(esc(s.leftText||''))}</p></div><div class="col"><h3>${esc(s.rightTitle||'')}</h3><p>${renderMath(esc(s.rightText||''))}</p></div></div>`;
+      break;
+    case 'quote':
+      body=`<div class="q">${renderMath(esc(s.text||''))}</div>${s.author?`<div class="author">— ${esc(s.author)}</div>`:''}`;
+      break;
+    case 'summary':
+      body=`<h2>${esc(s.title)}</h2><div class="items">${(s.items||[]).map((it,i)=>`<div class="item"><div class="n">${String(i+1).padStart(2,'0')}</div><div class="t">${renderMath(esc(it))}</div></div>`).join('')}</div>`;
+      break;
+    case 'content':
+      body=`<h2>${esc(s.title)}</h2><div class="body"><div class="label">Описание</div><div class="text">${(s.paragraphs||[]).map(p=>`<p>${renderMath(esc(p))}</p>`).join('')}</div></div>`;
+      break;
+    default:
+      body=`<h2>${esc(s.title||s.layout)}</h2><p>${renderMath(esc(s.text||''))}</p>`;
+  }
+  return `<div class="slide layout-${s.layout}" data-idx="${idx}">${header}${body}${foot}${logo}</div>`;
+}
+let current=0;
+const slides=PRESENTATION_DATA.slides||[];
+const deck=document.getElementById('deck');
+deck.innerHTML=slides.map((s,i)=>renderSlide(s,i,slides.length)).join('');
+const slideEls=deck.querySelectorAll('.slide');
+slideEls[0]?.classList.add('active');
+function go(to){current=Math.max(0,Math.min(slides.length-1,to));slideEls.forEach((el,i)=>el.classList.toggle('active',i===current));document.getElementById('counter').textContent=`${String(current+1).padStart(2,'0')} / ${String(slides.length).padStart(2,'0')}`;document.getElementById('prev').disabled=current===0;document.getElementById('next').disabled=current===slides.length-1;if(window.MathJax?.typesetPromise)window.MathJax.typesetPromise([slideEls[current]]).catch(()=>{});}
+document.getElementById('prev').onclick=()=>go(current-1);
+document.getElementById('next').onclick=()=>go(current+1);
+document.addEventListener('keydown',e=>{if(e.key==='ArrowRight'||e.key===' '||e.key==='PageDown'){e.preventDefault();go(current+1);}if(e.key==='ArrowLeft'||e.key==='PageUp'){e.preventDefault();go(current-1);}if(e.key==='Home')go(0);if(e.key==='End')go(slides.length-1);});
+go(0);
+window.MathJax={loader:{load:['[tex]/mhchem']},tex:{inlineMath:[['\\(','\\)']],displayMath:[['\\[','\\]']],packages:{'[+]':['mhchem']}},options:{enableMenu:false}};
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+</body>
+</html>

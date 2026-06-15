@@ -20,9 +20,8 @@ import { HtmlExportService } from '../../common/services/html-export.service';
 import { stripAnswerKeyFromHtml } from '../../common/utils/strip-answer-key.util';
 import { FilesService } from '../files/files.service';
 import { StrategyRegistryService } from './strategies/strategy-registry.service';
-import { PresentationPptxService } from './presentation/presentation-pptx.service';
-import { PresentationPdfService } from './presentation/presentation-pdf.service';
-import { SlideDoc } from './presentation/slide-doc.types';
+import { PresentationPptxV2Service } from './presentation/presentation-pptx-v2.service';
+import { PresentationData } from './presentation/presentation-template.service';
 import { AnalyticsEventsService, EVENT_TYPES } from '../analytics-events/analytics-events.service';
 
 export const LOGO_BASE64 =
@@ -118,8 +117,7 @@ export class GenerationsService {
     private readonly referralsService: ReferralsService,
     private readonly onboardingQuestService: OnboardingQuestService,
     private readonly strategyRegistry: StrategyRegistryService,
-    private readonly presentationPptxService: PresentationPptxService,
-    private readonly presentationPdfService: PresentationPdfService,
+    private readonly presentationPptxService: PresentationPptxV2Service,
     private readonly analyticsEvents: AnalyticsEventsService,
   ) { }
 
@@ -914,28 +912,32 @@ export class GenerationsService {
       `[GenerationsService] Enqueuing Replicate presentation generation for request ${generationRequestId}`,
     );
 
-    const { topic, duration, style, targetAudience, numCards } = inputParams;
+    const { topic, text, duration, style, targetAudience, numCards, slidesCount, color } = inputParams;
 
     if (!topic) {
       throw new BadRequestException('No topic provided for presentation generation');
     }
 
+    // slidesCount — новое поле из UI v2 (range 5..24); numCards/duration — legacy для совместимости
+    const parsedSlides = slidesCount ? Math.max(5, Math.min(24, parseInt(String(slidesCount), 10) || 10)) : 0;
     const parsedNumCards = numCards ? Math.max(3, parseInt(String(numCards), 10) || 3) : 0;
     const parsedDuration = duration ? parseInt(String(duration), 10) || 0 : 0;
-    // Точное соответствие подписям в UI: 5→5, 15→10, 30→20, 45→30
     const DURATION_TO_SLIDES: Record<number, number> = { 5: 5, 15: 10, 30: 20, 45: 30 };
     const slidesFromDuration = parsedDuration
       ? (DURATION_TO_SLIDES[parsedDuration] ?? Math.max(3, Math.round(parsedDuration / 1.5)))
       : 0;
-    const computedNumCards = parsedNumCards || slidesFromDuration || 7;
+    const finalSlidesCount = parsedSlides || parsedNumCards || slidesFromDuration || 10;
 
     await this.replicatePresentationQueue.add('generate', {
       generationRequestId,
       topic,
+      text,
       duration,
-      style,
+      style,                              // modern | academic | creative | corporate
+      color,                              // indigo | emerald | violet | blue | slate
       targetAudience,
-      numCards: computedNumCards,
+      slidesCount: finalSlidesCount,      // основное поле
+      numCards: finalSlidesCount,         // legacy совместимость
     });
 
     this.logger.log(`Enqueued Replicate presentation job for ${generationRequestId}`);
@@ -1500,22 +1502,29 @@ export class GenerationsService {
     if (userGen.userId !== userId) throw new NotFoundException('Доступ запрещён');
 
     const result = (userGen.outputData ?? userGen.generationRequest?.result) as any;
-    const slideDoc: SlideDoc | undefined = result?.slideDoc;
 
-    if (!slideDoc?.slides?.length) {
-      // Gamma-generated presentations have no slideDoc — return the stored PDF file directly
-      const fileUrl: string | undefined = result?.exportUrl || result?.pdfUrl;
-      const hashMatch = fileUrl?.match(/\/api\/files\/([a-f0-9]{32})/i);
-      if (hashMatch) {
-        const file = await this.filesService.getFile(hashMatch[1]);
-        if (file) return file.buffer;
-      }
-      throw new NotFoundException('SlideDoc не найден в результате генерации');
+    // 1. Сначала проверяем готовые URL'ы — генерация уже сохранила файлы при completed.
+    const fileUrl = format === 'pptx' ? result?.pptxUrl : (result?.pdfUrl || result?.exportUrl);
+    const hashMatch = fileUrl?.match(/\/api\/files\/([a-f0-9]{32})/i);
+    if (hashMatch) {
+      const file = await this.filesService.getFile(hashMatch[1]);
+      if (file) return file.buffer;
     }
 
-    return format === 'pptx'
-      ? this.presentationPptxService.docToPptx(slideDoc)
-      : this.presentationPdfService.docToPdf(slideDoc);
+    // 2. Fallback: пересоздаём на лету из presentationData (новый формат)
+    const presentationData: PresentationData | undefined = result?.presentationData;
+    if (presentationData?.slides?.length) {
+      if (format === 'pptx') {
+        return this.presentationPptxService.build(presentationData);
+      }
+      // PDF из HTML
+      const html: string | undefined = result?.content;
+      if (html) {
+        return this.htmlExportService.htmlToPdf(html);
+      }
+    }
+
+    throw new NotFoundException('Файл презентации недоступен');
   }
 
   /**

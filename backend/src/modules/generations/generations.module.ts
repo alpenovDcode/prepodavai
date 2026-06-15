@@ -6,10 +6,8 @@ import { GenerationHelpersService } from './generation-helpers.service';
 import { GenerationQueueService } from './generation-queue.service';
 import { GammaPollingProcessor } from './processors/gamma-polling.processor';
 import { ReplicatePresentationProcessor } from './processors/replicate-presentation.processor';
-import { PresentationGeneratorService } from './presentation/presentation-generator.service';
-import { PresentationRendererService } from './presentation/presentation-renderer.service';
-import { PresentationPdfService } from './presentation/presentation-pdf.service';
-import { PresentationPptxService } from './presentation/presentation-pptx.service';
+import { PresentationTemplateService } from './presentation/presentation-template.service';
+import { PresentationPptxV2Service } from './presentation/presentation-pptx-v2.service';
 import { LessonPreparationProcessor } from './processors/lesson-preparation.processor';
 // import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 
@@ -88,10 +86,8 @@ import { VideoAnalysisStrategy } from './strategies/video-analysis.strategy';
     GenerationQueueService,
     GammaPollingProcessor,
     ReplicatePresentationProcessor,
-    PresentationGeneratorService,
-    PresentationRendererService,
-    PresentationPdfService,
-    PresentationPptxService,
+    PresentationTemplateService,
+    PresentationPptxV2Service,
     LessonPreparationProcessor,
     VideoAnalysisProcessor,
     SalesAdvisorProcessor,
