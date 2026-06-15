@@ -153,22 +153,30 @@ export class StudentsService {
   async getStudent(userId: string, studentId: string) {
     const student = await this.prisma.student.findUnique({
       where: { id: studentId },
-      include: {
-        class: true,
-        assignments: {
-          include: {
-            lesson: true,
-            submissions: true,
-          },
-        },
-      },
+      include: { class: true },
     });
 
     if (!student || student.class.teacherId !== userId) {
       throw new NotFoundException('Student not found');
     }
 
-    return student;
+    // Personal- и class-wide-задания этого ученика (Assignment.studentId либо
+    // Assignment.classId = student.classId). Relation `student.assignments`
+    // подтянул бы только personal, без классных — на UI это выглядело как
+    // «истории нет», хотя в карточке счётчик показывал N заданий (его
+    // берёт getStudentAnalytics — там фильтр уже корректный).
+    const assignments = await this.prisma.assignment.findMany({
+      where: {
+        OR: [{ studentId }, { classId: student.classId }],
+      },
+      include: {
+        lesson: true,
+        submissions: { where: { studentId } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return { ...student, assignments };
   }
 
   /**
