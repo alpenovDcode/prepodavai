@@ -117,7 +117,9 @@ const TYPE_TOOL_ROUTE: Record<string, string> = {
 const IFRAME_BASE_STYLES = `
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 body { background: #f9fafb; font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: #111827; line-height: 1.6; padding: 20px; }
-.container { max-width: 1100px; margin: 0 auto; background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+html, body { width: 100% !important; max-width: 100% !important; }
+.container { max-width: 100% !important; width: auto !important; margin: 0 !important; background: white; padding: 32px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+.container .container { box-shadow: none; padding: 0; border-radius: 0; }
 .header { display: flex; align-items: center; gap: 20px; margin-bottom: 30px; border-bottom: 2px solid #f3f4f6; padding-bottom: 20px; }
 .header-logo { width: auto; height: 40px; }
 h1 { font-size: 28px; font-weight: 700; color: #111827; }
@@ -801,8 +803,9 @@ export default function MaterialViewerV2({ lessonId, generationId, isEditable = 
                             ref={iframeRef}
                             srcDoc={srcDoc}
                             title="material-preview"
-                            className="w-full bg-white border-0 print-frame"
-                            style={{ minHeight: '600px', height: '80vh' }}
+                            width="100%"
+                            className="block bg-white border-0 print-frame"
+                            style={{ width: '100%', minHeight: '600px', height: '80vh' }}
                             sandbox="allow-scripts allow-same-origin allow-popups allow-modals"
                         />
                     </div>
