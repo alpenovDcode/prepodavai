@@ -354,4 +354,125 @@ export class AssignmentsService {
       };
     });
   }
+
+  /**
+   * Полная сводка по заданию для страницы карточки в учительском интерфейсе:
+   *   - meta задания (название, тема, дедлайн, статус)
+   *   - все генерации урока с outputData (для предпросмотра материала)
+   *   - список учеников класса со статусом сдачи у каждого
+   *
+   * Если задание выдано конкретному ученику (studentId, без classId) — в
+   * списке будет один ученик. Если классу — все ученики класса.
+   */
+  async getAssignmentOverview(teacherId: string, assignmentId: string) {
+    const assignment = await this.prisma.assignment.findUnique({
+      where: { id: assignmentId },
+      include: {
+        lesson: {
+          include: {
+            generations: {
+              where: { status: 'completed' },
+              orderBy: { createdAt: 'asc' },
+            },
+          },
+        },
+        class: true,
+        student: { include: { class: true } },
+        submissions: { include: { student: true } },
+      },
+    });
+
+    if (!assignment) throw new NotFoundException('Assignment not found');
+
+    const ownerTeacher = assignment.class?.teacherId || assignment.student?.class?.teacherId;
+    if (ownerTeacher !== teacherId) {
+      throw new NotFoundException('Assignment not found');
+    }
+
+    // Список учеников, кому это задание адресовано
+    const targetStudents = assignment.classId
+      ? await this.prisma.student.findMany({
+          where: { classId: assignment.classId, status: 'active' },
+          orderBy: { name: 'asc' },
+          select: { id: true, name: true, avatar: true, email: true },
+        })
+      : assignment.student
+        ? [{
+            id: assignment.student.id,
+            name: assignment.student.name,
+            avatar: assignment.student.avatar,
+            email: assignment.student.email,
+          }]
+        : [];
+
+    // Последняя сабмишн от каждого ученика — по дате создания
+    const latestByStudent = new Map<string, typeof assignment.submissions[number]>();
+    for (const sub of assignment.submissions) {
+      const cur = latestByStudent.get(sub.studentId);
+      if (!cur || cur.createdAt < sub.createdAt) latestByStudent.set(sub.studentId, sub);
+    }
+
+    const dueDate = assignment.dueDate;
+    const now = new Date();
+
+    const students = targetStudents.map((s) => {
+      const sub = latestByStudent.get(s.id);
+      let status: 'not_submitted' | 'submitted' | 'graded' | 'overdue' = 'not_submitted';
+      if (sub) {
+        if (sub.grade !== null && sub.grade !== undefined) status = 'graded';
+        else status = 'submitted';
+      } else if (dueDate && dueDate < now) {
+        status = 'overdue';
+      }
+      const isLate = sub && dueDate ? sub.createdAt > dueDate : false;
+      return {
+        id: s.id,
+        name: s.name,
+        avatar: s.avatar,
+        email: s.email,
+        status,
+        isLate,
+        submission: sub
+          ? {
+              id: sub.id,
+              grade: sub.grade ?? null,
+              createdAt: sub.createdAt,
+              feedback: sub.feedback ?? null,
+            }
+          : null,
+      };
+    });
+
+    const totals = {
+      total: students.length,
+      submitted: students.filter((s) => s.status === 'submitted' || s.status === 'graded').length,
+      graded: students.filter((s) => s.status === 'graded').length,
+      overdue: students.filter((s) => s.status === 'overdue').length,
+      pending: students.filter((s) => s.status === 'submitted').length,
+    };
+
+    return {
+      assignment: {
+        id: assignment.id,
+        status: assignment.status,
+        dueDate: assignment.dueDate,
+        createdAt: assignment.createdAt,
+        scope: assignment.classId ? 'class' : 'student',
+        className: assignment.class?.name ?? assignment.student?.class?.name ?? null,
+      },
+      lesson: {
+        id: assignment.lesson.id,
+        title: assignment.lesson.title,
+        topic: assignment.lesson.topic,
+        generations: assignment.lesson.generations.map((g) => ({
+          id: g.id,
+          type: g.generationType,
+          title: g.title,
+          outputData: g.outputData,
+        })),
+      },
+      totals,
+      students,
+    };
+  }
 }

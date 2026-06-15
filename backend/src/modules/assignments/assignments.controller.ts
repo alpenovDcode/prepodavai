@@ -40,4 +40,11 @@ export class AssignmentsController {
   findOne(@Request() req, @Param('id') id: string) {
     return this.assignmentsService.getAssignment(req.user.id, id);
   }
+
+  // Сводка по заданию: материал + список учеников со статусами для страницы
+  // /dashboard/assignments/[id].
+  @Get(':id/overview')
+  overview(@Request() req, @Param('id') id: string) {
+    return this.assignmentsService.getAssignmentOverview(req.user.id, id);
+  }
 }

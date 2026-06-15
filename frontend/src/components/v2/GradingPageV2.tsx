@@ -312,7 +312,9 @@ export default function GradingPageV2() {
   const [classFilter, setClassFilter] = useState(() => searchParams?.get('class') ?? '')
   const [typeFilter, setTypeFilter] = useState('')
   const [sortFilter, setSortFilter] = useState<'urgent' | 'overdue' | 'new' | 'name' | 'class'>('urgent')
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  // ?submission=<id> в URL — переход с карточки задания: сразу выбираем
+  // нужную работу при первом рендере, дальше юзер кликает свободно.
+  const [selectedId, setSelectedId] = useState<string | null>(() => searchParams?.get('submission') ?? null)
   const [selectedGrade, setSelectedGrade] = useState<number | null>(null)
   const [comment, setComment] = useState('')
   const [aiText, setAiText] = useState<string | null>(null)

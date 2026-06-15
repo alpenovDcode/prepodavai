@@ -479,13 +479,8 @@ export default function ClassDetailPageV2({ id }: { id: string }) {
                                 padding="md"
                                 interactive
                                 className="hover:shadow-md transition-shadow cursor-pointer"
-                                onClick={() => {
-                                    const params = new URLSearchParams()
-                                    if (classData.name) params.set('class', classData.name)
-                                    if (assignment.lesson.title) params.set('search', assignment.lesson.title)
-                                    router.push(`/dashboard/grading?${params.toString()}`)
-                                }}
-                                title="Перейти к проверке работ по этому заданию"
+                                onClick={() => router.push(`/dashboard/assignments/${assignment.id}`)}
+                                title="Открыть карточку задания"
                             >
                                 <div className="flex items-start justify-between gap-4">
                                     <div>
