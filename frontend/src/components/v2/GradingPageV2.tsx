@@ -6,7 +6,7 @@ import useSWR from 'swr'
 import {
   Compass, SlidersHorizontal, Sparkles, Zap, Search, Star,
   BarChart3, MessageSquareText, Check, ArrowRight, MessageCircle,
-  RefreshCw, AlertCircle, CheckCircle, Loader2,
+  RefreshCw, AlertCircle, CheckCircle, Loader2, Gamepad2, ExternalLink, XCircle,
 } from 'lucide-react'
 import { apiClient } from '@/lib/api/client'
 import { Topbar } from '@/components/layout/v2/Topbar'
@@ -441,6 +441,21 @@ export default function GradingPageV2() {
     return detail.formData?.[worksheetGen.id] ?? {}
   }, [worksheetGen, detail])
 
+  // Мини-игры: ученик играет в iframe → результат летит в formData[genId]._game.
+  // Здесь собираем карточки-результаты для каждой игровой генерации задания.
+  const gameResultCards = useMemo(() => {
+    if (!detail) return [] as Array<{ genId: string; out: any; result: any }>
+    const cards: Array<{ genId: string; out: any; result: any }> = []
+    for (const gen of detail.assignment.generations || []) {
+      const t = (gen.type || '').toLowerCase()
+      if (t !== 'game_generation' && t !== 'game') continue
+      const out = typeof gen.outputData === 'object' && gen.outputData ? gen.outputData : {}
+      const result = (detail.formData as any)?.[gen.id]?._game ?? null
+      cards.push({ genId: gen.id, out, result })
+    }
+    return cards
+  }, [detail])
+
   const templates = templatesData?.templates ?? []
 
   return (
@@ -656,6 +671,15 @@ export default function GradingPageV2() {
                     )}
                   </div>
                 </div>
+
+                {/* Мини-игры: показываем сводку прохождения каждой игры */}
+                {gameResultCards.length > 0 && (
+                  <div className="mb-5 space-y-3">
+                    {gameResultCards.map(({ genId, out, result }) => (
+                      <GameResultCard key={genId} out={out} result={result} />
+                    ))}
+                  </div>
+                )}
 
                 {/* Лист с заданиями + предзаполненные ответы ученика. Если у
                     задания нет HTML-генерации (старые формы), показываем
@@ -981,6 +1005,84 @@ function MiniSelect({
         {children}
       </select>
       <div className="absolute right-2.5 top-1/2 -translate-y-[65%] w-[6px] h-[6px] border-r-[1.5px] border-b-[1.5px] border-ink-500 rotate-45 pointer-events-none" />
+    </div>
+  )
+}
+
+// ─── Game result card ────────────────────────────────────────────────────────
+
+const GAME_TYPE_LABEL: Record<string, string> = {
+  millionaire: 'Миллионер',
+  flashcards: 'Флеш-карты',
+  memory: 'Memory',
+  crossword: 'Кроссворд',
+  truefalse: 'Правда или ложь',
+}
+
+function GameResultCard({ out, result }: { out: any; result: any }) {
+  const label = GAME_TYPE_LABEL[(out?.type || '').toLowerCase()] || 'Мини-игра'
+  const url = out?.url as string | undefined
+  const topic = out?.topic as string | undefined
+  const isWin = result?.outcome === 'win'
+  const isLose = result?.outcome === 'lose'
+  return (
+    <div className="border border-ink-200 rounded-xl overflow-hidden">
+      <div className="px-4 py-3 flex flex-wrap items-center gap-2 bg-brand-50/60 border-b border-brand-100">
+        <span className="inline-flex items-center gap-1.5 text-xs font-bold bg-white text-brand-700 border border-brand-200 px-2.5 py-1 rounded-full">
+          <Gamepad2 className="w-3 h-3" /> {label}
+        </span>
+        {topic && (
+          <span className="text-sm text-ink-700">
+            <span className="text-ink-500">Тема:</span> <span className="font-semibold">{topic}</span>
+          </span>
+        )}
+        {url && (
+          <a
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="ml-auto inline-flex items-center gap-1.5 text-xs font-semibold text-brand-700 hover:text-brand-800"
+          >
+            Открыть игру <ExternalLink className="w-3 h-3" />
+          </a>
+        )}
+      </div>
+      <div className="p-4">
+        {result ? (
+          <div className={`rounded-xl p-4 border ${isWin ? 'bg-success-50 border-success-200' : isLose ? 'bg-danger-50 border-danger-200' : 'bg-ink-50 border-ink-200'}`}>
+            <div className="flex items-center gap-2 mb-3">
+              {isWin ? <CheckCircle className="w-4 h-4 text-success-600" />
+                : isLose ? <XCircle className="w-4 h-4 text-danger-600" />
+                : <CheckCircle className="w-4 h-4 text-ink-500" />}
+              <span className={`font-bold text-[14px] ${isWin ? 'text-success-700' : isLose ? 'text-danger-700' : 'text-ink-800'}`}>
+                {isWin ? 'Победа' : isLose ? 'Поражение' : 'Игра пройдена'}
+              </span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-[13px]">
+              {typeof result.score === 'number' && (
+                <Stat label="Счёт" value={`${result.score}${typeof result.total === 'number' ? ` / ${result.total}` : ''}`} />
+              )}
+              {typeof result.moves === 'number' && <Stat label="Ходы" value={result.moves} />}
+              {result.time && <Stat label="Время" value={result.time} />}
+              {typeof result.winAmount === 'number' && (
+                <Stat label="Выигрыш" value={`${result.winAmount.toLocaleString('ru-RU')} ₽`} />
+              )}
+            </div>
+            {result.message && <p className="text-[12px] text-ink-600 italic mt-3">«{result.message}»</p>}
+          </div>
+        ) : (
+          <div className="text-[13px] text-ink-500 italic">Ученик не завершил игру — результата нет.</div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function Stat({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="bg-white rounded-lg px-3 py-2 border border-ink-100">
+      <div className="text-[10.5px] uppercase tracking-wider text-ink-500 font-semibold mb-0.5">{label}</div>
+      <div className="font-bold text-ink-900">{value}</div>
     </div>
   )
 }
