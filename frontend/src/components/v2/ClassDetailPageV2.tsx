@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import toast from 'react-hot-toast'
 import {
     BarChart, Bar, LineChart, Line, XAxis, YAxis,
     Tooltip, ResponsiveContainer, CartesianGrid, Cell,
@@ -381,9 +382,11 @@ export default function ClassDetailPageV2({ id }: { id: string }) {
                             <thead>
                                 <tr className="border-b border-ink-100 bg-ink-50/50">
                                     <th className="text-left py-3.5 px-5 text-[13px] font-semibold text-ink-600">Ученик</th>
-                                    <th className="text-left py-3.5 px-5 text-[13px] font-semibold text-ink-600">Код доступа</th>
+                                    <th className="text-left py-3.5 px-5 text-[13px] font-semibold text-ink-600" title="Личный код ученика для входа на платформу без пароля">
+                                        Код доступа
+                                    </th>
                                     <th className="text-left py-3.5 px-5 text-[13px] font-semibold text-ink-600">Дата добавления</th>
-                                    <th className="text-right py-3.5 px-5 text-[13px] font-semibold text-ink-600">Действия</th>
+                                    <th className="text-right py-3.5 px-5 text-[13px] font-semibold text-ink-600">Ссылка для входа</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-ink-50">
@@ -408,9 +411,20 @@ export default function ClassDetailPageV2({ id }: { id: string }) {
                                             </div>
                                         </td>
                                         <td className="py-4 px-5">
-                                            <code className="bg-ink-100 px-2 py-1 rounded text-[13px] font-mono text-ink-600">
-                                                {student.accessCode}
-                                            </code>
+                                            {student.accessCode ? (
+                                                <code
+                                                    className="bg-ink-100 px-2 py-1 rounded text-[13px] font-mono text-ink-700 cursor-pointer hover:bg-ink-200 transition"
+                                                    title="Кликните, чтобы скопировать код"
+                                                    onClick={() => {
+                                                        navigator.clipboard.writeText(student.accessCode!)
+                                                        toast.success('Код скопирован')
+                                                    }}
+                                                >
+                                                    {student.accessCode}
+                                                </code>
+                                            ) : (
+                                                <span className="text-[13px] text-ink-400" title="Код выдаётся при подтверждении ученика">—</span>
+                                            )}
                                         </td>
                                         <td className="py-4 px-5 text-[13px] text-ink-500">
                                             {new Date(student.createdAt).toLocaleDateString('ru-RU')}
@@ -426,17 +440,21 @@ export default function ClassDetailPageV2({ id }: { id: string }) {
                                                     </Button>
                                                 </div>
                                             ) : (
-                                                <button
+                                                <Button
+                                                    size="sm"
+                                                    variant="secondary"
+                                                    leftIcon={<Share2 className="w-3.5 h-3.5" />}
+                                                    disabled={!student.accessCode}
                                                     onClick={() => {
+                                                        if (!student.accessCode) return
                                                         const link = `${window.location.origin}/student/login?code=${student.accessCode}`
                                                         navigator.clipboard.writeText(link)
-                                                        alert('Ссылка скопирована!')
+                                                        toast.success('Ссылка для входа скопирована')
                                                     }}
-                                                    className="p-2 text-ink-400 hover:text-brand-600 transition rounded-lg hover:bg-brand-50"
-                                                    title="Копировать ссылку для входа"
+                                                    title="Скопировать персональную ссылку для входа ученика"
                                                 >
-                                                    <Share2 className="w-4 h-4" />
-                                                </button>
+                                                    Скопировать
+                                                </Button>
                                             )}
                                         </td>
                                     </tr>
@@ -456,7 +474,19 @@ export default function ClassDetailPageV2({ id }: { id: string }) {
                 {activeTab === 'assignments' && (
                     <div className="grid gap-3">
                         {classData.assignments.map(assignment => (
-                            <Card key={assignment.id} padding="md" className="hover:shadow-md transition-shadow">
+                            <Card
+                                key={assignment.id}
+                                padding="md"
+                                interactive
+                                className="hover:shadow-md transition-shadow cursor-pointer"
+                                onClick={() => {
+                                    const params = new URLSearchParams()
+                                    if (classData.name) params.set('class', classData.name)
+                                    if (assignment.lesson.title) params.set('search', assignment.lesson.title)
+                                    router.push(`/dashboard/grading?${params.toString()}`)
+                                }}
+                                title="Перейти к проверке работ по этому заданию"
+                            >
                                 <div className="flex items-start justify-between gap-4">
                                     <div>
                                         <h3 className="font-bold text-ink-900 text-[15px] mb-0.5">{assignment.lesson.title}</h3>

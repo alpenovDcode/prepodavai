@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback, useRef } from 'react'
+import { useSearchParams } from 'next/navigation'
 import useSWR from 'swr'
 import {
   Compass, SlidersHorizontal, Sparkles, Zap, Search, Star,
@@ -183,8 +184,9 @@ export default function GradingPageV2() {
   const menu = useMobileMenu()
   const tour = useTour()
   const [activeTab, setActiveTab] = useState<'pending' | 'done'>('pending')
-  const [search, setSearch] = useState('')
-  const [classFilter, setClassFilter] = useState('')
+  const searchParams = useSearchParams()
+  const [search, setSearch] = useState(() => searchParams?.get('search') ?? '')
+  const [classFilter, setClassFilter] = useState(() => searchParams?.get('class') ?? '')
   const [typeFilter, setTypeFilter] = useState('')
   const [sortFilter, setSortFilter] = useState<'urgent' | 'overdue' | 'new' | 'name' | 'class'>('urgent')
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -201,11 +203,12 @@ export default function GradingPageV2() {
 
   const debouncedSearch = useDebounce(search, 250)
 
-  // Build queue URL
+  // Build queue URL — classFilter и typeFilter не шлём бэку:
+  // 1) бэк ждёт UUID классу (classId), а фронт показывает имя класса (className)
+  // 2) type фильтр на бэке вообще не реализован
+  // Применяем оба фильтра на клиенте ниже.
   const queueUrl = `/submissions/queue?status=${activeTab === 'pending' ? 'pending' : 'done'}&sort=${sortFilter}` +
-    (debouncedSearch ? `&search=${encodeURIComponent(debouncedSearch)}` : '') +
-    (classFilter ? `&classId=${encodeURIComponent(classFilter)}` : '') +
-    (typeFilter ? `&type=${encodeURIComponent(typeFilter)}` : '')
+    (debouncedSearch ? `&search=${encodeURIComponent(debouncedSearch)}` : '')
 
   const pendingUrl = `/submissions/queue?status=pending&sort=urgent`
   const doneUrl = `/submissions/queue?status=done&sort=new`
@@ -224,7 +227,27 @@ export default function GradingPageV2() {
   const doneCount = doneData?.total ?? 0
   const overdueCount = pendingData?.items.filter(i => i.isOverdue).length ?? 0
 
-  const items = queueData?.items ?? []
+  const rawItems = queueData?.items ?? []
+  const items = rawItems.filter(i => {
+    if (classFilter) {
+      const cls = i.student?.className || i.assignment.className || ''
+      if (cls !== classFilter) return false
+    }
+    if (typeFilter) {
+      const title = (i.assignment.title || '').toLowerCase()
+      const topic = (i.assignment.topic || '').toLowerCase()
+      const hay = `${title} ${topic}`
+      const matchesType: Record<string, (s: string) => boolean> = {
+        worksheet:    s => s.includes('лист') || s.includes('worksheet'),
+        test:         s => s.includes('тест') || s.includes('quiz'),
+        presentation: s => s.includes('презентац'),
+        game:         s => s.includes('игр'),
+      }
+      const fn = matchesType[typeFilter]
+      if (fn && !fn(hay)) return false
+    }
+    return true
+  })
 
   // Unique classes for filter
   const allItems = [...(pendingData?.items ?? []), ...(doneData?.items ?? [])]
