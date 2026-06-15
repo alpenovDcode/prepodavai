@@ -112,29 +112,37 @@ const TYPE_TOOL_ROUTE: Record<string, string> = {
     image_generation: '/workspace/image',
 }
 
+// Стили строго совпадают с дизайн-системой бэкенда (DesignSystemConfig.STYLES)
+// и оригинальным MaterialViewer на проде. AI-генерации сделаны под эти классы.
 const IFRAME_BASE_STYLES = `
-*, *::before, *::after { box-sizing: border-box; }
-html, body { width: 100% !important; max-width: 100% !important; min-width: 0 !important; margin: 0 !important; }
-body { background:#fff !important; font-family:'Inter',system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; color:#111827; line-height:1.6; padding:24px !important; }
-body > *, .container, [class*="container"], [class*="wrapper"], [class*="page"], main, article, section { max-width: 100% !important; width: auto !important; margin-left: 0 !important; margin-right: 0 !important; }
-img, svg, video, iframe, table { max-width: 100% !important; }
-h1 { font-size:26px; font-weight:800; color:#0F172A; }
-h2 { font-size:18px; font-weight:700; margin-top:24px; margin-bottom:12px; color:#1F2937; }
-h3 { font-size:15px; font-weight:600; margin-top:18px; margin-bottom:10px; color:#1F2937; }
-p { margin-bottom:14px; }
-ul, ol { padding-left:22px; margin-bottom:18px; }
-li { margin-bottom:8px; }
-table { width:100%; border-collapse:collapse; margin:16px 0; font-size:14px; }
-th { background:#F9FAFB; font-weight:600; text-align:left; padding:10px; border:1px solid #E5E7EB; }
-td { padding:10px; border:1px solid #E5E7EB; vertical-align:top; }
-.callout { background:#F0F9FF; border-left:4px solid #0EA5E9; padding:14px 16px; margin:18px 0; border-radius:0 8px 8px 0; }
-.teacher-answers-only { margin-top:32px; padding-top:18px; border-top:2px dashed #D1D5DB; }
-.teacher-answers-only h2 { color:#DC2626; }
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #f9fafb; font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: #111827; line-height: 1.6; padding: 20px; }
+.container { max-width: 800px; margin: 0 auto; background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+.header { display: flex; align-items: center; gap: 20px; margin-bottom: 30px; border-bottom: 2px solid #f3f4f6; padding-bottom: 20px; }
+.header-logo { width: auto; height: 40px; }
+h1 { font-size: 28px; font-weight: 700; color: #111827; }
+h2 { font-size: 20px; font-weight: 600; margin-top: 32px; margin-bottom: 16px; color: #374151; }
+h3 { font-size: 17px; font-weight: 600; margin-top: 24px; margin-bottom: 12px; color: #374151; }
+p { margin-bottom: 16px; }
+ul, ol { padding-left: 24px; margin-bottom: 20px; }
+li { margin-bottom: 8px; }
+input[type="text"], textarea { width: 100%; border: 1px solid #d1d5db; border-radius: 6px; padding: 8px 12px; font-family: inherit; font-size: inherit; background: white; }
+input[type="text"]:focus, textarea:focus { outline: none; border-color: #4f46e5; }
+.inline-input { display: inline-block; width: 150px; border: none; border-bottom: 1px solid #9ca3af; border-radius: 0; padding: 0 4px; background: transparent; }
+.footer-logo { text-align: right; margin-top: 40px; padding-top: 20px; border-top: 1px solid #f3f4f6; }
+.footer-logo img { width: 120px; opacity: 0.5; }
+table { width: 100%; border-collapse: collapse; margin-top: 20px; margin-bottom: 20px; font-size: 14px; }
+th { background-color: #f9fafb; font-weight: 600; text-align: left; padding: 12px; border: 1px solid #d1d5db; }
+td { padding: 12px; border: 1px solid #e5e7eb; vertical-align: top; }
+.meta-info { margin-bottom: 30px; background: #fafafa; padding: 15px; border-radius: 8px; border: 1px solid #e5e7eb; }
+.callout { background: #f0f9ff; border-left: 4px solid #0ea5e9; padding: 16px; margin: 20px 0; border-radius: 0 8px 8px 0; }
+.teacher-answers-only { margin-top: 40px; padding-top: 20px; border-top: 2px dashed #d1d5db; }
+.teacher-answers-only h2 { color: #dc2626; }
 `
 
 const MATHJAX_SCRIPT = `<script>window.MathJax={tex:{inlineMath:[['$','$'],['\\\\(','\\\\)']],displayMath:[['$$','$$'],['\\\\[','\\\\]']],processEscapes:true},chtml:{fontCache:'global'},startup:{typeset:true}};</script><script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>`
 
-const READY_SCRIPT = `<script>(function(){function fix(){try{document.querySelectorAll('*').forEach(function(el){var s=el.style;if(!s)return;if(s.maxWidth)s.maxWidth='';if(s.width&&/(px|rem|em)$/.test(s.width))s.width='';if(s.minWidth&&/(px|rem|em)$/.test(s.minWidth))s.minWidth='';if(s.marginLeft==='auto'&&s.marginRight==='auto'){s.marginLeft='0';s.marginRight='0';}});document.body.style.width='100%';document.body.style.maxWidth='100%';}catch(e){}}window.addEventListener('load',function(){fix();setTimeout(fix,200);setTimeout(function(){window.parent.postMessage('IFRAME_READY','*')},window.MathJax?1200:300)})})();</script>`
+const READY_SCRIPT = `<script>window.addEventListener('load',function(){setTimeout(function(){window.parent.postMessage('IFRAME_READY','*')},window.MathJax?1200:300)})</script>`
 
 function stripFences(text: string): string {
     let t = text.trim()
