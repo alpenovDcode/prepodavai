@@ -355,8 +355,14 @@ export default function InteractiveHtmlViewer({
   // Слушаем сообщения от iframe
   useEffect(() => {
     const handler = (e: MessageEvent) => {
-      // Only accept messages from our own iframe (srcdoc has origin 'null')
-      if (iframeRef.current && e.source !== iframeRef.current.contentWindow) return
+      // Принимаем только сообщения нашего iframe. Без проверки страница
+      // могла бы получать события от других виджетов, открытых на ней.
+      // Раньше строгое сравнение Window-ссылок ломалось в некоторых браузерах
+      // под sandbox srcdoc — поля заполнялись, но canSubmit оставался false.
+      // Теперь сравниваем по contentWindow, но не блокируем, если ссылка
+      // ещё не успела прицепиться (initial paint).
+      const iframeWin = iframeRef.current?.contentWindow ?? null
+      if (iframeWin && e.source && e.source !== iframeWin) return
       if (e.data === 'IFRAME_READY') { setIsLoading(false); return }
       if (!e.data || typeof e.data !== 'object') return
 

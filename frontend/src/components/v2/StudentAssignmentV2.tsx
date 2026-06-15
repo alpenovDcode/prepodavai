@@ -559,7 +559,12 @@ export default function StudentAssignmentV2({ assignmentId }: StudentAssignmentV
     const streakDays = profile?.streakDays ?? 0
 
     const deadline = assignment.dueDate ? formatDeadline(assignment.dueDate) : null
-    const canSubmit = !isGraded && (filledFields > 0 || submissionText.trim() !== '' || attachments.length > 0)
+    // Раньше требовалось хоть одно непустое поле/текст/вложение. На практике
+    // postMessage из sandboxed iframe в некоторых браузерах не пропускал
+    // origin-чек, и кнопка ложно блокировалась при заполненных полях.
+    // Решение — разрешать сдачу, если работа ещё не оценена. Бэк всё равно
+    // приймет formData и текст как они есть.
+    const canSubmit = !isGraded
 
     return (
         <>
