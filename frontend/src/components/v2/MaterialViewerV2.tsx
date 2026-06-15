@@ -114,10 +114,10 @@ const TYPE_TOOL_ROUTE: Record<string, string> = {
 
 const IFRAME_BASE_STYLES = `
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-body { background:#fff; font-family:'Inter',system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; color:#111827; line-height:1.6; padding:24px; }
-body > * { max-width: 100% !important; }
-.container, [class*="container"], .wrapper, [class*="wrapper"], main, article, section { max-width: 100% !important; width: auto !important; margin-left: 0 !important; margin-right: 0 !important; }
-.container { background:#fff; padding:40px; border-radius:12px; }
+* { max-width: none !important; }
+img, svg, video, iframe, table { max-width: 100% !important; }
+body { background:#fff !important; font-family:'Inter',system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; color:#111827; line-height:1.6; padding:24px !important; width: auto !important; }
+.container { background:#fff; padding:40px; border-radius:12px; margin: 0 !important; }
 h1 { font-size:26px; font-weight:800; color:#0F172A; }
 h2 { font-size:18px; font-weight:700; margin-top:24px; margin-bottom:12px; color:#1F2937; }
 h3 { font-size:15px; font-weight:600; margin-top:18px; margin-bottom:10px; color:#1F2937; }
@@ -134,7 +134,7 @@ td { padding:10px; border:1px solid #E5E7EB; vertical-align:top; }
 
 const MATHJAX_SCRIPT = `<script>window.MathJax={tex:{inlineMath:[['$','$'],['\\\\(','\\\\)']],displayMath:[['$$','$$'],['\\\\[','\\\\]']],processEscapes:true},chtml:{fontCache:'global'},startup:{typeset:true}};</script><script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>`
 
-const READY_SCRIPT = `<script>window.addEventListener('load',function(){setTimeout(function(){window.parent.postMessage('IFRAME_READY','*')},window.MathJax?1200:300)})</script>`
+const READY_SCRIPT = `<script>window.addEventListener('load',function(){try{document.querySelectorAll('[style]').forEach(function(el){var s=el.style;if(s.maxWidth)s.maxWidth='none';if(s.width&&/^[0-9]+(px|rem|em)$/.test(s.width))s.width='auto';if(s.marginLeft==='auto')s.marginLeft='0';if(s.marginRight==='auto')s.marginRight='0';})}catch(e){}setTimeout(function(){window.parent.postMessage('IFRAME_READY','*')},window.MathJax?1200:300)})</script>`
 
 function stripFences(text: string): string {
     let t = text.trim()
