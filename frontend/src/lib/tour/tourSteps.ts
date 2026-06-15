@@ -131,6 +131,7 @@ export const TOUR_CONFIGS: Record<string, TourConfig> = {
       { target: '[data-tour="level"]', placement: 'right', title: 'Уровень CEFR', body: 'От A1 (начинающие) до C2 (продвинутые). Влияет на сложность и частотность слов.' },
       { target: '[data-tour="count"]', placement: 'right', title: 'Количество слов', body: 'От 10 до 50 слов. Для одного занятия оптимально 10–20 новых слов.' },
       { target: '[data-tour="options"]', placement: 'right', title: 'Что включить', body: 'Перевод, транскрипция, пример в предложении и синонимы/антонимы — включайте нужное.' },
+      { target: '[data-tour="practice"]', placement: 'right', title: '🎯 Виды упражнений', body: 'Перечислите, какую практику добавить в конец словаря: заполнить пропуски, сопоставить, перевести и т. п. Если пусто — ИИ подберёт сам. Поле учитывается в промпте, ИИ ограничится только указанными видами.' },
       { target: '[data-tour="generate"]', placement: 'top', title: '⚡ Сгенерировать', body: 'Нажмите — словарь готов за ~25 секунд. Появится в таблице справа.' },
       { target: '[data-tour="preview"]', placement: 'left', title: 'Готовый словарь', body: 'Таблица слов с переводами и примерами. Скачайте PDF или выдайте ученикам как домашнее задание.' },
       { target: null, isModal: true, illustration: '🎉', title: 'Готово!', body: 'Выберите язык, введите тему — и жмите «Сгенерировать».', primaryLabel: 'Попробовать' },

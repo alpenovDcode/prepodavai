@@ -19,10 +19,12 @@ export class VocabularyStrategy implements GenerationStrategy {
       transcription,
       exampleSentence,
       antonymsSynonyms,
+      practiceFocus,
     } = params as GenerationRequestParams & {
       transcription?: boolean;
       exampleSentence?: boolean;
       antonymsSynonyms?: boolean;
+      practiceFocus?: string;
     };
 
     const languageNames: Record<string, string> = {
@@ -105,7 +107,16 @@ ${DesignSystemConfig.PROMPT_MODULES.CRITICAL_OUTPUT_RULES}
 
 ${optionsBlock}
 
-В конце добавь упражнения на закрепление (3–5 заданий: вставить слово, сопоставить, перевести).
+${
+  practiceFocus && String(practiceFocus).trim()
+    ? `В конце добавь раздел «Упражнения на закрепление» (5–7 заданий). ВЫБИРАЙ ИМЕННО ЭТИ ВИДЫ ПРАКТИКИ:
+${String(practiceFocus).trim()}
+Запрещено вставлять упражнения, не относящиеся к перечисленным выше видам. Каждое задание ДОЛЖНО:
+1) использовать слова из таблицы выше, а не выдумывать новые;
+2) быть интерактивным (поля <input>/<textarea> там, где ученик пишет ответ);
+3) быть осмысленным, а не муторным повтором — разнообразь формулировки.`
+    : 'В конце добавь раздел «Упражнения на закрепление» (3–5 разнообразных заданий: вставить слово в пропуск, сопоставить слово ↔ перевод, перевести предложение, множественный выбор и т. п.). Используй ТОЛЬКО слова из таблицы выше.'
+}
 
 <html_skeleton>
 <!DOCTYPE html>

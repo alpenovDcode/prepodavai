@@ -46,6 +46,16 @@ const LEVELS = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'] as const
 
 const TOPIC_PRESETS = ['Еда', 'Спорт', 'Профессии', 'Эмоции']
 
+// Стандартные виды практики для упражнений в конце словаря.
+// Если ничего не выбрано — бэк просто скажет «3-5 заданий разных видов».
+const PRACTICE_PRESETS = [
+    'Заполнить пропуски',
+    'Сопоставить слово ↔ перевод',
+    'Перевести предложение',
+    'Множественный выбор',
+    'Составить предложение со словом',
+]
+
 export default function VocabularyV2() {
     // form
     const [language, setLanguage] = useState('en')
@@ -55,6 +65,7 @@ export default function VocabularyV2() {
     const [withTranscription, setWithTranscription] = useState(true)
     const [withExample, setWithExample] = useState(true)
     const [withSynonyms, setWithSynonyms] = useState(false)
+    const [practiceFocus, setPracticeFocus] = useState('')
 
     // result
     const [localContent, setLocalContent] = useState('')
@@ -102,6 +113,7 @@ export default function VocabularyV2() {
                     transcription: withTranscription,
                     exampleSentence: withExample,
                     antonymsSynonyms: withSynonyms,
+                    practiceFocus: practiceFocus.trim() || undefined,
                 },
             })
             const resultData = status.result?.content || status.result
@@ -194,7 +206,7 @@ export default function VocabularyV2() {
         window.addEventListener('keydown', onKey)
         return () => window.removeEventListener('keydown', onKey)
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [topic, isGenerating, language, level, wordsCount, withTranscription, withExample, withSynonyms])
+    }, [topic, isGenerating, language, level, wordsCount, withTranscription, withExample, withSynonyms, practiceFocus])
 
     return (
         <div className="flex-1 min-h-0 flex flex-col">
@@ -325,6 +337,52 @@ export default function VocabularyV2() {
                                     </label>
                                 ))}
                             </div>
+                        </div>
+
+                        {/* Practice focus — какие упражнения нужны в конце словаря */}
+                        <div data-tour="practice">
+                            <label className="block text-[12px] font-semibold text-ink-700 mb-2 uppercase tracking-wider">
+                                Виды упражнений в конце
+                            </label>
+                            <textarea
+                                value={practiceFocus}
+                                onChange={e => setPracticeFocus(e.target.value)}
+                                placeholder="Заполнить пропуски, перевести предложение, сопоставить…"
+                                rows={2}
+                                className="w-full p-3 rounded-md border border-ink-200 text-[13px] bg-surface focus:outline-none focus:border-brand-400 focus:ring-[3px] focus:ring-brand-400/15 transition-all resize-none"
+                            />
+                            <div className="flex gap-1.5 flex-wrap mt-2">
+                                {PRACTICE_PRESETS.map(p => {
+                                    const active = practiceFocus
+                                        .split(/[,\n;]+/)
+                                        .map(s => s.trim().toLowerCase())
+                                        .includes(p.toLowerCase())
+                                    return (
+                                        <button
+                                            key={p}
+                                            type="button"
+                                            onClick={() => {
+                                                const parts = practiceFocus.split(/[,;\n]+/).map(s => s.trim()).filter(Boolean)
+                                                const has = parts.some(s => s.toLowerCase() === p.toLowerCase())
+                                                const next = has
+                                                    ? parts.filter(s => s.toLowerCase() !== p.toLowerCase())
+                                                    : [...parts, p]
+                                                setPracticeFocus(next.join(', '))
+                                            }}
+                                            className={`px-2.5 py-1 border-none rounded-sm text-[12px] transition-colors ${
+                                                active
+                                                    ? 'bg-brand-500 text-white'
+                                                    : 'bg-ink-100 hover:bg-ink-200 text-ink-700'
+                                            }`}
+                                        >
+                                            {p}
+                                        </button>
+                                    )
+                                })}
+                            </div>
+                            <p className="text-[11px] text-ink-500 mt-1.5">
+                                Если пусто — ИИ сам подберёт 3-5 разных упражнений.
+                            </p>
                         </div>
 
                         <div className="pt-2 border-t border-ink-100">
