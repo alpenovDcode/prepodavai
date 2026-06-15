@@ -175,13 +175,33 @@ export default function ImageGeneratorV2() {
         if (!selectedUrl) return
         try {
             setIsDownloading(true)
-            const response = await fetch(selectedUrl)
-            let blob = await response.blob()
+            // Прокси через бэк: он скачивает у провайдера (replicate.delivery
+            // и т.п.) и отдаёт уже с правильным Content-Type и filename.
+            // Прямой fetch с фронта часто ломается из-за CORS у провайдера —
+            // blob получается пустым/опасным opaque-ответом → битый файл.
+            let blob: Blob | null = null
+            if (generationId) {
+                try {
+                    const resp = await apiClient.get(`/generate/${generationId}/image`, {
+                        responseType: 'blob',
+                    })
+                    if (resp.data instanceof Blob && resp.data.size > 0) {
+                        blob = resp.data
+                    }
+                } catch {
+                    // если бэк-прокси упал — фолбэк ниже на прямой fetch
+                }
+            }
+            if (!blob) {
+                const response = await fetch(selectedUrl)
+                if (!response.ok) throw new Error(`Fetch ${response.status}`)
+                const direct = await response.blob()
+                if (direct.size === 0) throw new Error('Empty blob from direct fetch')
+                blob = direct
+            }
             if (isFlipped) {
                 try { blob = await flipImageBlob(blob) } catch { /* отдадим оригинал */ }
             }
-            // Расширение берём по реальному MIME, иначе macOS Preview ругается
-            // на несовпадение magic-bytes и .png (AI часто отдаёт JPEG/WebP).
             const ext = pickImageExt(blob.type, selectedUrl)
             const url = window.URL.createObjectURL(blob)
             const link = document.createElement('a')
@@ -191,15 +211,9 @@ export default function ImageGeneratorV2() {
             link.click()
             document.body.removeChild(link)
             window.URL.revokeObjectURL(url)
-        } catch {
-            const ext = pickImageExt('', selectedUrl)
-            const link = document.createElement('a')
-            link.href = selectedUrl
-            link.download = `image-${Date.now()}.${ext}`
-            link.target = '_blank'
-            document.body.appendChild(link)
-            link.click()
-            document.body.removeChild(link)
+        } catch (e) {
+            console.error('downloadImage failed:', e)
+            toast.error('Не удалось скачать изображение')
         } finally {
             setIsDownloading(false)
         }
