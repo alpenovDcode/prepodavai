@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import useSWR from 'swr'
 import { useRouter } from 'next/navigation'
 import {
     Layers, FileText, HelpCircle, Presentation, ClipboardList, ImageIcon, Gamepad2,
@@ -467,10 +468,6 @@ export default function CoursesPageV2() {
     const menu = useMobileMenu()
     const tour = useTour()
 
-    const [items, setItems] = useState<Generation[]>([])
-    const [counts, setCounts] = useState<Record<string, number>>({})
-    const [loading, setLoading] = useState(true)
-
     const [activeType, setActiveType] = useState<string>('all')
     const [subject, setSubject] = useState('')
     const [period, setPeriod] = useState('all')
@@ -485,29 +482,23 @@ export default function CoursesPageV2() {
         return () => clearTimeout(t)
     }, [query])
 
-    const load = useCallback(async () => {
-        setLoading(true)
-        try {
-            const params: Record<string, string> = { limit: '200' }
-            if (activeType !== 'all') params.type = activeType
-            if (period !== 'all') params.period = period
-            if (debouncedQuery) params.search = debouncedQuery
-            if (sort !== 'newest') params.sort = sort
-
-            const qs = new URLSearchParams(params).toString()
-            const res = await apiClient.get<HistoryResponse>(`/generate/history?${qs}`)
-            if (res.data?.success) {
-                setItems(res.data.items || [])
-                setCounts(res.data.counts || {})
-            }
-        } catch {
-            toast.error('Не удалось загрузить материалы')
-        } finally {
-            setLoading(false)
-        }
+    const swrKey = useMemo(() => {
+        const params: Record<string, string> = { limit: '200' }
+        if (activeType !== 'all') params.type = activeType
+        if (period !== 'all') params.period = period
+        if (debouncedQuery) params.search = debouncedQuery
+        if (sort !== 'newest') params.sort = sort
+        return `/generate/history?${new URLSearchParams(params).toString()}`
     }, [activeType, period, debouncedQuery, sort])
 
-    useEffect(() => { load() }, [load])
+    const { data, isLoading: loading, mutate } = useSWR<HistoryResponse>(
+        swrKey,
+        (url: string) => apiClient.get<HistoryResponse>(url).then(r => r.data),
+        { revalidateOnFocus: false },
+    )
+
+    const items = data?.items || []
+    const counts = data?.counts || {}
 
     const totalCount = useMemo(() => Object.values(counts).reduce((s, n) => s + n, 0), [counts])
 
@@ -520,12 +511,12 @@ export default function CoursesPageV2() {
     const handleDelete = useCallback(async (id: string) => {
         try {
             await apiClient.delete(`/generate/${id}`)
-            setItems(prev => prev.filter(g => g.id !== id))
+            mutate(prev => prev ? { ...prev, items: prev.items.filter(g => g.id !== id) } : prev, { revalidate: false })
             toast.success('Материал удалён')
         } catch {
             toast.error('Не удалось удалить материал')
         }
-    }, [])
+    }, [mutate])
 
     const [renameGenId, setRenameGenId] = useState<string | null>(null)
     const [renameDraft, setRenameDraft] = useState('')
@@ -593,7 +584,7 @@ export default function CoursesPageV2() {
         setRenaming(true)
         try {
             await apiClient.patch(`/generate/${renameGenId}`, { title: next })
-            setItems(prev => prev.map(g => g.id === renameGenId ? { ...g, title: next } : g))
+            mutate(prev => prev ? { ...prev, items: prev.items.map(g => g.id === renameGenId ? { ...g, title: next } : g) } : prev, { revalidate: false })
             toast.success('Название обновлено')
             setRenameGenId(null)
         } catch {
@@ -798,13 +789,13 @@ export default function CoursesPageV2() {
                 ) : viewMode === 'list' ? (
                     <div className="flex flex-col divide-y divide-ink-100 border border-ink-200 rounded-xl overflow-hidden bg-surface">
                         {filtered.map(gen => (
-                            <MatListRow key={gen.id} gen={gen} onDelete={() => handleDelete(gen.id)} onRename={(id, t) => handleStartRename(id, t)} onDuplicated={load} onAssign={handleOpenAssign} />
+                            <MatListRow key={gen.id} gen={gen} onDelete={() => handleDelete(gen.id)} onRename={(id, t) => handleStartRename(id, t)} onDuplicated={() => mutate()} onAssign={handleOpenAssign} />
                         ))}
                     </div>
                 ) : (
                     <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
                         {filtered.map(gen => (
-                            <MatCard key={gen.id} gen={gen} onDelete={() => handleDelete(gen.id)} onRename={(id, t) => handleStartRename(id, t)} onDuplicated={load} onAssign={handleOpenAssign} />
+                            <MatCard key={gen.id} gen={gen} onDelete={() => handleDelete(gen.id)} onRename={(id, t) => handleStartRename(id, t)} onDuplicated={() => mutate()} onAssign={handleOpenAssign} />
                         ))}
                     </div>
                 )}
