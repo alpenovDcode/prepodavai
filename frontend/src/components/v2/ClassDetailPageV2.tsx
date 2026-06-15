@@ -92,7 +92,7 @@ const RISK_LABEL: Record<ClassAnalytics['studentBreakdown'][number]['riskLevel']
 const SUB_NAV = [
     { label: 'Ученики', href: '/dashboard/students', key: 'students' },
     { label: 'Классы', href: '/dashboard/classes', key: 'classes' },
-    { label: 'Домашние задания', href: '/dashboard/grading', key: 'grading' },
+    { label: 'Домашние задания', href: '/dashboard/assignments', key: 'grading' },
     { label: 'Аналитика', href: '/dashboard/analytics', key: 'analytics' },
 ] as const
 
@@ -382,11 +382,8 @@ export default function ClassDetailPageV2({ id }: { id: string }) {
                             <thead>
                                 <tr className="border-b border-ink-100 bg-ink-50/50">
                                     <th className="text-left py-3.5 px-5 text-[13px] font-semibold text-ink-600">Ученик</th>
-                                    <th className="text-left py-3.5 px-5 text-[13px] font-semibold text-ink-600" title="Личный код ученика для входа на платформу без пароля">
-                                        Код доступа
-                                    </th>
                                     <th className="text-left py-3.5 px-5 text-[13px] font-semibold text-ink-600">Дата добавления</th>
-                                    <th className="text-right py-3.5 px-5 text-[13px] font-semibold text-ink-600">Ссылка для входа</th>
+                                    <th className="text-right py-3.5 px-5 text-[13px] font-semibold text-ink-600">Действия</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-ink-50">
@@ -410,22 +407,6 @@ export default function ClassDetailPageV2({ id }: { id: string }) {
                                                 </div>
                                             </div>
                                         </td>
-                                        <td className="py-4 px-5">
-                                            {student.accessCode ? (
-                                                <code
-                                                    className="bg-ink-100 px-2 py-1 rounded text-[13px] font-mono text-ink-700 cursor-pointer hover:bg-ink-200 transition"
-                                                    title="Кликните, чтобы скопировать код"
-                                                    onClick={() => {
-                                                        navigator.clipboard.writeText(student.accessCode!)
-                                                        toast.success('Код скопирован')
-                                                    }}
-                                                >
-                                                    {student.accessCode}
-                                                </code>
-                                            ) : (
-                                                <span className="text-[13px] text-ink-400" title="Код выдаётся при подтверждении ученика">—</span>
-                                            )}
-                                        </td>
                                         <td className="py-4 px-5 text-[13px] text-ink-500">
                                             {new Date(student.createdAt).toLocaleDateString('ru-RU')}
                                         </td>
@@ -440,28 +421,36 @@ export default function ClassDetailPageV2({ id }: { id: string }) {
                                                     </Button>
                                                 </div>
                                             ) : (
-                                                <Button
-                                                    size="sm"
-                                                    variant="secondary"
-                                                    leftIcon={<Share2 className="w-3.5 h-3.5" />}
-                                                    disabled={!student.accessCode}
-                                                    onClick={() => {
-                                                        if (!student.accessCode) return
-                                                        const link = `${window.location.origin}/student/login?code=${student.accessCode}`
-                                                        navigator.clipboard.writeText(link)
-                                                        toast.success('Ссылка для входа скопирована')
-                                                    }}
-                                                    title="Скопировать персональную ссылку для входа ученика"
-                                                >
-                                                    Скопировать
-                                                </Button>
+                                                <div className="inline-flex items-center gap-2">
+                                                    <Button
+                                                        size="sm"
+                                                        variant="secondary"
+                                                        leftIcon={<Share2 className="w-3.5 h-3.5" />}
+                                                        onClick={() => {
+                                                            const link = `${window.location.origin}/student/login`
+                                                            navigator.clipboard.writeText(link)
+                                                            toast.success('Ссылка для входа скопирована')
+                                                        }}
+                                                        title="Скопировать ссылку на страницу входа для ученика"
+                                                    >
+                                                        Ссылка для входа
+                                                    </Button>
+                                                    <Button
+                                                        size="sm"
+                                                        variant="secondary"
+                                                        onClick={() => router.push(`/dashboard/students/${student.id}`)}
+                                                        title="Открыть карточку ученика"
+                                                    >
+                                                        Открыть
+                                                    </Button>
+                                                </div>
                                             )}
                                         </td>
                                     </tr>
                                 ))}
                                 {classData.students.length === 0 && (
                                     <tr>
-                                        <td colSpan={4} className="py-16 text-center text-ink-400 text-[14px]">
+                                        <td colSpan={3} className="py-16 text-center text-ink-400 text-[14px]">
                                             В этом классе пока нет учеников
                                         </td>
                                     </tr>

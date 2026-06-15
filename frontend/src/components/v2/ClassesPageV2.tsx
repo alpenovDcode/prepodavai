@@ -30,7 +30,7 @@ interface ClassItem {
 const SUB_NAV = [
     { label: 'Ученики',           href: '/dashboard/students',  key: 'students' },
     { label: 'Классы',            href: '/dashboard/classes',   key: 'classes' },
-    { label: 'Домашние задания',  href: '/dashboard/grading',   key: 'grading' },
+    { label: 'Домашние задания',  href: '/dashboard/assignments',   key: 'grading' },
     { label: 'Аналитика',         href: '/dashboard/analytics', key: 'analytics' },
 ] as const
 

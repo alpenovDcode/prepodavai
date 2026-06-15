@@ -734,9 +734,6 @@ export default function CoursesPageV2() {
                     <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-500 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
                     </svg>
-                    <span className="absolute right-3.5 top-1/2 -translate-y-1/2 font-mono text-[10px] text-ink-500 bg-surface border border-ink-200 px-1.5 py-0.5 rounded pointer-events-none">
-                        ⌘K
-                    </span>
                 </div>
 
                 {/* Filter pills (type) */}

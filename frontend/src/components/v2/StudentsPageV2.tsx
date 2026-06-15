@@ -347,7 +347,7 @@ export default function StudentsPageV2() {
                     {([
                         { label: 'Ученики', href: '/dashboard/students', active: true },
                         { label: 'Классы', href: '/dashboard/classes', active: false },
-                        { label: 'Домашние задания', href: '/dashboard/grading', active: false },
+                        { label: 'Домашние задания', href: '/dashboard/assignments', active: false },
                         { label: 'Аналитика', href: '/dashboard/analytics', active: false },
                         { label: 'Дневник учителя', href: '/dashboard/diary', active: false },
                     ] as const).map(({ label, href, active }) => (

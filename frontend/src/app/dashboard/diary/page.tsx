@@ -1,15 +1,35 @@
 'use client'
 
+import { useRouter } from 'next/navigation'
+import { ArrowLeft } from 'lucide-react'
 import TeacherDiaryTab from '@/components/students/TeacherDiaryTab'
+import { Topbar } from '@/components/layout/v2/Topbar'
+import { useMobileMenu } from '@/components/layout/v2/DashboardLayoutV2'
 
 export default function DiaryPage() {
+    const router = useRouter()
+    const menu = useMobileMenu()
     return (
-        <div className="max-w-[1320px] w-full mx-auto p-8 max-md:p-4">
-            <div className="mb-6">
-                <h1 className="text-2xl font-bold text-ink-900">Дневник учителя</h1>
-                <p className="text-sm text-ink-500 mt-1">Записи уроков, цели и анализ занятий</p>
+        <>
+            <Topbar
+                title="Дневник учителя"
+                subtitle="Записи уроков, цели и анализ занятий"
+                onMobileMenuToggle={menu.toggle}
+                hideSearch
+                leading={
+                    <button
+                        type="button"
+                        onClick={() => router.back()}
+                        className="w-9 h-9 inline-flex items-center justify-center rounded-md text-ink-600 hover:bg-ink-100 transition-colors"
+                        aria-label="Назад"
+                    >
+                        <ArrowLeft className="w-4 h-4" />
+                    </button>
+                }
+            />
+            <div className="max-w-[1320px] w-full mx-auto p-8 max-md:p-4">
+                <TeacherDiaryTab />
             </div>
-            <TeacherDiaryTab />
-        </div>
+        </>
     )
 }

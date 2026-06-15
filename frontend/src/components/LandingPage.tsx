@@ -365,8 +365,8 @@ export default function LandingPage({ autoOpenAuth = false }: { autoOpenAuth?: b
       <section style={{ background: "white", borderTop: "1px solid #ebebeb", borderBottom: "1px solid #ebebeb", padding: "0 32px" }}>
         <div style={{ maxWidth: 900, margin: "0 auto", display: "flex", justifyContent: "center", flexWrap: "wrap" }}>
           {[
-            { to: 5000, fmt: (v: number) => `${v.toLocaleString('ru-RU')}+`, label: "учителей" },
-            { to: 200000, fmt: (v: number) => `${v.toLocaleString('ru-RU')}+`, label: "созданных материалов" },
+            { to: 1000, fmt: (v: number) => `${v.toLocaleString('ru-RU')}+`, label: "учителей" },
+            { to: 50000, fmt: (v: number) => `${v.toLocaleString('ru-RU')}+`, label: "созданных материалов" },
             { to: 2, fmt: (v: number) => `~${v} мин`, label: "среднее время генерации" },
             { to: 48, fmt: (v: number) => `${v} ч/мес`, label: "экономия времени" },
           ].map((s, i) => (
