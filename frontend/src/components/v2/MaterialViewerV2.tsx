@@ -112,14 +112,16 @@ const TYPE_TOOL_ROUTE: Record<string, string> = {
     image_generation: '/workspace/image',
 }
 
-// Стили строго совпадают с дизайн-системой бэкенда (DesignSystemConfig.STYLES)
-// и оригинальным MaterialViewer на проде. AI-генерации сделаны под эти классы.
+// Стили строго копируют дизайн-систему бэкенда (DesignSystemConfig.STYLES)
+// и оригинальный MaterialViewer на проде. AI-генерации сделаны под эти
+// классы: .container с фиксированным max-width 800px по центру, header-логотип
+// 40×40, шрифты и паддинги ровно как тут. Любое отклонение (width:auto,
+// max-width:100%) ломает вёрстку — заголовок в шапке заворачивается в 3
+// строки, контент сжимается под формулу и текст обрезается.
 const IFRAME_BASE_STYLES = `
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 body { background: #f9fafb; font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: #111827; line-height: 1.6; padding: 20px; }
-html, body { width: 100% !important; max-width: 100% !important; }
-.container { max-width: 100% !important; width: auto !important; margin: 0 !important; background: white; padding: 32px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
-.container .container { box-shadow: none; padding: 0; border-radius: 0; }
+.container { max-width: 800px; margin: 0 auto; background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
 .header { display: flex; align-items: center; gap: 20px; margin-bottom: 30px; border-bottom: 2px solid #f3f4f6; padding-bottom: 20px; }
 .header-logo { width: auto; height: 40px; }
 h1 { font-size: 28px; font-weight: 700; color: #111827; }

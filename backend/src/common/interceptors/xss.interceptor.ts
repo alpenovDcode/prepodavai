@@ -49,6 +49,10 @@ export class XssInterceptor implements NestInterceptor {
               img: ['src', 'alt', 'width', 'height'],
             },
             allowedSchemes: ['http', 'https'],
+            // data: разрешён только для <img src> — нужен для встроенного
+            // base64-логотипа в сохранённых материалах. Без этого санитайзер
+            // удаляет src у логотипа и вместо картинки рендерится alt="Logo".
+            allowedSchemesByTag: { img: ['http', 'https', 'data'] },
           });
         } else {
           // Strict sanitization for other fields (no HTML allowed)
