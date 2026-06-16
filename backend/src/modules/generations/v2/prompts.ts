@@ -168,6 +168,7 @@ export interface WorksheetGenInput {
     grade?: string | number;
     duration?: string;
     numTasks?: number;
+    interests?: string;
     extraNotes?: string;
 }
 
@@ -231,6 +232,9 @@ ${COMMON_TAIL}`;
     if (input.grade) lines.push(`Класс: ${input.grade}`);
     if (input.duration) lines.push(`Длительность: ${input.duration}`);
     if (input.numTasks) lines.push(`Количество заданий: ${input.numTasks}`);
+    if (input.interests && input.interests.trim()) {
+        lines.push(`Интересы учеников (используй в формулировках задач, метафорах, примерах): ${input.interests.trim()}`);
+    }
     if (input.extraNotes) lines.push(`Дополнительно: ${input.extraNotes}`);
     lines.push('Верни строго один JSON-объект.');
     return { system, user: lines.join('\n') };
@@ -245,6 +249,7 @@ export interface QuizGenInput {
     numQuestions?: number;
     numAnswers?: number;
     questionTypes?: 'multiple-choice' | 'mixed';
+    interests?: string;
     extraNotes?: string;
 }
 
@@ -304,6 +309,9 @@ ${COMMON_TAIL}`;
     if (input.subject) lines.push(`Предмет: ${input.subject}`);
     if (input.grade) lines.push(`Класс: ${input.grade}`);
     if (input.numQuestions) lines.push(`Количество вопросов: ${input.numQuestions}`);
+    if (input.interests && input.interests.trim()) {
+        lines.push(`Интересы учеников (используй в формулировках вопросов): ${input.interests.trim()}`);
+    }
     if (input.extraNotes) lines.push(`Дополнительно: ${input.extraNotes}`);
     lines.push('Верни строго один JSON-объект.');
     return { system, user: lines.join('\n') };
@@ -317,6 +325,11 @@ export interface LessonPlanGenInput {
     grade?: string | number;
     duration?: string;
     objectives?: string;
+    lessonType?: string;
+    workFormat?: string;
+    lessonStyle?: string;
+    interests?: string;
+    depth?: 'short' | 'standard' | 'deep';
     extraNotes?: string;
 }
 
@@ -369,7 +382,26 @@ ${COMMON_TAIL}`;
     if (input.subject) lines.push(`Предмет: ${input.subject}`);
     if (input.grade) lines.push(`Класс: ${input.grade}`);
     if (input.duration) lines.push(`Длительность урока: ${input.duration}`);
+    if (input.lessonType) lines.push(`Тип урока: ${input.lessonType}`);
+    if (input.workFormat) lines.push(`Формат работы: ${input.workFormat}`);
+    if (input.lessonStyle) {
+        const styleLabel = input.lessonStyle === 'lecture'
+            ? 'лекционный (минимум интерактива, преподаватель ведёт основную часть)'
+            : 'интерактивный (вопросы классу, парная/групповая работа, обсуждения)';
+        lines.push(`Стиль урока: ${styleLabel}`);
+    }
     if (input.objectives) lines.push(`Цели урока: ${input.objectives}`);
+    if (input.interests && input.interests.trim()) {
+        lines.push(`Интересы учеников (используй в примерах и активностях): ${input.interests.trim()}`);
+    }
+    if (input.depth) {
+        const depthHint = input.depth === 'short'
+            ? 'Кратко: 3–4 этапа, без длинных пояснений.'
+            : input.depth === 'deep'
+                ? 'Подробно: все 5 этапов с расширенными методическими комментариями, ожидаемыми реакциями учеников.'
+                : 'Стандарт: 5 этапов, основные реплики.';
+        lines.push(`Уровень детализации: ${depthHint}`);
+    }
     if (input.extraNotes) lines.push(`Дополнительно: ${input.extraNotes}`);
     lines.push('Верни строго один JSON-объект.');
     return { system, user: lines.join('\n') };
@@ -383,6 +415,10 @@ export interface VocabularyGenInput {
     targetLanguage?: string;
     grade?: string | number;
     numWords?: number;
+    withTranscription?: boolean;
+    withExample?: boolean;
+    withSynonyms?: boolean;
+    practiceFocus?: string;
     extraNotes?: string;
 }
 
@@ -448,6 +484,15 @@ ${COMMON_TAIL}`;
     if (input.targetLanguage) lines.push(`Перевод на: ${input.targetLanguage}`);
     if (input.grade) lines.push(`Класс: ${input.grade}`);
     if (input.numWords) lines.push(`Количество слов: ${input.numWords}`);
+    // Опции включения для каждого слова — проброс из UI-чекбоксов.
+    const incl: string[] = [];
+    if (input.withTranscription !== undefined) incl.push(input.withTranscription ? 'транскрипцию (IPA) ВСЕГДА' : 'без транскрипции');
+    if (input.withExample !== undefined) incl.push(input.withExample ? 'пример предложения (example + exampleTranslation) ОБЯЗАТЕЛЬНО для каждого слова' : 'без поля example');
+    if (input.withSynonyms !== undefined) incl.push(input.withSynonyms ? 'синонимы/антонимы в поле note (через "син.:", "ант.:")' : 'без синонимов/антонимов');
+    if (incl.length > 0) lines.push(`Включить: ${incl.join('; ')}`);
+    if (input.practiceFocus && input.practiceFocus.trim()) {
+        lines.push(`После словаря добавь 3–5 коротких упражнений (heading «Упражнения» + блоки fill-blank / multiple-choice / matching / short-answer) с фокусом на: ${input.practiceFocus.trim()}`);
+    }
     if (input.extraNotes) lines.push(`Дополнительно: ${input.extraNotes}`);
     lines.push('Верни строго один JSON-объект.');
     return { system, user: lines.join('\n') };
@@ -460,6 +505,8 @@ export interface LessonPreparationGenInput {
     subject?: string;
     grade?: string | number;
     duration?: string;
+    interests?: string;
+    depth?: 'short' | 'standard' | 'deep';
     extraNotes?: string;
 }
 
@@ -501,6 +548,17 @@ ${COMMON_TAIL}`;
     if (input.subject) lines.push(`Предмет: ${input.subject}`);
     if (input.grade) lines.push(`Класс: ${input.grade}`);
     if (input.duration) lines.push(`Длительность: ${input.duration}`);
+    if (input.interests && input.interests.trim()) {
+        lines.push(`Интересы учеников (используй в «крючках», метафорах, примерах): ${input.interests.trim()}`);
+    }
+    if (input.depth) {
+        const depthHint = input.depth === 'short'
+            ? 'Кратко: компактные шаги, без длинных пояснений. Каждый шаг 1–2 коротких абзаца.'
+            : input.depth === 'deep'
+                ? 'Подробно: расширенные методические комментарии, варианты реплик учителя, альтернативные ходы при разных реакциях класса, риски и как их избежать.'
+                : 'Стандартная детализация: основные реплики и активности.';
+        lines.push(`Уровень детализации: ${depthHint}`);
+    }
     if (input.extraNotes) lines.push(`Дополнительно: ${input.extraNotes}`);
     lines.push('Верни строго один JSON-объект.');
     return { system, user: lines.join('\n') };

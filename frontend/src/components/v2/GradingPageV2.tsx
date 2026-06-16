@@ -13,6 +13,8 @@ import { Topbar } from '@/components/layout/v2/Topbar'
 import { useMobileMenu } from '@/components/layout/v2/DashboardLayoutV2'
 import { useTour } from '@/lib/tour/useTour'
 import InteractiveHtmlViewer, { extractHtmlFromOutput } from '@/components/InteractiveHtmlViewer'
+import { DocumentRenderer } from '@/components/blocks/DocumentRenderer'
+import { isJsonBlocksFormat, GenerationDocument as GenerationDocumentSchema } from '@/lib/blocks/schema'
 
 const fetcher = (url: string) => apiClient.get(url).then((r: any) => r.data)
 
@@ -441,6 +443,22 @@ export default function GradingPageV2() {
     return detail.formData?.[worksheetGen.id] ?? {}
   }, [worksheetGen, detail])
 
+  // Новый JSON-blocks-v1 формат: ищем гену с outputData.format = 'json-blocks-v1'
+  // и валидируем её doc. У такой гены ответы ученика лежат как
+  // { [blockId]: value }. Если есть — рендерим DocumentRenderer вместо
+  // InteractiveHtmlViewer.
+  const jsonBlocksSubmission = useMemo(() => {
+    if (!detail) return null
+    for (const gen of detail.assignment.generations || []) {
+      if (!isJsonBlocksFormat(gen.outputData)) continue
+      const parsed = GenerationDocumentSchema.safeParse(gen.outputData.outputDoc)
+      if (!parsed.success) continue
+      const answers = detail.formData?.[gen.id] ?? {}
+      return { genId: gen.id, doc: parsed.data, answers }
+    }
+    return null
+  }, [detail])
+
   // Мини-игры: ученик играет в iframe → результат летит в formData[genId]._game.
   // Здесь собираем карточки-результаты для каждой игровой генерации задания.
   const gameResultCards = useMemo(() => {
@@ -684,7 +702,18 @@ export default function GradingPageV2() {
                 {/* Лист с заданиями + предзаполненные ответы ученика. Если у
                     задания нет HTML-генерации (старые формы), показываем
                     компактный список «вопрос-ответ». */}
-                {worksheetGen ? (
+                {jsonBlocksSubmission ? (
+                  // JSON-blocks v1: рендерим DocumentRenderer с ответами ученика.
+                  // Учителю показываем заполненные поля (как студент сдал),
+                  // но БЕЗ showAnswers — ключ ответов отдельно через таб.
+                  <div key={`${detail!.id}_${jsonBlocksSubmission.genId}`}>
+                    <DocumentRenderer
+                      doc={jsonBlocksSubmission.doc}
+                      answers={jsonBlocksSubmission.answers}
+                      showAnswers={false}
+                    />
+                  </div>
+                ) : worksheetGen ? (
                   // key с id сабмишена форсит ремоунт InteractiveHtmlViewer
                   // при смене работы — иначе React переиспользует тот же
                   // iframe и предзаполнение не перезапускается на новых

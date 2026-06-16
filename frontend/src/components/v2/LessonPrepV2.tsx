@@ -141,26 +141,33 @@ export default function LessonPrepV2() {
             //   worksheet           → /generate/v2/worksheet
             //   content-adaptation  → /generate/v2/lesson-preparation (учебный материал)
             //   quiz                → /generate/v2/quiz
+            // Общие поля для всех типов: интересы учеников и уровень
+            // детализации. Идут в КАЖДЫЙ v2-эндпоинт — каждый промпт умеет
+            // обрабатывать их по-своему (см. prompts.ts).
+            const shared = {
+                interests: interests.trim() || undefined,
+                depth,
+            }
             const endpoints: Record<string, { endpoint: string; label: string; params: Record<string, any> }> = {
                 'lesson-plan': {
                     endpoint: '/generate/v2/lesson-plan',
                     label: 'План урока',
-                    params: { topic, subject, grade: level },
+                    params: { topic, subject, grade: level, ...shared },
                 },
                 'worksheet': {
                     endpoint: '/generate/v2/worksheet',
                     label: 'Рабочий лист',
-                    params: { topic, subject, grade: level, numTasks: worksheetQuestions },
+                    params: { topic, subject, grade: level, numTasks: worksheetQuestions, interests: shared.interests },
                 },
                 'content-adaptation': {
                     endpoint: '/generate/v2/lesson-preparation',
                     label: 'Учебный материал',
-                    params: { topic, subject, grade: level },
+                    params: { topic, subject, grade: level, ...shared },
                 },
                 'quiz': {
                     endpoint: '/generate/v2/quiz',
                     label: 'Тест',
-                    params: { topic, subject, grade: level, numQuestions: questionsCount, numAnswers: 4 },
+                    params: { topic, subject, grade: level, numQuestions: questionsCount, numAnswers: 4, interests: shared.interests },
                 },
             }
             setV2BatchGenerating(true)

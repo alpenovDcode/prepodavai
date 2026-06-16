@@ -463,20 +463,28 @@ export default function StudentAssignmentV2({ assignmentId }: StudentAssignmentV
             const parsed = GenerationDocumentSchema.safeParse(gen.outputData.outputDoc)
             if (parsed.success) {
                 const doc = parsed.data
-                const existingAnswers =
-                    (isSubmitted || isGraded) ? (sub?.formData?.[gen.id] || {}) : (draftFormDataMap[gen.id] || {})
+                // Источник истины — live state `formDataMap` (обновляется при
+                // каждом keystroke). `draftFormDataMap` — только начальная
+                // подгрузка из localStorage. Если читать здесь draftFormDataMap,
+                // input навсегда зависает в стартовом значении.
+                const existingAnswers = (isSubmitted || isGraded)
+                    ? (sub?.formData?.[gen.id] || {})
+                    : (formDataMap[gen.id] || draftFormDataMap[gen.id] || {})
                 const editable = !isSubmitted && !isGraded
+                // Подсчёт интерактивных блоков для прогресс-бара
+                // (формула "X из Y заполнено" в шапке задания).
+                const interactiveCount = doc.blocks.filter(b =>
+                    b.type === 'fill-blank' || b.type === 'multiple-choice' ||
+                    b.type === 'short-answer' || b.type === 'matching'
+                ).length
                 return (
                     <div className="p-5">
                         <DocumentRenderer
                             doc={doc}
                             answers={existingAnswers}
                             onAnswerChange={editable ? (blockId, value) => {
-                                // Накапливаем в локальный map и пробрасываем в
-                                // существующий пайплайн handleFormDataChange,
-                                // который сохранит черновик / отправит сабмит.
                                 const next = { ...existingAnswers, [blockId]: value }
-                                handleFormDataChange(gen.id, next, Object.keys(next).length)
+                                handleFormDataChange(gen.id, next, interactiveCount)
                             } : undefined}
                             // Ученик никогда не видит ключ ответов.
                             showAnswers={false}

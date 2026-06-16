@@ -120,6 +120,8 @@ export default function LessonPlannerV2() {
             setMobileTab('preview')
             return v2.generateV2('/generate/v2/lesson-plan', {
                 topic, subject, grade: level, duration,
+                objectives: objectives.trim() || undefined,
+                lessonType, workFormat, lessonStyle,
             })
         }
         try {

@@ -102,6 +102,8 @@ export default function VocabularyV2() {
             setMobileTab('preview')
             return v2.generateV2('/generate/v2/vocabulary', {
                 topic, sourceLanguage: language, grade: level, numWords: wordsCount,
+                withTranscription, withExample, withSynonyms,
+                practiceFocus: practiceFocus.trim() || undefined,
             })
         }
         try {
