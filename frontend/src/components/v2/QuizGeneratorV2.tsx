@@ -95,7 +95,7 @@ export default function QuizGeneratorV2() {
         if (v2.useV2) {
             setMobileTab('preview')
             return v2.generateV2('/generate/v2/quiz', {
-                topic, subject, grade: level, numQuestions: questionsCount,
+                topic, subject, grade: level, numQuestions: questionsCount, numAnswers: answersCount,
             })
         }
         try {

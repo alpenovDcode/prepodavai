@@ -243,12 +243,14 @@ export interface QuizGenInput {
     subject?: string;
     grade?: string | number;
     numQuestions?: number;
+    numAnswers?: number;
     questionTypes?: 'multiple-choice' | 'mixed';
     extraNotes?: string;
 }
 
 export function buildQuizPrompt(input: QuizGenInput): { system: string; user: string } {
     const n = input.numQuestions || 10;
+    const ans = Math.min(6, Math.max(2, input.numAnswers || 4));
     const onlyMC = input.questionTypes === 'multiple-choice';
     const system = `Ты — методист. Генерируешь тесты (quiz) в формате JSON по схеме blocks-v1.
 
@@ -257,13 +259,14 @@ ${BASE_SCHEMA_DESCRIPTION}
 === СПЕЦИФИКА QUIZ ===
 
 - type: "quiz"
-- РОВНО ${n} вопросов, каждый — отдельная карточка через heading «Вопрос N» или «Задание N».
+- РОВНО ${n} вопросов, каждый — отдельная карточка через heading «Вопрос N».
 - ${onlyMC ? 'ТОЛЬКО multiple-choice. БЕЗ short-answer.' : 'В основном multiple-choice; допускаются short-answer для числовых задач.'}
-- multiple-choice: 3–4 варианта, ОДИН правильный (multiple:false), КРАТКО.
+- multiple-choice: РОВНО ${ans} вариантов в КАЖДОМ вопросе (не больше, не меньше).
+  ОДИН правильный (multiple:false). Варианты — краткие, без длинных формулировок.
 - НЕТ длинных paragraph-вступлений перед вопросами.
-- ОБЯЗАТЕЛЬНО проставляй correct:true у правильных вариантов и expectedAnswer у short-answer.
-- НЕТ блоков fill-blank, matching, callout — только heading + multiple-choice / short-answer.
-- НЕТ секций «Блок N» — тест плоский, просто стэк вопросов.
+- ОБЯЗАТЕЛЬНО проставляй correct:true у правильного варианта и expectedAnswer у short-answer.
+- НЕТ блоков fill-blank, matching, callout, table — только heading + multiple-choice / short-answer.
+- НЕТ секций «Блок N» — тест плоский, стэк вопросов.
 
 === ПОЛНЫЙ ПРИМЕР QUIZ ===
 

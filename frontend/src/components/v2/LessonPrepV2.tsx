@@ -19,7 +19,11 @@ import { cn } from '@/lib/utils/cn'
 import AssignTaskButton from '@/components/AssignTaskButton'
 import DownloadPdfModal from '@/components/workspace/DownloadPdfModal'
 import { DocumentRenderer } from '@/components/blocks/DocumentRenderer'
+import { DocumentEditor } from '@/components/blocks/editor/DocumentEditor'
 import { useV2Toggle } from '@/components/blocks/useV2Toggle'
+import PdfDownloadButton from '@/components/workspace/PdfDownloadButton'
+import { JSON_BLOCKS_FORMAT } from '@/lib/blocks/schema'
+import type { GenerationDocument as GenerationDocumentT } from '@/lib/blocks/schema'
 
 const SECTIONS_WITH_ANSWERS = new Set(['Рабочий лист', 'Тест'])
 
@@ -52,6 +56,23 @@ const sectionFilenameSlug = (label: string | null | undefined): string => {
 export default function LessonPrepV2() {
     const { generateAndWait, isGenerating, activeGenerationId } = useGenerations()
     const v2 = useV2Toggle('lesson_prep_use_v2_format')
+
+    // ── Мульти-документная v2 для Вау-урока ──
+    // Учитель выбирает 1–4 типа («План», «Рабочий лист», «Учебный материал», «Тест»).
+    // В v2 каждый тип = отдельный JSON-документ через свой эндпоинт.
+    // Результаты складываются в v2Results и показываются табами вверху превью.
+    interface V2Result {
+        genType: string          // 'lesson-plan' / 'worksheet' / 'content-adaptation' / 'quiz'
+        label: string            // 'План урока' / 'Рабочий лист' / ...
+        doc: GenerationDocumentT
+        generationId: string
+    }
+    const [v2Results, setV2Results] = useState<V2Result[]>([])
+    const [v2ActiveIdx, setV2ActiveIdx] = useState(0)
+    const [v2Mode, setV2Mode] = useState<'preview' | 'answers' | 'edit'>('preview')
+    const [v2BatchGenerating, setV2BatchGenerating] = useState(false)
+    const [v2BatchSaving, setV2BatchSaving] = useState(false)
+    const v2Active = v2Results[v2ActiveIdx]
 
     const [subject, setSubject] = useState('')
     const [topic, setTopic] = useState('')
@@ -114,9 +135,75 @@ export default function LessonPrepV2() {
         }
         if (v2.useV2) {
             setMobileTab('preview')
-            return v2.generateV2('/generate/v2/lesson-preparation', {
-                topic, subject, grade: level,
-            })
+            // Параллельная генерация JSON-документов для каждого выбранного типа.
+            // Маппинг genType → v2-endpoint:
+            //   lesson-plan         → /generate/v2/lesson-plan
+            //   worksheet           → /generate/v2/worksheet
+            //   content-adaptation  → /generate/v2/lesson-preparation (учебный материал)
+            //   quiz                → /generate/v2/quiz
+            const endpoints: Record<string, { endpoint: string; label: string; params: Record<string, any> }> = {
+                'lesson-plan': {
+                    endpoint: '/generate/v2/lesson-plan',
+                    label: 'План урока',
+                    params: { topic, subject, grade: level },
+                },
+                'worksheet': {
+                    endpoint: '/generate/v2/worksheet',
+                    label: 'Рабочий лист',
+                    params: { topic, subject, grade: level, numTasks: worksheetQuestions },
+                },
+                'content-adaptation': {
+                    endpoint: '/generate/v2/lesson-preparation',
+                    label: 'Учебный материал',
+                    params: { topic, subject, grade: level },
+                },
+                'quiz': {
+                    endpoint: '/generate/v2/quiz',
+                    label: 'Тест',
+                    params: { topic, subject, grade: level, numQuestions: questionsCount, numAnswers: 4 },
+                },
+            }
+            setV2BatchGenerating(true)
+            setV2Results([])
+            setV2ActiveIdx(0)
+            setV2Mode('preview')
+            try {
+                const calls = genTypes
+                    .filter((gt) => endpoints[gt])
+                    .map((gt) => ({ genType: gt, ...endpoints[gt] }))
+                if (calls.length === 0) {
+                    toast.error('Выбери хотя бы один тип материала')
+                    return
+                }
+                const responses = await Promise.all(
+                    calls.map((c) =>
+                        apiClient.post(c.endpoint, c.params)
+                            .then((res) => ({ ok: true as const, c, data: res.data }))
+                            .catch((err) => ({ ok: false as const, c, err }))
+                    ),
+                )
+                const ok: V2Result[] = []
+                const errs: string[] = []
+                for (const r of responses) {
+                    if (r.ok && r.data?.outputDoc) {
+                        ok.push({
+                            genType: r.c.genType,
+                            label: r.c.label,
+                            doc: r.data.outputDoc,
+                            generationId: r.data.generationId,
+                        })
+                    } else {
+                        const msg = r.ok ? 'нет outputDoc' : (r.err?.response?.data?.message || r.err?.message || 'unknown')
+                        errs.push(`${r.c.label}: ${Array.isArray(msg) ? msg.join('; ') : msg}`)
+                    }
+                }
+                setV2Results(ok)
+                if (ok.length > 0) toast.success(`Сгенерировано: ${ok.map((r) => r.label).join(', ')}`)
+                if (errs.length > 0) toast.error(`Ошибки: ${errs.join(' · ')}`)
+            } finally {
+                setV2BatchGenerating(false)
+            }
+            return
         }
         setResults([])
         setCurrentIndex(0)
@@ -375,11 +462,11 @@ export default function LessonPrepV2() {
                         <Button
                             variant="primary"
                             className="w-full"
-                            leftIcon={(isGenerating || v2.v2IsGenerating) ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                            disabled={(isGenerating || v2.v2IsGenerating) || !subject.trim() || !topic.trim()}
+                            leftIcon={(isGenerating || v2BatchGenerating) ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                            disabled={(isGenerating || v2BatchGenerating) || !subject.trim() || !topic.trim()}
                             onClick={generate}
                         >
-                            {(isGenerating || v2.v2IsGenerating) ? 'Создаём…' : 'Сгенерировать'}
+                            {(isGenerating || v2BatchGenerating) ? 'Создаём…' : 'Сгенерировать'}
                         </Button>
                         </div>
                     </div>
@@ -476,14 +563,92 @@ export default function LessonPrepV2() {
                         </div>
                     )}
 
+                    {/* v2 toolbar — табы документов + действия (только когда есть результаты) */}
+                    {v2.useV2 && v2Results.length > 0 && !v2BatchGenerating && (
+                        <div className="flex items-center gap-2 px-4 py-2.5 border-b border-ink-100 flex-wrap bg-white">
+                            <div className="flex items-center gap-1 flex-wrap">
+                                {v2Results.map((r, i) => (
+                                    <button
+                                        key={r.genType}
+                                        type="button"
+                                        onClick={() => { setV2ActiveIdx(i); setV2Mode('preview') }}
+                                        className={[
+                                            'px-3 py-1.5 rounded-md text-[12px] font-semibold transition-colors',
+                                            i === v2ActiveIdx ? 'bg-brand-500 text-white' : 'bg-ink-100 text-ink-700 hover:bg-ink-200',
+                                        ].join(' ')}
+                                    >
+                                        {r.label}
+                                    </button>
+                                ))}
+                            </div>
+                            <div className="ml-auto flex items-center gap-1.5">
+                                <button
+                                    type="button"
+                                    onClick={() => setV2Mode('preview')}
+                                    className={`px-2.5 py-1 rounded-md text-[12px] font-semibold ${v2Mode === 'preview' ? 'bg-brand-500 text-white' : 'bg-ink-100 text-ink-700'}`}
+                                >Превью</button>
+                                <button
+                                    type="button"
+                                    onClick={() => setV2Mode('answers')}
+                                    className={`px-2.5 py-1 rounded-md text-[12px] font-semibold ${v2Mode === 'answers' ? 'bg-brand-500 text-white' : 'bg-ink-100 text-ink-700'}`}
+                                >С ответами</button>
+                                <button
+                                    type="button"
+                                    onClick={() => setV2Mode('edit')}
+                                    className={`px-2.5 py-1 rounded-md text-[12px] font-semibold ${v2Mode === 'edit' ? 'bg-brand-500 text-white' : 'bg-ink-100 text-ink-700'}`}
+                                >Редактировать</button>
+                                {v2Active && (
+                                    <>
+                                        <PdfDownloadButton
+                                            generationId={v2Active.generationId}
+                                            filename={`${topic || v2Active.label}.pdf`}
+                                            hasAnswers
+                                            className="inline-flex items-center gap-1.5 h-8 px-3 text-[12px] font-semibold bg-ink-100 hover:bg-ink-200 text-ink-700 rounded-md transition-colors"
+                                        />
+                                        <AssignTaskButton
+                                            generationId={v2Active.generationId}
+                                            topic={`${topic} — ${v2Active.label}`}
+                                            label="Выдать классу"
+                                            className="inline-flex items-center gap-1.5 h-8 px-3 text-[12px] font-semibold bg-brand-500 hover:bg-brand-600 text-white rounded-md transition-colors"
+                                        />
+                                    </>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
                     {/* Iframe / empty / progress */}
                     <div className="flex-1 overflow-auto bg-ink-50">
-                        {(isGenerating || v2.v2IsGenerating) ? (
+                        {(isGenerating || v2BatchGenerating) ? (
                             <div className="h-full flex items-center justify-center p-8">
                                 <WowProgress />
                             </div>
-                        ) : v2.useV2 && v2.v2Doc ? (
-                            <DocumentRenderer doc={v2.v2Doc} />
+                        ) : v2.useV2 && v2Active ? (
+                            v2Mode === 'edit' ? (
+                                <DocumentEditor
+                                    initialDoc={v2Active.doc}
+                                    saving={v2BatchSaving}
+                                    onCancel={() => setV2Mode('preview')}
+                                    onSave={async (nextDoc) => {
+                                        setV2BatchSaving(true)
+                                        try {
+                                            await apiClient.patch(`/generate/${v2Active.generationId}`, {
+                                                outputData: { format: JSON_BLOCKS_FORMAT, outputDoc: nextDoc },
+                                            })
+                                            setV2Results((prev) => prev.map((r, i) => i === v2ActiveIdx ? { ...r, doc: nextDoc } : r))
+                                            toast.success('Сохранено')
+                                            setV2Mode('preview')
+                                        } catch (e: any) {
+                                            const msg = e?.response?.data?.message || e?.message || 'Не удалось сохранить'
+                                            toast.error(Array.isArray(msg) ? msg.join('; ') : msg)
+                                        } finally {
+                                            setV2BatchSaving(false)
+                                        }
+                                    }}
+                                />
+                            ) : (
+                                <DocumentRenderer doc={v2Active.doc} showAnswers={v2Mode === 'answers'} />
+                            )
                         ) : v2.useV2 ? (
                             <div className="h-full flex items-center justify-center text-ink-500 text-[13px]">Заполните настройки и нажмите «Сгенерировать»</div>
                         ) : !localContent ? (

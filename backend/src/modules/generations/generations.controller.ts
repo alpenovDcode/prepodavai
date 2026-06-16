@@ -75,6 +75,7 @@ export class GenerationsController {
         subject: body.subject ? String(body.subject) : undefined,
         grade: body.grade as any,
         numQuestions: body.numQuestions ? Number(body.numQuestions) : undefined,
+        numAnswers: body.numAnswers ? Number(body.numAnswers) : undefined,
         questionTypes: body.questionTypes as any,
         extraNotes: body.extraNotes ? String(body.extraNotes) : undefined,
       },
