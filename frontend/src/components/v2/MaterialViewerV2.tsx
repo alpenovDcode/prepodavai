@@ -327,6 +327,10 @@ export default function MaterialViewerV2({ lessonId, generationId, isEditable = 
 
     const [tab, setTab] = useState<'preview' | 'answers' | 'edit'>('preview')
     const [savingHtml, setSavingHtml] = useState(false)
+    // Для Вау-урока (lesson_preparation) outputData.sections[] содержит
+    // отдельные HTML-документы для каждой секции (План урока / Рабочий лист /
+    // Учебный материал / Тест). Этот индекс выбирает активную секцию.
+    const [sectionIdx, setSectionIdx] = useState(0)
 
     const [showAssign, setShowAssign] = useState(false)
     const [preparingAssign, setPreparingAssign] = useState(false)
@@ -419,9 +423,32 @@ export default function MaterialViewerV2({ lessonId, generationId, isEditable = 
         return () => document.removeEventListener('mousedown', onDown)
     }, [showMenu])
 
-    const html = useMemo(() => extractHtml(generation?.outputData), [generation?.outputData])
-    const isHtml = !!html
     const genType = generation?.generationType || ''
+    const isLessonPrep = genType === 'lesson_preparation' || genType === 'lesson-preparation'
+
+    // Секции Вау-урока: [{ title, content }]. Берём массив для табов.
+    const sections = useMemo<Array<{ title: string; content: string }>>(() => {
+        if (!isLessonPrep) return []
+        const arr = (generation?.outputData as any)?.sections
+        if (!Array.isArray(arr)) return []
+        return arr.filter((s: any) => s && typeof s.content === 'string' && s.content.trim())
+    }, [generation?.outputData, isLessonPrep])
+
+    // Сбрасываем индекс при смене материала, и чиним если он вне границ.
+    useEffect(() => {
+        if (sections.length === 0) return
+        if (sectionIdx >= sections.length) setSectionIdx(0)
+    }, [sections, sectionIdx])
+
+    const html = useMemo(() => {
+        // Для Вау-урока с табами — html выбранной секции, иначе обычный путь.
+        if (sections.length > 0) {
+            const s = sections[Math.min(sectionIdx, sections.length - 1)]
+            return s?.content || null
+        }
+        return extractHtml(generation?.outputData)
+    }, [generation?.outputData, sections, sectionIdx])
+    const isHtml = !!html
     const isHtmlType = isHtml && (HTML_TYPES.has(genType) || isHtml)
     const isImageType = genType === 'image' || genType === 'image_generation' || genType === 'photosession'
     const imageUrl = useMemo(() => {
@@ -874,6 +901,27 @@ export default function MaterialViewerV2({ lessonId, generationId, isEditable = 
                     </div>
                 </Card>
 
+                {/* Секционные табы для Вау-урока (если разделов больше одного) */}
+                {sections.length > 1 && (
+                    <div className="flex gap-1.5 mb-3 flex-wrap mat-tabs-row print-hide">
+                        {sections.map((s, i) => (
+                            <button
+                                key={`${i}-${s.title}`}
+                                type="button"
+                                onClick={() => setSectionIdx(i)}
+                                className={cn(
+                                    'px-3.5 py-1.5 rounded-full text-[13px] font-semibold transition-all border',
+                                    sectionIdx === i
+                                        ? 'bg-brand-50 text-brand-700 border-brand-200'
+                                        : 'bg-surface text-ink-600 border-ink-200 hover:text-ink-900 hover:border-ink-300',
+                                )}
+                            >
+                                {s.title}
+                            </button>
+                        ))}
+                    </div>
+                )}
+
                 {/* Tabs */}
                 <div className="flex gap-1 mb-4 border-b border-ink-200 mat-tabs-row print-hide">
                     <TabBtn active={tab === 'preview'} onClick={() => setTab('preview')} icon={<Eye className="w-4 h-4" />}>Превью</TabBtn>
@@ -943,8 +991,14 @@ export default function MaterialViewerV2({ lessonId, generationId, isEditable = 
                 isOpen={showPdf}
                 onClose={() => setShowPdf(false)}
                 generationId={generation.id}
-                filename={`${displayTitle.replace(/[^a-zA-Zа-яА-Я0-9]/g, '_') || 'material'}.pdf`}
-                hasAnswers={typeHasAnswers(genType)}
+                filename={
+                    sections.length > 1
+                        ? `${displayTitle}__${sections[Math.min(sectionIdx, sections.length - 1)]?.title || 'section'}`
+                            .replace(/[^a-zA-Zа-яА-Я0-9_-]/g, '_') + '.pdf'
+                        : `${displayTitle.replace(/[^a-zA-Zа-яА-Я0-9]/g, '_') || 'material'}.pdf`
+                }
+                hasAnswers={typeHasAnswers(genType) || /Рабочий лист|Тест/i.test(sections[sectionIdx]?.title || '')}
+                sectionIndex={sections.length > 1 ? sectionIdx : undefined}
             />
         </>
     )
