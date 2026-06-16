@@ -295,22 +295,27 @@ export class HtmlExportService implements OnModuleDestroy {
     let rendered: string;
     try {
       rendered = await this.renderHtmlForDocx(html);
+      this.docxLogger.log(`Pre-render OK, длина=${rendered.length}`);
     } catch (e: any) {
       this.docxLogger.warn(
         `Playwright pre-render для DOCX упал (${e?.message ?? e}). ` +
-        `Идём в soffice с сырым HTML — формулы не будут отрисованы.`,
+        `Используем сырой HTML — формулы не будут отрисованы.`,
       );
       rendered = this.prepareHtmlForDocx(html);
     }
 
     try {
-      return await this.htmlToDocxViaSoffice(rendered);
+      const buf = await this.htmlToDocxViaSoffice(rendered);
+      this.docxLogger.log(`soffice HTML→DOCX успешно, размер=${buf.length}`);
+      return buf;
     } catch (e: any) {
       this.docxLogger.warn(
         `LibreOffice HTML→DOCX недоступен (${e?.message ?? e}). ` +
-        `Fallback на html-to-docx — дизайн будет упрощён.`,
+        `Fallback на html-to-docx — используем тот же pre-rendered HTML.`,
       );
-      return this.htmlToDocxFallback(html);
+      // ВАЖНО: в fallback тоже отдаём rendered (с SVG/PNG-формулами),
+      // а не сырой html. Иначе формулы ушли бы как raw LaTeX `\(...\)`.
+      return this.htmlToDocxFallback(rendered);
     }
   }
 
@@ -401,55 +406,71 @@ window.MathJax = {
       }
 
       // Pre-DOCX DOM-преобразования: всё, что Word не поймёт, заменяем.
-      await page.evaluate(() => {
-        // 1. SVG из MathJax: проставляем явные размеры и оборачиваем в <img>
-        //    с data:image/svg+xml. soffice вставляет такие img как картинки в
-        //    inline-позиции — формула остаётся ровно на своём месте.
-        const mathSvgs = Array.from(document.querySelectorAll<SVGSVGElement>('mjx-container svg, mjx-container > svg'));
-        for (const svg of mathSvgs) {
+      // ВАЖНО: SVG конвертим в PNG (через canvas), а не оставляем SVG —
+      // html-to-docx (fallback) SVG не понимает, soffice понимает с трудом.
+      // PNG — самый совместимый формат для inline-картинок в .docx.
+      await page.evaluate(async () => {
+        const svgToPng = async (svg: SVGSVGElement, scale = 2): Promise<{ url: string; w: number; h: number } | null> => {
           try {
             const rect = svg.getBoundingClientRect();
-            const w = Math.max(Math.round(rect.width) || 0, 20);
-            const h = Math.max(Math.round(rect.height) || 0, 16);
+            const vb = (svg as any).viewBox?.baseVal;
+            const baseW = rect.width > 0 ? rect.width : (vb?.width || 200);
+            const baseH = rect.height > 0 ? rect.height : (vb?.height || 50);
+            const w = Math.max(Math.round(baseW), 16);
+            const h = Math.max(Math.round(baseH), 12);
             svg.setAttribute('width', String(w));
             svg.setAttribute('height', String(h));
-            svg.removeAttribute('style');
-            // Гарантируем xmlns — без него браузеры/soffice не считают это SVG
             if (!svg.getAttribute('xmlns')) svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
             const xml = new XMLSerializer().serializeToString(svg);
-            const b64 = btoa(unescape(encodeURIComponent(xml)));
-            const img = document.createElement('img');
-            img.src = `data:image/svg+xml;base64,${b64}`;
-            img.setAttribute('width', String(w));
-            img.setAttribute('height', String(h));
-            img.style.cssText = `display:inline-block;vertical-align:middle;width:${w}px;height:${h}px;`;
-            const container = svg.closest('mjx-container');
-            if (container?.parentNode) container.parentNode.replaceChild(img, container);
-          } catch { /* skip broken */ }
+            const dataUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(xml);
+
+            return await new Promise((resolve) => {
+              const img = new Image();
+              img.onload = () => {
+                try {
+                  const canvas = document.createElement('canvas');
+                  canvas.width = w * scale;
+                  canvas.height = h * scale;
+                  const ctx = canvas.getContext('2d');
+                  if (!ctx) { resolve(null); return; }
+                  ctx.fillStyle = '#ffffff';
+                  ctx.fillRect(0, 0, canvas.width, canvas.height);
+                  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                  resolve({ url: canvas.toDataURL('image/png'), w, h });
+                } catch { resolve(null); }
+              };
+              img.onerror = () => resolve(null);
+              img.src = dataUrl;
+            });
+          } catch { return null; }
+        };
+
+        // 1. MathJax SVG → inline PNG
+        const mathSvgs = Array.from(document.querySelectorAll<SVGSVGElement>('mjx-container svg, mjx-container > svg'));
+        for (const svg of mathSvgs) {
+          const result = await svgToPng(svg, 2);
+          if (!result) continue;
+          const img = document.createElement('img');
+          img.src = result.url;
+          img.setAttribute('width', String(result.w));
+          img.setAttribute('height', String(result.h));
+          img.style.cssText = `display:inline-block;vertical-align:middle;width:${result.w}px;height:${result.h}px;`;
+          const container = svg.closest('mjx-container');
+          if (container?.parentNode) container.parentNode.replaceChild(img, container);
         }
         // Сносим ассистивный MathJax-mml и любые оставшиеся mjx-container
         document.querySelectorAll('mjx-assistive-mml, mjx-container').forEach((n) => n.remove());
 
-        // 2. Обычные SVG-картинки (графики/иллюстрации): тоже в data-URI img,
-        //    так soffice импортирует их надёжнее, чем как inline-SVG.
+        // 2. Обычные SVG (графики/иллюстрации) → PNG
         for (const svg of Array.from(document.querySelectorAll<SVGSVGElement>('svg'))) {
-          try {
-            const rect = svg.getBoundingClientRect();
-            const vb = (svg as any).viewBox?.baseVal;
-            const w = Math.max(Math.round(rect.width) || (vb?.width ?? 500), 20);
-            const h = Math.max(Math.round(rect.height) || (vb?.height ?? 300), 20);
-            svg.setAttribute('width', String(w));
-            svg.setAttribute('height', String(h));
-            if (!svg.getAttribute('xmlns')) svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-            const xml = new XMLSerializer().serializeToString(svg);
-            const b64 = btoa(unescape(encodeURIComponent(xml)));
-            const img = document.createElement('img');
-            img.src = `data:image/svg+xml;base64,${b64}`;
-            img.setAttribute('width', String(w));
-            img.setAttribute('height', String(h));
-            img.style.cssText = `display:block;margin:12px auto;max-width:100%;`;
-            svg.parentNode?.replaceChild(img, svg);
-          } catch { /* skip */ }
+          const result = await svgToPng(svg, 2);
+          if (!result) continue;
+          const img = document.createElement('img');
+          img.src = result.url;
+          img.setAttribute('width', String(result.w));
+          img.setAttribute('height', String(result.h));
+          img.style.cssText = `display:block;margin:12px auto;max-width:100%;`;
+          svg.parentNode?.replaceChild(img, svg);
         }
 
         // 3. input[type=text]/number/email → подчёркнутый span (или строка для
@@ -580,13 +601,19 @@ window.MathJax = {
       .replace(/<link\b[^>]*>/gi, '')
       // MathJax контейнеры рендерятся как HTML/MML — Word их не поймёт,
       // выкидываем; формулы останутся как plain-text-замена в alt.
+      // (После pre-render формул уже не будет — будут <img src="data:image/png">)
       .replace(/<mjx-container[\s\S]*?<\/mjx-container>/gi, '')
       .replace(/<mjx-assistive-mml[\s\S]*?<\/mjx-assistive-mml>/gi, '')
-      // Картинки в base64 (LOGO_PLACEHOLDER → огромный data:image/png) ломают
-      // парсер html-to-docx. Заменяем такие <img> пустой строкой.
-      .replace(/<img\b[^>]*src=["']data:[^"']+["'][^>]*>/gi, '')
-      // Незаменённые LOGO_PLACEHOLDER — тоже убираем.
+      // Сносим ТОЛЬКО SVG data-URIs (если pre-render оставил их), логотип
+      // (header-logo/footer-logo с огромным data:image/png) и
+      // незаменённые LOGO_PLACEHOLDER. PNG data:image/png формул — НЕ ТРОГАЕМ,
+      // html-to-docx умеет их встраивать.
+      .replace(/<img\b[^>]*src=["']data:image\/svg\+xml[^"']+["'][^>]*>/gi, '')
+      .replace(/<img\b[^>]*class=["'][^"']*(?:header-logo|footer-logo)[^"']*["'][^>]*>/gi, '')
       .replace(/<img\b[^>]*src=["']LOGO_PLACEHOLDER["'][^>]*>/gi, '')
+      // header-logo / footer-logo может прийти с атрибутами в другом порядке —
+      // ловим оба варианта (class перед src).
+      .replace(/<img\b[^>]*(?:header-logo|footer-logo)[^>]*src=["']data:[^"']+["'][^>]*>/gi, '')
       // input[type=text] оставляем как «_____» — для печати в Word удобнее.
       .replace(
         /<input\b[^>]*type=["']?text["']?[^>]*>/gi,
