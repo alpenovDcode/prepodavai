@@ -719,7 +719,7 @@ export default function MaterialViewerV2({ lessonId, generationId, isEditable = 
                     </button>
                 }
                 actions={
-                    <div className="flex items-center gap-1.5 print-hide">
+                    <div className="flex items-center gap-1.5 print-hide max-sm:gap-1">
                         <Button
                             variant="secondary"
                             size="sm"
@@ -728,10 +728,11 @@ export default function MaterialViewerV2({ lessonId, generationId, isEditable = 
                             disabled={tab === 'edit'}
                             title="Скачать PDF или DOCX"
                         >
-                            Скачать
+                            <span className="max-sm:hidden">Скачать</span>
                         </Button>
                         <Button variant="primary" size="sm" leftIcon={<Send className="w-3.5 h-3.5" />} onClick={openAssignModal} disabled={preparingAssign}>
-                            {preparingAssign ? 'Готовим…' : 'Выдать ученикам'}
+                            <span className="max-sm:hidden">{preparingAssign ? 'Готовим…' : 'Выдать ученикам'}</span>
+                            <span className="hidden max-sm:inline">{preparingAssign ? '…' : 'Выдать'}</span>
                         </Button>
                         <div className="relative" ref={menuRef}>
                             <button

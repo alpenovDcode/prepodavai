@@ -288,6 +288,42 @@ export default function LandingPage({ autoOpenAuth = false }: { autoOpenAuth?: b
         .preview-shell:hover { transform: translateY(-6px); box-shadow: 0 36px 80px rgba(0,0,0,.14), 0 4px 12px rgba(0,0,0,.07) !important; }
         @media (max-width: 820px) { .hdr-nav { display: none !important; } }
         html { scroll-behavior: smooth; scroll-padding-top: 80px; }
+
+        /* ─── АДАПТИВ ─── */
+        /* Планшет (768..1023) */
+        @media (max-width: 1023px) {
+          .lp-section { padding-left: 24px !important; padding-right: 24px !important; }
+          .lp-grid-2-1 { grid-template-columns: 1fr !important; }
+          .lp-grid-4 { grid-template-columns: repeat(2, 1fr) !important; grid-auto-rows: auto !important; }
+          .lp-footer-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 28px !important; }
+          .lp-reviews-grid { grid-template-columns: 1fr !important; height: auto !important; gap: 32px !important; }
+          .lp-reviews-cols { height: 420px !important; }
+        }
+        /* Мобильник (< 768) */
+        @media (max-width: 767px) {
+          .lp-header { padding-left: 16px !important; padding-right: 16px !important; height: 60px !important; gap: 12px !important; }
+          .lp-header .lp-logo-text { font-size: 17px !important; }
+          .lp-header-cta { padding: 7px 12px !important; font-size: 13px !important; }
+          .lp-header-login { display: none !important; }
+          .lp-hero { padding: 48px 16px 40px !important; }
+          .lp-hero h1 { font-size: clamp(28px, 9vw, 42px) !important; line-height: 1.1 !important; }
+          .lp-hero p { font-size: 15px !important; margin-bottom: 24px !important; }
+          .lp-hero-cta-row button { padding: 12px 22px !important; font-size: 14px !important; }
+          .lp-section { padding-top: 48px !important; padding-bottom: 48px !important; padding-left: 16px !important; padding-right: 16px !important; }
+          .lp-section h2 { font-size: clamp(26px, 7vw, 34px) !important; }
+          .lp-grid-3 { grid-template-columns: 1fr !important; }
+          .lp-grid-4 { grid-template-columns: 1fr !important; grid-auto-rows: auto !important; }
+          .lp-grid-2-1 { grid-template-columns: 1fr !important; gap: 24px !important; }
+          .lp-stats-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 12px !important; }
+          .lp-reviews-cols { height: 360px !important; gap: 10px !important; }
+          .lp-footer-grid { grid-template-columns: 1fr !important; gap: 24px !important; }
+          .lp-footer { padding: 40px 16px 24px !important; }
+          .lp-cards-row { padding-left: 8px !important; padding-right: 8px !important; }
+          .lp-ticker-row { padding-left: 0 !important; padding-right: 0 !important; }
+          .lp-cta-dark { padding: 48px 16px !important; }
+          .lp-cta-dark h2 { font-size: clamp(26px, 7vw, 34px) !important; }
+          .lp-section-pad-x-small { padding-left: 12px !important; padding-right: 12px !important; }
+        }
         @keyframes vmarquee-up { from { transform: translateY(0); } to { transform: translateY(-50%); } }
         @keyframes vmarquee-down { from { transform: translateY(-50%); } to { transform: translateY(0); } }
         .vmarquee-col { animation-duration: 38s; animation-timing-function: linear; animation-iteration-count: infinite; }
@@ -303,12 +339,12 @@ export default function LandingPage({ autoOpenAuth = false }: { autoOpenAuth?: b
       `}</style>
 
       {/* ── HEADER ── */}
-      <header style={{ position: "sticky", top: 0, zIndex: 50, backdropFilter: "blur(20px)", background: "rgba(248,248,246,0.93)", borderBottom: "1px solid #ebebeb", padding: "0 32px", display: "flex", justifyContent: "space-between", alignItems: "center", height: 72, gap: 24 }}>
+      <header className="lp-header" style={{ position: "sticky", top: 0, zIndex: 50, backdropFilter: "blur(20px)", background: "rgba(248,248,246,0.93)", borderBottom: "1px solid #ebebeb", padding: "0 32px", display: "flex", justifyContent: "space-between", alignItems: "center", height: 72, gap: 24 }}>
         <a href="#top" style={{ display: "flex", alignItems: "center", gap: 12, textDecoration: "none", color: "inherit" }}>
           <div style={{ width: 44, height: 44, borderRadius: 10, overflow: "hidden", flexShrink: 0 }}>
             <img src="https://fs.cdn-chatium.io/thumbnail/image_gc_AmbUAlw8Yq.1024x1024.png/s/128x" alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
           </div>
-          <span style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-0.03em" }}>Преподавай</span>
+          <span className="lp-logo-text" style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-0.03em" }}>Преподавай</span>
         </a>
         <nav className="hdr-nav" style={{ display: "flex", gap: 4, alignItems: "center", flex: 1, justifyContent: "center" }}>
           {[
@@ -335,14 +371,14 @@ export default function LandingPage({ autoOpenAuth = false }: { autoOpenAuth?: b
           ))}
         </nav>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <button onClick={openLogin} style={{ padding: "7px 16px", background: "transparent", color: "#666", border: "none", borderRadius: 8, fontWeight: 500, fontSize: 14, cursor: "pointer" }}>Войти</button>
-          <button className="btn-cta" onClick={openRegister} style={{ padding: "8px 18px", background: "#f97316", color: "white", border: "none", borderRadius: 9, fontWeight: 600, fontSize: 14, cursor: "pointer" }}>Начать бесплатно</button>
+          <button className="lp-header-login" onClick={openLogin} style={{ padding: "7px 16px", background: "transparent", color: "#666", border: "none", borderRadius: 8, fontWeight: 500, fontSize: 14, cursor: "pointer" }}>Войти</button>
+          <button className="btn-cta lp-header-cta" onClick={openRegister} style={{ padding: "8px 18px", background: "#f97316", color: "white", border: "none", borderRadius: 9, fontWeight: 600, fontSize: 14, cursor: "pointer" }}>Начать бесплатно</button>
         </div>
       </header>
       <div id="top" style={{ position: "absolute", top: 0 }} aria-hidden />
 
       {/* ── HERO ── */}
-      <section style={{ background: "#f8f8f6", padding: "88px 24px 64px", position: "relative", textAlign: "center", overflow: "hidden" }}>
+      <section className="lp-hero" style={{ background: "#f8f8f6", padding: "88px 24px 64px", position: "relative", textAlign: "center", overflow: "hidden" }}>
         <div style={{ position: "absolute", inset: 0, backgroundImage: "radial-gradient(circle, #d1d1cc 1px, transparent 1px)", backgroundSize: "28px 28px", opacity: 0.45, pointerEvents: "none" }} />
         <div style={{ position: "absolute", top: -200, left: "50%", width: 900, height: 500, background: "radial-gradient(ellipse, rgba(249,115,22,0.08) 0%, transparent 65%)", pointerEvents: "none", animation: "floatBlob 9s ease-in-out infinite" }} />
         <div className="hero-anim" style={{ maxWidth: 780, margin: "0 auto", position: "relative" }}>
@@ -358,7 +394,7 @@ export default function LandingPage({ autoOpenAuth = false }: { autoOpenAuth?: b
           <p style={{ fontSize: 17, color: "#777", maxWidth: 480, margin: "0 auto 38px", lineHeight: 1.7, fontWeight: 400 }}>
             ИИ-платформа для учителей и репетиторов: рабочие листы, тесты и планы уроков — за минуты, не часы.
           </p>
-          <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
+          <div className="lp-hero-cta-row" style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
             <button className="btn-cta" onClick={openRegister} style={{ padding: "14px 32px", background: "#f97316", color: "white", border: "none", borderRadius: 11, fontSize: 15, fontWeight: 700, cursor: "pointer", boxShadow: "0 4px 20px rgba(249,115,22,0.28)" }}>
               Попробовать бесплатно
             </button>
@@ -370,7 +406,7 @@ export default function LandingPage({ autoOpenAuth = false }: { autoOpenAuth?: b
       </section>
 
       {/* ── STATS BAR ── */}
-      <section style={{ background: "white", borderTop: "1px solid #ebebeb", borderBottom: "1px solid #ebebeb", padding: "0 32px" }}>
+      <section className="lp-section lp-ticker-row" style={{ background: "white", borderTop: "1px solid #ebebeb", borderBottom: "1px solid #ebebeb", padding: "0 32px" }}>
         <div style={{ maxWidth: 900, margin: "0 auto", display: "flex", justifyContent: "center", flexWrap: "wrap" }}>
           {[
             { to: 1000, fmt: (v: number) => `${v.toLocaleString('ru-RU')}+`, label: "учителей" },
@@ -389,7 +425,7 @@ export default function LandingPage({ autoOpenAuth = false }: { autoOpenAuth?: b
       </section>
 
       {/* ── ПРОГРЕСС УЧИТЕЛЕЙ (id=about) ── */}
-      <section id="about" style={{ background: "white", padding: "80px 32px", position: "relative" }}>
+      <section id="about" className="lp-section" style={{ background: "white", padding: "80px 32px", position: "relative" }}>
         <div style={{ maxWidth: 1100, margin: "0 auto" }}>
           <Reveal style={{ textAlign: "center", marginBottom: 56 }}>
             <p style={{ fontSize: 12, fontWeight: 700, color: "#f97316", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 12 }}>Результаты учителей</p>
@@ -401,7 +437,7 @@ export default function LandingPage({ autoOpenAuth = false }: { autoOpenAuth?: b
             </p>
           </Reveal>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 32, marginBottom: 32 }}>
+          <div className="lp-grid-2-1" style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 32, marginBottom: 32 }}>
             <Reveal>
               <div style={{ background: "#fafaf6", borderRadius: 24, padding: "32px 32px 28px", border: "1px solid #ebebeb", height: "100%", boxSizing: "border-box" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 28 }}>
@@ -465,7 +501,7 @@ export default function LandingPage({ autoOpenAuth = false }: { autoOpenAuth?: b
 
           <Reveal style={{ marginBottom: 28 }}>
             <h3 style={{ fontSize: 18, fontWeight: 800, color: "#1a120c", marginBottom: 18, letterSpacing: "-0.02em" }}>Реальные истории учителей</h3>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>
+            <div className="lp-stats-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>
               {[
                 { name: "Марина С.", role: "Учитель биологии", before: "4 часа на пробный урок", after: "30 минут", delta: "8× быстрее", color: "#f97316" },
                 { name: "Игорь П.", role: "Репетитор по математике", before: "10 учеников максимум", after: "27 учеников", delta: "Доход × 2,5", color: "#0891b2" },
@@ -533,7 +569,7 @@ export default function LandingPage({ autoOpenAuth = false }: { autoOpenAuth?: b
       </section>
 
       {/* ── PRODUCT PREVIEW ── */}
-      <section style={{ padding: "72px 32px", background: "#f8f8f6" }}>
+      <section className="lp-section" style={{ padding: "72px 32px", background: "#f8f8f6" }}>
         <Reveal style={{ maxWidth: 1040, margin: "0 auto" }}>
           <div className="preview-shell" style={{ borderRadius: 22, overflow: "hidden", boxShadow: "0 24px 64px rgba(0,0,0,0.10), 0 2px 8px rgba(0,0,0,0.06)", border: "1px solid #e8e8e8" }}>
             <div style={{ background: "#f0f0ee", padding: "10px 16px", display: "flex", alignItems: "center", gap: 8, borderBottom: "1px solid #e4e4e4" }}>
@@ -589,7 +625,7 @@ export default function LandingPage({ autoOpenAuth = false }: { autoOpenAuth?: b
       </section>
 
       {/* ── КАК ЭТО РАБОТАЕТ ── */}
-      <section style={{ background: "white", padding: "72px 32px" }}>
+      <section className="lp-section" style={{ background: "white", padding: "72px 32px" }}>
         <div style={{ maxWidth: 960, margin: "0 auto" }}>
           <Reveal style={{ textAlign: "center", marginBottom: 52 }}>
             <p style={{ fontSize: 12, fontWeight: 700, color: "#f97316", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 12 }}>Как это работает</p>
@@ -597,7 +633,7 @@ export default function LandingPage({ autoOpenAuth = false }: { autoOpenAuth?: b
               Три шага до готового материала
             </h2>
           </Reveal>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 4, position: "relative" }}>
+          <div className="lp-grid-3" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 4, position: "relative" }}>
             <div style={{ position: "absolute", top: 28, left: "18%", right: "18%", height: 1, background: "linear-gradient(90deg, #f97316, #f59e0b)", opacity: 0.3, zIndex: 0 }} />
             {steps.map((s, i) => (
               <Reveal key={i} delay={i * 150} style={{ position: "relative", zIndex: 1 }}>
@@ -615,7 +651,7 @@ export default function LandingPage({ autoOpenAuth = false }: { autoOpenAuth?: b
       </section>
 
       {/* ── МАСТЕРСКАЯ УЧИТЕЛЯ — bento с workflow репетитора ── */}
-      <section style={{ background: "#f8f8f6", padding: "80px 32px" }}>
+      <section className="lp-section" style={{ background: "#f8f8f6", padding: "80px 32px" }}>
         <div style={{ maxWidth: 1180, margin: "0 auto" }}>
           <Reveal style={{ textAlign: "center", marginBottom: 56 }}>
             <p style={{ fontSize: 12, fontWeight: 700, color: "#f97316", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 12 }}>Мастерская</p>
@@ -627,7 +663,7 @@ export default function LandingPage({ autoOpenAuth = false }: { autoOpenAuth?: b
             </p>
           </Reveal>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gridAutoRows: "180px", gap: 14 }}>
+          <div className="lp-grid-4" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gridAutoRows: "180px", gap: 14 }}>
             <Reveal style={{ gridColumn: "span 2", gridRow: "span 2" }}>
               <div className="bento-cell" style={{ height: "100%", borderRadius: 24, background: "linear-gradient(160deg, #1a120c 0%, #2d1f15 100%)", padding: "32px 32px 24px", color: "white", display: "flex", flexDirection: "column", position: "relative", overflow: "hidden", boxShadow: "0 12px 40px rgba(26,20,12,.25)" }}>
                 <div style={{ position: "absolute", top: -100, right: -80, width: 320, height: 320, background: "radial-gradient(circle, rgba(249,115,22,.25), transparent 65%)", pointerEvents: "none" }} />
@@ -769,7 +805,7 @@ export default function LandingPage({ autoOpenAuth = false }: { autoOpenAuth?: b
       </section>
 
       {/* ── КАРУСЕЛЬ: ЧТО СОЗДАЛИ ── */}
-      <section style={{ background: "#3d2f24", padding: "72px 0" }}>
+      <section className="lp-cta-dark" style={{ background: "#3d2f24", padding: "72px 0" }}>
         <Reveal style={{ textAlign: "center", marginBottom: 40, padding: "0 32px" }}>
           <h2 style={{ color: "white", fontSize: "clamp(24px, 3.5vw, 40px)", fontWeight: 900, letterSpacing: "-0.03em", marginBottom: 10 }}>
             Что уже создали учителя
@@ -798,8 +834,8 @@ export default function LandingPage({ autoOpenAuth = false }: { autoOpenAuth?: b
       </section>
 
       {/* ── ОТЗЫВЫ — двухколоночная вертикальная карусель (id=reviews) ── */}
-      <section id="reviews" style={{ background: "#f8f8f6", padding: "80px 32px", position: "relative" }}>
-        <div style={{ maxWidth: 1180, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 1.3fr", gap: 56, alignItems: "center" }}>
+      <section id="reviews" className="lp-section" style={{ background: "#f8f8f6", padding: "80px 32px", position: "relative" }}>
+        <div className="lp-reviews-grid" style={{ maxWidth: 1180, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 1.3fr", gap: 56, alignItems: "center" }}>
           <Reveal style={{ position: "sticky", top: 100 }}>
             <p style={{ fontSize: 12, fontWeight: 700, color: "#f97316", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 12 }}>Отзывы</p>
             <h2 style={{ fontSize: "clamp(28px, 4.5vw, 48px)", fontWeight: 900, letterSpacing: "-0.03em", lineHeight: 1.05, marginBottom: 18, color: "#1a120c" }}>
@@ -830,7 +866,7 @@ export default function LandingPage({ autoOpenAuth = false }: { autoOpenAuth?: b
             </a>
           </Reveal>
 
-          <div style={{ position: "relative", height: 560, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, overflow: "hidden" }} className="vmarquee-mask">
+          <div style={{ position: "relative", height: 560, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, overflow: "hidden" }} className="vmarquee-mask lp-reviews-cols">
             <div style={{ position: "relative", overflow: "hidden" }}>
               <div className="vmarquee-col" style={{ animationName: "vmarquee-up", display: "flex", flexDirection: "column", gap: 14 }}>
                 {[...testimonials.slice(0, 4), ...testimonials.slice(0, 4)].map((t, i) => (
@@ -875,7 +911,7 @@ export default function LandingPage({ autoOpenAuth = false }: { autoOpenAuth?: b
       </section>
 
       {/* ── CTA ── */}
-      <section style={{ background: DARK, padding: "80px 32px" }}>
+      <section className="lp-cta-dark" style={{ background: DARK, padding: "80px 32px" }}>
         <Reveal style={{ maxWidth: 720, margin: "0 auto", textAlign: "center" }}>
           <h2 style={{ color: "white", fontSize: "clamp(28px, 4vw, 50px)", fontWeight: 900, letterSpacing: "-0.04em", lineHeight: 1.05, marginBottom: 16 }}>
             Начните готовить уроки
@@ -892,9 +928,9 @@ export default function LandingPage({ autoOpenAuth = false }: { autoOpenAuth?: b
       </section>
 
       {/* ── FOOTER (id=contacts) ── */}
-      <footer id="contacts" style={{ background: DARK_DEEP, padding: "64px 32px 32px", color: "rgba(255,255,255,.7)" }}>
+      <footer id="contacts" className="lp-footer" style={{ background: DARK_DEEP, padding: "64px 32px 32px", color: "rgba(255,255,255,.7)" }}>
         <div style={{ maxWidth: 1200, margin: "0 auto" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1.6fr 1fr 1fr 1fr", gap: 40, paddingBottom: 40, borderBottom: "1px solid rgba(255,255,255,.07)" }}>
+          <div className="lp-footer-grid" style={{ display: "grid", gridTemplateColumns: "1.6fr 1fr 1fr 1fr", gap: 40, paddingBottom: 40, borderBottom: "1px solid rgba(255,255,255,.07)" }}>
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
                 <div style={{ width: 32, height: 32, borderRadius: 8, overflow: "hidden" }}>
