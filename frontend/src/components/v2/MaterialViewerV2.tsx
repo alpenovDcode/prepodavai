@@ -462,7 +462,23 @@ export default function MaterialViewerV2({ lessonId, generationId, isEditable = 
         if (typeof od === 'string') return od.startsWith('http') || od.startsWith('data:') ? od : null
         return od.imageUrl || od.imageUrls?.[0] || od.url || od.image || null
     }, [generation?.outputData, isImageType])
-    const showAsLegacy = !!generation && !isHtmlType && !(isImageType && imageUrl)
+
+    // ── Маршрутизация на новый JSON-формат blocks-v1 ──
+    // Если outputData содержит { format: 'json-blocks-v1', outputDoc: <doc> },
+    // мы рендерим через DocumentRenderer вместо iframe со старым HTML.
+    // Старая ветка остаётся для legacy-генераций.
+    const v2Doc: GenerationDocumentT | null = useMemo(() => {
+        const od = generation?.outputData
+        if (!isJsonBlocksFormat(od)) return null
+        const parsed = GenerationDocumentSchema.safeParse(od.outputDoc)
+        return parsed.success ? parsed.data : null
+    }, [generation?.outputData])
+    const isV2 = !!v2Doc
+
+    // V2 JSON-blocks НЕ показываем через legacy — у них свой Renderer/Editor.
+    // Иначе у JSON-генераций (новый формат) исчезает табs row и кнопка
+    // редактирования — учитель видит только PDF + «Выдать задание».
+    const showAsLegacy = !!generation && !isHtmlType && !(isImageType && imageUrl) && !isV2
     const displayTitle = (generation?.title?.trim() || lesson?.title || 'Материал').trim()
 
     const srcDoc = useMemo(() => {
@@ -472,19 +488,6 @@ export default function MaterialViewerV2({ lessonId, generationId, isEditable = 
             editing: tab === 'edit',
         })
     }, [html, tab])
-
-    // ── Маршрутизация на новый JSON-формат blocks-v1 ──
-    // Если outputData содержит { format: 'json-blocks-v1', outputDoc: <doc> },
-    // мы рендерим через DocumentRenderer вместо iframe со старым HTML.
-    // Старая ветка остаётся для legacy-генераций.
-    const v2Doc: GenerationDocumentT | null = useMemo(() => {
-        const od = generation?.outputData
-        if (!isJsonBlocksFormat(od)) return null
-        // Используем safeParse чтобы не уронить страницу если данные старые / битые.
-        const parsed = GenerationDocumentSchema.safeParse(od.outputDoc)
-        return parsed.success ? parsed.data : null
-    }, [generation?.outputData])
-    const isV2 = !!v2Doc
 
     useEffect(() => {
         setIframeLoading(true)
