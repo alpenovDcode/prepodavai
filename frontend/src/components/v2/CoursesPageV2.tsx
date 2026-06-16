@@ -289,7 +289,6 @@ function CardMenu({
             {open && (
                 <div className="absolute top-full right-0 mt-1 bg-surface border border-ink-200 rounded-lg shadow-[0_12px_32px_rgba(15,23,42,0.12)] py-1.5 min-w-[200px] z-[100]">
                     <MenuItem icon={<Eye />} onClick={action(() => router.push(`/dashboard/courses/${genId}/materials/${genId}`))}>Открыть</MenuItem>
-                    <MenuItem icon={<Edit3 />} onClick={action(() => router.push(`/dashboard/courses/${genId}/materials/${genId}`))}>Редактировать</MenuItem>
                     <MenuItem icon={<PenLine />} onClick={action(() => onRename())}>Переименовать</MenuItem>
                     <MenuItem icon={<Copy />} onClick={action(handleDuplicate)}>Дублировать</MenuItem>
                     {type === 'presentation' ? (
