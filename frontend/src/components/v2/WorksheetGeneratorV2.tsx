@@ -316,7 +316,7 @@ export default function WorksheetGeneratorV2(): React.ReactElement {
                                 <span className="text-[12px] leading-snug text-ink-700">
                                     <span className="font-semibold">Новый формат (бета)</span>
                                     <br />
-                                    <span className="text-ink-500">JSON-блоки вместо HTML. Чистый рендер, без редактирования (пока).</span>
+                                    <span className="text-ink-500">JSON-блоки вместо HTML. Чистый рендер + визуальный редактор по блокам.</span>
                                 </span>
                             </label>
                         </div>
