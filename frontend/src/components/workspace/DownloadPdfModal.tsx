@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from 'react'
 import { CheckCircle2, Download, FileText, Loader2, Users, X } from 'lucide-react'
-import { downloadPdfById, downloadDocxById } from '@/lib/utils/downloadPdf'
+import { downloadPdfById } from '@/lib/utils/downloadPdf'
 
-type ExportFormat = 'pdf' | 'docx'
+// DOCX-экспорт временно отключён (дублирование контента), оставляем только PDF.
 
 type DownloadState = 'idle' | 'loading' | 'success' | 'error'
 
@@ -35,13 +35,11 @@ export default function DownloadPdfModal({
 }: DownloadPdfModalProps) {
     const [state, setState] = useState<DownloadState>('idle')
     const [error, setError] = useState<string>('')
-    const [format, setFormat] = useState<ExportFormat>('pdf')
 
     useEffect(() => {
         if (isOpen) {
             setState('idle')
             setError('')
-            setFormat('pdf')
         }
     }, [isOpen])
 
@@ -54,21 +52,14 @@ export default function DownloadPdfModal({
         setState('loading')
         setError('')
         try {
-            // Базовое имя без расширения, добавим в зависимости от формата
             const baseName = filename.replace(/\.(pdf|docx)$/i, '')
-            const ext = format
             const suffix = hasAnswers && !withAnswers ? '-student' : ''
-            const finalName = `${baseName}${suffix}.${ext}`
-            if (format === 'docx') {
-                await downloadDocxById(generationId, finalName, { withAnswers, sectionIndex })
-            } else {
-                await downloadPdfById(generationId, finalName, { withAnswers, sectionIndex })
-            }
+            const finalName = `${baseName}${suffix}.pdf`
+            await downloadPdfById(generationId, finalName, { withAnswers, sectionIndex })
             setState('success')
-            // Закроемся через секунду, чтобы пользователь увидел «Готово».
             setTimeout(() => onClose(), 900)
         } catch (e: any) {
-            setError(e?.message || `Не удалось сформировать ${format.toUpperCase()}`)
+            setError(e?.message || 'Не удалось сформировать PDF')
             setState('error')
         }
     }
@@ -112,7 +103,7 @@ export default function DownloadPdfModal({
                     {state === 'loading' && (
                         <div className="flex flex-col items-center py-6 text-center">
                             <Loader2 className="w-10 h-10 text-yellow-600 animate-spin mb-3" />
-                            <p className="text-sm font-semibold text-gray-900">Формируем {format.toUpperCase()}…</p>
+                            <p className="text-sm font-semibold text-gray-900">Формируем PDF…</p>
                             <p className="text-[12px] text-gray-500 mt-1">Это займёт несколько секунд</p>
                         </div>
                     )}
@@ -121,7 +112,7 @@ export default function DownloadPdfModal({
                         <div className="flex flex-col items-center py-6 text-center">
                             <CheckCircle2 className="w-10 h-10 text-green-600 mb-3" />
                             <p className="text-sm font-semibold text-gray-900">Готово!</p>
-                            <p className="text-[12px] text-gray-500 mt-1">{format.toUpperCase()} скачивается</p>
+                            <p className="text-[12px] text-gray-500 mt-1">PDF скачивается</p>
                         </div>
                     )}
 
@@ -141,24 +132,8 @@ export default function DownloadPdfModal({
                         </div>
                     )}
 
-                    {state === 'idle' && (
-                        <div className="mb-4 flex gap-1.5 p-1 rounded-lg bg-gray-100">
-                            {(['pdf', 'docx'] as const).map((f) => (
-                                <button
-                                    key={f}
-                                    type="button"
-                                    onClick={() => setFormat(f)}
-                                    className={`flex-1 h-9 rounded-md text-[12.5px] font-semibold transition-colors ${
-                                        format === f
-                                            ? 'bg-white text-gray-900 shadow-sm'
-                                            : 'text-gray-600 hover:text-gray-900'
-                                    }`}
-                                >
-                                    {f.toUpperCase()}
-                                </button>
-                            ))}
-                        </div>
-                    )}
+                    {/* Формат-селектор PDF/DOCX временно скрыт — DOCX-экспорт
+                        отключён до фикса дублирования контента. */}
 
                     {state === 'idle' && (
                         hasAnswers ? (
@@ -194,7 +169,7 @@ export default function DownloadPdfModal({
                                 className="w-full flex items-center justify-center gap-2 p-3 rounded-xl bg-yellow-500 hover:bg-yellow-600 text-white font-semibold transition-colors"
                             >
                                 <Download className="w-4 h-4" />
-                                Скачать {format.toUpperCase()}
+                                Скачать PDF
                             </button>
                         )
                     )}

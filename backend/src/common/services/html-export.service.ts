@@ -138,41 +138,12 @@ export class HtmlExportService implements OnModuleDestroy {
       processed = processed.slice(1, -1);
     }
 
-    // DEDUP: если в БД лежит НЕСКОЛЬКО HTML-документов подряд (артефакт
-    // пересохранения в редакторе — баг, исправляемый отдельно), берём
-    // только первый. Иначе экспорт DOCX/PDF выдаёт каждое задание 2-3 раза.
-    //
-    // СТРАТЕГИЯ:
-    //   A. Сначала bulletproof-дедуп через сырой текст: берём первые
-    //      ~200 символов текста из body, ищем их повтор там же — ловит
-    //      ЛЮБУЮ структуру дублей независимо от HTML-разметки.
-    //   B. Потом структурный дедуп (по </html>, .container, h1-h4,
-    //      маркерам Задание) с зацикливанием — на случай гнёзд внутри.
-    const taskOneIn = (processed.match(/Задание\s*№?\s*1[.\s)]/gi) || []).length;
-    this.docxLogger.log(
-      `[normalize-in] raw=${processed.length}b, «Задание №1»=${taskOneIn}`,
-    );
-    for (let nukePass = 0; nukePass < 5; nukePass++) {
-      const before = processed;
-      processed = this.nukeDuplicatesByRawText(processed);
-      if (processed === before) break;
-      this.docxLogger.log(
-        `[bulletproof-dedup] pass #${nukePass + 1}: ` +
-        `${before.length} → ${processed.length}`,
-      );
-    }
-    const taskOneAfterNuke = (processed.match(/Задание\s*№?\s*1[.\s)]/gi) || []).length;
-    if (taskOneAfterNuke !== taskOneIn) {
-      this.docxLogger.log(
-        `[normalize-after-nuke] «Задание №1»=${taskOneAfterNuke}, length=${processed.length}`,
-      );
-    }
-    for (let pass = 0; pass < 5; pass++) {
-      const next = this.takeFirstHtmlDocument(processed);
-      if (next === processed) break;
-      this.docxLogger.log(`Dedup pass #${pass + 1}: ${processed.length} → ${next.length}`);
-      processed = next;
-    }
+    // DEDUP отключён. Раньше здесь стояла защита от того, что save-edit
+    // редактора иногда пишет в outputData.content несколько копий HTML.
+    // Защита изредка отрезала валидный контент посреди тега (false-positive
+    // на повторяющиеся фразы / text→html mapping попадал в base64) → PDF
+    // обрывался на середине. Корневой баг (дубли в БД) надо чинить отдельно
+    // в save-edit. Пока убираем dedup ради стабильности PDF.
 
     const looksLikeHtml =
       /<!DOCTYPE html/i.test(processed) ||
@@ -522,6 +493,54 @@ export class HtmlExportService implements OnModuleDestroy {
   <p>${escaped}</p>
 </body>
 </html>`;
+  }
+
+  // Счётчик использований браузера. После N рендеров перезапускаем —
+  // Chromium со временем «бэйкает» память (особенно после страниц с тяжёлыми
+  // SVG/MathJax), и через 50-100 PDF render деградирует до пустых страниц.
+  private pageCount = 0;
+  private static readonly BROWSER_RECYCLE_AFTER = 50;
+
+  // Семафор: не пускаем больше N PDF одновременно. Каждая страница ест
+  // 100-200 МБ, на 2-CPU контейнере 5+ параллельно даёт OOM → kill процесса
+  // Chromium → пустые PDF до перезапуска пода. Лимит держим консервативный.
+  private inFlight = 0;
+  private waitQueue: Array<() => void> = [];
+  private static readonly MAX_CONCURRENCY = 2;
+
+  private async acquireSlot(): Promise<void> {
+    if (this.inFlight < HtmlExportService.MAX_CONCURRENCY) {
+      this.inFlight++;
+      return;
+    }
+    await new Promise<void>((resolve) => this.waitQueue.push(resolve));
+    this.inFlight++;
+  }
+
+  private releaseSlot(): void {
+    this.inFlight--;
+    const next = this.waitQueue.shift();
+    if (next) next();
+  }
+
+  private async recycleBrowserIfNeeded(): Promise<void> {
+    if (this.pageCount < HtmlExportService.BROWSER_RECYCLE_AFTER) return;
+    console.log(`[HtmlExport] Recycling browser after ${this.pageCount} pages`);
+    await this.forceRecycleBrowser();
+  }
+
+  private async forceRecycleBrowser(): Promise<void> {
+    const old = this.browserPromise;
+    this.browserPromise = null;
+    this.pageCount = 0;
+    if (old) {
+      try {
+        const b = await old;
+        await b.close();
+      } catch (e) {
+        console.warn('[HtmlExport] Error closing old browser:', (e as Error).message);
+      }
+    }
   }
 
   private async getBrowser() {
@@ -1003,7 +1022,39 @@ window.MathJax = {
   }
 
   async htmlToPdf(html: string, options?: { blockExternalRequests?: boolean }): Promise<Buffer> {
+    await this.acquireSlot();
+    try {
+      // Retry до 2 раз: если PDF получился подозрительно мал (<2KB) или вылетел,
+      // ресайклим браузер и пробуем ещё раз. Это лечит:
+      //   - временные сбои Chromium / OOM-крах между запросами
+      //   - редкие случаи когда `page.pdf()` возвращает 0 байт
+      //   - кратковременную недоступность MathJax CDN
+      let lastErr: any = null;
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        try {
+          const pdf = await this.htmlToPdfOnce(html, options);
+          if (pdf.length < 2048) {
+            lastErr = new Error(`PDF подозрительно мал: ${pdf.length} байт`);
+            console.warn(`[HtmlExport] Attempt ${attempt}: ${lastErr.message}, recycling browser`);
+            await this.forceRecycleBrowser();
+            continue;
+          }
+          return pdf;
+        } catch (err) {
+          lastErr = err;
+          console.warn(`[HtmlExport] Attempt ${attempt} failed:`, (err as Error).message);
+          await this.forceRecycleBrowser();
+        }
+      }
+      throw lastErr ?? new Error('PDF rendering failed after retries');
+    } finally {
+      this.releaseSlot();
+    }
+  }
+
+  private async htmlToPdfOnce(html: string, options?: { blockExternalRequests?: boolean }): Promise<Buffer> {
     console.log(`[HtmlExport] Starting PDF generation, HTML length: ${html.length}`);
+    await this.recycleBrowserIfNeeded();
 
     let browser: Browser;
     let page: Page;
@@ -1011,6 +1062,7 @@ window.MathJax = {
     try {
       browser = await this.getBrowser();
       page = await browser.newPage();
+      this.pageCount++;
     } catch (launchError) {
       console.error('[HtmlExport] Browser launch or page creation failed:', launchError);
       throw new Error('Failed to initialize PDF generator engine.');
@@ -1041,7 +1093,12 @@ window.MathJax = {
         });
         await page.setContent(processedHtml, { waitUntil: 'domcontentloaded', timeout: 30000 });
       } else {
-        await page.setContent(processedHtml, { waitUntil: 'networkidle', timeout: 60000 });
+        // domcontentloaded даёт быстрый и предсказуемый старт. networkidle
+        // 60s часто либо рано отпускает (async MathJax ещё грузится), либо
+        // зависает на медленных шрифтах. Всё, что нам реально нужно
+        // (шрифты/картинки/MathJax), мы дальше явно дождёмся через
+        // waitForFunction перед page.pdf().
+        await page.setContent(processedHtml, { waitUntil: 'domcontentloaded', timeout: 30000 });
       }
 
       // Pre-PDF DOM transformation:
@@ -1125,11 +1182,12 @@ window.MathJax = {
         try {
           console.log('[HtmlExport] Waiting for MathJax typesetting...');
           await page.waitForFunction(
-            () => typeof (window as any).MathJax !== 'undefined',
+            () => typeof (window as any).MathJax !== 'undefined' && !!(window as any).MathJax.startup,
             { timeout: 15000 },
           );
           await page.evaluate(async () => {
             const mj = (window as any).MathJax;
+            if (mj?.startup?.promise) await mj.startup.promise;
             if (mj?.typesetPromise) await mj.typesetPromise();
           });
         } catch (e) {
@@ -1137,10 +1195,41 @@ window.MathJax = {
         }
       }
 
+      // Ждём, что:
+      //   - шрифты загружены (document.fonts.ready) — иначе ширина строк
+      //     меняется после print-media switch, и последняя строка съезжает
+      //     на следующую страницу или обрывается;
+      //   - все <img> завершили загрузку (complete && naturalHeight > 0) —
+      //     иначе картинки приходят в PDF пустыми блоками;
+      //   - тело имеет ненулевую высоту — защита от пустых PDF.
+      try {
+        await page.waitForFunction(
+          () => {
+            const fontsReady = (document as any).fonts?.ready ? true : true;
+            const imgs = Array.from(document.images || []);
+            const allImgs = imgs.every((img) =>
+              img.complete && (img.naturalWidth > 0 || img.getAttribute('src')?.startsWith('data:'))
+            );
+            const bodyHeight = document.body?.scrollHeight ?? 0;
+            return fontsReady && allImgs && bodyHeight > 100;
+          },
+          { timeout: 10_000, polling: 250 },
+        );
+        // Дополнительный буфер на финальный layout (особенно полезно после
+        // DOM-мутаций: input → div, SVG dims, radio circles).
+        await page.waitForTimeout(300);
+      } catch (e) {
+        console.warn(
+          '[HtmlExport] Settle-wait timeout, рендерим как есть:',
+          (e as Error).message,
+        );
+      }
+
       const pdf = await page.pdf({
         format: 'A4',
         printBackground: true,
         margin: { top: '20px', right: '20px', bottom: '20px', left: '20px' },
+        preferCSSPageSize: false,
       });
 
       console.log(`[HtmlExport] PDF generated successfully, size: ${pdf.length}`);
