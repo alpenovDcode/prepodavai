@@ -23,7 +23,7 @@ import { DocumentEditor } from '@/components/blocks/editor/DocumentEditor'
 import { useV2Toggle } from '@/components/blocks/useV2Toggle'
 import PdfDownloadButton from '@/components/workspace/PdfDownloadButton'
 import { JSON_BLOCKS_FORMAT } from '@/lib/blocks/schema'
-import type { GenerationDocument as GenerationDocumentT } from '@/lib/blocks/schema'
+import type { GenerationDocument as GenerationDocumentT, Block as BlockT } from '@/lib/blocks/schema'
 
 const SECTIONS_WITH_ANSWERS = new Set(['Рабочий лист', 'Тест'])
 
@@ -57,22 +57,17 @@ export default function LessonPrepV2() {
     const { generateAndWait, isGenerating, activeGenerationId } = useGenerations()
     const v2 = useV2Toggle('lesson_prep_use_v2_format')
 
-    // ── Мульти-документная v2 для Вау-урока ──
+    // ── Объединённая v2 для Вау-урока ──
     // Учитель выбирает 1–4 типа («План», «Рабочий лист», «Учебный материал», «Тест»).
-    // В v2 каждый тип = отдельный JSON-документ через свой эндпоинт.
-    // Результаты складываются в v2Results и показываются табами вверху превью.
-    interface V2Result {
-        genType: string          // 'lesson-plan' / 'worksheet' / 'content-adaptation' / 'quiz'
-        label: string            // 'План урока' / 'Рабочий лист' / ...
-        doc: GenerationDocumentT
-        generationId: string
-    }
-    const [v2Results, setV2Results] = useState<V2Result[]>([])
-    const [v2ActiveIdx, setV2ActiveIdx] = useState(0)
+    // Параллельно генерим все выбранные через свои v2-эндпоинты, ЗАТЕМ
+    // объединяем в ОДИН документ (секции-разделители + блоки каждого типа),
+    // PATCH'им первый generationId, удаляем остальные. Учитель видит один
+    // документ, один PDF, одну выдачу классу.
+    const [v2Doc, setV2Doc] = useState<GenerationDocumentT | null>(null)
+    const [v2GenerationId, setV2GenerationId] = useState<string | null>(null)
     const [v2Mode, setV2Mode] = useState<'preview' | 'answers' | 'edit'>('preview')
     const [v2BatchGenerating, setV2BatchGenerating] = useState(false)
     const [v2BatchSaving, setV2BatchSaving] = useState(false)
-    const v2Active = v2Results[v2ActiveIdx]
 
     const [subject, setSubject] = useState('')
     const [topic, setTopic] = useState('')
@@ -171,8 +166,8 @@ export default function LessonPrepV2() {
                 },
             }
             setV2BatchGenerating(true)
-            setV2Results([])
-            setV2ActiveIdx(0)
+            setV2Doc(null)
+            setV2GenerationId(null)
             setV2Mode('preview')
             try {
                 const calls = genTypes
@@ -189,24 +184,46 @@ export default function LessonPrepV2() {
                             .catch((err) => ({ ok: false as const, c, err }))
                     ),
                 )
-                const ok: V2Result[] = []
+                interface OkPart { label: string; doc: GenerationDocumentT; generationId: string }
+                const ok: OkPart[] = []
                 const errs: string[] = []
                 for (const r of responses) {
                     if (r.ok && r.data?.outputDoc) {
-                        ok.push({
-                            genType: r.c.genType,
-                            label: r.c.label,
-                            doc: r.data.outputDoc,
-                            generationId: r.data.generationId,
-                        })
+                        ok.push({ label: r.c.label, doc: r.data.outputDoc, generationId: r.data.generationId })
                     } else {
                         const msg = r.ok ? 'нет outputDoc' : (r.err?.response?.data?.message || r.err?.message || 'unknown')
                         errs.push(`${r.c.label}: ${Array.isArray(msg) ? msg.join('; ') : msg}`)
                     }
                 }
-                setV2Results(ok)
-                if (ok.length > 0) toast.success(`Сгенерировано: ${ok.map((r) => r.label).join(', ')}`)
                 if (errs.length > 0) toast.error(`Ошибки: ${errs.join(' · ')}`)
+                if (ok.length === 0) return
+
+                // Объединяем все доки в ОДИН с разделами-«Блок: Название» между ними.
+                // ID блоков префиксируем индексом части — иначе h-1/p-1 столкнутся.
+                const merged = mergeDocsIntoOne(ok, topic)
+                // Первый успешный generationId становится «носителем» объединённого
+                // дока: PATCH outputData → DocumentRenderer/PDF/AssignTask работают
+                // с одной генерацией. Остальные удаляем (они лишние).
+                const carrierId = ok[0].generationId
+                try {
+                    await apiClient.patch(`/generate/${carrierId}`, {
+                        outputData: { format: JSON_BLOCKS_FORMAT, outputDoc: merged },
+                    })
+                } catch (e: any) {
+                    const msg = e?.response?.data?.message || e?.message || 'Не удалось объединить'
+                    toast.error(Array.isArray(msg) ? msg.join('; ') : msg)
+                    return
+                }
+                // Cleanup: удаляем «второстепенные» generationId. Ошибки игнорируем —
+                // на UX не влияют, в худшем случае останется лишний черновик.
+                await Promise.all(
+                    ok.slice(1).map((p) => apiClient.delete(`/generate/${p.generationId}`).catch(() => undefined)),
+                )
+                setV2Doc(merged)
+                setV2GenerationId(carrierId)
+                toast.success(ok.length === 1
+                    ? 'Сгенерировано'
+                    : `Сгенерирован комплект (${ok.length}): ${ok.map((r) => r.label).join(', ')}`)
             } finally {
                 setV2BatchGenerating(false)
             }
@@ -570,24 +587,10 @@ export default function LessonPrepV2() {
                         </div>
                     )}
 
-                    {/* v2 toolbar — табы документов + действия (только когда есть результаты) */}
-                    {v2.useV2 && v2Results.length > 0 && !v2BatchGenerating && (
+                    {/* v2 toolbar: один комбинированный документ, режим + PDF + выдача */}
+                    {v2.useV2 && v2Doc && v2GenerationId && !v2BatchGenerating && (
                         <div className="flex items-center gap-2 px-4 py-2.5 border-b border-ink-100 flex-wrap bg-white">
-                            <div className="flex items-center gap-1 flex-wrap">
-                                {v2Results.map((r, i) => (
-                                    <button
-                                        key={r.genType}
-                                        type="button"
-                                        onClick={() => { setV2ActiveIdx(i); setV2Mode('preview') }}
-                                        className={[
-                                            'px-3 py-1.5 rounded-md text-[12px] font-semibold transition-colors',
-                                            i === v2ActiveIdx ? 'bg-brand-500 text-white' : 'bg-ink-100 text-ink-700 hover:bg-ink-200',
-                                        ].join(' ')}
-                                    >
-                                        {r.label}
-                                    </button>
-                                ))}
-                            </div>
+                            <div className="text-[12px] font-semibold text-ink-600 mr-2">Комплект материалов</div>
                             <div className="ml-auto flex items-center gap-1.5">
                                 <button
                                     type="button"
@@ -604,22 +607,18 @@ export default function LessonPrepV2() {
                                     onClick={() => setV2Mode('edit')}
                                     className={`px-2.5 py-1 rounded-md text-[12px] font-semibold ${v2Mode === 'edit' ? 'bg-brand-500 text-white' : 'bg-ink-100 text-ink-700'}`}
                                 >Редактировать</button>
-                                {v2Active && (
-                                    <>
-                                        <PdfDownloadButton
-                                            generationId={v2Active.generationId}
-                                            filename={`${topic || v2Active.label}.pdf`}
-                                            hasAnswers
-                                            className="inline-flex items-center gap-1.5 h-8 px-3 text-[12px] font-semibold bg-ink-100 hover:bg-ink-200 text-ink-700 rounded-md transition-colors"
-                                        />
-                                        <AssignTaskButton
-                                            generationId={v2Active.generationId}
-                                            topic={`${topic} — ${v2Active.label}`}
-                                            label="Выдать классу"
-                                            className="inline-flex items-center gap-1.5 h-8 px-3 text-[12px] font-semibold bg-brand-500 hover:bg-brand-600 text-white rounded-md transition-colors"
-                                        />
-                                    </>
-                                )}
+                                <PdfDownloadButton
+                                    generationId={v2GenerationId}
+                                    filename={`${topic || 'vau-urok'}.pdf`}
+                                    hasAnswers
+                                    className="inline-flex items-center gap-1.5 h-8 px-3 text-[12px] font-semibold bg-ink-100 hover:bg-ink-200 text-ink-700 rounded-md transition-colors"
+                                />
+                                <AssignTaskButton
+                                    generationId={v2GenerationId}
+                                    topic={topic}
+                                    label="Выдать классу"
+                                    className="inline-flex items-center gap-1.5 h-8 px-3 text-[12px] font-semibold bg-brand-500 hover:bg-brand-600 text-white rounded-md transition-colors"
+                                />
                             </div>
                         </div>
                     )}
@@ -630,19 +629,19 @@ export default function LessonPrepV2() {
                             <div className="h-full flex items-center justify-center p-8">
                                 <WowProgress />
                             </div>
-                        ) : v2.useV2 && v2Active ? (
+                        ) : v2.useV2 && v2Doc && v2GenerationId ? (
                             v2Mode === 'edit' ? (
                                 <DocumentEditor
-                                    initialDoc={v2Active.doc}
+                                    initialDoc={v2Doc}
                                     saving={v2BatchSaving}
                                     onCancel={() => setV2Mode('preview')}
                                     onSave={async (nextDoc) => {
                                         setV2BatchSaving(true)
                                         try {
-                                            await apiClient.patch(`/generate/${v2Active.generationId}`, {
+                                            await apiClient.patch(`/generate/${v2GenerationId}`, {
                                                 outputData: { format: JSON_BLOCKS_FORMAT, outputDoc: nextDoc },
                                             })
-                                            setV2Results((prev) => prev.map((r, i) => i === v2ActiveIdx ? { ...r, doc: nextDoc } : r))
+                                            setV2Doc(nextDoc)
                                             toast.success('Сохранено')
                                             setV2Mode('preview')
                                         } catch (e: any) {
@@ -654,7 +653,7 @@ export default function LessonPrepV2() {
                                     }}
                                 />
                             ) : (
-                                <DocumentRenderer doc={v2Active.doc} showAnswers={v2Mode === 'answers'} />
+                                <DocumentRenderer doc={v2Doc} showAnswers={v2Mode === 'answers'} />
                             )
                         ) : v2.useV2 ? (
                             <div className="h-full flex items-center justify-center text-ink-500 text-[13px]">Заполните настройки и нажмите «Сгенерировать»</div>
@@ -697,6 +696,52 @@ export default function LessonPrepV2() {
             )}
         </div>
     )
+}
+
+/**
+ * Объединяет несколько JSON-документов в один комбинированный.
+ *
+ * Стратегия:
+ *  • Между частями вставляем heading level 1 «Блок N: <Лейбл>» — это
+ *    автоматически открывает новую секцию в DocumentRenderer (см.
+ *    `isSectionLikeHeading` — level 1 ИЛИ «Блок/Раздел/Часть»).
+ *  • Префиксуем id всех блоков индексом части (`p0-h-1`, `p1-mc-2`) —
+ *    иначе шапочные id (`h-1`, `p-1`) пересекутся и сломают рендер
+ *    групп карточек.
+ *  • meta берём из первого дока (subject/grade — общие для всех),
+ *    duration пересчитываем только если задана у первого.
+ *  • title — общий «Комплект: <тема>» если частей >1, иначе исходный.
+ */
+function mergeDocsIntoOne(
+    parts: Array<{ label: string; doc: GenerationDocumentT }>,
+    topic: string,
+): GenerationDocumentT {
+    if (parts.length === 1) return parts[0].doc
+
+    const blocks: BlockT[] = []
+    parts.forEach((part, idx) => {
+        if (idx > 0) {
+            blocks.push({ type: 'spacer', id: `sep-${idx}`, size: 'lg' })
+        }
+        blocks.push({
+            type: 'heading',
+            id: `part-${idx}`,
+            level: 1,
+            text: `Блок ${idx + 1}: ${part.label}`,
+        })
+        const prefix = `p${idx}-`
+        for (const b of part.doc.blocks) {
+            blocks.push({ ...b, id: `${prefix}${b.id}` } as BlockT)
+        }
+    })
+
+    return {
+        schemaVersion: 1,
+        type: 'lesson_preparation',
+        title: `Комплект материалов: ${topic}`,
+        meta: parts[0].doc.meta || {},
+        blocks,
+    }
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
