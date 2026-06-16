@@ -76,6 +76,11 @@ function splitMath(text: string): Token[] {
                 i = end + 1
                 continue
             }
+            // Незакрытый `$` — это бракованный шаблон от AI (fill-blank с
+            // {{N}} внутри формулы рвёт пару). Чтобы не показывать сырой
+            // LaTeX-код, просто дропаем висячий `$` и продолжаем как текст.
+            i++
+            continue
         }
         buf += text[i]
         i++

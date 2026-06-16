@@ -249,6 +249,14 @@ window.MathJax = {
       return html;
     }
 
+    // Новый JSON-формат blocks-v1 рендерится через KaTeX (синхронно). Если в
+    // HTML уже есть KaTeX script — не инжектим MathJax поверх него: оба
+    // движка одновременно перепишут $…$ → каша в PDF (видели дубли документа).
+    const hasKatexScript = /<script[^>]+src=["'][^"']*katex[^"']*["']/i.test(html);
+    if (hasKatexScript) {
+      return html;
+    }
+
     // Inject MathJax script into <head>
     return this.injectMathJaxScript(html);
   }

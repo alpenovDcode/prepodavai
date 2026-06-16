@@ -17,6 +17,9 @@ import html2canvas from 'html2canvas'
 import { downloadPdfById } from '@/lib/utils/downloadPdf'
 import DownloadPdfModal from './workspace/DownloadPdfModal'
 import { LOGO_BASE64 } from '@/constants/branding'
+import { DocumentRenderer } from '@/components/blocks/DocumentRenderer'
+import { isJsonBlocksFormat, GenerationDocument as GenerationDocumentSchema } from '@/lib/blocks/schema'
+import type { GenerationDocument as GenerationDocumentT } from '@/lib/blocks/schema'
 
 interface MaterialViewerProps {
     lessonId?: string
@@ -431,6 +434,12 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
     const [htmlEditMode, setHtmlEditMode] = useState(false)
     const [isSavingHtml, setIsSavingHtml] = useState(false)
     const [isResetting, setIsResetting] = useState(false)
+    // ── JSON blocks-v1 формат ──
+    // Если outputData содержит { format: 'json-blocks-v1', outputDoc },
+    // рендерим DocumentRenderer (read-only). Старый legacy MaterialViewer
+    // не знает про этот формат и без этого state'а уходил в JSON-stringify
+    // фолбэк → пользователь видел сырой JSON в превью материала.
+    const [v2Doc, setV2Doc] = useState<GenerationDocumentT | null>(null)
     const htmlPreviewRef = useRef<FullHtmlPreviewHandle>(null)
     const downloadMenuRef = useRef<HTMLDivElement>(null)
     const router = useRouter()
@@ -543,6 +552,16 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
                     setError('Материал не найден')
                 } else if (!generation.outputData) {
                     setError('Контент еще не готов или отсутствует')
+                } else if (isJsonBlocksFormat(generation.outputData)) {
+                    // Новый JSON-blocks-v1 формат — рендерим напрямую через
+                    // DocumentRenderer ниже, минуя нормализацию HTML.
+                    setGenerationType(generation.generationType)
+                    const parsed = GenerationDocumentSchema.safeParse(generation.outputData.outputDoc)
+                    if (parsed.success) {
+                        setV2Doc(parsed.data)
+                    } else {
+                        setError('Документ материала повреждён')
+                    }
                 } else {
                     setGenerationType(generation.generationType)
 
@@ -1178,6 +1197,10 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
                             className="object-contain rounded-lg shadow-2xl p-8"
                             unoptimized
                         />
+                    </div>
+                ) : v2Doc ? (
+                    <div className="w-full h-full overflow-auto">
+                        <DocumentRenderer doc={v2Doc} />
                     </div>
                 ) : (
                     <div className="w-full h-full bg-white overflow-auto p-4 md:p-8">
