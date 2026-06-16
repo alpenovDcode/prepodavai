@@ -193,13 +193,41 @@ export class HtmlExportService implements OnModuleDestroy {
     }
 
     // 3. Fallback: повторяющиеся одинаковые <h1>
-    const dedupedByH1 = this.dropAfterRepeatedHeading(html);
+    const dedupedByH1 = this.dropAfterRepeatedHeading(html, 'h1');
     if (dedupedByH1 !== html) {
       this.docxLogger.log(
         `Контент содержал повторяющиеся <h1>, обрезаем до второго ` +
         `(было ${html.length}, стало ${dedupedByH1.length})`,
       );
       html = dedupedByH1;
+    }
+
+    // 4. Кейс «дубль ВНУТРИ одного container/тайтла»: контент склеен так,
+    //    что первый h2 (под-заголовок) встречается 2-3 раза. Ловим по
+    //    h2 → h3 → h4 — какой найдём раньше.
+    for (const tag of ['h2', 'h3', 'h4'] as const) {
+      const deduped = this.dropAfterRepeatedHeading(html, tag);
+      if (deduped !== html) {
+        this.docxLogger.log(
+          `Контент содержал повторяющиеся <${tag}>, обрезаем до второго ` +
+          `(было ${html.length}, стало ${deduped.length})`,
+        );
+        html = deduped;
+        break;
+      }
+    }
+
+    // 5. Последний fallback: контент без заголовков совсем, но с
+    //    повторяющимися «Задание №», «Упражнение №», «Вопрос №» и т.п. —
+    //    типичные маркеры worksheet'а. Если первый такой маркер
+    //    встречается 2+ раз, обрезаем до второго.
+    const dedupedByMarker = this.dropAfterRepeatedMarker(html);
+    if (dedupedByMarker !== html) {
+      this.docxLogger.log(
+        `Контент содержал повторяющиеся маркеры заданий, обрезаем ` +
+        `(было ${html.length}, стало ${dedupedByMarker.length})`,
+      );
+      html = dedupedByMarker;
     }
 
     return html;
@@ -241,12 +269,12 @@ export class HtmlExportService implements OnModuleDestroy {
   }
 
   /**
-   * Если в HTML 2+ `<h1>` с одинаковым текстом, обрезаем до второго.
-   * Это последний fallback, когда структура нестандартная (нет .container).
+   * Если в HTML 2+ заголовков указанного тега с одинаковым текстом, обрезаем
+   * до второго. Работает для h1/h2/h3/h4.
    */
-  private dropAfterRepeatedHeading(html: string): string {
+  private dropAfterRepeatedHeading(html: string, tag: 'h1' | 'h2' | 'h3' | 'h4'): string {
     const headings: Array<{ index: number; text: string }> = [];
-    const re = /<h1\b[^>]*>([\s\S]*?)<\/h1\s*>/gi;
+    const re = new RegExp(`<${tag}\\b[^>]*>([\\s\\S]*?)</${tag}\\s*>`, 'gi');
     let m: RegExpExecArray | null;
     while ((m = re.exec(html)) !== null) {
       const text = m[1].replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
@@ -257,11 +285,43 @@ export class HtmlExportService implements OnModuleDestroy {
     const firstText = headings[0].text;
     const secondMatch = headings.slice(1).find((h) => h.text === firstText);
     if (!secondMatch) return html;
-    const tailHasBodyClose = /<\/body\s*>/i.test(html.slice(secondMatch.index));
-    const tailHasHtmlClose = /<\/html\s*>/i.test(html.slice(secondMatch.index));
+    return this.truncateWithClosingTags(html, secondMatch.index);
+  }
+
+  /**
+   * Ловит повторяющиеся «Задание №1», «Упражнение 1», «Вопрос 1», «Task 1»,
+   * «Question 1» — типичные маркеры worksheet/quiz. Берём первое совпадение
+   * с цифрой 1 (или без цифры — первый маркер), и если такой же текст
+   * встречается ещё раз, обрезаем там.
+   */
+  private dropAfterRepeatedMarker(html: string): string {
+    // Текст без тегов — на нём ищем маркеры (но позицию маппим обратно в html).
+    const markerRe = /(?:Задание|Упражнение|Вопрос|Задача|Task|Exercise|Question)\s*(?:№|#|N|No\.?)?\s*1[.\s)]/gi;
+    const matches: number[] = [];
+    let m: RegExpExecArray | null;
+    while ((m = markerRe.exec(html)) !== null) {
+      matches.push(m.index);
+      if (matches.length >= 2) break;
+    }
+    if (matches.length < 2) return html;
+    return this.truncateWithClosingTags(html, matches[1]);
+  }
+
+  /**
+   * Обрезает html перед позицией `pos`, дописывая закрывающие `</body></html>`,
+   * если они присутствовали в хвосте — иначе документ может стать невалидным.
+   */
+  private truncateWithClosingTags(html: string, pos: number): string {
+    const tailHasBodyClose = /<\/body\s*>/i.test(html.slice(pos));
+    const tailHasHtmlClose = /<\/html\s*>/i.test(html.slice(pos));
+    // Также закроем потенциально открытые .container/section/div верхнего
+    // уровня, в которых лежит первая копия — проще всего добавить пару
+    // </div> для страховки (Word/soffice их съедят без последствий).
     const suffix =
-      (tailHasBodyClose ? '</body>' : '') + (tailHasHtmlClose ? '</html>' : '');
-    return html.slice(0, secondMatch.index) + suffix;
+      '</div></div>' + // страховка для .container и обёрток
+      (tailHasBodyClose ? '</body>' : '') +
+      (tailHasHtmlClose ? '</html>' : '');
+    return html.slice(0, pos) + suffix;
   }
 
   private ensureHtmlDocument(html: string): string {
