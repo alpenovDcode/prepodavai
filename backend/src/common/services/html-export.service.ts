@@ -138,6 +138,11 @@ export class HtmlExportService implements OnModuleDestroy {
       processed = processed.slice(1, -1);
     }
 
+    // DEDUP: если в БД лежит НЕСКОЛЬКО HTML-документов подряд (артефакт
+    // пересохранения в редакторе — баг, исправляемый отдельно), берём
+    // только первый. Иначе экспорт DOCX/PDF выдаёт каждое задание 2-3 раза.
+    processed = this.takeFirstHtmlDocument(processed);
+
     const looksLikeHtml =
       /<!DOCTYPE html/i.test(processed) ||
       /<html[\s>]/i.test(processed) ||
@@ -145,6 +150,26 @@ export class HtmlExportService implements OnModuleDestroy {
       /<\/?[a-z][\s\S]*>/i.test(processed);
 
     return looksLikeHtml ? this.ensureHtmlDocument(processed) : this.wrapPlainTextAsHtml(text);
+  }
+
+  /**
+   * Если строка содержит несколько слепленных HTML-документов (например,
+   * `<!DOCTYPE>...</html><!DOCTYPE>...</html>`) — возвращаем только первый.
+   * Делается через первый `</html>`: если после него снова попадается
+   * `<!DOCTYPE>` или `<html>`, обрезаем до конца первого документа.
+   * Аналогичная логика есть на фронте в MaterialViewer.normalizeResultPayload.
+   */
+  private takeFirstHtmlDocument(html: string): string {
+    const htmlEnd = html.match(/<\/html\s*>/i);
+    if (!htmlEnd || htmlEnd.index === undefined) return html;
+    const endIdx = htmlEnd.index + htmlEnd[0].length;
+    const tail = html.slice(endIdx);
+    if (/<!DOCTYPE\s+html|<html[\s>]/i.test(tail)) {
+      return html.slice(0, endIdx);
+    }
+    // Ещё кейс: документ без `<html>` обёртки, но с двумя `<body>` подряд
+    // (редко, но встречается после некоторых правок).
+    return html;
   }
 
   private ensureHtmlDocument(html: string): string {
@@ -530,15 +555,34 @@ window.MathJax = {
     // расширением. Имя выходного файла — input.docx в outdir.
     const outputDocx = inputHtml.replace(/\.html$/i, '.docx');
 
+    // soffice требует writable user-profile. У контейнерного пользователя
+    // nestjs нет своего $HOME, поэтому без явного -env:UserInstallation
+    // soffice падает с "User installation could not be completed" /
+    // "/home/nestjs/.cache/dconf: Permission denied".
+    const userProfileDir = path.join(tmpDir, 'soffice-profile');
+    await fs.mkdir(userProfileDir, { recursive: true });
+    const userInstallationUrl = `file://${userProfileDir}`;
+
     await new Promise<void>((resolve, reject) => {
       // `docx:"MS Word 2007 XML"` — современный .docx (Office 2007+).
       // Без явного фильтра soffice иногда выдаёт legacy .doc.
       const proc = spawn('soffice', [
+        `-env:UserInstallation=${userInstallationUrl}`,
         '--headless',
+        '--norestore',
+        '--nofirststartwizard',
         '--convert-to', 'docx:MS Word 2007 XML',
         '--outdir', tmpDir,
         inputHtml,
-      ], { stdio: 'pipe' });
+      ], {
+        stdio: 'pipe',
+        env: {
+          ...process.env,
+          // HOME укажем во временный каталог — на случай если что-то ещё
+          // полезет в $HOME/.config/libreoffice.
+          HOME: userProfileDir,
+        },
+      });
 
       let stderr = '';
       proc.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
