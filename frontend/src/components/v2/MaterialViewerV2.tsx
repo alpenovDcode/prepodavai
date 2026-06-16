@@ -22,6 +22,7 @@ import AssignMaterialModal from '@/components/AssignMaterialModal'
 import DownloadPdfModal from '@/components/workspace/DownloadPdfModal'
 import MaterialViewer from '@/components/MaterialViewer'
 import { LOGO_BASE64 } from '@/constants/branding'
+import { getEffectiveHtml } from '@/lib/utils/effectiveHtml'
 
 interface Props {
     lessonId: string
@@ -150,6 +151,33 @@ const MATHJAX_SCRIPT = `<script>window.MathJax={tex:{inlineMath:[['$','$'],['\\\
 
 const READY_SCRIPT = `<script>window.addEventListener('load',function(){setTimeout(function(){window.parent.postMessage('IFRAME_READY','*')},window.MathJax?1200:300)})</script>`
 
+// После того как MathJax отрисовал формулы, проходим по каждому <mjx-container>
+// и проставляем `data-original-input` с исходным LaTeX-выражением. При
+// сохранении правок мы превращаем эти контейнеры обратно в `\(…\)` / `\[…\]`,
+// чтобы формула не потерялась при следующем рендере PDF/DOCX.
+const MATHJAX_STAMP_SCRIPT = `<script>
+(function(){
+  function stamp(){
+    if(!window.MathJax||!window.MathJax.startup||!window.MathJax.startup.document) return;
+    try {
+      var math = window.MathJax.startup.document.math;
+      var iter = (typeof math[Symbol.iterator]==='function') ? math : (math.list||[]);
+      for (var item of iter) {
+        var node = item.typesetRoot;
+        if (!node || !item.math) continue;
+        node.setAttribute('data-original-input', item.math);
+        node.setAttribute('data-display', item.display ? 'true' : 'false');
+      }
+    } catch(e) { console.warn('mjx stamp:', e); }
+  }
+  if (window.MathJax && window.MathJax.startup && window.MathJax.startup.promise) {
+    window.MathJax.startup.promise.then(stamp);
+  } else {
+    window.addEventListener('load', function(){ setTimeout(stamp, 1500); });
+  }
+})();
+</script>`
+
 function stripFences(text: string): string {
     let t = text.trim()
     if (t.startsWith('```')) t = t.replace(/^```(?:html)?/i, '').replace(/```$/, '').trim()
@@ -158,9 +186,15 @@ function stripFences(text: string): string {
 
 function extractHtml(outputData: any): string | null {
     if (!outputData) return null
-    let raw: any = outputData
-    if (typeof raw === 'object') {
-        raw = raw.content ?? raw.htmlResult ?? raw.html ?? raw.text ?? ''
+    let raw: any
+    if (typeof outputData === 'object') {
+        // getEffectiveHtml вернёт оригинал + editedBody, либо просто оригинал.
+        raw = getEffectiveHtml(outputData)
+        if (!raw) {
+            raw = outputData?.content ?? outputData?.htmlResult ?? outputData?.html ?? outputData?.text ?? ''
+        }
+    } else {
+        raw = outputData
     }
     if (typeof raw !== 'string') return null
     raw = stripFences(raw)
@@ -223,6 +257,7 @@ function buildSrcDoc(html: string, opts: { hideAnswers: boolean; editing: boolea
 <style>${IFRAME_BASE_STYLES}</style>
 ${hideAnswersCss}
 ${mathBlock}
+${mathBlock ? MATHJAX_STAMP_SCRIPT : ''}
 </head>
 <body>
 ${body}
@@ -408,22 +443,67 @@ export default function MaterialViewerV2({ lessonId, generationId, isEditable = 
     const saveEdits = async () => {
         if (!generation || savingHtml) return
         const doc = iframeRef.current?.contentDocument
-        const root = doc?.documentElement
-        if (!root) { toast.error('Не удалось получить редактируемый HTML'); return }
+        const body = doc?.body
+        if (!body) { toast.error('Не удалось получить редактируемое содержимое'); return }
 
-        let fullHtml = `<!DOCTYPE html>${root.outerHTML}`
-            .replace(/<script[\s\S]*?<\/script>/gi, '')
-            .replace(/<mjx-container[\s\S]*?<\/mjx-container>/gi, '')
-            .replace(/<mjx-assistive-mml[\s\S]*?<\/mjx-assistive-mml>/gi, '')
+        // Работаем с КЛОНОМ body, чтобы не задеть то, что видит пользователь.
+        const clone = body.cloneNode(true) as HTMLElement
 
-        const bodyMatch = fullHtml.match(/<body[^>]*>([\s\S]*?)<\/body>/i)
-        const text = (bodyMatch?.[1] || '').replace(/<[^>]*>/g, '').replace(/&nbsp;/gi, ' ').trim()
-        if (!text) { toast.error('Пустой результат не сохранён'); return }
+        // 1) Восстанавливаем исходный LaTeX из MathJax-контейнеров.
+        //    `data-original-input` проставляется скриптом MATHJAX_STAMP_SCRIPT
+        //    сразу после рендера. Без этого формулы исчезают навсегда.
+        clone.querySelectorAll('mjx-container').forEach((el) => {
+            const orig = el.getAttribute('data-original-input')
+            const display = el.getAttribute('data-display') === 'true'
+            if (orig) {
+                const wrapped = display ? `\\[${orig}\\]` : `\\(${orig}\\)`
+                el.replaceWith(doc!.createTextNode(wrapped))
+            } else {
+                el.remove()
+            }
+        })
+        // Остатки MathJax-разметки.
+        clone.querySelectorAll('mjx-assistive-mml, mjx-math, mjx-utility').forEach((el) => el.remove())
+        // contentEditable-обвес.
+        clone.querySelectorAll('script').forEach((el) => el.remove())
+        clone.removeAttribute('contenteditable')
+        clone.style.outline = ''
+        clone.style.outlineOffset = ''
+
+        // 2) Нормализуем поля ввода: после правки браузер мог нагрузить им
+        //    inline-style, потерять class="inline-input". Восстанавливаем
+        //    канонический вид — иначе в PDF подчёркивание превратится в рамку.
+        clone.querySelectorAll('input').forEach((el) => {
+            const inp = el as HTMLInputElement
+            const type = inp.getAttribute('type') || 'text'
+            if (type !== 'text' && type !== '') return
+            // Узкие поля (для имени/класса/даты — inline-input)
+            const inlineHints = inp.classList.contains('inline-input')
+                || (inp.getAttribute('style') || '').includes('border-bottom')
+            if (inlineHints && !inp.classList.contains('inline-input')) {
+                inp.classList.add('inline-input')
+            }
+            // Чистим временные атрибуты браузера.
+            inp.removeAttribute('value')
+        })
+
+        const editedBody = clone.innerHTML.trim()
+        const plain = editedBody.replace(/<[^>]*>/g, '').replace(/&nbsp;/gi, ' ').trim()
+        if (!plain) { toast.error('Пустой результат не сохранён'); return }
 
         setSavingHtml(true)
         try {
-            await apiClient.patch(`/generate/${generation.id}`, { outputData: { content: fullHtml } })
-            setGeneration(g => g ? { ...g, outputData: { ...(g.outputData || {}), content: fullHtml } } : g)
+            // Контракт варианта A: оригинал в `content` не трогаем, правки
+            // кладём в `editedBody`. PDF/DOCX/превью соберут эффективный HTML
+            // на этапе рендера, перепаяв body внутри оригинального <body>.
+            await apiClient.patch(`/generate/${generation.id}`, {
+                outputData: { editedBody },
+            })
+            setGeneration((g) =>
+                g
+                    ? { ...g, outputData: { ...(g.outputData || {}), editedBody } }
+                    : g,
+            )
             toast.success('Сохранено')
             setTab('preview')
         } catch (err: any) {

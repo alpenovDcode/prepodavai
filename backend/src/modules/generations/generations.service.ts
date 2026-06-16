@@ -18,6 +18,7 @@ import { OnboardingQuestService } from '../onboarding-quest/onboarding-quest.ser
 import { HtmlPostprocessorService } from '../../common/services/html-postprocessor.service';
 import { HtmlExportService } from '../../common/services/html-export.service';
 import { stripAnswerKeyFromHtml } from '../../common/utils/strip-answer-key.util';
+import { getEffectiveHtml } from '../../common/utils/effective-html.util';
 import { FilesService } from '../files/files.service';
 import { StrategyRegistryService } from './strategies/strategy-registry.service';
 import { PresentationPptxV2Service } from './presentation/presentation-pptx-v2.service';
@@ -1447,7 +1448,12 @@ export class GenerationsService {
     ) {
       content = r.sections[options.sectionIndex].content;
     } else {
-      content = r?.content ?? r?.htmlResult ?? r?.html ?? r?.text ?? result;
+      // getEffectiveHtml = оригинал из `content` + правки пользователя из
+      // `editedBody`. Это критично: оригинал несёт DesignSystemConfig.STYLES
+      // (page-break-before у ответов, размеры лого !important, @media print).
+      // Если просто читать `content` после правки — фронт перетирал бы его
+      // своим preview-шеллом, и PDF разъезжался.
+      content = getEffectiveHtml(r) || r?.content ?? r?.htmlResult ?? r?.html ?? r?.text ?? result;
     }
     let htmlContent = this.htmlExportService.normalizeIncomingHtml(content);
     if (options.withAnswers === false) {
@@ -1512,7 +1518,9 @@ export class GenerationsService {
     ) {
       content = r.sections[options.sectionIndex].content;
     } else {
-      content = r?.content ?? r?.htmlResult ?? r?.html ?? r?.text ?? result;
+      // editedBody (если есть) подкладывается внутрь оригинального <body> —
+      // дизайн-система и MathJax-скрипт остаются на месте.
+      content = getEffectiveHtml(r) || r?.content ?? r?.htmlResult ?? r?.html ?? r?.text ?? result;
     }
     let htmlContent = this.htmlExportService.normalizeIncomingHtml(content);
     if (options.withAnswers === false) {
