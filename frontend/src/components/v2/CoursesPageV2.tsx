@@ -566,7 +566,26 @@ export default function CoursesPageV2() {
 
         if (debouncedQuery) {
             const q = debouncedQuery.toLowerCase()
-            res = res.filter(g => (g.title || '').toLowerCase().includes(q))
+            // Ищем по: title из БД, вычисленному заголовку (включая inputParams.topic),
+            // предмету и любым other полям params, которые могут идентифицировать материал.
+            // Раньше фильтр смотрел только на g.title — у большинства карточек он null,
+            // и поиск ничего не находил.
+            res = res.filter(g => {
+                const p: any = g.params || {}
+                const hay = [
+                    g.title,
+                    getTitle(g),
+                    getSubject(g),
+                    p.topic,
+                    p.title,
+                    p.subject,
+                    p.grade ? `${p.grade} класс` : '',
+                ]
+                    .filter(Boolean)
+                    .join(' ')
+                    .toLowerCase()
+                return hay.includes(q)
+            })
         }
 
         const sorted = [...res]
