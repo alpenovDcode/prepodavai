@@ -235,6 +235,33 @@ export class GenerationsController {
   }
 
   /**
+   * Экспорт DOCX по id генерации. Та же логика, что у `/pdf`, но конвертер —
+   * html-to-docx. Удобно учителю довести лист в Word до печати.
+   */
+  @Post(':requestId/docx')
+  @UseGuards(JwtAuthGuard)
+  @Header('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+  @Header('Content-Disposition', 'attachment; filename="document.docx"')
+  async exportGenerationDocx(
+    @Request() req: any,
+    @Param('requestId') requestId: string,
+    @Query('withAnswers') withAnswers?: string,
+    @Query('sectionIndex') sectionIndex?: string,
+  ): Promise<StreamableFile> {
+    const withAnswersFlag = withAnswers === 'false' ? false : true;
+    const parsedSectionIndex =
+      typeof sectionIndex === 'string' && /^\d+$/.test(sectionIndex)
+        ? parseInt(sectionIndex, 10)
+        : undefined;
+    const docxBuffer = await this.generationsService.exportGenerationDocx(
+      requestId,
+      this.userId(req),
+      { withAnswers: withAnswersFlag, sectionIndex: parsedSectionIndex },
+    );
+    return new StreamableFile(docxBuffer);
+  }
+
+  /**
    * Скачать оригинальное изображение генерации (photosession / image_generation).
    * Бэкенд тянет картинку у провайдера и отдаёт фронту с правильным Content-Type
    * и расширением в filename — это фиксит «битые» файлы при скачивании напрямую

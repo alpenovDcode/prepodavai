@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from 'react'
 import { CheckCircle2, Download, FileText, Loader2, Users, X } from 'lucide-react'
-import { downloadPdfById } from '@/lib/utils/downloadPdf'
+import { downloadPdfById, downloadDocxById } from '@/lib/utils/downloadPdf'
+
+type ExportFormat = 'pdf' | 'docx'
 
 type DownloadState = 'idle' | 'loading' | 'success' | 'error'
 
@@ -33,11 +35,13 @@ export default function DownloadPdfModal({
 }: DownloadPdfModalProps) {
     const [state, setState] = useState<DownloadState>('idle')
     const [error, setError] = useState<string>('')
+    const [format, setFormat] = useState<ExportFormat>('pdf')
 
     useEffect(() => {
         if (isOpen) {
             setState('idle')
             setError('')
+            setFormat('pdf')
         }
     }, [isOpen])
 
@@ -50,16 +54,21 @@ export default function DownloadPdfModal({
         setState('loading')
         setError('')
         try {
-            const finalName =
-                hasAnswers && !withAnswers
-                    ? filename.replace(/\.pdf$/i, '') + '-student.pdf'
-                    : filename
-            await downloadPdfById(generationId, finalName, { withAnswers, sectionIndex })
+            // Базовое имя без расширения, добавим в зависимости от формата
+            const baseName = filename.replace(/\.(pdf|docx)$/i, '')
+            const ext = format
+            const suffix = hasAnswers && !withAnswers ? '-student' : ''
+            const finalName = `${baseName}${suffix}.${ext}`
+            if (format === 'docx') {
+                await downloadDocxById(generationId, finalName, { withAnswers, sectionIndex })
+            } else {
+                await downloadPdfById(generationId, finalName, { withAnswers, sectionIndex })
+            }
             setState('success')
             // Закроемся через секунду, чтобы пользователь увидел «Готово».
             setTimeout(() => onClose(), 900)
         } catch (e: any) {
-            setError(e?.message || 'Не удалось сформировать PDF')
+            setError(e?.message || `Не удалось сформировать ${format.toUpperCase()}`)
             setState('error')
         }
     }
@@ -82,9 +91,9 @@ export default function DownloadPdfModal({
                             <Download className="w-5 h-5 text-yellow-700" />
                         </div>
                         <div>
-                            <h2 className="text-lg font-bold text-gray-900">Скачать PDF</h2>
+                            <h2 className="text-lg font-bold text-gray-900">Скачать документ</h2>
                             <p className="text-[12px] text-gray-500">
-                                {hasAnswers ? 'Выберите вариант документа' : 'Готовим документ к скачиванию'}
+                                {hasAnswers ? 'Выберите формат и вариант' : 'Выберите формат'}
                             </p>
                         </div>
                     </div>
@@ -133,6 +142,25 @@ export default function DownloadPdfModal({
                     )}
 
                     {state === 'idle' && (
+                        <div className="mb-4 flex gap-1.5 p-1 rounded-lg bg-gray-100">
+                            {(['pdf', 'docx'] as const).map((f) => (
+                                <button
+                                    key={f}
+                                    type="button"
+                                    onClick={() => setFormat(f)}
+                                    className={`flex-1 h-9 rounded-md text-[12.5px] font-semibold transition-colors ${
+                                        format === f
+                                            ? 'bg-white text-gray-900 shadow-sm'
+                                            : 'text-gray-600 hover:text-gray-900'
+                                    }`}
+                                >
+                                    {f.toUpperCase()}
+                                </button>
+                            ))}
+                        </div>
+                    )}
+
+                    {state === 'idle' && (
                         hasAnswers ? (
                             <div className="flex flex-col gap-2">
                                 <button
@@ -166,7 +194,7 @@ export default function DownloadPdfModal({
                                 className="w-full flex items-center justify-center gap-2 p-3 rounded-xl bg-yellow-500 hover:bg-yellow-600 text-white font-semibold transition-colors"
                             >
                                 <Download className="w-4 h-4" />
-                                Скачать PDF
+                                Скачать {format.toUpperCase()}
                             </button>
                         )
                     )}

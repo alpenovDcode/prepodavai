@@ -27,6 +27,28 @@ export async function downloadPdfById(
     filename = 'document.pdf',
     options: DownloadPdfOptions = {},
 ): Promise<void> {
+    return downloadGenerationFile('pdf', id, filename, options)
+}
+
+/**
+ * Скачать DOCX той же генерации — параллельный эндпоинт `/generate/:id/docx`
+ * на бэке прогоняет HTML через html-to-docx. Удобно учителю довести лист
+ * в Word до печати.
+ */
+export async function downloadDocxById(
+    id: string,
+    filename = 'document.docx',
+    options: DownloadPdfOptions = {},
+): Promise<void> {
+    return downloadGenerationFile('docx', id, filename, options)
+}
+
+async function downloadGenerationFile(
+    format: 'pdf' | 'docx',
+    id: string,
+    filename: string,
+    options: DownloadPdfOptions,
+): Promise<void> {
     if (!id) throw new Error('generation id is required')
 
     const params = new URLSearchParams()
@@ -37,7 +59,7 @@ export async function downloadPdfById(
     const query = params.toString() ? `?${params.toString()}` : ''
 
     const response = await apiClient.post(
-        `/generate/${encodeURIComponent(id)}/pdf${query}`,
+        `/generate/${encodeURIComponent(id)}/${format}${query}`,
         {},
         { responseType: 'blob' },
     )

@@ -43,9 +43,9 @@ export default function PdfDownloadButton({
 
     return (
         <>
-            <button onClick={handleClick} className={buttonClasses}>
+            <button onClick={handleClick} className={buttonClasses} title="Скачать PDF / DOCX">
                 <Download className="w-3.5 h-3.5" />
-                <span>PDF</span>
+                <span>PDF / DOCX</span>
             </button>
             <DownloadPdfModal
                 isOpen={open}

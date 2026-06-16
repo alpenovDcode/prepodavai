@@ -1478,6 +1478,51 @@ export class GenerationsService {
   }
 
   /**
+   * DOCX-аналог exportGenerationPdf: ту же подготовку HTML и стрип ответов
+   * прогоняем через `html-to-docx` (Node-конвертер). Удобно, когда учителю
+   * нужно распечатать рабочий лист и доредактировать в Word.
+   */
+  async exportGenerationDocx(
+    requestId: string,
+    userId: string,
+    options: { withAnswers?: boolean; sectionIndex?: number } = {},
+  ): Promise<Buffer> {
+    let userGen = await this.prisma.userGeneration.findUnique({
+      where: { generationRequestId: requestId },
+      include: { generationRequest: true },
+    });
+    if (!userGen) {
+      userGen = await this.prisma.userGeneration.findUnique({
+        where: { id: requestId },
+        include: { generationRequest: true },
+      });
+    }
+    if (!userGen) throw new NotFoundException('Генерация не найдена');
+    if (userGen.userId !== userId) throw new NotFoundException('Доступ запрещён');
+
+    const result = userGen.outputData ?? userGen.generationRequest?.result;
+    if (!result) throw new NotFoundException('Результат генерации пуст');
+
+    const r = result as any;
+    let content: any;
+    if (
+      typeof options.sectionIndex === 'number' &&
+      Array.isArray(r?.sections) &&
+      r.sections[options.sectionIndex]?.content
+    ) {
+      content = r.sections[options.sectionIndex].content;
+    } else {
+      content = r?.content ?? r?.htmlResult ?? r?.html ?? r?.text ?? result;
+    }
+    let htmlContent = this.htmlExportService.normalizeIncomingHtml(content);
+    if (options.withAnswers === false) {
+      htmlContent = stripAnswerKeyFromHtml(htmlContent);
+    }
+    this.logger.log(`[exportDocx] ${requestId}: htmlContent length=${htmlContent.length}`);
+    return this.htmlExportService.htmlToDocx(htmlContent);
+  }
+
+  /**
    * Export a presentation as PDF or PPTX from its stored SlideDoc.
    * Distinct from exportGenerationPdf — that one assumes worksheet-style HTML;
    * presentations have a structured doc, so we re-render via the dedicated

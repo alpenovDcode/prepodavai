@@ -637,8 +637,9 @@ export default function MaterialViewerV2({ lessonId, generationId, isEditable = 
                             leftIcon={<Download className="w-3.5 h-3.5" />}
                             onClick={() => setShowPdf(true)}
                             disabled={tab === 'edit'}
+                            title="Скачать PDF или DOCX"
                         >
-                            Скачать PDF
+                            Скачать
                         </Button>
                         <Button variant="primary" size="sm" leftIcon={<Send className="w-3.5 h-3.5" />} onClick={() => setShowAssign(true)}>
                             Выдать ученикам

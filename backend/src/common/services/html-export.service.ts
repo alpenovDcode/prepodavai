@@ -258,6 +258,30 @@ export class HtmlExportService implements OnModuleDestroy {
   }
 
 
+  /**
+   * Конвертирует HTML в DOCX через html-to-docx (Node-only). Полезно для
+   * учителей, которые хотят дочистить рабочий лист/тест в Word перед печатью.
+   * Сложный CSS в DOCX не уезжает 1-в-1, но текст, таблицы, заголовки,
+   * списки и поля ввода (как подчёркивания) сохраняются.
+   */
+  async htmlToDocx(html: string): Promise<Buffer> {
+    const prepared = this.prepareHtml(html);
+    // html-to-docx плохо переваривает внешние шрифты/скрипты — оставляем
+    // только тело + базовые стили, остальное он игнорирует.
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const HTMLtoDOCX = require('html-to-docx');
+    const docxBuffer = await HTMLtoDOCX(prepared, undefined, {
+      table: { row: { cantSplit: true } },
+      footer: false,
+      pageNumber: false,
+      orientation: 'portrait',
+      margins: { top: 1440, right: 1080, bottom: 1440, left: 1080 },
+    });
+    return Buffer.isBuffer(docxBuffer)
+      ? (docxBuffer as Buffer)
+      : Buffer.from(docxBuffer as ArrayBuffer);
+  }
+
   async htmlToPdf(html: string, options?: { blockExternalRequests?: boolean }): Promise<Buffer> {
     console.log(`[HtmlExport] Starting PDF generation, HTML length: ${html.length}`);
 
