@@ -95,7 +95,11 @@ export function FillBlank({
                 const blank = byIndex.get(idx)
                 if (!blank) return <span key={i} style={{ color: '#dc2626' }}>{`[${idx}?]`}</span>
                 if (showAnswers) {
-                    return <span key={i} className="answer-chip">{blank.answer}</span>
+                    return (
+                        <span key={i} className="answer-chip">
+                            <InlineMathText text={blank.answer} />
+                        </span>
+                    )
                 }
                 return (
                     <input

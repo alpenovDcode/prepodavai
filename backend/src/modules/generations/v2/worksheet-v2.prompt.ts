@@ -139,6 +139,28 @@ export function buildWorksheetV2Prompt(input: WorksheetGenInput): { system: stri
 - Внутри template для fill-blank в КРАЙНЕМ случае допустима ОДИН inline-математика вида $символ$
   ДО или ПОСЛЕ {{N}}, но не вокруг неё. Лучше совсем без $-обёрток в template.
 
+=== ВСЕ ФОРМУЛЫ В LaTeX. ВЕЗДЕ. ===
+
+Если в ЛЮБОМ текстовом поле есть математика — оборачивай её в $…$ и используй LaTeX-команды.
+НИКАКОГО plain-text вида "sqrt(2)", "3*sqrt(3)", "a^2", "1/2", "x_1" — это всё рендерится
+как обычный текст и выглядит уродливо.
+
+Поля где это критично (в порядке частоты ошибок):
+  • expectedAnswer (short-answer): "$\\\\sqrt{27}$ или $3\\\\sqrt{3}$"  — НЕ "sqrt(27) или 3*sqrt(3)"
+  • answer (fill-blank blanks): "$\\\\sqrt{2}/2$"  — НЕ "sqrt(2)/2"
+  • text (options multiple-choice): "$F(x) = x + C$"  — НЕ "F(x) = x + C"
+  • text (matching left/right): "$f(x) = x^2$"  — НЕ "f(x) = x^2"
+  • caption math-display, table cells, callout text — всюду одинаково.
+
+Преобразование plain-text → LaTeX:
+  sqrt(N)     → \\\\sqrt{N}
+  N*sqrt(M)   → N\\\\sqrt{M}
+  a*b         → a \\\\cdot b
+  a^N         → a^{N}    (или a^N если N — одна цифра)
+  a_N         → a_{N}    (или a_N если N — одна цифра)
+  1/2         → \\\\frac{1}{2}
+  >=, <=, !=  → \\\\geq, \\\\leq, \\\\neq
+
 === ПРИМЕР КОРОТКОГО WORKSHEET (для понимания формы, не копируй текст) ===
 
 {

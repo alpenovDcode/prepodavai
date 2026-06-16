@@ -86,7 +86,67 @@ function escapeHtml(s: string): string {
 
 function renderText(s: string): string {
     // Inline-math делается KaTeX'ом на странице — нам достаточно эскейпнуть HTML.
-    return escapeHtml(s);
+    // Plain-text математику (sqrt(x), 1/2, a^2 и т.п. без $...$) пробуем
+    // автоматически обернуть в $...$ перед эскейпом — на случай если AI
+    // забыл (промпт это запрещает, но не на 100%).
+    return escapeHtml(autowrapPlainMath(s));
+}
+
+/**
+ * Эвристически оборачивает plain-text математику в $...$ если AI её не обернул.
+ * Только для частых паттернов с однозначной интерпретацией.
+ *
+ * Внутри уже существующих $...$ не трогает ничего — выделяем не-math сегменты
+ * и применяем замены только к ним.
+ */
+function autowrapPlainMath(text: string): string {
+    const segments = splitByMath(text);
+    return segments.map((seg) => (seg.kind === 'math' ? seg.value : transformPlainSegment(seg.value))).join('');
+}
+
+function splitByMath(text: string): Array<{ kind: 'text' | 'math'; value: string }> {
+    const out: Array<{ kind: 'text' | 'math'; value: string }> = [];
+    let i = 0;
+    let buf = '';
+    while (i < text.length) {
+        // $$…$$
+        if (text[i] === '$' && text[i + 1] === '$') {
+            const end = text.indexOf('$$', i + 2);
+            if (end !== -1) {
+                if (buf) { out.push({ kind: 'text', value: buf }); buf = ''; }
+                out.push({ kind: 'math', value: text.slice(i, end + 2) });
+                i = end + 2;
+                continue;
+            }
+        }
+        // $…$
+        if (text[i] === '$') {
+            const end = text.indexOf('$', i + 1);
+            if (end !== -1) {
+                if (buf) { out.push({ kind: 'text', value: buf }); buf = ''; }
+                out.push({ kind: 'math', value: text.slice(i, end + 1) });
+                i = end + 1;
+                continue;
+            }
+        }
+        buf += text[i];
+        i++;
+    }
+    if (buf) out.push({ kind: 'text', value: buf });
+    return out;
+}
+
+function transformPlainSegment(s: string): string {
+    let out = s;
+    // sqrt(x) → $\sqrt{x}$. Аккуратно: не двойное оборачивание если уже есть $\sqrt.
+    out = out.replace(/\bsqrt\s*\(\s*([^()]+?)\s*\)/g, (_, body) => `$\\sqrt{${body}}$`);
+    // 1/2, 3/4 — простые дроби с числами → $\frac{1}{2}$.
+    out = out.replace(/\b(\d+)\s*\/\s*(\d+)\b/g, (_, a, b) => `$\\frac{${a}}{${b}}$`);
+    // a^N → $a^{N}$ (только если a — одна буква, N — число).
+    out = out.replace(/\b([a-zA-Z])\^(\d+)\b/g, (_, base, exp) => `$${base}^{${exp}}$`);
+    // Объединяем соседние $..$$..$ (после применения серии замен) в один:
+    out = out.replace(/\$([^$]+)\$\s*\$([^$]+)\$/g, (_, a, b) => `$${a} \\cdot ${b}$`);
+    return out;
 }
 
 function renderBlock(block: BlockT, showAnswers: boolean): string {
