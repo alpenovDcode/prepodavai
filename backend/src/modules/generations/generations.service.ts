@@ -1480,7 +1480,22 @@ export class GenerationsService {
       }
     }
     this.logger.log(`[exportPdf] ${requestId}: htmlContent length=${htmlContent.length}`);
-    return this.htmlExportService.htmlToPdf(htmlContent);
+
+    // Для Вау-урока (lesson_preparation) HTML рендерится «во всю ширину»
+    // без `.container` с внутренним padding'ом, как у worksheet/quiz.
+    // Поэтому на PDF без бордеров контент упирается в края страницы.
+    // Передаём wideMargins → page.pdf() даёт нормальные поля документа.
+    const genType =
+      (userGen.generationRequest as any)?.generationType ||
+      (r as any)?.type ||
+      '';
+    const isWauLesson =
+      typeof genType === 'string' &&
+      /lesson[-_]preparation|wau/i.test(genType);
+
+    return this.htmlExportService.htmlToPdf(htmlContent, {
+      wideMargins: isWauLesson,
+    });
   }
 
   /**

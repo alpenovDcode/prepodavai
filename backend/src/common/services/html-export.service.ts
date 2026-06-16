@@ -1021,7 +1021,10 @@ window.MathJax = {
     return processed;
   }
 
-  async htmlToPdf(html: string, options?: { blockExternalRequests?: boolean }): Promise<Buffer> {
+  async htmlToPdf(
+    html: string,
+    options?: { blockExternalRequests?: boolean; wideMargins?: boolean },
+  ): Promise<Buffer> {
     await this.acquireSlot();
     try {
       // Retry до 2 раз: если PDF получился подозрительно мал (<2KB) или вылетел,
@@ -1052,7 +1055,10 @@ window.MathJax = {
     }
   }
 
-  private async htmlToPdfOnce(html: string, options?: { blockExternalRequests?: boolean }): Promise<Buffer> {
+  private async htmlToPdfOnce(
+    html: string,
+    options?: { blockExternalRequests?: boolean; wideMargins?: boolean },
+  ): Promise<Buffer> {
     console.log(`[HtmlExport] Starting PDF generation, HTML length: ${html.length}`);
     await this.recycleBrowserIfNeeded();
 
@@ -1225,10 +1231,18 @@ window.MathJax = {
         );
       }
 
+      // Стандартные поля 20px тянутся от ранних типов генераций (worksheet,
+      // quiz и т.п.), где внутри уже есть `.container` с собственным padding.
+      // У Вау-урока контент рендерится «во всю страницу» без container'а —
+      // в этом случае wideMargins даёт нормальные поля документа.
+      const pdfMargins = options?.wideMargins
+        ? { top: '40px', right: '50px', bottom: '40px', left: '50px' }
+        : { top: '20px', right: '20px', bottom: '20px', left: '20px' };
+
       const pdf = await page.pdf({
         format: 'A4',
         printBackground: true,
-        margin: { top: '20px', right: '20px', bottom: '20px', left: '20px' },
+        margin: pdfMargins,
         preferCSSPageSize: false,
       });
 
