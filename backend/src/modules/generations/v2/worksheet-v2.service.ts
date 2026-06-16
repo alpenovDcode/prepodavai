@@ -1,45 +1,35 @@
-import { Injectable, Logger, BadRequestException, InternalServerErrorException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import OpenAI from 'openai';
+import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../../common/prisma/prisma.service';
 import { GenerationHelpersService } from '../generation-helpers.service';
 import { LessonsService } from '../../lessons/lessons.service';
+import { ReplicateService } from '../../replicate/replicate.service';
 import { buildWorksheetV2Prompt, WorksheetGenInput } from './worksheet-v2.prompt';
 import { GenerationDocument, JSON_BLOCKS_FORMAT, type GenerationDocumentT } from './blocks-schema';
 
 /**
  * Сервис для генерации worksheet в JSON-формате (blocks-v1).
  *
- * Отличия от старого пайплайна:
- *   - Синхронный AI-вызов (не через n8n webhook).
- *   - Прямой OpenAI client с json_object режимом.
- *   - Zod-валидация ответа + 1 retry с feedback при ошибке.
- *   - Сохраняем в outputData как { format: 'json-blocks-v1', outputDoc: <doc> }.
+ * Использует тот же путь, что и остальные текстовые генерации:
+ *   ReplicateService.createCompletion → google/gemini-3-flash.
+ * Это значит общий REPLICATE_API_TOKEN, общая квота, единый pipeline ошибок.
  *
- * При успешной валидации возвращаем id генерации — фронт сразу
- * открывает превью без polling'а статуса.
+ * Отличие от старого worksheet-flow:
+ *   - В промпте требуем строго JSON (никакого markdown / fences).
+ *   - Парсим + Zod-валидация, 1 retry с feedback'ом при ошибке.
+ *   - Сохраняем в outputData в виде { format: 'json-blocks-v1', outputDoc }.
+ *
+ * Фронт после успеха сразу открывает DocumentRenderer — никакого polling'а.
  */
 @Injectable()
 export class WorksheetV2Service {
     private readonly logger = new Logger(WorksheetV2Service.name);
-    private openai: OpenAI | null = null;
 
     constructor(
         private readonly prisma: PrismaService,
-        private readonly configService: ConfigService,
         private readonly generationHelpers: GenerationHelpersService,
         private readonly lessonsService: LessonsService,
+        private readonly replicateService: ReplicateService,
     ) {}
-
-    private getClient(): OpenAI {
-        if (this.openai) return this.openai;
-        const apiKey = this.configService.get<string>('OPENAI_API_KEY');
-        if (!apiKey) {
-            throw new InternalServerErrorException('OPENAI_API_KEY не настроен');
-        }
-        this.openai = new OpenAI({ apiKey });
-        return this.openai;
-    }
 
     /**
      * Полный цикл генерации worksheet в JSON-формате.
@@ -49,7 +39,7 @@ export class WorksheetV2Service {
             throw new BadRequestException('topic обязателен');
         }
 
-        // 1) Подготовка БД-записей (как в createGeneration основного сервиса)
+        // 1) Резолвим default-урок, как делает основной createGeneration.
         let resolvedLessonId = lessonId;
         if (!resolvedLessonId) {
             try {
@@ -64,20 +54,14 @@ export class WorksheetV2Service {
             userId,
             generationType: 'worksheet',
             inputParams: { ...input, _format: JSON_BLOCKS_FORMAT },
-            model: 'gpt-4o-mini',
+            model: 'google/gemini-3-flash',
             lessonId: resolvedLessonId,
         });
 
-        // 2) AI-вызов с retry на validation-fail
+        // 2) AI-вызов + Zod, до 2 попыток.
         try {
             const doc = await this.generateAndValidate(input);
-
-            // 3) Сохранение в outputData в специальной обёртке для маршрутизации.
-            //    Параллельно дублируем outputDoc в generationRequest.result как backup.
-            const outputData = {
-                format: JSON_BLOCKS_FORMAT,
-                outputDoc: doc,
-            };
+            const outputData = { format: JSON_BLOCKS_FORMAT, outputDoc: doc };
             await this.generationHelpers.completeGeneration(generationRequest.id, outputData);
 
             return {
@@ -98,56 +82,49 @@ export class WorksheetV2Service {
         }
     }
 
-    /**
-     * AI-вызов + Zod валидация + 1 retry с feedback.
-     */
     private async generateAndValidate(input: WorksheetGenInput): Promise<GenerationDocumentT> {
         const { system, user } = buildWorksheetV2Prompt(input);
-        const client = this.getClient();
+        const combinedPrompt = `${system}\n\n${user}`;
 
         // Первая попытка.
-        const first = await this.callAi(client, system, user);
+        const first = await this.replicateService.createCompletion(
+            combinedPrompt,
+            'google/gemini-3-flash',
+            { max_tokens: 16384, temperature: 0.4 },
+        );
         const validated = this.tryParse(first);
         if (validated.ok === true) return validated.doc;
 
-        const firstErrors = validated.errors;
-        // Retry с feedback об ошибках валидации.
-        this.logger.warn(`worksheet-v2: first AI response invalid, retrying. errors: ${firstErrors}`);
-        const retryUser = `${user}\n\nПРЕДЫДУЩАЯ ПОПЫТКА НЕ ПРОШЛА ВАЛИДАЦИЮ:\n${firstErrors}\n\nИсправь ошибки и верни валидный JSON.`;
-        const second = await this.callAi(client, system, retryUser);
+        this.logger.warn(`worksheet-v2: first attempt invalid, retrying. errors: ${validated.errors}`);
+        const retryPrompt = `${combinedPrompt}\n\nПРЕДЫДУЩАЯ ПОПЫТКА НЕ ПРОШЛА ВАЛИДАЦИЮ. ОШИБКИ:\n${validated.errors}\n\nИсправь и верни ТОЛЬКО валидный JSON-объект.`;
+        const second = await this.replicateService.createCompletion(
+            retryPrompt,
+            'google/gemini-3-flash',
+            { max_tokens: 16384, temperature: 0.2 },
+        );
         const retryValidated = this.tryParse(second);
         if (retryValidated.ok === true) return retryValidated.doc;
 
-        throw new Error(`AI returned invalid JSON after retry: ${retryValidated.errors}`);
+        throw new Error(`AI вернул невалидный JSON после повтора: ${retryValidated.errors}`);
     }
 
-    private async callAi(client: OpenAI, system: string, user: string): Promise<string> {
-        const completion = await client.chat.completions.create({
-            model: 'gpt-4o-mini',
-            response_format: { type: 'json_object' },
-            messages: [
-                { role: 'system', content: system },
-                { role: 'user', content: user },
-            ],
-            temperature: 0.7,
-            max_tokens: 4000,
-        });
-        const text = completion.choices[0]?.message?.content || '';
-        if (!text.trim()) throw new Error('AI returned empty response');
-        return text;
-    }
-
+    /**
+     * Снимает markdown-fences (` ```json ... ``` `), парсит JSON и валидирует Zod-схемой.
+     */
     private tryParse(raw: string): { ok: true; doc: GenerationDocumentT } | { ok: false; errors: string } {
+        const cleaned = stripJsonFences(raw);
         let parsed: unknown;
         try {
-            parsed = JSON.parse(raw);
+            parsed = JSON.parse(cleaned);
         } catch (e: any) {
-            return { ok: false, errors: `Invalid JSON: ${e?.message}` };
+            return {
+                ok: false,
+                errors: `Невалидный JSON: ${e?.message}. Начало ответа: ${cleaned.slice(0, 200)}`,
+            };
         }
         try {
-            // .parse() кидает ZodError на невалидном входе. Используем его вместо
-            // safeParse, потому что в zod 3.22.x narrowing на success-discriminator
-            // не всегда срабатывает в monorepo'шной TypeScript-резолюции типов.
+            // .parse() с try/catch — в zod 3.x narrowing на safeParse не везде
+            // срабатывает корректно в TS-резолюции workspaces (см. issue).
             const doc = GenerationDocument.parse(parsed);
             return { ok: true, doc };
         } catch (e: any) {
@@ -160,4 +137,23 @@ export class WorksheetV2Service {
             return { ok: false, errors: issues };
         }
     }
+}
+
+/**
+ * AI часто оборачивает ответ в ```json ... ``` несмотря на инструкции.
+ * Также может добавить text-преамбулу. Достаём только то, что между фигурными скобками.
+ */
+function stripJsonFences(raw: string): string {
+    let s = raw.trim();
+    // Code-fence обрамление.
+    if (s.startsWith('```')) {
+        s = s.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
+    }
+    // Если перед { есть преамбула — режем до первого {.
+    const firstBrace = s.indexOf('{');
+    const lastBrace = s.lastIndexOf('}');
+    if (firstBrace > 0 && lastBrace > firstBrace) {
+        s = s.slice(firstBrace, lastBrace + 1);
+    }
+    return s;
 }
