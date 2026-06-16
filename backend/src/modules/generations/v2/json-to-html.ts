@@ -165,13 +165,17 @@ function splitByMath(text: string): Array<{ kind: 'text' | 'math'; value: string
 
 function transformPlainSegment(s: string): string {
     let out = s;
-    // sqrt(x) → $\sqrt{x}$. Аккуратно: не двойное оборачивание если уже есть $\sqrt.
+    // sqrt(N) → $\sqrt{N}$
     out = out.replace(/\bsqrt\s*\(\s*([^()]+?)\s*\)/g, (_, body) => `$\\sqrt{${body}}$`);
-    // 1/2, 3/4 — простые дроби с числами → $\frac{1}{2}$.
+    // N/M → $\frac{N}{M}$
     out = out.replace(/\b(\d+)\s*\/\s*(\d+)\b/g, (_, a, b) => `$\\frac{${a}}{${b}}$`);
-    // a^N → $a^{N}$ (только если a — одна буква, N — число).
+    // a^N → $a^{N}$ (одна буква, число)
     out = out.replace(/\b([a-zA-Z])\^(\d+)\b/g, (_, base, exp) => `$${base}^{${exp}}$`);
-    // Объединяем соседние $..$$..$ (после применения серии замен) в один:
+    // a_N → $a_{N}$ (одна буква, индекс)
+    out = out.replace(/\b([a-zA-Z])_(\d+)\b/g, (_, base, idx) => `$${base}_{${idx}}$`);
+    // Угол в градусах: 60° → $60°$
+    out = out.replace(/(\d+)\s*°/g, (_, n) => `$${n}°$`);
+    // Соседние $..$$..$ → $..\cdot..$
     out = out.replace(/\$([^$]+)\$\s*\$([^$]+)\$/g, (_, a, b) => `$${a} \\cdot ${b}$`);
     return out;
 }

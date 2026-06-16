@@ -145,9 +145,19 @@ function autowrapPlainMath(text: string): string {
 
 function transformPlainSegment(s: string): string {
     let out = s
+    // sqrt(N) → $\sqrt{N}$
     out = out.replace(/\bsqrt\s*\(\s*([^()]+?)\s*\)/g, (_, body) => `$\\sqrt{${body}}$`)
+    // N/M (только числа) → $\frac{N}{M}$
     out = out.replace(/\b(\d+)\s*\/\s*(\d+)\b/g, (_, a, b) => `$\\frac{${a}}{${b}}$`)
+    // a^N → $a^{N}$ (одна буква, число в степени)
     out = out.replace(/\b([a-zA-Z])\^(\d+)\b/g, (_, base, exp) => `$${base}^{${exp}}$`)
+    // a_N → $a_{N}$ (одна буква, индекс — число)
+    out = out.replace(/\b([a-zA-Z])_(\d+)\b/g, (_, base, idx) => `$${base}_{${idx}}$`)
+    // Угол в градусах: 60° → $60°$
+    out = out.replace(/(\d+)\s*°/g, (_, n) => `$${n}°$`)
+    // Греческие буквы латиницей в открытом тексте: «pi», «alpha», «beta» — рискованно,
+    // т.к. эти строки могут встречаться в обычных словах. НЕ трогаем.
+
     // Соседние $..$$..$ объединить в один с \cdot.
     out = out.replace(/\$([^$]+)\$\s*\$([^$]+)\$/g, (_, a, b) => `$${a} \\cdot ${b}$`)
     return out
