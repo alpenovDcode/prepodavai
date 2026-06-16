@@ -101,9 +101,17 @@ const TYPE_CONFIG: Record<string, {
         hoverBorder: 'hover:border-[#6EE7B7]',
         Icon: Book,
     },
+    lessonPreparation: {
+        label: 'Вау-урок',
+        pillLabel: 'Вау-уроки',
+        chipBg: 'bg-[#FEF3F2]',
+        chipText: 'text-[#B91C1C]',
+        hoverBorder: 'hover:border-[#FCA5A5]',
+        Icon: Wand2,
+    },
 }
 
-const PILL_TYPES = ['worksheet', 'quiz', 'presentation', 'lessonPlan', 'image', 'game'] as const
+const PILL_TYPES = ['lessonPreparation', 'worksheet', 'quiz', 'presentation', 'lessonPlan', 'image', 'game'] as const
 
 const SUBJECTS = [
     'Математика', 'Физика', 'Химия', 'Биология',
@@ -120,6 +128,9 @@ function normalizeType(dbType: string): string {
         'lesson-plan': 'lessonPlan',
         lesson_plan: 'lessonPlan',
         lessonPlan: 'lessonPlan',
+        lesson_preparation: 'lessonPreparation',
+        'lesson-preparation': 'lessonPreparation',
+        lessonPreparation: 'lessonPreparation',
         image_generation: 'image',
         image: 'image',
         game_generation: 'game',
@@ -533,6 +544,7 @@ export default function CoursesPageV2() {
         quiz:         ['quiz'],
         presentation: ['presentation'],
         lessonPlan:   ['lesson_plan', 'lesson-plan', 'plan', 'lessonPlan'],
+        lessonPreparation: ['lesson_preparation', 'lesson-preparation', 'lessonPreparation'],
         image:        ['image', 'image_generation', 'photosession'],
         game:         ['game', 'game_generation'],
     }), [])
