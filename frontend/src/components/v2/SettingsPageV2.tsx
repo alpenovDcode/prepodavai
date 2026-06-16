@@ -422,6 +422,21 @@ export default function SettingsPageV2() {
         if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
     }
 
+    // Автосейв тумблера уведомлений: меняем локально (оптимистично) и
+    // СРАЗУ шлём PUT /users/me с одним полем. Если бэк не принял — откатываем
+    // обратно и показываем тост. Без отдельной кнопки «Сохранить» —
+    // переключатель должен ощущаться мгновенным.
+    const toggleNotif = async (key: 'notifyStudentProgress' | 'notifyWeeklyReport' | 'notifyNewCourse', value: boolean) => {
+        const prev = (notif as any)[key] as boolean
+        setNotif(n => ({ ...n, [key]: value }))
+        try {
+            await apiClient.put('/users/me', { [key]: value })
+        } catch (e: any) {
+            setNotif(n => ({ ...n, [key]: prev }))
+            toast.error(e?.response?.data?.message || 'Не удалось сохранить')
+        }
+    }
+
     const saveAll = async () => {
         setSaving(true)
         try {
@@ -668,7 +683,7 @@ export default function SettingsPageV2() {
                                         </div>
                                         <Toggle
                                             checked={(notif as any)[r.key]}
-                                            onChange={v => setNotif(n => ({ ...n, [r.key]: v }))}
+                                            onChange={v => toggleNotif(r.key as any, v)}
                                         />
                                     </div>
                                 ))}
