@@ -42,6 +42,15 @@ td { padding: 12px; border: 1px solid #e5e7eb; vertical-align: top; }
 .callout.callout-tip { background: #f5f3ff; border-left-color: #8b5cf6; }
 .callout.callout-methodology { background: #f9fafb; border-left-color: #6b7280; }
 .callout-title { font-weight: 700; margin-bottom: 6px; }
+.doc-intro { margin-bottom: 24px; }
+.doc-section { margin-bottom: 28px; }
+.section-label { font-size: 18px; font-weight: 700; color: #4f46e5; padding: 10px 14px; margin: 0 0 14px; border-left: 4px solid #6366f1; background: #eef2ff; border-radius: 0 8px 8px 0; page-break-after: avoid; }
+.task-card { background: white; border: 1px solid #e5e7eb; border-radius: 12px; padding: 20px 24px; margin-bottom: 14px; box-shadow: 0 1px 2px rgba(0,0,0,0.04); page-break-inside: avoid; }
+.task-card-title { font-size: 17px; font-weight: 700; color: #4f46e5; margin-bottom: 12px; }
+.task-card > *:first-child { margin-top: 0; }
+.task-card > *:last-child { margin-bottom: 0; }
+.task-card h2 { font-size: 16px; margin-top: 16px; margin-bottom: 8px; color: #374151; }
+.task-card h3 { font-size: 15px; margin-top: 12px; margin-bottom: 6px; color: #4b5563; }
 .footer-logo { text-align: right; margin-top: 40px; padding-top: 20px; border-top: 1px solid #f3f4f6; }
 .footer-logo img { width: 32px; height: 32px; object-fit: contain; opacity: 0.5; display: inline-block; }
 .teacher-answers-only { margin-top: 40px; padding-top: 20px; border-top: 2px dashed #d1d5db; page-break-before: always; }
@@ -258,13 +267,87 @@ function renderFooter(): string {
 }
 
 /**
+ * Группирует плоский список блоков в карточки задач и секции — идентично
+ * frontend/DocumentRenderer.tsx (логика синхронизирована при правках).
+ */
+interface ServerCard { title: string | null; blocks: BlockT[] }
+interface ServerSection { title: string | null; cards: ServerCard[] }
+
+function groupBlocks(blocks: BlockT[]): { intro: BlockT[]; sections: ServerSection[] } {
+    const intro: BlockT[] = [];
+    const sections: ServerSection[] = [];
+    let currentSection: ServerSection | null = null;
+    let currentCard: ServerCard | null = null;
+
+    const openSection = (title: string | null) => {
+        currentSection = { title, cards: [] };
+        sections.push(currentSection);
+        currentCard = null;
+    };
+    const openCard = (title: string | null) => {
+        if (!currentSection) openSection(null);
+        currentCard = { title, blocks: [] };
+        currentSection!.cards.push(currentCard);
+    };
+
+    for (const block of blocks) {
+        if (block.type === 'heading') {
+            const text = block.text.trim();
+            if (isSectionLikeHeading(text, block.level)) {
+                openSection(text);
+                continue;
+            }
+            openCard(text);
+            continue;
+        }
+        if (!currentSection && !currentCard) {
+            intro.push(block);
+            continue;
+        }
+        if (!currentCard) openCard(null);
+        currentCard!.blocks.push(block);
+    }
+    return { intro, sections };
+}
+
+function isSectionLikeHeading(text: string, level: 1 | 2 | 3): boolean {
+    if (level === 1) return true;
+    return /^(блок|раздел|часть|секция|глава)\b/i.test(text);
+}
+
+function renderGrouped(doc: GenerationDocumentT, showAnswers: boolean): string {
+    const grouped = groupBlocks(doc.blocks);
+    const introHtml = grouped.intro.length
+        ? `<div class="doc-intro">${grouped.intro.map((b) => renderBlock(b, showAnswers)).join('\n')}</div>`
+        : '';
+    const sectionsHtml = grouped.sections
+        .map((section) => {
+            const label = section.title
+                ? `<div class="section-label">${renderText(section.title)}</div>`
+                : '';
+            const cardsHtml = section.cards
+                .map((card) => {
+                    const titleHtml = card.title
+                        ? `<div class="task-card-title">${renderText(card.title)}</div>`
+                        : '';
+                    const bodyHtml = card.blocks.map((b) => renderBlock(b, showAnswers)).join('\n');
+                    return `<div class="task-card">${titleHtml}${bodyHtml}</div>`;
+                })
+                .join('\n');
+            return `<div class="doc-section">${label}${cardsHtml}</div>`;
+        })
+        .join('\n');
+    return introHtml + sectionsHtml;
+}
+
+/**
  * Главная функция: рендерит документ в полный HTML с DOCTYPE.
  * Готово к скармливанию в Playwright/Chrome для PDF — структура и
  * классы те же, что в DocumentRenderer.tsx и в старом AI-HTML-формате.
  */
 export function renderDocumentToHtml(doc: GenerationDocumentT, options: { showAnswers?: boolean } = {}): string {
     const showAnswers = !!options.showAnswers;
-    const blocksHtml = doc.blocks.map((b) => renderBlock(b, showAnswers)).join('\n');
+    const bodyHtml = renderGrouped(doc, showAnswers);
     return `<!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -278,7 +361,7 @@ ${KATEX_SCRIPT}
 <div class="container">
 ${renderHeader(doc)}
 ${renderMeta(doc)}
-${blocksHtml}
+${bodyHtml}
 ${renderFooter()}
 </div>
 </body>

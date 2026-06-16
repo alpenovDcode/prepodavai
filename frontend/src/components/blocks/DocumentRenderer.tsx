@@ -1,8 +1,9 @@
 'use client'
 
 import { BlockRenderer } from './Blocks'
-import type { GenerationDocument } from '@/lib/blocks/schema'
+import type { Block, GenerationDocument } from '@/lib/blocks/schema'
 import { LOGO_BASE64 } from '@/constants/branding'
+import { InlineMathText } from './Math'
 
 /**
  * Главный рендерер документа в формате blocks-v1.
@@ -31,6 +32,7 @@ export interface DocumentRendererProps {
 export function DocumentRenderer({
     doc, answers, onAnswerChange, showAnswers, className,
 }: DocumentRendererProps) {
+    const grouped = groupBlocks(doc.blocks)
     return (
         <div className={`prepodavai-doc-wrapper ${className || ''}`}>
             <DocumentStyles />
@@ -38,20 +40,122 @@ export function DocumentRenderer({
                 <div className="container">
                     <DocumentHeader doc={doc} />
                     <DocumentMeta doc={doc} />
-                    {doc.blocks.map((block) => (
-                        <BlockRenderer
-                            key={block.id}
-                            block={block}
-                            answers={answers}
-                            onAnswerChange={onAnswerChange}
-                            showAnswers={showAnswers}
-                        />
+                    {grouped.intro.length > 0 && (
+                        <div className="doc-intro">
+                            {grouped.intro.map((block) => (
+                                <BlockRenderer
+                                    key={block.id}
+                                    block={block}
+                                    answers={answers}
+                                    onAnswerChange={onAnswerChange}
+                                    showAnswers={showAnswers}
+                                />
+                            ))}
+                        </div>
+                    )}
+                    {grouped.sections.map((section, sIdx) => (
+                        <div key={sIdx} className="doc-section">
+                            {section.title && (
+                                <div className="section-label">
+                                    <InlineMathText text={section.title} />
+                                </div>
+                            )}
+                            {section.cards.map((card, cIdx) => (
+                                <div key={cIdx} className="task-card">
+                                    {card.title && (
+                                        <div className="task-card-title">
+                                            <InlineMathText text={card.title} />
+                                        </div>
+                                    )}
+                                    {card.blocks.map((block) => (
+                                        <BlockRenderer
+                                            key={block.id}
+                                            block={block}
+                                            answers={answers}
+                                            onAnswerChange={onAnswerChange}
+                                            showAnswers={showAnswers}
+                                        />
+                                    ))}
+                                </div>
+                            ))}
+                        </div>
                     ))}
                     <DocumentFooter />
                 </div>
             </div>
         </div>
     )
+}
+
+/**
+ * Группирует плоский список блоков в визуальные секции и карточки:
+ *
+ *   - Вступительный текст (до первого heading) → idem на верхнем уровне.
+ *   - heading с текстом, похожим на секцию ("Блок N", "Раздел", "Часть") →
+ *     открывает новую секцию.
+ *   - Любой другой heading → начинает новую "task-card" (заголовок и
+ *     последующие блоки до следующего heading).
+ *
+ *   Эвристика позволяет AI не задумываться о вложенной структуре schema —
+ *   достаточно ставить heading-разделители, и мы автоматом дадим вёрстку
+ *   карточек как в исходном HTML-формате.
+ */
+interface Card { title: string | null; blocks: Block[] }
+interface Section { title: string | null; cards: Card[] }
+
+function groupBlocks(blocks: Block[]): { intro: Block[]; sections: Section[] } {
+    const intro: Block[] = []
+    const sections: Section[] = []
+    let currentSection: Section | null = null
+    let currentCard: Card | null = null
+
+    const openSection = (title: string | null) => {
+        currentSection = { title, cards: [] }
+        sections.push(currentSection)
+        currentCard = null
+    }
+    const openCard = (title: string | null) => {
+        if (!currentSection) openSection(null)
+        currentCard = { title, blocks: [] }
+        currentSection!.cards.push(currentCard)
+    }
+
+    for (const block of blocks) {
+        if (block.type === 'heading') {
+            const text = block.text.trim()
+            if (isSectionLikeHeading(text, block.level)) {
+                openSection(text)
+                continue
+            }
+            // обычное «Задание …» / иное → новая карточка
+            openCard(text)
+            continue
+        }
+
+        if (!currentSection && !currentCard) {
+            // ещё не было ни одного heading — это вступительный блок
+            intro.push(block)
+            continue
+        }
+        if (!currentCard) {
+            // секция открыта, но карточки ещё нет — заводим безымянную
+            openCard(null)
+        }
+        currentCard!.blocks.push(block)
+    }
+
+    return { intro, sections }
+}
+
+/**
+ * Эвристика: heading-секция (визуально — крупный разделитель с акцентной
+ * полосой) ИЛИ heading-задание (карточка)? Секция, если:
+ *   • level 1 (документный заголовок выше задач), ИЛИ
+ *   • текст начинается с «Блок», «Раздел», «Часть» (с двоеточием/числом).
+ */
+function isSectionLikeHeading(text: string, level: 1 | 2 | 3): boolean {
+    if (level === 1) return true
+    return /^(блок|раздел|часть|секция|глава)\b/i.test(text)
 }
 
 function DocumentHeader({ doc }: { doc: GenerationDocument }) {
@@ -271,6 +375,53 @@ function DocumentStyles() {
             .prepodavai-doc .callout-title {
                 font-weight: 700;
                 margin-bottom: 6px;
+            }
+            /* Карточки задач и секции — визуальная структура как в HTML-формате */
+            .prepodavai-doc .doc-intro {
+                margin-bottom: 24px;
+            }
+            .prepodavai-doc .doc-section {
+                margin-bottom: 28px;
+            }
+            .prepodavai-doc .section-label {
+                font-size: 18px;
+                font-weight: 700;
+                color: #4f46e5;
+                padding: 10px 14px;
+                margin: 0 0 14px;
+                border-left: 4px solid #6366f1;
+                background: #eef2ff;
+                border-radius: 0 8px 8px 0;
+            }
+            .prepodavai-doc .task-card {
+                background: white;
+                border: 1px solid #e5e7eb;
+                border-radius: 12px;
+                padding: 20px 24px;
+                margin-bottom: 14px;
+                box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+                page-break-inside: avoid;
+            }
+            .prepodavai-doc .task-card-title {
+                font-size: 17px;
+                font-weight: 700;
+                color: #4f46e5;
+                margin-bottom: 12px;
+            }
+            .prepodavai-doc .task-card > *:first-child { margin-top: 0; }
+            .prepodavai-doc .task-card > *:last-child { margin-bottom: 0; }
+            /* h2/h3 ВНУТРИ карточки чуть скромнее, не дублируют title */
+            .prepodavai-doc .task-card h2 {
+                font-size: 16px;
+                margin-top: 16px;
+                margin-bottom: 8px;
+                color: #374151;
+            }
+            .prepodavai-doc .task-card h3 {
+                font-size: 15px;
+                margin-top: 12px;
+                margin-bottom: 6px;
+                color: #4b5563;
             }
             .prepodavai-doc .footer-logo {
                 text-align: right;
