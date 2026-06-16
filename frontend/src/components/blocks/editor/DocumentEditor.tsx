@@ -217,25 +217,31 @@ function MetaField({ label, value, onChange }: { label: string; value: string; o
 
 // ─── Кнопка / меню добавления блока ─────────────────────────────
 
-const BLOCK_TEMPLATES: Array<{
+interface BlockTemplate {
     label: string
     type: Block['type']
     Icon: React.ComponentType<{ className?: string }>
     make: () => Block
-}> = [
-    { label: 'Заголовок', type: 'heading', Icon: Heading1, make: () => ({ type: 'heading', id: newId('h'), level: 2, text: 'Новый заголовок' }) },
-    { label: 'Абзац', type: 'paragraph', Icon: AlignLeft, make: () => ({ type: 'paragraph', id: newId('p'), text: 'Введите текст…' }) },
-    { label: 'Выноска', type: 'callout', Icon: MessageSquareWarning, make: () => ({ type: 'callout', id: newId('c'), variant: 'info', text: 'Важное уточнение' }) },
-    { label: 'Формула', type: 'math-display', Icon: Calculator, make: () => ({ type: 'math-display', id: newId('md'), latex: 'a^2 + b^2 = c^2' }) },
-    { label: 'Пропуски', type: 'fill-blank', Icon: PenLine, make: () => ({ type: 'fill-blank', id: newId('fb'), template: 'Например: {{1}} + {{2}} = 4.', blanks: [{ index: 1, answer: '2' }, { index: 2, answer: '2' }] }) },
+}
+
+// Главные 5 типов — на виду в палитре. Покрывают 95% случаев правки worksheet/quiz.
+const PRIMARY_TEMPLATES: BlockTemplate[] = [
+    { label: 'Текст', type: 'paragraph', Icon: AlignLeft, make: () => ({ type: 'paragraph', id: newId('p'), text: 'Введите текст…' }) },
+    { label: 'Заголовок', type: 'heading', Icon: Heading1, make: () => ({ type: 'heading', id: newId('h'), level: 2, text: 'Задание ' }) },
+    { label: 'Заполнить пропуски', type: 'fill-blank', Icon: PenLine, make: () => ({ type: 'fill-blank', id: newId('fb'), template: 'Например: {{1}} + {{2}} = 4.', blanks: [{ index: 1, answer: '2' }, { index: 2, answer: '2' }] }) },
     { label: 'Выбор ответа', type: 'multiple-choice', Icon: CheckSquare, make: () => ({ type: 'multiple-choice', id: newId('mc'), question: 'Вопрос', options: [{ id: 'a', text: 'Вариант A', correct: true }, { id: 'b', text: 'Вариант B', correct: false }], multiple: false }) },
-    { label: 'Краткий ответ', type: 'short-answer', Icon: PenLine, make: () => ({ type: 'short-answer', id: newId('sa'), question: 'Вопрос', expectedLength: 'short' }) },
+    { label: 'Короткий ответ', type: 'short-answer', Icon: PenLine, make: () => ({ type: 'short-answer', id: newId('sa'), question: 'Вопрос', expectedLength: 'short' }) },
+]
+
+// Дополнительные типы — скрыты под «Ещё». Реже нужны.
+const SECONDARY_TEMPLATES: BlockTemplate[] = [
     { label: 'Сопоставление', type: 'matching', Icon: ArrowLeftRight, make: () => ({ type: 'matching', id: newId('m'), instruction: 'Сопоставь:', left: [{ id: 'L1', text: '' }, { id: 'L2', text: '' }], right: [{ id: 'R1', text: '' }, { id: 'R2', text: '' }], pairs: [] }) },
+    { label: 'Формула', type: 'math-display', Icon: Calculator, make: () => ({ type: 'math-display', id: newId('md'), latex: 'a^2 + b^2 = c^2' }) },
+    { label: 'Подсказка', type: 'callout', Icon: MessageSquareWarning, make: () => ({ type: 'callout', id: newId('c'), variant: 'tip', text: 'Важное уточнение' }) },
     { label: 'Таблица', type: 'table', Icon: TableIcon, make: () => ({ type: 'table', id: newId('t'), headers: ['Колонка 1', 'Колонка 2'], rows: [['', ''], ['', '']] }) },
-    { label: 'Картинка', type: 'image', Icon: ImageIcon, make: () => ({ type: 'image', id: newId('img'), src: '', alt: '' }) },
+    { label: 'Изображение', type: 'image', Icon: ImageIcon, make: () => ({ type: 'image', id: newId('img'), src: '', alt: '' }) },
+    { label: 'Словарная статья', type: 'vocab-entry', Icon: BookOpen, make: () => ({ type: 'vocab-entry', id: newId('v'), term: 'новое слово', translation: 'перевод' }) },
     { label: 'Отступ', type: 'spacer', Icon: Minus, make: () => ({ type: 'spacer', id: newId('sp'), size: 'md' }) },
-    { label: 'Словарь', type: 'vocab-entry', Icon: BookOpen, make: () => ({ type: 'vocab-entry', id: newId('v'), term: 'новое слово', translation: 'перевод' }) },
-    { label: 'HTML', type: 'html-snippet', Icon: Code2, make: () => ({ type: 'html-snippet', id: newId('html'), html: '<p>…</p>' }) },
 ]
 
 function AddBlockButton({ onPick }: { onPick: (b: Block) => void }) {
@@ -270,39 +276,56 @@ function AddBlockPanel({ onPick, onClose }: { onPick: (b: Block) => void; onClos
                 <span className="text-[11px] font-bold uppercase tracking-wider text-ink-500">Добавить блок</span>
                 <button type="button" onClick={onClose} className="text-[12px] text-ink-500 hover:text-ink-900">Закрыть</button>
             </div>
-            <div className="grid grid-cols-3 gap-1.5 max-md:grid-cols-2">
-                {BLOCK_TEMPLATES.map((t) => (
-                    <button
-                        key={t.type}
-                        type="button"
-                        onClick={() => onPick(t.make())}
-                        className="flex items-center gap-2 px-3 py-2 rounded-md hover:bg-ink-50 text-left transition-colors border border-ink-100"
-                    >
-                        <t.Icon className="w-4 h-4 text-brand-600 shrink-0" />
-                        <span className="text-[13px] text-ink-800">{t.label}</span>
-                    </button>
-                ))}
-            </div>
+            <BlockGrid templates={PRIMARY_TEMPLATES} onPick={onPick} />
+            <SecondaryToggle onPick={onPick} />
+        </div>
+    )
+}
+
+function BlockGrid({ templates, onPick }: { templates: BlockTemplate[]; onPick: (b: Block) => void }) {
+    return (
+        <div className="grid grid-cols-3 gap-1.5 max-md:grid-cols-2">
+            {templates.map((t) => (
+                <button
+                    key={t.type}
+                    type="button"
+                    onClick={() => onPick(t.make())}
+                    className="flex items-center gap-2 px-3 py-2 rounded-md hover:bg-ink-50 text-left transition-colors border border-ink-100"
+                >
+                    <t.Icon className="w-4 h-4 text-brand-600 shrink-0" />
+                    <span className="text-[13px] text-ink-800">{t.label}</span>
+                </button>
+            ))}
+        </div>
+    )
+}
+
+function SecondaryToggle({ onPick }: { onPick: (b: Block) => void }) {
+    const [open, setOpen] = useState(false)
+    if (!open) {
+        return (
+            <button
+                type="button"
+                onClick={() => setOpen(true)}
+                className="mt-2 text-[12px] text-ink-500 hover:text-ink-900 flex items-center gap-1"
+            >
+                <span>▾</span> Ещё типы блоков ({SECONDARY_TEMPLATES.length})
+            </button>
+        )
+    }
+    return (
+        <div className="mt-2 pt-2 border-t border-ink-100">
+            <div className="text-[10.5px] font-bold uppercase tracking-wider text-ink-400 mb-1.5">Дополнительные</div>
+            <BlockGrid templates={SECONDARY_TEMPLATES} onPick={onPick} />
         </div>
     )
 }
 
 function AddBlockPalette({ onPick }: { onPick: (b: Block) => void }) {
     return (
-        <div className="absolute z-30 mt-1.5 w-[420px] max-w-[90vw] bg-white border border-ink-200 rounded-md shadow-lg p-2">
-            <div className="grid grid-cols-3 gap-1 max-md:grid-cols-2">
-                {BLOCK_TEMPLATES.map((t) => (
-                    <button
-                        key={t.type}
-                        type="button"
-                        onClick={() => onPick(t.make())}
-                        className="flex items-center gap-2 px-3 py-2 rounded-md hover:bg-ink-50 text-left transition-colors"
-                    >
-                        <t.Icon className="w-4 h-4 text-brand-600 shrink-0" />
-                        <span className="text-[13px] text-ink-800">{t.label}</span>
-                    </button>
-                ))}
-            </div>
+        <div className="absolute z-30 mt-1.5 w-[420px] max-w-[90vw] bg-white border border-ink-200 rounded-md shadow-lg p-3">
+            <BlockGrid templates={PRIMARY_TEMPLATES} onPick={onPick} />
+            <SecondaryToggle onPick={onPick} />
         </div>
     )
 }

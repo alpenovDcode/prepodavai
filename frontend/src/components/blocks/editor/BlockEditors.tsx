@@ -1,19 +1,22 @@
 'use client'
 
-import { useId, type ReactNode } from 'react'
+import { useId, useRef, useEffect, type ReactNode } from 'react'
 import { Trash2, Plus } from 'lucide-react'
 import type { Block } from '@/lib/blocks/schema'
 import { BlockRenderer } from '@/components/blocks/Blocks'
+import { InlineMathText } from '@/components/blocks/Math'
 
 /**
  * Inline-редакторы для каждого типа блока.
  *
- * UX-принципы:
- *   - В обычном виде (не selected) показываем БлокRenderer — учитель видит ровно то,
- *     что увидит ученик.
- *   - При выделении (клик по блоку) разворачиваем форму прямо на месте блока.
- *   - Поля формы — обычные input/textarea без contentEditable. Никаких WYSIWYG-сюрпризов.
- *   - Каждое изменение поля сразу триггерит onChange — родитель сохраняет в state документа.
+ * UX-принципы (после переработки A):
+ *   - Простые text-only блоки (heading, paragraph, callout-text, math-display)
+ *     редактируются INLINE — клик по тексту → текстовое поле прямо на месте,
+ *     без выскакивания формы. Похоже на Notion / Linear / Google Docs.
+ *   - Сложные блоки (multiple-choice/fill-blank/matching/table/vocab) при
+ *     выделении разворачивают форму — там нужно управлять списками опций,
+ *     correct-флагами, indexes и т.д.
+ *   - Никакого contentEditable — обычные input/textarea, без WYSIWYG-сюрпризов.
  *   - Save обновляет outputDoc целиком через PATCH (не диффы — простая модель).
  *
  * Контракт: <BlockEditor block onChange selected onSelect />.
@@ -27,44 +30,42 @@ export interface BlockEditorProps {
     onChange: (next: Block) => void
 }
 
+// Простые text-only блоки рендерятся inline-редактором ВСЕГДА (даже не-selected
+// текст выглядит как обычный текст, при клике становится input'ом сразу).
+// Сложные блоки требуют формы — её прячем за selected.
 export function BlockEditor({ block, selected, onSelect, onChange }: BlockEditorProps) {
-    if (!selected) {
-        // Read-only превью с кликом на выделение.
-        return (
-            <div onClick={onSelect} className="cursor-pointer">
-                <BlockRenderer block={block} showAnswers={false} />
-            </div>
-        )
-    }
-
-    // Редактор для каждого типа.
     switch (block.type) {
+        // ── Inline text-only — без формы ──
         case 'heading':
-            return <HeadingEditor block={block} onChange={onChange} />
+            return <HeadingInline block={block} selected={selected} onSelect={onSelect} onChange={onChange} />
         case 'paragraph':
-            return <ParagraphEditor block={block} onChange={onChange} />
+            return <ParagraphInline block={block} selected={selected} onSelect={onSelect} onChange={onChange} />
         case 'callout':
-            return <CalloutEditor block={block} onChange={onChange} />
-        case 'spacer':
-            return <SpacerEditor block={block} onChange={onChange} />
+            return <CalloutInline block={block} selected={selected} onSelect={onSelect} onChange={onChange} />
         case 'math-display':
-            return <MathDisplayEditor block={block} onChange={onChange} />
-        case 'image':
-            return <ImageEditor block={block} onChange={onChange} />
-        case 'table':
-            return <TableEditor block={block} onChange={onChange} />
-        case 'fill-blank':
-            return <FillBlankEditor block={block} onChange={onChange} />
-        case 'multiple-choice':
-            return <MultipleChoiceEditor block={block} onChange={onChange} />
-        case 'short-answer':
-            return <ShortAnswerEditor block={block} onChange={onChange} />
-        case 'matching':
-            return <MatchingEditor block={block} onChange={onChange} />
-        case 'html-snippet':
-            return <HtmlSnippetEditor block={block} onChange={onChange} />
-        case 'vocab-entry':
-            return <VocabEntryEditor block={block} onChange={onChange} />
+            return <MathDisplayInline block={block} selected={selected} onSelect={onSelect} onChange={onChange} />
+        case 'spacer':
+            return <SpacerInline block={block} selected={selected} onSelect={onSelect} onChange={onChange} />
+
+        // ── Сложные — превью до клика, форма после ──
+        default:
+            if (!selected) {
+                return (
+                    <div onClick={onSelect} className="cursor-pointer">
+                        <BlockRenderer block={block} showAnswers={false} />
+                    </div>
+                )
+            }
+            switch (block.type) {
+                case 'image': return <ImageEditor block={block} onChange={onChange} />
+                case 'table': return <TableEditor block={block} onChange={onChange} />
+                case 'fill-blank': return <FillBlankEditor block={block} onChange={onChange} />
+                case 'multiple-choice': return <MultipleChoiceEditor block={block} onChange={onChange} />
+                case 'short-answer': return <ShortAnswerEditor block={block} onChange={onChange} />
+                case 'matching': return <MatchingEditor block={block} onChange={onChange} />
+                case 'html-snippet': return <HtmlSnippetEditor block={block} onChange={onChange} />
+                case 'vocab-entry': return <VocabEntryEditor block={block} onChange={onChange} />
+            }
     }
 }
 
@@ -125,127 +126,202 @@ function SmallBtn({ onClick, children, danger, title }: { onClick: () => void; c
 
 // ─── Редакторы по типам ─────────────────────────────────────────
 
-function HeadingEditor({ block, onChange }: { block: Extract<Block, { type: 'heading' }>; onChange: (b: Block) => void }) {
-    return (
-        <div className="bg-white border-2 border-brand-300 rounded-md p-3 shadow-sm">
-            <div className="flex items-center gap-2 mb-2">
-                <span className="text-[11px] font-bold text-brand-600 uppercase tracking-wider">Заголовок</span>
-                <select
-                    value={block.level}
-                    onChange={(e) => onChange({ ...block, level: Number(e.target.value) as 1 | 2 | 3 })}
-                    className="text-[12px] px-2 py-0.5 border border-ink-200 rounded"
-                >
-                    <option value={1}>H1</option>
-                    <option value={2}>H2</option>
-                    <option value={3}>H3</option>
-                </select>
+// ─── Inline-редакторы (без формы) ─────────────────────────────
+
+function HeadingInline({
+    block, selected, onSelect, onChange,
+}: { block: Extract<Block, { type: 'heading' }>; selected: boolean; onSelect: () => void; onChange: (b: Block) => void }) {
+    const cls = block.level === 1
+        ? 'text-[28px] font-bold leading-tight text-ink-900'
+        : block.level === 2
+            ? 'text-[20px] font-semibold text-ink-800 mt-6 mb-2'
+            : 'text-[17px] font-semibold text-ink-700 mt-4 mb-1'
+    if (!selected) {
+        return (
+            <div onClick={onSelect} className={`cursor-text ${cls}`}>
+                <InlineMathText text={block.text || 'Заголовок'} />
             </div>
-            <TextInput
-                value={block.text}
-                onChange={(e) => onChange({ ...block, text: e.target.value })}
-                placeholder="Текст заголовка"
-            />
-        </div>
+        )
+    }
+    return (
+        <input
+            autoFocus
+            value={block.text}
+            onChange={(e) => onChange({ ...block, text: e.target.value })}
+            placeholder="Заголовок"
+            className={`block w-full bg-transparent border-none outline-none focus:bg-brand-50 rounded px-1 -mx-1 ${cls}`}
+        />
     )
 }
 
-function ParagraphEditor({ block, onChange }: { block: Extract<Block, { type: 'paragraph' }>; onChange: (b: Block) => void }) {
-    return (
-        <div className="bg-white border-2 border-brand-300 rounded-md p-3 shadow-sm">
-            <div className="text-[11px] font-bold text-brand-600 uppercase tracking-wider mb-2">Абзац · поддерживает $формулы$</div>
-            <TextArea
-                value={block.text}
-                onChange={(e) => onChange({ ...block, text: e.target.value })}
-                rows={3}
-                placeholder="Текст абзаца. Формулы — между знаками $, например: $V = a \cdot b$"
-            />
-        </div>
-    )
-}
-
-function CalloutEditor({ block, onChange }: { block: Extract<Block, { type: 'callout' }>; onChange: (b: Block) => void }) {
-    return (
-        <div className="bg-white border-2 border-brand-300 rounded-md p-3 shadow-sm">
-            <div className="flex items-center gap-2 mb-2">
-                <span className="text-[11px] font-bold text-brand-600 uppercase tracking-wider">Выноска</span>
-                <select
-                    value={block.variant}
-                    onChange={(e) => onChange({ ...block, variant: e.target.value as any })}
-                    className="text-[12px] px-2 py-0.5 border border-ink-200 rounded"
-                >
-                    <option value="info">Инфо</option>
-                    <option value="warning">Внимание</option>
-                    <option value="success">Успех</option>
-                    <option value="tip">Подсказка</option>
-                    <option value="methodology">Методика</option>
-                </select>
+function ParagraphInline({
+    block, selected, onSelect, onChange,
+}: { block: Extract<Block, { type: 'paragraph' }>; selected: boolean; onSelect: () => void; onChange: (b: Block) => void }) {
+    if (!selected) {
+        return (
+            <div onClick={onSelect} className="cursor-text text-[15px] leading-7 text-ink-800">
+                <InlineMathText text={block.text || 'Введите текст…'} />
             </div>
-            <Field>
-                <Label>Заголовок (опц.)</Label>
-                <TextInput
-                    value={block.title || ''}
-                    onChange={(e) => onChange({ ...block, title: e.target.value || undefined })}
-                    placeholder="Подсказка / Условие / Внимание"
-                />
-            </Field>
-            <Field>
-                <Label>Текст</Label>
-                <TextArea
-                    value={block.text}
-                    onChange={(e) => onChange({ ...block, text: e.target.value })}
-                    rows={2}
-                />
-            </Field>
-        </div>
+        )
+    }
+    return (
+        <AutoTextarea
+            autoFocus
+            value={block.text}
+            onChange={(v) => onChange({ ...block, text: v })}
+            placeholder="Введите текст. Формулы — между $, например $V = a \cdot b$"
+            className="block w-full bg-transparent border-none outline-none focus:bg-brand-50 rounded px-1 -mx-1 text-[15px] leading-7 text-ink-800 resize-none"
+        />
     )
 }
 
-function SpacerEditor({ block, onChange }: { block: Extract<Block, { type: 'spacer' }>; onChange: (b: Block) => void }) {
+const CALLOUT_COLORS: Record<string, string> = {
+    info: 'bg-sky-50 border-l-sky-400 text-sky-900',
+    warning: 'bg-amber-50 border-l-amber-400 text-amber-900',
+    success: 'bg-emerald-50 border-l-emerald-400 text-emerald-900',
+    tip: 'bg-violet-50 border-l-violet-400 text-violet-900',
+    methodology: 'bg-ink-50 border-l-ink-400 text-ink-900',
+}
+const CALLOUT_LABEL: Record<string, string> = {
+    info: 'Условие',
+    warning: 'Внимание',
+    success: 'Важно',
+    tip: 'Подсказка',
+    methodology: 'Методика',
+}
+
+function CalloutInline({
+    block, selected, onSelect, onChange,
+}: { block: Extract<Block, { type: 'callout' }>; selected: boolean; onSelect: () => void; onChange: (b: Block) => void }) {
+    const styleCls = CALLOUT_COLORS[block.variant] || CALLOUT_COLORS.info
+    if (!selected) {
+        return (
+            <div onClick={onSelect} className={`cursor-text border-l-4 rounded-r-md px-4 py-3 my-3 ${styleCls}`}>
+                {block.title && <div className="font-bold text-[14px] mb-1">{block.title}</div>}
+                <div className="text-[14.5px] leading-6"><InlineMathText text={block.text || 'Текст выноски…'} /></div>
+            </div>
+        )
+    }
     return (
-        <div className="bg-white border-2 border-brand-300 rounded-md p-3 shadow-sm">
-            <div className="text-[11px] font-bold text-brand-600 uppercase tracking-wider mb-2">Отступ</div>
-            <div className="flex items-center gap-2">
-                <span className="text-[13px] text-ink-700">Размер:</span>
-                {(['sm', 'md', 'lg'] as const).map((s) => (
+        <div className={`border-l-4 rounded-r-md px-4 py-3 my-3 ${styleCls}`}>
+            {/* Палитра вариантов */}
+            <div className="flex flex-wrap items-center gap-1 mb-2">
+                {(['info', 'warning', 'success', 'tip', 'methodology'] as const).map((v) => (
                     <button
-                        key={s}
+                        key={v}
                         type="button"
-                        onClick={() => onChange({ ...block, size: s })}
+                        onClick={() => onChange({ ...block, variant: v })}
                         className={[
-                            'px-3 py-1 text-[13px] rounded-md border transition-colors',
-                            block.size === s ? 'border-brand-500 bg-brand-50 text-brand-700 font-semibold' : 'border-ink-200 text-ink-600 hover:bg-ink-50',
+                            'px-2.5 py-0.5 text-[11px] rounded-full border transition-colors',
+                            block.variant === v
+                                ? 'bg-white border-ink-900 text-ink-900 font-semibold'
+                                : 'bg-white/60 border-ink-200 text-ink-600 hover:bg-white',
                         ].join(' ')}
                     >
-                        {s === 'sm' ? 'Маленький' : s === 'md' ? 'Средний' : 'Большой'}
+                        {CALLOUT_LABEL[v]}
                     </button>
                 ))}
             </div>
+            <input
+                value={block.title || ''}
+                onChange={(e) => onChange({ ...block, title: e.target.value || undefined })}
+                placeholder="Заголовок выноски (опц.)"
+                className="block w-full bg-transparent border-none outline-none font-bold text-[14px] mb-1 px-1 -mx-1 focus:bg-white/60 rounded"
+            />
+            <AutoTextarea
+                value={block.text}
+                onChange={(v) => onChange({ ...block, text: v })}
+                placeholder="Текст…"
+                className="block w-full bg-transparent border-none outline-none text-[14.5px] leading-6 resize-none px-1 -mx-1 focus:bg-white/60 rounded"
+            />
         </div>
     )
 }
 
-function MathDisplayEditor({ block, onChange }: { block: Extract<Block, { type: 'math-display' }>; onChange: (b: Block) => void }) {
+function MathDisplayInline({
+    block, selected, onSelect, onChange,
+}: { block: Extract<Block, { type: 'math-display' }>; selected: boolean; onSelect: () => void; onChange: (b: Block) => void }) {
+    if (!selected) {
+        return (
+            <div onClick={onSelect} className="cursor-text my-4 text-center">
+                <BlockRenderer block={block} showAnswers={false} />
+                {!block.latex && <div className="text-ink-400 text-[13px]">Кликни чтобы ввести формулу LaTeX</div>}
+            </div>
+        )
+    }
     return (
-        <div className="bg-white border-2 border-brand-300 rounded-md p-3 shadow-sm">
-            <div className="text-[11px] font-bold text-brand-600 uppercase tracking-wider mb-2">Формула (LaTeX)</div>
-            <Field>
-                <TextArea
-                    value={block.latex}
-                    onChange={(e) => onChange({ ...block, latex: e.target.value })}
-                    rows={2}
-                    placeholder={'V = a \\cdot b \\cdot c'}
-                    className="font-mono text-[14px]"
-                />
-            </Field>
-            <Field>
-                <Label>Подпись (опц.)</Label>
-                <TextInput
-                    value={block.caption || ''}
-                    onChange={(e) => onChange({ ...block, caption: e.target.value || undefined })}
-                    placeholder="Формула объёма"
-                />
-            </Field>
+        <div className="my-4 bg-ink-50 rounded-md p-3">
+            <div className="text-[11px] font-bold text-ink-500 uppercase tracking-wider mb-2">Формула LaTeX</div>
+            <AutoTextarea
+                autoFocus
+                value={block.latex}
+                onChange={(v) => onChange({ ...block, latex: v })}
+                placeholder="V = a \cdot b \cdot c"
+                className="block w-full bg-white border border-ink-200 outline-none rounded px-3 py-2 font-mono text-[14px] focus:border-brand-400 resize-none"
+            />
+            <input
+                value={block.caption || ''}
+                onChange={(e) => onChange({ ...block, caption: e.target.value || undefined })}
+                placeholder="Подпись под формулой (опц.)"
+                className="block w-full mt-2 bg-white border border-ink-200 outline-none rounded px-3 py-1.5 text-[13px] focus:border-brand-400"
+            />
         </div>
+    )
+}
+
+function SpacerInline({
+    block, selected, onSelect, onChange,
+}: { block: Extract<Block, { type: 'spacer' }>; selected: boolean; onSelect: () => void; onChange: (b: Block) => void }) {
+    const h = block.size === 'sm' ? '8px' : block.size === 'md' ? '20px' : '40px'
+    if (!selected) {
+        return (
+            <div onClick={onSelect} style={{ height: h }} className="cursor-pointer hover:bg-ink-50 rounded" />
+        )
+    }
+    return (
+        <div className="bg-ink-50 rounded-md p-2 my-2 flex items-center gap-2">
+            <span className="text-[12px] text-ink-600">Отступ:</span>
+            {(['sm', 'md', 'lg'] as const).map((s) => (
+                <button
+                    key={s}
+                    type="button"
+                    onClick={() => onChange({ ...block, size: s })}
+                    className={[
+                        'px-2.5 py-0.5 text-[12px] rounded border transition-colors',
+                        block.size === s ? 'border-brand-500 bg-brand-50 text-brand-700 font-semibold' : 'border-ink-200 text-ink-600 hover:bg-white',
+                    ].join(' ')}
+                >
+                    {s === 'sm' ? 'Маленький' : s === 'md' ? 'Средний' : 'Большой'}
+                </button>
+            ))}
+        </div>
+    )
+}
+
+/**
+ * Textarea которая автоматически растёт по содержимому. Используем вместо
+ * фиксированного rows — учитель не должен сам растягивать поле.
+ */
+function AutoTextarea({
+    value, onChange, placeholder, className, autoFocus,
+}: { value: string; onChange: (v: string) => void; placeholder?: string; className?: string; autoFocus?: boolean }) {
+    const ref = useRef<HTMLTextAreaElement>(null)
+    useEffect(() => {
+        const el = ref.current
+        if (!el) return
+        el.style.height = 'auto'
+        el.style.height = el.scrollHeight + 'px'
+    }, [value])
+    return (
+        <textarea
+            ref={ref}
+            autoFocus={autoFocus}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder={placeholder}
+            rows={1}
+            className={className}
+        />
     )
 }
 
