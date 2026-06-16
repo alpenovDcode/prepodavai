@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { Loader2, PenLine, Eye } from 'lucide-react'
+import { getEffectiveHtml } from '@/lib/utils/effectiveHtml'
 
 // ─── Скрипт для ИНТЕРАКТИВНОГО режима (вставляется в iframe ученика) ──────────
 // Автоматически назначает ID всем полям, отслеживает изменения и сообщает родителю
@@ -192,7 +193,15 @@ export function extractHtmlFromOutput(outputData: any): string | null {
   if (typeof outputData === 'string') {
     raw = outputData
   } else if (typeof outputData === 'object') {
-    raw = outputData.content || outputData.htmlResult || outputData.html || outputData.text || ''
+    // Вариант A: если у генерации есть editedBody — рендерим эффективный
+    // HTML (оригинал из content + правки в body). Это критично для:
+    //   - студента при заполнении интерактивного листа (видит правленную
+    //     учителем версию);
+    //   - проверки ДЗ (учитель видит свои правки, а не AI-оригинал).
+    raw = getEffectiveHtml(outputData)
+    if (!raw) {
+      raw = outputData.content || outputData.htmlResult || outputData.html || outputData.text || ''
+    }
     if (typeof raw !== 'string') return null
   } else {
     return null

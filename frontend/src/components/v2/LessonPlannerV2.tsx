@@ -11,6 +11,7 @@ import DOMPurify from 'isomorphic-dompurify'
 import { useGenerations } from '@/lib/hooks/useGenerations'
 import { getCurrentUser } from '@/lib/utils/userIdentity'
 import { ensureMathJaxInHtml, stripMathJaxScripts } from '@/lib/utils/ensureMathJax'
+import { extractEditedBody, saveGenerationEdits } from '@/lib/utils/editGeneration'
 import { apiClient } from '@/lib/api/client'
 
 import { Card } from '@/components/ui/v2/Card'
@@ -152,42 +153,28 @@ export default function LessonPlannerV2() {
             return
         }
 
+        // Вариант A: PATCH ТОЛЬКО editedBody, оригинал в content не трогаем.
         const iframeDoc = iframeRef.current?.contentDocument
-        let editedBodyHtml = iframeDoc?.body?.innerHTML ?? null
-        let fullHtml = localContent
-
-        if (editedBodyHtml !== null) {
-            editedBodyHtml = editedBodyHtml
-                .replace(/<script[\s\S]*?<\/script>/gi, '')
-                .replace(/<mjx-container[\s\S]*?<\/mjx-container>/gi, '')
-                .replace(/<mjx-assistive-mml[\s\S]*?<\/mjx-assistive-mml>/gi, '')
-
-            const textOnly = editedBodyHtml.replace(/<[^>]*>/g, '').replace(/&nbsp;/gi, ' ').trim()
-            if (!textOnly) {
-                toast.error('Пустой результат не сохранён')
-                return
-            }
-
-            const hasBody = /<body[^>]*>[\s\S]*<\/body>/i.test(localContent)
-            if (hasBody) {
-                fullHtml = localContent.replace(
-                    /<body([^>]*)>[\s\S]*<\/body>/i,
-                    (_, bodyAttrs) => `<body${bodyAttrs}>${editedBodyHtml}</body>`,
-                )
-            } else {
-                const headMatch = localContent.match(/<head[\s\S]*?<\/head>/i)
-                const headFromIframe = (iframeDoc?.head?.innerHTML || '').replace(/<script[\s\S]*?<\/script>/gi, '')
-                const head = headMatch ? headMatch[0] : `<head><meta charset="UTF-8">${headFromIframe}</head>`
-                fullHtml = `<!DOCTYPE html><html lang="ru">${head}<body>${editedBodyHtml}</body></html>`
-            }
+        const editedBody = extractEditedBody(iframeDoc)
+        if (!editedBody) {
+            toast.error('Пустой результат не сохранён')
+            return
         }
+
+        const hasBody = /<body[^>]*>[\s\S]*<\/body>/i.test(localContent)
+        const localFullHtml = hasBody
+            ? localContent.replace(
+                  /<body([^>]*)>[\s\S]*<\/body>/i,
+                  (_, bodyAttrs) => `<body${bodyAttrs}>${editedBody}</body>`,
+              )
+            : `<!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8"></head><body>${editedBody}</body></html>`
 
         if (activeGenerationId) {
             setIsSaving(true)
             try {
-                await apiClient.patch(`/generate/${activeGenerationId}`, { outputData: { content: fullHtml } })
-                lastSrcDocRef.current = `edit|${fullHtml}`
-                setLocalContent(fullHtml)
+                await saveGenerationEdits(activeGenerationId, editedBody)
+                lastSrcDocRef.current = `edit|${localFullHtml}`
+                setLocalContent(localFullHtml)
                 toast.success('Сохранено')
                 setEditMode(false)
             } catch (err: any) {
@@ -198,8 +185,8 @@ export default function LessonPlannerV2() {
                 setIsSaving(false)
             }
         } else {
-            lastSrcDocRef.current = `edit|${fullHtml}`
-            setLocalContent(fullHtml)
+            lastSrcDocRef.current = `edit|${localFullHtml}`
+            setLocalContent(localFullHtml)
             setEditMode(false)
         }
     }

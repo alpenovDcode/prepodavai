@@ -14,6 +14,7 @@ import { useMobileMenu } from '@/components/layout/v2/DashboardLayoutV2'
 import { Button } from '@/components/ui/v2/Button'
 import { Card } from '@/components/ui/v2/Card'
 import { useTour } from '@/lib/tour/useTour'
+import { getEffectiveHtml } from '@/lib/utils/effectiveHtml'
 import { cn } from '@/lib/utils/cn'
 
 interface Props {
@@ -75,12 +76,14 @@ function formatDateTime(iso: string): string {
 }
 
 // Та же логика, что в MaterialViewerV2: достаём первую генерацию с HTML-контентом
-// для предпросмотра задания.
+// для предпросмотра задания. Вариант A: если у генерации есть editedBody —
+// используем её для превью, чтобы учитель видел свои правки.
 function pickHtmlGeneration(gens: OverviewResponse['lesson']['generations']) {
     for (const g of gens) {
         const od: any = g.outputData
         if (!od) continue
-        const raw = typeof od === 'string' ? od : (od.content ?? od.htmlResult ?? od.html ?? '')
+        const effective = typeof od === 'object' ? getEffectiveHtml(od) : ''
+        const raw = effective || (typeof od === 'string' ? od : (od.content ?? od.htmlResult ?? od.html ?? ''))
         if (typeof raw === 'string' && /<[a-z][^>]*>/i.test(raw)) {
             return { gen: g, html: raw }
         }

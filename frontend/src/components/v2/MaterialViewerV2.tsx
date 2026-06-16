@@ -23,6 +23,7 @@ import DownloadPdfModal from '@/components/workspace/DownloadPdfModal'
 import MaterialViewer from '@/components/MaterialViewer'
 import { LOGO_BASE64 } from '@/constants/branding'
 import { getEffectiveHtml } from '@/lib/utils/effectiveHtml'
+import { extractEditedBody, saveGenerationEdits } from '@/lib/utils/editGeneration'
 
 interface Props {
     lessonId: string
@@ -443,62 +444,15 @@ export default function MaterialViewerV2({ lessonId, generationId, isEditable = 
     const saveEdits = async () => {
         if (!generation || savingHtml) return
         const doc = iframeRef.current?.contentDocument
-        const body = doc?.body
-        if (!body) { toast.error('Не удалось получить редактируемое содержимое'); return }
-
-        // Работаем с КЛОНОМ body, чтобы не задеть то, что видит пользователь.
-        const clone = body.cloneNode(true) as HTMLElement
-
-        // 1) Восстанавливаем исходный LaTeX из MathJax-контейнеров.
-        //    `data-original-input` проставляется скриптом MATHJAX_STAMP_SCRIPT
-        //    сразу после рендера. Без этого формулы исчезают навсегда.
-        clone.querySelectorAll('mjx-container').forEach((el) => {
-            const orig = el.getAttribute('data-original-input')
-            const display = el.getAttribute('data-display') === 'true'
-            if (orig) {
-                const wrapped = display ? `\\[${orig}\\]` : `\\(${orig}\\)`
-                el.replaceWith(doc!.createTextNode(wrapped))
-            } else {
-                el.remove()
-            }
-        })
-        // Остатки MathJax-разметки.
-        clone.querySelectorAll('mjx-assistive-mml, mjx-math, mjx-utility').forEach((el) => el.remove())
-        // contentEditable-обвес.
-        clone.querySelectorAll('script').forEach((el) => el.remove())
-        clone.removeAttribute('contenteditable')
-        clone.style.outline = ''
-        clone.style.outlineOffset = ''
-
-        // 2) Нормализуем поля ввода: после правки браузер мог нагрузить им
-        //    inline-style, потерять class="inline-input". Восстанавливаем
-        //    канонический вид — иначе в PDF подчёркивание превратится в рамку.
-        clone.querySelectorAll('input').forEach((el) => {
-            const inp = el as HTMLInputElement
-            const type = inp.getAttribute('type') || 'text'
-            if (type !== 'text' && type !== '') return
-            // Узкие поля (для имени/класса/даты — inline-input)
-            const inlineHints = inp.classList.contains('inline-input')
-                || (inp.getAttribute('style') || '').includes('border-bottom')
-            if (inlineHints && !inp.classList.contains('inline-input')) {
-                inp.classList.add('inline-input')
-            }
-            // Чистим временные атрибуты браузера.
-            inp.removeAttribute('value')
-        })
-
-        const editedBody = clone.innerHTML.trim()
-        const plain = editedBody.replace(/<[^>]*>/g, '').replace(/&nbsp;/gi, ' ').trim()
-        if (!plain) { toast.error('Пустой результат не сохранён'); return }
+        const editedBody = extractEditedBody(doc)
+        if (!editedBody) { toast.error('Пустой результат не сохранён'); return }
 
         setSavingHtml(true)
         try {
             // Контракт варианта A: оригинал в `content` не трогаем, правки
             // кладём в `editedBody`. PDF/DOCX/превью соберут эффективный HTML
             // на этапе рендера, перепаяв body внутри оригинального <body>.
-            await apiClient.patch(`/generate/${generation.id}`, {
-                outputData: { editedBody },
-            })
+            await saveGenerationEdits(generation.id, editedBody)
             setGeneration((g) =>
                 g
                     ? { ...g, outputData: { ...(g.outputData || {}), editedBody } }

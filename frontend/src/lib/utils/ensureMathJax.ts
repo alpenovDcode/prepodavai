@@ -22,6 +22,34 @@ export function stripMathJaxScripts(html: string): string {
     return result
 }
 
+// После того как MathJax отрисовал формулы, проходим по каждому
+// <mjx-container> и сохраняем исходный LaTeX в `data-original-input`.
+// При сохранении правок мы превращаем эти контейнеры обратно в `\(…\)`,
+// чтобы формула не потерялась при следующем PDF/DOCX-рендере.
+// (Это сердце «варианта A» — см. extractEditedBody.)
+const MATHJAX_STAMP_SCRIPT = `<script>
+(function(){
+  function stamp(){
+    var d = window.MathJax && window.MathJax.startup && window.MathJax.startup.document;
+    if(!d || !d.math) return;
+    try {
+      var iter = (typeof d.math[Symbol.iterator]==='function') ? d.math : (d.math.list||[]);
+      for (var item of iter) {
+        var node = item.typesetRoot;
+        if (!node || !item.math) continue;
+        node.setAttribute('data-original-input', item.math);
+        node.setAttribute('data-display', item.display ? 'true' : 'false');
+      }
+    } catch(e) { console.warn('mjx stamp:', e); }
+  }
+  if (window.MathJax && window.MathJax.startup && window.MathJax.startup.promise) {
+    window.MathJax.startup.promise.then(stamp);
+  } else {
+    window.addEventListener('load', function(){ setTimeout(stamp, 1500); });
+  }
+})();
+</script>`
+
 const MATHJAX_SCRIPT = `<script>
 window.MathJax = {
   loader: { load: ['[tex]/mhchem'] },
@@ -35,7 +63,8 @@ window.MathJax = {
   startup: { typeset: true }
 };
 </script>
-<script async src="${MATHJAX_CDN}"></script>`
+<script async src="${MATHJAX_CDN}"></script>
+${MATHJAX_STAMP_SCRIPT}`
 
 const WRAPPERS = /\$\$[\s\S]+?\$\$|\$[^$\n]+?\$|\\\(|\\\[|\\begin\{[a-z*]+\}/i
 const COMMANDS = /\\(?:frac|sqrt|sum|int|prod|lim|cdot|times|pm|mp|leq|geq|neq|approx|alpha|beta|gamma|delta|epsilon|zeta|eta|theta|iota|kappa|lambda|mu|nu|xi|rho|sigma|tau|phi|chi|psi|omega|Alpha|Beta|Gamma|Delta|Theta|Lambda|Pi|Sigma|Phi|Omega|infty|text|mathbb|mathcal|mathrm|mathbf|mathit|xrightarrow|overrightarrow|vec|hat|bar|sin|cos|tan|cot|sec|csc|arcsin|arccos|arctan|log|ln|exp|angle|triangle|parallel|perp|in|notin|subset|cup|cap|forall|exists|rightarrow|leftarrow|leftrightarrow|Rightarrow|Leftarrow|Leftrightarrow|to|ce|color|style|tag|label|ref|cite)\b/i

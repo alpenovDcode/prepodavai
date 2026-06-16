@@ -9,6 +9,7 @@ import DOMPurify from 'isomorphic-dompurify'
 import toast from 'react-hot-toast'
 import { useGenerations } from '@/lib/hooks/useGenerations'
 import { ensureMathJaxInHtml, stripMathJaxScripts } from '@/lib/utils/ensureMathJax'
+import { extractEditedBody, saveGenerationEdits } from '@/lib/utils/editGeneration'
 import { apiClient } from '@/lib/api/client'
 import { Card } from '@/components/ui/v2/Card'
 import { Button } from '@/components/ui/v2/Button'
@@ -153,37 +154,29 @@ export default function LessonPrepV2() {
     }
 
     const saveEdit = async () => {
+        // Вариант A: PATCH ТОЛЬКО editedBody, оригинал в content не трогаем.
         const iframeDoc = iframeRef.current?.contentDocument
-        let editedBody = iframeDoc?.body?.innerHTML ?? null
-        let fullHtml = localContent
-
-        if (editedBody !== null) {
-            editedBody = editedBody
-                .replace(/<script[\s\S]*?<\/script>/gi, '')
-                .replace(/<mjx-container[\s\S]*?<\/mjx-container>/gi, '')
-                .replace(/<mjx-assistive-mml[\s\S]*?<\/mjx-assistive-mml>/gi, '')
-
-            const textOnly = editedBody.replace(/<[^>]*>/g, '').replace(/&nbsp;/gi, ' ').trim()
-            if (!textOnly) { toast.error('Пустой результат не сохранён'); return }
-
-            const hasBody = /<body[^>]*>[\s\S]*<\/body>/i.test(localContent)
-            if (hasBody) {
-                fullHtml = localContent.replace(/<body([^>]*)>[\s\S]*<\/body>/i, (_, a) => `<body${a}>${editedBody}</body>`)
-            } else {
-                const headMatch = localContent.match(/<head[\s\S]*?<\/head>/i)
-                const headFallback = (iframeDoc?.head?.innerHTML || '').replace(/<script[\s\S]*?<\/script>/gi, '')
-                const head = headMatch ? headMatch[0] : `<head><meta charset="UTF-8">${headFallback}</head>`
-                fullHtml = `<!DOCTYPE html><html lang="ru">${head}<body>${editedBody}</body></html>`
-            }
+        const editedBody = extractEditedBody(iframeDoc)
+        if (!editedBody) {
+            toast.error('Пустой результат не сохранён')
+            return
         }
+
+        const hasBody = /<body[^>]*>[\s\S]*<\/body>/i.test(localContent)
+        const localFullHtml = hasBody
+            ? localContent.replace(
+                  /<body([^>]*)>[\s\S]*<\/body>/i,
+                  (_, a) => `<body${a}>${editedBody}</body>`,
+              )
+            : `<!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8"></head><body>${editedBody}</body></html>`
 
         if (activeGenerationId) {
             setIsSaving(true)
             try {
-                await apiClient.patch(`/generate/${activeGenerationId}`, { outputData: { content: fullHtml } })
-                lastSrcDocRef.current = `edit|${fullHtml}`
-                setLocalContent(fullHtml)
-                setResults(prev => { const u = [...prev]; u[currentIndex] = { ...u[currentIndex], content: fullHtml }; return u })
+                await saveGenerationEdits(activeGenerationId, editedBody)
+                lastSrcDocRef.current = `edit|${localFullHtml}`
+                setLocalContent(localFullHtml)
+                setResults(prev => { const u = [...prev]; u[currentIndex] = { ...u[currentIndex], content: localFullHtml }; return u })
                 toast.success('Сохранено')
                 setEditMode(false)
             } catch (err: any) {
@@ -192,7 +185,7 @@ export default function LessonPrepV2() {
                 setIsSaving(false)
             }
         } else {
-            setLocalContent(fullHtml)
+            setLocalContent(localFullHtml)
             setEditMode(false)
         }
     }
