@@ -426,7 +426,7 @@ export default function LessonPrepV2() {
                                 >
                                     Пересоздать
                                 </Button>
-                                {editMode ? (
+                                {editMode && (
                                     <Button
                                         variant="primary"
                                         size="sm"
@@ -434,10 +434,6 @@ export default function LessonPrepV2() {
                                         onClick={saveEdit}
                                     >
                                         {isSaving ? 'Сохраняем…' : 'Сохранить'}
-                                    </Button>
-                                ) : (
-                                    <Button variant="secondary" size="sm" onClick={() => setEditMode(true)}>
-                                        Редактировать
                                     </Button>
                                 )}
                                 {activeGenerationId && (

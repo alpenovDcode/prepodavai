@@ -286,9 +286,6 @@ export default function WorksheetGeneratorV2(): React.ReactElement {
                                 <TabBtn active={canvasTab === 'answers'} onClick={() => setCanvasTab('answers')}>
                                     <KeyRound className="w-3.5 h-3.5" /> С ответами
                                 </TabBtn>
-                                <TabBtn active={canvasTab === 'edit'} onClick={() => setCanvasTab('edit')}>
-                                    <Edit3 className="w-3.5 h-3.5" /> Редактировать
-                                </TabBtn>
                             </div>
                         )}
                         {!hasResult && !isGenerating && (

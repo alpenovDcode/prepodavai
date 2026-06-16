@@ -746,7 +746,6 @@ export default function MaterialViewerV2({ lessonId, generationId, isEditable = 
                                 <div className="absolute right-0 top-full mt-1.5 min-w-[230px] bg-surface border border-ink-200 rounded-md shadow-lg z-50 p-1.5">
                                     <MenuItem icon={<PenLine className="w-3.5 h-3.5" />} onClick={() => { setRenaming(true); setTitleDraft(displayTitle); setShowMenu(false) }}>Переименовать</MenuItem>
                                     <MenuItem icon={<Copy className="w-3.5 h-3.5" />} onClick={duplicateMaterial} disabled={duplicating}>Дублировать</MenuItem>
-                                    <MenuItem icon={<Edit3 className="w-3.5 h-3.5" />} onClick={() => { setTab('edit'); setShowMenu(false) }}>Редактировать в редакторе</MenuItem>
                                     <MenuItem icon={<Wand2 className="w-3.5 h-3.5" />} onClick={openInGenerator}>Открыть в Генераторе</MenuItem>
                                     <MenuItem icon={<Printer className="w-3.5 h-3.5" />} onClick={printMaterial}>Печать</MenuItem>
                                     <MenuItem icon={<Link2 className="w-3.5 h-3.5" />} onClick={copyLink}>Скопировать ссылку</MenuItem>
@@ -879,9 +878,6 @@ export default function MaterialViewerV2({ lessonId, generationId, isEditable = 
                     <TabBtn active={tab === 'preview'} onClick={() => setTab('preview')} icon={<Eye className="w-4 h-4" />}>Превью</TabBtn>
                     {typeHasAnswers(genType) && (
                         <TabBtn active={tab === 'answers'} onClick={() => setTab('answers')} icon={<KeyRound className="w-4 h-4" />}>С ответами</TabBtn>
-                    )}
-                    {isEditable && (
-                        <TabBtn active={tab === 'edit'} onClick={() => setTab('edit')} icon={<Edit3 className="w-4 h-4" />}>Редактировать</TabBtn>
                     )}
 
                     {tab === 'edit' && (

@@ -341,15 +341,17 @@ export default function QuizGeneratorV2() {
 
                         {hasResult && (
                             <div className="flex items-center gap-1.5 flex-wrap">
-                                <Button
-                                    variant={editMode ? 'primary' : 'secondary'}
-                                    size="sm"
-                                    leftIcon={editMode ? <Save className="w-3.5 h-3.5" /> : <Edit3 className="w-3.5 h-3.5" />}
-                                    onClick={toggleEditMode}
-                                    loading={isSaving}
-                                >
-                                    {editMode ? 'Сохранить' : 'Редактировать'}
-                                </Button>
+{editMode && (
+                                    <Button
+                                        variant="primary"
+                                        size="sm"
+                                        leftIcon={<Save className="w-3.5 h-3.5" />}
+                                        onClick={toggleEditMode}
+                                        loading={isSaving}
+                                    >
+                                        Сохранить
+                                    </Button>
+                                )}
                                 <Button variant="ghost" size="sm" leftIcon={copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />} onClick={copyHtml}>
                                     {copied ? 'Скопировано' : 'Копировать'}
                                 </Button>
