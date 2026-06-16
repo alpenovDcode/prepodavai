@@ -327,39 +327,76 @@ export class HtmlExportService implements OnModuleDestroy {
     // тот же prepareHtml, что и для PDF: получаем валидный документ с CSS.
     let prepared = this.prepareHtml(html);
 
-    // Перебиваем MathJax CHTML → SVG, чтобы формулы стали векторными
-    // картинками. CHTML использует кастомный font-файл, который Word
-    // не подтягивает — без свопа формулы превращаются в иероглифы.
-    prepared = prepared.replace(
-      /<script[^>]+src=["'][^"']*mathjax[^"']*tex-mml-chtml\.js[^"']*["'][^>]*>\s*<\/script>/gi,
-      '<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-svg.js"></script>',
-    );
-    // Если был CHTML без явного chtml в URL — на всякий случай добавим
-    // SVG-конфиг до загрузки.
-    if (!/tex-mml-svg/i.test(prepared)) {
-      prepared = prepared.replace(
-        /<head([^>]*)>/i,
-        `<head$1><script>window.MathJax=Object.assign({},window.MathJax,{svg:{fontCache:'none'},startup:{typeset:true}});</script>`,
-      );
+    // Полностью сносим ЛЮБЫЕ старые MathJax-блоки (и config, и loader CHTML)
+    // и подкладываем СВОЙ SVG-вариант. Так мы не зависим от того, в каком
+    // виде MathJax попал в исходный HTML (это могло меняться от ветки к ветке).
+    prepared = prepared
+      .replace(/<script[^>]*>\s*window\.MathJax[\s\S]*?<\/script>/gi, '')
+      .replace(/<script[^>]+src=["'][^"']*mathjax[^"']*["'][^>]*>\s*<\/script>/gi, '');
+
+    const hasFormulas = /\\\(|\\\[|\$\$|\\(?:frac|sqrt|sum|int|prod|lim|cdot|times|alpha|beta|gamma|delta|theta|lambda|mu|sigma|phi|omega|infty|text|mathbb|mathcal|sin|cos|tan|log|ln|to|leq|geq|neq|approx|ce)\b|\\begin\{[a-z*]+\}/i.test(prepared);
+
+    if (hasFormulas) {
+      const SVG_MATHJAX = `
+<script>
+window.MathJax = {
+  loader: { load: ['[tex]/mhchem'] },
+  tex: {
+    inlineMath: [['$', '$'], ['\\\\(', '\\\\)']],
+    displayMath: [['$$', '$$'], ['\\\\[', '\\\\]']],
+    processEscapes: true,
+    packages: { '[+]': ['mhchem'] }
+  },
+  svg: { fontCache: 'none', scale: 1.0, internalSpeechTitles: false },
+  options: { enableMenu: false },
+  startup: {
+    typeset: false,
+    ready: function() {
+      window.MathJax.startup.defaultReady();
+      window.__mjxReady = true;
+    }
+  }
+};
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-svg.js"></script>`;
+      if (/<head[\s>]/i.test(prepared)) {
+        prepared = prepared.replace(/<head([^>]*)>/i, `<head$1>${SVG_MATHJAX}`);
+      } else {
+        prepared = SVG_MATHJAX + prepared;
+      }
     }
 
     const browser = await this.getBrowser();
     const page = await browser.newPage();
     try {
       await page.setViewportSize({ width: 1100, height: 1400 });
-      await page.setContent(prepared, { waitUntil: 'networkidle', timeout: 60_000 });
+      // domcontentloaded даёт быстрый коммит. networkidle для async скриптов
+      // ненадёжен — даже когда MathJax не успел загрузиться. Дальше явно
+      // ждём `window.MathJax` и `typesetPromise`.
+      await page.setContent(prepared, { waitUntil: 'domcontentloaded', timeout: 30_000 });
 
-      // Ждём MathJax (если есть формулы)
-      const hasMathJax = await page.evaluate(() => typeof (window as any).MathJax !== 'undefined');
-      if (hasMathJax) {
+      if (hasFormulas) {
         try {
+          // 1. Ждём, пока MathJax CDN-скрипт скачается и инициализируется
+          await page.waitForFunction(
+            () => typeof (window as any).MathJax !== 'undefined' && !!(window as any).MathJax.startup,
+            null,
+            { timeout: 30_000, polling: 200 },
+          );
+          // 2. Ждём startup-промис (MathJax готов к работе)
           await page.evaluate(async () => {
             const mj = (window as any).MathJax;
-            if (mj?.startup?.promise) await mj.startup.promise;
-            if (mj?.typesetPromise) await mj.typesetPromise();
+            if (mj.startup?.promise) await mj.startup.promise;
           });
+          // 3. Принудительный typeset всей страницы (свой, не auto)
+          await page.evaluate(async () => {
+            const mj = (window as any).MathJax;
+            if (mj.typesetPromise) await mj.typesetPromise([document.body]);
+          });
+          // 4. На всякий случай — ещё короткая пауза для финализации SVG
+          await page.waitForTimeout(300);
         } catch (e) {
-          // typeset не критичен — продолжаем, формул не будет
+          this.docxLogger.warn(`MathJax typeset не дождался: ${(e as Error).message}`);
         }
       }
 

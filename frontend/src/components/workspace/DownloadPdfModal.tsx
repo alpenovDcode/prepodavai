@@ -112,7 +112,7 @@ export default function DownloadPdfModal({
                     {state === 'loading' && (
                         <div className="flex flex-col items-center py-6 text-center">
                             <Loader2 className="w-10 h-10 text-yellow-600 animate-spin mb-3" />
-                            <p className="text-sm font-semibold text-gray-900">Формируем PDF…</p>
+                            <p className="text-sm font-semibold text-gray-900">Формируем {format.toUpperCase()}…</p>
                             <p className="text-[12px] text-gray-500 mt-1">Это займёт несколько секунд</p>
                         </div>
                     )}
@@ -121,7 +121,7 @@ export default function DownloadPdfModal({
                         <div className="flex flex-col items-center py-6 text-center">
                             <CheckCircle2 className="w-10 h-10 text-green-600 mb-3" />
                             <p className="text-sm font-semibold text-gray-900">Готово!</p>
-                            <p className="text-[12px] text-gray-500 mt-1">PDF скачивается</p>
+                            <p className="text-[12px] text-gray-500 mt-1">{format.toUpperCase()} скачивается</p>
                         </div>
                     )}
 
