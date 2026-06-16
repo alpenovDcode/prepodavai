@@ -25,8 +25,9 @@ import { LOGO_BASE64 } from '@/constants/branding'
 import { getEffectiveHtml } from '@/lib/utils/effectiveHtml'
 import { extractEditedBody, saveGenerationEdits } from '@/lib/utils/editGeneration'
 import { DocumentRenderer } from '@/components/blocks/DocumentRenderer'
-import { isJsonBlocksFormat, GenerationDocument as GenerationDocumentSchema } from '@/lib/blocks/schema'
+import { isJsonBlocksFormat, GenerationDocument as GenerationDocumentSchema, JSON_BLOCKS_FORMAT } from '@/lib/blocks/schema'
 import type { GenerationDocument as GenerationDocumentT } from '@/lib/blocks/schema'
+import { DocumentEditor } from '@/components/blocks/editor/DocumentEditor'
 
 interface Props {
     lessonId: string
@@ -944,8 +945,12 @@ export default function MaterialViewerV2({ lessonId, generationId, isEditable = 
                     {typeHasAnswers(genType) && (
                         <TabBtn active={tab === 'answers'} onClick={() => setTab('answers')} icon={<KeyRound className="w-4 h-4" />}>С ответами</TabBtn>
                     )}
+                    {/* Кнопка редактирования — только для JSON-формата. */}
+                    {isV2 && (
+                        <TabBtn active={tab === 'edit'} onClick={() => setTab('edit')} icon={<Edit3 className="w-4 h-4" />}>Редактировать</TabBtn>
+                    )}
 
-                    {tab === 'edit' && (
+                    {tab === 'edit' && !isV2 && (
                         <div className="ml-auto flex items-center gap-1.5 pb-2">
                             <Button variant="ghost" size="sm" leftIcon={<X className="w-3.5 h-3.5" />} onClick={() => setTab('preview')} disabled={savingHtml}>
                                 Отмена
@@ -958,7 +963,35 @@ export default function MaterialViewerV2({ lessonId, generationId, isEditable = 
                 </div>
 
                 {/* Preview frame */}
-                {isV2 && v2Doc ? (
+                {isV2 && v2Doc && tab === 'edit' ? (
+                    <div className="bg-ink-50 rounded-lg p-4 max-md:p-2">
+                        <DocumentEditor
+                            initialDoc={v2Doc}
+                            saving={savingHtml}
+                            onCancel={() => setTab('preview')}
+                            onSave={async (next) => {
+                                setSavingHtml(true)
+                                try {
+                                    await apiClient.patch(`/generate/${generation.id}`, {
+                                        outputData: { format: JSON_BLOCKS_FORMAT, outputDoc: next },
+                                    })
+                                    // Локально обновим outputData, чтобы превью увидело новые данные.
+                                    setGeneration((g) =>
+                                        g ? { ...g, outputData: { ...(g.outputData || {}), format: JSON_BLOCKS_FORMAT, outputDoc: next } } : g,
+                                    )
+                                    toast.success('Сохранено')
+                                    setTab('preview')
+                                } catch (err: any) {
+                                    const resp = err?.response?.data
+                                    const msg = (Array.isArray(resp?.message) ? resp.message.join('; ') : resp?.message) || err?.message || 'Не удалось сохранить'
+                                    toast.error(msg)
+                                } finally {
+                                    setSavingHtml(false)
+                                }
+                            }}
+                        />
+                    </div>
+                ) : isV2 && v2Doc ? (
                     <div className="bg-ink-50 rounded-lg p-4 max-md:p-2 print-frame">
                         <DocumentRenderer doc={v2Doc} showAnswers={tab === 'answers'} />
                     </div>

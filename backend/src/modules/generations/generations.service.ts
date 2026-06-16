@@ -2046,6 +2046,24 @@ export class GenerationsService {
     }
 
     if (contentPayload !== undefined) {
+      // Валидация нового JSON-формата blocks-v1. Если фронт прислал
+      // outputDoc — он обязан соответствовать схеме, иначе данные в БД
+      // перестанут рендериться. Старый HTML-формат проходит без проверки.
+      const payloadObj = contentPayload as any;
+      if (payloadObj?.format === 'json-blocks-v1' && payloadObj?.outputDoc !== undefined) {
+        const { GenerationDocument } = await import('./v2/blocks-schema');
+        const parsed = GenerationDocument.safeParse(payloadObj.outputDoc);
+        if (!parsed.success) {
+          const summary = parsed.error.issues
+            .slice(0, 5)
+            .map((i) => `${i.path.join('.')}: ${i.message}`)
+            .join('; ');
+          throw new BadRequestException(`outputDoc не проходит валидацию: ${summary}`);
+        }
+        // Заменяем outputDoc на нормализованный (с дефолтами).
+        payloadObj.outputDoc = parsed.data;
+      }
+
       // Защита от пустого контента живёт на фронте (там понятный toast).
       // Не дублируем её на бэке — иначе на больших/специфичных HTML легко
       // получить ложный 400. Если совсем пусто/null — просто не сохраняем content.

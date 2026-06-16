@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { DocumentRenderer } from '@/components/blocks/DocumentRenderer'
+import { DocumentEditor } from '@/components/blocks/editor/DocumentEditor'
 import { stereometryWorksheet } from '@/lib/blocks/fixtures/worksheet-stereometry'
 import { GenerationDocument } from '@/lib/blocks/schema'
 
@@ -16,7 +17,7 @@ import { GenerationDocument } from '@/lib/blocks/schema'
  *   • Заполнение (ученик заполняет ответы — управляемые поля)
  */
 
-type Mode = 'preview' | 'answers' | 'fill'
+type Mode = 'preview' | 'answers' | 'fill' | 'edit'
 
 const FIXTURES: { id: string; label: string; doc: GenerationDocument }[] = [
     { id: 'stereometry', label: 'Стереометрия (worksheet)', doc: stereometryWorksheet },
@@ -26,8 +27,10 @@ export default function BlocksPreviewPage() {
     const [fixtureId, setFixtureId] = useState(FIXTURES[0].id)
     const [mode, setMode] = useState<Mode>('preview')
     const [answers, setAnswers] = useState<Record<string, any>>({})
+    const [editedDoc, setEditedDoc] = useState<GenerationDocument | null>(null)
 
-    const doc = FIXTURES.find(f => f.id === fixtureId)!.doc
+    const baseDoc = FIXTURES.find(f => f.id === fixtureId)!.doc
+    const doc = editedDoc || baseDoc
     const showAnswers = mode === 'answers'
     const onAnswerChange = mode === 'fill' ? (id: string, v: any) => setAnswers(s => ({ ...s, [id]: v })) : undefined
 
@@ -58,7 +61,7 @@ export default function BlocksPreviewPage() {
                         </select>
                     </label>
                     <div className="flex items-center gap-1.5 ml-auto">
-                        {(['preview', 'answers', 'fill'] as Mode[]).map(m => (
+                        {(['preview', 'answers', 'fill', 'edit'] as Mode[]).map(m => (
                             <button
                                 key={m}
                                 type="button"
@@ -69,7 +72,7 @@ export default function BlocksPreviewPage() {
                                         : 'bg-ink-50 text-ink-700 hover:bg-ink-100'
                                 }`}
                             >
-                                {m === 'preview' ? 'Превью' : m === 'answers' ? 'С ответами' : 'Заполнение'}
+                                {m === 'preview' ? 'Превью' : m === 'answers' ? 'С ответами' : m === 'fill' ? 'Заполнение' : 'Редактирование'}
                             </button>
                         ))}
                     </div>
@@ -88,12 +91,20 @@ export default function BlocksPreviewPage() {
                 )}
             </div>
 
-            <DocumentRenderer
-                doc={doc}
-                answers={mode === 'fill' ? answers : undefined}
-                onAnswerChange={onAnswerChange}
-                showAnswers={showAnswers}
-            />
+            {mode === 'edit' ? (
+                <DocumentEditor
+                    initialDoc={doc}
+                    onSave={async (next) => { setEditedDoc(next); setMode('preview') }}
+                    onCancel={() => setMode('preview')}
+                />
+            ) : (
+                <DocumentRenderer
+                    doc={doc}
+                    answers={mode === 'fill' ? answers : undefined}
+                    onAnswerChange={onAnswerChange}
+                    showAnswers={showAnswers}
+                />
+            )}
         </div>
     )
 }

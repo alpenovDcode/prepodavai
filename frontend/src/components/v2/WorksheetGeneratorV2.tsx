@@ -23,6 +23,8 @@ import GenerationProgress from '@/components/workspace/GenerationProgress'
 import PdfDownloadButton from '@/components/workspace/PdfDownloadButton'
 import AssignTaskButton from '@/components/AssignTaskButton'
 import { DocumentRenderer } from '@/components/blocks/DocumentRenderer'
+import { DocumentEditor } from '@/components/blocks/editor/DocumentEditor'
+import { JSON_BLOCKS_FORMAT } from '@/lib/blocks/schema'
 import type { GenerationDocument as GenerationDocumentT } from '@/lib/blocks/schema'
 
 const SUBJECTS = [
@@ -79,7 +81,8 @@ export default function WorksheetGeneratorV2(): React.ReactElement {
     const [v2Doc, setV2Doc] = useState<GenerationDocumentT | null>(null)
     const [v2GenerationId, setV2GenerationId] = useState<string | null>(null)
     const [v2IsGenerating, setV2IsGenerating] = useState(false)
-    const [v2Mode, setV2Mode] = useState<'preview' | 'answers'>('preview')
+    const [v2Mode, setV2Mode] = useState<'preview' | 'answers' | 'edit'>('preview')
+    const [v2IsSaving, setV2IsSaving] = useState(false)
     const toggleV2 = (next: boolean) => {
         setUseV2(next)
         try { localStorage.setItem('worksheet_use_v2_format', next ? '1' : '0') } catch {}
@@ -354,6 +357,9 @@ export default function WorksheetGeneratorV2(): React.ReactElement {
                                     <TabBtn active={v2Mode === 'answers'} onClick={() => setV2Mode('answers')}>
                                         <KeyRound className="w-3.5 h-3.5" /> С ответами
                                     </TabBtn>
+                                    <TabBtn active={v2Mode === 'edit'} onClick={() => setV2Mode('edit')}>
+                                        <Edit3 className="w-3.5 h-3.5" /> Редактировать
+                                    </TabBtn>
                                 </div>
                             )
                         ) : (
@@ -436,7 +442,31 @@ export default function WorksheetGeneratorV2(): React.ReactElement {
                             </div>
                         ) : useV2 ? (
                             v2Doc ? (
-                                <DocumentRenderer doc={v2Doc} showAnswers={v2Mode === 'answers'} />
+                                v2Mode === 'edit' && v2GenerationId ? (
+                                    <DocumentEditor
+                                        initialDoc={v2Doc}
+                                        saving={v2IsSaving}
+                                        onCancel={() => setV2Mode('preview')}
+                                        onSave={async (next) => {
+                                            setV2IsSaving(true)
+                                            try {
+                                                await apiClient.patch(`/generate/${v2GenerationId}`, {
+                                                    outputData: { format: JSON_BLOCKS_FORMAT, outputDoc: next },
+                                                })
+                                                setV2Doc(next)
+                                                toast.success('Сохранено')
+                                                setV2Mode('preview')
+                                            } catch (e: any) {
+                                                const msg = e?.response?.data?.message || e?.message || 'Не удалось сохранить'
+                                                toast.error(Array.isArray(msg) ? msg.join('; ') : msg)
+                                            } finally {
+                                                setV2IsSaving(false)
+                                            }
+                                        }}
+                                    />
+                                ) : (
+                                    <DocumentRenderer doc={v2Doc} showAnswers={v2Mode === 'answers'} />
+                                )
                             ) : (
                                 <div className="h-full flex flex-col items-center justify-center text-center p-10 text-ink-500">
                                     <div className="w-[72px] h-[72px] rounded-lg bg-ink-100 inline-flex items-center justify-center text-ink-400 mb-4">
