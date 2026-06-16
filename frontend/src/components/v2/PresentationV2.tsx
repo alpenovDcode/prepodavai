@@ -113,12 +113,46 @@ export default function PresentationV2() {
             const status = await pollStatus(requestId, 300)
             const r = status.result
 
-            if (typeof r?.content === 'string' && r.content.includes('<html')) {
-                setContent(r.content)
-                setPdfUrl(r.pdfUrl || null)
-                setPptxUrl(r.pptxUrl || null)
+            // pollStatus отдаёт `outputData` из БД, но иногда бэк/контроллер
+            // оборачивает его дополнительным слоем — пробуем все возможные пути.
+            const candidates = [
+                r?.content,
+                r?.outputData?.content,
+                r?.result?.content,
+                r?.data?.content,
+            ]
+            const html = candidates.find(c => typeof c === 'string' && (c.includes('<html') || c.includes('<!DOCTYPE') || c.includes('<body')))
+
+            // pdfUrl / pptxUrl тоже могут быть на разных уровнях.
+            const pdfUrlFound = r?.pdfUrl ?? r?.outputData?.pdfUrl ?? r?.result?.pdfUrl ?? r?.exportUrl ?? null
+            const pptxUrlFound = r?.pptxUrl ?? r?.outputData?.pptxUrl ?? r?.result?.pptxUrl ?? null
+
+            if (html) {
+                setContent(html)
+                setPdfUrl(pdfUrlFound)
+                setPptxUrl(pptxUrlFound)
+            } else if (pdfUrlFound || pptxUrlFound) {
+                // HTML не пришёл, но файлы есть — показываем минимальный fallback-просмотрщик
+                setContent(`
+<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
+body{margin:0;padding:40px;font-family:Inter,system-ui,sans-serif;background:#FAFAFA;color:#0F172A;display:flex;align-items:center;justify-content:center;min-height:100vh;text-align:center}
+.box{max-width:480px}
+h2{font-size:22px;margin:0 0 12px}
+p{color:#475569;margin:0 0 24px;line-height:1.5}
+a{display:inline-block;background:#FF7E58;color:white;text-decoration:none;padding:10px 20px;border-radius:8px;font-weight:600;margin:4px}
+</style></head><body><div class="box">
+<h2>Презентация готова 🎉</h2>
+<p>HTML-просмотр временно недоступен, но вы можете скачать файлы.</p>
+${pdfUrlFound ? `<a href="${pdfUrlFound}" target="_blank">Скачать PDF</a>` : ''}
+${pptxUrlFound ? `<a href="${pptxUrlFound}" target="_blank">Скачать PPTX</a>` : ''}
+</div></body></html>`)
+                setPdfUrl(pdfUrlFound)
+                setPptxUrl(pptxUrlFound)
             } else {
-                setErrorMsg('Презентация сгенерирована, но HTML не получен.')
+                // Полное падение — логируем что пришло, чтобы было понятно
+                console.error('Presentation result without content/files:', r)
+                const reason = r?.error || r?.errorMessage || 'формат ответа не распознан'
+                setErrorMsg(`Презентация сгенерирована, но HTML не получен (${reason}). Откройте консоль для деталей.`)
                 toast.error('Что-то пошло не так с рендерингом')
             }
         } catch (e: any) {
