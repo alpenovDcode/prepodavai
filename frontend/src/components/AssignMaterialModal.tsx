@@ -72,9 +72,11 @@ export default function AssignMaterialModal({ isOpen, onClose, lessonId, generat
             if (onAssignSuccess) {
                 onAssignSuccess()
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error('Failed to assign lesson:', error)
-            alert('Ошибка при выдаче урока')
+            const msg = error?.response?.data?.message
+            const text = Array.isArray(msg) ? msg.join('; ') : msg
+            alert(text || 'Ошибка при выдаче урока')
         } finally {
             setLoading(false)
         }

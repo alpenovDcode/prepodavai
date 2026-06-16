@@ -329,6 +329,16 @@ export default function MaterialViewerV2({ lessonId, generationId, isEditable = 
     const [savingHtml, setSavingHtml] = useState(false)
 
     const [showAssign, setShowAssign] = useState(false)
+    const [preparingAssign, setPreparingAssign] = useState(false)
+    // realLessonId — настоящий Lesson.id для POST /assignments. На странице
+    // /dashboard/courses/[id]/materials/[generationId] навигация из списка
+    // материалов кладёт generationId В ОБА сегмента URL (lessonId === generationId),
+    // и такого lesson в БД нет. Перед открытием модала «Выдать ученикам» нам
+    // нужен валидный Lesson.id — либо уже привязанный к генерации,
+    // либо свежесозданный с last-second link-lesson.
+    const [realLessonId, setRealLessonId] = useState<string | null>(
+        lessonId && lessonId !== generationId ? lessonId : null,
+    )
     const [showPdf, setShowPdf] = useState(false)
     const [showMenu, setShowMenu] = useState(false)
     const menuRef = useRef<HTMLDivElement>(null)
@@ -454,6 +464,36 @@ export default function MaterialViewerV2({ lessonId, generationId, isEditable = 
             doc.body.style.outline = ''
         }
     }, [tab, srcDoc, iframeLoading])
+
+    // Готовит lessonId для AssignMaterialModal: если у нас в URL уже валидный
+    // lessonId (отличный от generationId) — используем его. Иначе генерация
+    // открыта через «сухую» ссылку списка материалов (lessonId === generationId),
+    // и реального lesson в БД нет — создаём его и линкуем генерацию.
+    const openAssignModal = async () => {
+        if (preparingAssign) return
+        if (realLessonId) { setShowAssign(true); return }
+        setPreparingAssign(true)
+        try {
+            const topic = (generation?.title || displayTitle || 'AI генерация').slice(0, 200)
+            const lessonRes = await apiClient.post('/lessons', { topic })
+            const newLessonId = lessonRes.data?.id as string
+            if (!newLessonId) throw new Error('lesson id missing')
+            if (generation?.id) {
+                try {
+                    await apiClient.post(`/generate/${generation.id}/link-lesson`, { lessonId: newLessonId })
+                } catch (err) {
+                    console.error('link-lesson failed:', err)
+                }
+            }
+            setRealLessonId(newLessonId)
+            setShowAssign(true)
+        } catch (err: any) {
+            const msg = err?.response?.data?.message
+            toast.error((Array.isArray(msg) ? msg.join('; ') : msg) || 'Не удалось подготовить материал к выдаче')
+        } finally {
+            setPreparingAssign(false)
+        }
+    }
 
     // ── actions ──
     const saveEdits = async () => {
@@ -690,8 +730,8 @@ export default function MaterialViewerV2({ lessonId, generationId, isEditable = 
                         >
                             Скачать
                         </Button>
-                        <Button variant="primary" size="sm" leftIcon={<Send className="w-3.5 h-3.5" />} onClick={() => setShowAssign(true)}>
-                            Выдать ученикам
+                        <Button variant="primary" size="sm" leftIcon={<Send className="w-3.5 h-3.5" />} onClick={openAssignModal} disabled={preparingAssign}>
+                            {preparingAssign ? 'Готовим…' : 'Выдать ученикам'}
                         </Button>
                         <div className="relative" ref={menuRef}>
                             <button
@@ -894,12 +934,14 @@ export default function MaterialViewerV2({ lessonId, generationId, isEditable = 
             </div>
 
             {/* Modals */}
-            <AssignMaterialModal
-                isOpen={showAssign}
-                onClose={() => setShowAssign(false)}
-                lessonId={lessonId}
-                generationId={generation.id}
-            />
+            {realLessonId && (
+                <AssignMaterialModal
+                    isOpen={showAssign}
+                    onClose={() => setShowAssign(false)}
+                    lessonId={realLessonId}
+                    generationId={generation.id}
+                />
+            )}
             <DownloadPdfModal
                 isOpen={showPdf}
                 onClose={() => setShowPdf(false)}
