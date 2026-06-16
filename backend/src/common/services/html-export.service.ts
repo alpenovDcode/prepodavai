@@ -261,25 +261,71 @@ export class HtmlExportService implements OnModuleDestroy {
   /**
    * Конвертирует HTML в DOCX через html-to-docx (Node-only). Полезно для
    * учителей, которые хотят дочистить рабочий лист/тест в Word перед печатью.
-   * Сложный CSS в DOCX не уезжает 1-в-1, но текст, таблицы, заголовки,
-   * списки и поля ввода (как подчёркивания) сохраняются.
+   *
+   * ВАЖНО: html-to-docx плохо переваривает то, что мы инжектим для PDF —
+   * `<script>` MathJax, `@page`, `@media`, `@import`, vendor-prefix CSS,
+   * base64-картинки. Если оставить — Word/LibreOffice потом ругаются «Word
+   * experienced an error trying to open the file». Поэтому здесь
+   * используется отдельный, упрощённый pipeline подготовки.
    */
   async htmlToDocx(html: string): Promise<Buffer> {
-    const prepared = this.prepareHtml(html);
-    // html-to-docx плохо переваривает внешние шрифты/скрипты — оставляем
-    // только тело + базовые стили, остальное он игнорирует.
+    const prepared = this.prepareHtmlForDocx(html);
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const HTMLtoDOCX = require('html-to-docx');
-    const docxBuffer = await HTMLtoDOCX(prepared, undefined, {
-      table: { row: { cantSplit: true } },
-      footer: false,
-      pageNumber: false,
+    const docxBuffer = await HTMLtoDOCX(prepared, null, {
       orientation: 'portrait',
       margins: { top: 1440, right: 1080, bottom: 1440, left: 1080 },
+      table: { row: { cantSplit: true } },
+      font: 'Calibri',
+      fontSize: 22,
+      title: 'Документ',
     });
     return Buffer.isBuffer(docxBuffer)
       ? (docxBuffer as Buffer)
       : Buffer.from(docxBuffer as ArrayBuffer);
+  }
+
+  /**
+   * Чистит HTML до того, что html-to-docx гарантированно проглотит:
+   * выкидываем скрипты, мета, ссылки, фоновые картинки (base64), стили,
+   * MathJax-контейнеры, упрощаем заголовок документа. Тело пробрасываем
+   * как есть — таблицы, списки, заголовки, абзацы, инпуты (как подчёркивания).
+   */
+  private prepareHtmlForDocx(html: string): string {
+    // Полная HTML-обёртка (если пришёл фрагмент — оборачиваем).
+    let processed = /<html[\s>]/i.test(html)
+      ? html
+      : `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body>${html}</body></html>`;
+
+    processed = processed
+      // полностью убираем скрипты, стили, мету, линки, шрифты
+      .replace(/<script[\s\S]*?<\/script>/gi, '')
+      .replace(/<style[\s\S]*?<\/style>/gi, '')
+      .replace(/<meta\b[^>]*>/gi, '')
+      .replace(/<link\b[^>]*>/gi, '')
+      // MathJax контейнеры рендерятся как HTML/MML — Word их не поймёт,
+      // выкидываем; формулы останутся как plain-text-замена в alt.
+      .replace(/<mjx-container[\s\S]*?<\/mjx-container>/gi, '')
+      .replace(/<mjx-assistive-mml[\s\S]*?<\/mjx-assistive-mml>/gi, '')
+      // Картинки в base64 (LOGO_PLACEHOLDER → огромный data:image/png) ломают
+      // парсер html-to-docx. Заменяем такие <img> пустой строкой.
+      .replace(/<img\b[^>]*src=["']data:[^"']+["'][^>]*>/gi, '')
+      // Незаменённые LOGO_PLACEHOLDER — тоже убираем.
+      .replace(/<img\b[^>]*src=["']LOGO_PLACEHOLDER["'][^>]*>/gi, '')
+      // input[type=text] оставляем как «_____» — для печати в Word удобнее.
+      .replace(
+        /<input\b[^>]*type=["']?text["']?[^>]*>/gi,
+        '<span>_________________</span>',
+      )
+      .replace(
+        /<textarea\b[^>]*>[\s\S]*?<\/textarea>/gi,
+        '<p>_____________________________________________________</p>',
+      );
+
+    // Меняем @import / @page внутри атрибутов style (если просочились).
+    processed = processed.replace(/@page[^{]*\{[^}]*\}/gi, '');
+
+    return processed;
   }
 
   async htmlToPdf(html: string, options?: { blockExternalRequests?: boolean }): Promise<Buffer> {
