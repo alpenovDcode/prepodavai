@@ -141,8 +141,22 @@ export class HtmlExportService implements OnModuleDestroy {
     // DEDUP: если в БД лежит НЕСКОЛЬКО HTML-документов подряд (артефакт
     // пересохранения в редакторе — баг, исправляемый отдельно), берём
     // только первый. Иначе экспорт DOCX/PDF выдаёт каждое задание 2-3 раза.
-    // Зацикливаем: дубль может быть тройным/четвертным — каждая итерация
-    // снимает одну копию.
+    //
+    // СТРАТЕГИЯ:
+    //   A. Сначала bulletproof-дедуп через сырой текст: берём первые
+    //      ~200 символов текста из body, ищем их повтор там же — ловит
+    //      ЛЮБУЮ структуру дублей независимо от HTML-разметки.
+    //   B. Потом структурный дедуп (по </html>, .container, h1-h4,
+    //      маркерам Задание) с зацикливанием — на случай гнёзд внутри.
+    for (let nukePass = 0; nukePass < 5; nukePass++) {
+      const before = processed;
+      processed = this.nukeDuplicatesByRawText(processed);
+      if (processed === before) break;
+      this.docxLogger.log(
+        `[bulletproof-dedup] pass #${nukePass + 1}: ` +
+        `${before.length} → ${processed.length}`,
+      );
+    }
     for (let pass = 0; pass < 5; pass++) {
       const next = this.takeFirstHtmlDocument(processed);
       if (next === processed) break;
@@ -175,6 +189,82 @@ export class HtmlExportService implements OnModuleDestroy {
    * но фронт ловит только кейс №1. Этот метод — последний рубеж перед
    * экспортом, чтобы PDF/DOCX не выходили с 3 копиями.
    */
+  /**
+   * BULLETPROOF дедуп через сырой текст. Алгоритм:
+   *   1. Извлекаем body (если есть) или работаем со всем html.
+   *   2. Получаем plain text (без тегов, без &nbsp;, нормализованные пробелы).
+   *   3. Берём первые 200 символов как «фингерпринт» документа.
+   *   4. Ищем точно такие же 200 символов в остатке текста.
+   *   5. Если нашли — это копия документа. Маппим позицию обратно в html
+   *      (учитывая теги между текстом) и обрезаем html там.
+   * Ловит ЛЮБОЙ паттерн дублирования: <div class="container"> повторы,
+   * 3 копии в одном body без обёрток, частичные дубли и т.д.
+   */
+  private nukeDuplicatesByRawText(html: string): string {
+    const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body\s*>/i);
+    const bodyInner = bodyMatch ? bodyMatch[1] : html;
+    const bodyOffsetInHtml = bodyMatch ? html.indexOf(bodyInner) : 0;
+    if (bodyInner.length < 1000) return html;
+
+    // Шаг 1: получаем plain text и одновременно строим маппинг
+    // text-index → html-index (т.е. для каждого символа в plain text знаем,
+    // где он лежит в исходном bodyInner). Entity-decoding опускаем —
+    // фингерпринт ищет ту же строку, что лежит в обоих копиях; разница
+    // декодирования не повлияет (она консистентна).
+    const textChars: string[] = [];
+    const textToHtml: number[] = [];
+    let inTag = false;
+    for (let i = 0; i < bodyInner.length; i++) {
+      const c = bodyInner[i];
+      if (c === '<') { inTag = true; continue; }
+      if (c === '>') { inTag = false; continue; }
+      if (inTag) continue;
+      // Сворачиваем подряд идущие whitespaces в один пробел
+      if (/\s/.test(c)) {
+        if (textChars.length === 0 || textChars[textChars.length - 1] !== ' ') {
+          textChars.push(' ');
+          textToHtml.push(i);
+        }
+        continue;
+      }
+      textChars.push(c);
+      textToHtml.push(i);
+    }
+
+    const text = textChars.join('').trim();
+    if (text.length < 500) return html;
+
+    // Шаг 2: фингерпринт = первые 200 символов текста.
+    // Чтобы избежать совпадений с боковыми элементами (header/footer),
+    // пропускаем первые 50 символов (там обычно «Ученик: ___» / лого alt).
+    const fingerprintStart = 50;
+    const fingerprintLen = 200;
+    if (text.length < fingerprintStart + fingerprintLen + 500) return html;
+    const fingerprint = text.slice(fingerprintStart, fingerprintStart + fingerprintLen);
+
+    // Шаг 3: ищем повтор фингерпринта В ОСТАТКЕ ТЕКСТА.
+    const secondTextIdx = text.indexOf(fingerprint, fingerprintStart + fingerprintLen);
+    if (secondTextIdx === -1) return html;
+
+    // Шаг 4: маппим secondTextIdx обратно в позицию в bodyInner.
+    // textToHtml[i] хранит позицию для i-го значимого символа.
+    // Но у нас text был trimmed, надо пересчитать.
+    const trimOffset = textChars.join('').indexOf(text); // обычно 0
+    const realTextIdx = secondTextIdx + trimOffset;
+    if (realTextIdx >= textToHtml.length) return html;
+    const htmlPosInBody = textToHtml[realTextIdx];
+    const absoluteHtmlPos = bodyOffsetInHtml + htmlPosInBody;
+
+    // Шаг 5: обрезаем html. Закрывающие теги body/html допишем для валидности.
+    const tailHasBodyClose = /<\/body\s*>/i.test(html.slice(absoluteHtmlPos));
+    const tailHasHtmlClose = /<\/html\s*>/i.test(html.slice(absoluteHtmlPos));
+    const suffix =
+      '</div></div>' +
+      (tailHasBodyClose ? '</body>' : '') +
+      (tailHasHtmlClose ? '</html>' : '');
+    return html.slice(0, absoluteHtmlPos) + suffix;
+  }
+
   private takeFirstHtmlDocument(html: string): string {
     // 1. Срезаем повторные </html>
     const htmlEnd = html.match(/<\/html\s*>/i);
