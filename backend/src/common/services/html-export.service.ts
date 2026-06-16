@@ -266,45 +266,220 @@ export class HtmlExportService implements OnModuleDestroy {
   private readonly docxLogger = new Logger('HtmlToDocx');
 
   /**
-   * Конвертирует HTML в DOCX. Стратегия:
-   *   1. Рендерим обычный PDF через Playwright — там уже всё: дизайн-система,
-   *      MathJax, картинки, разрывы страниц. Это «эталон вида».
-   *   2. Прогоняем PDF через LibreOffice в headless-режиме
-   *      (`soffice --infilter="writer_pdf_import" --convert-to docx`).
-   *      LibreOffice импортирует PDF, восстанавливая поток текста и таблиц
-   *      (они остаются редактируемыми), а формулы и сложные элементы кладёт
-   *      как inline-картинки в правильных местах.
-   *   3. Если LibreOffice недоступен (локальная dev-машина без soffice) —
-   *      fallback на старый html-to-docx, чтобы экспорт не падал.
+   * Конвертирует HTML в DOCX. Стратегия (HTML→DOCX напрямую, БЕЗ PDF):
+   *
+   *   1. Pre-render в Playwright:
+   *      - принудительно переключаем MathJax на SVG-вывод (CHTML использует
+   *        свой шрифт и в Word рендерится мусором);
+   *      - typeset формул, mjx-container → inline SVG / data-URI img;
+   *      - <input>/<textarea> → подчёркнутые span'ы (форм-поля Word всё равно
+   *        не поймёт, а заголовки worksheet'ов опираются на line отсюда);
+   *      - чистим scripts/meta/link, schedule-only @media print и т.п.;
+   *      - сериализуем итоговый DOM в строку.
+   *
+   *   2. Сохраняем во временный .html и запускаем soffice:
+   *      `soffice --headless --convert-to docx:"MS Word 2007 XML" input.html`.
+   *      LibreOffice импортирует HTML как обычный документ — заголовки/абзацы/
+   *      списки/таблицы становятся НАТИВНЫМИ Word-стилями (редактируемыми),
+   *      inline-стили подхватываются, SVG-формулы попадают как картинки в
+   *      правильных местах потока текста.
+   *
+   *   3. Если soffice недоступен (локальная dev-машина) — fallback на
+   *      html-to-docx с упрощённым дизайном.
+   *
+   * Результат: DOCX, который выглядит близко к веб-материалу, при этом ВСЁ
+   * редактируемое — текст, таблицы, заголовки, списки — кроме формул
+   * (они картинки, иначе их рендер в Word без MathJax-плагина невозможен).
    */
   async htmlToDocx(html: string): Promise<Buffer> {
-    const pdfBuffer = await this.htmlToPdf(html);
+    let rendered: string;
     try {
-      return await this.pdfToDocxViaSoffice(pdfBuffer);
+      rendered = await this.renderHtmlForDocx(html);
     } catch (e: any) {
       this.docxLogger.warn(
-        `LibreOffice PDF→DOCX недоступен (${e?.message ?? e}). ` +
+        `Playwright pre-render для DOCX упал (${e?.message ?? e}). ` +
+        `Идём в soffice с сырым HTML — формулы не будут отрисованы.`,
+      );
+      rendered = this.prepareHtmlForDocx(html);
+    }
+
+    try {
+      return await this.htmlToDocxViaSoffice(rendered);
+    } catch (e: any) {
+      this.docxLogger.warn(
+        `LibreOffice HTML→DOCX недоступен (${e?.message ?? e}). ` +
         `Fallback на html-to-docx — дизайн будет упрощён.`,
       );
       return this.htmlToDocxFallback(html);
     }
   }
 
-  private async pdfToDocxViaSoffice(pdfBuffer: Buffer): Promise<Buffer> {
-    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'docx-'));
-    const inputPdf = path.join(tmpDir, `${randomUUID()}.pdf`);
-    await fs.writeFile(inputPdf, pdfBuffer);
+  /**
+   * Прогоняет HTML через Playwright, чтобы:
+   *   - MathJax выдал SVG-формулы (вместо CHTML, который Word не понимает);
+   *   - inputs/textareas стали span/p с подчёркиванием;
+   *   - SVG получили явные width/height (без них soffice вставляет 0×0);
+   *   - все скрипты и MathJax-ассистивный MML были выкинуты.
+   * Возвращает сериализованный итоговый HTML.
+   */
+  private async renderHtmlForDocx(html: string): Promise<string> {
+    // Стартовый HTML с дизайн-системой/MathJax-скриптом — переиспользуем
+    // тот же prepareHtml, что и для PDF: получаем валидный документ с CSS.
+    let prepared = this.prepareHtml(html);
 
-    // soffice пишет конвертированный файл с тем же base-name, но другим расширением
-    const outputDocx = inputPdf.replace(/\.pdf$/i, '.docx');
+    // Перебиваем MathJax CHTML → SVG, чтобы формулы стали векторными
+    // картинками. CHTML использует кастомный font-файл, который Word
+    // не подтягивает — без свопа формулы превращаются в иероглифы.
+    prepared = prepared.replace(
+      /<script[^>]+src=["'][^"']*mathjax[^"']*tex-mml-chtml\.js[^"']*["'][^>]*>\s*<\/script>/gi,
+      '<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-svg.js"></script>',
+    );
+    // Если был CHTML без явного chtml в URL — на всякий случай добавим
+    // SVG-конфиг до загрузки.
+    if (!/tex-mml-svg/i.test(prepared)) {
+      prepared = prepared.replace(
+        /<head([^>]*)>/i,
+        `<head$1><script>window.MathJax=Object.assign({},window.MathJax,{svg:{fontCache:'none'},startup:{typeset:true}});</script>`,
+      );
+    }
+
+    const browser = await this.getBrowser();
+    const page = await browser.newPage();
+    try {
+      await page.setViewportSize({ width: 1100, height: 1400 });
+      await page.setContent(prepared, { waitUntil: 'networkidle', timeout: 60_000 });
+
+      // Ждём MathJax (если есть формулы)
+      const hasMathJax = await page.evaluate(() => typeof (window as any).MathJax !== 'undefined');
+      if (hasMathJax) {
+        try {
+          await page.evaluate(async () => {
+            const mj = (window as any).MathJax;
+            if (mj?.startup?.promise) await mj.startup.promise;
+            if (mj?.typesetPromise) await mj.typesetPromise();
+          });
+        } catch (e) {
+          // typeset не критичен — продолжаем, формул не будет
+        }
+      }
+
+      // Pre-DOCX DOM-преобразования: всё, что Word не поймёт, заменяем.
+      await page.evaluate(() => {
+        // 1. SVG из MathJax: проставляем явные размеры и оборачиваем в <img>
+        //    с data:image/svg+xml. soffice вставляет такие img как картинки в
+        //    inline-позиции — формула остаётся ровно на своём месте.
+        const mathSvgs = Array.from(document.querySelectorAll<SVGSVGElement>('mjx-container svg, mjx-container > svg'));
+        for (const svg of mathSvgs) {
+          try {
+            const rect = svg.getBoundingClientRect();
+            const w = Math.max(Math.round(rect.width) || 0, 20);
+            const h = Math.max(Math.round(rect.height) || 0, 16);
+            svg.setAttribute('width', String(w));
+            svg.setAttribute('height', String(h));
+            svg.removeAttribute('style');
+            // Гарантируем xmlns — без него браузеры/soffice не считают это SVG
+            if (!svg.getAttribute('xmlns')) svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+            const xml = new XMLSerializer().serializeToString(svg);
+            const b64 = btoa(unescape(encodeURIComponent(xml)));
+            const img = document.createElement('img');
+            img.src = `data:image/svg+xml;base64,${b64}`;
+            img.setAttribute('width', String(w));
+            img.setAttribute('height', String(h));
+            img.style.cssText = `display:inline-block;vertical-align:middle;width:${w}px;height:${h}px;`;
+            const container = svg.closest('mjx-container');
+            if (container?.parentNode) container.parentNode.replaceChild(img, container);
+          } catch { /* skip broken */ }
+        }
+        // Сносим ассистивный MathJax-mml и любые оставшиеся mjx-container
+        document.querySelectorAll('mjx-assistive-mml, mjx-container').forEach((n) => n.remove());
+
+        // 2. Обычные SVG-картинки (графики/иллюстрации): тоже в data-URI img,
+        //    так soffice импортирует их надёжнее, чем как inline-SVG.
+        for (const svg of Array.from(document.querySelectorAll<SVGSVGElement>('svg'))) {
+          try {
+            const rect = svg.getBoundingClientRect();
+            const vb = (svg as any).viewBox?.baseVal;
+            const w = Math.max(Math.round(rect.width) || (vb?.width ?? 500), 20);
+            const h = Math.max(Math.round(rect.height) || (vb?.height ?? 300), 20);
+            svg.setAttribute('width', String(w));
+            svg.setAttribute('height', String(h));
+            if (!svg.getAttribute('xmlns')) svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+            const xml = new XMLSerializer().serializeToString(svg);
+            const b64 = btoa(unescape(encodeURIComponent(xml)));
+            const img = document.createElement('img');
+            img.src = `data:image/svg+xml;base64,${b64}`;
+            img.setAttribute('width', String(w));
+            img.setAttribute('height', String(h));
+            img.style.cssText = `display:block;margin:12px auto;max-width:100%;`;
+            svg.parentNode?.replaceChild(img, svg);
+          } catch { /* skip */ }
+        }
+
+        // 3. input[type=text]/number/email → подчёркнутый span (или строка для
+        //    inline-input). textarea → блок с подчёркиванием.
+        document.querySelectorAll<HTMLInputElement>('input[type="text"], input[type="number"], input[type="email"], input:not([type])').forEach((inp) => {
+          const val = inp.value || inp.getAttribute('value') || '';
+          const span = document.createElement('span');
+          span.textContent = val || '               ';
+          span.style.cssText = 'display:inline-block;min-width:140px;border-bottom:1px solid #374151;padding:0 4px;';
+          inp.parentNode?.replaceChild(span, inp);
+        });
+        document.querySelectorAll<HTMLTextAreaElement>('textarea').forEach((ta) => {
+          const val = ta.value || ta.textContent || '';
+          const lines = Math.max(parseInt(ta.getAttribute('rows') || '3', 10) || 3, 3);
+          const div = document.createElement('div');
+          div.style.cssText = 'border:1px solid #d1d5db;border-radius:6px;padding:8px 12px;margin:8px 0;min-height:60px;white-space:pre-wrap;';
+          div.textContent = val || Array(lines).fill('').map(() => '_'.repeat(60)).join('\n');
+          ta.parentNode?.replaceChild(div, ta);
+        });
+
+        // 4. radio/checkbox → крестик/кружок (Word не показывает AcroForm)
+        document.querySelectorAll<HTMLInputElement>('input[type="radio"], input[type="checkbox"]').forEach((r) => {
+          const checked = r.checked || r.hasAttribute('checked');
+          const span = document.createElement('span');
+          span.textContent = checked ? '☒' : '☐';
+          span.style.cssText = 'display:inline-block;margin-right:6px;font-size:14px;';
+          r.parentNode?.replaceChild(span, r);
+        });
+
+        // 5. Сносим scripts/meta/link/noscript — soffice игнорирует и так,
+        //    но они увеличивают размер input HTML.
+        document.querySelectorAll('script, noscript, meta[http-equiv], link[rel="preconnect"], link[rel="dns-prefetch"]').forEach((n) => n.remove());
+
+        // 6. @import url(https://fonts.googleapis...) в инлайн-стилях
+        //    закомментируем — soffice пытается их резолвить и виснет.
+        document.querySelectorAll<HTMLStyleElement>('style').forEach((s) => {
+          s.textContent = (s.textContent || '').replace(
+            /@import\s+url\(['"]?https?:\/\/[^)'"]+['"]?\)\s*;?/gi,
+            '',
+          );
+        });
+      });
+
+      const final = await page.content();
+      return final;
+    } finally {
+      await page.close().catch(() => {});
+    }
+  }
+
+  private async htmlToDocxViaSoffice(html: string): Promise<Buffer> {
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'docx-html-'));
+    const inputHtml = path.join(tmpDir, `${randomUUID()}.html`);
+    await fs.writeFile(inputHtml, html, 'utf8');
+
+    // soffice пишет конвертированный файл с тем же base-name, но другим
+    // расширением. Имя выходного файла — input.docx в outdir.
+    const outputDocx = inputHtml.replace(/\.html$/i, '.docx');
 
     await new Promise<void>((resolve, reject) => {
+      // `docx:"MS Word 2007 XML"` — современный .docx (Office 2007+).
+      // Без явного фильтра soffice иногда выдаёт legacy .doc.
       const proc = spawn('soffice', [
         '--headless',
-        '--infilter=writer_pdf_import',
-        '--convert-to', 'docx',
+        '--convert-to', 'docx:MS Word 2007 XML',
         '--outdir', tmpDir,
-        inputPdf,
+        inputHtml,
       ], { stdio: 'pipe' });
 
       let stderr = '';
@@ -312,8 +487,8 @@ export class HtmlExportService implements OnModuleDestroy {
 
       const killTimer = setTimeout(() => {
         proc.kill('SIGKILL');
-        reject(new Error('soffice timeout (60s)'));
-      }, 60_000);
+        reject(new Error('soffice timeout (90s)'));
+      }, 90_000);
 
       proc.on('error', (err) => {
         clearTimeout(killTimer);
