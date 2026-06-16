@@ -12,66 +12,66 @@ import type { GenerationDocumentT, BlockT } from './blocks-schema';
  * Это надёжнее, чем серверный KaTeX (одинаковая версия везде, нет race conditions).
  */
 
+// Канонический CSS — 1-в-1 с DocumentRenderer.tsx на фронте и
+// DesignSystemConfig.STYLES в design-system.config.ts. При изменении
+// одной из трёх частей — синхронизировать остальные.
 const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 @import url('https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css');
-* { box-sizing: border-box; margin: 0; padding: 0; }
-html, body { background: #ffffff; font-family: 'Inter', system-ui, sans-serif; color: #111827; line-height: 1.6; }
-.page { padding: 32px 40px; max-width: 840px; margin: 0 auto; }
-.doc-header { margin-bottom: 28px; padding-bottom: 18px; border-bottom: 2px solid #e5e7eb; }
-.doc-title { font-size: 26px; font-weight: 800; color: #111827; margin: 0 0 10px; line-height: 1.2; }
-.doc-meta { display: flex; flex-wrap: wrap; gap: 6px 20px; font-size: 12.5px; color: #6b7280; }
-.doc-meta strong { color: #374151; font-weight: 600; margin-right: 4px; }
-h1 { font-size: 26px; font-weight: 800; margin: 0 0 14px; color: #111827; }
-h2 { font-size: 20px; font-weight: 700; margin: 28px 0 12px; color: #1f2937; }
-h3 { font-size: 17px; font-weight: 600; margin: 22px 0 10px; color: #374151; }
-p { margin: 0 0 14px; font-size: 14.5px; line-height: 1.65; color: #1f2937; }
-ul, ol { padding-left: 22px; margin: 0 0 14px; }
-li { margin-bottom: 6px; }
-table { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 13.5px; page-break-inside: avoid; }
-th { background: #f9fafb; font-weight: 600; text-align: left; padding: 10px; border: 1px solid #d1d5db; }
-td { padding: 10px; border: 1px solid #e5e7eb; vertical-align: top; }
-.callout { border-left: 4px solid; padding: 12px 14px; margin: 14px 0; border-radius: 0 6px 6px 0; page-break-inside: avoid; }
-.callout-title { font-weight: 700; font-size: 13.5px; margin-bottom: 4px; }
-.callout-body { font-size: 14px; line-height: 1.55; }
-.callout-info { background: #f0f9ff; border-color: #0ea5e9; color: #0c4a6e; }
-.callout-warning { background: #fffbeb; border-color: #f59e0b; color: #92400e; }
-.callout-success { background: #ecfdf5; border-color: #10b981; color: #065f46; }
-.callout-tip { background: #f5f3ff; border-color: #8b5cf6; color: #5b21b6; }
-.callout-methodology { background: #f9fafb; border-color: #6b7280; color: #111827; }
-.spacer-sm { height: 8px; }
-.spacer-md { height: 18px; }
-.spacer-lg { height: 36px; }
-.math-display { margin: 14px 0; text-align: center; }
-.math-caption { text-align: center; font-size: 12.5px; color: #6b7280; margin-top: 4px; }
-.fill-blank-line { font-size: 14.5px; line-height: 1.9; margin: 12px 0; }
-.fill-input { display: inline-block; min-width: 90px; padding: 0 4px; border: none; border-bottom: 1px solid #9ca3af; }
-.answer-chip { display: inline-block; padding: 2px 6px; margin: 0 2px; border-radius: 3px; background: #d1fae5; color: #065f46; font-weight: 600; }
-.mc { margin: 14px 0; }
-.mc-question { font-weight: 600; margin-bottom: 8px; }
-.mc-options { list-style: none; padding: 0; margin: 0; }
-.mc-options li { display: flex; gap: 8px; align-items: flex-start; padding: 4px 0; }
-.mc-marker { display: inline-block; width: 16px; height: 16px; border: 1.5px solid #9ca3af; flex-shrink: 0; margin-top: 3px; }
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #f9fafb; font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: #111827; line-height: 1.6; padding: 20px; }
+.container { max-width: 100%; width: 100%; margin: 0 auto; background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+.header { display: flex; align-items: center; gap: 20px; margin-bottom: 30px; border-bottom: 2px solid #f3f4f6; padding-bottom: 20px; }
+.header-logo { width: 40px; height: 40px; object-fit: contain; flex-shrink: 0; }
+h1 { font-size: 28px; font-weight: 700; margin: 0; color: #111827; line-height: 1.2; }
+h2 { font-size: 20px; font-weight: 600; margin-top: 32px; margin-bottom: 16px; color: #374151; }
+h3 { font-size: 17px; font-weight: 600; margin-top: 24px; margin-bottom: 12px; color: #374151; }
+p { margin: 0 0 16px; font-size: 15px; color: #111827; }
+ul, ol { padding-left: 24px; margin: 0 0 20px; }
+li { margin-bottom: 8px; }
+input[type="text"], textarea { width: 100%; border: 1px solid #d1d5db; border-radius: 6px; padding: 8px 12px; font-family: inherit; font-size: inherit; background: white; }
+.inline-input { display: inline-block; width: 150px; border: none; border-bottom: 1px solid #9ca3af; border-radius: 0; padding: 0 4px; background: transparent; }
+.meta-info { margin-bottom: 30px; background: #fafafa; padding: 15px; border-radius: 8px; border: 1px solid #e5e7eb; display: flex; flex-wrap: wrap; gap: 8px 24px; font-size: 14px; color: #6b7280; }
+.meta-info-item strong { color: #374151; font-weight: 600; margin-right: 4px; }
+table { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 14px; page-break-inside: avoid; }
+th { background: #f9fafb; font-weight: 600; text-align: left; padding: 12px; border: 1px solid #d1d5db; }
+td { padding: 12px; border: 1px solid #e5e7eb; vertical-align: top; }
+.callout { background: #f0f9ff; border-left: 4px solid #0ea5e9; padding: 16px; margin: 20px 0; border-radius: 0 8px 8px 0; page-break-inside: avoid; }
+.callout.callout-warning { background: #fffbeb; border-left-color: #f59e0b; }
+.callout.callout-success { background: #ecfdf5; border-left-color: #10b981; }
+.callout.callout-tip { background: #f5f3ff; border-left-color: #8b5cf6; }
+.callout.callout-methodology { background: #f9fafb; border-left-color: #6b7280; }
+.callout-title { font-weight: 700; margin-bottom: 6px; }
+.footer-logo { text-align: right; margin-top: 40px; padding-top: 20px; border-top: 1px solid #f3f4f6; }
+.footer-logo img { width: 32px; height: 32px; object-fit: contain; opacity: 0.5; display: inline-block; }
+.teacher-answers-only { margin-top: 40px; padding-top: 20px; border-top: 2px dashed #d1d5db; page-break-before: always; }
+.teacher-answers-only h2 { color: #dc2626; }
+.answer-chip { display: inline-block; padding: 2px 8px; margin: 0 2px; border-radius: 4px; background: #d1fae5; color: #065f46; font-weight: 600; }
+.mc-list { list-style: none; padding: 0; margin: 8px 0 20px; }
+.mc-list li { display: flex; align-items: flex-start; gap: 10px; padding: 4px 8px; border-radius: 6px; margin-bottom: 4px; }
+.mc-list li.correct { background: #ecfdf5; color: #065f46; }
+.mc-marker { display: inline-block; width: 14px; height: 14px; border: 1.5px solid #9ca3af; flex-shrink: 0; margin-top: 3px; }
 .mc-marker.radio { border-radius: 50%; }
-.mc-correct { color: #047857; font-weight: 700; }
-.mc-correct .mc-marker { background: #10b981; border-color: #10b981; }
-.sa-question { font-weight: 600; margin-bottom: 6px; }
-.sa-input { width: 100%; min-height: 28px; border-bottom: 1px solid #9ca3af; padding: 4px 0; margin-bottom: 8px; }
-.sa-input.medium { min-height: 60px; border: 1px solid #d1d5db; padding: 8px; border-radius: 4px; }
-.sa-input.long { min-height: 120px; border: 1px solid #d1d5db; padding: 8px; border-radius: 4px; }
-.sa-expected { font-size: 12.5px; background: #ecfdf5; color: #065f46; padding: 6px 10px; border-radius: 4px; margin-top: 4px; }
-.matching { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin: 14px 0; }
+.math-display { margin: 16px 0; text-align: center; page-break-inside: avoid; }
+.math-caption { text-align: center; font-size: 13px; color: #6b7280; margin-top: 6px; }
+.fill-blank-input { display: inline-block; min-width: 90px; padding: 0 4px; border: none; border-bottom: 1px solid #9ca3af; }
+.sa-input { width: 100%; min-height: 32px; border-bottom: 1px solid #9ca3af; padding: 6px 0; margin-bottom: 8px; }
+.sa-input.medium { min-height: 70px; border: 1px solid #d1d5db; padding: 8px; border-radius: 6px; }
+.sa-input.long { min-height: 130px; border: 1px solid #d1d5db; padding: 8px; border-radius: 6px; }
+.sa-expected { font-size: 13px; background: #ecfdf5; color: #065f46; padding: 8px 12px; border-radius: 6px; margin-top: 6px; }
+.matching { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 14px 0; }
 .matching-col { list-style: none; padding: 0; }
-.matching-col li { padding: 6px 0; font-size: 14px; }
-.matching-col li strong { color: #6b7280; margin-right: 6px; }
-.matching-pairs { font-size: 12.5px; background: #ecfdf5; color: #065f46; padding: 6px 10px; border-radius: 4px; margin-top: 8px; }
-img { max-width: 100%; height: auto; }
+.matching-col li { padding: 6px 0; font-size: 14px; display: flex; gap: 8px; }
+.matching-col li strong { color: #6b7280; min-width: 24px; }
+.matching-pairs { font-size: 13px; background: #ecfdf5; color: #065f46; padding: 8px 12px; border-radius: 6px; margin-top: 10px; }
+img { max-width: 100%; height: auto; border-radius: 6px; }
 figure { margin: 16px 0; }
-figcaption { text-align: center; font-size: 12.5px; color: #6b7280; margin-top: 4px; }
+figcaption { text-align: center; font-size: 13px; color: #6b7280; margin-top: 6px; }
 @media print {
-    .page { padding: 24px 32px; }
+    body { background: white; padding: 0; }
+    .container { box-shadow: none; border-radius: 0; padding: 24px 32px; }
     h2, h3 { page-break-after: avoid; }
-    table, .callout, .mc, .matching { page-break-inside: avoid; }
+    table, .callout, .mc, .matching, .math-display { page-break-inside: avoid; }
 }
 `;
 
@@ -99,10 +99,13 @@ function renderBlock(block: BlockT, showAnswers: boolean): string {
             return `<p>${renderText(block.text)}</p>`;
         case 'callout': {
             const titleHtml = block.title ? `<div class="callout-title">${renderText(block.title)}</div>` : '';
-            return `<div class="callout callout-${block.variant}">${titleHtml}<div class="callout-body">${renderText(block.text)}</div></div>`;
+            const variantCls = block.variant === 'info' ? '' : ` callout-${block.variant}`;
+            return `<div class="callout${variantCls}">${titleHtml}<div class="callout-body">${renderText(block.text)}</div></div>`;
         }
-        case 'spacer':
-            return `<div class="spacer-${block.size}"></div>`;
+        case 'spacer': {
+            const h = block.size === 'sm' ? '8px' : block.size === 'md' ? '20px' : '40px';
+            return `<div style="height:${h}"></div>`;
+        }
         case 'math-display': {
             const caption = block.caption ? `<div class="math-caption">${escapeHtml(block.caption)}</div>` : '';
             return `<div class="math-display">$$${block.latex}$$${caption}</div>`;
@@ -131,35 +134,35 @@ function renderBlock(block: BlockT, showAnswers: boolean): string {
                     if (!blank) return `[${idx}?]`;
                     return showAnswers
                         ? `<span class="answer-chip">${renderText(blank.answer)}</span>`
-                        : `<span class="fill-input">&nbsp;</span>`;
+                        : `<span class="fill-blank-input">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>`;
                 })
                 .join('');
-            return `<div class="fill-blank-line">${rendered}</div>`;
+            return `<p>${rendered}</p>`;
         }
         case 'multiple-choice': {
             const marker = block.multiple ? 'mc-marker' : 'mc-marker radio';
             const options = block.options
                 .map((opt) => {
                     const isCorrect = showAnswers && opt.correct;
-                    return `<li class="${isCorrect ? 'mc-correct' : ''}"><span class="${marker}"></span><span>${renderText(opt.text)}${isCorrect ? ' ✓' : ''}</span></li>`;
+                    return `<li class="${isCorrect ? 'correct' : ''}"><span class="${marker}"></span><span>${renderText(opt.text)}${isCorrect ? ' <strong>✓</strong>' : ''}</span></li>`;
                 })
                 .join('');
-            return `<div class="mc"><div class="mc-question">${renderText(block.question)}</div><ul class="mc-options">${options}</ul></div>`;
+            return `<div><p style="font-weight:600;margin-bottom:8px">${renderText(block.question)}</p><ul class="mc-list">${options}</ul></div>`;
         }
         case 'short-answer': {
             const lengthCls = block.expectedLength || 'short';
             const expected = showAnswers && block.expectedAnswer
                 ? `<div class="sa-expected"><strong>Ожидаемый ответ:</strong> ${renderText(block.expectedAnswer)}</div>`
                 : '';
-            return `<div><div class="sa-question">${renderText(block.question)}</div><div class="sa-input ${lengthCls}"></div>${expected}</div>`;
+            return `<div><p style="font-weight:600;margin-bottom:8px">${renderText(block.question)}</p><div class="sa-input ${lengthCls}"></div>${expected}</div>`;
         }
         case 'matching': {
-            const left = block.left.map((l) => `<li><strong>${escapeHtml(l.id)}.</strong>${renderText(l.text)}</li>`).join('');
-            const right = block.right.map((r) => `<li><strong>${escapeHtml(r.id)}.</strong>${renderText(r.text)}</li>`).join('');
+            const left = block.left.map((l) => `<li><strong>${escapeHtml(l.id)}.</strong> ${renderText(l.text)}</li>`).join('');
+            const right = block.right.map((r) => `<li><strong>${escapeHtml(r.id)}.</strong> ${renderText(r.text)}</li>`).join('');
             const pairs = showAnswers && block.pairs.length
                 ? `<div class="matching-pairs"><strong>Соответствия:</strong> ${block.pairs.map(([l, r]) => `${l}→${r}`).join(', ')}</div>`
                 : '';
-            return `<div><div class="sa-question">${renderText(block.instruction)}</div><div class="matching"><ul class="matching-col">${left}</ul><ul class="matching-col">${right}</ul></div>${pairs}</div>`;
+            return `<div><p style="font-weight:600;margin-bottom:8px">${renderText(block.instruction)}</p><div class="matching"><ul class="matching-col">${left}</ul><ul class="matching-col">${right}</ul></div>${pairs}</div>`;
         }
         case 'html-snippet':
             // Sanitization done at AI-side prompt level. Trust output here.
@@ -168,6 +171,15 @@ function renderBlock(block: BlockT, showAnswers: boolean): string {
 }
 
 function renderHeader(doc: GenerationDocumentT): string {
+    // LOGO_PLACEHOLDER заменяется в HtmlExportService на base64-лого
+    // (тот же путь что используется во всех старых HTML-генерациях).
+    return `<div class="header">
+  <img class="header-logo" src="LOGO_PLACEHOLDER" alt="" />
+  <h1>${escapeHtml(doc.title)}</h1>
+</div>`;
+}
+
+function renderMeta(doc: GenerationDocumentT): string {
     const meta = doc.meta || {};
     const pairs: Array<[string, string]> = [];
     if (meta.subject) pairs.push(['Предмет', meta.subject]);
@@ -175,15 +187,20 @@ function renderHeader(doc: GenerationDocumentT): string {
     if (meta.duration) pairs.push(['Длительность', meta.duration]);
     if (meta.studentName) pairs.push(['Ученик', meta.studentName]);
     if (meta.date) pairs.push(['Дата', meta.date]);
-    const metaHtml = pairs.length
-        ? `<div class="doc-meta">${pairs.map(([k, v]) => `<span><strong>${escapeHtml(k)}:</strong>${escapeHtml(v)}</span>`).join('')}</div>`
-        : '';
-    return `<header class="doc-header"><h1 class="doc-title">${escapeHtml(doc.title)}</h1>${metaHtml}</header>`;
+    if (pairs.length === 0) return '';
+    return `<div class="meta-info">${pairs
+        .map(([k, v]) => `<span class="meta-info-item"><strong>${escapeHtml(k)}:</strong>${escapeHtml(v)}</span>`)
+        .join('')}</div>`;
+}
+
+function renderFooter(): string {
+    return `<div class="footer-logo"><img src="LOGO_PLACEHOLDER" alt="" /></div>`;
 }
 
 /**
  * Главная функция: рендерит документ в полный HTML с DOCTYPE.
- * Готово к скармливанию в Playwright/Chrome для PDF.
+ * Готово к скармливанию в Playwright/Chrome для PDF — структура и
+ * классы те же, что в DocumentRenderer.tsx и в старом AI-HTML-формате.
  */
 export function renderDocumentToHtml(doc: GenerationDocumentT, options: { showAnswers?: boolean } = {}): string {
     const showAnswers = !!options.showAnswers;
@@ -198,9 +215,11 @@ export function renderDocumentToHtml(doc: GenerationDocumentT, options: { showAn
 ${KATEX_SCRIPT}
 </head>
 <body>
-<div class="page">
+<div class="container">
 ${renderHeader(doc)}
+${renderMeta(doc)}
 ${blocksHtml}
+${renderFooter()}
 </div>
 </body>
 </html>`;

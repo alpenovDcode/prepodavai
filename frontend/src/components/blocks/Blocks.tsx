@@ -6,85 +6,66 @@ import type { Block } from '@/lib/blocks/schema'
 
 /**
  * Read-only компоненты для каждого типа блока.
+ * Используют те же CSS-классы что были в старом AI-HTML
+ * (`.callout`, `.inline-input`, `.meta-info` и т.п.) — стили живут
+ * в DocumentRenderer.tsx (scoped по `.prepodavai-doc`).
+ *
  * Интерактивные блоки (fill-blank, multiple-choice, short-answer, matching)
- * принимают опциональные пропсы для управления ответом — `value`/`onChange` —
- * чтобы переиспользоваться в нескольких режимах: превью у учителя
- * (без интерактива), заполнение учеником, чтение проверенного ДЗ.
+ * принимают опциональные пропсы `value`/`onChange`/`showAnswers` —
+ * переиспользуются в превью у учителя, заполнении учеником, проверке ДЗ.
  */
 
 // ───────── Простые ─────────
 
 export function Heading({ level, text }: { level: 1 | 2 | 3; text: string }) {
     const Tag = (`h${level}` as 'h1' | 'h2' | 'h3')
-    const cls =
-        level === 1 ? 'font-display font-bold text-[28px] text-ink-900 mt-0 mb-4' :
-        level === 2 ? 'font-display font-bold text-[20px] text-ink-800 mt-8 mb-3' :
-                     'font-semibold text-[17px] text-ink-700 mt-6 mb-2'
-    return <Tag className={cls}><InlineMathText text={text} /></Tag>
+    return <Tag><InlineMathText text={text} /></Tag>
 }
 
 export function Paragraph({ text }: { text: string }) {
-    return <p className="text-[15px] leading-7 text-ink-800 mb-4"><InlineMathText text={text} /></p>
+    return <p><InlineMathText text={text} /></p>
 }
 
 export function Callout({
     variant, title, text,
 }: { variant: 'info' | 'warning' | 'success' | 'tip' | 'methodology'; title?: string; text: string }) {
-    const styles: Record<typeof variant, string> = {
-        info: 'bg-sky-50 border-sky-400 text-sky-900',
-        warning: 'bg-amber-50 border-amber-400 text-amber-900',
-        success: 'bg-emerald-50 border-emerald-400 text-emerald-900',
-        tip: 'bg-violet-50 border-violet-400 text-violet-900',
-        methodology: 'bg-ink-50 border-ink-400 text-ink-900',
-    } as const
+    const cls = variant === 'info' ? 'callout' : `callout callout-${variant}`
     return (
-        <aside className={`my-4 border-l-4 rounded-r-md px-4 py-3 ${styles[variant]}`}>
-            {title && <div className="font-bold text-[14px] mb-1">{title}</div>}
-            <div className="text-[14.5px] leading-6"><InlineMathText text={text} /></div>
-        </aside>
+        <div className={cls}>
+            {title && <div className="callout-title">{title}</div>}
+            <div className="callout-body"><InlineMathText text={text} /></div>
+        </div>
     )
 }
 
 export function Spacer({ size }: { size: 'sm' | 'md' | 'lg' }) {
-    const h = size === 'sm' ? 'h-3' : size === 'md' ? 'h-6' : 'h-12'
-    return <div className={h} aria-hidden />
+    const h = size === 'sm' ? '8px' : size === 'md' ? '20px' : '40px'
+    return <div style={{ height: h }} aria-hidden />
 }
 
 export function ImageBlock({ src, alt, caption }: { src: string; alt: string; caption?: string }) {
     return (
-        <figure className="my-5">
-            <img src={src} alt={alt} className="max-w-full h-auto rounded-md mx-auto block" />
-            {caption && <figcaption className="text-center text-sm text-ink-500 mt-2">{caption}</figcaption>}
+        <figure>
+            <img src={src} alt={alt} style={{ maxWidth: '100%', height: 'auto', borderRadius: 6, display: 'block', margin: '0 auto' }} />
+            {caption && <figcaption>{caption}</figcaption>}
         </figure>
     )
 }
 
 export function TableBlock({ headers, rows, caption }: { headers: string[]; rows: string[][]; caption?: string }) {
     return (
-        <figure className="my-5 overflow-x-auto">
-            <table className="w-full border-collapse text-[14px]">
+        <figure>
+            <table>
                 <thead>
-                    <tr>
-                        {headers.map((h, i) => (
-                            <th key={i} className="bg-ink-50 font-semibold text-left p-3 border border-ink-200">
-                                <InlineMathText text={h} />
-                            </th>
-                        ))}
-                    </tr>
+                    <tr>{headers.map((h, i) => <th key={i}><InlineMathText text={h} /></th>)}</tr>
                 </thead>
                 <tbody>
                     {rows.map((row, i) => (
-                        <tr key={i}>
-                            {row.map((cell, j) => (
-                                <td key={j} className="p-3 border border-ink-200 align-top">
-                                    <InlineMathText text={cell} />
-                                </td>
-                            ))}
-                        </tr>
+                        <tr key={i}>{row.map((c, j) => <td key={j}><InlineMathText text={c} /></td>)}</tr>
                     ))}
                 </tbody>
             </table>
-            {caption && <figcaption className="text-center text-sm text-ink-500 mt-2">{caption}</figcaption>}
+            {caption && <figcaption>{caption}</figcaption>}
         </figure>
     )
 }
@@ -92,11 +73,8 @@ export function TableBlock({ headers, rows, caption }: { headers: string[]; rows
 // ───────── Интерактивные ─────────
 
 export interface InteractiveProps {
-    /** Текущее значение ответа (если контролируется снаружи). */
     value?: any
-    /** Колбэк изменения; если не задан — поле read-only. */
     onChange?: (next: any) => void
-    /** Показывать ли правильные ответы (для tabs «С ответами» / проверки ДЗ). */
     showAnswers?: boolean
 }
 
@@ -106,34 +84,28 @@ export function FillBlank({
     template: string
     blanks: { index: number; answer: string; hint?: string }[]
 } & InteractiveProps) {
-    // template: "Найти $V = a \cdot b \cdot c$, если a = {{1}}, b = {{2}}."
-    // Делим по `{{N}}`, между сегментами вставляем input.
     const parts = template.split(/(\{\{\d+\}\})/g)
     const byIndex = new Map(blanks.map(b => [b.index, b]))
     return (
-        <p className="text-[15px] leading-8 text-ink-800 my-4">
+        <p>
             {parts.map((part, i) => {
                 const m = part.match(/^\{\{(\d+)\}\}$/)
                 if (!m) return <span key={i}><InlineMathText text={part} /></span>
                 const idx = Number(m[1])
                 const blank = byIndex.get(idx)
-                if (!blank) return <span key={i} className="text-danger-600">{`[${idx}?]`}</span>
+                if (!blank) return <span key={i} style={{ color: '#dc2626' }}>{`[${idx}?]`}</span>
                 if (showAnswers) {
-                    return (
-                        <span key={i} className="inline-block px-1.5 py-0.5 mx-0.5 rounded-sm bg-success-50 text-success-800 font-semibold">
-                            {blank.answer}
-                        </span>
-                    )
+                    return <span key={i} className="answer-chip">{blank.answer}</span>
                 }
                 return (
                     <input
                         key={i}
                         type="text"
+                        className="inline-input"
                         value={value?.[idx] ?? ''}
                         onChange={onChange ? (e) => onChange({ ...(value || {}), [idx]: e.target.value }) : undefined}
                         readOnly={!onChange}
-                        placeholder={blank.hint || '___'}
-                        className="inline-block w-[110px] mx-0.5 px-2 py-0.5 border-b border-ink-400 bg-transparent text-[15px] focus:outline-none focus:border-brand-500"
+                        placeholder={blank.hint || ''}
                     />
                 )
             })}
@@ -154,40 +126,33 @@ export function MultipleChoice({
         if (!onChange) return
         if (multiple) {
             const next = new Set(selected)
-            if (next.has(optId)) next.delete(optId)
-            else next.add(optId)
+            if (next.has(optId)) next.delete(optId); else next.add(optId)
             onChange(Array.from(next))
         } else {
             onChange(optId)
         }
     }
     return (
-        <div className="my-4">
-            <p className="text-[15px] font-semibold text-ink-900 mb-2.5"><InlineMathText text={question} /></p>
-            <ul className="space-y-2">
+        <div>
+            <p style={{ fontWeight: 600, marginBottom: 8 }}><InlineMathText text={question} /></p>
+            <ul className="mc-list">
                 {options.map((opt) => {
                     const isSelected = selected.has(opt.id)
                     const isCorrect = opt.correct
                     const showCorrectness = showAnswers
                     return (
-                        <li key={opt.id}>
-                            <label className={`flex items-start gap-2.5 cursor-pointer rounded-md px-2.5 py-1.5 transition-colors ${onChange ? 'hover:bg-ink-50' : ''} ${
-                                showCorrectness && isCorrect ? 'bg-success-50' : ''
-                            }`}>
-                                <input
-                                    type={multiple ? 'checkbox' : 'radio'}
-                                    name={groupId}
-                                    checked={isSelected}
-                                    onChange={() => toggle(opt.id)}
-                                    disabled={!onChange}
-                                    className="mt-1 accent-brand-500"
-                                />
-                                <span className="text-[15px] leading-6 text-ink-800 flex-1">
-                                    <InlineMathText text={opt.text} />
-                                    {showCorrectness && isCorrect && (
-                                        <span className="ml-2 text-success-700 font-semibold">✓</span>
-                                    )}
-                                </span>
+                        <li key={opt.id} className={showCorrectness && isCorrect ? 'correct' : ''}>
+                            <input
+                                type={multiple ? 'checkbox' : 'radio'}
+                                name={groupId}
+                                checked={isSelected}
+                                onChange={() => toggle(opt.id)}
+                                disabled={!onChange}
+                                style={{ marginTop: 4, flexShrink: 0 }}
+                            />
+                            <label style={{ flex: 1 }}>
+                                <InlineMathText text={opt.text} />
+                                {showCorrectness && isCorrect && <strong style={{ marginLeft: 8 }}>✓</strong>}
                             </label>
                         </li>
                     )
@@ -206,15 +171,14 @@ export function ShortAnswer({
 } & InteractiveProps) {
     const rows = expectedLength === 'long' ? 5 : expectedLength === 'medium' ? 3 : 1
     return (
-        <div className="my-4">
-            <p className="text-[15px] font-semibold text-ink-900 mb-2"><InlineMathText text={question} /></p>
+        <div style={{ margin: '12px 0' }}>
+            <p style={{ fontWeight: 600, marginBottom: 8 }}><InlineMathText text={question} /></p>
             {rows === 1 ? (
                 <input
                     type="text"
                     value={value ?? ''}
                     onChange={onChange ? (e) => onChange(e.target.value) : undefined}
                     readOnly={!onChange}
-                    className="w-full px-3 py-2 border border-ink-200 rounded-md text-[15px] focus:outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-400/15"
                 />
             ) : (
                 <textarea
@@ -222,12 +186,18 @@ export function ShortAnswer({
                     onChange={onChange ? (e) => onChange(e.target.value) : undefined}
                     readOnly={!onChange}
                     rows={rows}
-                    className="w-full px-3 py-2 border border-ink-200 rounded-md text-[15px] focus:outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-400/15 resize-none"
                 />
             )}
             {showAnswers && expectedAnswer && (
-                <div className="mt-2 text-[13.5px] text-success-700 bg-success-50 rounded-md px-3 py-2">
-                    <span className="font-semibold">Ожидаемый ответ:</span> <InlineMathText text={expectedAnswer} />
+                <div style={{
+                    marginTop: 8,
+                    fontSize: 13,
+                    background: '#ecfdf5',
+                    color: '#065f46',
+                    padding: '8px 12px',
+                    borderRadius: 6,
+                }}>
+                    <strong>Ожидаемый ответ:</strong> <InlineMathText text={expectedAnswer} />
                 </div>
             )}
         </div>
@@ -235,39 +205,44 @@ export function ShortAnswer({
 }
 
 export function Matching({
-    instruction, left, right, pairs, value, onChange, showAnswers,
+    instruction, left, right, pairs, showAnswers,
 }: {
     instruction: string
     left: { id: string; text: string }[]
     right: { id: string; text: string }[]
     pairs: [string, string][]
 } & InteractiveProps) {
-    // MVP: read-only представление. Интерактив (drag/select) — отдельной итерацией.
-    const correctMap = new Map(pairs)
     return (
-        <div className="my-4">
-            <p className="text-[15px] font-semibold text-ink-900 mb-3"><InlineMathText text={instruction} /></p>
-            <div className="grid grid-cols-2 gap-4">
-                <ol className="space-y-2">
+        <div style={{ margin: '12px 0' }}>
+            <p style={{ fontWeight: 600, marginBottom: 12 }}><InlineMathText text={instruction} /></p>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                <ol style={{ listStyle: 'none', padding: 0, margin: 0 }}>
                     {left.map((l) => (
-                        <li key={l.id} className="flex items-start gap-2">
-                            <span className="font-semibold text-ink-500">{l.id}.</span>
-                            <span className="text-[14.5px] text-ink-800"><InlineMathText text={l.text} /></span>
+                        <li key={l.id} style={{ padding: '6px 0', display: 'flex', gap: 8 }}>
+                            <strong style={{ color: '#6b7280', minWidth: 24 }}>{l.id}.</strong>
+                            <span><InlineMathText text={l.text} /></span>
                         </li>
                     ))}
                 </ol>
-                <ol className="space-y-2">
+                <ol style={{ listStyle: 'none', padding: 0, margin: 0 }}>
                     {right.map((r) => (
-                        <li key={r.id} className="flex items-start gap-2">
-                            <span className="font-semibold text-ink-500">{r.id}.</span>
-                            <span className="text-[14.5px] text-ink-800"><InlineMathText text={r.text} /></span>
+                        <li key={r.id} style={{ padding: '6px 0', display: 'flex', gap: 8 }}>
+                            <strong style={{ color: '#6b7280', minWidth: 24 }}>{r.id}.</strong>
+                            <span><InlineMathText text={r.text} /></span>
                         </li>
                     ))}
                 </ol>
             </div>
             {showAnswers && pairs.length > 0 && (
-                <div className="mt-3 text-[13.5px] text-success-700 bg-success-50 rounded-md px-3 py-2">
-                    <span className="font-semibold">Соответствия:</span>{' '}
+                <div style={{
+                    marginTop: 12,
+                    fontSize: 13,
+                    background: '#ecfdf5',
+                    color: '#065f46',
+                    padding: '8px 12px',
+                    borderRadius: 6,
+                }}>
+                    <strong>Соответствия:</strong>{' '}
                     {pairs.map(([l, r], i) => (
                         <span key={i}>{l}→{r}{i < pairs.length - 1 ? ', ' : ''}</span>
                     ))}
@@ -280,24 +255,18 @@ export function Matching({
 // ───────── Escape hatch ─────────
 
 export function HtmlSnippet({ html }: { html: string }) {
-    // Минимальная санитизация — убираем <script>. Полный sanitizer (DOMPurify)
-    // подключим позже, когда подключим к реальным генерациям.
     const safe = html.replace(/<script[\s\S]*?<\/script>/gi, '')
-    return <div className="my-4" dangerouslySetInnerHTML={{ __html: safe }} />
+    return <div dangerouslySetInnerHTML={{ __html: safe }} />
 }
 
-// Re-export MathDisplay для удобства импорта рядом с другими блоками.
 export { MathDisplay }
 
 // ───────── BlockRenderer (главный switch) ─────────
 
 export interface BlockRendererProps {
     block: Block
-    /** Map blockId → user answer. Если задано, интерактивные блоки управляемые. */
     answers?: Record<string, any>
-    /** Колбэк изменения ответа. Если не задан — блоки read-only. */
     onAnswerChange?: (blockId: string, value: any) => void
-    /** Показывать правильные ответы (для tabs «С ответами»). */
     showAnswers?: boolean
 }
 
@@ -307,7 +276,11 @@ export function BlockRenderer({ block, answers, onAnswerChange, showAnswers }: B
         case 'paragraph': return <Paragraph text={block.text} />
         case 'callout': return <Callout variant={block.variant} title={block.title} text={block.text} />
         case 'spacer': return <Spacer size={block.size} />
-        case 'math-display': return <MathDisplay latex={block.latex} caption={block.caption} />
+        case 'math-display': return (
+            <div className="math-display">
+                <MathDisplay latex={block.latex} caption={block.caption} />
+            </div>
+        )
         case 'image': return <ImageBlock src={block.src} alt={block.alt} caption={block.caption} />
         case 'table': return <TableBlock headers={block.headers} rows={block.rows} caption={block.caption} />
         case 'fill-blank': return (
