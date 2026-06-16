@@ -141,7 +141,14 @@ export class HtmlExportService implements OnModuleDestroy {
     // DEDUP: если в БД лежит НЕСКОЛЬКО HTML-документов подряд (артефакт
     // пересохранения в редакторе — баг, исправляемый отдельно), берём
     // только первый. Иначе экспорт DOCX/PDF выдаёт каждое задание 2-3 раза.
-    processed = this.takeFirstHtmlDocument(processed);
+    // Зацикливаем: дубль может быть тройным/четвертным — каждая итерация
+    // снимает одну копию.
+    for (let pass = 0; pass < 5; pass++) {
+      const next = this.takeFirstHtmlDocument(processed);
+      if (next === processed) break;
+      this.docxLogger.log(`Dedup pass #${pass + 1}: ${processed.length} → ${next.length}`);
+      processed = next;
+    }
 
     const looksLikeHtml =
       /<!DOCTYPE html/i.test(processed) ||
@@ -230,7 +237,61 @@ export class HtmlExportService implements OnModuleDestroy {
       html = dedupedByMarker;
     }
 
+    // 6. NUCLEAR fallback: берём первый «значимый» текстовый блок
+    //    (>= 60 символов после очистки тегов) и ищем его повторение в
+    //    остатке html. Если нашли — обрезаем там. Это ловит ВСЁ — даже
+    //    дубли без структурных маркеров (одинаковых .container/h1/h2/задания).
+    const dedupedNuclear = this.dropAfterRepeatedTextChunk(html);
+    if (dedupedNuclear !== html) {
+      this.docxLogger.log(
+        `[nuclear] Найден повтор первого текстового блока, обрезаем ` +
+        `(было ${html.length}, стало ${dedupedNuclear.length})`,
+      );
+      html = dedupedNuclear;
+    }
+
     return html;
+  }
+
+  /**
+   * Ищет первый значимый текстовый блок (text content >= 60 символов
+   * внутри одного тега p/div/li/h*/span). Если такая же строка встречается
+   * ПОЗЖЕ в html, считаем что документ дублирован — обрезаем перед вторым
+   * вхождением. Сравниваем нормализованный текст (без тегов, тримим whitespace).
+   *
+   * Это «ядерный» дедуп — ловит ситуации, когда копии документа склеены
+   * без видимых структурных границ.
+   */
+  private dropAfterRepeatedTextChunk(html: string): string {
+    // Берём body, если есть. Иначе весь html.
+    const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body\s*>/i);
+    const bodyStartOffset = bodyMatch ? html.indexOf(bodyMatch[1]) : 0;
+    const haystack = bodyMatch ? bodyMatch[1] : html;
+
+    // Извлекаем текстовые блоки с позициями относительно haystack.
+    const blocks: Array<{ pos: number; text: string }> = [];
+    const tagRe = /<(p|div|li|h[1-6]|span|td|article|section)\b[^>]*>([\s\S]*?)<\/\1\s*>/gi;
+    let m: RegExpExecArray | null;
+    while ((m = tagRe.exec(haystack)) !== null) {
+      const text = m[2]
+        .replace(/<[^>]*>/g, '')
+        .replace(/&nbsp;/gi, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (text.length >= 60) {
+        blocks.push({ pos: m.index, text });
+      }
+    }
+    if (blocks.length < 2) return html;
+
+    // Первый блок — наш «фингерпринт». Ищем точно такой же текст ниже.
+    const first = blocks[0];
+    const duplicate = blocks.slice(1).find((b) => b.text === first.text);
+    if (!duplicate) return html;
+
+    // Маппим позицию обратно в полный html
+    const absPos = bodyStartOffset + duplicate.pos;
+    return this.truncateWithClosingTags(html, absPos);
   }
 
   /**
