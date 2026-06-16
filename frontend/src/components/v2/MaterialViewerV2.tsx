@@ -208,28 +208,30 @@ function extractHtml(outputData: any): string | null {
     return raw
 }
 
-/**
- * Извлекаем только КОНТЕНТ из AI-HTML, выбрасывая всё, что может
- * сломать вёрстку в iframe (свой CSS, свой <head>, кастомные scripts,
- * meta viewport с мобильной шириной). После этого оборачиваем тело в
- * каноническую оболочку с дизайн-системой бэка. Так мы перестаём «бороться»
- * с фантазиями модели — она задаёт смысловую структуру, а вид определяем мы.
- */
+// Достаём `<style>…</style>` из AI HTML — AI кладёт свой кастомный CSS
+// под классы, которые он сам же использует (`.task`, `.section`, `.callout`,
+// нестандартные сетки и т.п.). Базовый IFRAME_BASE_STYLES их не покрывает,
+// поэтому без AI-CSS превью превращается в плоский текст.
+function extractAiStyles(html: string): string {
+    const raw = html.replace(/LOGO_PLACEHOLDER/g, LOGO_BASE64)
+    const out: string[] = []
+    const re = /<style[^>]*>([\s\S]*?)<\/style>/gi
+    let m: RegExpExecArray | null
+    while ((m = re.exec(raw))) out.push(m[1])
+    return out.join('\n')
+}
+
 function extractBodyContent(html: string): string {
     let raw = html.replace(/LOGO_PLACEHOLDER/g, LOGO_BASE64)
-    // Берём только то, что лежит между <body>...</body>, иначе — весь текст.
     const bodyMatch = raw.match(/<body[^>]*>([\s\S]*?)<\/body>/i)
     let inner = bodyMatch ? bodyMatch[1] : raw
-    // Если <body> не было — фрагмент мог содержать <html>, <head>, <style>.
-    // Чистим всё, что относится к doc-shell.
     inner = inner
         .replace(/<!DOCTYPE[^>]*>/gi, '')
         .replace(/<\/?html[^>]*>/gi, '')
         .replace(/<head[\s\S]*?<\/head>/gi, '')
         .replace(/<\/?body[^>]*>/gi, '')
-    // Полностью убираем все AI-style блоки — наша дизайн-система авторитет.
+    // <style> внутри body тоже выносим — соберём отдельно через extractAiStyles.
     inner = inner.replace(/<style[\s\S]*?<\/style>/gi, '')
-    // Убираем рискованные/мусорные скрипты, MathJax вставим сами.
     inner = inner
         .replace(/<script[^>]+src=["'][^"']*polyfill\.io[^"']*["'][^>]*>[\s\S]*?<\/script>/gi, '')
         .replace(/<script[^>]*>\s*window\.MathJax[\s\S]*?<\/script>/gi, '')
@@ -237,9 +239,17 @@ function extractBodyContent(html: string): string {
     return inner.trim()
 }
 
+// Override поверх AI-CSS — гарантируем, что наш контейнер не вылезет за
+// ширину iframe и узкое отображение работает.
+const IFRAME_OVERRIDE_STYLES = `
+html, body { width: 100% !important; max-width: 100% !important; overflow-x: hidden; }
+.container { max-width: 100% !important; width: 100% !important; box-sizing: border-box !important; }
+@media (max-width: 640px) { .container { padding: 20px !important; } }
+`
+
 function buildSrcDoc(html: string, opts: { hideAnswers: boolean; editing: boolean }): string {
+    const aiStyles = extractAiStyles(html)
     const content = extractBodyContent(html)
-    // Если AI уже завернул в .container — не вкладываем повторно.
     const hasContainer = /class\s*=\s*["'][^"']*\bcontainer\b/i.test(content)
     const body = hasContainer ? content : `<div class="container">${content}</div>`
 
@@ -249,6 +259,9 @@ function buildSrcDoc(html: string, opts: { hideAnswers: boolean; editing: boolea
         ? `<style>.teacher-answers-only { display: none !important; }</style>`
         : ''
 
+    // Порядок важен: сначала базовый дизайн-стек, потом AI-CSS (он умеет
+    // оформлять свои собственные классы), потом наши override-правила, чтобы
+    // ширина/viewport не уезжали.
     return `<!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -256,6 +269,8 @@ function buildSrcDoc(html: string, opts: { hideAnswers: boolean; editing: boolea
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Материал</title>
 <style>${IFRAME_BASE_STYLES}</style>
+${aiStyles ? `<style>${aiStyles}</style>` : ''}
+<style>${IFRAME_OVERRIDE_STYLES}</style>
 ${hideAnswersCss}
 ${mathBlock}
 ${mathBlock ? MATHJAX_STAMP_SCRIPT : ''}

@@ -119,10 +119,14 @@ function buildPreviewSrcDoc(html: string): string {
     `
     const MATH = `<script>window.MathJax={tex:{inlineMath:[['$','$'],['\\\\(','\\\\)']],displayMath:[['$$','$$'],['\\\\[','\\\\]']],processEscapes:true},chtml:{fontCache:'global'}};</script><script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>`
 
-    // Та же стратегия, что в MaterialViewerV2: берём ТОЛЬКО body innerHTML,
-    // выбрасываем все AI-стили/скрипты/мета, оборачиваем в свою канонічну
-    // оболочку. Бесполезно бороться с CSS модели через !important — проще
-    // не давать ему загрузиться.
+    // Сохраняем AI-стили: они оформляют его собственные классы (.task, .section,
+    // .callout и т.п.), без них превью схлопывается в плоский текст.
+    const aiStyles: string[] = []
+    const styleRe = /<style[^>]*>([\s\S]*?)<\/style>/gi
+    let sm: RegExpExecArray | null
+    while ((sm = styleRe.exec(html))) aiStyles.push(sm[1])
+    const aiCss = aiStyles.join('\n')
+
     let raw = html
     const bodyMatch = raw.match(/<body[^>]*>([\s\S]*?)<\/body>/i)
     let content = bodyMatch ? bodyMatch[1] : raw
@@ -142,12 +146,19 @@ function buildPreviewSrcDoc(html: string): string {
     const hasMath = /\\\(|\\\[|\$\$|\$[^$\n]+\$/.test(content)
     const mathBlock = hasMath ? MATH : ''
 
+    const OVERRIDE = `
+        html, body { width: 100% !important; max-width: 100% !important; overflow-x: hidden; }
+        .container { max-width: 100% !important; width: 100% !important; box-sizing: border-box !important; }
+    `
+
     return `<!DOCTYPE html>
 <html lang="ru">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>${BASE}</style>
+${aiCss ? `<style>${aiCss}</style>` : ''}
+<style>${OVERRIDE}</style>
 ${mathBlock}
 </head>
 <body>${body}</body>
