@@ -1433,6 +1433,23 @@ export class GenerationsService {
       throw new NotFoundException('Результат генерации пуст');
     }
 
+    // ── Маршрутизация на новый JSON-формат blocks-v1 ──
+    // Если генерация в новом формате — рендерим JSON в HTML через серверный
+    // шаблон, потом идём в обычный Playwright pipeline. Старая логика остаётся
+    // для legacy HTML-генераций (большинство существующих).
+    if ((result as any)?.format === 'json-blocks-v1' && (result as any)?.outputDoc) {
+      const { GenerationDocument } = await import('./v2/blocks-schema');
+      const { renderDocumentToHtml } = await import('./v2/json-to-html');
+      const parsed = GenerationDocument.safeParse((result as any).outputDoc);
+      if (!parsed.success) {
+        throw new BadRequestException('Документ в outputDoc не проходит валидацию schema');
+      }
+      const html = renderDocumentToHtml(parsed.data, {
+        showAnswers: options.withAnswers !== false,
+      });
+      return this.htmlExportService.htmlToPdf(html);
+    }
+
     // Разные процессоры хранят HTML под разными ключами: `content` (большинство
     // стратегий), `htmlResult` (video-analysis / sales-advisor / lesson_preparation),
     // `html`/`text` (fallback). Идём по приоритету.
@@ -1523,6 +1540,20 @@ export class GenerationsService {
 
     const result = userGen.outputData ?? userGen.generationRequest?.result;
     if (!result) throw new NotFoundException('Результат генерации пуст');
+
+    // JSON blocks-v1 → server-side HTML → DOCX. Тот же путь что для PDF.
+    if ((result as any)?.format === 'json-blocks-v1' && (result as any)?.outputDoc) {
+      const { GenerationDocument } = await import('./v2/blocks-schema');
+      const { renderDocumentToHtml } = await import('./v2/json-to-html');
+      const parsed = GenerationDocument.safeParse((result as any).outputDoc);
+      if (!parsed.success) {
+        throw new BadRequestException('Документ в outputDoc не проходит валидацию schema');
+      }
+      const html = renderDocumentToHtml(parsed.data, {
+        showAnswers: options.withAnswers !== false,
+      });
+      return this.htmlExportService.htmlToDocx(html);
+    }
 
     const r = result as any;
     let content: any;

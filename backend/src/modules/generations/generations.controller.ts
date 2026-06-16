@@ -13,6 +13,7 @@ import {
   StreamableFile,
 } from '@nestjs/common';
 import { GenerationsService } from './generations.service';
+import { WorksheetV2Service } from './v2/worksheet-v2.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { GenerationsThrottlerGuard } from '../../common/guards/generations-throttler.guard';
 import {
@@ -26,6 +27,7 @@ import {
 export class GenerationsController {
   constructor(
     private readonly generationsService: GenerationsService,
+    private readonly worksheetV2Service: WorksheetV2Service,
   ) {}
 
   private userId(req: any): string {
@@ -41,6 +43,24 @@ export class GenerationsController {
       generationType: 'worksheet',
       inputParams: body,
     });
+  }
+
+  // v2: JSON-blocks формат worksheet. Синхронный AI-вызов, без n8n.
+  @Post('v2/worksheet')
+  @UseGuards(JwtAuthGuard, GenerationsThrottlerGuard)
+  async generateWorksheetV2(@Request() req: any, @Body() body: Record<string, unknown>) {
+    return this.worksheetV2Service.generate(
+      this.userId(req),
+      {
+        topic: String(body.topic || ''),
+        subject: body.subject ? String(body.subject) : undefined,
+        grade: body.grade as any,
+        duration: body.duration ? String(body.duration) : undefined,
+        numTasks: body.numTasks ? Number(body.numTasks) : undefined,
+        extraNotes: body.extraNotes ? String(body.extraNotes) : undefined,
+      },
+      body.lessonId ? String(body.lessonId) : undefined,
+    );
   }
 
   @Post('quiz')

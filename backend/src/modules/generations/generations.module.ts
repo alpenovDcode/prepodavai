@@ -38,6 +38,7 @@ import { MessageStrategy } from './strategies/message.strategy';
 import { AssistantStrategy } from './strategies/assistant.strategy';
 import { FeedbackStrategy } from './strategies/feedback.strategy';
 import { VideoAnalysisStrategy } from './strategies/video-analysis.strategy';
+import { WorksheetV2Service } from './v2/worksheet-v2.service';
 
 @Module({
   imports: [
@@ -107,7 +108,8 @@ import { VideoAnalysisStrategy } from './strategies/video-analysis.strategy';
     AssistantStrategy,
     FeedbackStrategy,
     VideoAnalysisStrategy,
+    WorksheetV2Service,
   ],
-  exports: [GenerationsService, GenerationQueueService, GenerationHelpersService],
+  exports: [GenerationsService, GenerationQueueService, GenerationHelpersService, WorksheetV2Service],
 })
 export class GenerationsModule {}

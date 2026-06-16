@@ -24,6 +24,9 @@ import MaterialViewer from '@/components/MaterialViewer'
 import { LOGO_BASE64 } from '@/constants/branding'
 import { getEffectiveHtml } from '@/lib/utils/effectiveHtml'
 import { extractEditedBody, saveGenerationEdits } from '@/lib/utils/editGeneration'
+import { DocumentRenderer } from '@/components/blocks/DocumentRenderer'
+import { isJsonBlocksFormat, GenerationDocument as GenerationDocumentSchema } from '@/lib/blocks/schema'
+import type { GenerationDocument as GenerationDocumentT } from '@/lib/blocks/schema'
 
 interface Props {
     lessonId: string
@@ -468,6 +471,19 @@ export default function MaterialViewerV2({ lessonId, generationId, isEditable = 
             editing: tab === 'edit',
         })
     }, [html, tab])
+
+    // ── Маршрутизация на новый JSON-формат blocks-v1 ──
+    // Если outputData содержит { format: 'json-blocks-v1', outputDoc: <doc> },
+    // мы рендерим через DocumentRenderer вместо iframe со старым HTML.
+    // Старая ветка остаётся для legacy-генераций.
+    const v2Doc: GenerationDocumentT | null = useMemo(() => {
+        const od = generation?.outputData
+        if (!isJsonBlocksFormat(od)) return null
+        // Используем safeParse чтобы не уронить страницу если данные старые / битые.
+        const parsed = GenerationDocumentSchema.safeParse(od.outputDoc)
+        return parsed.success ? parsed.data : null
+    }, [generation?.outputData])
+    const isV2 = !!v2Doc
 
     useEffect(() => {
         setIframeLoading(true)
@@ -942,7 +958,11 @@ export default function MaterialViewerV2({ lessonId, generationId, isEditable = 
                 </div>
 
                 {/* Preview frame */}
-                {isImageType && imageUrl ? (
+                {isV2 && v2Doc ? (
+                    <div className="bg-ink-50 rounded-lg p-4 max-md:p-2 print-frame">
+                        <DocumentRenderer doc={v2Doc} showAnswers={tab === 'answers'} />
+                    </div>
+                ) : isImageType && imageUrl ? (
                     <div className="relative bg-white border border-ink-200 rounded-lg overflow-hidden shadow-sm flex items-center justify-center p-6 print-frame">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img

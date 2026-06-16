@@ -17,6 +17,8 @@ import { IconTile } from '@/components/ui/v2/IconTile'
 import InteractiveHtmlViewer, { extractHtmlFromOutput } from '@/components/InteractiveHtmlViewer'
 import { stripAnswerKey } from '@/lib/strip-answer-key'
 import Image from 'next/image'
+import { DocumentRenderer } from '@/components/blocks/DocumentRenderer'
+import { isJsonBlocksFormat, GenerationDocument as GenerationDocumentSchema } from '@/lib/blocks/schema'
 
 // ─── Типы ────────────────────────────────────────────────────────────────────
 
@@ -451,6 +453,37 @@ export default function StudentAssignmentV2({ assignmentId }: StudentAssignmentV
                     Презентация недоступна
                 </div>
             )
+        }
+
+        // ── JSON blocks-v1 формат ──
+        // Новый pipeline: рендерим DocumentRenderer с управляемыми блоками.
+        // Ответы ученика хранятся в том же `draftFormDataMap[gen.id]` (для
+        // совместимости с отправкой), но как карта { blockId: value }.
+        if (isJsonBlocksFormat(gen.outputData)) {
+            const parsed = GenerationDocumentSchema.safeParse(gen.outputData.outputDoc)
+            if (parsed.success) {
+                const doc = parsed.data
+                const existingAnswers =
+                    (isSubmitted || isGraded) ? (sub?.formData?.[gen.id] || {}) : (draftFormDataMap[gen.id] || {})
+                const editable = !isSubmitted && !isGraded
+                return (
+                    <div className="p-5">
+                        <DocumentRenderer
+                            doc={doc}
+                            answers={existingAnswers}
+                            onAnswerChange={editable ? (blockId, value) => {
+                                // Накапливаем в локальный map и пробрасываем в
+                                // существующий пайплайн handleFormDataChange,
+                                // который сохранит черновик / отправит сабмит.
+                                const next = { ...existingAnswers, [blockId]: value }
+                                handleFormDataChange(gen.id, next, Object.keys(next).length)
+                            } : undefined}
+                            // Ученик никогда не видит ключ ответов.
+                            showAnswers={false}
+                        />
+                    </div>
+                )
+            }
         }
 
         // HTML-based (worksheet, quiz, other)

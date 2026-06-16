@@ -22,6 +22,8 @@ import { Tabs } from '@/components/ui/v2/Tabs'
 import GenerationProgress from '@/components/workspace/GenerationProgress'
 import PdfDownloadButton from '@/components/workspace/PdfDownloadButton'
 import AssignTaskButton from '@/components/AssignTaskButton'
+import { DocumentRenderer } from '@/components/blocks/DocumentRenderer'
+import type { GenerationDocument as GenerationDocumentT } from '@/lib/blocks/schema'
 
 const SUBJECTS = [
     'Математика', 'Физика', 'Химия', 'Биология', 'История',
@@ -65,6 +67,26 @@ export default function WorksheetGeneratorV2(): React.ReactElement {
     const { generateAndWait, isGenerating, activeGenerationId } = useGenerations()
     const hasResult = !isGenerating && !!localContent && !localContent.startsWith('<div style="padding:40px')
 
+    // ── v2 JSON-формат (параллельная архитектура) ──
+    // Включается чекбоксом в UI; сохраняется в localStorage чтобы выбор пережил
+    // переключение страниц. Если включён — generate() вызывает /generate/v2/worksheet,
+    // ответ кладём в v2Doc + v2GenerationId. Старый HTML-флоу при этом
+    // полностью НЕ запускается — это разные ветви рендера и кнопок.
+    const [useV2, setUseV2] = useState<boolean>(() => {
+        if (typeof window === 'undefined') return false
+        try { return localStorage.getItem('worksheet_use_v2_format') === '1' } catch { return false }
+    })
+    const [v2Doc, setV2Doc] = useState<GenerationDocumentT | null>(null)
+    const [v2GenerationId, setV2GenerationId] = useState<string | null>(null)
+    const [v2IsGenerating, setV2IsGenerating] = useState(false)
+    const [v2Mode, setV2Mode] = useState<'preview' | 'answers'>('preview')
+    const toggleV2 = (next: boolean) => {
+        setUseV2(next)
+        try { localStorage.setItem('worksheet_use_v2_format', next ? '1' : '0') } catch {}
+    }
+    const hasV2Result = !!v2Doc && !v2IsGenerating
+    const v2Working = v2IsGenerating
+
     // mobile tab switch
     const [mobileTab, setMobileTab] = useState<'config' | 'preview'>('config')
     // canvas tab: preview / answers / edit
@@ -86,6 +108,7 @@ export default function WorksheetGeneratorV2(): React.ReactElement {
             toast.error('Укажите тему урока')
             return
         }
+        if (useV2) return generateV2()
         try {
             setLocalContent('<div style="padding:40px;text-align:center;color:#FF7E58"><p>Генерируем рабочий лист…</p></div>')
             setCanvasTab('preview')
@@ -107,6 +130,33 @@ export default function WorksheetGeneratorV2(): React.ReactElement {
         } catch (e: any) {
             console.error('Generation failed:', e)
             setLocalContent(`<p style="color:#EF4444">Ошибка при генерации: ${e?.message || 'неизвестная'}</p>`)
+        }
+    }
+
+    // Generate flow для нового JSON-формата (синхронный AI-вызов на бэке).
+    const generateV2 = async () => {
+        setV2IsGenerating(true)
+        setV2Doc(null)
+        setV2GenerationId(null)
+        setMobileTab('preview')
+        setV2Mode('preview')
+        try {
+            const res = await apiClient.post('/generate/v2/worksheet', {
+                topic, subject, grade: level, numTasks: questionsCount,
+            })
+            const data = res.data
+            if (!data?.outputDoc) {
+                toast.error('Ответ AI не содержит документа')
+                return
+            }
+            setV2Doc(data.outputDoc)
+            setV2GenerationId(data.generationId)
+            toast.success('Сгенерировано')
+        } catch (e: any) {
+            const msg = e?.response?.data?.message || e?.message || 'Не удалось сгенерировать'
+            toast.error(Array.isArray(msg) ? msg.join('; ') : msg)
+        } finally {
+            setV2IsGenerating(false)
         }
     }
 
@@ -251,6 +301,23 @@ export default function WorksheetGeneratorV2(): React.ReactElement {
                             </div>
                         </div>
 
+                        {/* Переключатель нового JSON-формата (бета) */}
+                        <div className="pt-3 border-t border-ink-100">
+                            <label className="flex items-start gap-2.5 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={useV2}
+                                    onChange={(e) => toggleV2(e.target.checked)}
+                                    className="mt-0.5 accent-brand-500"
+                                />
+                                <span className="text-[12px] leading-snug text-ink-700">
+                                    <span className="font-semibold">Новый формат (бета)</span>
+                                    <br />
+                                    <span className="text-ink-500">JSON-блоки вместо HTML. Чистый рендер, без редактирования (пока).</span>
+                                </span>
+                            </label>
+                        </div>
+
                         <div className="pt-2 border-t border-ink-100">
                             <Button
                                 variant="primary"
@@ -258,11 +325,11 @@ export default function WorksheetGeneratorV2(): React.ReactElement {
                                 fullWidth
                                 leftIcon={<Wand2 className="w-4 h-4" />}
                                 onClick={generate}
-                                loading={isGenerating}
+                                loading={isGenerating || v2IsGenerating}
                                 disabled={!topic.trim()}
                                 data-tour="generate"
                             >
-                                {isGenerating ? 'В процессе…' : 'Сгенерировать'}
+                                {(isGenerating || v2IsGenerating) ? 'В процессе…' : 'Сгенерировать'}
                             </Button>
                             <div className="text-center text-[11px] text-ink-500 mt-2 inline-flex items-center justify-center w-full gap-1">
                                 <Sparkles className="w-3 h-3" />
@@ -278,17 +345,30 @@ export default function WorksheetGeneratorV2(): React.ReactElement {
                     {/* Preview toolbar: 3 tabs + actions */}
                     <div className="flex items-center gap-2 px-4 py-2.5 border-b border-ink-100 flex-wrap" data-tour="preview-tabs">
                         {/* Tab buttons */}
-                        {hasResult && (
-                            <div className="flex items-center gap-1">
-                                <TabBtn active={canvasTab === 'preview'} onClick={() => setCanvasTab('preview')}>
-                                    <Eye className="w-3.5 h-3.5" /> Превью
-                                </TabBtn>
-                                <TabBtn active={canvasTab === 'answers'} onClick={() => setCanvasTab('answers')}>
-                                    <KeyRound className="w-3.5 h-3.5" /> С ответами
-                                </TabBtn>
-                            </div>
+                        {useV2 ? (
+                            hasV2Result && (
+                                <div className="flex items-center gap-1">
+                                    <TabBtn active={v2Mode === 'preview'} onClick={() => setV2Mode('preview')}>
+                                        <Eye className="w-3.5 h-3.5" /> Превью
+                                    </TabBtn>
+                                    <TabBtn active={v2Mode === 'answers'} onClick={() => setV2Mode('answers')}>
+                                        <KeyRound className="w-3.5 h-3.5" /> С ответами
+                                    </TabBtn>
+                                </div>
+                            )
+                        ) : (
+                            hasResult && (
+                                <div className="flex items-center gap-1">
+                                    <TabBtn active={canvasTab === 'preview'} onClick={() => setCanvasTab('preview')}>
+                                        <Eye className="w-3.5 h-3.5" /> Превью
+                                    </TabBtn>
+                                    <TabBtn active={canvasTab === 'answers'} onClick={() => setCanvasTab('answers')}>
+                                        <KeyRound className="w-3.5 h-3.5" /> С ответами
+                                    </TabBtn>
+                                </div>
+                            )
                         )}
-                        {!hasResult && !isGenerating && (
+                        {!hasResult && !hasV2Result && !isGenerating && !v2IsGenerating && (
                             <div className="flex items-center gap-1.5 text-[13px] font-semibold text-ink-500">
                                 <Eye className="w-4 h-4" /> Готов к работе
                             </div>
@@ -297,20 +377,22 @@ export default function WorksheetGeneratorV2(): React.ReactElement {
                         <div className="flex-1" />
 
                         {/* Action buttons */}
-                        {hasResult && (
+                        {(hasResult || hasV2Result) && (
                             <div className="flex items-center gap-1.5 flex-wrap">
-                                {canvasTab === 'edit' && (
+                                {!useV2 && canvasTab === 'edit' && (
                                     <Button variant="primary" size="sm" leftIcon={<Save className="w-3.5 h-3.5" />} onClick={saveEdit} loading={isSaving}>
                                         Сохранить
                                     </Button>
                                 )}
-                                <Button variant="ghost" size="sm" leftIcon={copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />} onClick={copyHtml}>
-                                    {copied ? 'Скопировано' : 'Копировать'}
-                                </Button>
-                                <Button variant="ghost" size="sm" leftIcon={<RefreshCw className="w-3.5 h-3.5" />} onClick={generate} disabled={isGenerating}>
+                                {!useV2 && (
+                                    <Button variant="ghost" size="sm" leftIcon={copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />} onClick={copyHtml}>
+                                        {copied ? 'Скопировано' : 'Копировать'}
+                                    </Button>
+                                )}
+                                <Button variant="ghost" size="sm" leftIcon={<RefreshCw className="w-3.5 h-3.5" />} onClick={generate} disabled={isGenerating || v2IsGenerating}>
                                     Заново
                                 </Button>
-                                {activeGenerationId && (
+                                {!useV2 && activeGenerationId && (
                                     <>
                                         <PdfDownloadButton
                                             generationId={activeGenerationId}
@@ -326,16 +408,46 @@ export default function WorksheetGeneratorV2(): React.ReactElement {
                                         />
                                     </>
                                 )}
+                                {useV2 && v2GenerationId && (
+                                    <>
+                                        <PdfDownloadButton
+                                            generationId={v2GenerationId}
+                                            filename={`${topic || 'worksheet'}.pdf`}
+                                            hasAnswers
+                                            className="inline-flex items-center gap-1.5 h-8 px-3 text-[12px] font-semibold bg-ink-100 hover:bg-ink-200 text-ink-700 rounded-md transition-colors"
+                                        />
+                                        <AssignTaskButton
+                                            generationId={v2GenerationId}
+                                            topic={topic}
+                                            label="Выдать классу"
+                                            className="inline-flex items-center gap-1.5 h-8 px-3 text-[12px] font-semibold bg-brand-500 hover:bg-brand-600 text-white rounded-md transition-colors"
+                                        />
+                                    </>
+                                )}
                             </div>
                         )}
                     </div>
 
                     {/* Preview area */}
-                    <div className="flex-1 min-h-0 overflow-hidden" data-tour="preview">
-                        {isGenerating ? (
+                    <div className="flex-1 min-h-0 overflow-auto bg-ink-50 p-4 max-md:p-2" data-tour="preview">
+                        {(isGenerating || v2IsGenerating) ? (
                             <div className="h-full flex items-center justify-center">
-                                <GenerationProgress active={isGenerating} title="Создаём рабочий лист…" accentClassName="bg-brand-500" estimatedSeconds={30} />
+                                <GenerationProgress active={isGenerating || v2IsGenerating} title="Создаём рабочий лист…" accentClassName="bg-brand-500" estimatedSeconds={30} />
                             </div>
+                        ) : useV2 ? (
+                            v2Doc ? (
+                                <DocumentRenderer doc={v2Doc} showAnswers={v2Mode === 'answers'} />
+                            ) : (
+                                <div className="h-full flex flex-col items-center justify-center text-center p-10 text-ink-500">
+                                    <div className="w-[72px] h-[72px] rounded-lg bg-ink-100 inline-flex items-center justify-center text-ink-400 mb-4">
+                                        <FileText className="w-9 h-9" />
+                                    </div>
+                                    <h3 className="font-display font-bold text-[16px] text-ink-700 mb-1.5">Готов к работе (новый формат)</h3>
+                                    <p className="text-[13px] max-w-[360px] leading-relaxed">
+                                        Введите тему и нажмите «Сгенерировать». Документ появится здесь.
+                                    </p>
+                                </div>
+                            )
                         ) : srcDoc ? (
                             <iframe
                                 ref={iframeRef}
