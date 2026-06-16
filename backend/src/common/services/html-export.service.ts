@@ -148,6 +148,10 @@ export class HtmlExportService implements OnModuleDestroy {
     //      ЛЮБУЮ структуру дублей независимо от HTML-разметки.
     //   B. Потом структурный дедуп (по </html>, .container, h1-h4,
     //      маркерам Задание) с зацикливанием — на случай гнёзд внутри.
+    const taskOneIn = (processed.match(/Задание\s*№?\s*1[.\s)]/gi) || []).length;
+    this.docxLogger.log(
+      `[normalize-in] raw=${processed.length}b, «Задание №1»=${taskOneIn}`,
+    );
     for (let nukePass = 0; nukePass < 5; nukePass++) {
       const before = processed;
       processed = this.nukeDuplicatesByRawText(processed);
@@ -155,6 +159,12 @@ export class HtmlExportService implements OnModuleDestroy {
       this.docxLogger.log(
         `[bulletproof-dedup] pass #${nukePass + 1}: ` +
         `${before.length} → ${processed.length}`,
+      );
+    }
+    const taskOneAfterNuke = (processed.match(/Задание\s*№?\s*1[.\s)]/gi) || []).length;
+    if (taskOneAfterNuke !== taskOneIn) {
+      this.docxLogger.log(
+        `[normalize-after-nuke] «Задание №1»=${taskOneAfterNuke}, length=${processed.length}`,
       );
     }
     for (let pass = 0; pass < 5; pass++) {
@@ -620,10 +630,25 @@ export class HtmlExportService implements OnModuleDestroy {
    * (они картинки, иначе их рендер в Word без MathJax-плагина невозможен).
    */
   async htmlToDocx(html: string): Promise<Buffer> {
+    // DEBUG: считаем сколько раз встречается «Задание №1» во входе.
+    // Это даёт точку отсчёта: если 1 — дубль создаётся ниже, если 3 — мой
+    // dedup не сработал.
+    const taskOneCount = (html.match(/Задание\s*№?\s*1[.\s)]/gi) || []).length;
+    const containerCount = (html.match(/<div[^>]*\bcontainer\b/gi) || []).length;
+    const h1Count = (html.match(/<h1\b/gi) || []).length;
+    this.docxLogger.log(
+      `[diag-in] html=${html.length}b, «Задание №1»=${taskOneCount}, ` +
+      `.container=${containerCount}, <h1>=${h1Count}`,
+    );
+
     let rendered: string;
     try {
       rendered = await this.renderHtmlForDocx(html);
-      this.docxLogger.log(`Pre-render OK, длина=${rendered.length}`);
+      const renderedTaskOne = (rendered.match(/Задание\s*№?\s*1[.\s)]/gi) || []).length;
+      this.docxLogger.log(
+        `Pre-render OK, длина=${rendered.length}, ` +
+        `«Задание №1» в pre-rendered=${renderedTaskOne}`,
+      );
     } catch (e: any) {
       this.docxLogger.warn(
         `Playwright pre-render для DOCX упал (${e?.message ?? e}). ` +
