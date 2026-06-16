@@ -467,21 +467,6 @@ export default function LessonPrepV2() {
                             </Field>
                         )}
 
-                        <div className="pt-3 border-t border-ink-100">
-                            <label className="flex items-start gap-2.5 cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    checked={v2.useV2}
-                                    onChange={(e) => v2.toggleV2(e.target.checked)}
-                                    className="mt-0.5 accent-brand-500"
-                                />
-                                <span className="text-[12px] leading-snug text-ink-700">
-                                    <span className="font-semibold">Новый формат (бета)</span>
-                                    <br />
-                                    <span className="text-ink-500">JSON-блоки + визуальный редактор.</span>
-                                </span>
-                            </label>
-                        </div>
                         <div data-tour="generate">
                         <Button
                             variant="primary"
@@ -605,6 +590,7 @@ export default function LessonPrepV2() {
                                 <button
                                     type="button"
                                     onClick={() => setV2Mode('edit')}
+                                    data-tour="edit"
                                     className={`px-2.5 py-1 rounded-md text-[12px] font-semibold ${v2Mode === 'edit' ? 'bg-brand-500 text-white' : 'bg-ink-100 text-ink-700'}`}
                                 >Редактировать</button>
                                 <PdfDownloadButton

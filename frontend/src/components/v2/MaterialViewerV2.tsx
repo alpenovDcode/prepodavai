@@ -945,9 +945,9 @@ export default function MaterialViewerV2({ lessonId, generationId, isEditable = 
                     {typeHasAnswers(genType) && (
                         <TabBtn active={tab === 'answers'} onClick={() => setTab('answers')} icon={<KeyRound className="w-4 h-4" />}>С ответами</TabBtn>
                     )}
-                    {/* Кнопка редактирования — только для JSON-формата. */}
-                    {isV2 && (
-                        <TabBtn active={tab === 'edit'} onClick={() => setTab('edit')} icon={<Edit3 className="w-4 h-4" />}>Редактировать</TabBtn>
+                    {/* Кнопка редактирования: JSON — DocumentEditor, HTML — contentEditable iframe. */}
+                    {(isV2 || !!srcDoc) && (
+                        <TabBtn active={tab === 'edit'} onClick={() => setTab('edit')} icon={<Edit3 className="w-4 h-4" />} data-tour="edit-tab">Редактировать</TabBtn>
                     )}
 
                     {tab === 'edit' && !isV2 && (
@@ -1057,11 +1057,12 @@ export default function MaterialViewerV2({ lessonId, generationId, isEditable = 
     )
 }
 
-function TabBtn({ active, onClick, icon, children }: { active: boolean; onClick: () => void; icon: React.ReactNode; children: React.ReactNode }) {
+function TabBtn({ active, onClick, icon, children, ...rest }: { active: boolean; onClick: () => void; icon: React.ReactNode; children: React.ReactNode; [key: `data-${string}`]: string | undefined }) {
     return (
         <button
             type="button"
             onClick={onClick}
+            {...rest}
             className={cn(
                 'relative inline-flex items-center gap-2 px-4 py-3 text-[14px] font-semibold transition-colors',
                 active ? 'text-brand-700' : 'text-ink-500 hover:text-ink-900',

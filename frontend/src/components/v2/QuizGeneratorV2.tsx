@@ -312,21 +312,6 @@ export default function QuizGeneratorV2() {
                             </div>
                         </div>
 
-                        <div className="pt-3 border-t border-ink-100">
-                            <label className="flex items-start gap-2.5 cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    checked={v2.useV2}
-                                    onChange={(e) => v2.toggleV2(e.target.checked)}
-                                    className="mt-0.5 accent-brand-500"
-                                />
-                                <span className="text-[12px] leading-snug text-ink-700">
-                                    <span className="font-semibold">Новый формат (бета)</span>
-                                    <br />
-                                    <span className="text-ink-500">JSON-блоки + визуальный редактор по блокам.</span>
-                                </span>
-                            </label>
-                        </div>
                         <div className="pt-2 border-t border-ink-100">
                             <Button
                                 variant="primary"
@@ -381,6 +366,7 @@ export default function QuizGeneratorV2() {
                                 <button
                                     type="button"
                                     onClick={() => v2.setV2Mode('edit')}
+                                    data-tour="edit"
                                     className={`px-2.5 py-1 rounded-md text-[12px] font-semibold ${v2.v2Mode === 'edit' ? 'bg-brand-500 text-white' : 'bg-ink-100 text-ink-700'}`}
                                 >Редактировать</button>
                             </div>

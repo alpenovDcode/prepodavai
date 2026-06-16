@@ -24,6 +24,7 @@ import GenerationProgress from '@/components/workspace/GenerationProgress'
 import PdfDownloadButton from '@/components/workspace/PdfDownloadButton'
 import AssignTaskButton from '@/components/AssignTaskButton'
 import { DocumentRenderer } from '@/components/blocks/DocumentRenderer'
+import { DocumentEditor } from '@/components/blocks/editor/DocumentEditor'
 import { useV2Toggle } from '@/components/blocks/useV2Toggle'
 
 const LANGUAGES = [
@@ -383,21 +384,6 @@ export default function VocabularyV2() {
                             </p>
                         </div>
 
-                        <div className="pt-3 border-t border-ink-100">
-                            <label className="flex items-start gap-2.5 cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    checked={v2.useV2}
-                                    onChange={(e) => v2.toggleV2(e.target.checked)}
-                                    className="mt-0.5 accent-brand-500"
-                                />
-                                <span className="text-[12px] leading-snug text-ink-700">
-                                    <span className="font-semibold">Новый формат (бета)</span>
-                                    <br />
-                                    <span className="text-ink-500">JSON-блоки + визуальный редактор.</span>
-                                </span>
-                            </label>
-                        </div>
                         <div className="pt-2 border-t border-ink-100">
                             <Button
                                 variant="primary"
@@ -436,9 +422,25 @@ export default function VocabularyV2() {
 
                         <div className="flex-1" />
 
-                        {hasResult && (
+                        {v2.useV2 && v2.hasV2Result && (
+                            <div className="flex items-center gap-1.5">
+                                <button
+                                    type="button"
+                                    onClick={() => v2.setV2Mode('preview')}
+                                    className={`px-2.5 py-1 rounded-md text-[12px] font-semibold ${v2.v2Mode === 'preview' ? 'bg-brand-500 text-white' : 'bg-ink-100 text-ink-700'}`}
+                                >Превью</button>
+                                <button
+                                    type="button"
+                                    onClick={() => v2.setV2Mode('edit')}
+                                    data-tour="edit"
+                                    className={`px-2.5 py-1 rounded-md text-[12px] font-semibold ${v2.v2Mode === 'edit' ? 'bg-brand-500 text-white' : 'bg-ink-100 text-ink-700'}`}
+                                >Редактировать</button>
+                            </div>
+                        )}
+
+                        {(hasResult || (v2.useV2 && v2.hasV2Result)) && (
                             <div className="flex items-center gap-1.5 flex-wrap">
-{editMode && (
+                                {!v2.useV2 && editMode && (
                                     <Button
                                         variant="primary"
                                         size="sm"
@@ -449,13 +451,15 @@ export default function VocabularyV2() {
                                         Сохранить
                                     </Button>
                                 )}
-                                <Button variant="ghost" size="sm" leftIcon={copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />} onClick={copyHtml}>
-                                    {copied ? 'Скопировано' : 'Копировать'}
-                                </Button>
-                                <Button variant="ghost" size="sm" leftIcon={<RefreshCw className="w-3.5 h-3.5" />} onClick={generate} disabled={isGenerating}>
+                                {!v2.useV2 && (
+                                    <Button variant="ghost" size="sm" leftIcon={copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />} onClick={copyHtml}>
+                                        {copied ? 'Скопировано' : 'Копировать'}
+                                    </Button>
+                                )}
+                                <Button variant="ghost" size="sm" leftIcon={<RefreshCw className="w-3.5 h-3.5" />} onClick={generate} disabled={isGenerating || v2.v2IsGenerating}>
                                     Заново
                                 </Button>
-                                {activeGenerationId && (
+                                {!v2.useV2 && activeGenerationId && (
                                     <>
                                         <PdfDownloadButton
                                             generationId={activeGenerationId}
@@ -464,6 +468,21 @@ export default function VocabularyV2() {
                                         />
                                         <AssignTaskButton
                                             generationId={activeGenerationId}
+                                            topic={topic}
+                                            label="Выдать классу"
+                                            className="inline-flex items-center gap-1.5 h-9 px-3 text-[13px] font-semibold bg-brand-500 hover:bg-brand-600 text-white rounded-md transition-colors"
+                                        />
+                                    </>
+                                )}
+                                {v2.useV2 && v2.v2GenerationId && (
+                                    <>
+                                        <PdfDownloadButton
+                                            generationId={v2.v2GenerationId}
+                                            filename={`${topic || 'vocabulary'}.pdf`}
+                                            className="inline-flex items-center gap-1.5 h-9 px-3 text-[13px] font-semibold bg-ink-100 hover:bg-ink-200 text-ink-700 rounded-md transition-colors"
+                                        />
+                                        <AssignTaskButton
+                                            generationId={v2.v2GenerationId}
                                             topic={topic}
                                             label="Выдать классу"
                                             className="inline-flex items-center gap-1.5 h-9 px-3 text-[13px] font-semibold bg-brand-500 hover:bg-brand-600 text-white rounded-md transition-colors"
@@ -480,7 +499,16 @@ export default function VocabularyV2() {
                                 <GenerationProgress active={isGenerating || v2.v2IsGenerating} title="Генерируем словарь…" accentClassName="bg-brand-500" estimatedSeconds={25} />
                             </div>
                         ) : v2.useV2 && v2.v2Doc ? (
-                            <DocumentRenderer doc={v2.v2Doc} />
+                            v2.v2Mode === 'edit' && v2.v2GenerationId ? (
+                                <DocumentEditor
+                                    initialDoc={v2.v2Doc}
+                                    saving={v2.v2IsSaving}
+                                    onCancel={() => v2.setV2Mode('preview')}
+                                    onSave={v2.saveV2}
+                                />
+                            ) : (
+                                <DocumentRenderer doc={v2.v2Doc} />
+                            )
                         ) : v2.useV2 ? (
                             <div className="h-full flex items-center justify-center text-ink-500 text-[13px]">Заполните настройки и нажмите «Сгенерировать»</div>
                         ) : srcDoc ? (

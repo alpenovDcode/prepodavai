@@ -74,9 +74,14 @@ export default function WorksheetGeneratorV2(): React.ReactElement {
     // переключение страниц. Если включён — generate() вызывает /generate/v2/worksheet,
     // ответ кладём в v2Doc + v2GenerationId. Старый HTML-флоу при этом
     // полностью НЕ запускается — это разные ветви рендера и кнопок.
+    // По умолчанию ВКЛЮЧЁН (JSON — основной формат). Уважаем '0' в LS
+    // только если выставлен явно (отладочный случай).
     const [useV2, setUseV2] = useState<boolean>(() => {
-        if (typeof window === 'undefined') return false
-        try { return localStorage.getItem('worksheet_use_v2_format') === '1' } catch { return false }
+        if (typeof window === 'undefined') return true
+        try {
+            const v = localStorage.getItem('worksheet_use_v2_format')
+            return v === null ? true : v !== '0'
+        } catch { return true }
     })
     const [v2Doc, setV2Doc] = useState<GenerationDocumentT | null>(null)
     const [v2GenerationId, setV2GenerationId] = useState<string | null>(null)
@@ -304,23 +309,6 @@ export default function WorksheetGeneratorV2(): React.ReactElement {
                             </div>
                         </div>
 
-                        {/* Переключатель нового JSON-формата (бета) */}
-                        <div className="pt-3 border-t border-ink-100">
-                            <label className="flex items-start gap-2.5 cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    checked={useV2}
-                                    onChange={(e) => toggleV2(e.target.checked)}
-                                    className="mt-0.5 accent-brand-500"
-                                />
-                                <span className="text-[12px] leading-snug text-ink-700">
-                                    <span className="font-semibold">Новый формат (бета)</span>
-                                    <br />
-                                    <span className="text-ink-500">JSON-блоки вместо HTML. Чистый рендер + визуальный редактор по блокам.</span>
-                                </span>
-                            </label>
-                        </div>
-
                         <div className="pt-2 border-t border-ink-100">
                             <Button
                                 variant="primary"
@@ -357,7 +345,7 @@ export default function WorksheetGeneratorV2(): React.ReactElement {
                                     <TabBtn active={v2Mode === 'answers'} onClick={() => setV2Mode('answers')}>
                                         <KeyRound className="w-3.5 h-3.5" /> С ответами
                                     </TabBtn>
-                                    <TabBtn active={v2Mode === 'edit'} onClick={() => setV2Mode('edit')}>
+                                    <TabBtn active={v2Mode === 'edit'} onClick={() => setV2Mode('edit')} data-tour="edit">
                                         <Edit3 className="w-3.5 h-3.5" /> Редактировать
                                     </TabBtn>
                                 </div>
@@ -520,9 +508,9 @@ function ChipButton({ active, onClick, children }: { active: boolean; onClick: (
     )
 }
 
-function TabBtn({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+function TabBtn({ active, onClick, children, ...rest }: { active: boolean; onClick: () => void; children: React.ReactNode; [key: `data-${string}`]: string | undefined }) {
     return (
-        <button type="button" onClick={onClick}
+        <button type="button" onClick={onClick} {...rest}
             className={['inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-[12px] font-semibold transition-colors',
                 active ? 'bg-brand-50 text-brand-700' : 'text-ink-600 hover:bg-ink-100',
             ].join(' ')}>

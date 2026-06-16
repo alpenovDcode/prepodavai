@@ -21,9 +21,15 @@ import type { GenerationDocument } from '@/lib/blocks/schema'
  * та же DocumentRenderer/DocumentEditor.
  */
 export function useV2Toggle(storageKey: string) {
+    // По умолчанию ВКЛЮЧЁН (JSON-blocks — основной формат генерации).
+    // Если пользователь явно выставил '0' в localStorage (например, через
+    // отладку) — уважаем выбор; иначе всегда true.
     const [useV2, setUseV2] = useState<boolean>(() => {
-        if (typeof window === 'undefined') return false
-        try { return localStorage.getItem(storageKey) === '1' } catch { return false }
+        if (typeof window === 'undefined') return true
+        try {
+            const v = localStorage.getItem(storageKey)
+            return v === null ? true : v !== '0'
+        } catch { return true }
     })
     const [v2Doc, setV2Doc] = useState<GenerationDocument | null>(null)
     const [v2GenerationId, setV2GenerationId] = useState<string | null>(null)
