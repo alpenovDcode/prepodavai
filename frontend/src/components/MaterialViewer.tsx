@@ -82,7 +82,7 @@ const MATHJAX_SCRIPT = `<script>window.MathJax={tex:{inlineMath:[['$','$'],['\\\
 const IFRAME_STYLES = `<style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   body { background: #f9fafb; font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: #111827; line-height: 1.6; padding: 20px; }
-  .container { max-width: 800px; margin: 0 auto; background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+  .container { max-width: 1100px !important; margin: 0 auto; background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
   .header { display: flex; align-items: center; gap: 20px; margin-bottom: 30px; border-bottom: 2px solid #f3f4f6; padding-bottom: 20px; }
   .header-logo { width: auto; height: 40px; }
   h1 { font-size: 28px; font-weight: 700; color: #111827; }
@@ -314,7 +314,14 @@ const FullHtmlPreview = forwardRef<FullHtmlPreviewHandle, FullHtmlPreviewProps>(
 
         let finalHtml = baseHtml
         if (hasHead) {
-            finalHtml = finalHtml.replace(/<head([^>]*)>/i, `<head$1>${INJECTED_HEAD}`)
+            // Вставляем В КОНЕЦ <head>, а не в начало: тогда наши overrides
+            // (например, .container { max-width: 1100px }) выигрывают каскад
+            // у backend-стилей, где исторически зашит max-width: 800px.
+            if (/<\/head>/i.test(finalHtml)) {
+                finalHtml = finalHtml.replace(/<\/head>/i, `${INJECTED_HEAD}</head>`)
+            } else {
+                finalHtml = finalHtml.replace(/<head([^>]*)>/i, `<head$1>${INJECTED_HEAD}`)
+            }
         } else if (hasBody) {
             finalHtml = finalHtml.replace(/<body([^>]*)>/i, `<head>${INJECTED_HEAD}</head><body$1`)
         } else {
@@ -1030,9 +1037,16 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
                 {generationType === 'presentation' ? (
                     // V2: бекенд кладёт готовый HTML в outputData.content — там встроенный
                     // просмотрщик слайдов с MathJax, навигация ← →. Просто показываем в iframe.
-                    typeof content === 'string' && content.includes('<html') ? (
+                    typeof content === 'string' && (content.includes('<html') || content.includes('<!DOCTYPE') || content.includes('<body')) ? (
                         <iframe
                             srcDoc={content}
+                            className="w-full h-full border-none bg-white"
+                            title="Presentation"
+                            sandbox="allow-scripts allow-same-origin"
+                        />
+                    ) : presentationData?.content && typeof presentationData.content === 'string' ? (
+                        <iframe
+                            srcDoc={presentationData.content}
                             className="w-full h-full border-none bg-white"
                             title="Presentation"
                             sandbox="allow-scripts allow-same-origin"
@@ -1094,6 +1108,14 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
                         <div className="flex justify-center items-center h-full text-gray-500">Данные презентации не найдены.</div>
                     )
 
+                ) : generationType === 'game_generation' && typeof content === 'string' && (content.includes('<html') || content.includes('<!DOCTYPE') || content.includes('<body')) ? (
+                    // Игры в новом формате возвращают готовый HTML с встроенным движком — просто iframe.
+                    <iframe
+                        srcDoc={content}
+                        className="w-full h-full border-none bg-white"
+                        title="Game"
+                        sandbox="allow-scripts allow-same-origin allow-modals allow-forms"
+                    />
                 ) : generationType === 'game_generation' && gameData ? (
                     <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-purple-50 to-indigo-50 p-8">
                         <div className="bg-white rounded-3xl shadow-xl border border-purple-100 max-w-md w-full p-8 flex flex-col items-center gap-6">

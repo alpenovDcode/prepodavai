@@ -292,20 +292,6 @@ function IntegrationsPanel() {
                     desc={platforms?.max?.linked ? (maxUser ? `${maxUser} · бот привязан` : 'Бот привязан') : 'Альтернатива Telegram'}
                     action={renderLinkAction('max')}
                 />
-                <IntegrationCard
-                    gradient="linear-gradient(135deg,#34A853,#4285F4)"
-                    icon={CalendarIcon}
-                    title="Google Calendar"
-                    desc="Синхронизация расписания"
-                    action={<Badge variant="neutral">скоро</Badge>}
-                />
-                <IntegrationCard
-                    color="#FF7919"
-                    icon={Cloud}
-                    title="Яндекс.Диск"
-                    desc="Сохранять материалы автоматом"
-                    action={<Badge variant="neutral">скоро</Badge>}
-                />
             </div>
 
             {linking && (

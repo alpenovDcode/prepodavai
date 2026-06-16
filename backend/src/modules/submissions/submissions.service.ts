@@ -338,10 +338,12 @@ export class SubmissionsService {
 
     const teacher = await this.prisma.appUser.findUnique({
       where: { id: teacherId },
-      select: { email: true, firstName: true, notifyWeeklyReport: true, telegramChatId: true, maxChatId: true },
+      select: { email: true, firstName: true, notifyStudentProgress: true, telegramChatId: true, maxChatId: true },
     });
     const teacherEmail = teacher?.email?.trim();
-    if (teacher?.notifyWeeklyReport && teacherEmail) {
+    // Шлём письмо при сдаче работы только если учитель явно включил «Ученик сдал работу»
+    // в настройках уведомлений (Settings → notifyStudentProgress).
+    if (teacher?.notifyStudentProgress && teacherEmail) {
       this.emailService
         .sendHomeworkSubmittedEmail(teacherEmail, {
           teacherName: teacher.firstName || null,

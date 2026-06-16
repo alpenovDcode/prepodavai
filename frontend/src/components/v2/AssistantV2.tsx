@@ -6,8 +6,42 @@ import {
     MessageSquare, ChevronDown,
 } from 'lucide-react'
 import DOMPurify from 'isomorphic-dompurify'
+import katex from 'katex'
+import 'katex/dist/katex.min.css'
 import { useGenerations } from '@/lib/hooks/useGenerations'
 import { cn } from '@/lib/utils/cn'
+
+/**
+ * Рендер сообщения ассистента — поддерживает LaTeX через katex.
+ * Inline: \(...\) и $...$.  Display: \[...\] и $$...$$.
+ * Плюс минимальный markdown: **bold**, *italic*, `code`.
+ */
+function renderAssistantContent(raw: string): string {
+    if (!raw) return ''
+    let safe = DOMPurify.sanitize(raw, {
+        ALLOWED_TAGS: ['br', 'p', 'strong', 'em', 'code', 'pre', 'ul', 'ol', 'li', 'a'],
+        ALLOWED_ATTR: ['href'],
+    })
+    // Display math первым — иначе $$...$$ съест inline $...$
+    safe = safe.replace(/\\\[([\s\S]+?)\\\]/g, (_, e) => {
+        try { return katex.renderToString(e, { throwOnError: false, displayMode: true }) } catch { return _ }
+    })
+    safe = safe.replace(/\$\$([\s\S]+?)\$\$/g, (m, e) => {
+        try { return katex.renderToString(e, { throwOnError: false, displayMode: true }) } catch { return m }
+    })
+    safe = safe.replace(/\\\((.+?)\\\)/g, (_, e) => {
+        try { return katex.renderToString(e, { throwOnError: false, displayMode: false }) } catch { return _ }
+    })
+    safe = safe.replace(/\$([^$\n]+?)\$/g, (m, e) => {
+        try { return katex.renderToString(e, { throwOnError: false, displayMode: false }) } catch { return m }
+    })
+    // Минимальный markdown
+    safe = safe.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+              .replace(/\*([^*\n]+)\*/g, '<em>$1</em>')
+              .replace(/`([^`\n]+)`/g, '<code style="background:#F1F5F9;padding:1px 5px;border-radius:4px;font-size:13px">$1</code>')
+              .replace(/\n/g, '<br>')
+    return safe
+}
 
 interface ChatMessage {
     id: string
@@ -224,7 +258,7 @@ export default function AssistantV2() {
                                     ) : (
                                         <div
                                             className="ai-msg-v2 max-w-[88%] bg-surface border border-ink-200 rounded-2xl rounded-tl-sm px-4 py-3.5 text-[13px] text-ink-800 leading-relaxed shadow-sm"
-                                            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(msg.content) }}
+                                            dangerouslySetInnerHTML={{ __html: renderAssistantContent(msg.content) }}
                                         />
                                     )}
                                 </div>

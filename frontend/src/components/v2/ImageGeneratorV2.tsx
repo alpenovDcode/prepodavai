@@ -376,18 +376,6 @@ export default function ImageGeneratorV2() {
                             </div>
                         </div>
 
-                        {/* Count chips */}
-                        <div>
-                            <label className="block text-[12px] font-semibold text-ink-700 mb-2 uppercase tracking-wider">Количество вариантов</label>
-                            <div className="flex gap-1.5 flex-wrap">
-                                {COUNTS.map(n => (
-                                    <ChipButton key={n} active={count === n} onClick={() => setCount(n)}>
-                                        {n}
-                                    </ChipButton>
-                                ))}
-                            </div>
-                        </div>
-
                         {/* Keep seed */}
                         <label className="flex items-start gap-2.5 cursor-pointer select-none">
                             <input

@@ -70,7 +70,7 @@ export class GenerationsService {
 
   // --- SHARED DESIGN SYSTEM CONSTANTS ---
   private readonly SHARED_DESIGN_SYSTEM_PROMPT = `ТРЕБОВАНИЯ К ДИЗАЙНУ (ЕДИНЫЙ КОРПОРАТИВНЫЙ СТИЛЬ):
-1.  **Контейнер:** max-width 800px, центрирование (margin: 0 auto), белый фон, padding 40px.
+1.  **Контейнер:** max-width 1100px, центрирование (margin: 0 auto), белый фон, padding 40px.
 2.  **Типографика:** Шрифт Inter, system-ui, sans-serif. Основной текст #1F2937 (Slate-800).
 3.  **Стиль блоков:**
     -   Отказ от теней (box-shadow: none). Используй границы (border: 1px solid #E5E7EB).
@@ -82,7 +82,7 @@ export class GenerationsService {
 
   private readonly SHARED_CSS = `<style>
   body { background: #F3F4F6; font-family: 'Inter', system-ui, sans-serif; margin: 0; padding: 20px; color: #1F2937; line-height: 1.6; }
-  .container { background: white; max-width: 800px; margin: 0 auto; padding: 40px; border: 1px solid #E5E7EB; border-radius: 8px; }
+  .container { background: white; max-width: 1100px; margin: 0 auto; padding: 40px; border: 1px solid #E5E7EB; border-radius: 8px; }
   .header { display: flex; align-items: center; gap: 20px; margin-bottom: 30px; border-bottom: 2px solid #111827; padding-bottom: 15px; }
   .header-logo { width: 120px; height: auto; flex-shrink: 0; }
   h1 { margin: 0; flex-grow: 1; border-bottom: none; padding-bottom: 0; font-size: 24px; color: #111827; }
