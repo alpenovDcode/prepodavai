@@ -209,47 +209,149 @@ export function ShortAnswer({
 }
 
 export function Matching({
-    instruction, left, right, pairs, showAnswers,
+    instruction, left, right, pairs, value, onChange, showAnswers,
 }: {
     instruction: string
     left: { id: string; text: string }[]
     right: { id: string; text: string }[]
     pairs: [string, string][]
 } & InteractiveProps) {
+    // value = { leftId: rightId } — выбор ученика. Сохраняем как карту,
+    // чтобы автопроверка могла сверять с правильными pairs одним проходом.
+    const studentMap: Record<string, string> = (value && typeof value === 'object') ? value : {}
+    const correctMap = new Map(pairs)
+    const interactive = typeof onChange === 'function'
+
+    const setMatch = (leftId: string, rightId: string) => {
+        if (!onChange) return
+        const next = { ...studentMap }
+        if (rightId) next[leftId] = rightId; else delete next[leftId]
+        onChange(next)
+    }
+
     return (
         <div style={{ margin: '12px 0' }}>
             <p style={{ fontWeight: 600, marginBottom: 12 }}><InlineMathText text={instruction} /></p>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-                <ol style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-                    {left.map((l) => (
-                        <li key={l.id} style={{ padding: '6px 0', display: 'flex', gap: 8 }}>
-                            <strong style={{ color: '#6b7280', minWidth: 24 }}>{l.id}.</strong>
-                            <span><InlineMathText text={l.text} /></span>
-                        </li>
-                    ))}
-                </ol>
-                <ol style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+
+            {/* Список вариантов справа: всегда виден ученику как справка-«шпаргалка» */}
+            <div style={{
+                background: '#f9fafb',
+                border: '1px solid #e5e7eb',
+                borderRadius: 8,
+                padding: '10px 14px',
+                marginBottom: 14,
+                fontSize: 14,
+            }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: '#6b7280', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.4 }}>
+                    Варианты:
+                </div>
+                <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
                     {right.map((r) => (
-                        <li key={r.id} style={{ padding: '6px 0', display: 'flex', gap: 8 }}>
-                            <strong style={{ color: '#6b7280', minWidth: 24 }}>{r.id}.</strong>
+                        <li key={r.id} style={{ display: 'flex', gap: 8 }}>
+                            <strong style={{ color: '#4f46e5', minWidth: 22 }}>{r.id}.</strong>
                             <span><InlineMathText text={r.text} /></span>
                         </li>
                     ))}
-                </ol>
+                </ul>
             </div>
-            {showAnswers && pairs.length > 0 && (
-                <div style={{
-                    marginTop: 12,
-                    fontSize: 13,
-                    background: '#ecfdf5',
-                    color: '#065f46',
-                    padding: '8px 12px',
-                    borderRadius: 6,
-                }}>
-                    <strong>Соответствия:</strong>{' '}
-                    {pairs.map(([l, r], i) => (
-                        <span key={i}>{l}→{r}{i < pairs.length - 1 ? ', ' : ''}</span>
-                    ))}
+
+            {/* Левые пункты с выбором справа: select или badge ответа */}
+            <ol style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {left.map((l) => {
+                    const studentRightId = studentMap[l.id] || ''
+                    const correctRightId = correctMap.get(l.id) || ''
+                    return (
+                        <li key={l.id} style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                            <strong style={{ color: '#6b7280', minWidth: 22 }}>{l.id}.</strong>
+                            <span style={{ flex: 1, minWidth: 200 }}><InlineMathText text={l.text} /></span>
+                            <span style={{ color: '#9ca3af' }}>→</span>
+                            {showAnswers ? (
+                                // Режим «С ответами»: показываем правильную пару
+                                <span style={{
+                                    display: 'inline-block',
+                                    padding: '4px 10px',
+                                    borderRadius: 4,
+                                    background: '#d1fae5',
+                                    color: '#065f46',
+                                    fontWeight: 600,
+                                    fontSize: 14,
+                                }}>
+                                    {correctRightId || '—'}
+                                </span>
+                            ) : interactive ? (
+                                // Студент заполняет: select из правых
+                                <select
+                                    value={studentRightId}
+                                    onChange={(e) => setMatch(l.id, e.target.value)}
+                                    style={{
+                                        padding: '5px 10px',
+                                        borderRadius: 6,
+                                        border: '1px solid #d1d5db',
+                                        background: 'white',
+                                        fontSize: 14,
+                                        minWidth: 70,
+                                    }}
+                                >
+                                    <option value="">— выбери —</option>
+                                    {right.map((r) => (
+                                        <option key={r.id} value={r.id}>{r.id}</option>
+                                    ))}
+                                </select>
+                            ) : (
+                                // Режим просмотра ответа ученика (read-only): показываем что он выбрал
+                                <span style={{
+                                    display: 'inline-block',
+                                    padding: '4px 10px',
+                                    borderRadius: 4,
+                                    background: studentRightId ? '#eef2ff' : '#f3f4f6',
+                                    color: studentRightId ? '#3730a3' : '#9ca3af',
+                                    fontWeight: 600,
+                                    fontSize: 14,
+                                }}>
+                                    {studentRightId || '—'}
+                                </span>
+                            )}
+                        </li>
+                    )
+                })}
+            </ol>
+        </div>
+    )
+}
+
+// ───────── Vocabulary entry ─────────
+
+export function VocabEntry({
+    term, translation, transcription, partOfSpeech, example, exampleTranslation, note,
+}: {
+    term: string
+    translation: string
+    transcription?: string
+    partOfSpeech?: string
+    example?: string
+    exampleTranslation?: string
+    note?: string
+}) {
+    return (
+        <div className="vocab-entry">
+            <div className="vocab-entry-head">
+                <span className="vocab-term">{term}</span>
+                {transcription && <span className="vocab-transcription">[{transcription}]</span>}
+                {partOfSpeech && <span className="vocab-pos">{partOfSpeech}</span>}
+            </div>
+            <div className="vocab-translation">{translation}</div>
+            {example && (
+                <div className="vocab-example">
+                    <span className="vocab-example-label">Пример:</span>{' '}
+                    <em><InlineMathText text={example} /></em>
+                    {exampleTranslation && (
+                        <span className="vocab-example-tr"> — {exampleTranslation}</span>
+                    )}
+                </div>
+            )}
+            {note && (
+                <div className="vocab-note">
+                    <span className="vocab-note-label">Примечание:</span> {note}
                 </div>
             )}
         </div>
@@ -328,5 +430,16 @@ export function BlockRenderer({ block, answers, onAnswerChange, showAnswers }: B
             />
         )
         case 'html-snippet': return <HtmlSnippet html={block.html} />
+        case 'vocab-entry': return (
+            <VocabEntry
+                term={block.term}
+                translation={block.translation}
+                transcription={block.transcription}
+                partOfSpeech={block.partOfSpeech}
+                example={block.example}
+                exampleTranslation={block.exampleTranslation}
+                note={block.note}
+            />
+        )
     }
 }

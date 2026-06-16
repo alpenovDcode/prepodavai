@@ -423,6 +423,67 @@ function DocumentStyles() {
                 margin-bottom: 6px;
                 color: #4b5563;
             }
+            /* Vocabulary entry — словарная статья */
+            .prepodavai-doc .vocab-entry {
+                background: white;
+                border: 1px solid #e5e7eb;
+                border-radius: 10px;
+                padding: 14px 18px;
+                margin-bottom: 10px;
+                page-break-inside: avoid;
+            }
+            .prepodavai-doc .vocab-entry-head {
+                display: flex;
+                align-items: baseline;
+                gap: 10px;
+                flex-wrap: wrap;
+                margin-bottom: 4px;
+            }
+            .prepodavai-doc .vocab-term {
+                font-size: 18px;
+                font-weight: 700;
+                color: #111827;
+            }
+            .prepodavai-doc .vocab-transcription {
+                font-size: 14px;
+                color: #6b7280;
+                font-family: 'Doulos SIL', 'Times New Roman', serif;
+            }
+            .prepodavai-doc .vocab-pos {
+                font-size: 12px;
+                color: #4f46e5;
+                background: #eef2ff;
+                padding: 2px 8px;
+                border-radius: 999px;
+                font-weight: 500;
+            }
+            .prepodavai-doc .vocab-translation {
+                font-size: 15px;
+                color: #374151;
+                margin-bottom: 6px;
+            }
+            .prepodavai-doc .vocab-example {
+                font-size: 13.5px;
+                color: #4b5563;
+                margin-top: 4px;
+            }
+            .prepodavai-doc .vocab-example-label {
+                font-weight: 600;
+                color: #6b7280;
+            }
+            .prepodavai-doc .vocab-example-tr {
+                color: #9ca3af;
+            }
+            .prepodavai-doc .vocab-note {
+                font-size: 13px;
+                color: #9ca3af;
+                font-style: italic;
+                margin-top: 4px;
+            }
+            .prepodavai-doc .vocab-note-label {
+                font-weight: 600;
+            }
+
             .prepodavai-doc .footer-logo {
                 text-align: right;
                 margin-top: 40px;

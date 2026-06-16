@@ -51,6 +51,17 @@ td { padding: 12px; border: 1px solid #e5e7eb; vertical-align: top; }
 .task-card > *:last-child { margin-bottom: 0; }
 .task-card h2 { font-size: 16px; margin-top: 16px; margin-bottom: 8px; color: #374151; }
 .task-card h3 { font-size: 15px; margin-top: 12px; margin-bottom: 6px; color: #4b5563; }
+.vocab-entry { background: white; border: 1px solid #e5e7eb; border-radius: 10px; padding: 14px 18px; margin-bottom: 10px; page-break-inside: avoid; }
+.vocab-entry-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 4px; }
+.vocab-term { font-size: 18px; font-weight: 700; color: #111827; }
+.vocab-transcription { font-size: 14px; color: #6b7280; font-family: 'Doulos SIL', 'Times New Roman', serif; }
+.vocab-pos { font-size: 12px; color: #4f46e5; background: #eef2ff; padding: 2px 8px; border-radius: 999px; font-weight: 500; }
+.vocab-translation { font-size: 15px; color: #374151; margin-bottom: 6px; }
+.vocab-example { font-size: 13.5px; color: #4b5563; margin-top: 4px; }
+.vocab-example-label { font-weight: 600; color: #6b7280; }
+.vocab-example-tr { color: #9ca3af; }
+.vocab-note { font-size: 13px; color: #9ca3af; font-style: italic; margin-top: 4px; }
+.vocab-note-label { font-weight: 600; }
 .footer-logo { text-align: right; margin-top: 40px; padding-top: 20px; border-top: 1px solid #f3f4f6; }
 .footer-logo img { width: 32px; height: 32px; object-fit: contain; opacity: 0.5; display: inline-block; }
 .teacher-answers-only { margin-top: 40px; padding-top: 20px; border-top: 2px dashed #d1d5db; page-break-before: always; }
@@ -68,11 +79,18 @@ td { padding: 12px; border: 1px solid #e5e7eb; vertical-align: top; }
 .sa-input.medium { min-height: 70px; border: 1px solid #d1d5db; padding: 8px; border-radius: 6px; }
 .sa-input.long { min-height: 130px; border: 1px solid #d1d5db; padding: 8px; border-radius: 6px; }
 .sa-expected { font-size: 13px; background: #ecfdf5; color: #065f46; padding: 8px 12px; border-radius: 6px; margin-top: 6px; }
-.matching { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 14px 0; }
-.matching-col { list-style: none; padding: 0; }
-.matching-col li { padding: 6px 0; font-size: 14px; display: flex; gap: 8px; }
-.matching-col li strong { color: #6b7280; min-width: 24px; }
-.matching-pairs { font-size: 13px; background: #ecfdf5; color: #065f46; padding: 8px 12px; border-radius: 6px; margin-top: 10px; }
+.matching-block { margin: 14px 0; page-break-inside: avoid; }
+.matching-options { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px 14px; margin-bottom: 12px; font-size: 13.5px; }
+.matching-options-label { font-size: 11px; font-weight: 600; color: #6b7280; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.4px; }
+.matching-options ul { list-style: none; padding: 0; margin: 0; }
+.matching-options li { padding: 2px 0; }
+.matching-options li strong { color: #4f46e5; margin-right: 6px; }
+.matching-rows { list-style: none; padding: 0; margin: 0; }
+.matching-rows li { padding: 6px 0; font-size: 14px; display: flex; align-items: center; gap: 10px; }
+.matching-rows li strong { color: #6b7280; min-width: 22px; }
+.match-arrow { color: #9ca3af; }
+.match-slot { display: inline-block; min-width: 32px; padding: 0 8px; border-bottom: 1px solid #9ca3af; font-weight: 600; }
+.match-answer { display: inline-block; min-width: 32px; padding: 2px 10px; border-radius: 4px; background: #d1fae5; color: #065f46; font-weight: 600; }
 img { max-width: 100%; height: auto; border-radius: 6px; }
 figure { margin: 16px 0; }
 figcaption { text-align: center; font-size: 13px; color: #6b7280; margin-top: 6px; }
@@ -226,16 +244,54 @@ function renderBlock(block: BlockT, showAnswers: boolean): string {
             return `<div><p style="font-weight:600;margin-bottom:8px">${renderText(block.question)}</p><div class="sa-input ${lengthCls}"></div>${expected}</div>`;
         }
         case 'matching': {
-            const left = block.left.map((l) => `<li><strong>${escapeHtml(l.id)}.</strong> ${renderText(l.text)}</li>`).join('');
-            const right = block.right.map((r) => `<li><strong>${escapeHtml(r.id)}.</strong> ${renderText(r.text)}</li>`).join('');
-            const pairs = showAnswers && block.pairs.length
-                ? `<div class="matching-pairs"><strong>Соответствия:</strong> ${block.pairs.map(([l, r]) => `${l}→${r}`).join(', ')}</div>`
-                : '';
-            return `<div><p style="font-weight:600;margin-bottom:8px">${renderText(block.instruction)}</p><div class="matching"><ul class="matching-col">${left}</ul><ul class="matching-col">${right}</ul></div>${pairs}</div>`;
+            const correctMap = new Map<string, string>(
+                block.pairs.map((p) => [String(p[0]), String(p[1])]),
+            );
+            const rightList = block.right
+                .map((r) => `<li><strong>${escapeHtml(r.id)}.</strong> ${renderText(r.text)}</li>`)
+                .join('');
+            const leftRows = block.left
+                .map((l) => {
+                    const correctId = correctMap.get(l.id) || '';
+                    const slot = showAnswers
+                        ? `<span class="match-answer">${escapeHtml(correctId || '—')}</span>`
+                        : `<span class="match-slot">_</span>`;
+                    return `<li><strong>${escapeHtml(l.id)}.</strong> ${renderText(l.text)} <span class="match-arrow">→</span> ${slot}</li>`;
+                })
+                .join('');
+            return `<div class="matching-block">
+              <p style="font-weight:600;margin-bottom:8px">${renderText(block.instruction)}</p>
+              <div class="matching-options"><div class="matching-options-label">Варианты:</div><ul>${rightList}</ul></div>
+              <ol class="matching-rows">${leftRows}</ol>
+            </div>`;
         }
         case 'html-snippet':
             // Sanitization done at AI-side prompt level. Trust output here.
             return `<div>${block.html.replace(/<script[\s\S]*?<\/script>/gi, '')}</div>`;
+        case 'vocab-entry': {
+            const transcription = block.transcription
+                ? `<span class="vocab-transcription">[${escapeHtml(block.transcription)}]</span>`
+                : '';
+            const pos = block.partOfSpeech
+                ? `<span class="vocab-pos">${escapeHtml(block.partOfSpeech)}</span>`
+                : '';
+            const example = block.example
+                ? `<div class="vocab-example"><span class="vocab-example-label">Пример:</span> <em>${renderText(block.example)}</em>${block.exampleTranslation ? `<span class="vocab-example-tr"> — ${escapeHtml(block.exampleTranslation)}</span>` : ''}</div>`
+                : '';
+            const note = block.note
+                ? `<div class="vocab-note"><span class="vocab-note-label">Примечание:</span> ${escapeHtml(block.note)}</div>`
+                : '';
+            return `<div class="vocab-entry">
+              <div class="vocab-entry-head">
+                <span class="vocab-term">${escapeHtml(block.term)}</span>
+                ${transcription}
+                ${pos}
+              </div>
+              <div class="vocab-translation">${escapeHtml(block.translation)}</div>
+              ${example}
+              ${note}
+            </div>`;
+        }
     }
 }
 

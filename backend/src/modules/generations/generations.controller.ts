@@ -14,6 +14,7 @@ import {
 } from '@nestjs/common';
 import { GenerationsService } from './generations.service';
 import { WorksheetV2Service } from './v2/worksheet-v2.service';
+import { TextV2Service } from './v2/text-v2.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { GenerationsThrottlerGuard } from '../../common/guards/generations-throttler.guard';
 import {
@@ -28,6 +29,7 @@ export class GenerationsController {
   constructor(
     private readonly generationsService: GenerationsService,
     private readonly worksheetV2Service: WorksheetV2Service,
+    private readonly textV2Service: TextV2Service,
   ) {}
 
   private userId(req: any): string {
@@ -49,7 +51,7 @@ export class GenerationsController {
   @Post('v2/worksheet')
   @UseGuards(JwtAuthGuard, GenerationsThrottlerGuard)
   async generateWorksheetV2(@Request() req: any, @Body() body: Record<string, unknown>) {
-    return this.worksheetV2Service.generate(
+    return this.textV2Service.generateWorksheet(
       this.userId(req),
       {
         topic: String(body.topic || ''),
@@ -57,6 +59,73 @@ export class GenerationsController {
         grade: body.grade as any,
         duration: body.duration ? String(body.duration) : undefined,
         numTasks: body.numTasks ? Number(body.numTasks) : undefined,
+        extraNotes: body.extraNotes ? String(body.extraNotes) : undefined,
+      },
+      body.lessonId ? String(body.lessonId) : undefined,
+    );
+  }
+
+  @Post('v2/quiz')
+  @UseGuards(JwtAuthGuard, GenerationsThrottlerGuard)
+  async generateQuizV2(@Request() req: any, @Body() body: Record<string, unknown>) {
+    return this.textV2Service.generateQuiz(
+      this.userId(req),
+      {
+        topic: String(body.topic || ''),
+        subject: body.subject ? String(body.subject) : undefined,
+        grade: body.grade as any,
+        numQuestions: body.numQuestions ? Number(body.numQuestions) : undefined,
+        questionTypes: body.questionTypes as any,
+        extraNotes: body.extraNotes ? String(body.extraNotes) : undefined,
+      },
+      body.lessonId ? String(body.lessonId) : undefined,
+    );
+  }
+
+  @Post('v2/lesson-plan')
+  @UseGuards(JwtAuthGuard, GenerationsThrottlerGuard)
+  async generateLessonPlanV2(@Request() req: any, @Body() body: Record<string, unknown>) {
+    return this.textV2Service.generateLessonPlan(
+      this.userId(req),
+      {
+        topic: String(body.topic || ''),
+        subject: body.subject ? String(body.subject) : undefined,
+        grade: body.grade as any,
+        duration: body.duration ? String(body.duration) : undefined,
+        objectives: body.objectives ? String(body.objectives) : undefined,
+        extraNotes: body.extraNotes ? String(body.extraNotes) : undefined,
+      },
+      body.lessonId ? String(body.lessonId) : undefined,
+    );
+  }
+
+  @Post('v2/vocabulary')
+  @UseGuards(JwtAuthGuard, GenerationsThrottlerGuard)
+  async generateVocabularyV2(@Request() req: any, @Body() body: Record<string, unknown>) {
+    return this.textV2Service.generateVocabulary(
+      this.userId(req),
+      {
+        topic: String(body.topic || ''),
+        sourceLanguage: body.sourceLanguage ? String(body.sourceLanguage) : undefined,
+        targetLanguage: body.targetLanguage ? String(body.targetLanguage) : undefined,
+        grade: body.grade as any,
+        numWords: body.numWords ? Number(body.numWords) : undefined,
+        extraNotes: body.extraNotes ? String(body.extraNotes) : undefined,
+      },
+      body.lessonId ? String(body.lessonId) : undefined,
+    );
+  }
+
+  @Post('v2/lesson-preparation')
+  @UseGuards(JwtAuthGuard, GenerationsThrottlerGuard)
+  async generateLessonPreparationV2(@Request() req: any, @Body() body: Record<string, unknown>) {
+    return this.textV2Service.generateLessonPreparation(
+      this.userId(req),
+      {
+        topic: String(body.topic || ''),
+        subject: body.subject ? String(body.subject) : undefined,
+        grade: body.grade as any,
+        duration: body.duration ? String(body.duration) : undefined,
         extraNotes: body.extraNotes ? String(body.extraNotes) : undefined,
       },
       body.lessonId ? String(body.lessonId) : undefined,

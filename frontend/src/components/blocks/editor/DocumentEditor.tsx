@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import {
     Heading1, AlignLeft, MessageSquareWarning, Plus, Calculator, Image as ImageIcon,
-    Table as TableIcon, ListChecks, CheckSquare, PenLine, ArrowLeftRight, Minus, Code2,
+    Table as TableIcon, ListChecks, CheckSquare, PenLine, ArrowLeftRight, Minus, Code2, BookOpen,
 } from 'lucide-react'
 import type { Block, GenerationDocument as GenerationDocumentT } from '@/lib/blocks/schema'
 import { EditableBlock } from './EditableBlock'
@@ -234,6 +234,7 @@ const BLOCK_TEMPLATES: Array<{
     { label: 'Таблица', type: 'table', Icon: TableIcon, make: () => ({ type: 'table', id: newId('t'), headers: ['Колонка 1', 'Колонка 2'], rows: [['', ''], ['', '']] }) },
     { label: 'Картинка', type: 'image', Icon: ImageIcon, make: () => ({ type: 'image', id: newId('img'), src: '', alt: '' }) },
     { label: 'Отступ', type: 'spacer', Icon: Minus, make: () => ({ type: 'spacer', id: newId('sp'), size: 'md' }) },
+    { label: 'Словарь', type: 'vocab-entry', Icon: BookOpen, make: () => ({ type: 'vocab-entry', id: newId('v'), term: 'новое слово', translation: 'перевод' }) },
     { label: 'HTML', type: 'html-snippet', Icon: Code2, make: () => ({ type: 'html-snippet', id: newId('html'), html: '<p>…</p>' }) },
 ]
 

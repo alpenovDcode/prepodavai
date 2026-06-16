@@ -110,6 +110,18 @@ const HtmlSnippetBlock = z.object({
     html: z.string().min(1),
 });
 
+const VocabEntryBlock = z.object({
+    type: z.literal('vocab-entry'),
+    id,
+    term: z.string().min(1),
+    translation: z.string().min(1),
+    transcription: z.string().optional(),
+    partOfSpeech: z.string().optional(),
+    example: z.string().optional(),
+    exampleTranslation: z.string().optional(),
+    note: z.string().optional(),
+});
+
 export const BlockSchema = z.discriminatedUnion('type', [
     HeadingBlock,
     ParagraphBlock,
@@ -123,6 +135,7 @@ export const BlockSchema = z.discriminatedUnion('type', [
     ShortAnswerBlock,
     MatchingBlock,
     HtmlSnippetBlock,
+    VocabEntryBlock,
 ]);
 
 export const DocumentMeta = z.object({

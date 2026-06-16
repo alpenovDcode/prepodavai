@@ -18,6 +18,8 @@ import { Tabs } from '@/components/ui/v2/Tabs'
 import { cn } from '@/lib/utils/cn'
 import AssignTaskButton from '@/components/AssignTaskButton'
 import DownloadPdfModal from '@/components/workspace/DownloadPdfModal'
+import { DocumentRenderer } from '@/components/blocks/DocumentRenderer'
+import { useV2Toggle } from '@/components/blocks/useV2Toggle'
 
 const SECTIONS_WITH_ANSWERS = new Set(['Рабочий лист', 'Тест'])
 
@@ -49,6 +51,7 @@ const sectionFilenameSlug = (label: string | null | undefined): string => {
 
 export default function LessonPrepV2() {
     const { generateAndWait, isGenerating, activeGenerationId } = useGenerations()
+    const v2 = useV2Toggle('lesson_prep_use_v2_format')
 
     const [subject, setSubject] = useState('')
     const [topic, setTopic] = useState('')
@@ -108,6 +111,12 @@ export default function LessonPrepV2() {
         if (!subject.trim() || !topic.trim() || genTypes.length === 0) {
             toast.error('Заполните предмет, тему и выберите хотя бы один тип')
             return
+        }
+        if (v2.useV2) {
+            setMobileTab('preview')
+            return v2.generateV2('/generate/v2/lesson-preparation', {
+                topic, subject, grade: level,
+            })
         }
         setResults([])
         setCurrentIndex(0)
@@ -347,15 +356,30 @@ export default function LessonPrepV2() {
                             </Field>
                         )}
 
+                        <div className="pt-3 border-t border-ink-100">
+                            <label className="flex items-start gap-2.5 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={v2.useV2}
+                                    onChange={(e) => v2.toggleV2(e.target.checked)}
+                                    className="mt-0.5 accent-brand-500"
+                                />
+                                <span className="text-[12px] leading-snug text-ink-700">
+                                    <span className="font-semibold">Новый формат (бета)</span>
+                                    <br />
+                                    <span className="text-ink-500">JSON-блоки + визуальный редактор.</span>
+                                </span>
+                            </label>
+                        </div>
                         <div data-tour="generate">
                         <Button
                             variant="primary"
                             className="w-full"
-                            leftIcon={isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                            disabled={isGenerating || !subject.trim() || !topic.trim() || genTypes.length === 0}
+                            leftIcon={(isGenerating || v2.v2IsGenerating) ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                            disabled={(isGenerating || v2.v2IsGenerating) || !subject.trim() || !topic.trim()}
                             onClick={generate}
                         >
-                            {isGenerating ? 'Создаём…' : 'Сгенерировать'}
+                            {(isGenerating || v2.v2IsGenerating) ? 'Создаём…' : 'Сгенерировать'}
                         </Button>
                         </div>
                     </div>
@@ -453,11 +477,15 @@ export default function LessonPrepV2() {
                     )}
 
                     {/* Iframe / empty / progress */}
-                    <div className="flex-1 overflow-hidden">
-                        {isGenerating ? (
+                    <div className="flex-1 overflow-auto bg-ink-50">
+                        {(isGenerating || v2.v2IsGenerating) ? (
                             <div className="h-full flex items-center justify-center p-8">
                                 <WowProgress />
                             </div>
+                        ) : v2.useV2 && v2.v2Doc ? (
+                            <DocumentRenderer doc={v2.v2Doc} />
+                        ) : v2.useV2 ? (
+                            <div className="h-full flex items-center justify-center text-ink-500 text-[13px]">Заполните настройки и нажмите «Сгенерировать»</div>
                         ) : !localContent ? (
                             <div className="h-full flex flex-col items-center justify-center text-center p-8">
                                 <div className="w-16 h-16 rounded-full bg-brand-50 flex items-center justify-center mb-4">

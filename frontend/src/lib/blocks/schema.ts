@@ -131,6 +131,21 @@ const HtmlSnippetBlock = z.object({
     // Высота не указывается — растёт по контенту.
 })
 
+// ─── Vocabulary entry ─────────────────────────────────────────────────
+// Словарная статья: иностранное слово + перевод + опц. транскрипция,
+// пример, часть речи. Несколько таких блоков подряд = словарь.
+const VocabEntryBlock = z.object({
+    type: z.literal('vocab-entry'),
+    id,
+    term: z.string().min(1),
+    translation: z.string().min(1),
+    transcription: z.string().optional(),
+    partOfSpeech: z.string().optional(),
+    example: z.string().optional(),
+    exampleTranslation: z.string().optional(),
+    note: z.string().optional(),
+})
+
 // ─── Объединение ────────────────────────────────────────────────────────
 
 export const BlockSchema = z.discriminatedUnion('type', [
@@ -146,6 +161,7 @@ export const BlockSchema = z.discriminatedUnion('type', [
     ShortAnswerBlock,
     MatchingBlock,
     HtmlSnippetBlock,
+    VocabEntryBlock,
 ])
 
 // ─── Документ ──────────────────────────────────────────────────────────

@@ -63,6 +63,8 @@ export function BlockEditor({ block, selected, onSelect, onChange }: BlockEditor
             return <MatchingEditor block={block} onChange={onChange} />
         case 'html-snippet':
             return <HtmlSnippetEditor block={block} onChange={onChange} />
+        case 'vocab-entry':
+            return <VocabEntryEditor block={block} onChange={onChange} />
     }
 }
 
@@ -563,6 +565,44 @@ function HtmlSnippetEditor({ block, onChange }: { block: Extract<Block, { type: 
                 rows={4}
                 className="font-mono text-[13px]"
             />
+        </div>
+    )
+}
+
+function VocabEntryEditor({ block, onChange }: { block: Extract<Block, { type: 'vocab-entry' }>; onChange: (b: Block) => void }) {
+    return (
+        <div className="bg-white border-2 border-brand-300 rounded-md p-3 shadow-sm">
+            <div className="text-[11px] font-bold text-brand-600 uppercase tracking-wider mb-2">Словарная статья</div>
+            <div className="grid grid-cols-2 gap-3">
+                <Field>
+                    <Label>Слово</Label>
+                    <TextInput value={block.term} onChange={(e) => onChange({ ...block, term: e.target.value })} />
+                </Field>
+                <Field>
+                    <Label>Перевод</Label>
+                    <TextInput value={block.translation} onChange={(e) => onChange({ ...block, translation: e.target.value })} />
+                </Field>
+                <Field>
+                    <Label>Транскрипция (опц.)</Label>
+                    <TextInput value={block.transcription || ''} onChange={(e) => onChange({ ...block, transcription: e.target.value || undefined })} placeholder="ə'pɒləʤɪ" />
+                </Field>
+                <Field>
+                    <Label>Часть речи (опц.)</Label>
+                    <TextInput value={block.partOfSpeech || ''} onChange={(e) => onChange({ ...block, partOfSpeech: e.target.value || undefined })} placeholder="сущ. / гл. / прил." />
+                </Field>
+            </div>
+            <Field>
+                <Label>Пример (опц.)</Label>
+                <TextArea value={block.example || ''} onChange={(e) => onChange({ ...block, example: e.target.value || undefined })} rows={2} placeholder="Предложение с этим словом" />
+            </Field>
+            <Field>
+                <Label>Перевод примера (опц.)</Label>
+                <TextInput value={block.exampleTranslation || ''} onChange={(e) => onChange({ ...block, exampleTranslation: e.target.value || undefined })} />
+            </Field>
+            <Field>
+                <Label>Примечание (опц.)</Label>
+                <TextInput value={block.note || ''} onChange={(e) => onChange({ ...block, note: e.target.value || undefined })} />
+            </Field>
         </div>
     )
 }

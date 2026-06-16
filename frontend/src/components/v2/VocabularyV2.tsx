@@ -23,6 +23,8 @@ import { Tabs } from '@/components/ui/v2/Tabs'
 import GenerationProgress from '@/components/workspace/GenerationProgress'
 import PdfDownloadButton from '@/components/workspace/PdfDownloadButton'
 import AssignTaskButton from '@/components/AssignTaskButton'
+import { DocumentRenderer } from '@/components/blocks/DocumentRenderer'
+import { useV2Toggle } from '@/components/blocks/useV2Toggle'
 
 const LANGUAGES = [
     { value: 'en', label: 'Английский',    flag: '🇬🇧' },
@@ -78,6 +80,7 @@ export default function VocabularyV2() {
     const [srcDoc, setSrcDoc] = useState<string>('')
 
     const { generateAndWait, isGenerating, activeGenerationId } = useGenerations()
+    const v2 = useV2Toggle('vocabulary_use_v2_format')
     const hasResult = !isGenerating && !!localContent
 
     const [mobileTab, setMobileTab] = useState<'config' | 'preview'>('config')
@@ -94,6 +97,12 @@ export default function VocabularyV2() {
         if (!topic.trim()) {
             toast.error('Укажите тему словаря')
             return
+        }
+        if (v2.useV2) {
+            setMobileTab('preview')
+            return v2.generateV2('/generate/v2/vocabulary', {
+                topic, sourceLanguage: language, grade: level, numWords: wordsCount,
+            })
         }
         try {
             setLocalContent('<div style="padding:40px;text-align:center;color:#FF7E58"><p>Генерируем словарь…</p></div>')
@@ -372,6 +381,21 @@ export default function VocabularyV2() {
                             </p>
                         </div>
 
+                        <div className="pt-3 border-t border-ink-100">
+                            <label className="flex items-start gap-2.5 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={v2.useV2}
+                                    onChange={(e) => v2.toggleV2(e.target.checked)}
+                                    className="mt-0.5 accent-brand-500"
+                                />
+                                <span className="text-[12px] leading-snug text-ink-700">
+                                    <span className="font-semibold">Новый формат (бета)</span>
+                                    <br />
+                                    <span className="text-ink-500">JSON-блоки + визуальный редактор.</span>
+                                </span>
+                            </label>
+                        </div>
                         <div className="pt-2 border-t border-ink-100">
                             <Button
                                 variant="primary"
@@ -379,7 +403,7 @@ export default function VocabularyV2() {
                                 fullWidth
                                 leftIcon={<Wand2 className="w-4 h-4" />}
                                 onClick={generate}
-                                loading={isGenerating}
+                                loading={isGenerating || v2.v2IsGenerating}
                                 disabled={!topic.trim()}
                                 data-tour="generate"
                             >
@@ -448,11 +472,15 @@ export default function VocabularyV2() {
                         )}
                     </div>
 
-                    <div data-tour="preview" className="flex-1 min-h-0 overflow-hidden">
-                        {isGenerating ? (
+                    <div data-tour="preview" className="flex-1 min-h-0 overflow-auto bg-ink-50">
+                        {(isGenerating || v2.v2IsGenerating) ? (
                             <div className="h-full flex items-center justify-center">
-                                <GenerationProgress active={isGenerating} title="Генерируем словарь…" accentClassName="bg-brand-500" estimatedSeconds={25} />
+                                <GenerationProgress active={isGenerating || v2.v2IsGenerating} title="Генерируем словарь…" accentClassName="bg-brand-500" estimatedSeconds={25} />
                             </div>
+                        ) : v2.useV2 && v2.v2Doc ? (
+                            <DocumentRenderer doc={v2.v2Doc} />
+                        ) : v2.useV2 ? (
+                            <div className="h-full flex items-center justify-center text-ink-500 text-[13px]">Заполните настройки и нажмите «Сгенерировать»</div>
                         ) : srcDoc ? (
                             <iframe
                                 ref={iframeRef}
