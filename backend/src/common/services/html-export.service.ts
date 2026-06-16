@@ -153,23 +153,115 @@ export class HtmlExportService implements OnModuleDestroy {
   }
 
   /**
-   * Если строка содержит несколько слепленных HTML-документов (например,
-   * `<!DOCTYPE>...</html><!DOCTYPE>...</html>`) — возвращаем только первый.
-   * Делается через первый `</html>`: если после него снова попадается
-   * `<!DOCTYPE>` или `<html>`, обрезаем до конца первого документа.
-   * Аналогичная логика есть на фронте в MaterialViewer.normalizeResultPayload.
+   * Защита от дублирующегося контента, который save-edit редактора положил
+   * в БД (баг в саму операции PATCH — пока не починен). Ловим два паттерна:
+   *
+   *   1. Несколько `<!DOCTYPE>...</html>` подряд (внешний concat) — берём
+   *      только первый документ.
+   *   2. Внутри ОДНОГО документа несколько `<div class="container">` подряд
+   *      (внутренний concat — фронт сохранил body раза 2-3 в один html).
+   *      Оставляем первый `.container`, остальные срезаем.
+   *   3. Несколько одинаковых `<h1>` — fallback, если структура отличается
+   *      от ожидаемой. Срезаем до второго совпадения.
+   *
+   * Аналогичная логика есть на фронте в MaterialViewer.normalizeResultPayload,
+   * но фронт ловит только кейс №1. Этот метод — последний рубеж перед
+   * экспортом, чтобы PDF/DOCX не выходили с 3 копиями.
    */
   private takeFirstHtmlDocument(html: string): string {
+    // 1. Срезаем повторные </html>
     const htmlEnd = html.match(/<\/html\s*>/i);
-    if (!htmlEnd || htmlEnd.index === undefined) return html;
-    const endIdx = htmlEnd.index + htmlEnd[0].length;
-    const tail = html.slice(endIdx);
-    if (/<!DOCTYPE\s+html|<html[\s>]/i.test(tail)) {
-      return html.slice(0, endIdx);
+    if (htmlEnd && htmlEnd.index !== undefined) {
+      const endIdx = htmlEnd.index + htmlEnd[0].length;
+      const tail = html.slice(endIdx);
+      if (/<!DOCTYPE\s+html|<html[\s>]/i.test(tail)) {
+        html = html.slice(0, endIdx);
+      }
     }
-    // Ещё кейс: документ без `<html>` обёртки, но с двумя `<body>` подряд
-    // (редко, но встречается после некоторых правок).
+
+    // 2. Срезаем повторяющиеся `<div class="container">` верхнего уровня
+    //    внутри одного документа. Идём по строке, считаем глубину <div>'ов,
+    //    и как только встречаем ВТОРОЙ `<div class="container">` на глубине 0
+    //    относительно первого — обрезаем там.
+    const dedupedByContainer = this.dropRepeatedContainers(html);
+    if (dedupedByContainer !== html) {
+      this.docxLogger.log(
+        `Контент содержал повторные <div class="container">, обрезаем ` +
+        `до первого блока (было ${html.length}, стало ${dedupedByContainer.length})`,
+      );
+      html = dedupedByContainer;
+    }
+
+    // 3. Fallback: повторяющиеся одинаковые <h1>
+    const dedupedByH1 = this.dropAfterRepeatedHeading(html);
+    if (dedupedByH1 !== html) {
+      this.docxLogger.log(
+        `Контент содержал повторяющиеся <h1>, обрезаем до второго ` +
+        `(было ${html.length}, стало ${dedupedByH1.length})`,
+      );
+      html = dedupedByH1;
+    }
+
     return html;
+  }
+
+  /**
+   * Находит ВСЕ позиции `<div class="container">` верхнего уровня и, если
+   * их больше одного, возвращает HTML, обрезанный до начала второго.
+   * Внутренние вложенные <div> в счёт не идут — балансируем теги.
+   */
+  private dropRepeatedContainers(html: string): string {
+    const re = /<div\s[^>]*class\s*=\s*["'][^"']*\bcontainer\b[^"']*["'][^>]*>/gi;
+    const matches: number[] = [];
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(html)) !== null) matches.push(m.index);
+    if (matches.length < 2) return html;
+
+    // Проверяем, что второй .container лежит на ВЕРХНЕМ уровне относительно
+    // первого: между концом первого и началом второго число открытых <div>
+    // должно сбалансироваться в 0.
+    const firstStart = matches[0];
+    const secondStart = matches[1];
+    const between = html.slice(firstStart, secondStart);
+    const opens = (between.match(/<div\b[^>]*>/gi) || []).length;
+    const closes = (between.match(/<\/div\s*>/gi) || []).length;
+    if (opens !== closes) {
+      // Контейнеры вложенные — это нормальный случай, не дедупим.
+      return html;
+    }
+
+    // Обрезаем перед началом второго .container, добавляем </body></html>
+    // если они были в исходнике.
+    const head = html.slice(0, secondStart);
+    const tailHasBodyClose = /<\/body\s*>/i.test(html.slice(secondStart));
+    const tailHasHtmlClose = /<\/html\s*>/i.test(html.slice(secondStart));
+    const suffix =
+      (tailHasBodyClose ? '</body>' : '') + (tailHasHtmlClose ? '</html>' : '');
+    return head + suffix;
+  }
+
+  /**
+   * Если в HTML 2+ `<h1>` с одинаковым текстом, обрезаем до второго.
+   * Это последний fallback, когда структура нестандартная (нет .container).
+   */
+  private dropAfterRepeatedHeading(html: string): string {
+    const headings: Array<{ index: number; text: string }> = [];
+    const re = /<h1\b[^>]*>([\s\S]*?)<\/h1\s*>/gi;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(html)) !== null) {
+      const text = m[1].replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
+      if (!text) continue;
+      headings.push({ index: m.index, text });
+    }
+    if (headings.length < 2) return html;
+    const firstText = headings[0].text;
+    const secondMatch = headings.slice(1).find((h) => h.text === firstText);
+    if (!secondMatch) return html;
+    const tailHasBodyClose = /<\/body\s*>/i.test(html.slice(secondMatch.index));
+    const tailHasHtmlClose = /<\/html\s*>/i.test(html.slice(secondMatch.index));
+    const suffix =
+      (tailHasBodyClose ? '</body>' : '') + (tailHasHtmlClose ? '</html>' : '');
+    return html.slice(0, secondMatch.index) + suffix;
   }
 
   private ensureHtmlDocument(html: string): string {
