@@ -315,10 +315,18 @@ export default function LandingPage({ autoOpenAuth = false }: { autoOpenAuth?: b
             { label: "О нас", href: "#about" },
             { label: "Отзывы", href: "#reviews" },
             { label: "Контакты", href: "#contacts" },
-            { label: "Блог", href: "#blog" },
+            { label: "Блог", href: "/blog" },
           ].map(item => (
             <a key={item.href} href={item.href}
-              onClick={(e) => { e.preventDefault(); const el = document.querySelector(item.href); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" }); }}
+              onClick={(e) => {
+                // Анкорные пункты (#about / #reviews / ...) — мягко скроллим;
+                // обычные ссылки (/blog) — даём навигации сработать как есть.
+                if (item.href.startsWith('#')) {
+                  e.preventDefault();
+                  const el = document.querySelector(item.href);
+                  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+              }}
               style={{ padding: "8px 14px", color: "#555", textDecoration: "none", borderRadius: 8, fontSize: 14, fontWeight: 500, transition: "color .15s, background .15s" }}
               onMouseEnter={e => { e.currentTarget.style.color = "#1a120c"; e.currentTarget.style.background = "rgba(0,0,0,.04)" }}
               onMouseLeave={e => { e.currentTarget.style.color = "#555"; e.currentTarget.style.background = "transparent" }}>
@@ -916,7 +924,7 @@ export default function LandingPage({ autoOpenAuth = false }: { autoOpenAuth?: b
                   { l: "О нас", h: "#about" },
                   { l: "Отзывы", h: "#reviews" },
                   { l: "Тарифы", h: "#pricing" },
-                  { l: "Блог", h: "#blog" },
+                  { l: "Блог", h: "/blog" },
                 ].map(i => (
                   <li key={i.l}>
                     <a href={i.h} style={{ color: "rgba(255,255,255,.55)", textDecoration: "none", fontSize: 13 }} onMouseEnter={e => e.currentTarget.style.color = "white"} onMouseLeave={e => e.currentTarget.style.color = "rgba(255,255,255,.55)"}>
