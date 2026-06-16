@@ -506,18 +506,25 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
 
         const fetchContent = async () => {
             try {
-                // Fetch the full lesson to get the generation content
-                // Optimization: In a real app, we might want a specific endpoint for this
-                const response = await apiClient.get(`/lessons/${lessonId}`)
-                const lesson = response.data
-                setLessonTitle(lesson.title)
-
-                let generation = lesson.generations.find((g: any) => g.id === generationId)
+                // Урок может вообще отсутствовать (когда lessonId === generationId,
+                // т.е. ссылка из истории генераций без привязки к уроку — игры,
+                // презентации, изображения). Не валим всю загрузку в этом случае:
+                // ниже фолбэк на /generate/{id}.
+                let generation: any = null
+                try {
+                    const response = await apiClient.get(`/lessons/${lessonId}`)
+                    const lesson = response.data
+                    setLessonTitle(lesson.title)
+                    generation = lesson.generations.find((g: any) => g.id === generationId) || null
+                } catch (lessonErr) {
+                    // 404 на /lessons/{id} — нормально: пробуем direct /generate/{id}
+                }
 
                 // Фолбэк: после «Выдать задание» генерация переносится в урок
                 // задания (linkToLesson меняет lessonId), и в исходном уроке её
                 // больше нет. Загружаем напрямую по id — endpoint вернёт
-                // отредактированный outputData.
+                // отредактированный outputData. Также сюда же попадают игры/
+                // презентации, открытые из истории генераций.
                 if (!generation) {
                     try {
                         const direct = await apiClient.get(`/generate/${generationId}`)
@@ -525,7 +532,7 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
                         if (result) {
                             generation = {
                                 id: generationId,
-                                generationType: type || result?.type || '',
+                                generationType: type || direct.data?.generationType || result?.type || '',
                                 outputData: result,
                             }
                         }
@@ -542,11 +549,21 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
                     if (generation.generationType === 'game_generation') {
                         const od = generation.outputData
                         setGameData({
-                            url: od.url || '',
-                            downloadUrl: od.downloadUrl || '',
-                            topic: od.topic || '',
-                            type: od.type || '',
+                            url: od?.url || '',
+                            downloadUrl: od?.downloadUrl || '',
+                            topic: od?.topic || '',
+                            type: od?.type || '',
                         })
+                        // Современные игры хранятся как HTML-строка в outputData.content
+                        // (или сам outputData — строка). Кладём её в content, чтобы
+                        // рендерилось через FullHtmlPreview, а не уходило в пустой
+                        // gameData-фолбэк.
+                        const { htmlResult, isHtmlResult: isHtml, cleanedTextResult: cleaned } = normalizeResultPayload(od)
+                        if (isHtml) {
+                            setContent(htmlResult)
+                            setIsHtmlResult(true)
+                            setCleanedTextResult(cleaned)
+                        }
                     } else if (generation.generationType === 'presentation') {
                         setContent(typeof generation.outputData === 'object' ? JSON.stringify(generation.outputData) : generation.outputData);
                     } else {
