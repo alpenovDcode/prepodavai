@@ -131,7 +131,7 @@ export const DocumentMeta = z.object({
     duration: z.string().optional(),
     studentName: z.string().optional(),
     date: z.string().optional(),
-    extra: z.record(z.string(), z.string()).optional(),
+    extra: z.record(z.string()).optional(),
 });
 
 export const GenerationDocument = z.object({
@@ -143,7 +143,7 @@ export const GenerationDocument = z.object({
     title: z.string().min(1),
     meta: DocumentMeta.default({}),
     blocks: z.array(BlockSchema).min(1),
-    answers: z.record(z.string(), z.unknown()).optional(),
+    answers: z.record(z.unknown()).optional(),
 });
 
 export type GenerationDocumentT = z.infer<typeof GenerationDocument>;

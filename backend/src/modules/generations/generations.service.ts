@@ -2052,16 +2052,19 @@ export class GenerationsService {
       const payloadObj = contentPayload as any;
       if (payloadObj?.format === 'json-blocks-v1' && payloadObj?.outputDoc !== undefined) {
         const { GenerationDocument } = await import('./v2/blocks-schema');
-        const parsed = GenerationDocument.safeParse(payloadObj.outputDoc);
-        if (!parsed.success) {
-          const summary = parsed.error.issues
-            .slice(0, 5)
-            .map((i) => `${i.path.join('.')}: ${i.message}`)
-            .join('; ');
+        try {
+          // Используем .parse() вместо safeParse — в zod 3.22.x narrowing
+          // на success-discriminator не везде срабатывает в TS-резолюции.
+          payloadObj.outputDoc = GenerationDocument.parse(payloadObj.outputDoc);
+        } catch (e: any) {
+          const summary = Array.isArray(e?.issues)
+            ? e.issues
+                .slice(0, 5)
+                .map((i: any) => `${(i.path || []).join('.')}: ${i.message}`)
+                .join('; ')
+            : e?.message || String(e);
           throw new BadRequestException(`outputDoc не проходит валидацию: ${summary}`);
         }
-        // Заменяем outputDoc на нормализованный (с дефолтами).
-        payloadObj.outputDoc = parsed.data;
       }
 
       // Защита от пустого контента живёт на фронте (там понятный toast).

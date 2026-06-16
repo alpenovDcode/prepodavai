@@ -144,15 +144,20 @@ export class WorksheetV2Service {
         } catch (e: any) {
             return { ok: false, errors: `Invalid JSON: ${e?.message}` };
         }
-        const result = GenerationDocument.safeParse(parsed);
-        if (!result.success) {
-            // Сжатый формат ошибок для feedback'а в retry-промпт.
-            const issues = result.error.issues
-                .slice(0, 10)
-                .map((iss) => `  - ${iss.path.join('.')}: ${iss.message}`)
-                .join('\n');
+        try {
+            // .parse() кидает ZodError на невалидном входе. Используем его вместо
+            // safeParse, потому что в zod 3.22.x narrowing на success-discriminator
+            // не всегда срабатывает в monorepo'шной TypeScript-резолюции типов.
+            const doc = GenerationDocument.parse(parsed);
+            return { ok: true, doc };
+        } catch (e: any) {
+            const issues = Array.isArray(e?.issues)
+                ? e.issues
+                      .slice(0, 10)
+                      .map((iss: any) => `  - ${(iss.path || []).join('.')}: ${iss.message}`)
+                      .join('\n')
+                : e?.message || String(e);
             return { ok: false, errors: issues };
         }
-        return { ok: true, doc: result.data };
     }
 }
