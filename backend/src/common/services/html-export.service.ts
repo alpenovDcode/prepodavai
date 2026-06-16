@@ -1,7 +1,12 @@
-import { Injectable, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, OnModuleDestroy, Logger } from '@nestjs/common';
 import { chromium, Browser, Page } from 'playwright';
 import { HtmlPostprocessorService } from './html-postprocessor.service';
 import { DesignSystemConfig } from '../../modules/generations/config/design-system.config';
+import { spawn } from 'child_process';
+import { promises as fs } from 'fs';
+import * as path from 'path';
+import * as os from 'os';
+import { randomUUID } from 'crypto';
 
 // MathJax configuration is now managed via HtmlPostprocessorService
 
@@ -258,17 +263,75 @@ export class HtmlExportService implements OnModuleDestroy {
   }
 
 
+  private readonly docxLogger = new Logger('HtmlToDocx');
+
   /**
-   * Конвертирует HTML в DOCX через html-to-docx (Node-only). Полезно для
-   * учителей, которые хотят дочистить рабочий лист/тест в Word перед печатью.
-   *
-   * ВАЖНО: html-to-docx плохо переваривает то, что мы инжектим для PDF —
-   * `<script>` MathJax, `@page`, `@media`, `@import`, vendor-prefix CSS,
-   * base64-картинки. Если оставить — Word/LibreOffice потом ругаются «Word
-   * experienced an error trying to open the file». Поэтому здесь
-   * используется отдельный, упрощённый pipeline подготовки.
+   * Конвертирует HTML в DOCX. Стратегия:
+   *   1. Рендерим обычный PDF через Playwright — там уже всё: дизайн-система,
+   *      MathJax, картинки, разрывы страниц. Это «эталон вида».
+   *   2. Прогоняем PDF через LibreOffice в headless-режиме
+   *      (`soffice --infilter="writer_pdf_import" --convert-to docx`).
+   *      LibreOffice импортирует PDF, восстанавливая поток текста и таблиц
+   *      (они остаются редактируемыми), а формулы и сложные элементы кладёт
+   *      как inline-картинки в правильных местах.
+   *   3. Если LibreOffice недоступен (локальная dev-машина без soffice) —
+   *      fallback на старый html-to-docx, чтобы экспорт не падал.
    */
   async htmlToDocx(html: string): Promise<Buffer> {
+    const pdfBuffer = await this.htmlToPdf(html);
+    try {
+      return await this.pdfToDocxViaSoffice(pdfBuffer);
+    } catch (e: any) {
+      this.docxLogger.warn(
+        `LibreOffice PDF→DOCX недоступен (${e?.message ?? e}). ` +
+        `Fallback на html-to-docx — дизайн будет упрощён.`,
+      );
+      return this.htmlToDocxFallback(html);
+    }
+  }
+
+  private async pdfToDocxViaSoffice(pdfBuffer: Buffer): Promise<Buffer> {
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'docx-'));
+    const inputPdf = path.join(tmpDir, `${randomUUID()}.pdf`);
+    await fs.writeFile(inputPdf, pdfBuffer);
+
+    // soffice пишет конвертированный файл с тем же base-name, но другим расширением
+    const outputDocx = inputPdf.replace(/\.pdf$/i, '.docx');
+
+    await new Promise<void>((resolve, reject) => {
+      const proc = spawn('soffice', [
+        '--headless',
+        '--infilter=writer_pdf_import',
+        '--convert-to', 'docx',
+        '--outdir', tmpDir,
+        inputPdf,
+      ], { stdio: 'pipe' });
+
+      let stderr = '';
+      proc.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
+
+      const killTimer = setTimeout(() => {
+        proc.kill('SIGKILL');
+        reject(new Error('soffice timeout (60s)'));
+      }, 60_000);
+
+      proc.on('error', (err) => {
+        clearTimeout(killTimer);
+        reject(err);
+      });
+      proc.on('close', (code) => {
+        clearTimeout(killTimer);
+        if (code === 0) resolve();
+        else reject(new Error(`soffice exit ${code}: ${stderr.slice(0, 500)}`));
+      });
+    });
+
+    const buf = await fs.readFile(outputDocx);
+    await fs.rm(tmpDir, { recursive: true, force: true });
+    return buf;
+  }
+
+  private async htmlToDocxFallback(html: string): Promise<Buffer> {
     const prepared = this.prepareHtmlForDocx(html);
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const HTMLtoDOCX = require('html-to-docx');

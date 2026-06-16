@@ -63,7 +63,9 @@ WORKDIR /app
 
 ENV NODE_ENV production
 
-# Системные библиотеки для Chrome (без самого пакета chromium)
+# Системные библиотеки для Chrome (без самого пакета chromium) + LibreOffice
+# для конвертации PDF→DOCX (даёт дизайн как у PDF + текст остаётся
+# редактируемым; формулы попадают как inline-картинки).
 RUN apt-get update && apt-get install -y \
     openssl \
     ca-certificates \
@@ -72,6 +74,7 @@ RUN apt-get update && apt-get install -y \
     libnss3 libx11-xcb1 libxcomposite1 libxcursor1 libxdamage1 libxfixes3 \
     libxi6 libxrandr2 libxrender1 libxss1 libxtst6 wget \
     fonts-noto fonts-noto-cjk fonts-ipafont-gothic fonts-wqy-zenhei fonts-kacst fonts-freefont-ttf fonts-thai-tlwg fonts-indic \
+    libreoffice-core libreoffice-writer --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
