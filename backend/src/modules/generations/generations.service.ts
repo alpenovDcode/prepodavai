@@ -1453,7 +1453,7 @@ export class GenerationsService {
       // (page-break-before у ответов, размеры лого !important, @media print).
       // Если просто читать `content` после правки — фронт перетирал бы его
       // своим preview-шеллом, и PDF разъезжался.
-      content = getEffectiveHtml(r) || r?.content ?? r?.htmlResult ?? r?.html ?? r?.text ?? result;
+      content = getEffectiveHtml(r) || (r?.content ?? r?.htmlResult ?? r?.html ?? r?.text ?? result);
     }
     let htmlContent = this.htmlExportService.normalizeIncomingHtml(content);
     if (options.withAnswers === false) {
@@ -1520,7 +1520,7 @@ export class GenerationsService {
     } else {
       // editedBody (если есть) подкладывается внутрь оригинального <body> —
       // дизайн-система и MathJax-скрипт остаются на месте.
-      content = getEffectiveHtml(r) || r?.content ?? r?.htmlResult ?? r?.html ?? r?.text ?? result;
+      content = getEffectiveHtml(r) || (r?.content ?? r?.htmlResult ?? r?.html ?? r?.text ?? result);
     }
     let htmlContent = this.htmlExportService.normalizeIncomingHtml(content);
     if (options.withAnswers === false) {
