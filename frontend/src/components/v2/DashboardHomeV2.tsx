@@ -655,6 +655,7 @@ function DiaryPendingBanner() {
 
     return (
         <div
+            data-tour="diary-pending"
             className="mb-5 p-4 rounded-xl border flex items-start gap-3 flex-wrap"
             style={{
                 background: 'linear-gradient(135deg, #FFF7ED, #FFFBEB)',
