@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation'
 import {
     Plus,
     Users,
-    Upload,
     AlertTriangle,
     TrendingUp,
     TrendingDown,
@@ -336,9 +335,6 @@ export default function StudentsPageV2() {
                         <Button variant="secondary" size="sm" leftIcon={<Link2 className="w-4 h-4" />} onClick={() => { setInviteUrl(null); setInviteClassId(''); setShowInviteModal(true) }}>
                             Пригласить
                         </Button>
-                        <Button variant="secondary" size="sm" leftIcon={<Upload className="w-4 h-4" />}>
-                            Импорт CSV
-                        </Button>
                         <Button data-tour="add-student" variant="primary" size="sm" leftIcon={<Plus className="w-4 h-4" />} onClick={() => setShowAddStudent(true)}>
                             Добавить ученика
                         </Button>
@@ -402,9 +398,6 @@ export default function StudentsPageV2() {
                                         Балл упал на 15% за 2 недели или пропустили 2+ дедлайна подряд
                                     </div>
                                 </div>
-                                <Button variant="secondary" size="sm" onClick={() => toast('Рекомендации скоро')}>
-                                    Рекомендации
-                                </Button>
                             </div>
                         )}
 
