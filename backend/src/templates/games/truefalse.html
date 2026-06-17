@@ -236,7 +236,7 @@
     <div class="result-screen" id="result-screen">
         <h2>Игра окончена!</h2>
         <p>Ваш итоговый счет:</p>
-        <div class="score-big"><span id="final-score">0</span> / 15</div>
+        <div class="score-big"><span id="final-score">0</span> / <span id="final-total">0</span></div>
         <p id="final-message"></p>
         <button class="btn btn-next" style="display: inline-block;" onclick="location.reload()">Играть снова</button>
     </div>
@@ -330,11 +330,16 @@
             document.querySelector('.header').style.display = 'none';
             document.getElementById('result-screen').style.display = 'block';
             document.getElementById('final-score').innerText = score;
+            // Знаменатель — реальное число вопросов, а не жёстко зашитое 15.
+            // Иначе при 5 заданиях счёт показывается «5/15».
+            const total = GAME_DATA.length;
+            document.getElementById('final-total').innerText = total;
 
             const msg = document.getElementById('final-message');
-            if (score === 15) msg.innerText = "Невероятно! Вы настоящий эксперт!";
-            else if (score > 10) msg.innerText = "Отличный результат!";
-            else if (score > 5) msg.innerText = "Неплохо, но есть куда расти.";
+            const ratio = total > 0 ? score / total : 0;
+            if (ratio === 1) msg.innerText = "Невероятно! Вы настоящий эксперт!";
+            else if (ratio >= 0.7) msg.innerText = "Отличный результат!";
+            else if (ratio >= 0.4) msg.innerText = "Неплохо, но есть куда расти.";
             else msg.innerText = "Попробуйте еще раз!";
         }
 

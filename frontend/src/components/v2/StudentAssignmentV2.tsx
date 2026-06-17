@@ -283,6 +283,55 @@ export default function StudentAssignmentV2({ assignmentId }: StudentAssignmentV
         setFieldCountMap(prev => ({ ...prev, [genId]: count }))
     }, [])
 
+    // Listener результата игры. Шаблоны игр после endGame() шлют
+    // window.parent.postMessage({ type: 'GAME_RESULT', score, total, ... }).
+    // Сопоставляем источник iframe → gen.id, кладём в _game и засчитываем
+    // как одно «заполненное поле» для прогресс-бара.
+    useEffect(() => {
+        if (!assignment) return
+        const gens = assignment.lesson.generations
+        const gameGens = gens.filter(g => g.generationType === 'game' || g.generationType === 'game_generation')
+        if (gameGens.length === 0) return
+
+        const onMessage = (e: MessageEvent) => {
+            const data: any = e.data
+            if (!data || typeof data !== 'object') return
+            if (data.type !== 'GAME_RESULT') return
+            // Находим, какой именно игре принадлежит iframe-источник —
+            // ищем по совпадению e.source с contentWindow одного из iframe.
+            for (const gen of gameGens) {
+                const out: any = gen.outputData || {}
+                const expectedUrl: string | undefined = out.url
+                if (!expectedUrl) continue
+                // Простая эвристика: считаем что есть только одна игра в
+                // задании ИЛИ совпадает источник по contentWindow.
+                const iframes = Array.from(document.querySelectorAll('iframe[title="Игра"]')) as HTMLIFrameElement[]
+                const match = iframes.find(i => i.contentWindow === e.source)
+                if (gameGens.length === 1 || (match && match.src === expectedUrl)) {
+                    const next = {
+                        ...(formDataMap[gen.id] || {}),
+                        _game: {
+                            score: Number(data.score) || 0,
+                            total: Number(data.total) || 0,
+                            moves: data.moves,
+                            time: data.time,
+                            outcome: data.outcome,
+                            message: data.message,
+                            gameType: data.gameType,
+                            topic: data.topic,
+                            finishedAt: new Date().toISOString(),
+                        },
+                    }
+                    setFormDataMap(prev => ({ ...prev, [gen.id]: next }))
+                    setFieldCountMap(prev => ({ ...prev, [gen.id]: 1 }))
+                    break
+                }
+            }
+        }
+        window.addEventListener('message', onMessage)
+        return () => window.removeEventListener('message', onMessage)
+    }, [assignment, formDataMap])
+
     const toggleSection = (id: string) => {
         setOpenSections(prev => {
             const next = new Set(prev)
@@ -361,29 +410,47 @@ export default function StudentAssignmentV2({ assignmentId }: StudentAssignmentV
         const isGraded = sub?.grade != null
         const isSubmitted = !!sub
 
-        // Game
+        // Game — встраиваем inline в iframe. Если открывать в новой
+        // вкладке (как было), postMessage от внутреннего бриджа не
+        // долетает до родителя и результат не сохраняется. Inline-iframe
+        // решает проблему: window.parent.postMessage срабатывает, мы
+        // ловим GAME_RESULT и кладём в formDataMap[genId]._game.
         if (gen.generationType === 'game' || gen.generationType === 'game_generation') {
             const out = typeof gen.outputData === 'object' && gen.outputData ? gen.outputData : {}
             const gameUrl: string | undefined = out.url
-            if (gameUrl) {
-                return (
-                    <div className="p-5">
-                        <p className="text-[13px] text-ink-600 mb-3">
-                            Игра откроется в новой вкладке. После прохождения результат засчитывается автоматически.
-                        </p>
+            const gameResult = formDataMap[gen.id]?._game
+            if (!gameUrl) {
+                return <div className="p-5 text-[13px] text-ink-500">Игра недоступна</div>
+            }
+            return (
+                <div className="p-5">
+                    {gameResult && (
+                        <div className="mb-3 p-3 rounded-lg bg-success-50 border border-success-500/20 text-[13px] text-success-700 flex items-center gap-2">
+                            <CheckCircle className="w-4 h-4" />
+                            <span>
+                                Результат записан: <strong>{gameResult.score}/{gameResult.total}</strong>
+                                {gameResult.message ? ` · ${gameResult.message}` : ''}
+                            </span>
+                        </div>
+                    )}
+                    <iframe
+                        src={gameUrl}
+                        title="Игра"
+                        className="w-full bg-white border border-ink-200 rounded-md"
+                        style={{ height: '70vh', minHeight: 520, border: 'none' }}
+                        sandbox="allow-scripts allow-same-origin allow-popups allow-modals allow-forms"
+                    />
+                    <div className="mt-2 text-right">
                         <a
                             href={gameUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-center gap-2 px-4 py-2 bg-teal-500 text-white text-sm font-bold rounded-lg hover:bg-teal-600 transition"
+                            className="inline-flex items-center gap-1 text-[12px] text-ink-500 hover:text-ink-700"
                         >
-                            <Gamepad2 className="w-4 h-4" /> Играть <ExternalLink className="w-3 h-3" />
+                            Открыть в новой вкладке <ExternalLink className="w-3 h-3" />
                         </a>
                     </div>
-                )
-            }
-            return (
-                <div className="p-5 text-[13px] text-ink-500">Игра недоступна</div>
+                </div>
             )
         }
 
