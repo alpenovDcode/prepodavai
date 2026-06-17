@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { apiClient } from '@/lib/api/client'
 import {
     Plus, Trash2, Loader2, CheckCircle2, AlertTriangle,
@@ -68,6 +69,71 @@ export default function TeacherDiaryTab() {
     useEffect(() => {
         fetchAll()
     }, [fetchAll])
+
+    // Авто-создание записи по query ?student=&date=. Триггерится с
+    // CTA в модалке прошедшего события календаря. Защита от повтора —
+    // ref, чтобы при ре-рендере не дублировать.
+    const searchParams = useSearchParams()
+    const prefilledRef = useRef(false)
+    useEffect(() => {
+        if (prefilledRef.current) return
+        if (loading) return
+        const studentId = searchParams?.get('student')
+        const dateIso = searchParams?.get('date')
+        if (!studentId && !dateIso) return
+        // Если на этот день+ученика запись уже есть — открываем её, а
+        // не плодим дубликат.
+        if (studentId && dateIso) {
+            const target = new Date(dateIso)
+            const same = entries.find((e) => {
+                if (e.studentId !== studentId) return false
+                const d = new Date(e.date)
+                return d.getFullYear() === target.getFullYear()
+                    && d.getMonth() === target.getMonth()
+                    && d.getDate() === target.getDate()
+            })
+            if (same) {
+                prefilledRef.current = true
+                setExpandedIds(prev => new Set(prev).add(same.id))
+                // Скроллим к записи через минимальный таймаут (после рендера)
+                setTimeout(() => {
+                    document.getElementById(`diary-entry-${same.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                }, 100)
+                // Чистим query чтобы не сработало повторно при навигации
+                if (typeof window !== 'undefined') {
+                    window.history.replaceState(null, '', window.location.pathname)
+                }
+                return
+            }
+        }
+        // Иначе — создаём новую с прокинутыми полями.
+        prefilledRef.current = true
+        ;(async () => {
+            try {
+                const payload: Record<string, any> = {
+                    date: dateIso || new Date().toISOString(),
+                }
+                if (studentId) {
+                    payload.studentId = studentId
+                    // Класс ученика тоже подставим, чтобы запись была полная.
+                    const stu = students.find((s) => s.id === studentId)
+                    const classId = stu?.classId || stu?.class?.id
+                    if (classId) payload.classId = classId
+                }
+                const res = await apiClient.post<DiaryEntry>('/teacher-diary', payload)
+                setExpandedIds(prev => new Set(prev).add(res.data.id))
+                await fetchAll()
+                setTimeout(() => {
+                    document.getElementById(`diary-entry-${res.data.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                }, 200)
+                if (typeof window !== 'undefined') {
+                    window.history.replaceState(null, '', window.location.pathname)
+                }
+            } catch (e: any) {
+                setError(e?.response?.data?.message || 'Не удалось создать запись')
+            }
+        })()
+    }, [loading, searchParams, entries, students, fetchAll])
 
     // Авто-поллинг, пока есть pending-анализы
     useEffect(() => {
@@ -282,7 +348,7 @@ function DiaryCard({
     const aiFilled = new Set(entry.aiFilledFields || [])
 
     return (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        <div id={`diary-entry-${entry.id}`} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden scroll-mt-20">
             {/* Шапка карточки — кликабельна для сворачивания/разворачивания */}
             <div
                 onClick={onToggle}
