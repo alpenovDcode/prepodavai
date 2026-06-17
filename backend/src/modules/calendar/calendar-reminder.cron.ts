@@ -79,7 +79,7 @@ export class CalendarReminderCronService implements OnModuleInit, OnModuleDestro
         },
         include: {
           user: { select: { id: true, firstName: true, telegramChatId: true, maxChatId: true, email: true } },
-          student: { select: { id: true, name: true } },
+          student: { select: { id: true, name: true, email: true } },
           recurrenceRule: { select: { rrule: true } },
         },
       });
@@ -156,39 +156,49 @@ export class CalendarReminderCronService implements OnModuleInit, OnModuleDestro
     const title = `Напоминание о событии ${offset}`;
     const text = `«${ev.title}»${studentTail} начнётся ${when} (${offset}).`;
 
-    // In-app
+    // ── Учителю ──
     await this.notificationsService.createNotification({
       userId: user.id,
       userType: 'teacher',
-      type: 'deadline_reminder',
+      type: 'lesson_reminder',
       title,
       message: text,
       metadata: { eventId: ev.id, occurrenceStart: occStart.toISOString(), marker },
     });
-
-    // Telegram
     if (user.telegramChatId) {
-      try {
-        await this.telegramService.sendBroadcastMessage(user.telegramChatId, text);
-      } catch (e: any) {
-        this.logger.warn(`Telegram delivery failed for ${user.id}: ${e?.message}`);
-      }
+      try { await this.telegramService.sendBroadcastMessage(user.telegramChatId, text); }
+      catch (e: any) { this.logger.warn(`Telegram delivery failed for ${user.id}: ${e?.message}`); }
     }
-    // MAX
     if (user.maxChatId) {
-      try {
-        await this.maxService.sendBroadcastMessage(user.maxChatId, text);
-      } catch (e: any) {
-        this.logger.warn(`MAX delivery failed for ${user.id}: ${e?.message}`);
-      }
+      try { await this.maxService.sendBroadcastMessage(user.maxChatId, text); }
+      catch (e: any) { this.logger.warn(`MAX delivery failed for ${user.id}: ${e?.message}`); }
     }
-    // Email
     if (user.email) {
       try {
-        const html = renderReminderEmail({ title: ev.title, when, offset, studentName: ev.student?.name });
+        const html = renderReminderEmail({ title: ev.title, when, offset, studentName: ev.student?.name, audience: 'teacher' });
         await this.emailService.sendEmail(user.email, title, html);
-      } catch (e: any) {
-        this.logger.warn(`Email delivery failed for ${user.id}: ${e?.message}`);
+      } catch (e: any) { this.logger.warn(`Email delivery failed for ${user.id}: ${e?.message}`); }
+    }
+
+    // ── Студенту (если занятие привязано) ──
+    // У студента нет TG/MAX (модель Student хранит только email/phone),
+    // поэтому шлём ТОЛЬКО in-app + email. Иначе ребёнок узнаёт о переносе
+    // только когда учитель сам напишет — никакой проактивности.
+    if (ev.student?.id) {
+      const studentText = `Урок «${ev.title}» начнётся ${when} (${offset}).`;
+      await this.notificationsService.createNotification({
+        userId: ev.student.id,
+        userType: 'student',
+        type: 'lesson_reminder',
+        title: `Напоминание о уроке ${offset}`,
+        message: studentText,
+        metadata: { eventId: ev.id, occurrenceStart: occStart.toISOString(), marker },
+      });
+      if (ev.student.email) {
+        try {
+          const html = renderReminderEmail({ title: ev.title, when, offset, studentName: ev.student.name, audience: 'student' });
+          await this.emailService.sendEmail(ev.student.email, `Урок ${offset}`, html);
+        } catch (e: any) { this.logger.warn(`Student email failed for ${ev.student.id}: ${e?.message}`); }
       }
     }
   }
@@ -208,16 +218,19 @@ function toIcal(d: Date): string {
   );
 }
 
-function renderReminderEmail(p: { title: string; when: string; offset: string; studentName?: string | null }): string {
-  const tail = p.studentName ? ` с <strong>${escape(p.studentName)}</strong>` : '';
+function renderReminderEmail(p: { title: string; when: string; offset: string; studentName?: string | null; audience?: 'teacher' | 'student' }): string {
+  const isStudent = p.audience === 'student';
+  const tail = !isStudent && p.studentName ? ` с <strong>${escape(p.studentName)}</strong>` : '';
+  const link = isStudent ? 'https://prepodavai.ru/student/dashboard' : 'https://prepodavai.ru/dashboard/calendar';
+  const linkLabel = isStudent ? 'Открыть кабинет' : 'Открыть календарь';
   return `
     <div style="font-family: -apple-system, BlinkMacSystemFont, sans-serif; color: #111827; max-width: 560px;">
-      <h2 style="color: #FF7E58; margin-bottom: 12px;">Напоминание о событии</h2>
+      <h2 style="color: #FF7E58; margin-bottom: 12px;">Напоминание о ${isStudent ? 'уроке' : 'событии'}</h2>
       <p style="font-size: 15px; line-height: 1.5;">
         «<strong>${escape(p.title)}</strong>»${tail} начнётся <strong>${escape(p.when)}</strong>
         — это ${escape(p.offset)}.
       </p>
-      <p style="color: #6b7280; font-size: 13px;">Открыть календарь: <a href="https://prepodavai.ru/dashboard/calendar">prepodavai.ru/dashboard/calendar</a></p>
+      <p style="color: #6b7280; font-size: 13px;">${linkLabel}: <a href="${link}">${link}</a></p>
     </div>
   `;
 }

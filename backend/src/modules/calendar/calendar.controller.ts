@@ -37,6 +37,25 @@ export class CalendarController {
     return this.calendarService.listEvents(this.userId(req), from, to);
   }
 
+  /**
+   * События для студента — его собственные занятия, привязанные через
+   * CalendarEvent.studentId. Studend хочет видеть «когда у меня уроки»,
+   * без редактирования. Учитель не может дёрнуть этот endpoint (id
+   * ученика берётся из JWT, нет произвольного выбора).
+   */
+  @Get('my-events')
+  async myEvents(
+    @Request() req: any,
+    @Query('from') from: string,
+    @Query('to') to: string,
+  ) {
+    if (req.user?.role !== 'student') {
+      throw new BadRequestException('Только для роли student');
+    }
+    if (!from || !to) throw new BadRequestException('from и to обязательны');
+    return this.calendarService.listStudentEvents(req.user.id, from, to);
+  }
+
   @Post('events')
   async createEvent(@Request() req: any, @Body() body: CreateEventDto) {
     return this.calendarService.createEvent(this.userId(req), body);

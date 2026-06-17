@@ -333,9 +333,15 @@ export default function CalendarPageV2() {
 
 // ─── Палитра ────────────────────────────────────────────────────────────
 
+// Палитра событий. Дефолт — фирменный оранжевый платформы (не серый).
+// Цвета как у Google Calendar: 10 семантических вариантов на выбор.
+// Если у события явно задан color (hex) — используем его. Иначе подбираем
+// по subject. В крайнем случае — brand.
+const BRAND_PALETTE = { bg: '#FFF1EB', accent: '#FF7E58', fg: '#9A3412' }
+
 function pickPalette(color: string | null | undefined, subject: string | null | undefined) {
     if (color && /^#[0-9a-f]{6}$/i.test(color)) {
-        return { bg: hexWithAlpha(color, 0.15), accent: color, fg: '#111827' }
+        return { bg: hexWithAlpha(color, 0.18), accent: color, fg: darken(color) }
     }
     const s = (subject || '').toLowerCase()
     if (/математ|геометр|алгеб/.test(s))     return { bg: '#eef2ff', accent: '#6366f1', fg: '#312e81' }
@@ -343,7 +349,35 @@ function pickPalette(color: string | null | undefined, subject: string | null | 
     if (/физик|хим|биол/.test(s))            return { bg: '#ecfdf5', accent: '#10b981', fg: '#065f46' }
     if (/англ|франц|нем/.test(s))            return { bg: '#eff6ff', accent: '#3b82f6', fg: '#1e3a8a' }
     if (/истор|общест|геогр/.test(s))        return { bg: '#fffbeb', accent: '#f59e0b', fg: '#92400e' }
-    return { bg: '#f3f4f6', accent: '#9ca3af', fg: '#374151' }
+    return BRAND_PALETTE
+}
+
+// Цветовая палитра для color picker в модалке — как у Google Calendar.
+// Первый — brand (дефолт). При сохранении кладём hex в event.color,
+// pickPalette подхватывает.
+const COLOR_SWATCHES: { hex: string; label: string }[] = [
+    { hex: '#FF7E58', label: 'Бренд' },
+    { hex: '#EF4444', label: 'Красный' },
+    { hex: '#F59E0B', label: 'Оранжевый' },
+    { hex: '#FACC15', label: 'Жёлтый' },
+    { hex: '#10B981', label: 'Зелёный' },
+    { hex: '#06B6D4', label: 'Бирюзовый' },
+    { hex: '#3B82F6', label: 'Синий' },
+    { hex: '#6366F1', label: 'Индиго' },
+    { hex: '#A855F7', label: 'Фиолетовый' },
+    { hex: '#EC4899', label: 'Розовый' },
+    { hex: '#64748B', label: 'Серый' },
+]
+
+function darken(hex: string): string {
+    // Возвращаем тёмный вариант цвета для текста (затемнение на ~50%).
+    const r = parseInt(hex.slice(1, 3), 16)
+    const g = parseInt(hex.slice(3, 5), 16)
+    const b = parseInt(hex.slice(5, 7), 16)
+    const dr = Math.round(r * 0.4)
+    const dg = Math.round(g * 0.4)
+    const db = Math.round(b * 0.4)
+    return `#${dr.toString(16).padStart(2, '0')}${dg.toString(16).padStart(2, '0')}${db.toString(16).padStart(2, '0')}`
 }
 
 function hexWithAlpha(hex: string, alpha: number) {
@@ -381,6 +415,7 @@ function EventModal({
     const [location, setLocation] = useState(initialEvent?.location || '')
     const [meetingUrl, setMeetingUrl] = useState(initialEvent?.meetingUrl || '')
     const [notes, setNotes] = useState(initialEvent?.notes || '')
+    const [color, setColor] = useState<string>(initialEvent?.color || '#FF7E58')
     const [recurrence, setRecurrence] = useState<string>(
         initialEvent?.recurrenceRule?.rrule || '',  // пресет или сырая RRULE
     )
@@ -415,6 +450,7 @@ function EventModal({
                 location: location || null,
                 meetingUrl: meetingUrl || null,
                 notes: notes || null,
+                color: color || null,
             }
             // Правило повторений отправляем только при создании или при
             // scope='all' (изменение мастера). Для scope='single' (отрыв
@@ -592,6 +628,32 @@ function EventModal({
                             </div>
                         </Field>
                     )}
+
+                    <Field label="Цвет">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                            {COLOR_SWATCHES.map((c) => {
+                                const active = color === c.hex
+                                return (
+                                    <button
+                                        key={c.hex}
+                                        type="button"
+                                        onClick={() => setColor(c.hex)}
+                                        title={c.label}
+                                        aria-label={c.label}
+                                        className={cn(
+                                            'w-7 h-7 rounded-full transition-transform',
+                                            active ? 'scale-110 ring-2 ring-offset-2 ring-ink-400' : 'hover:scale-110',
+                                        )}
+                                        style={{ background: c.hex }}
+                                    >
+                                        {active && (
+                                            <span className="text-white text-[12px] font-bold flex items-center justify-center w-full h-full">✓</span>
+                                        )}
+                                    </button>
+                                )
+                            })}
+                        </div>
+                    </Field>
 
                     <Field label="Заметки">
                         <textarea

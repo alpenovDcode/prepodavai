@@ -20,7 +20,11 @@ export class NotificationsService {
       | 'achievement_unlocked'
       | 'teacher_message'
       | 'deadline_reminder'
-      | 'ai_response';
+      | 'ai_response'
+      | 'lesson_scheduled'
+      | 'lesson_rescheduled'
+      | 'lesson_cancelled'
+      | 'lesson_reminder';
     title: string;
     message: string;
     metadata?: Record<string, any>;

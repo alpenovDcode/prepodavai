@@ -1,6 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { RRule } from 'rrule';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
+import { EmailService } from '../../common/services/email.service';
 
 /**
  * Сервис календаря репетитора.
@@ -19,7 +21,12 @@ import { PrismaService } from '../../common/prisma/prisma.service';
  */
 @Injectable()
 export class CalendarService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(CalendarService.name);
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifications: NotificationsService,
+    private readonly email: EmailService,
+  ) {}
 
   async listEvents(userId: string, fromIso: string, toIso: string) {
     const from = new Date(fromIso);
@@ -152,6 +159,70 @@ export class CalendarService {
     return expanded;
   }
 
+  /**
+   * События для конкретного студента (его кабинет).
+   * Не использует teacherId — ищет события по studentId независимо от
+   * того, кто их создал. Возвращает с раскрытыми RRULE-occurrences.
+   */
+  async listStudentEvents(studentId: string, fromIso: string, toIso: string) {
+    const from = new Date(fromIso);
+    const to = new Date(toIso);
+    if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) {
+      throw new BadRequestException('Некорректный диапазон from/to');
+    }
+    if (to.getTime() - from.getTime() > 1000 * 60 * 60 * 24 * 366) {
+      throw new BadRequestException('Диапазон не должен превышать 366 дней');
+    }
+
+    const candidates = await this.prisma.calendarEvent.findMany({
+      where: {
+        studentId,
+        status: { not: 'cancelled' },
+        OR: [
+          { startAt: { lt: to }, endAt: { gte: from } },
+          { recurrenceRuleId: { not: null } },
+        ],
+      },
+      include: {
+        user: { select: { id: true, firstName: true, lastName: true, avatar: true } },
+        recurrenceRule: { select: { id: true, rrule: true } },
+      },
+      orderBy: { startAt: 'asc' },
+    });
+
+    const expanded: any[] = [];
+    for (const ev of candidates) {
+      if (!ev.recurrenceRule) {
+        if (ev.startAt < to && ev.endAt >= from) {
+          expanded.push({ ...ev, occurrenceStart: ev.startAt });
+        }
+        continue;
+      }
+      const occurrences = expandOccurrences(
+        ev.recurrenceRule.rrule,
+        ev.startAt,
+        from,
+        to,
+        ev.recurrenceExdate || [],
+      );
+      const durationMs = ev.endAt.getTime() - ev.startAt.getTime();
+      for (const occStart of occurrences) {
+        const occEnd = new Date(occStart.getTime() + durationMs);
+        expanded.push({
+          ...ev,
+          id: `${ev.id}__${occStart.toISOString()}`,
+          masterId: ev.id,
+          isRecurringInstance: true,
+          occurrenceStart: occStart,
+          startAt: occStart,
+          endAt: occEnd,
+        });
+      }
+    }
+    expanded.sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime());
+    return expanded;
+  }
+
   async createEvent(userId: string, body: CreateEventDto) {
     const start = new Date(body.startAt);
     const end = new Date(body.endAt);
@@ -175,7 +246,7 @@ export class CalendarService {
       recurrenceRuleId = rule.id;
     }
 
-    return this.prisma.calendarEvent.create({
+    const created = await this.prisma.calendarEvent.create({
       data: {
         userId,
         title: body.title.trim(),
@@ -197,6 +268,16 @@ export class CalendarService {
       },
       include: this.relInclude(),
     });
+
+    // Если событие привязано к ученику — шлём ему уведомление сразу.
+    // Это in-app (в колокольчике у студента) + email если есть.
+    if (created.studentId) {
+      this.notifyStudent(created, 'lesson_scheduled').catch((e) =>
+        this.logger.warn(`notifyStudent (create) failed: ${e?.message}`),
+      );
+    }
+
+    return created;
   }
 
   /**
@@ -246,11 +327,36 @@ export class CalendarService {
       }
     }
 
-    return this.prisma.calendarEvent.update({
+    const updated = await this.prisma.calendarEvent.update({
       where: { id: masterId },
       data,
       include: this.relInclude(),
     });
+
+    // Уведомляем студента, если изменилось важное:
+    // — перенос времени (startAt или endAt)
+    // — отмена (status='cancelled')
+    // — назначение нового ученика (studentId стал не null)
+    if (updated.studentId) {
+      const movedTime = data.startAt || data.endAt
+      const cancelled = data.status === 'cancelled' && existing.status !== 'cancelled'
+      const newlyAssigned = body.studentId && existing.studentId !== body.studentId
+      if (cancelled) {
+        this.notifyStudent(updated, 'lesson_cancelled').catch((e) =>
+          this.logger.warn(`notifyStudent (cancel) failed: ${e?.message}`),
+        );
+      } else if (movedTime) {
+        this.notifyStudent(updated, 'lesson_rescheduled').catch((e) =>
+          this.logger.warn(`notifyStudent (reschedule) failed: ${e?.message}`),
+        );
+      } else if (newlyAssigned) {
+        this.notifyStudent(updated, 'lesson_scheduled').catch((e) =>
+          this.logger.warn(`notifyStudent (assign) failed: ${e?.message}`),
+        );
+      }
+    }
+
+    return updated;
   }
 
   async deleteEvent(
@@ -274,12 +380,79 @@ export class CalendarService {
       return { success: true };
     }
 
-    const existing = await this.prisma.calendarEvent.findUnique({ where: { id: masterId } });
+    const existing = await this.prisma.calendarEvent.findUnique({
+      where: { id: masterId },
+      include: this.relInclude(),
+    });
     if (!existing || existing.userId !== userId) {
       throw new NotFoundException('Событие не найдено');
     }
+    if (existing.studentId) {
+      this.notifyStudent(existing as any, 'lesson_cancelled').catch((e) =>
+        this.logger.warn(`notifyStudent (delete) failed: ${e?.message}`),
+      );
+    }
     await this.prisma.calendarEvent.delete({ where: { id: masterId } });
     return { success: true };
+  }
+
+  // ─── notifyStudent ────────────────────────────────────────────────────
+  //
+  // In-app уведомление (студент видит в /student/notifications) + email
+  // если у студента указан. У студента нет своего TG/MAX, у него только
+  // веб-уведомления и email — так устроена модель Student в проде.
+  private async notifyStudent(
+    event: any,
+    kind: 'lesson_scheduled' | 'lesson_rescheduled' | 'lesson_cancelled',
+  ) {
+    const student = await this.prisma.student.findUnique({
+      where: { id: event.studentId },
+      select: { id: true, name: true, email: true },
+    });
+    if (!student) return;
+
+    const when = new Date(event.startAt).toLocaleString('ru-RU', {
+      day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit',
+    });
+    const titleMap = {
+      lesson_scheduled: 'Назначен урок',
+      lesson_rescheduled: 'Урок перенесён',
+      lesson_cancelled: 'Урок отменён',
+    } as const;
+    const messageMap = {
+      lesson_scheduled: `Назначен урок «${event.title}» на ${when}.`,
+      lesson_rescheduled: `Урок «${event.title}» перенесён на ${when}.`,
+      lesson_cancelled: `Урок «${event.title}» отменён.`,
+    } as const;
+
+    await this.notifications.createNotification({
+      userId: student.id,
+      userType: 'student',
+      type: kind,
+      title: titleMap[kind],
+      message: messageMap[kind],
+      metadata: {
+        eventId: event.id,
+        startAt: new Date(event.startAt).toISOString(),
+        meetingUrl: event.meetingUrl || null,
+        location: event.location || null,
+      },
+    });
+
+    if (student.email) {
+      const html = renderStudentEmail(kind, {
+        studentName: student.name,
+        title: event.title,
+        when,
+        meetingUrl: event.meetingUrl,
+        location: event.location,
+      });
+      try {
+        await this.email.sendEmail(student.email, titleMap[kind], html);
+      } catch (e: any) {
+        this.logger.warn(`Student email failed: ${e?.message}`);
+      }
+    }
   }
 
   // ─── helpers ──────────────────────────────────────────────────────────
@@ -449,3 +622,42 @@ export interface CreateEventDto {
 }
 
 export type UpdateEventDto = Partial<CreateEventDto>;
+
+function renderStudentEmail(
+  kind: 'lesson_scheduled' | 'lesson_rescheduled' | 'lesson_cancelled',
+  p: { studentName: string; title: string; when: string; meetingUrl?: string | null; location?: string | null },
+): string {
+  const heading = kind === 'lesson_scheduled' ? 'Назначен новый урок'
+    : kind === 'lesson_rescheduled' ? 'Урок перенесён'
+    : 'Урок отменён';
+  const accent = kind === 'lesson_cancelled' ? '#EF4444' : '#FF7E58';
+  const meetingBlock = p.meetingUrl
+    ? `<p style="font-size:14px;">🔗 <a href="${escape(p.meetingUrl)}" style="color:${accent};">Войти в видеовстречу</a></p>`
+    : '';
+  const locationBlock = p.location
+    ? `<p style="font-size:14px;">📍 ${escape(p.location)}</p>`
+    : '';
+  return `
+    <div style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;color:#111827;max-width:560px;">
+      <h2 style="color:${accent};margin-bottom:12px;">${heading}</h2>
+      <p style="font-size:15px;">Здравствуй, <strong>${escape(p.studentName)}</strong>!</p>
+      <p style="font-size:15px;line-height:1.5;">
+        Урок «<strong>${escape(p.title)}</strong>» —
+        ${kind === 'lesson_cancelled' ? '<em>отменён</em>.' : `<strong>${escape(p.when)}</strong>.`}
+      </p>
+      ${kind !== 'lesson_cancelled' ? meetingBlock + locationBlock : ''}
+      <p style="color:#6b7280;font-size:13px;margin-top:20px;">
+        Открыть кабинет: <a href="https://prepodavai.ru/student/dashboard" style="color:${accent};">prepodavai.ru</a>
+      </p>
+    </div>
+  `;
+}
+
+function escape(s: string): string {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}

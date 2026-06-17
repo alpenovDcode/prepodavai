@@ -443,6 +443,9 @@ export default function StudentDashboardV2() {
                     </div>
                 </div>
 
+                {/* ── Ближайшие занятия из календаря репетитора ── */}
+                <UpcomingLessons />
+
                 {/* ── Tabs ── */}
                 <div data-tour="tabs">
                 <Tabs
@@ -545,3 +548,104 @@ export default function StudentDashboardV2() {
         </>
     )
 }
+
+// ─── UpcomingLessons ────────────────────────────────────────────────────
+// Блок «Ближайшие занятия» для ученика. Тянет /calendar/my-events на 7
+// дней вперёд (туда же кладёт и сегодня). Если занятий нет — карточку
+// не показываем совсем, чтобы не плодить пустоты.
+interface StudentEventDTO {
+    id: string
+    title: string
+    startAt: string
+    endAt: string
+    subject?: string | null
+    color?: string | null
+    format?: string
+    location?: string | null
+    meetingUrl?: string | null
+    user?: { firstName?: string | null; lastName?: string | null; avatar?: string | null } | null
+}
+
+function UpcomingLessons() {
+    const range = useMemo(() => {
+        const f = new Date(); f.setHours(0, 0, 0, 0)
+        const t = new Date(); t.setDate(t.getDate() + 7); t.setHours(23, 59, 59, 999)
+        return { from: f.toISOString(), to: t.toISOString() }
+    }, [])
+    const { data } = useSWR<StudentEventDTO[]>(
+        `/calendar/my-events?from=${encodeURIComponent(range.from)}&to=${encodeURIComponent(range.to)}`,
+        (url: string) => apiClient.get(url).then((r: any) => r.data),
+        { refreshInterval: 60_000 },
+    )
+    const items = (data || []).slice(0, 5)
+    if (items.length === 0) return null
+
+    return (
+        <div className="bg-surface border border-ink-200 rounded-xl p-4 mb-5 max-md:p-3">
+            <div className="flex items-center justify-between mb-3">
+                <h3 className="font-display font-bold text-[15px] text-ink-900">Ближайшие занятия</h3>
+                <span className="text-[11px] text-ink-500">{items.length} из {data?.length || 0}</span>
+            </div>
+            <div className="flex flex-col gap-2">
+                {items.map((e) => <UpcomingLessonRow key={e.id} ev={e} />)}
+            </div>
+        </div>
+    )
+}
+
+function UpcomingLessonRow({ ev }: { ev: StudentEventDTO }) {
+    const start = new Date(ev.startAt)
+    const end = new Date(ev.endAt)
+    const now = Date.now()
+    const isToday = isSameDay(start, new Date())
+    const isCurrent = now >= start.getTime() && now <= end.getTime()
+    const dayLabel = isToday
+        ? 'Сегодня'
+        : isSameDay(start, addDays(new Date(), 1))
+            ? 'Завтра'
+            : start.toLocaleDateString('ru-RU', { weekday: 'short', day: 'numeric', month: 'short' })
+    const timeLabel = `${pad2(start.getHours())}:${pad2(start.getMinutes())}`
+    const accent = ev.color && /^#[0-9a-f]{6}$/i.test(ev.color) ? ev.color : '#FF7E58'
+    const teacherName = [ev.user?.firstName, ev.user?.lastName].filter(Boolean).join(' ').trim() || 'Учитель'
+
+    return (
+        <div className="flex items-center gap-3 p-3 rounded-md border border-ink-100 hover:bg-ink-50 transition-colors">
+            <div className="w-1 h-10 rounded-sm flex-shrink-0" style={{ background: accent }} />
+            <div className="flex-1 min-w-0">
+                <div className="font-semibold text-[13.5px] text-ink-900 truncate">{ev.title}</div>
+                <div className="text-[11.5px] text-ink-500 truncate">
+                    {teacherName}{ev.subject ? ` · ${ev.subject}` : ''}
+                </div>
+            </div>
+            <div className="text-right flex-shrink-0">
+                <div className="text-[12px] font-semibold text-ink-900">{dayLabel}</div>
+                <div className="text-[11px] text-ink-500 tnum">{timeLabel}</div>
+            </div>
+            {isCurrent && (
+                <span className="px-2 py-0.5 rounded-full bg-brand-50 text-brand-700 text-[10px] font-bold uppercase tracking-wider">
+                    идёт
+                </span>
+            )}
+            {ev.meetingUrl && !isCurrent && (
+                <a
+                    href={ev.meetingUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[11px] font-semibold text-brand-600 hover:text-brand-700 whitespace-nowrap"
+                >
+                    Войти →
+                </a>
+            )}
+        </div>
+    )
+}
+
+function isSameDay(a: Date, b: Date) {
+    return a.getFullYear() === b.getFullYear()
+        && a.getMonth() === b.getMonth()
+        && a.getDate() === b.getDate()
+}
+function addDays(d: Date, n: number) {
+    const x = new Date(d); x.setDate(x.getDate() + n); return x
+}
+function pad2(n: number) { return String(n).padStart(2, '0') }
