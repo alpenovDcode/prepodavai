@@ -8,8 +8,10 @@ import {
   Param,
   Query,
   Request,
+  Response,
   UseGuards,
   BadRequestException,
+  Header,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CalendarService, CreateEventDto, UpdateEventDto } from './calendar.service';
@@ -68,6 +70,36 @@ export class CalendarController {
   @Get('diary-pending')
   async diaryPending(@Request() req: any) {
     return this.calendarService.listPendingDiary(this.userId(req));
+  }
+
+  /**
+   * Проверка пересечений. Возвращает события, перекрывающиеся с
+   * интервалом. Фронт вызывает перед сохранением формы и показывает
+   * предупреждение «У вас уже есть N уроков в это время».
+   */
+  @Get('conflicts')
+  async conflicts(
+    @Request() req: any,
+    @Query('startAt') startAt: string,
+    @Query('endAt') endAt: string,
+    @Query('exclude') exclude?: string,
+  ) {
+    if (!startAt || !endAt) throw new BadRequestException('startAt и endAt обязательны');
+    return this.calendarService.findConflicts(this.userId(req), startAt, endAt, exclude);
+  }
+
+  /**
+   * iCalendar-фид (.ics). Для подписки в Google Calendar / Apple
+   * Calendar / Outlook. URL можно скопировать как webcal://... — клиент
+   * сам будет периодически обновлять. Аутентификация — через токен в
+   * query (?token=apiKey), потому что внешние календари не отправляют
+   * Authorization header.
+   */
+  @Get('ics')
+  @Header('Content-Type', 'text/calendar; charset=utf-8')
+  @Header('Content-Disposition', 'attachment; filename="prepodavai.ics"')
+  async ics(@Request() req: any) {
+    return this.calendarService.generateIcs(this.userId(req));
   }
 
   /**

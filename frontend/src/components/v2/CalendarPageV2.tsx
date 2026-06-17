@@ -8,7 +8,7 @@ import withDragAndDrop from 'react-big-calendar/lib/addons/dragAndDrop'
 import { format, parse, startOfWeek, getDay } from 'date-fns'
 import { ru } from 'date-fns/locale/ru'
 import toast from 'react-hot-toast'
-import { Plus, X, Save, Trash2, Video, MapPin, Calendar as CalendarIcon, Compass, BookOpenCheck } from 'lucide-react'
+import { Plus, X, Save, Trash2, Video, MapPin, Calendar as CalendarIcon, Compass, BookOpenCheck, Download, AlertTriangle } from 'lucide-react'
 
 import { apiClient } from '@/lib/api/client'
 import { Topbar } from '@/components/layout/v2/Topbar'
@@ -208,6 +208,32 @@ export default function CalendarPageV2() {
                     <div className="flex items-center gap-2">
                         <Button variant="ghost" size="sm" onClick={tour.start} leftIcon={<Compass className="w-4 h-4" />} data-tour="tour-btn">
                             Тур
+                        </Button>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            leftIcon={<Download className="w-4 h-4" />}
+                            data-tour="export"
+                            onClick={async () => {
+                                // Скачиваем .ics через blob — авторизация
+                                // подсасывается из apiClient (Bearer-токен).
+                                try {
+                                    const res = await apiClient.get('/calendar/ics', { responseType: 'blob' })
+                                    const url = URL.createObjectURL(res.data as Blob)
+                                    const a = document.createElement('a')
+                                    a.href = url
+                                    a.download = 'prepodavai.ics'
+                                    document.body.appendChild(a)
+                                    a.click()
+                                    a.remove()
+                                    URL.revokeObjectURL(url)
+                                    toast.success('Скачано — импортируйте в Google/Apple Calendar')
+                                } catch {
+                                    toast.error('Не удалось экспортировать')
+                                }
+                            }}
+                        >
+                            Экспорт .ics
                         </Button>
                         <Button
                             variant="primary"
@@ -420,6 +446,31 @@ function EventModal({
         const startD = new Date(start)
         const endD = new Date(end)
         if (endD <= startD) { toast.error('Окончание должно быть позже начала'); return }
+
+        // Проверяем пересечения с существующими событиями. Не блокируем,
+        // только предупреждаем — учитель может специально ставить два
+        // дела впритык (напр. семинар + быстрый созвон).
+        try {
+            const masterId = initialEvent?.isRecurringInstance
+                ? initialEvent?.id.split('__')[0]
+                : initialEvent?.id
+            const params = new URLSearchParams({
+                startAt: startD.toISOString(),
+                endAt: endD.toISOString(),
+            })
+            if (masterId) params.set('exclude', masterId)
+            const res = await apiClient.get(`/calendar/conflicts?${params.toString()}`)
+            const conflicts = res.data as Array<{ title: string; startAt: string; endAt: string }>
+            if (conflicts.length > 0) {
+                const list = conflicts.slice(0, 3).map((c) => {
+                    const s = new Date(c.startAt)
+                    return `• ${c.title} (${pad2(s.getHours())}:${pad2(s.getMinutes())})`
+                }).join('\n')
+                const ok = confirm(`У вас уже есть ${conflicts.length} событий в это время:\n\n${list}\n\nВсё равно сохранить?`)
+                if (!ok) return
+            }
+        } catch { /* конфликт-чек не должен ломать save */ }
+
         setSaving(true)
         try {
             const payload: Record<string, any> = {
@@ -575,7 +626,27 @@ function EventModal({
                     )}
                     {format !== 'offline' && (
                         <Field label={<><Video className="w-3.5 h-3.5 inline -mt-0.5 mr-1" />Ссылка на встречу</>}>
-                            <input value={meetingUrl} onChange={(e) => setMeetingUrl(e.target.value)} placeholder="https://meet…" className={inputCls} />
+                            <div className="flex gap-2 items-center">
+                                <input value={meetingUrl} onChange={(e) => setMeetingUrl(e.target.value)} placeholder="https://meet…" className={inputCls} />
+                                {meetingUrl && (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            navigator.clipboard.writeText(meetingUrl).then(
+                                                () => toast.success('Скопировано'),
+                                                () => toast.error('Не удалось'),
+                                            )
+                                        }}
+                                        className="h-10 px-3 rounded-md border border-ink-200 bg-surface text-ink-700 text-[12px] font-semibold hover:bg-ink-50 whitespace-nowrap"
+                                        title="Скопировать ссылку"
+                                    >
+                                        Копировать
+                                    </button>
+                                )}
+                            </div>
+                            <div className="text-[11px] text-ink-500 mt-1.5">
+                                Эту ссылку увидит ученик в карточке занятия и сможет присоединиться одним кликом.
+                            </div>
                         </Field>
                     )}
 
@@ -1058,3 +1129,5 @@ function CalendarThemeStyles() {
         `}</style>
     )
 }
+
+function pad2(n: number) { return String(n).padStart(2, '0') }

@@ -561,8 +561,8 @@ interface StudentEventDTO {
     subject?: string | null
     color?: string | null
     format?: string
-    location?: string | null
     meetingUrl?: string | null
+    notes?: string | null
     user?: { firstName?: string | null; lastName?: string | null; avatar?: string | null } | null
 }
 
@@ -594,6 +594,7 @@ function UpcomingLessons() {
 }
 
 function UpcomingLessonRow({ ev }: { ev: StudentEventDTO }) {
+    const [open, setOpen] = useState(false)
     const start = new Date(ev.startAt)
     const end = new Date(ev.endAt)
     const now = Date.now()
@@ -605,37 +606,153 @@ function UpcomingLessonRow({ ev }: { ev: StudentEventDTO }) {
             ? 'Завтра'
             : start.toLocaleDateString('ru-RU', { weekday: 'short', day: 'numeric', month: 'short' })
     const timeLabel = `${pad2(start.getHours())}:${pad2(start.getMinutes())}`
+    const endLabel = `${pad2(end.getHours())}:${pad2(end.getMinutes())}`
     const accent = ev.color && /^#[0-9a-f]{6}$/i.test(ev.color) ? ev.color : '#FF7E58'
     const teacherName = [ev.user?.firstName, ev.user?.lastName].filter(Boolean).join(' ').trim() || 'Учитель'
 
     return (
-        <div className="flex items-center gap-3 p-3 rounded-md border border-ink-100 hover:bg-ink-50 transition-colors">
-            <div className="w-1 h-10 rounded-sm flex-shrink-0" style={{ background: accent }} />
-            <div className="flex-1 min-w-0">
-                <div className="font-semibold text-[13.5px] text-ink-900 truncate">{ev.title}</div>
-                <div className="text-[11.5px] text-ink-500 truncate">
-                    {teacherName}{ev.subject ? ` · ${ev.subject}` : ''}
+        <>
+            <button
+                type="button"
+                onClick={() => setOpen(true)}
+                className="w-full flex items-center gap-3 p-3 rounded-md border border-ink-100 hover:bg-ink-50 hover:border-ink-200 transition-colors text-left"
+            >
+                <div className="w-1.5 h-12 rounded-sm flex-shrink-0" style={{ background: accent }} />
+                <div className="flex-1 min-w-0">
+                    <div className="font-semibold text-[13.5px] text-ink-900 truncate">{ev.title}</div>
+                    <div className="text-[11.5px] text-ink-500 truncate">
+                        {teacherName}{ev.subject ? ` · ${ev.subject}` : ''}
+                    </div>
+                </div>
+                <div className="text-right flex-shrink-0">
+                    <div className="text-[12px] font-semibold text-ink-900">{dayLabel}</div>
+                    <div className="text-[11px] text-ink-500 tnum">{timeLabel}–{endLabel}</div>
+                </div>
+                {isCurrent ? (
+                    ev.meetingUrl ? (
+                        // «Идёт» + кнопка присоединиться — самый нужный момент.
+                        // event.stopPropagation чтобы не открыть детали при клике на ссылку.
+                        <a
+                            href={ev.meetingUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md bg-success-500 hover:bg-success-700 text-white text-[12px] font-bold whitespace-nowrap animate-pulse"
+                        >
+                            Присоединиться
+                        </a>
+                    ) : (
+                        <span className="px-2 py-0.5 rounded-full bg-brand-50 text-brand-700 text-[10px] font-bold uppercase tracking-wider">
+                            идёт
+                        </span>
+                    )
+                ) : ev.meetingUrl ? (
+                    <a
+                        href={ev.meetingUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="text-[11px] font-semibold text-brand-600 hover:text-brand-700 whitespace-nowrap"
+                    >
+                        Войти →
+                    </a>
+                ) : null}
+            </button>
+            {open && <StudentEventModal ev={ev} teacherName={teacherName} onClose={() => setOpen(false)} />}
+        </>
+    )
+}
+
+// Модалка деталей урока для ученика. Read-only: всё что прислал учитель —
+// тема, время, место, ссылка на встречу, заметки, преподаватель.
+function StudentEventModal({
+    ev, teacherName, onClose,
+}: { ev: StudentEventDTO; teacherName: string; onClose: () => void }) {
+    const start = new Date(ev.startAt)
+    const end = new Date(ev.endAt)
+    const accent = ev.color && /^#[0-9a-f]{6}$/i.test(ev.color) ? ev.color : '#FF7E58'
+    const dateLabel = start.toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' })
+    const timeLabel = `${pad2(start.getHours())}:${pad2(start.getMinutes())} – ${pad2(end.getHours())}:${pad2(end.getMinutes())}`
+    const isCurrent = Date.now() >= start.getTime() && Date.now() <= end.getTime()
+
+    const copyLink = async () => {
+        if (!ev.meetingUrl) return
+        try {
+            await navigator.clipboard.writeText(ev.meetingUrl)
+            globalMutate('/students/me') // нет-op, чтобы тост сработал
+        } catch {}
+    }
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={onClose}>
+            <div
+                className="bg-surface rounded-xl shadow-2xl w-full max-w-[480px] max-h-[90vh] overflow-y-auto"
+                onClick={(e) => e.stopPropagation()}
+            >
+                <div className="px-5 py-4 border-b border-ink-100 flex items-start gap-3" style={{ background: `linear-gradient(135deg, ${accent}20, transparent)` }}>
+                    <div className="w-1.5 h-12 rounded-sm flex-shrink-0" style={{ background: accent }} />
+                    <div className="flex-1 min-w-0">
+                        <h2 className="font-display font-bold text-[18px] text-ink-900 leading-tight">{ev.title}</h2>
+                        <div className="text-[12px] text-ink-600 mt-0.5">{ev.subject || 'Урок'}</div>
+                    </div>
+                    <button type="button" onClick={onClose} className="text-ink-500 hover:text-ink-900 text-2xl leading-none">×</button>
+                </div>
+
+                <div className="p-5 space-y-3">
+                    <DetailRow icon="🗓" label="Когда">
+                        {dateLabel}, {timeLabel}
+                        {isCurrent && <span className="ml-2 inline-block px-1.5 py-0.5 rounded bg-brand-50 text-brand-700 text-[10px] font-bold">сейчас</span>}
+                    </DetailRow>
+
+                    <DetailRow icon="👤" label="Преподаватель">
+                        {teacherName}
+                    </DetailRow>
+
+                    {ev.meetingUrl && (
+                        <div className="bg-brand-50 border border-brand-200 rounded-lg p-3 flex items-center gap-3">
+                            <span className="text-2xl">🎥</span>
+                            <div className="flex-1 min-w-0">
+                                <div className="font-bold text-[13px] text-ink-900">Видеовстреча</div>
+                                <div className="text-[11px] text-ink-500 truncate">{ev.meetingUrl}</div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={copyLink}
+                                className="text-[11px] font-semibold text-ink-700 hover:text-ink-900 whitespace-nowrap"
+                                title="Скопировать ссылку"
+                            >
+                                Копировать
+                            </button>
+                            <a
+                                href={ev.meetingUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md bg-brand-500 hover:bg-brand-700 text-white text-[12px] font-bold whitespace-nowrap"
+                            >
+                                {isCurrent ? 'Присоединиться' : 'Войти'}
+                            </a>
+                        </div>
+                    )}
+
+                    {(ev as any).notes && (
+                        <DetailRow icon="📝" label="Заметки">
+                            <span className="whitespace-pre-wrap">{(ev as any).notes}</span>
+                        </DetailRow>
+                    )}
                 </div>
             </div>
-            <div className="text-right flex-shrink-0">
-                <div className="text-[12px] font-semibold text-ink-900">{dayLabel}</div>
-                <div className="text-[11px] text-ink-500 tnum">{timeLabel}</div>
+        </div>
+    )
+}
+
+function DetailRow({ icon, label, children }: { icon: string; label: string; children: React.ReactNode }) {
+    return (
+        <div className="flex gap-3">
+            <div className="text-lg flex-shrink-0 w-6 text-center">{icon}</div>
+            <div className="flex-1 min-w-0">
+                <div className="text-[11px] uppercase tracking-wider font-semibold text-ink-500 mb-0.5">{label}</div>
+                <div className="text-[13.5px] text-ink-900">{children}</div>
             </div>
-            {isCurrent && (
-                <span className="px-2 py-0.5 rounded-full bg-brand-50 text-brand-700 text-[10px] font-bold uppercase tracking-wider">
-                    идёт
-                </span>
-            )}
-            {ev.meetingUrl && !isCurrent && (
-                <a
-                    href={ev.meetingUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-[11px] font-semibold text-brand-600 hover:text-brand-700 whitespace-nowrap"
-                >
-                    Войти →
-                </a>
-            )}
         </div>
     )
 }
