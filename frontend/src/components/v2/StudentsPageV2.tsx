@@ -1,6 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import {
     Plus,
@@ -1045,6 +1046,34 @@ function RowActions({
         toast(`${label} — появится позже`)
         onToggle()
     }
+    const btnRef = useRef<HTMLButtonElement>(null)
+    // Меню рендерится через portal в document.body, чтобы не клипилось
+    // overflow-hidden родительской `Card`/таблицы. Позиция вычисляется
+    // от bounding-rect кнопки и обновляется на ресайз/скролл.
+    const [coords, setCoords] = useState<{ top: number; right: number; openUp: boolean } | null>(null)
+
+    useLayoutEffect(() => {
+        if (!isOpen || !btnRef.current) return
+        const compute = () => {
+            const rect = btnRef.current!.getBoundingClientRect()
+            const MENU_HEIGHT = 280
+            // Если до низа окна меньше места, чем нужно — открываем вверх.
+            const openUp = window.innerHeight - rect.bottom < MENU_HEIGHT && rect.top > MENU_HEIGHT
+            setCoords({
+                top: openUp ? rect.top - 4 : rect.bottom + 4,
+                right: window.innerWidth - rect.right,
+                openUp,
+            })
+        }
+        compute()
+        window.addEventListener('scroll', compute, true)
+        window.addEventListener('resize', compute)
+        return () => {
+            window.removeEventListener('scroll', compute, true)
+            window.removeEventListener('resize', compute)
+        }
+    }, [isOpen])
+
     return (
         <div className="flex gap-1 justify-end items-center" data-row-menu>
             <button
@@ -1063,59 +1092,60 @@ function RowActions({
             >
                 <FilePlus2 className="w-[15px] h-[15px]" />
             </button>
-            <div className="relative">
-                <button
-                    type="button"
-                    title="Меню"
-                    onClick={(e) => {
-                        e.stopPropagation()
-                        onToggle()
+            <button
+                ref={btnRef}
+                type="button"
+                title="Меню"
+                onClick={(e) => {
+                    e.stopPropagation()
+                    onToggle()
+                }}
+                className="w-8 h-8 rounded-sm flex items-center justify-center text-ink-500 hover:bg-ink-100 hover:text-ink-900 transition-colors"
+            >
+                <MoreHorizontal className="w-[15px] h-[15px]" />
+            </button>
+            {isOpen && coords && typeof document !== 'undefined' && createPortal(
+                <div
+                    data-row-menu
+                    className="fixed bg-surface border border-ink-200 rounded-md p-1.5 min-w-[220px] z-[100]"
+                    style={{
+                        top: coords.openUp ? undefined : coords.top,
+                        bottom: coords.openUp ? window.innerHeight - coords.top : undefined,
+                        right: coords.right,
+                        boxShadow: '0 12px 32px rgba(15,23,42,0.12)',
                     }}
-                    className="w-8 h-8 rounded-sm flex items-center justify-center text-ink-500 hover:bg-ink-100 hover:text-ink-900 transition-colors"
+                    onClick={(e) => e.stopPropagation()}
                 >
-                    <MoreHorizontal className="w-[15px] h-[15px]" />
-                </button>
-                {isOpen && (
-                    <div
-                        className="absolute top-full right-0 mt-1 bg-surface border border-ink-200 rounded-md p-1.5 min-w-[220px] z-50"
-                        style={{ boxShadow: '0 12px 32px rgba(15,23,42,0.12)' }}
-                    >
-                        <MenuItem
-                            icon={<User className="w-3.5 h-3.5" />}
-                            label="Открыть профиль"
-                            onClick={() => {
-                                onView()
-                                onToggle()
-                            }}
-                        />
-                        <MenuItem
-                            icon={<CalendarPlus className="w-3.5 h-3.5" />}
-                            label="Запланировать урок"
-                            onClick={stub('Планировщик уроков')}
-                        />
-                        <MenuItem
-                            icon={<BarChart3 className="w-3.5 h-3.5" />}
-                            label="Статистика"
-                            onClick={() => {
-                                onView()
-                                onToggle()
-                            }}
-                        />
-                        <MenuItem
-                            icon={<MessageCircle className="w-3.5 h-3.5" />}
-                            label="Написать родителям"
-                            onClick={stub('Письмо родителям')}
-                        />
-                        <div className="h-px bg-ink-100 my-1 mx-0.5" />
-                        <MenuItem
-                            danger
-                            icon={<UserX className="w-3.5 h-3.5" />}
-                            label="Удалить ученика"
-                            onClick={() => { onDelete(); onToggle() }}
-                        />
-                    </div>
-                )}
-            </div>
+                    <MenuItem
+                        icon={<User className="w-3.5 h-3.5" />}
+                        label="Открыть профиль"
+                        onClick={() => { onView(); onToggle() }}
+                    />
+                    <MenuItem
+                        icon={<CalendarPlus className="w-3.5 h-3.5" />}
+                        label="Запланировать урок"
+                        onClick={stub('Планировщик уроков')}
+                    />
+                    <MenuItem
+                        icon={<BarChart3 className="w-3.5 h-3.5" />}
+                        label="Статистика"
+                        onClick={() => { onView(); onToggle() }}
+                    />
+                    <MenuItem
+                        icon={<MessageCircle className="w-3.5 h-3.5" />}
+                        label="Написать родителям"
+                        onClick={stub('Письмо родителям')}
+                    />
+                    <div className="h-px bg-ink-100 my-1 mx-0.5" />
+                    <MenuItem
+                        danger
+                        icon={<UserX className="w-3.5 h-3.5" />}
+                        label="Удалить ученика"
+                        onClick={() => { onDelete(); onToggle() }}
+                    />
+                </div>,
+                document.body,
+            )}
         </div>
     )
 }
