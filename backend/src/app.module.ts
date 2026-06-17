@@ -43,6 +43,7 @@ import { ReferralsModule } from './modules/referrals/referrals.module';
 import { OnboardingQuestModule } from './modules/onboarding-quest/onboarding-quest.module';
 // import { PaymentsModule } from './modules/payments/payments.module';
 import { TeacherDiaryModule } from './modules/teacher-diary/teacher-diary.module';
+import { CalendarModule } from './modules/calendar/calendar.module';
 import { PopupsModule } from './modules/popups/popups.module';
 import { SystemModule } from './modules/system/system.module';
 import { AiChatsModule } from './modules/ai-chats/ai-chats.module';
@@ -118,6 +119,7 @@ import { AiChatsModule } from './modules/ai-chats/ai-chats.module';
     OnboardingQuestModule,
     // PaymentsModule,
     TeacherDiaryModule,
+    CalendarModule,
     PopupsModule,
     SystemModule,
     AiChatsModule,

@@ -299,7 +299,7 @@ export function getTeacherNavSections(badges: { studentsAtRisk?: number; pending
             items: [
                 { label: 'Главная',       href: '/dashboard',              icon: i(LayoutDashboard), tourId: 'nav-home' },
                 { label: 'ИИ Генератор',  href: '/workspace',              icon: i(Wand2),           tourId: 'nav-ai' },
-                { label: 'Календарь',     href: '/dashboard/calendar',     icon: i(Calendar),        tourId: 'nav-calendar', comingSoon: true },
+                { label: 'Календарь',     href: '/dashboard/calendar',     icon: i(Calendar),        tourId: 'nav-calendar' },
                 { label: 'Материалы',     href: '/dashboard/courses',      icon: i(BookOpen),        tourId: 'nav-materials' },
             ],
         },

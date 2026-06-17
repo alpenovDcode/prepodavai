@@ -15,12 +15,12 @@ datasource db {
 model AppUser {
   id                    String    @id @default(uuid())
   userHash              String?   @unique
-  source                String?   // 'web' | 'telegram' | 'max'
+  source                String? // 'web' | 'telegram' | 'max'
   telegramId            String?   @unique
   maxId                 String?   @unique
-  chatId                String?   // Legacy: ID чата (Telegram или MAX — устарело, используй telegramChatId/maxChatId)
-  telegramChatId        String?   // Chat ID в Telegram для отправки результатов
-  maxChatId             String?   // Chat ID в MAX для отправки результатов
+  chatId                String? // Legacy: ID чата (Telegram или MAX — устарело, используй telegramChatId/maxChatId)
+  telegramChatId        String? // Chat ID в Telegram для отправки результатов
+  maxChatId             String? // Chat ID в MAX для отправки результатов
   username              String?
   apiKey                String?   @unique
   firstName             String?
@@ -28,8 +28,8 @@ model AppUser {
   phone                 String?
   email                 String?
   bio                   String?
-  subject               String?   // Предмет преподавания
-  grades                String?   // Классы (например: "5–9 классы")
+  subject               String? // Предмет преподавания
+  grades                String? // Классы (например: "5–9 классы")
   avatar                String?
   notifyNewCourse       Boolean   @default(true)
   notifyStudentProgress Boolean   @default(false)
@@ -43,33 +43,34 @@ model AppUser {
   updatedAt             DateTime  @updatedAt
 
   // UTM-атрибуция (маркетинговые ссылки)
-  utmSource             String?   // instagram, telegram, vk, etc.
-  utmMedium             String?   // bio, story, post, direct
-  utmCampaign           String?   // название кампании
-  utmContent            String?   // вариант контента
-  utmTerm               String?   // ключевое слово
-  utmLandingPage        String?   // страница, на которую попал лид
-  utmLinkId             String?   // ссылка на UtmLink
+  utmSource      String? // instagram, telegram, vk, etc.
+  utmMedium      String? // bio, story, post, direct
+  utmCampaign    String? // название кампании
+  utmContent     String? // вариант контента
+  utmTerm        String? // ключевое слово
+  utmLandingPage String? // страница, на которую попал лид
+  utmLinkId      String? // ссылка на UtmLink
 
   // Реферальная система
-  referredByCode        String?           // Код, по которому пришёл пользователь
-  referralCodes         ReferralCode[]
-  referralMilestones    ReferralMilestone[]
+  referredByCode     String? // Код, по которому пришёл пользователь
+  referralCodes      ReferralCode[]
+  referralMilestones ReferralMilestone[]
 
   // Связи
-  subscription          UserSubscription?
-  generations           UserGeneration[]
-  lessons               Lesson[]
-  creditTransactions    CreditTransaction[]
-  systemLogs            SystemLog[]
-  classes               Class[]
-  linkTokens            LinkToken[]
-  onboardingQuestSteps  OnboardingQuestStep[]
-  payments              Payment[]
-  studentInvites        StudentInvite[]
-  diaryEntries          TeacherDiaryEntry[]
-  botUser               BotUser?
-  analyticsEvents       AnalyticsEvent[]
+  subscription         UserSubscription?
+  generations          UserGeneration[]
+  lessons              Lesson[]
+  creditTransactions   CreditTransaction[]
+  systemLogs           SystemLog[]
+  classes              Class[]
+  linkTokens           LinkToken[]
+  onboardingQuestSteps OnboardingQuestStep[]
+  payments             Payment[]
+  studentInvites       StudentInvite[]
+  diaryEntries         TeacherDiaryEntry[]
+  botUser              BotUser?
+  analyticsEvents      AnalyticsEvent[]
+  calendarEvents       CalendarEvent[]
 
   @@index([telegramId])
   @@index([maxId])
@@ -84,98 +85,98 @@ model AppUser {
 
 // Тарифные планы
 model SubscriptionPlan {
-  id                  String   @id @default(uuid())
-  planKey             String   @unique // 'starter', 'pro', 'business'
-  planName            String
-  monthlyCredits      Int
-  price               Decimal  @db.Decimal(10, 2)
-  currency            String   @default("RUB")
-  allowOverage        Boolean  @default(false)
+  id                   String   @id @default(uuid())
+  planKey              String   @unique // 'starter', 'pro', 'business'
+  planName             String
+  monthlyCredits       Int
+  price                Decimal  @db.Decimal(10, 2)
+  currency             String   @default("RUB")
+  allowOverage         Boolean  @default(false)
   overageCostPerCredit Decimal? @db.Decimal(10, 2)
-  features            String[] // Array of features
-  isActive            Boolean  @default(true)
+  features             String[] // Array of features
+  isActive             Boolean  @default(true)
 
   // Лимиты по классам и ученикам (null = безлимит)
-  maxStudents         Int?
-  maxClasses          Int?
+  maxStudents Int?
+  maxClasses  Int?
 
   // Лимиты использования функций в месяц (null = безлимит, 0 = недоступно)
   maxPhotosessionPerMonth Int?
   maxImageGenPerMonth     Int?
 
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Связи
-  subscriptions       UserSubscription[]
+  subscriptions UserSubscription[]
 
   @@map("subscription_plans")
 }
 
 // Подписки пользователей
 model UserSubscription {
-  id                String   @id @default(uuid())
-  userId            String   @unique
-  planId            String
-  status            String   // 'active', 'inactive', 'expired'
-  creditsBalance    Int      @default(0)
-  extraCredits      Int      @default(0)
-  creditsUsed       Int      @default(0)
-  overageCreditsUsed Int     @default(0)
-  startDate         DateTime
-  endDate           DateTime
-  autoRenew         Boolean  @default(true)
-  cpSubscriptionId  String?  // CloudPayments SubscriptionId для рекуррентных
-  cpCardToken       String?  // Токен карты для повторных списаний
+  id                 String   @id @default(uuid())
+  userId             String   @unique
+  planId             String
+  status             String // 'active', 'inactive', 'expired'
+  creditsBalance     Int      @default(0)
+  extraCredits       Int      @default(0)
+  creditsUsed        Int      @default(0)
+  overageCreditsUsed Int      @default(0)
+  startDate          DateTime
+  endDate            DateTime
+  autoRenew          Boolean  @default(true)
+  cpSubscriptionId   String? // CloudPayments SubscriptionId для рекуррентных
+  cpCardToken        String? // Токен карты для повторных списаний
 
   // Счётчики использования функций в текущем месяце
   photosessionUsedThisMonth Int @default(0)
   imageGenUsedThisMonth     Int @default(0)
 
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Связи
-  user              AppUser  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  plan              SubscriptionPlan @relation(fields: [planId], references: [id])
-  transactions      CreditTransaction[]
+  user         AppUser             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan         SubscriptionPlan    @relation(fields: [planId], references: [id])
+  transactions CreditTransaction[]
 
   @@map("user_subscriptions")
 }
 
 // Стоимость операций
 model CreditCost {
-  id            String   @id @default(uuid())
-  operationType String   @unique
-  operationName String
-  creditCost    Int
-  description   String?
-  isActive      Boolean  @default(true)
-  isUnderMaintenance Boolean @default(false)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id                 String   @id @default(uuid())
+  operationType      String   @unique
+  operationName      String
+  creditCost         Int
+  description        String?
+  isActive           Boolean  @default(true)
+  isUnderMaintenance Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   @@map("credit_costs")
 }
 
 // Транзакции Токенов
 model CreditTransaction {
-  id                String   @id @default(uuid())
-  userId            String
-  subscriptionId    String
-  type              String   // 'debit', 'credit', 'grant', 'refund', 'monthly_reset'
-  amount            Int
-  balanceBefore     Int
-  balanceAfter      Int
-  operationType     String?  // Тип операции генерации
+  id                  String   @id @default(uuid())
+  userId              String
+  subscriptionId      String
+  type                String // 'debit', 'credit', 'grant', 'refund', 'monthly_reset'
+  amount              Int
+  balanceBefore       Int
+  balanceAfter        Int
+  operationType       String? // Тип операции генерации
   generationRequestId String?
-  description       String?
-  metadata          Json?    // Дополнительные данные
-  createdAt         DateTime @default(now())
+  description         String?
+  metadata            Json? // Дополнительные данные
+  createdAt           DateTime @default(now())
 
   // Связи
-  user              AppUser  @relation(fields: [userId], references: [id])
-  subscription      UserSubscription @relation(fields: [subscriptionId], references: [id])
+  user         AppUser          @relation(fields: [userId], references: [id])
+  subscription UserSubscription @relation(fields: [subscriptionId], references: [id])
 
   @@index([userId])
   @@index([subscriptionId])
@@ -187,13 +188,13 @@ model CreditTransaction {
 model GenerationRequest {
   id        String   @id @default(uuid())
   userId    String
-  type      String   // Тип генерации
-  params    Json?    // Параметры запроса
-  status    String   // 'pending', 'completed', 'failed'
-  result    Json?    // Результат генерации
+  type      String // Тип генерации
+  params    Json? // Параметры запроса
+  status    String // 'pending', 'completed', 'failed'
+  result    Json? // Результат генерации
   error     String?
   model     String?
-  metadata  Json?    // Дополнительные данные (например, replicatePredictionId)
+  metadata  Json? // Дополнительные данные (например, replicatePredictionId)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -207,32 +208,32 @@ model GenerationRequest {
 
 // Генерации пользователей (новая таблица с детальными данными)
 model UserGeneration {
-  id                  String   @id @default(uuid())
+  id                  String    @id @default(uuid())
   userId              String
-  generationType      String   // Тип генерации
-  status              String   // 'pending', 'completed', 'failed'
-  title               String?  // Пользовательское название генерации (переименование в истории)
-  inputParams         Json?    // Параметры запроса
-  outputData          Json?    // Полный результат генерации
+  generationType      String // Тип генерации
+  status              String // 'pending', 'completed', 'failed'
+  title               String? // Пользовательское название генерации (переименование в истории)
+  inputParams         Json? // Параметры запроса
+  outputData          Json? // Полный результат генерации
   errorMessage        String?
   model               String?
-  generationRequestId String   @unique
-  sentToTelegram      Boolean  @default(false)
+  generationRequestId String    @unique
+  sentToTelegram      Boolean   @default(false)
   telegramSentAt      DateTime?
-  sentToMax           Boolean  @default(false)
+  sentToMax           Boolean   @default(false)
   maxSentAt           DateTime?
-  initiatedSource     String?  // 'web' | 'telegram_bot' | 'max_bot' — откуда инициирована генерация
-  tokensUsed          Int?     // Количество потраченных токенов
-  creditCost          Int?     // Итоговая стоимость Токенов
+  initiatedSource     String? // 'web' | 'telegram_bot' | 'max_bot' — откуда инициирована генерация
+  tokensUsed          Int? // Количество потраченных токенов
+  creditCost          Int? // Итоговая стоимость Токенов
   lessonId            String?
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
   // Связи
-  user                AppUser  @relation(fields: [userId], references: [id])
-  generationRequest   GenerationRequest @relation(fields: [generationRequestId], references: [id])
-  lesson              Lesson?      @relation(fields: [lessonId], references: [id])
-  assignments         Assignment[]
+  user              AppUser           @relation(fields: [userId], references: [id])
+  generationRequest GenerationRequest @relation(fields: [generationRequestId], references: [id])
+  lesson            Lesson?           @relation(fields: [lessonId], references: [id])
+  assignments       Assignment[]
 
   @@index([userId])
   @@index([status])
@@ -246,10 +247,10 @@ model UserGeneration {
 model Lesson {
   id              String    @id @default(uuid())
   userId          String
-  title           String    // Обычно совпадает с темой
+  title           String // Обычно совпадает с темой
   topic           String
   grade           String?
-  duration        Int?      // legacy
+  duration        Int? // legacy
   // Расписание урока (M3)
   scheduledAt     DateTime?
   durationMinutes Int?
@@ -261,10 +262,11 @@ model Lesson {
   updatedAt       DateTime  @updatedAt
 
   // Связи
-  user        AppUser  @relation(fields: [userId], references: [id])
-  class       Class?   @relation(fields: [classId], references: [id], onDelete: SetNull)
-  generations UserGeneration[]
-  assignments Assignment[]
+  user           AppUser          @relation(fields: [userId], references: [id])
+  class          Class?           @relation(fields: [classId], references: [id], onDelete: SetNull)
+  generations    UserGeneration[]
+  assignments    Assignment[]
+  calendarEvents CalendarEvent[]
 
   @@index([userId])
   @@index([classId])
@@ -274,17 +276,17 @@ model Lesson {
 
 // Системные логи
 model SystemLog {
-  id                String   @id @default(uuid())
-  level             String   // 'info', 'warn', 'error'
-  category          String   // 'telegram_send', 'generation', 'user_auth', 'webhook'
-  message           String
-  data              Json?
-  userId            String?
+  id                  String   @id @default(uuid())
+  level               String // 'info', 'warn', 'error'
+  category            String // 'telegram_send', 'generation', 'user_auth', 'webhook'
+  message             String
+  data                Json?
+  userId              String?
   generationRequestId String?
-  timestamp         DateTime @default(now())
+  timestamp           DateTime @default(now())
 
   // Связи
-  user              AppUser? @relation(fields: [userId], references: [id])
+  user AppUser? @relation(fields: [userId], references: [id])
 
   @@index([level])
   @@index([category])
@@ -295,14 +297,14 @@ model SystemLog {
 
 // Планы уроков (дополнительная таблица)
 model LessonPlan {
-  id          String   @id @default(uuid())
-  userId      String
-  subject     String
-  topic       String
-  level       String
-  content     Json?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String   @id @default(uuid())
+  userId    String
+  subject   String
+  topic     String
+  level     String
+  content   Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([userId])
   @@map("lesson_plans")
@@ -310,13 +312,13 @@ model LessonPlan {
 
 // Материалы (дополнительная таблица)
 model Material {
-  id          String   @id @default(uuid())
-  userId      String
-  title       String
-  type        String
-  content     Json?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String   @id @default(uuid())
+  userId    String
+  title     String
+  type      String
+  content   Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([userId])
   @@map("materials")
@@ -337,16 +339,16 @@ model AiChat {
 
 // Сообщения чата
 model ChatMessage {
-  id          String   @id @default(uuid())
-  chatId      String?
-  userId      String
-  role        String   // 'user', 'assistant'
-  content     String
-  model       String?
-  metadata    Json?
-  createdAt   DateTime @default(now())
+  id        String   @id @default(uuid())
+  chatId    String?
+  userId    String
+  role      String // 'user', 'assistant'
+  content   String
+  model     String?
+  metadata  Json?
+  createdAt DateTime @default(now())
 
-  chat        AiChat?  @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  chat AiChat? @relation(fields: [chatId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([chatId])
@@ -355,14 +357,14 @@ model ChatMessage {
 
 // Коды верификации
 model VerificationCode {
-  id          String   @id @default(uuid())
-  userId      String?
-  phone       String
-  code        String
-  type        String   // 'sms', 'email'
-  verified    Boolean  @default(false)
-  expiresAt   DateTime
-  createdAt   DateTime @default(now())
+  id        String   @id @default(uuid())
+  userId    String?
+  phone     String
+  code      String
+  type      String // 'sms', 'email'
+  verified  Boolean  @default(false)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
 
   @@index([phone])
   @@index([code])
@@ -371,19 +373,20 @@ model VerificationCode {
 
 // Классы (Группы учеников)
 model Class {
-  id          String    @id @default(uuid())
+  id          String   @id @default(uuid())
   teacherId   String
   name        String
   description String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  teacher     AppUser   @relation(fields: [teacherId], references: [id])
-  students    Student[]
-  assignments Assignment[]
-  invites     StudentInvite[]
-  lessons     Lesson[]
-  diaryEntries TeacherDiaryEntry[]
+  teacher        AppUser             @relation(fields: [teacherId], references: [id])
+  students       Student[]
+  assignments    Assignment[]
+  invites        StudentInvite[]
+  lessons        Lesson[]
+  diaryEntries   TeacherDiaryEntry[]
+  calendarEvents CalendarEvent[]
 
   @@index([teacherId])
   @@map("classes")
@@ -391,28 +394,29 @@ model Class {
 
 // Ученики
 model Student {
-  id           String    @id @default(uuid())
+  id           String   @id @default(uuid())
   classId      String
   name         String
   email        String?
-  phone        String?   // Опциональный номер телефона ученика
-  passwordHash String?   // Хэш пароля для входа по email+паролю
-  accessCode   String?   @unique // Устаревший метод входа (по коду)
+  phone        String? // Опциональный номер телефона ученика
+  passwordHash String? // Хэш пароля для входа по email+паролю
+  accessCode   String?  @unique // Устаревший метод входа (по коду)
   avatar       String?
-  notes        String?   // AI характеристика или заметки учителя
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  notes        String? // AI характеристика или заметки учителя
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  referredByCode String?   // Если ученик пришёл по реферальной ссылке
-  status       String    @default("active") // 'active' | 'pending' (ожидает подтверждения учителя)
+  referredByCode String? // Если ученик пришёл по реферальной ссылке
+  status         String  @default("active") // 'active' | 'pending' (ожидает подтверждения учителя)
 
-  class       Class     @relation(fields: [classId], references: [id], onDelete: Cascade)
-  assignments Assignment[]
-  submissions Submission[]
-  diaryEntries TeacherDiaryEntry[]
-  gamification StudentGamification?
+  class                Class                @relation(fields: [classId], references: [id], onDelete: Cascade)
+  assignments          Assignment[]
+  submissions          Submission[]
+  diaryEntries         TeacherDiaryEntry[]
+  gamification         StudentGamification?
   unlockedAchievements StudentAchievement[]
-  xpEvents    XpEvent[]
+  xpEvents             XpEvent[]
+  calendarEvents       CalendarEvent[]
 
   @@index([classId])
   @@map("students")
@@ -428,8 +432,8 @@ model StudentInvite {
   revokedAt DateTime?
   createdAt DateTime  @default(now())
 
-  teacher   AppUser   @relation(fields: [teacherId], references: [id], onDelete: Cascade)
-  class     Class?    @relation(fields: [classId], references: [id], onDelete: SetNull)
+  teacher AppUser @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  class   Class?  @relation(fields: [classId], references: [id], onDelete: SetNull)
 
   @@index([teacherId])
   @@index([classId])
@@ -442,17 +446,17 @@ model Assignment {
   classId      String?
   studentId    String?
   lessonId     String
-  generationId String?   // Optional: assign a specific generation instead of the whole lesson
+  generationId String? // Optional: assign a specific generation instead of the whole lesson
   status       String    @default("assigned") // assigned, submitted, graded
   dueDate      DateTime?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  class        Class?          @relation(fields: [classId], references: [id], onDelete: Cascade)
-  student      Student?        @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  lesson       Lesson          @relation(fields: [lessonId], references: [id])
-  generation   UserGeneration? @relation(fields: [generationId], references: [id])
-  submissions  Submission[]
+  class       Class?          @relation(fields: [classId], references: [id], onDelete: Cascade)
+  student     Student?        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  lesson      Lesson          @relation(fields: [lessonId], references: [id])
+  generation  UserGeneration? @relation(fields: [generationId], references: [id])
+  submissions Submission[]
 
   @@index([classId])
   @@index([studentId])
@@ -463,20 +467,20 @@ model Assignment {
 
 // Решения (Ответы учеников)
 model Submission {
-  id           String    @id @default(uuid())
+  id           String   @id @default(uuid())
   assignmentId String
   studentId    String
-  content      String?   // Текст или URL
-  attachments  Json?     // Файлы
-  formData     Json?     // Интерактивные ответы из HTML-задания { [generationId]: { fieldId: value } }
+  content      String? // Текст или URL
+  attachments  Json? // Файлы
+  formData     Json? // Интерактивные ответы из HTML-задания { [generationId]: { fieldId: value } }
   grade        Int?
-  feedback     String?   // AI или комментарий учителя
-  status       String    @default("submitted") // submitted, graded
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  feedback     String? // AI или комментарий учителя
+  status       String   @default("submitted") // submitted, graded
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  assignment   Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
-  student      Student    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  assignment Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  student    Student    @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
   @@index([assignmentId])
   @@index([studentId])
@@ -486,13 +490,13 @@ model Submission {
 // Уведомления
 model Notification {
   id        String   @id @default(uuid())
-  userId    String   // ID получателя (AppUser.id для учителя, Student.id для ученика)
-  userType  String   // 'teacher' | 'student'
-  type      String   // 'submission_received' | 'submission_graded'
+  userId    String // ID получателя (AppUser.id для учителя, Student.id для ученика)
+  userType  String // 'teacher' | 'student'
+  type      String // 'submission_received' | 'submission_graded'
   title     String
   message   String
   isRead    Boolean  @default(false)
-  metadata  Json?    // { assignmentId, submissionId, studentName, grade }
+  metadata  Json? // { assignmentId, submissionId, studentName, grade }
   createdAt DateTime @default(now())
 
   @@index([userId])
@@ -504,17 +508,17 @@ model Notification {
 
 // Реферальные коды
 model ReferralCode {
-  id          String   @id @default(uuid())
-  userId      String
-  userType    String   // 'teacher' | 'student'
-  code        String   @unique
-  isActive    Boolean  @default(true)
-  usageCount  Int      @default(0)
-  maxUsages   Int?     // null = безлимитно
-  createdAt   DateTime @default(now())
+  id         String   @id @default(uuid())
+  userId     String
+  userType   String // 'teacher' | 'student'
+  code       String   @unique
+  isActive   Boolean  @default(true)
+  usageCount Int      @default(0)
+  maxUsages  Int? // null = безлимитно
+  createdAt  DateTime @default(now())
 
-  user        AppUser  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  referrals   Referral[]
+  user      AppUser    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  referrals Referral[]
 
   @@index([userId])
   @@index([code])
@@ -523,22 +527,22 @@ model ReferralCode {
 
 // Факт реферала
 model Referral {
-  id              String    @id @default(uuid())
-  referralCodeId  String
-  referrerUserId  String    // Кто пригласил (AppUser.id)
-  referrerType    String    // 'teacher' | 'student'
-  referredUserId  String    // Кого пригласили (AppUser.id или Student.id)
-  referredType    String    // 'teacher' | 'student'
-  referralType    String    // 'teacher_teacher' | 'teacher_student' | 'student_student'
-  status          String    @default("registered") // 'registered' | 'activated' | 'converted'
-  rewardGranted            Boolean   @default(false)
-  conversionRewardGranted  Boolean   @default(false)
-  activatedAt              DateTime?
-  convertedAt              DateTime?
-  metadata                 Json?     // { submissionsCount, classId, ... }
-  createdAt                DateTime  @default(now())
+  id                      String    @id @default(uuid())
+  referralCodeId          String
+  referrerUserId          String // Кто пригласил (AppUser.id)
+  referrerType            String // 'teacher' | 'student'
+  referredUserId          String // Кого пригласили (AppUser.id или Student.id)
+  referredType            String // 'teacher' | 'student'
+  referralType            String // 'teacher_teacher' | 'teacher_student' | 'student_student'
+  status                  String    @default("registered") // 'registered' | 'activated' | 'converted'
+  rewardGranted           Boolean   @default(false)
+  conversionRewardGranted Boolean   @default(false)
+  activatedAt             DateTime?
+  convertedAt             DateTime?
+  metadata                Json? // { submissionsCount, classId, ... }
+  createdAt               DateTime  @default(now())
 
-  referralCode    ReferralCode @relation(fields: [referralCodeId], references: [id])
+  referralCode ReferralCode @relation(fields: [referralCodeId], references: [id])
 
   @@unique([referredUserId, referredType])
   @@index([referrerUserId])
@@ -549,13 +553,13 @@ model Referral {
 
 // Milestone-бонусы за рефералов
 model ReferralMilestone {
-  id          String   @id @default(uuid())
-  userId      String
-  milestone   String   // 'students_5' | 'students_10' | 'teachers_3' | 'teachers_8'
-  reward      Int      // Сколько Токенов начислено
-  grantedAt   DateTime @default(now())
+  id        String   @id @default(uuid())
+  userId    String
+  milestone String // 'students_5' | 'students_10' | 'teachers_3' | 'teachers_8'
+  reward    Int // Сколько Токенов начислено
+  grantedAt DateTime @default(now())
 
-  user        AppUser  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user AppUser @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, milestone])
   @@index([userId])
@@ -564,17 +568,17 @@ model ReferralMilestone {
 
 // Токены для привязки платформ (Telegram/Max) к web-аккаунту
 model LinkToken {
-  id          String   @id @default(uuid())
-  token       String   @unique          // 8-символьный hex (отображается пользователю)
-  userId      String                    // AppUser, который инициировал привязку
-  platform    String                    // 'telegram' | 'max'
-  status      String   @default("pending") // 'pending' | 'completed' | 'expired'
-  linkedId    String?                   // telegramId / maxId после подтверждения
-  linkedName  String?                   // @username для отображения в UI
-  expiresAt   DateTime
-  createdAt   DateTime @default(now())
+  id         String   @id @default(uuid())
+  token      String   @unique // 8-символьный hex (отображается пользователю)
+  userId     String // AppUser, который инициировал привязку
+  platform   String // 'telegram' | 'max'
+  status     String   @default("pending") // 'pending' | 'completed' | 'expired'
+  linkedId   String? // telegramId / maxId после подтверждения
+  linkedName String? // @username для отображения в UI
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
 
-  user        AppUser  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user AppUser @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([token])
   @@index([userId])
@@ -587,10 +591,10 @@ model LinkToken {
 model OnboardingQuestStep {
   id          String   @id @default(uuid())
   userId      String
-  step        String   // 'FIRST_GENERATION' | 'SECOND_TYPE_GENERATION' | 'SHARED_REFERRAL_LINK' | 'FIRST_REFERRAL_ACTIVATED' | 'SECOND_REFERRAL_ACTIVATED'
+  step        String // 'FIRST_GENERATION' | 'SECOND_TYPE_GENERATION' | 'SHARED_REFERRAL_LINK' | 'FIRST_REFERRAL_ACTIVATED' | 'SECOND_REFERRAL_ACTIVATED'
   completedAt DateTime @default(now())
 
-  user        AppUser  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user AppUser @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, step])
   @@index([userId])
@@ -601,23 +605,23 @@ model OnboardingQuestStep {
 
 // Маркетинговые ссылки с UTM-параметрами
 model UtmLink {
-  id           String   @id @default(uuid())
-  name         String                     // Название для себя (напр. "Instagram bio апрель")
-  socialNetwork String                    // 'instagram' | 'telegram' | 'vk' | 'youtube' | 'tiktok' | 'whatsapp' | 'other'
-  utmSource    String                     // instagram, telegram, vk, ...
-  utmMedium    String                     // bio, story, post, reel, direct, ...
-  utmCampaign  String                     // название кампании
-  utmContent   String?                    // вариант контента (A/B)
-  utmTerm      String?                    // ключевое слово
-  baseUrl      String   @default("https://prepodavai.ru")
-  fullUrl      String                     // итоговая ссылка с UTM
-  clicks       Int      @default(0)       // переходы
-  registrations Int     @default(0)       // регистрации по этой ссылке
-  bonusTokens  Int      @default(0)       // токены за регистрацию по ссылке
-  linkTtl      String   @default("always") // 'always' | '48h' | '24h'
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id            String   @id @default(uuid())
+  name          String // Название для себя (напр. "Instagram bio апрель")
+  socialNetwork String // 'instagram' | 'telegram' | 'vk' | 'youtube' | 'tiktok' | 'whatsapp' | 'other'
+  utmSource     String // instagram, telegram, vk, ...
+  utmMedium     String // bio, story, post, reel, direct, ...
+  utmCampaign   String // название кампании
+  utmContent    String? // вариант контента (A/B)
+  utmTerm       String? // ключевое слово
+  baseUrl       String   @default("https://prepodavai.ru")
+  fullUrl       String // итоговая ссылка с UTM
+  clicks        Int      @default(0) // переходы
+  registrations Int      @default(0) // регистрации по этой ссылке
+  bonusTokens   Int      @default(0) // токены за регистрацию по ссылке
+  linkTtl       String   @default("always") // 'always' | '48h' | '24h'
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   @@index([socialNetwork])
   @@index([utmCampaign])
@@ -626,24 +630,24 @@ model UtmLink {
 
 // Платежи через CloudPayments
 model Payment {
-  id              String   @id @default(uuid())
-  userId          String
-  planKey         String
-  amount          Decimal  @db.Decimal(10, 2)
-  currency        String   @default("RUB")
-  status          String   // 'pending', 'completed', 'failed'
-  cpTransactionId String?  // TransactionId от CloudPayments
+  id               String    @id @default(uuid())
+  userId           String
+  planKey          String
+  amount           Decimal   @db.Decimal(10, 2)
+  currency         String    @default("RUB")
+  status           String // 'pending', 'completed', 'failed'
+  cpTransactionId  String? // TransactionId от CloudPayments
   cpSubscriptionId String? // SubscriptionId (для рекуррентных)
-  cpToken         String?  // Токен карты (для повторных списаний)
-  invoiceId       String   @unique // Наш внутренний ID заказа
+  cpToken          String? // Токен карты (для повторных списаний)
+  invoiceId        String    @unique // Наш внутренний ID заказа
   isRecurrent      Boolean   @default(false)
   consentGivenAt   DateTime? // Когда пользователь поставил чекбокс согласия
-  consentIp        String?   // IP-адрес в момент согласия
-  consentUserAgent String?   // User-Agent браузера в момент согласия
+  consentIp        String? // IP-адрес в момент согласия
+  consentUserAgent String? // User-Agent браузера в момент согласия
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
-  user            AppUser  @relation(fields: [userId], references: [id])
+  user AppUser @relation(fields: [userId], references: [id])
 
   @@index([userId])
   @@index([invoiceId])
@@ -656,7 +660,7 @@ model Payment {
 model UploadedFile {
   id        String   @id @default(uuid())
   hash      String   @unique
-  userId    String   // Can be AppUser.id or Student.id
+  userId    String // Can be AppUser.id or Student.id
   filename  String
   mimeType  String
   size      Int
@@ -671,25 +675,25 @@ model UploadedFile {
 // Журнал проведённых уроков с возможностью прикрепить запись (Яндекс.Диск)
 // и автоматически прогнать через методический видеоанализ.
 model TeacherDiaryEntry {
-  id                   String    @id @default(uuid())
+  id                   String   @id @default(uuid())
   teacherId            String
-  date                 DateTime  @default(now())
+  date                 DateTime @default(now())
   classId              String?
   studentId            String?
-  topic                String?   // Тема урока
-  goals                String?   // Цели урока
-  covered              String?   // Что пройдено
-  homework             String?   // Домашнее задание
-  notes                String?   // Заметки / наблюдения
-  recordingUrl         String?   // Ссылка на запись (Yandex.Disk)
-  analysisGenerationId String?   // generationRequestId из UserGeneration — методический анализ
-  aiFilledFields       String[]  @default([]) // Какие поля заполнены AI (topic/goals/covered/homework/notes)
-  createdAt            DateTime  @default(now())
-  updatedAt            DateTime  @updatedAt
+  topic                String? // Тема урока
+  goals                String? // Цели урока
+  covered              String? // Что пройдено
+  homework             String? // Домашнее задание
+  notes                String? // Заметки / наблюдения
+  recordingUrl         String? // Ссылка на запись (Yandex.Disk)
+  analysisGenerationId String? // generationRequestId из UserGeneration — методический анализ
+  aiFilledFields       String[] @default([]) // Какие поля заполнены AI (topic/goals/covered/homework/notes)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 
-  teacher              AppUser   @relation(fields: [teacherId], references: [id], onDelete: Cascade)
-  class                Class?    @relation(fields: [classId], references: [id], onDelete: SetNull)
-  student              Student?  @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  teacher AppUser  @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  class   Class?   @relation(fields: [classId], references: [id], onDelete: SetNull)
+  student Student? @relation(fields: [studentId], references: [id], onDelete: SetNull)
 
   @@index([teacherId])
   @@index([classId])
@@ -700,29 +704,29 @@ model TeacherDiaryEntry {
 
 // Пользователи чат-ботов (Telegram и MAX)
 model BotUser {
-  id                   String    @id @default(uuid())
+  id String @id @default(uuid())
 
   // Связь с аккаунтом платформы (если есть)
-  appUserId            String?   @unique
-  appUser              AppUser?  @relation(fields: [appUserId], references: [id], onDelete: SetNull)
+  appUserId String?  @unique
+  appUser   AppUser? @relation(fields: [appUserId], references: [id], onDelete: SetNull)
 
   // Идентификаторы мессенджеров
-  telegramId           String?   @unique
-  maxId                String?   @unique
+  telegramId String? @unique
+  maxId      String? @unique
 
   // Профиль (из мессенджера)
-  firstName            String?
-  lastName             String?
-  username             String?
-  email                String?
+  firstName String?
+  lastName  String?
+  username  String?
+  email     String?
 
   // Статус: 'pending' | 'registered' | 'linked'
-  registrationStatus   String    @default("pending")
+  registrationStatus String  @default("pending")
   // Источник: 'telegram_bot' | 'max_bot' | 'linked_telegram' | 'linked_max'
-  source               String?
+  source             String?
 
   // Независимые бот-кредиты (редактируются напрямую в БД)
-  botCredits           Int       @default(100)
+  botCredits Int @default(100)
 
   // Статистика
   totalGenerations     Int       @default(0)
@@ -731,13 +735,13 @@ model BotUser {
   lastActiveAt         DateTime?
 
   // Атрибуция: откуда пришёл в бот
-  startPayload         String?   // raw payload из /start (deep-link параметр)
-  utmSource            String?   // распарсенный источник (instagram, vk, telegram_channel, и т.д.)
-  utmMedium            String?
-  utmCampaign          String?
+  startPayload String? // raw payload из /start (deep-link параметр)
+  utmSource    String? // распарсенный источник (instagram, vk, telegram_channel, и т.д.)
+  utmMedium    String?
+  utmCampaign  String?
 
-  createdAt            DateTime  @default(now())
-  updatedAt            DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Связи
   botCreditTransactions BotCreditTransaction[]
@@ -750,16 +754,16 @@ model BotUser {
 
 // История транзакций бот-кредитов
 model BotCreditTransaction {
-  id            String   @id @default(uuid())
-  botUserId     String
-  botUser       BotUser  @relation(fields: [botUserId], references: [id], onDelete: Cascade)
-  amount        Int      // отрицательное = списание, положительное = начисление
-  balanceBefore Int
-  balanceAfter  Int
-  reason        String   // 'initial_grant' | 'generation_deduct' | 'generation_refund' | 'admin_grant' | 'admin_set'
+  id             String   @id @default(uuid())
+  botUserId      String
+  botUser        BotUser  @relation(fields: [botUserId], references: [id], onDelete: Cascade)
+  amount         Int // отрицательное = списание, положительное = начисление
+  balanceBefore  Int
+  balanceAfter   Int
+  reason         String // 'initial_grant' | 'generation_deduct' | 'generation_refund' | 'admin_grant' | 'admin_set'
   generationType String? // тип генерации, если reason = generation_*
-  description   String?
-  createdAt     DateTime @default(now())
+  description    String?
+  createdAt      DateTime @default(now())
 
   @@index([botUserId])
   @@index([createdAt])
@@ -772,21 +776,21 @@ model BotCreditTransaction {
 // с наибольшим priority через N секунд после загрузки dashboard.
 // ────────────────────────────────────────────────────────────────────────────
 model DashboardPopup {
-  id            String   @id @default(uuid())
-  title         String?  // Заголовок модалки (опционально)
-  body          String   // Текст. Поддерживает переносы строк и автоопределение URL.
-  ctaText       String?  // Подпись основной кнопки. Если null — только «Закрыть».
-  ctaUrl        String?  // URL для основной кнопки.
-  delaySeconds  Int      @default(5)   // Задержка показа после загрузки страницы.
-  isActive      Boolean  @default(true)
-  priority      Int      @default(0)   // Чем больше — тем приоритетнее, если активно несколько.
-  startsAt      DateTime?
-  endsAt        DateTime?
-  createdBy     String?  // appUser.id админа
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id           String    @id @default(uuid())
+  title        String? // Заголовок модалки (опционально)
+  body         String // Текст. Поддерживает переносы строк и автоопределение URL.
+  ctaText      String? // Подпись основной кнопки. Если null — только «Закрыть».
+  ctaUrl       String? // URL для основной кнопки.
+  delaySeconds Int       @default(5) // Задержка показа после загрузки страницы.
+  isActive     Boolean   @default(true)
+  priority     Int       @default(0) // Чем больше — тем приоритетнее, если активно несколько.
+  startsAt     DateTime?
+  endsAt       DateTime?
+  createdBy    String? // appUser.id админа
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
-  dismissals    DashboardPopupDismissal[]
+  dismissals DashboardPopupDismissal[]
 
   @@index([isActive, priority])
   @@map("dashboard_popups")
@@ -799,7 +803,7 @@ model DashboardPopupDismissal {
   userId    String
   createdAt DateTime @default(now())
 
-  popup     DashboardPopup @relation(fields: [popupId], references: [id], onDelete: Cascade)
+  popup DashboardPopup @relation(fields: [popupId], references: [id], onDelete: Cascade)
 
   @@unique([popupId, userId])
   @@index([userId])
@@ -818,7 +822,7 @@ model SystemSetting {
   key       String   @id
   value     String?
   updatedAt DateTime @updatedAt
-  updatedBy String?  // appUser.id админа
+  updatedBy String? // appUser.id админа
 
   @@map("system_settings")
 }
@@ -831,17 +835,17 @@ model SystemSetting {
 ///   — клиент: pageview / button_click / onboarding_step (через POST /analytics/track)
 ///   — бот: channel_subscribed (через chat_member webhook)
 model AnalyticsEvent {
-  id        String   @id @default(uuid())
+  id          String   @id @default(uuid())
   /// Анонимный ID из cookie (живёт до регистрации). После регистрации в userId
   /// ставится AppUser.id, anonId остаётся для склейки до-реги активности.
-  anonId    String?
-  userId    String?  // null до регистрации
+  anonId      String?
+  userId      String? // null до регистрации
   /// Категория события: 'page_view' | 'click' | 'user_registered' | 'generation_created' | 'tg_linked' | ...
-  eventType String
+  eventType   String
   /// Дополнительный ключ внутри типа: для page_view — путь, для generation_created — тип генерации.
-  eventName String?
+  eventName   String?
   /// Произвольная нагрузка: {generationType, sourceClass, durationMs, ...}
-  payload   Json?
+  payload     Json?
   /// UTM-атрибуция копируется на момент события (immutable). Если пользователь
   /// сменит источник в новой сессии — у нового события будут новые UTM.
   utmSource   String?
@@ -853,11 +857,11 @@ model AnalyticsEvent {
   sessionId   String?
   /// Тех. срезы.
   userAgent   String?
-  ipHash      String?   // SHA-256 от IP — для DAU, не PII
+  ipHash      String? // SHA-256 от IP — для DAU, не PII
   referer     String?
-  createdAt   DateTime  @default(now())
+  createdAt   DateTime @default(now())
 
-  user      AppUser?  @relation(fields: [userId], references: [id], onDelete: SetNull)
+  user AppUser? @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([eventType, createdAt])
   @@index([userId, createdAt])
@@ -868,19 +872,19 @@ model AnalyticsEvent {
 
 /// Определение воронки. Создаётся админом в /admin/funnels.
 model Funnel {
-  id          String   @id @default(uuid())
-  name        String
-  description String?
+  id            String   @id @default(uuid())
+  name          String
+  description   String?
   /// Кто создал. Используется как owner для аудита, но смотреть могут все админы.
-  ownerId     String?
-  isActive    Boolean  @default(true)
+  ownerId       String?
+  isActive      Boolean  @default(true)
   /// Дополнительный фильтр уровня воронки: '{"utmSource": "instagram"}' и т.д.
   /// Применяется ко всем шагам.
   globalFilters Json?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  steps       FunnelStep[]
+  steps FunnelStep[]
 
   @@index([isActive])
   @@map("funnels")
@@ -889,27 +893,27 @@ model Funnel {
 /// Один шаг воронки.
 /// При расчёте: user, попавший в шаг N, должен попасть в шаг N+1 не раньше шага N.
 model FunnelStep {
-  id        String   @id @default(uuid())
-  funnelId  String
+  id             String   @id @default(uuid())
+  funnelId       String
   /// Порядковый номер. 0 — точка входа.
-  order     Int
+  order          Int
   /// Человеко-читаемый заголовок: «Конверсия из реги в первую генерацию»
-  label     String
+  label          String
   /// Какое событие из AnalyticsEvent.eventType должен совершить пользователь.
   /// Спец-значения:
   ///   'generation_created:nth=1' — первая генерация
   ///   'generation_created:nth=3' — третья (для N→M)
-  eventType String
+  eventType      String
   /// JSON-фильтр на payload и UTM. Пример:
   ///   {"payload.generationType": "worksheet"}
   ///   {"utmSource": "blogger_xxx"}
-  eventFilters Json?
+  eventFilters   Json?
   /// Если true — этот шаг используется как "якорь когорты" (дата отсчёта).
   /// Обычно первый шаг.
-  isCohortAnchor Boolean @default(false)
-  createdAt DateTime @default(now())
+  isCohortAnchor Boolean  @default(false)
+  createdAt      DateTime @default(now())
 
-  funnel    Funnel   @relation(fields: [funnelId], references: [id], onDelete: Cascade)
+  funnel Funnel @relation(fields: [funnelId], references: [id], onDelete: Cascade)
 
   @@unique([funnelId, order])
   @@index([funnelId])
@@ -921,48 +925,48 @@ model FunnelStep {
 // Состояние геймификации для одного ученика.
 // Один Student = одна запись. Создаётся при первом действии.
 model StudentGamification {
-  id              String    @id @default(uuid())
-  studentId       String    @unique
+  id             String    @id @default(uuid())
+  studentId      String    @unique
   // Опыт и уровень
-  xp              Int       @default(0)   // Накопленный опыт за всё время
-  level           Int       @default(1)   // Текущий уровень (вычислимо из xp, но кэшируем)
+  xp             Int       @default(0) // Накопленный опыт за всё время
+  level          Int       @default(1) // Текущий уровень (вычислимо из xp, но кэшируем)
   // Streak
-  streakDays      Int       @default(0)   // Подряд дней активности
-  bestStreakDays  Int       @default(0)   // Рекорд стрика
-  lastActiveDate  DateTime?               // День последнего «check-in» (нормализован на 00:00 UTC)
+  streakDays     Int       @default(0) // Подряд дней активности
+  bestStreakDays Int       @default(0) // Рекорд стрика
+  lastActiveDate DateTime? // День последнего «check-in» (нормализован на 00:00 UTC)
   // Счётчики для ачивок
-  submittedCount  Int       @default(0)
-  gradedCount     Int       @default(0)
-  perfectCount    Int       @default(0)   // Кол-во работ с максимальной оценкой
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  submittedCount Int       @default(0)
+  gradedCount    Int       @default(0)
+  perfectCount   Int       @default(0) // Кол-во работ с максимальной оценкой
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
-  student         Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
   @@map("student_gamification")
 }
 
 // Каталог ачивок. Сидится миграцией.
 model Achievement {
-  key         String   @id            // 'first-step', 'streak-7' и т.д.
-  title       String                  // 'Первый шаг'
-  description String                  // 'Сдать первое задание'
-  category    String   @default("general") // 'streak' | 'grade' | 'subject' | 'game' | 'social'
+  key            String  @id // 'first-step', 'streak-7' и т.д.
+  title          String // 'Первый шаг'
+  description    String // 'Сдать первое задание'
+  category       String  @default("general") // 'streak' | 'grade' | 'subject' | 'game' | 'social'
   // Условие — какое поле StudentGamification смотреть и какой порог.
-  conditionField String                // 'submittedCount' | 'streakDays' | 'perfectCount'
-  conditionValue Int                   // 1, 7, 30, ...
+  conditionField String // 'submittedCount' | 'streakDays' | 'perfectCount'
+  conditionValue Int // 1, 7, 30, ...
   // Награда
-  xpReward    Int      @default(50)
+  xpReward       Int     @default(50)
   // UI hint
-  iconKey     String   @default("trophy") // 'flame', 'star', 'trophy', 'zap', 'book-open', ...
-  color       String   @default("brand")  // 'brand' | 'success' | 'warning' | 'danger' | 'info' | 'indigo'
-  emoji       String   @default("🏆")     // Эмодзи медали
-  rarity      String   @default("common") // 'common' | 'rare' | 'epic' | 'legendary'
+  iconKey        String  @default("trophy") // 'flame', 'star', 'trophy', 'zap', 'book-open', ...
+  color          String  @default("brand") // 'brand' | 'success' | 'warning' | 'danger' | 'info' | 'indigo'
+  emoji          String  @default("🏆") // Эмодзи медали
+  rarity         String  @default("common") // 'common' | 'rare' | 'epic' | 'legendary'
   // Порядок отображения
-  sortOrder   Int      @default(0)
-  isActive    Boolean  @default(true)
+  sortOrder      Int     @default(0)
+  isActive       Boolean @default(true)
 
-  unlocked    StudentAchievement[]
+  unlocked StudentAchievement[]
 
   @@map("achievements")
 }
@@ -986,14 +990,93 @@ model StudentAchievement {
 model XpEvent {
   id        String   @id @default(uuid())
   studentId String
-  amount    Int       // Может быть отрицательным (штраф)
-  reason    String    // 'submission_created' | 'submission_graded_perfect' | 'streak_milestone_7' | 'achievement_unlock'
-  metadata  Json?     // { submissionId?, achievementKey?, ... }
+  amount    Int // Может быть отрицательным (штраф)
+  reason    String // 'submission_created' | 'submission_graded_perfect' | 'streak_milestone_7' | 'achievement_unlock'
+  metadata  Json? // { submissionId?, achievementKey?, ... }
   createdAt DateTime @default(now())
 
-  student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
   @@index([studentId])
   @@index([createdAt])
   @@map("xp_events")
+}
+
+// ─── Календарь репетитора ──────────────────────────────────────────────
+//
+// CalendarEvent — единица расписания (урок, встреча, окно). Может быть
+// связан с уроком/учеником/классом, но всё опционально (есть и «свои»
+// события: встреча с родителями, перерыв, личное).
+//
+// Повторения хранятся как RFC-5545 RRULE-строка в RecurrenceRule.
+// Чтобы перенести/удалить ОДНУ копию повтора — событие пересоздаётся
+// как одиночное (origin = parent.id, recurrenceExdate += startAt).
+//
+// Источник истины для синхронизации с Google: googleEventId + lastSyncAt.
+model CalendarEvent {
+  id     String @id @default(uuid())
+  userId String // владелец события (репетитор)
+
+  // Время
+  startAt DateTime
+  endAt   DateTime
+  allDay  Boolean  @default(false)
+
+  // Содержимое
+  title      String
+  notes      String? // длинный комментарий
+  location   String? // адрес для офлайна
+  meetingUrl String? // ссылка для онлайна
+
+  // Привязки (всё опционально)
+  studentId String?
+  classId   String?
+  lessonId  String? // связь с Lesson (для материалов/ДЗ)
+  subject   String? // предмет — копируем из урока для отображения
+
+  // Тип/формат/статус
+  eventType String  @default("lesson") // 'lesson' | 'meeting' | 'break' | 'personal'
+  format    String  @default("online") // 'online' | 'offline' | 'hybrid'
+  status    String  @default("planned") // 'planned' | 'completed' | 'cancelled'
+  color     String? // hex для UI, иначе берём по предмету
+
+  // Повторения
+  recurrenceRuleId String?
+  recurrenceExdate DateTime[] @default([]) // исключения для RRULE (move/delete одного occurrence)
+  parentEventId    String? // если это «оторванное» повторение
+
+  // Google Calendar sync (Phase 4)
+  googleEventId    String?   @unique
+  googleCalendarId String?
+  lastSyncAt       DateTime?
+
+  // Напоминания (Phase 3)
+  remindersSent String[] @default([]) // ['24h', '1h', '10m']
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user           AppUser         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  student        Student?        @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  class          Class?          @relation(fields: [classId], references: [id], onDelete: SetNull)
+  lesson         Lesson?         @relation(fields: [lessonId], references: [id], onDelete: SetNull)
+  recurrenceRule RecurrenceRule? @relation(fields: [recurrenceRuleId], references: [id], onDelete: SetNull)
+
+  @@index([userId, startAt])
+  @@index([studentId])
+  @@index([classId])
+  @@index([lessonId])
+  @@index([status])
+  @@map("calendar_events")
+}
+
+// Правило повторения по RFC-5545 (rrule).
+// Пример: "FREQ=WEEKLY;BYDAY=TU,TH;UNTIL=20270601T000000Z"
+model RecurrenceRule {
+  id        String          @id @default(uuid())
+  rrule     String // полная RRULE-строка
+  createdAt DateTime        @default(now())
+  events    CalendarEvent[]
+
+  @@map("recurrence_rules")
 }
