@@ -8,7 +8,7 @@ import withDragAndDrop from 'react-big-calendar/lib/addons/dragAndDrop'
 import { format, parse, startOfWeek, getDay } from 'date-fns'
 import { ru } from 'date-fns/locale/ru'
 import toast from 'react-hot-toast'
-import { Plus, X, Save, Trash2, Video, MapPin, Calendar as CalendarIcon, Compass, BookOpenCheck, Download, AlertTriangle } from 'lucide-react'
+import { Plus, X, Save, Trash2, Video, MapPin, Calendar as CalendarIcon, Compass, BookOpenCheck } from 'lucide-react'
 
 import { apiClient } from '@/lib/api/client'
 import { Topbar } from '@/components/layout/v2/Topbar'
@@ -208,32 +208,6 @@ export default function CalendarPageV2() {
                     <div className="flex items-center gap-2">
                         <Button variant="ghost" size="sm" onClick={tour.start} leftIcon={<Compass className="w-4 h-4" />} data-tour="tour-btn">
                             Тур
-                        </Button>
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            leftIcon={<Download className="w-4 h-4" />}
-                            data-tour="export"
-                            onClick={async () => {
-                                // Скачиваем .ics через blob — авторизация
-                                // подсасывается из apiClient (Bearer-токен).
-                                try {
-                                    const res = await apiClient.get('/calendar/ics', { responseType: 'blob' })
-                                    const url = URL.createObjectURL(res.data as Blob)
-                                    const a = document.createElement('a')
-                                    a.href = url
-                                    a.download = 'prepodavai.ics'
-                                    document.body.appendChild(a)
-                                    a.click()
-                                    a.remove()
-                                    URL.revokeObjectURL(url)
-                                    toast.success('Скачано — импортируйте в Google/Apple Calendar')
-                                } catch {
-                                    toast.error('Не удалось экспортировать')
-                                }
-                            }}
-                        >
-                            Экспорт .ics
                         </Button>
                         <Button
                             variant="primary"

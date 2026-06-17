@@ -266,66 +266,6 @@ export class CalendarService {
   }
 
   /**
-   * iCalendar (.ics) фид. Подписавшись через webcal://… или скачав файл
-   * один раз, учитель видит все события в Google Calendar / Apple
-   * Calendar / Outlook. Возвращаем сырой текст в формате RFC 5545.
-   */
-  async generateIcs(userId: string): Promise<string> {
-    // Окно: год назад + год вперёд. Для RRULE-событий генерируем мастер
-    // c полным RRULE-полем (внешние календари сами раскроют).
-    const from = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000);
-    const to = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
-
-    const masters = await this.prisma.calendarEvent.findMany({
-      where: {
-        userId,
-        OR: [
-          { startAt: { gte: from, lte: to } },
-          { recurrenceRuleId: { not: null } },
-        ],
-      },
-      include: {
-        student: { select: { name: true } },
-        recurrenceRule: { select: { rrule: true } },
-      },
-    });
-
-    const lines: string[] = [
-      'BEGIN:VCALENDAR',
-      'VERSION:2.0',
-      'PRODID:-//Prepodavai//Calendar//RU',
-      'CALSCALE:GREGORIAN',
-      'X-WR-CALNAME:Prepodavai — мой календарь',
-      'X-WR-TIMEZONE:UTC',
-    ];
-
-    for (const ev of masters) {
-      lines.push('BEGIN:VEVENT');
-      lines.push(`UID:${ev.id}@prepodavai.ru`);
-      lines.push(`DTSTAMP:${toIcsDate(ev.updatedAt)}`);
-      lines.push(`DTSTART:${toIcsDate(ev.startAt)}`);
-      lines.push(`DTEND:${toIcsDate(ev.endAt)}`);
-      const summary = ev.student?.name ? `${ev.title} (${ev.student.name})` : ev.title;
-      lines.push(`SUMMARY:${icsEscape(summary)}`);
-      if (ev.notes) lines.push(`DESCRIPTION:${icsEscape(ev.notes)}`);
-      if (ev.location) lines.push(`LOCATION:${icsEscape(ev.location)}`);
-      if (ev.meetingUrl) lines.push(`URL:${icsEscape(ev.meetingUrl)}`);
-      if (ev.recurrenceRule?.rrule) {
-        lines.push(`RRULE:${ev.recurrenceRule.rrule}`);
-        for (const exd of ev.recurrenceExdate || []) {
-          lines.push(`EXDATE:${toIcsDate(exd as any)}`);
-        }
-      }
-      if (ev.status === 'cancelled') lines.push('STATUS:CANCELLED');
-      else if (ev.status === 'completed') lines.push('STATUS:CONFIRMED');
-      lines.push('END:VEVENT');
-    }
-
-    lines.push('END:VCALENDAR');
-    return lines.join('\r\n');
-  }
-
-  /**
    * Список уроков-событий, закончившихся в последние 7 дней, у которых
    * ЕСТЬ привязанный ученик, но НЕТ TeacherDiaryEntry за тот день.
    * Используется фронтом для баннера «N уроков без записи в дневнике»
@@ -818,25 +758,3 @@ function escape(s: string): string {
     .replace(/'/g, '&#39;');
 }
 
-function toIcsDate(d: Date | string): string {
-  const date = d instanceof Date ? d : new Date(d);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return (
-    date.getUTCFullYear() +
-    pad(date.getUTCMonth() + 1) +
-    pad(date.getUTCDate()) +
-    'T' +
-    pad(date.getUTCHours()) +
-    pad(date.getUTCMinutes()) +
-    pad(date.getUTCSeconds()) +
-    'Z'
-  );
-}
-
-function icsEscape(text: string): string {
-  return String(text)
-    .replace(/\\/g, '\\\\')
-    .replace(/\n/g, '\\n')
-    .replace(/,/g, '\\,')
-    .replace(/;/g, '\;');
-}
