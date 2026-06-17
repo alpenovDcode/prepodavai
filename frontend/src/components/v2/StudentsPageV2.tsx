@@ -17,8 +17,8 @@ import {
     Search,
     List,
     LayoutGrid,
-    MessageCircle,
     FilePlus2,
+    FileText,
     MoreHorizontal,
     User,
     CalendarPlus,
@@ -268,6 +268,11 @@ export default function StudentsPageV2() {
         })
     }
 
+    // Состояние модалки «Выдать задание». Открывается из меню строки ученика,
+    // показывает список генераций (материалов) с поиском, по выбору создаёт
+    // Assignment с прямой привязкой к этому ученику.
+    const [assignFor, setAssignFor] = useState<{ id: string; name: string } | null>(null)
+
     const handleDeleteStudent = (id: string, name: string) => {
         setConfirmModal({
             msg: `Удалить ученика «${name}»? Это действие нельзя отменить.`,
@@ -399,13 +404,6 @@ export default function StudentsPageV2() {
                                 </div>
                                 <Button variant="secondary" size="sm" onClick={() => toast('Рекомендации скоро')}>
                                     Рекомендации
-                                </Button>
-                                <Button
-                                    variant="primary"
-                                    size="sm"
-                                    onClick={() => toast('Связь с родителями появится позже')}
-                                >
-                                    Связаться с родителями
                                 </Button>
                             </div>
                         )}
@@ -688,6 +686,9 @@ export default function StudentsPageV2() {
                                                                     router.push(`/dashboard/students/${s.id}`)
                                                                 }
                                                                 onDelete={() => handleDeleteStudent(s.id, s.name)}
+                                                                onAssign={() =>
+                                                                    setAssignFor({ id: s.id, name: s.name })
+                                                                }
                                                             />
                                                         )}
                                                     </td>
@@ -922,6 +923,14 @@ export default function StudentsPageV2() {
                     </div>
                 </div>
             )}
+
+            {assignFor && (
+                <AssignToStudentModal
+                    studentId={assignFor.id}
+                    studentName={assignFor.name}
+                    onClose={() => setAssignFor(null)}
+                />
+            )}
         </>
     )
 }
@@ -1036,16 +1045,15 @@ function RowActions({
     onToggle,
     onView,
     onDelete,
+    onAssign,
 }: {
     isOpen: boolean
     onToggle: () => void
     onView: () => void
     onDelete: () => void
+    onAssign: () => void
 }) {
-    const stub = (label: string) => () => {
-        toast(`${label} — появится позже`)
-        onToggle()
-    }
+    const router = useRouter()
     const btnRef = useRef<HTMLButtonElement>(null)
     // Меню рендерится через portal в document.body, чтобы не клипилось
     // overflow-hidden родительской `Card`/таблицы. Позиция вычисляется
@@ -1076,22 +1084,6 @@ function RowActions({
 
     return (
         <div className="flex gap-1 justify-end items-center" data-row-menu>
-            <button
-                type="button"
-                title="Сообщение"
-                onClick={stub('Сообщение ученику')}
-                className="w-8 h-8 rounded-sm flex items-center justify-center text-ink-500 hover:bg-ink-100 hover:text-ink-900 transition-colors"
-            >
-                <MessageCircle className="w-[15px] h-[15px]" />
-            </button>
-            <button
-                type="button"
-                title="Назначить материал"
-                onClick={stub('Назначить материал')}
-                className="w-8 h-8 rounded-sm flex items-center justify-center text-ink-500 hover:bg-ink-100 hover:text-ink-900 transition-colors"
-            >
-                <FilePlus2 className="w-[15px] h-[15px]" />
-            </button>
             <button
                 ref={btnRef}
                 type="button"
@@ -1124,17 +1116,17 @@ function RowActions({
                     <MenuItem
                         icon={<CalendarPlus className="w-3.5 h-3.5" />}
                         label="Запланировать урок"
-                        onClick={stub('Планировщик уроков')}
+                        onClick={() => { router.push('/dashboard/calendar'); onToggle() }}
+                    />
+                    <MenuItem
+                        icon={<FilePlus2 className="w-3.5 h-3.5" />}
+                        label="Выдать задание"
+                        onClick={() => { onAssign(); onToggle() }}
                     />
                     <MenuItem
                         icon={<BarChart3 className="w-3.5 h-3.5" />}
                         label="Статистика"
                         onClick={() => { onView(); onToggle() }}
-                    />
-                    <MenuItem
-                        icon={<MessageCircle className="w-3.5 h-3.5" />}
-                        label="Написать родителям"
-                        onClick={stub('Письмо родителям')}
                     />
                     <div className="h-px bg-ink-100 my-1 mx-0.5" />
                     <MenuItem
@@ -1295,4 +1287,187 @@ function pluralizeRu(n: number, one: string, few: string, many: string) {
     if (mod10 === 1 && mod100 !== 11) return one
     if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return few
     return many
+}
+
+// ─── AssignToStudentModal ───────────────────────────────────────────────
+//
+// Модалка «Выдать задание»: пикер из истории генераций (раздел «Материалы»).
+// Фильтр по типу + поиск + дата дедлайна. POST /assignments с lessonId
+// материала и студентом — за один клик.
+interface GenerationItem {
+    id: string
+    type: string
+    title?: string | null
+    inputParams?: any
+    lessonId?: string | null
+    createdAt: string
+}
+
+function AssignToStudentModal({
+    studentId, studentName, onClose,
+}: { studentId: string; studentName: string; onClose: () => void }) {
+    const [items, setItems] = useState<GenerationItem[]>([])
+    const [loading, setLoading] = useState(true)
+    const [query, setQuery] = useState('')
+    const [pickedId, setPickedId] = useState<string | null>(null)
+    const [dueDate, setDueDate] = useState<string>('')   // "yyyy-MM-ddTHH:mm" локальное
+    const [submitting, setSubmitting] = useState(false)
+
+    useEffect(() => {
+        let cancelled = false
+        ;(async () => {
+            try {
+                const res = await apiClient.get('/generate/history?limit=50&slim=1')
+                if (cancelled) return
+                const list = (res.data?.generations || []) as GenerationItem[]
+                setItems(list.filter((g) => !!g.lessonId))
+            } catch {
+                toast.error('Не удалось загрузить материалы')
+            } finally {
+                if (!cancelled) setLoading(false)
+            }
+        })()
+        return () => { cancelled = true }
+    }, [])
+
+    const filtered = items.filter((g) => {
+        if (!query.trim()) return true
+        const q = query.toLowerCase()
+        return (g.title || '').toLowerCase().includes(q)
+            || (g.type || '').toLowerCase().includes(q)
+            || (g.inputParams?.topic || '').toLowerCase().includes(q)
+    })
+
+    const picked = items.find((g) => g.id === pickedId) || null
+
+    const submit = async () => {
+        if (!picked) { toast.error('Выберите материал'); return }
+        if (!picked.lessonId) { toast.error('У этого материала нет урока'); return }
+        setSubmitting(true)
+        try {
+            const payload: Record<string, any> = {
+                lessonId: picked.lessonId,
+                generationId: picked.id,
+                studentId,
+            }
+            if (dueDate) payload.dueDate = new Date(dueDate).toISOString()
+            await apiClient.post('/assignments', payload)
+            toast.success(`Задание выдано ученику «${studentName}»`)
+            onClose()
+        } catch (e: any) {
+            toast.error(e?.response?.data?.message || 'Не удалось выдать')
+        } finally {
+            setSubmitting(false)
+        }
+    }
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={onClose}>
+            <div
+                className="bg-surface rounded-xl shadow-2xl w-full max-w-[640px] max-h-[90vh] flex flex-col"
+                onClick={(e) => e.stopPropagation()}
+            >
+                <div className="px-5 py-4 border-b border-ink-100 flex items-start justify-between gap-3">
+                    <div>
+                        <h2 className="font-display font-bold text-[18px] text-ink-900">Выдать задание</h2>
+                        <div className="text-[12px] text-ink-500 mt-0.5">Ученик: <strong className="text-ink-900">{studentName}</strong></div>
+                    </div>
+                    <button type="button" onClick={onClose} className="text-ink-500 hover:text-ink-900 text-2xl leading-none">×</button>
+                </div>
+
+                <div className="p-4 border-b border-ink-100">
+                    <input
+                        value={query}
+                        onChange={(e) => setQuery(e.target.value)}
+                        placeholder="Поиск по названию или теме…"
+                        className="w-full h-10 px-3 rounded-md border border-ink-200 bg-surface text-[14px] focus:outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-400/15"
+                        autoFocus
+                    />
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-3 min-h-[200px] max-h-[420px]">
+                    {loading ? (
+                        <div className="text-center py-12 text-ink-500 text-[13px]">Загружаем материалы…</div>
+                    ) : filtered.length === 0 ? (
+                        <div className="text-center py-12">
+                            <FileText className="w-8 h-8 mx-auto text-ink-300 mb-2" />
+                            <div className="text-[13px] text-ink-700 font-semibold">
+                                {items.length === 0 ? 'Сначала создайте материал' : 'Ничего не найдено'}
+                            </div>
+                            <div className="text-[11px] text-ink-500 mt-1">
+                                {items.length === 0 ? 'Перейдите в «ИИ Генератор», сгенерируйте материал — он появится здесь.' : 'Попробуйте другой запрос.'}
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="space-y-1.5">
+                            {filtered.map((g) => {
+                                const active = g.id === pickedId
+                                const label = g.title || g.inputParams?.topic || prettyType(g.type) || 'Материал'
+                                const meta = [prettyType(g.type), g.inputParams?.grade, g.inputParams?.subject].filter(Boolean).join(' · ')
+                                return (
+                                    <button
+                                        key={g.id}
+                                        type="button"
+                                        onClick={() => setPickedId(g.id)}
+                                        className={`w-full text-left flex items-start gap-3 p-3 rounded-md border transition-colors ${
+                                            active
+                                                ? 'border-brand-300 bg-brand-50'
+                                                : 'border-ink-100 hover:border-ink-200 hover:bg-ink-50'
+                                        }`}
+                                    >
+                                        <div className={`w-8 h-8 rounded-md flex items-center justify-center flex-shrink-0 ${active ? 'bg-brand-500 text-white' : 'bg-ink-100 text-ink-600'}`}>
+                                            <FileText className="w-4 h-4" />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="font-semibold text-[13px] text-ink-900 truncate">{label}</div>
+                                            <div className="text-[11px] text-ink-500 truncate">{meta || 'без метаданных'}</div>
+                                        </div>
+                                        {active && <div className="text-brand-700 text-[18px] leading-none">✓</div>}
+                                    </button>
+                                )
+                            })}
+                        </div>
+                    )}
+                </div>
+
+                <div className="px-5 py-4 border-t border-ink-100 flex items-center gap-3 flex-wrap">
+                    <div className="flex flex-col flex-1 min-w-[200px]">
+                        <label className="text-[11px] font-semibold text-ink-600 uppercase tracking-wide mb-1">Дедлайн (необязательно)</label>
+                        <input
+                            type="datetime-local"
+                            value={dueDate}
+                            onChange={(e) => setDueDate(e.target.value)}
+                            className="h-10 px-3 rounded-md border border-ink-200 bg-surface text-[14px] focus:outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-400/15"
+                        />
+                    </div>
+                    <div className="flex gap-2 ml-auto">
+                        <Button variant="ghost" size="sm" onClick={onClose} disabled={submitting}>Отмена</Button>
+                        <Button variant="primary" size="sm" onClick={submit} loading={submitting} disabled={!picked}>
+                            Выдать
+                        </Button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    )
+}
+
+function prettyType(t: string): string {
+    const map: Record<string, string> = {
+        worksheet: 'Рабочий лист',
+        quiz: 'Тест',
+        test: 'Тест',
+        presentation: 'Презентация',
+        vocabulary: 'Словарь',
+        lesson_plan: 'План урока',
+        'lesson-plan': 'План урока',
+        lesson_preparation: 'Вау-урок',
+        content_adaptation: 'Учебный материал',
+        'content-adaptation': 'Учебный материал',
+        image: 'Изображение',
+        image_generation: 'Изображение',
+        game: 'Игра',
+        game_generation: 'Игра',
+    }
+    return map[t] || t
 }
