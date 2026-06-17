@@ -1298,7 +1298,7 @@ interface GenerationItem {
     id: string
     type: string
     title?: string | null
-    inputParams?: any
+    params?: any            // slim-mode из бэка
     lessonId?: string | null
     createdAt: string
 }
@@ -1320,7 +1320,12 @@ function AssignToStudentModal({
                 const res = await apiClient.get('/generate/history?limit=50&slim=1')
                 if (cancelled) return
                 const list = (res.data?.generations || []) as GenerationItem[]
-                setItems(list.filter((g) => !!g.lessonId))
+                // Скрываем только незавершённые/упавшие генерации — у них нет
+                // нормального outputData. lessonId фильтровать НЕ надо: бэк
+                // сам создаёт default lesson при генерации, но для старых
+                // записей оно могло не выставиться — на этапе assign
+                // подскажем учителю.
+                setItems(list.filter((g) => !!g.title || !!g.params?.topic))
             } catch {
                 toast.error('Не удалось загрузить материалы')
             } finally {
@@ -1335,18 +1340,31 @@ function AssignToStudentModal({
         const q = query.toLowerCase()
         return (g.title || '').toLowerCase().includes(q)
             || (g.type || '').toLowerCase().includes(q)
-            || (g.inputParams?.topic || '').toLowerCase().includes(q)
+            || (g.params?.topic || '').toLowerCase().includes(q)
+            || (g.params?.subject || '').toLowerCase().includes(q)
     })
 
     const picked = items.find((g) => g.id === pickedId) || null
 
     const submit = async () => {
         if (!picked) { toast.error('Выберите материал'); return }
-        if (!picked.lessonId) { toast.error('У этого материала нет урока'); return }
         setSubmitting(true)
         try {
+            let lessonId = picked.lessonId
+            // У старых генераций lessonId мог не сохраниться — линкуем
+            // на лету, бэк сам создаст/привяжет default lesson.
+            if (!lessonId) {
+                try {
+                    const linkRes = await apiClient.post(`/generate/${picked.id}/link-lesson`, {})
+                    lessonId = linkRes.data?.lessonId || linkRes.data?.id
+                } catch {}
+            }
+            if (!lessonId) {
+                toast.error('Не удалось определить урок для этого материала')
+                return
+            }
             const payload: Record<string, any> = {
-                lessonId: picked.lessonId,
+                lessonId,
                 generationId: picked.id,
                 studentId,
             }
@@ -1402,8 +1420,8 @@ function AssignToStudentModal({
                         <div className="space-y-1.5">
                             {filtered.map((g) => {
                                 const active = g.id === pickedId
-                                const label = g.title || g.inputParams?.topic || prettyType(g.type) || 'Материал'
-                                const meta = [prettyType(g.type), g.inputParams?.grade, g.inputParams?.subject].filter(Boolean).join(' · ')
+                                const label = g.title || g.params?.topic || prettyType(g.type) || 'Материал'
+                                const meta = [prettyType(g.type), g.params?.grade, g.params?.subject].filter(Boolean).join(' · ')
                                 return (
                                     <button
                                         key={g.id}
