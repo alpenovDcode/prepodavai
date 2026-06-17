@@ -35,7 +35,9 @@ const localizer = dateFnsLocalizer({
 const DnDCalendar: any = withDragAndDrop(BigCalendar as any)
 
 interface BackendEvent {
-    id: string
+    id: string                  // master id ИЛИ "master__<isoOccurrence>" для одной копии серии
+    masterId?: string           // для повтор-копий — id мастера
+    isRecurringInstance?: boolean
     legacy?: boolean
     title: string
     startAt: string
@@ -55,6 +57,8 @@ interface BackendEvent {
     format?: string
     status?: string
     color?: string | null
+    recurrenceRule?: { id: string; rrule: string } | null
+    recurrenceRuleId?: string | null
 }
 
 interface UIEvent {
@@ -150,12 +154,15 @@ export default function CalendarPageV2() {
     }, [])
 
     // Drag-and-drop: меняем startAt/endAt оптимистично, откатываемся при ошибке.
+    // Для повтор-копий по умолчанию scope=single (двигаем только ОДНУ дату).
+    // Для одиночных — scope=all (фактически просто PATCH мастера).
     const onEventDrop = useCallback(async (args: any) => {
         const { event, start, end } = args as { event: UIEvent; start: Date; end: Date }
         if (event.resource.legacy) {
             toast.error('Legacy-урок нельзя двигать здесь — открой материал.')
             return
         }
+        const scope = event.resource.isRecurringInstance ? 'single' : 'all'
         try {
             mutate(
                 (prev) => (prev || []).map((e) =>
@@ -163,7 +170,7 @@ export default function CalendarPageV2() {
                 ),
                 false,
             )
-            await apiClient.patch(`/calendar/events/${event.id}/move`, {
+            await apiClient.patch(`/calendar/events/${event.id}/move?scope=${scope}`, {
                 startAt: start.toISOString(),
                 endAt: end.toISOString(),
             })
@@ -297,6 +304,7 @@ function EventModal({
     onSaved: () => void
 }) {
     const editing = !!initialEvent
+    const isRecurring = !!initialEvent?.recurrenceRuleId || !!initialEvent?.isRecurringInstance
     const [title, setTitle] = useState(initialEvent?.title || '')
     const [start, setStart] = useState(toLocalInput(initialEvent ? new Date(initialEvent.startAt) : initialStart || new Date()))
     const [end, setEnd] = useState(toLocalInput(initialEvent ? new Date(initialEvent.endAt) : initialEnd || new Date(Date.now() + 60 * 60 * 1000)))
@@ -309,7 +317,16 @@ function EventModal({
     const [location, setLocation] = useState(initialEvent?.location || '')
     const [meetingUrl, setMeetingUrl] = useState(initialEvent?.meetingUrl || '')
     const [notes, setNotes] = useState(initialEvent?.notes || '')
+    const [recurrence, setRecurrence] = useState<string>(
+        initialEvent?.recurrenceRule?.rrule || '',  // пресет или сырая RRULE
+    )
     const [saving, setSaving] = useState(false)
+    // Scope для редактирования повторов: 'single' = только эта копия,
+    // 'all' = вся серия. Появляется как радио только если редактируем
+    // повтор-копию. Для новых событий — нет.
+    const [scope, setScope] = useState<'single' | 'all'>(
+        initialEvent?.isRecurringInstance ? 'single' : 'all',
+    )
 
     const { data: studentsData } = useSWR<{ items?: Student[] } | Student[]>('/students', fetcher)
     const { data: classesData } = useSWR<{ items?: Klass[] } | Klass[]>('/classes', fetcher)
@@ -323,7 +340,7 @@ function EventModal({
         if (endD <= startD) { toast.error('Окончание должно быть позже начала'); return }
         setSaving(true)
         try {
-            const payload = {
+            const payload: Record<string, any> = {
                 title: title.trim(),
                 startAt: startD.toISOString(),
                 endAt: endD.toISOString(),
@@ -335,8 +352,18 @@ function EventModal({
                 meetingUrl: meetingUrl || null,
                 notes: notes || null,
             }
+            // Правило повторений отправляем только при создании или при
+            // scope='all' (изменение мастера). Для scope='single' (отрыв
+            // одной копии) правило не меняется — бэк скопирует мастер.
+            if (!editing || scope === 'all') {
+                payload.rrule = recurrence.trim() || ''
+            }
+
             if (editing) {
-                await apiClient.patch(`/calendar/events/${initialEvent!.id}`, payload)
+                await apiClient.patch(
+                    `/calendar/events/${initialEvent!.id}?scope=${scope}`,
+                    payload,
+                )
             } else {
                 await apiClient.post('/calendar/events', payload)
             }
@@ -351,10 +378,17 @@ function EventModal({
 
     const remove = async () => {
         if (!editing) return
-        if (!confirm('Удалить событие?')) return
+        const confirmMsg = isRecurring
+            ? scope === 'single'
+                ? 'Удалить ТОЛЬКО эту копию из серии?'
+                : 'Удалить ВСЮ серию событий?'
+            : 'Удалить событие?'
+        if (!confirm(confirmMsg)) return
         setSaving(true)
         try {
-            await apiClient.delete(`/calendar/events/${initialEvent!.id}`)
+            await apiClient.delete(
+                `/calendar/events/${initialEvent!.id}?scope=${scope}`,
+            )
             toast.success('Удалено')
             onSaved()
         } catch (e: any) {
@@ -462,6 +496,39 @@ function EventModal({
                         </Field>
                     )}
 
+                    {/* Повторение: пресеты + кастомное правило. Для отрыва
+                        одной копии (scope='single') правило не редактируется. */}
+                    {(scope === 'all' || !isRecurring) && (
+                        <Field label="Повторение">
+                            <RecurrencePicker
+                                value={recurrence}
+                                onChange={setRecurrence}
+                                referenceDate={new Date(start)}
+                            />
+                        </Field>
+                    )}
+
+                    {/* Scope picker — появляется только при редактировании
+                        копии серии. Решает: «изменить только эту» или «всю». */}
+                    {editing && isRecurring && (
+                        <Field label="Изменения применить к">
+                            <div className="flex gap-2 flex-wrap">
+                                <ScopeChip
+                                    active={scope === 'single'}
+                                    onClick={() => setScope('single')}
+                                >
+                                    Только эта копия
+                                </ScopeChip>
+                                <ScopeChip
+                                    active={scope === 'all'}
+                                    onClick={() => setScope('all')}
+                                >
+                                    Вся серия
+                                </ScopeChip>
+                            </div>
+                        </Field>
+                    )}
+
                     <Field label="Заметки">
                         <textarea
                             value={notes}
@@ -504,4 +571,107 @@ const inputCls = 'h-10 px-3 rounded-md border border-ink-200 text-[14px] text-in
 function toLocalInput(d: Date): string {
     const pad = (n: number) => String(n).padStart(2, '0')
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+// ─── RecurrencePicker ───────────────────────────────────────────────────
+//
+// Подбирает RRULE-строку (без DTSTART — её бэк подставит из startAt)
+// по пресетам: «не повторять», «каждый день», «каждый <Вт>», «через раз
+// от <Вт>», «каждый 2-й и 4-й <Чт>», «ежемесячно по числу N», «свой».
+// referenceDate нужен для определения дня недели/числа месяца.
+
+const DAY_RFC = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'] as const
+const DAY_RU = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'] as const
+
+function RecurrencePicker({
+    value, onChange, referenceDate,
+}: {
+    value: string
+    onChange: (next: string) => void
+    referenceDate: Date
+}) {
+    const dow = referenceDate.getDay() // 0=Sunday … 6=Saturday
+    const dowCode = DAY_RFC[dow]
+    const dowLabel = DAY_RU[dow]
+    const dom = referenceDate.getDate()
+
+    // Какой Nth-of-month этот день? (1-й, 2-й… вторник месяца)
+    const ordinalInMonth = Math.ceil(dom / 7)
+
+    const presets: { id: string; label: string; rrule: string }[] = useMemo(() => ([
+        { id: 'none', label: 'Не повторять', rrule: '' },
+        { id: 'daily', label: 'Ежедневно', rrule: 'FREQ=DAILY' },
+        { id: 'weekly', label: `Каждый ${dowLabel.toLowerCase()}`, rrule: `FREQ=WEEKLY;BYDAY=${dowCode}` },
+        { id: 'biweekly', label: `Через неделю по ${dowLabel.toLowerCase()}`, rrule: `FREQ=WEEKLY;INTERVAL=2;BYDAY=${dowCode}` },
+        { id: 'weekdays', label: 'По будням (Пн–Пт)', rrule: 'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR' },
+        { id: 'tue_thu', label: 'Вт + Чт каждую неделю', rrule: 'FREQ=WEEKLY;BYDAY=TU,TH' },
+        { id: 'second_fourth', label: `2-й и 4-й ${dowLabel.toLowerCase()} месяца`, rrule: `FREQ=MONTHLY;BYDAY=2${dowCode},4${dowCode}` },
+        { id: 'monthly_dom', label: `Ежемесячно ${dom}-го числа`, rrule: `FREQ=MONTHLY;BYMONTHDAY=${dom}` },
+        { id: 'monthly_nth', label: `Каждый ${ordinalInMonth}-й ${dowLabel.toLowerCase()} месяца`, rrule: `FREQ=MONTHLY;BYDAY=${ordinalInMonth}${dowCode}` },
+        { id: 'custom', label: 'Свой (RRULE)', rrule: '__custom__' },
+    ]), [dowCode, dowLabel, dom, ordinalInMonth])
+
+    // Подбираем активный пресет по значению.
+    const activeId = (() => {
+        if (!value) return 'none'
+        const hit = presets.find((p) => p.rrule === value && p.id !== 'custom')
+        if (hit) return hit.id
+        return 'custom'
+    })()
+    const [custom, setCustom] = useState(activeId === 'custom' ? value : '')
+
+    const pick = (id: string) => {
+        const p = presets.find((x) => x.id === id)
+        if (!p) return
+        if (id === 'custom') {
+            onChange(custom || 'FREQ=WEEKLY')
+        } else {
+            onChange(p.rrule)
+        }
+    }
+
+    return (
+        <div className="flex flex-col gap-2">
+            <select
+                value={activeId}
+                onChange={(e) => pick(e.target.value)}
+                className={inputCls}
+            >
+                {presets.map((p) => (
+                    <option key={p.id} value={p.id}>{p.label}</option>
+                ))}
+            </select>
+            {activeId === 'custom' && (
+                <input
+                    value={custom}
+                    onChange={(e) => { setCustom(e.target.value); onChange(e.target.value) }}
+                    placeholder="FREQ=WEEKLY;BYDAY=TU,TH;UNTIL=20260901T000000Z"
+                    className={inputCls}
+                />
+            )}
+            {value && (
+                <div className="text-[11px] text-ink-500 leading-snug">
+                    Правило применяется к этому событию и автоматически создаёт копии.
+                    Перенос/удаление одной копии не двигает остальные.
+                </div>
+            )}
+        </div>
+    )
+}
+
+function ScopeChip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            className={cn(
+                'px-3 py-1.5 rounded-full text-[12px] font-semibold border transition-colors',
+                active
+                    ? 'bg-brand-500 text-white border-brand-500'
+                    : 'bg-surface text-ink-700 border-ink-200 hover:border-brand-300',
+            )}
+        >
+            {children}
+        </button>
+    )
 }

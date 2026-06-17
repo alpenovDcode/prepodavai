@@ -24,9 +24,8 @@ export class CalendarController {
   }
 
   /**
-   * Список событий за период. Возвращает CalendarEvent + legacy-уроки
-   * (Lesson.scheduledAt без CalendarEvent) для плавной миграции.
-   * Поля from/to — ISO-строки. Период максимум 366 дней.
+   * Список событий за период. CalendarEvent (с раскрытыми RRULE-повторениями)
+   * + legacy Lesson.scheduledAt без CalendarEvent для плавной миграции.
    */
   @Get('events')
   async listEvents(
@@ -43,33 +42,42 @@ export class CalendarController {
     return this.calendarService.createEvent(this.userId(req), body);
   }
 
+  /**
+   * `scope=single` — отделить ОДНУ копию повтора и редактировать только её.
+   * `scope=all` (дефолт) — менять мастер (двигает всю серию).
+   */
   @Patch('events/:id')
   async updateEvent(
     @Request() req: any,
     @Param('id') id: string,
+    @Query('scope') scope: 'single' | 'all' | undefined,
     @Body() body: UpdateEventDto,
   ) {
-    return this.calendarService.updateEvent(this.userId(req), id, body);
+    return this.calendarService.updateEvent(this.userId(req), id, body, scope || 'all');
   }
 
-  /**
-   * Drag-and-drop хелпер: меняет только startAt/endAt одним PATCH.
-   * Удобно для UI — не нужно тянуть весь объект.
-   */
+  /** Drag-and-drop хелпер: переносит startAt/endAt с учётом scope. */
   @Patch('events/:id/move')
   async moveEvent(
     @Request() req: any,
     @Param('id') id: string,
+    @Query('scope') scope: 'single' | 'all' | undefined,
     @Body() body: { startAt: string; endAt: string },
   ) {
-    return this.calendarService.updateEvent(this.userId(req), id, {
-      startAt: body.startAt,
-      endAt: body.endAt,
-    });
+    return this.calendarService.updateEvent(
+      this.userId(req),
+      id,
+      { startAt: body.startAt, endAt: body.endAt },
+      scope || 'single',
+    );
   }
 
   @Delete('events/:id')
-  async deleteEvent(@Request() req: any, @Param('id') id: string) {
-    return this.calendarService.deleteEvent(this.userId(req), id);
+  async deleteEvent(
+    @Request() req: any,
+    @Param('id') id: string,
+    @Query('scope') scope: 'single' | 'all' | undefined,
+  ) {
+    return this.calendarService.deleteEvent(this.userId(req), id, scope || 'all');
   }
 }

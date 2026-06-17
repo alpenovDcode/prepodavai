@@ -59,6 +59,7 @@
     "pptxgenjs": "^4.0.1",
     "puppeteer": "^23.11.1",
     "reflect-metadata": "^0.1.13",
+    "rrule": "^2.8.1",
     "rxjs": "^7.8.1",
     "sanitize-html": "^2.17.1",
     "uuid": "^10.0.0",
