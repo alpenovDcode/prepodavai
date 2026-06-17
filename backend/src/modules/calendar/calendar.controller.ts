@@ -62,6 +62,15 @@ export class CalendarController {
   }
 
   /**
+   * Прошедшие уроки за неделю без записи в дневнике. Дашборд показывает
+   * баннер «N уроков без записи», модалка события — CTA.
+   */
+  @Get('diary-pending')
+  async diaryPending(@Request() req: any) {
+    return this.calendarService.listPendingDiary(this.userId(req));
+  }
+
+  /**
    * `scope=single` — отделить ОДНУ копию повтора и редактировать только её.
    * `scope=all` (дефолт) — менять мастер (двигает всю серию).
    */

@@ -223,6 +223,60 @@ export class CalendarService {
     return expanded;
   }
 
+  /**
+   * Список уроков-событий, закончившихся в последние 7 дней, у которых
+   * ЕСТЬ привязанный ученик, но НЕТ TeacherDiaryEntry за тот день.
+   * Используется фронтом для баннера «N уроков без записи в дневнике»
+   * на дашборде и для CTA в модалке события.
+   */
+  async listPendingDiary(userId: string) {
+    const now = new Date();
+    const from = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+    // Берём прошедшие уроки с учеником. Без RRULE-раскрытия — слишком
+    // дорого для дашборда; повторы покажутся когда мастер тоже прошёл.
+    const events = await this.prisma.calendarEvent.findMany({
+      where: {
+        userId,
+        eventType: 'lesson',
+        status: { not: 'cancelled' },
+        studentId: { not: null },
+        endAt: { gte: from, lte: now },
+      },
+      include: {
+        student: { select: { id: true, name: true } },
+      },
+      orderBy: { startAt: 'desc' },
+      take: 20,
+    });
+
+    // Параллельная проверка: есть ли DiaryEntry за тот день?
+    const result: any[] = [];
+    for (const ev of events) {
+      const dayStart = new Date(ev.startAt); dayStart.setHours(0, 0, 0, 0);
+      const dayEnd = new Date(ev.startAt); dayEnd.setHours(23, 59, 59, 999);
+      const entry = await this.prisma.teacherDiaryEntry.findFirst({
+        where: {
+          teacherId: userId,
+          studentId: ev.studentId!,
+          date: { gte: dayStart, lte: dayEnd },
+        },
+        select: { id: true },
+      });
+      if (!entry) {
+        result.push({
+          id: ev.id,
+          title: ev.title,
+          startAt: ev.startAt,
+          endAt: ev.endAt,
+          student: ev.student,
+          subject: ev.subject,
+        });
+      }
+    }
+    return result;
+  }
+
   async createEvent(userId: string, body: CreateEventDto) {
     const start = new Date(body.startAt);
     const end = new Date(body.endAt);

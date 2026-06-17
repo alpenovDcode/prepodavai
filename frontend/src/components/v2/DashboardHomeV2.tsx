@@ -7,6 +7,7 @@ import toast from 'react-hot-toast'
 import {
     ClipboardList, Clock, AlertTriangle, CalendarX, FileText, HelpCircle,
     Presentation, ArrowRight, ChevronRight, ImageIcon, Play, MessageCircle, Compass,
+    BookOpenCheck,
 } from 'lucide-react'
 import { apiClient } from '@/lib/api/client'
 import { useUser } from '@/lib/hooks/useUser'
@@ -145,6 +146,9 @@ export default function DashboardHomeV2() {
             />
 
             <div className="max-w-[1240px] w-full mx-auto p-8 max-md:p-4">
+                {/* Баннер «уроки без записи в дневнике» */}
+                <DiaryPendingBanner />
+
                 {/* Bento — что важно сегодня */}
                 <Section
                     tourId="today"
@@ -626,4 +630,62 @@ function initialsFrom(name: string): string {
     const parts = name.trim().split(/\s+/)
     if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase()
     return name.slice(0, 2).toUpperCase()
+}
+
+// ─── Баннер «уроки без записи в дневнике» ───────────────────────────────
+// Тянет /calendar/diary-pending, показывает компактный баннер с числом
+// и кнопкой «Заполнить». Прячется когда всё заполнено (==0).
+interface DiaryPendingItem {
+    id: string
+    title: string
+    startAt: string
+    student?: { id: string; name: string } | null
+    subject?: string | null
+}
+
+function DiaryPendingBanner() {
+    const router = useRouter()
+    const { data } = useSWR<DiaryPendingItem[]>('/calendar/diary-pending', fetcher, {
+        refreshInterval: 5 * 60_000,
+    })
+    if (!data || data.length === 0) return null
+
+    const top = data.slice(0, 3)
+    const more = data.length - top.length
+
+    return (
+        <div
+            className="mb-5 p-4 rounded-xl border flex items-start gap-3 flex-wrap"
+            style={{
+                background: 'linear-gradient(135deg, #FFF7ED, #FFFBEB)',
+                borderColor: '#FCD34D',
+            }}
+        >
+            <div className="w-10 h-10 rounded-lg bg-warning-500/15 flex items-center justify-center flex-shrink-0">
+                <BookOpenCheck className="w-5 h-5 text-warning-700" />
+            </div>
+            <div className="flex-1 min-w-0">
+                <div className="font-bold text-[14px] text-ink-900">
+                    {data.length} {pluralizeRu(data.length, 'урок', 'урока', 'уроков')} без записи в дневнике
+                </div>
+                <div className="text-[12.5px] text-ink-700 mt-0.5 truncate">
+                    {top.map((e, i) => (
+                        <span key={e.id}>
+                            {i > 0 && ' · '}
+                            <span className="font-semibold">{e.student?.name || '—'}</span>
+                            {e.subject ? `, ${e.subject}` : ''}
+                        </span>
+                    ))}
+                    {more > 0 && <span className="text-ink-500"> · и ещё {more}</span>}
+                </div>
+            </div>
+            <Button
+                variant="primary"
+                size="sm"
+                onClick={() => router.push('/dashboard/diary')}
+            >
+                Заполнить
+            </Button>
+        </div>
+    )
 }

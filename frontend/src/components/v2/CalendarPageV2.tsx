@@ -8,7 +8,7 @@ import withDragAndDrop from 'react-big-calendar/lib/addons/dragAndDrop'
 import { format, parse, startOfWeek, getDay } from 'date-fns'
 import { ru } from 'date-fns/locale/ru'
 import toast from 'react-hot-toast'
-import { Plus, X, Save, Trash2, Video, MapPin, Calendar as CalendarIcon, Compass } from 'lucide-react'
+import { Plus, X, Save, Trash2, Video, MapPin, Calendar as CalendarIcon, Compass, BookOpenCheck } from 'lucide-react'
 
 import { apiClient } from '@/lib/api/client'
 import { Topbar } from '@/components/layout/v2/Topbar'
@@ -648,6 +648,26 @@ function EventModal({
                         />
                     </Field>
                 </div>
+
+                {/* CTA «заполнить дневник»: показываем для уроков, которые
+                    уже прошли (endAt < now) и привязаны к ученику. Клик
+                    переводит на /dashboard/diary с подсказкой через query. */}
+                {editing && initialEvent && initialEvent.studentId &&
+                 initialEvent.eventType === 'lesson' &&
+                 new Date(initialEvent.endAt) < new Date() && (
+                    <div className="mx-5 mb-3 p-3 rounded-lg border border-warning-200 bg-warning-50 flex items-center gap-3">
+                        <BookOpenCheck className="w-5 h-5 text-warning-700 flex-shrink-0" />
+                        <div className="flex-1 text-[13px] text-ink-900">
+                            Урок прошёл — заполните дневник, чтобы зафиксировать тему и ДЗ.
+                        </div>
+                        <a
+                            href={`/dashboard/diary?student=${initialEvent.studentId}&date=${encodeURIComponent(new Date(initialEvent.startAt).toISOString())}`}
+                            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-warning-500 text-white text-[12px] font-semibold hover:bg-warning-700 transition-colors whitespace-nowrap"
+                        >
+                            Заполнить
+                        </a>
+                    </div>
+                )}
 
                 <div className="px-5 py-4 border-t border-ink-100 flex items-center gap-2">
                     {editing && (
