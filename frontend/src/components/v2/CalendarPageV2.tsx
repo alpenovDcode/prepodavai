@@ -8,7 +8,7 @@ import withDragAndDrop from 'react-big-calendar/lib/addons/dragAndDrop'
 import { format, parse, startOfWeek, getDay } from 'date-fns'
 import { ru } from 'date-fns/locale/ru'
 import toast from 'react-hot-toast'
-import { Plus, X, Save, Trash2, Video, MapPin, Link2 } from 'lucide-react'
+import { Plus, X, Save, Trash2, Video, MapPin, Calendar as CalendarIcon, Compass } from 'lucide-react'
 
 import { apiClient } from '@/lib/api/client'
 import { Topbar } from '@/components/layout/v2/Topbar'
@@ -16,6 +16,7 @@ import { useMobileMenu } from '@/components/layout/v2/DashboardLayoutV2'
 import { Card } from '@/components/ui/v2/Card'
 import { Button } from '@/components/ui/v2/Button'
 import { cn } from '@/lib/utils/cn'
+import { useTour } from '@/lib/tour/useTour'
 
 import 'react-big-calendar/lib/css/react-big-calendar.css'
 import 'react-big-calendar/lib/addons/dragAndDrop/styles.css'
@@ -90,6 +91,7 @@ const MESSAGES = {
 
 export default function CalendarPageV2() {
     const menu = useMobileMenu()
+    const tour = useTour()
     const [view, setView] = useState<View>('week')
     const [date, setDate] = useState<Date>(new Date())
     const [modal, setModal] = useState<{ event?: BackendEvent; start?: Date; end?: Date } | null>(null)
@@ -183,33 +185,95 @@ export default function CalendarPageV2() {
 
     const onEventResize = onEventDrop
 
+    // Подсчёт событий на сегодня — отображаем в hero-блоке.
+    const todayEventsCount = useMemo(() => {
+        const t0 = new Date(); t0.setHours(0, 0, 0, 0)
+        const t1 = new Date(); t1.setHours(23, 59, 59, 999)
+        return (data || []).filter((e) => {
+            const s = new Date(e.startAt)
+            return s >= t0 && s <= t1
+        }).length
+    }, [data])
+
     return (
         <>
             <Topbar
                 title="Календарь"
                 onMobileMenuToggle={menu.toggle}
                 hideSearch
-                actions={
-                    <Button
-                        variant="primary"
-                        size="sm"
-                        leftIcon={<Plus className="w-4 h-4" />}
-                        onClick={() => {
-                            const start = new Date()
-                            start.setMinutes(0, 0, 0)
-                            const end = new Date(start)
-                            end.setHours(end.getHours() + 1)
-                            setModal({ start, end })
-                        }}
-                    >
-                        Новое событие
-                    </Button>
-                }
+                actions={(
+                    <div className="flex items-center gap-2">
+                        <Button variant="ghost" size="sm" onClick={tour.start} leftIcon={<Compass className="w-4 h-4" />} data-tour="tour-btn">
+                            Тур
+                        </Button>
+                        <Button
+                            variant="primary"
+                            size="sm"
+                            leftIcon={<Plus className="w-4 h-4" />}
+                            data-tour="new-event"
+                            onClick={() => {
+                                const start = new Date()
+                                start.setMinutes(0, 0, 0)
+                                const end = new Date(start)
+                                end.setHours(end.getHours() + 1)
+                                setModal({ start, end })
+                            }}
+                        >
+                            Новое событие
+                        </Button>
+                    </div>
+                )}
             />
 
+            {/* Стили для react-big-calendar под платформенный дизайн.
+                Перекрашиваем стандартные серые элементы в brand/ink палитру:
+                цветные кнопки тулбара, оранжевая линия now-indicator,
+                яркий highlight сегодняшнего дня, скруглённые события. */}
+            <CalendarThemeStyles />
+
             <div className="max-w-[1480px] w-full mx-auto p-6 max-md:p-3">
-                <Card padding="lg" className="overflow-hidden">
-                    <div style={{ height: 'calc(100vh - 200px)', minHeight: 600 }}>
+                {/* Hero-блок: цветная плашка с резюме дня */}
+                <div
+                    data-tour="hero"
+                    className="rounded-xl p-5 mb-4 flex flex-wrap items-center gap-4 max-md:p-4 max-md:gap-3"
+                    style={{
+                        background: 'linear-gradient(135deg, #FFF1EB 0%, #FFE4D6 60%, #FFD0B5 100%)',
+                        border: '1px solid #FED7AA',
+                    }}
+                >
+                    <div className="w-12 h-12 rounded-lg bg-white/70 flex items-center justify-center text-brand-700 flex-shrink-0">
+                        <CalendarIcon className="w-6 h-6" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                        <h1 className="font-display font-bold text-[20px] text-ink-900 leading-tight">
+                            {format(new Date(), 'EEEE, d MMMM', { locale: ru })}
+                        </h1>
+                        <p className="text-[13px] text-ink-700 mt-0.5">
+                            {todayEventsCount === 0
+                                ? 'Сегодня свободно — отличный момент договориться о новых занятиях.'
+                                : `${todayEventsCount} ${pluralize(todayEventsCount, 'событие', 'события', 'событий')} сегодня · перетягивайте мышкой для переноса.`}
+                        </p>
+                    </div>
+                    <div className="flex items-center gap-2 max-md:w-full">
+                        <Button
+                            variant="primary"
+                            size="sm"
+                            leftIcon={<Plus className="w-3.5 h-3.5" />}
+                            onClick={() => {
+                                const start = new Date()
+                                start.setMinutes(0, 0, 0)
+                                const end = new Date(start)
+                                end.setHours(end.getHours() + 1)
+                                setModal({ start, end })
+                            }}
+                        >
+                            Добавить событие
+                        </Button>
+                    </div>
+                </div>
+
+                <Card padding="lg" className="overflow-hidden" data-tour="grid">
+                    <div style={{ height: 'calc(100vh - 280px)', minHeight: 580 }}>
                         <DnDCalendar
                             localizer={localizer}
                             culture="ru"
@@ -673,5 +737,245 @@ function ScopeChip({ active, onClick, children }: { active: boolean; onClick: ()
         >
             {children}
         </button>
+    )
+}
+
+function pluralize(n: number, one: string, few: string, many: string): string {
+    const mod10 = n % 10
+    const mod100 = n % 100
+    if (mod10 === 1 && mod100 !== 11) return one
+    if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return few
+    return many
+}
+
+// ─── Стили под платформенный дизайн ─────────────────────────────────────
+//
+// react-big-calendar отдаёт суровый «офисный» вид с серыми бордерами и
+// чёрной кнопкой «Today». Перекрашиваем только нужные классы — палитра
+// var(--brand-*) и var(--ink-*) уже определена в globals.css.
+
+function CalendarThemeStyles() {
+    return (
+        <style jsx global>{`
+            .rbc-calendar {
+                font-family: 'Inter', system-ui, -apple-system, sans-serif;
+                color: var(--ink-900);
+            }
+            /* Тулбар: цветные кнопки в стиле платформы */
+            .rbc-toolbar {
+                margin-bottom: 16px;
+                gap: 8px;
+                flex-wrap: wrap;
+            }
+            .rbc-toolbar .rbc-toolbar-label {
+                font-weight: 700;
+                font-size: 15px;
+                color: var(--ink-900);
+            }
+            .rbc-toolbar .rbc-btn-group > button {
+                padding: 6px 14px;
+                font-size: 13px;
+                font-weight: 600;
+                background: white;
+                color: var(--ink-700);
+                border: 1px solid var(--ink-200);
+                transition: all 0.15s;
+            }
+            .rbc-toolbar .rbc-btn-group > button:first-child {
+                border-top-left-radius: 8px;
+                border-bottom-left-radius: 8px;
+            }
+            .rbc-toolbar .rbc-btn-group > button:last-child {
+                border-top-right-radius: 8px;
+                border-bottom-right-radius: 8px;
+            }
+            .rbc-toolbar .rbc-btn-group > button:hover {
+                background: var(--ink-50);
+                color: var(--ink-900);
+                border-color: var(--ink-300);
+            }
+            .rbc-toolbar .rbc-btn-group > button.rbc-active,
+            .rbc-toolbar .rbc-btn-group > button.rbc-active:hover {
+                background: var(--brand-500);
+                color: white;
+                border-color: var(--brand-500);
+                box-shadow: 0 1px 2px rgba(255, 126, 88, 0.3);
+            }
+
+            /* Шапка с днями недели */
+            .rbc-time-header {
+                border-bottom: 1px solid var(--ink-200);
+            }
+            .rbc-time-header-cell .rbc-header {
+                padding: 10px 6px;
+                font-weight: 600;
+                font-size: 12px;
+                text-transform: uppercase;
+                letter-spacing: 0.04em;
+                color: var(--ink-500);
+                border-bottom: none;
+            }
+            .rbc-time-header-cell .rbc-header.rbc-today {
+                background: linear-gradient(180deg, var(--brand-50), transparent);
+                color: var(--brand-700);
+                font-weight: 700;
+            }
+            .rbc-month-view .rbc-header {
+                padding: 8px;
+                font-weight: 600;
+                font-size: 11px;
+                text-transform: uppercase;
+                letter-spacing: 0.04em;
+                color: var(--ink-500);
+                border-bottom: 1px solid var(--ink-200);
+            }
+            .rbc-month-view .rbc-header + .rbc-header,
+            .rbc-month-row + .rbc-month-row,
+            .rbc-day-bg + .rbc-day-bg,
+            .rbc-time-content > * + * > * {
+                border-color: var(--ink-100);
+            }
+
+            /* Сегодня — мягкий оранжевый фон */
+            .rbc-today {
+                background-color: rgba(255, 126, 88, 0.06) !important;
+            }
+            .rbc-day-slot.rbc-today,
+            .rbc-month-view .rbc-day-bg.rbc-today {
+                background-color: rgba(255, 126, 88, 0.07) !important;
+            }
+
+            /* Текущее время — brand-линия с точкой */
+            .rbc-current-time-indicator {
+                background: var(--brand-500);
+                height: 2px;
+                box-shadow: 0 0 0 2px rgba(255, 126, 88, 0.18);
+            }
+            .rbc-current-time-indicator::before {
+                content: '';
+                position: absolute;
+                left: -4px;
+                top: -4px;
+                width: 10px;
+                height: 10px;
+                background: var(--brand-500);
+                border-radius: 50%;
+                box-shadow: 0 0 0 3px rgba(255, 126, 88, 0.2);
+            }
+
+            /* События: скруглённые с лёгкой тенью */
+            .rbc-event,
+            .rbc-day-slot .rbc-background-event {
+                border-radius: 6px !important;
+                box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+                padding: 3px 7px !important;
+                transition: transform 0.1s, box-shadow 0.1s;
+            }
+            .rbc-event:hover {
+                transform: translateY(-1px);
+                box-shadow: 0 3px 8px rgba(15, 23, 42, 0.15);
+            }
+            .rbc-event.rbc-selected {
+                box-shadow: 0 0 0 2px var(--brand-500), 0 3px 8px rgba(15, 23, 42, 0.15);
+            }
+            .rbc-event-label {
+                font-size: 10px;
+                font-weight: 500;
+                opacity: 0.8;
+            }
+            .rbc-event-content {
+                font-weight: 700;
+                font-size: 12px;
+                line-height: 1.3;
+            }
+
+            /* Время-гаттер */
+            .rbc-time-gutter,
+            .rbc-time-gutter .rbc-timeslot-group {
+                font-size: 11px;
+                color: var(--ink-500);
+                font-weight: 500;
+            }
+            .rbc-time-gutter .rbc-time-slot {
+                border-top: none;
+            }
+            .rbc-timeslot-group {
+                border-color: var(--ink-100);
+            }
+
+            /* Slots в day-view (фон сетки) */
+            .rbc-time-content {
+                border-top: 1px solid var(--ink-200);
+            }
+            .rbc-time-content > .rbc-time-gutter {
+                background: var(--ink-50);
+            }
+            .rbc-day-slot .rbc-time-slot {
+                border-top-color: var(--ink-100);
+            }
+
+            /* Месячное представление: ячейки */
+            .rbc-month-view {
+                border: 1px solid var(--ink-200);
+                border-radius: 8px;
+                overflow: hidden;
+            }
+            .rbc-month-view .rbc-date-cell {
+                padding: 6px 8px;
+                font-size: 12px;
+                color: var(--ink-700);
+                font-weight: 600;
+            }
+            .rbc-month-view .rbc-date-cell.rbc-now {
+                color: var(--brand-700);
+            }
+            .rbc-month-view .rbc-date-cell.rbc-off-range {
+                color: var(--ink-300);
+                font-weight: 400;
+            }
+            .rbc-show-more {
+                color: var(--brand-700);
+                font-weight: 600;
+                font-size: 11px;
+            }
+
+            /* Agenda */
+            .rbc-agenda-view table.rbc-agenda-table {
+                border: 1px solid var(--ink-200);
+                border-radius: 8px;
+                overflow: hidden;
+            }
+            .rbc-agenda-view table.rbc-agenda-table thead > tr > th {
+                background: var(--ink-50);
+                color: var(--ink-700);
+                font-size: 11px;
+                text-transform: uppercase;
+                letter-spacing: 0.04em;
+                padding: 8px 12px;
+                border-color: var(--ink-200);
+            }
+            .rbc-agenda-view table.rbc-agenda-table tbody > tr > td {
+                padding: 10px 12px;
+                font-size: 13px;
+                border-color: var(--ink-100);
+            }
+
+            /* Выделение области (drag-select свободного слота) */
+            .rbc-slot-selection {
+                background: rgba(255, 126, 88, 0.18);
+                color: var(--brand-700);
+                font-weight: 600;
+            }
+
+            /* Off-range фон в месяце — мягкий, не «помойный» */
+            .rbc-off-range-bg {
+                background: var(--ink-50);
+            }
+
+            /* Время «прошлое» — слегка приглушённый фон */
+            .rbc-day-slot .rbc-events-container {
+                margin-right: 6px;
+            }
+        `}</style>
     )
 }

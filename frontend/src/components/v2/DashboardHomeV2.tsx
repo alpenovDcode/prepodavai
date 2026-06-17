@@ -106,9 +106,23 @@ export default function DashboardHomeV2() {
         refreshInterval: 60_000,
     })
 
-    const showCalendarSoon = () => toast('Календарь скоро будет доступен', { icon: '📅' })
     const { data: recentGens } = useSWR<{ generations?: RecentGeneration[] }>('/generate/history?limit=4', fetcher)
     const { data: weeklyActivity } = useSWR<{ days?: { label: string; value: number }[] }>('/analytics/weekly-activity', fetcher)
+
+    // События сегодня из календаря — диапазон от 00:00 до 23:59:59.
+    // Слегка перекрываем с overview.schedule.todayLessons (там legacy
+    // Lesson.scheduledAt), но /calendar/events возвращает уже всё в
+    // объединённом виде (CalendarEvent + legacy лессоны).
+    const todayRange = useMemo(() => {
+        const f = new Date(); f.setHours(0, 0, 0, 0)
+        const t = new Date(); t.setHours(23, 59, 59, 999)
+        return { from: f.toISOString(), to: t.toISOString() }
+    }, [])
+    const { data: todayEvents } = useSWR<CalendarEventDTO[]>(
+        `/calendar/events?from=${encodeURIComponent(todayRange.from)}&to=${encodeURIComponent(todayRange.to)}`,
+        fetcher,
+        { refreshInterval: 60_000 },
+    )
 
     const subtitleParts = useMemo(() => {
         const parts = [formatToday()]
@@ -155,7 +169,7 @@ export default function DashboardHomeV2() {
                             value={overview?.schedule?.nextLesson?.scheduledAt ? formatTime(overview.schedule.nextLesson.scheduledAt) : '—'}
                             valueSize="md"
                             sub={nextLessonSub(overview)}
-                            onClick={showCalendarSoon}
+                            onClick={() => router.push('/dashboard/calendar')}
                         />
                         <KpiCard
                             className="col-span-3 max-lg:col-span-6 max-md:col-span-1"
@@ -219,14 +233,26 @@ export default function DashboardHomeV2() {
                         <Card padding="lg" className="col-span-6 max-lg:col-span-1" data-tour="schedule">
                             <SectionHead
                                 title="Расписание сегодня"
-                                action={<a className="text-sm font-semibold text-ink-400 cursor-not-allowed" onClick={showCalendarSoon}>Скоро →</a>}
+                                action={(
+                                    <a
+                                        className="text-sm font-semibold text-brand-600 hover:text-brand-700 cursor-pointer"
+                                        onClick={() => router.push('/dashboard/calendar')}
+                                    >
+                                        Открыть календарь →
+                                    </a>
+                                )}
                                 small
                             />
                             <div className="flex flex-col gap-3">
-                                {overview?.schedule?.todayLessons?.length ? (
-                                    overview.schedule.todayLessons.map(l => <LessonRow key={l.id} lesson={l} />)
+                                {todayEvents && todayEvents.length > 0 ? (
+                                    todayEvents.map((e) => <CalendarEventRow key={e.id} ev={e} />)
                                 ) : (
-                                    <div className="text-sm text-ink-500 py-8 text-center">Сегодня уроков нет</div>
+                                    <div className="py-8 text-center">
+                                        <div className="text-sm text-ink-700 font-semibold mb-1">Сегодня свободно</div>
+                                        <div className="text-[12px] text-ink-500">
+                                            Можно поставить новое занятие — нажмите «Открыть календарь».
+                                        </div>
+                                    </div>
                                 )}
                             </div>
                         </Card>
@@ -345,6 +371,74 @@ function AvatarStack({ people, extra }: { people: string[]; extra: number }) {
             )}
         </div>
     )
+}
+
+// Запись о сегодняшнем событии из /calendar/events — цветной полоской
+// слева по предмету, badge'ом «идёт сейчас / скоро / завершён», как в
+// LessonRow ниже, но универсальная (без зависимости от формата legacy).
+interface CalendarEventDTO {
+    id: string
+    title: string
+    startAt: string
+    endAt: string
+    subject?: string | null
+    color?: string | null
+    student?: { id: string; name: string } | null
+    class?: { id: string; name: string } | null
+    format?: string
+    status?: string
+    legacy?: boolean
+}
+
+function CalendarEventRow({ ev }: { ev: CalendarEventDTO }) {
+    const start = new Date(ev.startAt)
+    const end = new Date(ev.endAt)
+    const now = Date.now()
+    const isPast = now > end.getTime()
+    const isCurrent = now >= start.getTime() && now <= end.getTime()
+    const isSoon = !isCurrent && start.getTime() - now > 0 && start.getTime() - now < 90 * 60_000
+    const durMin = Math.round((end.getTime() - start.getTime()) / 60000)
+
+    const palette = subjectPalette(ev.color, ev.subject)
+    const bg = isCurrent
+        ? 'bg-brand-50 border border-brand-200'
+        : isSoon
+            ? 'bg-warning-50 border border-warning-200'
+            : isPast
+                ? 'bg-ink-50'
+                : ''
+
+    return (
+        <div className={`flex gap-3 p-3 rounded-md relative ${bg} transition-colors`}>
+            <div className="text-right flex-shrink-0 w-[54px]">
+                <div className="font-bold text-sm text-ink-900 tnum">{formatTime(ev.startAt)}</div>
+                <div className="text-[11px] text-ink-500 tnum">{durMin} мин</div>
+            </div>
+            <div className="w-[3px] rounded-sm flex-shrink-0" style={{ background: palette.accent }} />
+            <div className="flex-1 min-w-0">
+                <div className="font-semibold text-ink-900 text-sm truncate flex items-center gap-1.5">
+                    {ev.title}
+                </div>
+                <div className="text-[12px] text-ink-500 mt-0.5 truncate">
+                    {[ev.student?.name, ev.class?.name, ev.subject].filter(Boolean).join(' · ')}
+                </div>
+            </div>
+            {isCurrent && <Badge variant="brand">идёт</Badge>}
+            {isSoon && <Badge variant="warning">скоро · {relativeTimeRu(ev.startAt)}</Badge>}
+            {isPast && <Badge variant="success">завершён</Badge>}
+        </div>
+    )
+}
+
+function subjectPalette(color: string | null | undefined, subject: string | null | undefined) {
+    if (color && /^#[0-9a-f]{6}$/i.test(color)) return { accent: color }
+    const s = (subject || '').toLowerCase()
+    if (/математ|геометр|алгеб/.test(s))     return { accent: '#6366f1' }
+    if (/русск|литер/.test(s))               return { accent: '#fb923c' }
+    if (/физик|хим|биол/.test(s))            return { accent: '#10b981' }
+    if (/англ|франц|нем/.test(s))            return { accent: '#3b82f6' }
+    if (/истор|общест|геогр/.test(s))        return { accent: '#f59e0b' }
+    return { accent: '#9ca3af' }
 }
 
 function LessonRow({ lesson }: { lesson: TeacherOverview['schedule']['todayLessons'][number] }) {

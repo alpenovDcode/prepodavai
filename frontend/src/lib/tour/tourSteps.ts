@@ -47,6 +47,21 @@ export const TOUR_CONFIGS: Record<string, TourConfig> = {
     ],
   },
 
+  calendar: {
+    storageKey: 'prepodavai_calendar_tour_v1',
+    steps: [
+      { target: null, isModal: true, illustration: '📅', title: 'Календарь репетитора', body: 'Здесь вся ваша неделя на одном экране: занятия, окна, статусы. Перетаскивайте мышкой, кликайте по пустому слоту чтобы создать событие. За минуту покажу всё.', primaryLabel: 'Поехали' },
+      { target: '[data-tour="hero"]', placement: 'bottom', padding: 8, title: 'Сегодняшняя сводка', body: 'Сколько событий сегодня, что свободно. «Добавить событие» — быстрый ввод с подставленным текущим временем.' },
+      { target: '[data-tour="new-event"]', placement: 'bottom', title: '+ Новое событие', body: 'Откроется модалка: ученик, предмет, время, формат (онлайн/офлайн), цвет, повторение. Можно создать и пустой слот «свободное время».' },
+      { target: '[data-tour="grid"]', placement: 'top', padding: 6, title: 'Сетка времени', body: 'Перетаскивайте события мышкой, чтобы перенести. Тяните за нижний край — меняйте длительность. Кликните по пустому слоту — создастся новое событие на этот час.' },
+      { target: '.rbc-toolbar .rbc-btn-group:last-child', placement: 'bottom', title: 'День / Неделя / Месяц / Список', body: 'Переключайтесь между видами. «Неделя» — самый удобный для подготовки. «Месяц» — обзор загрузки. «Список» — компактный план без сетки.' },
+      { target: '.rbc-toolbar .rbc-btn-group:first-child', placement: 'bottom', title: 'Навигация', body: '«Сегодня» — вернуться к текущей неделе. Стрелки — назад/вперёд по выбранному виду.' },
+      { target: '.rbc-current-time-indicator', placement: 'right', title: '🕐 Текущее время', body: 'Оранжевая линия — сейчас. Сразу видно, что прошло, а что впереди.' },
+      { target: null, isModal: true, illustration: '🔁', title: 'Повторения и напоминания', body: 'В модалке события — поле «Повторение»: «каждый Вт+Чт», «через раз», «2-й и 4-й Чт месяца». За 24 часа / 1 час / 10 минут до начала придёт напоминание в Telegram, MAX и на email. Не пропустите ни одного занятия.', primaryLabel: 'Понятно' },
+      { target: null, isModal: true, illustration: '🎉', title: 'Готово!', body: 'Нажмите «Добавить событие» — начните с пары завтрашних занятий. За неделю-две — вся ваша неделя в одном месте.', primaryLabel: 'К работе' },
+    ],
+  },
+
   'lesson-prep': {
     storageKey: 'prepodavai_lesson_prep_tour_v1',
     steps: [
@@ -399,6 +414,7 @@ export function matchTourConfig(pathname: string): string | null {
   if (pathname === '/workspace/image') return 'image'
   if (pathname === '/workspace/games') return 'games'
   if (pathname === '/workspace/messages') return 'messages'
+  if (pathname === '/dashboard/calendar') return 'calendar'
   if (pathname === '/dashboard/courses') return 'courses'
   if (pathname === '/dashboard/students') return 'students'
   if (pathname === '/dashboard/grading') return 'grading'
