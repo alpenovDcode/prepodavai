@@ -121,24 +121,27 @@ export default function CalendarPageV2() {
     }, [data])
 
     const eventStyleGetter = useCallback((event: UIEvent) => {
-        const { color, subject, status, format: fmt, legacy } = event.resource
+        const { color, subject, status, legacy } = event.resource
         const palette = pickPalette(color, subject)
         const isCancelled = status === 'cancelled'
         const isDone = status === 'completed'
         return {
             style: {
-                backgroundColor: palette.bg,
-                borderLeft: `3px solid ${palette.accent}`,
-                color: palette.fg,
+                // Solid яркий фон + белый текст — как в Google Calendar.
+                // Никаких прозрачных bg и левых полосок: всё событие
+                // одним цветным блоком.
+                backgroundColor: palette.solid,
+                color: '#ffffff',
                 border: 'none',
-                borderRadius: 4,
-                padding: '2px 6px',
-                opacity: isCancelled ? 0.45 : isDone ? 0.75 : 1,
+                borderRadius: 6,
+                padding: '4px 8px',
+                opacity: isCancelled ? 0.5 : isDone ? 0.75 : 1,
                 textDecoration: isCancelled ? 'line-through' : undefined,
                 outline: legacy ? '1px dashed #9ca3af' : undefined,
                 outlineOffset: legacy ? -2 : undefined,
                 fontSize: 12,
                 fontWeight: 600,
+                boxShadow: '0 1px 2px rgba(15, 23, 42, 0.12)',
             },
         }
     }, [])
@@ -333,22 +336,20 @@ export default function CalendarPageV2() {
 
 // ─── Палитра ────────────────────────────────────────────────────────────
 
-// Палитра событий. Дефолт — фирменный оранжевый платформы (не серый).
-// Цвета как у Google Calendar: 10 семантических вариантов на выбор.
-// Если у события явно задан color (hex) — используем его. Иначе подбираем
-// по subject. В крайнем случае — brand.
-const BRAND_PALETTE = { bg: '#FFF1EB', accent: '#FF7E58', fg: '#9A3412' }
+// Палитра событий — Google-Calendar-стиль. solid = яркий фон события,
+// текст всегда белый. Дефолт — фирменный brand-оранжевый.
+const BRAND_PALETTE = { solid: '#FF7E58' }
 
 function pickPalette(color: string | null | undefined, subject: string | null | undefined) {
     if (color && /^#[0-9a-f]{6}$/i.test(color)) {
-        return { bg: hexWithAlpha(color, 0.18), accent: color, fg: darken(color) }
+        return { solid: color }
     }
     const s = (subject || '').toLowerCase()
-    if (/математ|геометр|алгеб/.test(s))     return { bg: '#eef2ff', accent: '#6366f1', fg: '#312e81' }
-    if (/русск|литер/.test(s))               return { bg: '#fff7ed', accent: '#fb923c', fg: '#9a3412' }
-    if (/физик|хим|биол/.test(s))            return { bg: '#ecfdf5', accent: '#10b981', fg: '#065f46' }
-    if (/англ|франц|нем/.test(s))            return { bg: '#eff6ff', accent: '#3b82f6', fg: '#1e3a8a' }
-    if (/истор|общест|геогр/.test(s))        return { bg: '#fffbeb', accent: '#f59e0b', fg: '#92400e' }
+    if (/математ|геометр|алгеб/.test(s))     return { solid: '#6366f1' }  // индиго
+    if (/русск|литер/.test(s))               return { solid: '#fb923c' }  // оранжево-русый
+    if (/физик|хим|биол/.test(s))            return { solid: '#10b981' }  // зелёный
+    if (/англ|франц|нем/.test(s))            return { solid: '#3b82f6' }  // синий
+    if (/истор|общест|геогр/.test(s))        return { solid: '#f59e0b' }  // янтарный
     return BRAND_PALETTE
 }
 
@@ -368,24 +369,6 @@ const COLOR_SWATCHES: { hex: string; label: string }[] = [
     { hex: '#EC4899', label: 'Розовый' },
     { hex: '#64748B', label: 'Серый' },
 ]
-
-function darken(hex: string): string {
-    // Возвращаем тёмный вариант цвета для текста (затемнение на ~50%).
-    const r = parseInt(hex.slice(1, 3), 16)
-    const g = parseInt(hex.slice(3, 5), 16)
-    const b = parseInt(hex.slice(5, 7), 16)
-    const dr = Math.round(r * 0.4)
-    const dg = Math.round(g * 0.4)
-    const db = Math.round(b * 0.4)
-    return `#${dr.toString(16).padStart(2, '0')}${dg.toString(16).padStart(2, '0')}${db.toString(16).padStart(2, '0')}`
-}
-
-function hexWithAlpha(hex: string, alpha: number) {
-    const r = parseInt(hex.slice(1, 3), 16)
-    const g = parseInt(hex.slice(3, 5), 16)
-    const b = parseInt(hex.slice(5, 7), 16)
-    return `rgba(${r}, ${g}, ${b}, ${alpha})`
-}
 
 // ─── Модалка создания/редактирования ────────────────────────────────────
 
@@ -925,30 +908,37 @@ function CalendarThemeStyles() {
                 box-shadow: 0 0 0 3px rgba(255, 126, 88, 0.2);
             }
 
-            /* События: скруглённые с лёгкой тенью */
+            /* События: solid цвет, белый текст, скруглённые. Google-style. */
             .rbc-event,
             .rbc-day-slot .rbc-background-event {
                 border-radius: 6px !important;
-                box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
-                padding: 3px 7px !important;
+                box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12);
+                padding: 4px 8px !important;
                 transition: transform 0.1s, box-shadow 0.1s;
+                color: #fff !important;
             }
             .rbc-event:hover {
                 transform: translateY(-1px);
-                box-shadow: 0 3px 8px rgba(15, 23, 42, 0.15);
+                box-shadow: 0 3px 8px rgba(15, 23, 42, 0.2);
             }
             .rbc-event.rbc-selected {
-                box-shadow: 0 0 0 2px var(--brand-500), 0 3px 8px rgba(15, 23, 42, 0.15);
+                box-shadow: 0 0 0 2px var(--ink-900), 0 3px 8px rgba(15, 23, 42, 0.2);
             }
             .rbc-event-label {
-                font-size: 10px;
+                font-size: 10.5px;
                 font-weight: 500;
-                opacity: 0.8;
+                color: rgba(255, 255, 255, 0.85);
             }
             .rbc-event-content {
                 font-weight: 700;
-                font-size: 12px;
+                font-size: 12.5px;
                 line-height: 1.3;
+                color: #fff;
+            }
+            /* В month-view события — solid bar */
+            .rbc-month-view .rbc-event {
+                padding: 2px 6px !important;
+                font-size: 11.5px;
             }
 
             /* Время-гаттер */
@@ -961,8 +951,14 @@ function CalendarThemeStyles() {
             .rbc-time-gutter .rbc-time-slot {
                 border-top: none;
             }
+            /* Промежуточные 15-мин линии — невидимы. Видны только границы
+               часов (rbc-timeslot-group). Как в Google Calendar. */
+            .rbc-day-slot .rbc-time-slot {
+                border-top: none !important;
+            }
             .rbc-timeslot-group {
-                border-color: var(--ink-100);
+                border-bottom: 1px solid var(--ink-100);
+                min-height: 60px;
             }
 
             /* Slots в day-view (фон сетки) */
@@ -970,10 +966,11 @@ function CalendarThemeStyles() {
                 border-top: 1px solid var(--ink-200);
             }
             .rbc-time-content > .rbc-time-gutter {
-                background: var(--ink-50);
+                background: transparent;
             }
-            .rbc-day-slot .rbc-time-slot {
-                border-top-color: var(--ink-100);
+            /* Колонки между днями — тонкая линия */
+            .rbc-time-content > * + * > * {
+                border-left-color: var(--ink-100);
             }
 
             /* Месячное представление: ячейки */
