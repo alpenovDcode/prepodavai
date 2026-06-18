@@ -747,14 +747,7 @@ function InviteeRow({ item }: { item: ReferralListItem }) {
     : ''
 
   return (
-    <div style={{
-      display: 'grid',
-      gridTemplateColumns: 'minmax(180px,2fr) minmax(180px,1.2fr) minmax(160px,1fr)',
-      gap: 16,
-      padding: '16px 22px',
-      borderBottom: '1px solid var(--ink-100)',
-      alignItems: 'center',
-    }} className="max-sm:grid-cols-1 max-sm:gap-2 max-sm:py-3.5 max-sm:px-4">
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 py-4 px-[22px] border-b border-ink-100 items-center sm:gap-4 max-sm:gap-2 max-sm:py-3.5 max-sm:px-4">
       {/* Учитель */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
         <Avatar name={item.name} size="sm" />

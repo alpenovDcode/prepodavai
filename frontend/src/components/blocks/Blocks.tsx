@@ -55,6 +55,7 @@ export function ImageBlock({ src, alt, caption }: { src: string; alt: string; ca
 export function TableBlock({ headers, rows, caption }: { headers: string[]; rows: string[][]; caption?: string }) {
     return (
         <figure>
+            <div className="overflow-x-auto">
             <table>
                 <thead>
                     <tr>{headers.map((h, i) => <th key={i}><InlineMathText text={h} /></th>)}</tr>
@@ -65,6 +66,7 @@ export function TableBlock({ headers, rows, caption }: { headers: string[]; rows
                     ))}
                 </tbody>
             </table>
+            </div>
             {caption && <figcaption>{caption}</figcaption>}
         </figure>
     )

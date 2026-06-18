@@ -285,7 +285,7 @@ export default function AssignmentOverviewV2({ assignmentId }: Props) {
                         </div>
 
                         {/* Quick stats */}
-                        <div data-tour="stats" className="flex items-center gap-2">
+                        <div data-tour="stats" className="flex items-center gap-2 flex-wrap">
                             <Stat tone="success" label="Оценено" value={totals.graded} />
                             <Stat tone="info" label="Ждут проверки" value={totals.pending} />
                             <Stat tone="danger" label="Просрочено" value={totals.overdue} />

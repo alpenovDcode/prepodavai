@@ -390,7 +390,8 @@ export default function ClassDetailPageV2({ id }: { id: string }) {
                 {/* Tab Content */}
                 {activeTab === 'students' && (
                     <Card data-tour="tab-content" padding="none" className="overflow-hidden">
-                        <table className="w-full">
+                        <div className="overflow-x-auto">
+                        <table className="w-full min-w-[500px]">
                             <thead>
                                 <tr className="border-b border-ink-100 bg-ink-50/50">
                                     <th className="text-left py-3.5 px-5 text-[13px] font-semibold text-ink-600">Ученик</th>
@@ -469,6 +470,7 @@ export default function ClassDetailPageV2({ id }: { id: string }) {
                                 )}
                             </tbody>
                         </table>
+                        </div>
                     </Card>
                 )}
 

@@ -266,13 +266,14 @@ export default function StudentGradesV2() {
                     title="По предметам"
                     subtitle="Твой средний балл по каждому предмету"
                 />
-                <div className="mb-7">
+                <div className="mb-7 overflow-x-auto">
                     {isLoading ? (
                         <div className="text-[13px] text-ink-500 py-4">Загрузка…</div>
                     ) : (d?.bySubject ?? []).length === 0 ? (
                         <div className="text-[13px] text-ink-500 py-4">Нет данных</div>
                     ) : (
-                        (d?.bySubject ?? []).map((s) => (
+                        <div className="min-w-[380px]">
+                        {(d?.bySubject ?? []).map((s) => (
                             <div
                                 key={s.subject}
                                 className="bg-surface border border-ink-200 rounded-md mb-2 grid items-center gap-4"
@@ -305,7 +306,8 @@ export default function StudentGradesV2() {
                                     {s.avgGrade > 0 ? s.avgGrade.toFixed(1).replace('.', ',') : '—'}
                                 </div>
                             </div>
-                        ))
+                        ))}
+                        </div>
                     )}
                 </div>
 

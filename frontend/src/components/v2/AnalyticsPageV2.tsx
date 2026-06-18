@@ -763,7 +763,8 @@ function MaterialsList({ items }: { items: MaterialItem[] }) {
     return <div className="py-8 text-center text-[13px] text-ink-400">Нет материалов с оценками за период</div>
   }
   return (
-    <div className="divide-y divide-ink-100">
+    <div className="overflow-x-auto">
+    <div className="divide-y divide-ink-100 min-w-[440px]">
       {items.map((m, i) => {
         const isGood = m.avgGrade >= 4.5
         const isWarn = m.avgGrade < 3.7
@@ -794,6 +795,7 @@ function MaterialsList({ items }: { items: MaterialItem[] }) {
         )
       })}
     </div>
+    </div>
   )
 }
 
@@ -804,7 +806,8 @@ function ClassComparisonList({ classes }: { classes: ClassItem[] }) {
     return <div className="py-8 text-center text-[13px] text-ink-400">Нет классов</div>
   }
   return (
-    <div className="divide-y divide-ink-100">
+    <div className="overflow-x-auto">
+    <div className="divide-y divide-ink-100 min-w-[440px]">
       {classes.map(cls => {
         const gradeColor = cls.avgGrade != null && cls.avgGrade < 3.7
           ? (cls.avgGrade < 3 ? 'text-danger-700' : 'text-warning-700')
@@ -838,6 +841,7 @@ function ClassComparisonList({ classes }: { classes: ClassItem[] }) {
         )
       })}
     </div>
+    </div>
   )
 }
 
@@ -855,7 +859,8 @@ function StudentDataList({ students, variant }: { students: StudentItem[]; varia
   }
 
   return (
-    <div className="divide-y divide-ink-100">
+    <div className="overflow-x-auto">
+    <div className="divide-y divide-ink-100 min-w-[440px]">
       {students.map(st => {
         const avatarClass = variant === 'good'
           ? 'bg-[#F0FDF4] text-[#15803D]'
@@ -894,6 +899,7 @@ function StudentDataList({ students, variant }: { students: StudentItem[]; varia
         )
       })}
     </div>
+    </div>
   )
 }
 
@@ -914,7 +920,8 @@ function StudentLeaderboard({ data, onPageChange }: { data?: LeaderboardData; on
 
   return (
     <>
-      <div className="divide-y divide-ink-100">
+      <div className="overflow-x-auto">
+      <div className="divide-y divide-ink-100 min-w-[440px]">
         {data.items.map(st => {
           const avatarClass = st.avgGrade >= 4.5
             ? 'bg-[#F0FDF4] text-[#15803D]'
@@ -943,6 +950,7 @@ function StudentLeaderboard({ data, onPageChange }: { data?: LeaderboardData; on
             </div>
           )
         })}
+      </div>
       </div>
       {hasMore && (
         <div className="text-center pt-3.5 border-t border-ink-100 mt-2">
