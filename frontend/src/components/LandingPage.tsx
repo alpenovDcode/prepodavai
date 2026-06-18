@@ -317,6 +317,11 @@ export default function LandingPage({ autoOpenAuth = false }: { autoOpenAuth?: b
           .lp-footer-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 28px !important; }
           .lp-reviews-grid { grid-template-columns: 1fr !important; height: auto !important; gap: 32px !important; }
           .lp-reviews-cols { height: 420px !important; }
+          .lp-bento-big { min-height: 360px !important; }
+          .lp-preview-sidebar { display: none !important; }
+          .lp-preview-tabs { flex-wrap: wrap !important; gap: 4px !important; }
+          .lp-preview-mini-stats { flex-wrap: wrap !important; gap: 6px !important; }
+          .lp-preview-mini-stats > div { flex: 1 0 calc(50% - 3px) !important; min-width: 0 !important; }
         }
         /* Мобильник (< 768) */
         @media (max-width: 767px) {
@@ -327,7 +332,8 @@ export default function LandingPage({ autoOpenAuth = false }: { autoOpenAuth?: b
           .lp-hero { padding: 48px 16px 40px !important; }
           .lp-hero h1 { font-size: clamp(28px, 9vw, 42px) !important; line-height: 1.1 !important; }
           .lp-hero p { font-size: 15px !important; margin-bottom: 24px !important; }
-          .lp-hero-cta-row button { padding: 12px 22px !important; font-size: 14px !important; }
+          .lp-hero-cta-row { flex-direction: column !important; align-items: stretch !important; padding: 0 8px !important; }
+          .lp-hero-cta-row button { padding: 13px 20px !important; font-size: 14px !important; width: 100% !important; justify-content: center !important; }
           .lp-section { padding-top: 48px !important; padding-bottom: 48px !important; padding-left: 16px !important; padding-right: 16px !important; }
           .lp-section h2 { font-size: clamp(26px, 7vw, 34px) !important; }
           .lp-grid-3 { grid-template-columns: 1fr !important; }
@@ -342,6 +348,24 @@ export default function LandingPage({ autoOpenAuth = false }: { autoOpenAuth?: b
           .lp-cta-dark { padding: 48px 16px !important; }
           .lp-cta-dark h2 { font-size: clamp(26px, 7vw, 34px) !important; }
           .lp-section-pad-x-small { padding-left: 12px !important; padding-right: 12px !important; }
+
+          /* Stats bar — 2×2 сетка */
+          .lp-stat-item { flex: 0 0 50% !important; padding: 18px 10px !important; border-right: none !important; border-bottom: 1px solid #f0f0f0 !important; box-sizing: border-box !important; }
+          .lp-stat-item:nth-child(odd) { border-right: 1px solid #f0f0f0 !important; }
+          .lp-stat-item:nth-last-child(-n+2) { border-bottom: none !important; }
+
+          /* Preview mockup — скрываем сайдбар, упрощаем контент */
+          .lp-preview-sidebar { display: none !important; }
+          .lp-preview-tabs { flex-wrap: wrap !important; gap: 4px !important; }
+          .lp-preview-tabs > span { font-size: 9px !important; padding: 4px 8px !important; }
+          .lp-preview-mini-stats { flex-wrap: wrap !important; gap: 6px !important; }
+          .lp-preview-mini-stats > div { flex: 1 0 calc(50% - 3px) !important; min-width: 0 !important; }
+
+          /* Steps — скрываем горизонтальную линию при вертикальном стеке */
+          .lp-steps-line { display: none !important; }
+
+          /* Bento — большая карточка: нормальная высота */
+          .lp-bento-big { min-height: 280px !important; }
         }
         @keyframes vmarquee-up { from { transform: translateY(0); } to { transform: translateY(-50%); } }
         @keyframes vmarquee-down { from { transform: translateY(-50%); } to { transform: translateY(0); } }
@@ -441,7 +465,7 @@ export default function LandingPage({ autoOpenAuth = false }: { autoOpenAuth?: b
             { to: 2, fmt: (v: number) => `~${v} мин`, label: "среднее время генерации" },
             { to: 48, fmt: (v: number) => `${v} ч/мес`, label: "экономия времени" },
           ].map((s, i) => (
-            <div key={i} style={{ padding: "22px 32px", textAlign: "center", borderRight: i < 3 ? "1px solid #f0f0f0" : "none" }}>
+            <div key={i} className="lp-stat-item" style={{ padding: "22px 32px", textAlign: "center", borderRight: i < 3 ? "1px solid #f0f0f0" : "none" }}>
               <div style={{ fontSize: 22, fontWeight: 900, letterSpacing: "-0.03em", color: "#1a120c" }}>
                 <CountUp to={s.to} fmt={s.fmt} />
               </div>
@@ -606,7 +630,7 @@ export default function LandingPage({ autoOpenAuth = false }: { autoOpenAuth?: b
               <div style={{ flex: 1, background: "white", borderRadius: 6, padding: "3px 10px", fontSize: 11, color: "#aaa", textAlign: "center", maxWidth: 280, margin: "0 auto" }}>prepodavai.ru/dashboard</div>
             </div>
             <div style={{ background: "white", display: "flex", minHeight: 360 }}>
-              <div style={{ width: 168, background: "#fafaf8", borderRight: "1px solid #f0f0f0", padding: "16px 12px", flexShrink: 0 }}>
+              <div className="lp-preview-sidebar" style={{ width: 168, background: "#fafaf8", borderRight: "1px solid #f0f0f0", padding: "16px 12px", flexShrink: 0 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 22, paddingLeft: 4 }}>
                   <div style={{ width: 24, height: 24, borderRadius: 6, background: "#f97316" }} />
                   <span style={{ fontWeight: 800, fontSize: 12, letterSpacing: "-0.02em" }}>Преподавай</span>
@@ -631,13 +655,13 @@ export default function LandingPage({ autoOpenAuth = false }: { autoOpenAuth?: b
                     Фотосинтез — 6 класс
                     <span style={{ display: "inline-block", width: 1.5, height: 12, background: "#ea580c", marginLeft: 2, verticalAlign: "middle", animation: "caretBlink 1.1s infinite" }} />
                   </div>
-                  <div style={{ display: "flex", gap: 6 }}>
+                  <div className="lp-preview-tabs" style={{ display: "flex", gap: 6 }}>
                     {["Рабочий лист","Тест","План урока","Презентация"].map((l, i) => (
                       <span key={i} style={{ padding: "5px 10px", borderRadius: 7, fontSize: 10, fontWeight: 600, background: i === 0 ? "#f97316" : "#f0f0f0", color: i === 0 ? "white" : "#888" }}>{l}</span>
                     ))}
                   </div>
                 </div>
-                <div style={{ display: "flex", gap: 8 }}>
+                <div className="lp-preview-mini-stats" style={{ display: "flex", gap: 8 }}>
                   {[["17","Материалов"],["564","Генераций"],["1 250","Токенов"],["48ч","Сэкономлено"]].map(([v,lb],j) => (
                     <div key={j} style={{ flex: 1, background: "#fafaf8", border: "1px solid #f0f0f0", borderRadius: 10, padding: "10px 12px" }}>
                       <div style={{ fontWeight: 900, fontSize: 15, letterSpacing: "-0.02em" }}>{v}</div>
@@ -661,7 +685,7 @@ export default function LandingPage({ autoOpenAuth = false }: { autoOpenAuth?: b
             </h2>
           </Reveal>
           <div className="lp-grid-3" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 4, position: "relative" }}>
-            <div style={{ position: "absolute", top: 28, left: "18%", right: "18%", height: 1, background: "linear-gradient(90deg, #f97316, #f59e0b)", opacity: 0.3, zIndex: 0 }} />
+            <div className="lp-steps-line" style={{ position: "absolute", top: 28, left: "18%", right: "18%", height: 1, background: "linear-gradient(90deg, #f97316, #f59e0b)", opacity: 0.3, zIndex: 0 }} />
             {steps.map((s, i) => (
               <Reveal key={i} delay={i * 150} style={{ position: "relative", zIndex: 1 }}>
                 <div className="step-wrap" style={{ padding: "0 20px", textAlign: "center" }}>
@@ -692,7 +716,7 @@ export default function LandingPage({ autoOpenAuth = false }: { autoOpenAuth?: b
 
           <div className="lp-grid-4" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gridAutoRows: "180px", gap: 14 }}>
             <Reveal style={{ gridColumn: "span 2", gridRow: "span 2" }}>
-              <div className="bento-cell" style={{ height: "100%", borderRadius: 24, background: "linear-gradient(160deg, #1a120c 0%, #2d1f15 100%)", padding: "32px 32px 24px", color: "white", display: "flex", flexDirection: "column", position: "relative", overflow: "hidden", boxShadow: "0 12px 40px rgba(26,20,12,.25)" }}>
+              <div className="bento-cell lp-bento-big" style={{ height: "100%", borderRadius: 24, background: "linear-gradient(160deg, #1a120c 0%, #2d1f15 100%)", padding: "32px 32px 24px", color: "white", display: "flex", flexDirection: "column", position: "relative", overflow: "hidden", boxShadow: "0 12px 40px rgba(26,20,12,.25)" }}>
                 <div style={{ position: "absolute", top: -100, right: -80, width: 320, height: 320, background: "radial-gradient(circle, rgba(249,115,22,.25), transparent 65%)", pointerEvents: "none" }} />
                 <div style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "5px 12px 5px 8px", borderRadius: 99, background: "rgba(249,115,22,.12)", border: "1px solid rgba(249,115,22,.22)", color: "#fdba74", fontSize: 12, fontWeight: 600, alignSelf: "flex-start", marginBottom: 18, position: "relative" }}>
                   <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#22c55e", boxShadow: "0 0 8px rgba(34,197,94,.6)" }} />
