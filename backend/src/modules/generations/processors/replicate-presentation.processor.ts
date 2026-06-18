@@ -3,7 +3,6 @@ import { Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
 import { GenerationHelpersService } from '../generation-helpers.service';
 import { FilesService } from '../../files/files.service';
-import { HtmlExportService } from '../../../common/services/html-export.service';
 import { PrismaService } from '../../../common/prisma/prisma.service';
 import {
   PresentationTemplateService,
@@ -48,7 +47,6 @@ export class ReplicatePresentationProcessor extends WorkerHost {
     private readonly filesService: FilesService,
     private readonly templateService: PresentationTemplateService,
     private readonly pptxService: PresentationPptxV2Service,
-    private readonly htmlExport: HtmlExportService,
     private readonly prisma: PrismaService,
   ) {
     super();
@@ -62,10 +60,10 @@ export class ReplicatePresentationProcessor extends WorkerHost {
 
     this.logger.log(`Processing presentation ${generationRequestId}: "${topic}"`);
 
-    // Резолвим userId владельца генерации — FilesService.saveBuffer его
-    // требует для записи в uploadedFile (контроль доступа). Раньше тут шёл
-    // undefined и Prisma падал с "Argument `userId` is missing".
     const ownerUserId = await this.resolveOwnerUserId(generationRequestId);
+    if (!ownerUserId) {
+      throw new Error(`userId not found for generationRequest ${generationRequestId}`);
+    }
 
     try {
       // 1. Генерируем данные и финальный HTML через шаблон
@@ -77,25 +75,15 @@ export class ReplicatePresentationProcessor extends WorkerHost {
         style: style as PresentationStyle,
         color: color as PresentationColor,
       });
-      this.logger.log(`Presentation HTML ready: ${data.slides.length} slides, style=${data.style}, color=${data.color}`);
 
-      // 2. PDF из HTML (puppeteer-обёртка уже есть)
-      let pdfUrl: string | undefined;
-      try {
-        if (!ownerUserId) throw new Error('userId not found for generationRequest');
-        const pdfBuffer = await this.htmlExport.htmlToPdf(html);
-        const pdfFile = await this.filesService.saveBuffer(
-          pdfBuffer, `presentation-${generationRequestId}.pdf`, ownerUserId,
-        );
-        pdfUrl = pdfFile.url;
-      } catch (e: any) {
-        this.logger.error(`PDF export failed: ${e?.message}`);
+      if (!html || html.length < 200) {
+        throw new Error(`HTML rendering returned empty result (length=${html?.length ?? 0})`);
       }
+      this.logger.log(`Presentation HTML ready: ${data.slides.length} slides, style=${data.style}, color=${data.color}, htmlLength=${html.length}`);
 
-      // 3. PPTX из JSON (один источник правды с HTML — данные одинаковые)
+      // 2. PPTX из JSON
       let pptxUrl: string | undefined;
       try {
-        if (!ownerUserId) throw new Error('userId not found for generationRequest');
         const pptxBuffer = await this.pptxService.build(data);
         const pptxFile = await this.filesService.saveBuffer(
           pptxBuffer, `presentation-${generationRequestId}.pptx`, ownerUserId,
@@ -108,20 +96,14 @@ export class ReplicatePresentationProcessor extends WorkerHost {
       const outputData = {
         provider: 'Replicate',
         mode: 'presentation',
-        // HTML — основной просмотрщик в iframe на фронте
         content: html,
-        // Структурированные данные — на случай ре-экспорта/смены темы без новой генерации
         presentationData: data,
         topic,
         slidesCount: data.slides.length,
         style: data.style,
         color: data.color,
-        pdfUrl,
         pptxUrl,
-        // Совместимость со старым кодом, который смотрит exportUrl
-        exportUrl: pdfUrl,
         completedAt: new Date().toISOString(),
-        // Игнорируем старое поле duration — оно по требованию ушло, но не валим если есть
         ...(duration ? { _duration: duration } : {}),
       };
 

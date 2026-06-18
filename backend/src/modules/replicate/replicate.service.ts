@@ -274,7 +274,10 @@ export class ReplicateService {
     return typeof out === 'object' && out !== null && 'url' in out ? (out as any).url : out;
   }
 
-  private async pollPrediction(url: string, maxAttempts = 30, interval = 1000): Promise<string> {
+  // maxAttempts=180 × interval=2000 = 6 минут максимум.
+  // llama-4-maverick может генерировать дольше старого gemini-3-flash.
+  private async pollPrediction(url: string, maxAttempts = 180, interval = 2000): Promise<string> {
+    let consecutiveErrors = 0;
     for (let i = 0; i < maxAttempts; i++) {
       await new Promise((resolve) => setTimeout(resolve, interval));
       try {
@@ -284,6 +287,7 @@ export class ReplicateService {
             'Content-Type': 'application/json',
           },
         });
+        consecutiveErrors = 0;
 
         const prediction = response.data;
         if (prediction.status === 'succeeded') {
@@ -291,11 +295,21 @@ export class ReplicateService {
         } else if (prediction.status === 'failed' || prediction.status === 'canceled') {
           throw new Error(`Prediction ${prediction.status}: ${prediction.error}`);
         }
+        // status === 'starting' | 'processing' — продолжаем polling
       } catch (error) {
-        this.logger.error(`Polling error: ${error.message}`);
-        throw error;
+        // Пробрасываем только фатальные ошибки (failed/canceled от Replicate).
+        // Сетевые сбои (5xx, timeout) — retry до 3 раз подряд.
+        if (error.message?.startsWith('Prediction ')) {
+          throw error;
+        }
+        consecutiveErrors++;
+        this.logger.warn(`Polling transient error (${consecutiveErrors}/3): ${error.message}`);
+        if (consecutiveErrors >= 3) {
+          this.logger.error(`Polling failed after 3 consecutive errors: ${error.message}`);
+          throw error;
+        }
       }
     }
-    throw new Error('Prediction timed out');
+    throw new Error('Prediction timed out after 6 minutes');
   }
 }
