@@ -35,7 +35,22 @@ export class FunnelsController {
   @Put(':id')
   update(
     @Param('id') id: string,
-    @Body() body: { name?: string; description?: string; isActive?: boolean; steps?: FunnelStepDef[]; globalFilters?: any },
+    @Body() body: {
+      name?: string;
+      description?: string;
+      isActive?: boolean;
+      steps?: FunnelStepDef[];
+      globalFilters?: any;
+      // Welcome-конфиг для Telegram-бота
+      welcomeText?: string | null;
+      welcomeButtonLabel?: string | null;
+      welcomeButtonAction?: string | null;
+      welcomeButtonUrl?: string | null;
+      subscriptionChannelId?: string | null;
+      subscriptionChannelName?: string | null;
+      subscriptionPromptText?: string | null;
+      subscriptionSuccessText?: string | null;
+    },
   ) {
     return this.service.update(id, body);
   }

@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { randomUUID } from 'crypto';
+import { SmartLinkTokensService } from './smart-link-tokens.service';
 
 export interface CreateSmartLinkDto {
   slug: string;
@@ -15,6 +16,8 @@ export interface CreateSmartLinkDto {
   autoTags?: string[];
   isActive?: boolean;
   expiresAt?: string | null;
+  /** Привязка к воронке — определяет welcome-сообщение в ТГ-боте. */
+  funnelId?: string | null;
 }
 
 export type UpdateSmartLinkDto = Partial<CreateSmartLinkDto>;
@@ -25,7 +28,10 @@ const SLUG_RE = /^[A-Za-z0-9_-]{1,48}$/;
 export class SmartLinksService {
   private readonly logger = new Logger(SmartLinksService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly tokens: SmartLinkTokensService,
+  ) {}
 
   // ──────── ADMIN ────────
 
@@ -68,6 +74,7 @@ export class SmartLinksService {
         autoTags: (dto.autoTags || []).map((t) => t.trim()).filter(Boolean),
         isActive: dto.isActive ?? true,
         expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : null,
+        funnelId: dto.funnelId || null,
       },
     });
   }
@@ -103,6 +110,7 @@ export class SmartLinksService {
         ...(dto.expiresAt !== undefined && {
           expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : null,
         }),
+        ...(dto.funnelId !== undefined && { funnelId: dto.funnelId || null }),
       },
     });
   }
@@ -137,6 +145,16 @@ export class SmartLinksService {
     referer?: string;
     anonId?: string;
     userId?: string;
+    // UTM-переопределения из query-параметров: ?utm_source=tg&utm_medium=...
+    // Любое поле, не указанное в query, берётся из настроек ссылки в админке.
+    // Это нужно для гибких посевов — одна базовая ссылка, много креативов.
+    overrideUtm?: {
+      utmSource?: string;
+      utmMedium?: string;
+      utmCampaign?: string;
+      utmContent?: string;
+      utmTerm?: string;
+    };
   }): Promise<{ targetUrl: string; link: { id: string; autoTags: string[] } } | null> {
     const link = await this.prisma.smartLink.findUnique({
       where: { slug: args.slug },
@@ -161,6 +179,16 @@ export class SmartLinksService {
       isUnique = !prior;
     }
 
+    // Финальные UTM = query-overrides поверх настроек ссылки. То есть если
+    // в админке source=instagram, а в URL ?utm_source=tg — пойдёт tg.
+    const finalUtm = {
+      utm_source: args.overrideUtm?.utmSource ?? link.utmSource,
+      utm_medium: args.overrideUtm?.utmMedium ?? link.utmMedium,
+      utm_campaign: args.overrideUtm?.utmCampaign ?? link.utmCampaign,
+      utm_content: args.overrideUtm?.utmContent ?? link.utmContent,
+      utm_term: args.overrideUtm?.utmTerm ?? link.utmTerm,
+    };
+
     await Promise.all([
       this.prisma.smartLinkClick.create({
         data: {
@@ -181,13 +209,39 @@ export class SmartLinksService {
       }),
     ]).catch((e) => this.logger.warn(`smart-link click write failed: ${e?.message}`));
 
+    // Особый случай: target ведёт на Telegram (t.me/<bot>?start=...).
+    // Telegram режет любые query-параметры за `?start=` — UTM не пройдут.
+    // Сохраняем атрибуцию в Redis под коротким токеном и подставляем его
+    // в start-payload. Бот в обработчике /start <token> прочитает Redis
+    // и применит UTM к пользователю.
+    const tgMatch = /^https?:\/\/t\.me\/([a-zA-Z0-9_]+)(?:\?start=([^&]*))?/i.exec(
+      link.targetUrl,
+    );
+    if (tgMatch) {
+      const botUsername = tgMatch[1];
+      const token = await this.tokens.store({
+        linkId: link.id,
+        slug: link.slug,
+        utmSource: finalUtm.utm_source || undefined,
+        utmMedium: finalUtm.utm_medium || undefined,
+        utmCampaign: finalUtm.utm_campaign || undefined,
+        utmContent: finalUtm.utm_content || undefined,
+        utmTerm: finalUtm.utm_term || undefined,
+        autoTags: link.autoTags,
+        anonId: args.anonId,
+        funnelId: (link as any).funnelId || undefined,
+        createdAt: Date.now(),
+      });
+      return {
+        targetUrl: `https://t.me/${botUsername}?start=${token}`,
+        link: { id: link.id, autoTags: link.autoTags },
+      };
+    }
+
+    // Обычный случай — landing/произвольный URL. UTM аппендятся как query.
     return {
       targetUrl: this.appendUtm(link.targetUrl, {
-        utm_source: link.utmSource,
-        utm_medium: link.utmMedium,
-        utm_campaign: link.utmCampaign,
-        utm_content: link.utmContent,
-        utm_term: link.utmTerm,
+        ...finalUtm,
         lid: link.id, // чтобы регистрация связалась с этой ссылкой
       }),
       link: { id: link.id, autoTags: link.autoTags },

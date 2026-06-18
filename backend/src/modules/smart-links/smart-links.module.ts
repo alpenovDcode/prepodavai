@@ -6,6 +6,8 @@ import {
 } from './smart-links.controller';
 import { AdminModule } from '../admin/admin.module';
 
+// SmartLinkTokensService — глобальный (SmartLinkTokensModule в AppModule),
+// поэтому его не указываем тут как provider.
 @Module({
   imports: [AdminModule], // нужен AdminGuard
   controllers: [SmartLinksRedirectController, SmartLinksAdminController],

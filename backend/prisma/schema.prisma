@@ -660,11 +660,17 @@ model SmartLink {
   isActive    Boolean   @default(true)
   expiresAt   DateTime? // null = бессрочная
 
+  // Привязка к воронке (опционально). Если есть — ТГ-бот возьмёт welcome-
+  // конфиг из этой воронки при /start <token>. Если нет — дефолт.
+  funnelId   String?
+  funnel     Funnel? @relation(fields: [funnelId], references: [id], onDelete: SetNull)
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   clicks      SmartLinkClick[]
 
+  @@index([funnelId])
   @@map("smart_links")
 }
 
@@ -947,7 +953,30 @@ model Funnel {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  steps FunnelStep[]
+  // ───── Welcome-конфиг для Telegram-бота ─────
+  // Когда юзер кликает SmartLink, привязанную к этой воронке, и заходит в
+  // ТГ-бот через t.me/?start=<token>, бот шлёт это сообщение вместо
+  // дефолтного. Маркетолог может тестировать разные первые касания под
+  // разные источники, не трогая код.
+  //
+  // Если поля пустые — бот использует дефолтное хардкодное приветствие.
+  welcomeText               String?
+  welcomeButtonLabel        String?
+  /// Что делает кнопка: 'url' (открыть ссылку) | 'mini_app' (открыть Mini App) |
+  /// 'check_subscription' (проверить подписку на канал).
+  welcomeButtonAction       String?  @default("url")
+  welcomeButtonUrl          String?
+  /// Обязательный канал для подписки. Можно ID (-100xxx) или @username.
+  subscriptionChannelId     String?
+  /// Отображаемое название канала для текста: «Подпишись на @prepodavai».
+  subscriptionChannelName   String?
+  /// Сообщение, которое показываем когда юзер ещё не подписан.
+  subscriptionPromptText    String?
+  /// Сообщение после успешной проверки подписки.
+  subscriptionSuccessText   String?
+
+  steps     FunnelStep[]
+  smartLinks SmartLink[]
 
   @@index([isActive])
   @@map("funnels")

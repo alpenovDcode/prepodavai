@@ -126,10 +126,20 @@ export class FunnelsService {
     isActive?: boolean;
     steps?: FunnelStepDef[];
     globalFilters?: Record<string, any> | null;
+    welcomeText?: string | null;
+    welcomeButtonLabel?: string | null;
+    welcomeButtonAction?: string | null;
+    welcomeButtonUrl?: string | null;
+    subscriptionChannelId?: string | null;
+    subscriptionChannelName?: string | null;
+    subscriptionPromptText?: string | null;
+    subscriptionSuccessText?: string | null;
   }) {
     await this.getOne(id); // 404 if not exists
 
     return this.prisma.$transaction(async (tx) => {
+      const trim = (v: string | null | undefined) =>
+        v === undefined ? undefined : (v ? v.trim() || null : null);
       const updated = await tx.funnel.update({
         where: { id },
         data: {
@@ -137,6 +147,14 @@ export class FunnelsService {
           description: data.description,
           isActive: data.isActive,
           globalFilters: data.globalFilters === undefined ? undefined : (data.globalFilters as any),
+          welcomeText: trim(data.welcomeText) as any,
+          welcomeButtonLabel: trim(data.welcomeButtonLabel) as any,
+          welcomeButtonAction: trim(data.welcomeButtonAction) as any,
+          welcomeButtonUrl: trim(data.welcomeButtonUrl) as any,
+          subscriptionChannelId: trim(data.subscriptionChannelId) as any,
+          subscriptionChannelName: trim(data.subscriptionChannelName) as any,
+          subscriptionPromptText: trim(data.subscriptionPromptText) as any,
+          subscriptionSuccessText: trim(data.subscriptionSuccessText) as any,
         },
       });
       if (data.steps) {

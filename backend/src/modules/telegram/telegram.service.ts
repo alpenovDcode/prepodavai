@@ -9,6 +9,7 @@ import { HtmlExportService } from '../../common/services/html-export.service';
 import { EmailService } from '../../common/services/email.service';
 import { FilesService } from '../files/files.service';
 import { AnalyticsEventsService } from '../analytics-events/analytics-events.service';
+import { SmartLinkTokensService } from '../smart-links/smart-link-tokens.service';
 
 // ── Типы состояний диалога регистрации ──────────────────────────────────────
 type RegStep = 'awaiting_email';
@@ -20,6 +21,29 @@ interface RegistrationState {
 }
 
 const MINI_APP_BTN = '📱 Открыть мини-приложение';
+
+// ── Дефолтное приветствие + проверка подписки ──────────────────────────────
+// Это fallback для всех новых юзеров, у которых нет smart-link-воронки.
+// 1:1 с текстом из /telegram-bot/main.ts и max.service.ts (бренд «Прорыв в
+// репетиторстве»). Канал и ссылка читаются из ENV — настраивается на проде
+// без правок кода.
+const DEFAULT_SUBSCRIPTION_TEXT =
+  'Преподавай — бесплатный ИИ-сервис для репетиторов.\n\n' +
+  'Он помогает быстрее готовиться к урокам:\n' +
+  '— составлять планы занятий\n' +
+  '— генерировать рабочие листы\n' +
+  '— подбирать упражнения\n' +
+  '— делать домашку\n' +
+  '— объяснять темы простым языком\n\n' +
+  'Чтобы пользоваться сервисом бесплатно, надо быть подписанным на канал «Прорыв в репетиторстве».\n' +
+  'После подписки нажмите «Я подписался» — и бот откроет доступ.';
+const DEFAULT_NOT_SUBSCRIBED_TEXT =
+  'Пока не вижу подписку на канал.\n\n' +
+  'Чтобы открыть бесплатный доступ к Преподавай, подпишитесь на канал «Прорыв в репетиторстве», ' +
+  'а потом нажмите «Я подписался».';
+const DEFAULT_SUBSCRIBED_TEXT =
+  'Готово, доступ открыт ✅\n\n' +
+  'Теперь можете пользоваться Преподавай бесплатно, пока подписаны на канал «Прорыв в репетиторстве».';
 
 @Injectable()
 export class TelegramService {
@@ -37,12 +61,385 @@ export class TelegramService {
     private readonly emailService: EmailService,
     private readonly filesService: FilesService,
     private readonly analyticsEvents: AnalyticsEventsService,
+    private readonly smartLinkTokens: SmartLinkTokensService,
   ) {
     const token = this.configService.get<string>('TELEGRAM_BOT_TOKEN');
     if (token) {
       this.bot = new Bot(token);
+      this.registerCommandHandlers();
     } else {
       this.logger.warn('TELEGRAM_BOT_TOKEN is not set. Telegram bot will not work.');
+    }
+  }
+
+  /**
+   * Регистрирует обработчики команд бота. Сейчас — только /start, для
+   * атрибуции UTM-кликов через smart-link токены.
+   *
+   * Поток: юзер кликает prepodavai.ru/g/<slug>?utm_source=... → редиректор
+   * кладёт UTM в Redis под токеном, шлёт в t.me/bot?start=<token>. Здесь
+   * бот читает токен, привязывает UTM к пользователю (если уже в БД) или
+   * откладывает атрибуцию по tgId на 30 дней (если ещё не зареган).
+   */
+  private registerCommandHandlers() {
+    this.bot.command('start', async (ctx) => {
+      try {
+        const payload = (ctx.match || '').trim();
+        const tgId = ctx.from?.id;
+        if (!tgId) return;
+
+        // 1) Smart-link токен → атрибуция через воронку.
+        //    Воронка с welcomeText сама отрисует своё приветствие
+        //    (в handleStartPayload → sendFunnelWelcome).
+        if (payload && /^[A-Za-z0-9_-]{10,32}$/.test(payload)) {
+          const attribution = await this.handleStartPayload(String(tgId), payload, ctx);
+          if (attribution?.funnelId) return; // воронка уже отправила своё welcome
+        }
+
+        // 2) Иначе — дефолтное приветствие с проверкой подписки на канал
+        //    «Прорыв в репетиторстве». Это же поведение раньше жило в
+        //    отдельном /telegram-bot проекте и в max.service.
+        await this.sendDefaultActivationFlow(ctx);
+      } catch (e: any) {
+        this.logger.warn(`/start handler failed: ${e?.message}`);
+      }
+    });
+
+    // Дефолтный callback «Я подписался» (sub:check) — для пользователей вне
+    // воронок. Воронки используют свой callback `check_sub:<funnelId>` ниже.
+    this.bot.callbackQuery('sub:check', async (ctx) => {
+      try {
+        const tgId = ctx.from?.id ? String(ctx.from.id) : null;
+        if (!tgId) return;
+        await this.handleDefaultSubscriptionCheck(ctx, tgId);
+      } catch (e: any) {
+        this.logger.warn(`sub:check handler failed: ${e?.message}`);
+      }
+    });
+
+    // Callback-query «Я подписался» — проверяет подписку на канал и шлёт
+    // следующий шаг. Callback-data формата: check_sub:<funnelId>
+    this.bot.callbackQuery(/^check_sub:(.+)$/, async (ctx) => {
+      try {
+        const funnelId = (ctx.match?.[1] || '').trim();
+        const tgId = ctx.from?.id ? String(ctx.from.id) : null;
+        if (!funnelId || !tgId) return;
+
+        const funnel = await this.prisma.funnel.findUnique({
+          where: { id: funnelId },
+          select: {
+            subscriptionChannelId: true,
+            subscriptionChannelName: true,
+            subscriptionPromptText: true,
+            subscriptionSuccessText: true,
+          },
+        }).catch(() => null);
+
+        if (!funnel?.subscriptionChannelId) {
+          await ctx.answerCallbackQuery({ text: 'Канал не настроен', show_alert: false });
+          return;
+        }
+
+        const isSubscribed = await this.checkChannelSubscription(
+          funnel.subscriptionChannelId,
+          tgId,
+        );
+
+        if (isSubscribed) {
+          this.analyticsEvents.track({
+            userId: tgId, // используется как anonId для бот-юзеров
+            eventType: 'channel_subscribed' as any,
+            eventName: funnel.subscriptionChannelId,
+            payload: { funnelId, via: 'check_sub_button' },
+          }).catch(() => {});
+
+          const successText =
+            funnel.subscriptionSuccessText?.trim() ||
+            '✅ Спасибо за подписку! Открываем сервис.';
+          await ctx.answerCallbackQuery({ text: 'Подписка подтверждена!', show_alert: false });
+          const webAppUrl = this.configService.get<string>('WEB_APP_URL', 'https://prepodavai.ru');
+          await ctx.reply(successText, {
+            parse_mode: 'Markdown',
+            reply_markup: {
+              inline_keyboard: [[
+                { text: '🚀 Открыть ПреподаваИИ', web_app: { url: `${webAppUrl}/dashboard` } },
+              ]],
+            },
+          });
+        } else {
+          const promptText =
+            funnel.subscriptionPromptText?.trim() ||
+            `Похоже, вы ещё не подписались на ${funnel.subscriptionChannelName || 'канал'}. Подпишитесь и нажмите ещё раз.`;
+          await ctx.answerCallbackQuery({ text: 'Подписка не найдена', show_alert: true });
+          await ctx.reply(promptText, { parse_mode: 'Markdown' });
+        }
+      } catch (e: any) {
+        this.logger.warn(`check_sub callback failed: ${e?.message}`);
+      }
+    });
+  }
+
+  /**
+   * Проверяет, подписан ли пользователь на канал. Бот должен быть
+   * администратором канала, иначе getChatMember вернёт ошибку.
+   */
+  private async checkChannelSubscription(channelId: string, tgUserId: string): Promise<boolean> {
+    try {
+      const member = await this.bot.api.getChatMember(channelId, parseInt(tgUserId, 10));
+      // member / administrator / creator — подписан
+      // left / kicked / restricted — не подписан
+      return ['member', 'administrator', 'creator'].includes(member.status);
+    } catch (e: any) {
+      this.logger.warn(`getChatMember failed for ${channelId}/${tgUserId}: ${e?.message}`);
+      return false;
+    }
+  }
+
+  private async handleStartPayload(
+    tgId: string,
+    payload: string,
+    ctx: Context,
+  ): Promise<{ funnelId?: string } | null> {
+    // Токен smart-link имеет вид base64url из 10 байт → 14 символов
+    // [A-Za-z0-9_-]. Если получили что-то другое — это legacy-payload,
+    // игнорируем (registration-flow всё ещё может ловить его отдельно).
+    if (!/^[A-Za-z0-9_-]{10,32}$/.test(payload)) return null;
+
+    const attr = await this.smartLinkTokens.consume(payload);
+    if (!attr) {
+      this.logger.debug(`/start ${payload}: token не найден / истёк`);
+      return null;
+    }
+
+    this.logger.log(
+      `/start smart-link: tgId=${tgId}, slug=${attr.slug}, ` +
+      `utm=${attr.utmSource || '-'}/${attr.utmMedium || '-'}/${attr.utmCampaign || '-'}`,
+    );
+
+    // Если пользователь уже зарегистрирован на платформе и связал
+    // Telegram — записываем UTM прямо в его профиль и шлём событие.
+    const appUser = await this.prisma.appUser.findUnique({
+      where: { telegramId: tgId },
+      select: { id: true },
+    }).catch(() => null);
+
+    if (appUser) {
+      await this.prisma.appUser.update({
+        where: { id: appUser.id },
+        data: {
+          ...(attr.utmSource && { utmSource: attr.utmSource }),
+          ...(attr.utmMedium && { utmMedium: attr.utmMedium }),
+          ...(attr.utmCampaign && { utmCampaign: attr.utmCampaign }),
+          ...(attr.utmContent && { utmContent: attr.utmContent }),
+          ...(attr.utmTerm && { utmTerm: attr.utmTerm }),
+        },
+      }).catch((e) => this.logger.warn(`Apply UTM to AppUser failed: ${e?.message}`));
+
+      this.analyticsEvents.track({
+        userId: appUser.id,
+        eventType: 'smart_link_click' as any,
+        eventName: attr.slug,
+        payload: { linkId: attr.linkId, autoTags: attr.autoTags },
+        utmSource: attr.utmSource,
+        utmMedium: attr.utmMedium,
+        utmCampaign: attr.utmCampaign,
+        utmContent: attr.utmContent,
+        utmTerm: attr.utmTerm,
+      }).catch(() => {});
+    } else {
+      // Новый юзер из бота. Откладываем атрибуцию на 30 дней — при
+      // регистрации (verifyEmailCode) auth.service подхватит её из Redis
+      // и проставит UTM на свежесозданный AppUser.
+      await this.smartLinkTokens.storeForTgUser(tgId, attr);
+    }
+
+    // Если ссылка привязана к воронке — шлём кастомное welcome из неё.
+    // Возвращаем funnelId наверх, чтобы /start handler не запустил
+    // дефолтный subscription flow поверх воронки.
+    if (attr.funnelId) {
+      await this.sendFunnelWelcome(ctx, attr.funnelId);
+      return { funnelId: attr.funnelId };
+    }
+    return {};
+  }
+
+  /**
+   * Шлёт настроенное приветствие из конкретной воронки. Текст, кнопка и
+   * (опционально) проверка подписки на канал берутся из БД, не из кода.
+   */
+  private async sendFunnelWelcome(ctx: Context, funnelId: string) {
+    const funnel = await this.prisma.funnel.findUnique({
+      where: { id: funnelId },
+      select: {
+        welcomeText: true,
+        welcomeButtonLabel: true,
+        welcomeButtonAction: true,
+        welcomeButtonUrl: true,
+        subscriptionChannelId: true,
+        subscriptionChannelName: true,
+      },
+    }).catch(() => null);
+
+    if (!funnel || !funnel.welcomeText?.trim()) {
+      // Воронка без welcome-конфига — fallback на дефолт (web_app кнопка).
+      const webAppUrl = this.configService.get<string>('WEB_APP_URL', 'https://prepodavai.ru');
+      await ctx.reply('👋 Добро пожаловать в *ПреподаваИИ*!', {
+        parse_mode: 'Markdown',
+        reply_markup: {
+          inline_keyboard: [[
+            { text: '🚀 Открыть ПреподаваИИ', web_app: { url: `${webAppUrl}/dashboard` } },
+          ]],
+        },
+      });
+      return;
+    }
+
+    const action = funnel.welcomeButtonAction || 'url';
+    const label = funnel.welcomeButtonLabel?.trim() || 'Начать';
+    let inlineKeyboard: any[][] = [];
+
+    if (action === 'check_subscription' && funnel.subscriptionChannelId) {
+      // Кнопка-перенаправление на канал + отдельная кнопка «Проверить подписку»
+      const channel = funnel.subscriptionChannelId.startsWith('@')
+        ? funnel.subscriptionChannelId.slice(1)
+        : funnel.subscriptionChannelName?.replace(/^@/, '');
+      const channelUrl = channel
+        ? `https://t.me/${channel}`
+        : funnel.welcomeButtonUrl || 'https://t.me';
+      inlineKeyboard = [
+        [{ text: `📢 ${label}`, url: channelUrl }],
+        [{ text: '✅ Я подписался', callback_data: `check_sub:${funnelId}` }],
+      ];
+    } else if (action === 'mini_app') {
+      const webAppUrl = funnel.welcomeButtonUrl?.trim() ||
+        this.configService.get<string>('WEB_APP_URL', 'https://prepodavai.ru') + '/dashboard';
+      inlineKeyboard = [[{ text: label, web_app: { url: webAppUrl } }]];
+    } else {
+      // 'url' (default)
+      inlineKeyboard = [[
+        { text: label, url: funnel.welcomeButtonUrl?.trim() || 'https://prepodavai.ru' },
+      ]];
+    }
+
+    try {
+      await ctx.reply(funnel.welcomeText, {
+        parse_mode: 'Markdown',
+        reply_markup: { inline_keyboard: inlineKeyboard },
+      });
+    } catch (e: any) {
+      // Если Markdown сломался (текст с непарными *) — пробуем без parse_mode
+      this.logger.warn(`sendFunnelWelcome markdown failed: ${e?.message}, retrying plain`);
+      await ctx.reply(funnel.welcomeText, {
+        reply_markup: { inline_keyboard: inlineKeyboard },
+      });
+    }
+  }
+
+  // ──────────────────────────────────────────────────────────────────────
+  // Дефолтное приветствие + проверка подписки на канал
+  // Используется для юзеров БЕЗ smart-link-воронки. Поведение 1:1 с
+  // отдельным проектом /telegram-bot/main.ts и max.service.ts —
+  // «Прорыв в репетиторстве». Канал и кнопка-ссылка из ENV.
+  // ──────────────────────────────────────────────────────────────────────
+
+  private getDefaultSubscriptionKeyboard(): any[][] {
+    const channelUrl =
+      this.configService.get<string>('TELEGRAM_CHANNEL_URL') ||
+      'https://t.me/gotoChannelBot?startapp=TLc4259d96973fc7';
+    return [
+      [{ text: 'ПОДПИСАТЬСЯ НА КАНАЛ', url: channelUrl }],
+      [{ text: 'Я ПОДПИСАЛСЯ', callback_data: 'sub:check' }],
+    ];
+  }
+
+  private async sendDefaultActivationFlow(ctx: Context) {
+    try {
+      // Убираем reply-клавиатуру, если осталась от старого диалога
+      await ctx.reply('Коллега, рада вас видеть 👋', {
+        reply_markup: { remove_keyboard: true },
+      });
+
+      // Опционально — интро-видео (нужен file_id уже загруженного на серверы ТГ)
+      const introVideoId = this.configService.get<string>('TELEGRAM_INTRO_VIDEO_ID');
+      if (introVideoId && ctx.chat?.id) {
+        await this.bot.api
+          .sendVideoNote(ctx.chat.id, introVideoId)
+          .catch((err: any) => this.logger.warn(`Intro video failed: ${err?.message}`));
+      }
+
+      await ctx.reply(DEFAULT_SUBSCRIPTION_TEXT, {
+        reply_markup: { inline_keyboard: this.getDefaultSubscriptionKeyboard() },
+      });
+    } catch (e: any) {
+      this.logger.warn(`sendDefaultActivationFlow failed: ${e?.message}`);
+    }
+  }
+
+  private async handleDefaultSubscriptionCheck(ctx: Context, tgId: string) {
+    const channelId = this.configService.get<string>('TELEGRAM_CHANNEL_ID');
+
+    // Если канал не настроен в ENV — пропускаем проверку, даём доступ
+    // (полезно на dev/staging без боевого канала).
+    let isSubscribed = true;
+    if (channelId) {
+      isSubscribed = await this.checkChannelSubscription(channelId, tgId);
+    } else {
+      this.logger.warn(
+        '[Sub] TELEGRAM_CHANNEL_ID not configured — skipping subscription check, granting access',
+      );
+    }
+
+    if (!isSubscribed) {
+      await ctx
+        .answerCallbackQuery({ text: 'Подписка не найдена', show_alert: false })
+        .catch(() => {});
+      await ctx.reply(DEFAULT_NOT_SUBSCRIBED_TEXT, {
+        reply_markup: { inline_keyboard: this.getDefaultSubscriptionKeyboard() },
+      });
+      return;
+    }
+
+    await ctx
+      .answerCallbackQuery({ text: 'Доступ открыт ✅' })
+      .catch(() => {});
+    await ctx.reply(DEFAULT_SUBSCRIBED_TEXT);
+
+    // Создаём shadow AppUser (как в /telegram-bot/main.ts), чтобы юзер
+    // мог сразу пользоваться сервисом без полного email-онбординга.
+    try {
+      const shadowApiKey = crypto.randomBytes(16).toString('hex');
+      const chatId = ctx.chat?.id ? String(ctx.chat.id) : null;
+      await this.prisma.appUser.upsert({
+        where: { telegramId: tgId },
+        update: { lastAccessAt: new Date() },
+        create: {
+          telegramId: tgId,
+          telegramChatId: chatId,
+          chatId,
+          username: `tg_${tgId}`,
+          apiKey: shadowApiKey,
+          source: 'telegram_bot',
+        } as any,
+      });
+
+      this.analyticsEvents.track({
+        userId: tgId, // anonId-режим для бот-юзеров без AppUser
+        eventType: 'channel_subscribed' as any,
+        eventName: channelId || 'default',
+        payload: { via: 'default_sub_check' },
+      }).catch(() => {});
+
+      // Mini App кнопка — главный entry point после активации
+      const webAppUrl = this.configService.get<string>('WEB_APP_URL', 'https://prepodavai.ru');
+      await ctx.reply('🚀 Откройте сервис прямо здесь:', {
+        reply_markup: {
+          inline_keyboard: [[
+            { text: '🚀 Открыть ПреподаваИИ', web_app: { url: `${webAppUrl}/dashboard` } },
+          ]],
+        },
+      });
+    } catch (e: any) {
+      this.logger.warn(`Shadow user creation failed: ${e?.message}`);
     }
   }
 

@@ -58,6 +58,20 @@ export class SmartLinksRedirectController {
       req.ip ||
       undefined;
 
+    // UTM-переопределения из query-параметров. Поддерживаем как полные
+    // имена (?utm_source=...), так и короткие алиасы (?s=...&m=...&c=...)
+    // — короткие удобнее в постах в соцсетях.
+    const q = req.query as Record<string, string | string[] | undefined>;
+    const pickStr = (v: string | string[] | undefined) =>
+      Array.isArray(v) ? v[0] : v;
+    const overrideUtm = {
+      utmSource: pickStr(q.utm_source) ?? pickStr(q.s),
+      utmMedium: pickStr(q.utm_medium) ?? pickStr(q.m),
+      utmCampaign: pickStr(q.utm_campaign) ?? pickStr(q.c),
+      utmContent: pickStr(q.utm_content) ?? pickStr(q.creative),
+      utmTerm: pickStr(q.utm_term) ?? pickStr(q.t),
+    };
+
     const result = await this.service.resolveAndTrack({
       slug,
       ip,
@@ -65,6 +79,7 @@ export class SmartLinksRedirectController {
       referer: (req.headers.referer || req.headers.referrer || undefined) as string,
       anonId,
       userId,
+      overrideUtm,
     });
 
     if (!result) {

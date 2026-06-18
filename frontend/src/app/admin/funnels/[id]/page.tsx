@@ -446,6 +446,16 @@ function FunnelEditor({ funnel, onSaved }: { funnel: Funnel; onSaved: () => void
     const [steps, setSteps] = useState<FunnelStep[]>(() => funnel.steps.map((s, i) => ({ ...s, order: i })))
     const [saving, setSaving] = useState(false)
     const [filtersJson, setFiltersJson] = useState(JSON.stringify(funnel.globalFilters ?? {}, null, 2))
+    // ───── Welcome-конфиг для Telegram-бота ─────
+    const f: any = funnel
+    const [welcomeText, setWelcomeText] = useState<string>(f.welcomeText || '')
+    const [welcomeButtonLabel, setWelcomeButtonLabel] = useState<string>(f.welcomeButtonLabel || '')
+    const [welcomeButtonAction, setWelcomeButtonAction] = useState<string>(f.welcomeButtonAction || 'url')
+    const [welcomeButtonUrl, setWelcomeButtonUrl] = useState<string>(f.welcomeButtonUrl || '')
+    const [subscriptionChannelId, setSubscriptionChannelId] = useState<string>(f.subscriptionChannelId || '')
+    const [subscriptionChannelName, setSubscriptionChannelName] = useState<string>(f.subscriptionChannelName || '')
+    const [subscriptionPromptText, setSubscriptionPromptText] = useState<string>(f.subscriptionPromptText || '')
+    const [subscriptionSuccessText, setSubscriptionSuccessText] = useState<string>(f.subscriptionSuccessText || '')
 
     const update = (i: number, patch: Partial<FunnelStep>) =>
         setSteps(prev => prev.map((s, idx) => idx === i ? { ...s, ...patch } : s))
@@ -486,6 +496,14 @@ function FunnelEditor({ funnel, onSaved }: { funnel: Funnel; onSaved: () => void
                 description: description.trim() || undefined,
                 steps,
                 globalFilters: gf,
+                welcomeText: welcomeText.trim() || null,
+                welcomeButtonLabel: welcomeButtonLabel.trim() || null,
+                welcomeButtonAction: welcomeButtonAction || 'url',
+                welcomeButtonUrl: welcomeButtonUrl.trim() || null,
+                subscriptionChannelId: subscriptionChannelId.trim() || null,
+                subscriptionChannelName: subscriptionChannelName.trim() || null,
+                subscriptionPromptText: subscriptionPromptText.trim() || null,
+                subscriptionSuccessText: subscriptionSuccessText.trim() || null,
             })
             toast.success('Сохранено')
             onSaved()
@@ -598,6 +616,117 @@ function FunnelEditor({ funnel, onSaved }: { funnel: Funnel; onSaved: () => void
                         <Save className="w-4 h-4" />
                         {saving ? 'Сохранение…' : 'Сохранить воронку'}
                     </button>
+                </div>
+
+                {/* Welcome-сообщение для Telegram-бота */}
+                <div className="bg-white rounded-xl border border-gray-200 p-5">
+                    <h3 className="font-bold text-gray-900 mb-1 inline-flex items-center gap-2">
+                        <SettingsIcon className="w-4 h-4 text-primary-600" />
+                        Welcome в Telegram-боте
+                    </h3>
+                    <p className="text-xs text-gray-500 mb-4">
+                        Привяжи к этой воронке умную ссылку (раздел «Умные ссылки»). Когда пользователь
+                        кликнет по ней и зайдёт в бот через <code className="text-purple-600">t.me/?start=...</code> —
+                        бот пришлёт это сообщение вместо дефолтного. Если поля пустые — используется
+                        стандартное приветствие.
+                    </p>
+
+                    <div className="space-y-3">
+                        <div>
+                            <label className="block text-xs font-semibold text-gray-700 mb-1">
+                                Текст приветствия (Markdown)
+                            </label>
+                            <textarea value={welcomeText} onChange={e => setWelcomeText(e.target.value)}
+                                rows={5}
+                                placeholder="👋 Привет! Подпишись на наш канал и получи бесплатный доступ..."
+                                className="w-full p-3 rounded-md border border-gray-200 text-sm font-mono" />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-700 mb-1">Текст кнопки</label>
+                                <input type="text" value={welcomeButtonLabel}
+                                    onChange={e => setWelcomeButtonLabel(e.target.value)}
+                                    placeholder="Перейти в канал"
+                                    className="w-full h-10 px-3 rounded-md border border-gray-200 text-sm" />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                                    Действие кнопки
+                                </label>
+                                <select value={welcomeButtonAction}
+                                    onChange={e => setWelcomeButtonAction(e.target.value)}
+                                    className="w-full h-10 px-3 rounded-md border border-gray-200 text-sm bg-white">
+                                    <option value="url">Открыть ссылку (URL)</option>
+                                    <option value="mini_app">Открыть Mini App</option>
+                                    <option value="check_subscription">Проверить подписку на канал</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        {welcomeButtonAction !== 'check_subscription' && (
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-700 mb-1">URL кнопки</label>
+                                <input type="text" value={welcomeButtonUrl}
+                                    onChange={e => setWelcomeButtonUrl(e.target.value)}
+                                    placeholder={welcomeButtonAction === 'mini_app'
+                                        ? 'https://prepodavai.ru/dashboard'
+                                        : 'https://t.me/yourchannel'}
+                                    className="w-full h-10 px-3 rounded-md border border-gray-200 text-sm" />
+                            </div>
+                        )}
+
+                        {welcomeButtonAction === 'check_subscription' && (
+                            <div className="border-t border-gray-100 pt-4 space-y-3">
+                                <div className="text-xs font-bold text-gray-700 uppercase tracking-wider">
+                                    Канал для подписки
+                                </div>
+                                <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3 text-xs text-yellow-900">
+                                    Бот должен быть админом канала, иначе <code>getChatMember</code> не сработает.
+                                </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="block text-xs font-semibold text-gray-700 mb-1">
+                                            ID канала или @username
+                                        </label>
+                                        <input type="text" value={subscriptionChannelId}
+                                            onChange={e => setSubscriptionChannelId(e.target.value)}
+                                            placeholder="@prepodavai или -1001234567890"
+                                            className="w-full h-10 px-3 rounded-md border border-gray-200 text-sm font-mono" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-semibold text-gray-700 mb-1">
+                                            Название для текста
+                                        </label>
+                                        <input type="text" value={subscriptionChannelName}
+                                            onChange={e => setSubscriptionChannelName(e.target.value)}
+                                            placeholder="ПреподаваИИ"
+                                            className="w-full h-10 px-3 rounded-md border border-gray-200 text-sm" />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-semibold text-gray-700 mb-1">
+                                        Если не подписан (Markdown)
+                                    </label>
+                                    <textarea value={subscriptionPromptText}
+                                        onChange={e => setSubscriptionPromptText(e.target.value)}
+                                        rows={2}
+                                        placeholder="Похоже, вы ещё не подписались. Подпишитесь и нажмите ещё раз."
+                                        className="w-full p-3 rounded-md border border-gray-200 text-sm" />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-semibold text-gray-700 mb-1">
+                                        После успешной подписки (Markdown)
+                                    </label>
+                                    <textarea value={subscriptionSuccessText}
+                                        onChange={e => setSubscriptionSuccessText(e.target.value)}
+                                        rows={2}
+                                        placeholder="✅ Спасибо за подписку! Открываем сервис."
+                                        className="w-full p-3 rounded-md border border-gray-200 text-sm" />
+                                </div>
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
 

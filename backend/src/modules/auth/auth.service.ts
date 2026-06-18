@@ -10,6 +10,7 @@ import * as bcrypt from 'bcryptjs';
 import { StudentsService } from '../students/students.service';
 import { EmailService } from '../../common/services/email.service';
 import { AnalyticsEventsService, EVENT_TYPES } from '../analytics-events/analytics-events.service';
+import { SmartLinkTokensService } from '../smart-links/smart-link-tokens.service';
 
 @Injectable()
 export class AuthService {
@@ -26,6 +27,7 @@ export class AuthService {
     private smscService: SmscService,
     private emailService: EmailService,
     private analyticsEvents: AnalyticsEventsService,
+    private smartLinkTokens: SmartLinkTokensService,
   ) {}
 
   /**
@@ -574,6 +576,39 @@ export class AuthService {
 
     // Создаём пользователя
     const user = await this.usersService.findOrCreateByEmail(email, firstName, utm);
+
+    // Если user пришёл в бот через smart-link (через t.me/?start=<token>) ДО
+    // регистрации — атрибуция лежит в Redis по его tgId. Сейчас, при создании
+    // AppUser, забираем её и проставляем UTM-поля + smart-link clicks.
+    if ((user as any).telegramId) {
+      const pending = await this.smartLinkTokens
+        .getForTgUser((user as any).telegramId)
+        .catch(() => null);
+      if (pending) {
+        await this.prisma.appUser.update({
+          where: { id: user.id },
+          data: {
+            ...(pending.utmSource && !(user as any).utmSource && { utmSource: pending.utmSource }),
+            ...(pending.utmMedium && !(user as any).utmMedium && { utmMedium: pending.utmMedium }),
+            ...(pending.utmCampaign && !(user as any).utmCampaign && { utmCampaign: pending.utmCampaign }),
+            ...(pending.utmContent && !(user as any).utmContent && { utmContent: pending.utmContent }),
+            ...(pending.utmTerm && !(user as any).utmTerm && { utmTerm: pending.utmTerm }),
+          },
+        }).catch((e) => this.logger.warn(`Apply pending smart-link UTM failed: ${e?.message}`));
+        // Перезаписываем utm для последующего analytics.track ниже
+        utm = {
+          ...utm,
+          utmSource: utm?.utmSource || pending.utmSource,
+          utmMedium: utm?.utmMedium || pending.utmMedium,
+          utmCampaign: utm?.utmCampaign || pending.utmCampaign,
+          utmContent: utm?.utmContent || pending.utmContent,
+          utmTerm: utm?.utmTerm || pending.utmTerm,
+        };
+        this.logger.log(
+          `Pending smart-link attribution applied to user ${user.id}: slug=${pending.slug}`,
+        );
+      }
+    }
 
     // Отправляем приветственное письмо с данными для входа
     await this.emailService.sendWelcomeEmail(user.username, user.apiKey, email);
