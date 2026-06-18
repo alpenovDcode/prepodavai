@@ -119,7 +119,9 @@ export default function PresentationV2() {
                 r?.result?.content,
                 r?.data?.content,
             ]
-            const html = candidates.find(c => typeof c === 'string' && (c.includes('<html') || c.includes('<!DOCTYPE') || c.includes('<body')))
+            // Принимаем любую достаточно длинную строку — HTML может не начинаться
+            // с <!DOCTYPE если шаблон рендерится без декларации.
+            const html = candidates.find(c => typeof c === 'string' && c.length > 100)
 
             // pdfUrl / pptxUrl тоже могут быть на разных уровнях.
             const pdfUrlFound = r?.pdfUrl ?? r?.outputData?.pdfUrl ?? r?.result?.pdfUrl ?? r?.exportUrl ?? null
@@ -129,8 +131,8 @@ export default function PresentationV2() {
                 setContent(html)
                 setPdfUrl(pdfUrlFound)
                 setPptxUrl(pptxUrlFound)
-            } else if (pptxUrlFound) {
-                // HTML не пришёл, но PPTX есть — показываем минимальный fallback-просмотрщик
+            } else if (pptxUrlFound || pdfUrlFound) {
+                // HTML не пришёл, но файлы есть — показываем минимальный fallback
                 setContent(`
 <!DOCTYPE html><html><head><meta charset="UTF-8"><style>
 body{margin:0;padding:40px;font-family:Inter,system-ui,sans-serif;background:#FAFAFA;color:#0F172A;display:flex;align-items:center;justify-content:center;min-height:100vh;text-align:center}
@@ -149,7 +151,7 @@ ${pptxUrlFound ? `<a href="${pptxUrlFound}" target="_blank">Скачать PPTX<
                 // Полное падение — логируем что пришло, чтобы было понятно
                 console.error('Presentation result without content/files:', r)
                 const reason = r?.error || r?.errorMessage || 'формат ответа не распознан'
-                setErrorMsg(`Презентация сгенерирована, но HTML не получен (${reason}). Откройте консоль для деталей.`)
+                setErrorMsg(`Презентация сгенерирована, но файл не получен (${reason}). Попробуйте ещё раз.`)
                 toast.error('Что-то пошло не так с рендерингом')
             }
         } catch (e: any) {
