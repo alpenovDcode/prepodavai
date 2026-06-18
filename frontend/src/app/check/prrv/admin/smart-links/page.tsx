@@ -54,10 +54,16 @@ interface CreateForm {
     funnelId: string
 }
 
+// Имя бота берём из env, чтобы не было хардкода под конкретный бот.
+// На проде должен быть установлен NEXT_PUBLIC_TELEGRAM_BOT_NAME=prrv_prepodavai_bot
+// (или какой используется реально). Если не задан — оставляем placeholder.
+const BOT_NAME = process.env.NEXT_PUBLIC_TELEGRAM_BOT_NAME || 'your_bot'
+const DEFAULT_TARGET_URL = `https://t.me/${BOT_NAME}?start=`
+
 const EMPTY_FORM: CreateForm = {
     slug: '',
     name: '',
-    targetUrl: 'https://t.me/prepodavai_bot?start=',
+    targetUrl: DEFAULT_TARGET_URL,
     description: '',
     utmSource: '',
     utmMedium: '',
@@ -401,7 +407,7 @@ export default function SmartLinksPage() {
                                 <input
                                     value={form.targetUrl}
                                     onChange={e => setForm({ ...form, targetUrl: e.target.value })}
-                                    placeholder="https://t.me/prepodavai_bot?start=ig"
+                                    placeholder={`${DEFAULT_TARGET_URL}ig`}
                                     className="input"
                                 />
                             </Field>
