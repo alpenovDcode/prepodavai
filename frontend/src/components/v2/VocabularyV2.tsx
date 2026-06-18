@@ -225,7 +225,7 @@ export default function VocabularyV2() {
             <div className="flex-1 min-h-0 grid grid-cols-12 gap-4 p-6 max-md:p-3 max-lg:grid-cols-1">
                 {/* LEFT: params */}
                 <Card padding="lg"
-                      className={`col-span-4 max-lg:col-span-1 h-fit max-lg:${mobileTab === 'config' ? '' : 'hidden'}`}>
+                      className={`col-span-4 max-lg:col-span-1 h-fit ${mobileTab === 'config' ? '' : 'max-lg:hidden'}`}>
                     {/* tool-hero */}
                     <div className="flex items-center gap-3.5 pb-5 mb-1 border-b border-ink-100" data-tour="hero">
                         <span
@@ -407,7 +407,7 @@ export default function VocabularyV2() {
 
                 {/* RIGHT: preview */}
                 <Card padding="none"
-                      className={`col-span-8 max-lg:col-span-1 flex flex-col h-[calc(100vh-200px)] max-lg:h-[calc(100vh-220px)] overflow-hidden max-lg:${mobileTab === 'preview' ? '' : 'hidden'}`}>
+                      className={`col-span-8 max-lg:col-span-1 flex flex-col h-[calc(100vh-200px)] max-lg:h-[calc(100vh-220px)] overflow-hidden ${mobileTab === 'preview' ? '' : 'max-lg:hidden'}`}>
                     <div className="flex items-center gap-2 px-4 py-3 border-b border-ink-100 flex-wrap">
                         <div className="flex items-center gap-1.5 text-[13px] font-semibold text-ink-700">
                             {isGenerating ? (

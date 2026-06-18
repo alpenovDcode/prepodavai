@@ -515,7 +515,7 @@ export default function GradingPageV2() {
       />
 
       {/* 3-column workspace */}
-      <div className="h-[calc(100vh-64px)] grid min-h-0 [grid-template-columns:minmax(280px,320px)_minmax(0,1fr)] xl:[grid-template-columns:minmax(280px,320px)_minmax(0,1fr)_minmax(300px,360px)]">
+      <div className="h-[calc(100dvh-64px)] grid min-h-0 [grid-template-columns:minmax(280px,320px)_minmax(0,1fr)] xl:[grid-template-columns:minmax(280px,320px)_minmax(0,1fr)_minmax(300px,360px)]">
         {/* ── LEFT: Queue ── */}
         <div data-tour="queue" className="bg-white border-r border-ink-200 flex flex-col overflow-hidden min-w-0">
           {/* Queue head */}

@@ -239,7 +239,7 @@ export default function WorksheetGeneratorV2(): React.ReactElement {
             <div className="flex-1 min-h-0 grid grid-cols-12 gap-4 p-6 max-md:p-3 max-lg:grid-cols-1">
                 {/* LEFT: settings */}
                 <Card padding="lg"
-                      className={`col-span-4 max-lg:col-span-1 h-fit max-lg:${mobileTab === 'config' ? '' : 'hidden'}`}>
+                      className={`col-span-4 max-lg:col-span-1 h-fit ${mobileTab === 'config' ? '' : 'max-lg:hidden'}`}>
                     {/* tool-hero */}
                     <div className="flex items-center gap-3.5 pb-5 mb-1 border-b border-ink-100" data-tour="hero">
                         <span className="w-11 h-11 rounded-md inline-flex items-center justify-center bg-brand-50 text-brand-600">
@@ -332,7 +332,7 @@ export default function WorksheetGeneratorV2(): React.ReactElement {
 
                 {/* RIGHT: preview */}
                 <Card padding="none"
-                      className={`col-span-8 max-lg:col-span-1 flex flex-col h-[calc(100vh-200px)] max-lg:h-[calc(100vh-220px)] overflow-hidden max-lg:${mobileTab === 'preview' ? '' : 'hidden'}`}>
+                      className={`col-span-8 max-lg:col-span-1 flex flex-col h-[calc(100vh-200px)] max-lg:h-[calc(100vh-220px)] overflow-hidden ${mobileTab === 'preview' ? '' : 'max-lg:hidden'}`}>
                     {/* Preview toolbar: 3 tabs + actions */}
                     <div className="flex items-center gap-2 px-4 py-2.5 border-b border-ink-100 flex-wrap" data-tour="preview-tabs">
                         {/* Tab buttons */}

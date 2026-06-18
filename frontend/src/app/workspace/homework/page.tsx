@@ -560,7 +560,7 @@ export default function HomeworkReviewPage() {
         const statuses = assignmentDetails.studentStatuses
 
         return (
-            <div className="flex flex-col md:flex-row gap-6 w-full max-w-6xl mx-auto h-[calc(100vh-80px)]">
+            <div className="flex flex-col md:flex-row gap-6 w-full max-w-6xl mx-auto h-[calc(100dvh-80px)]">
                 {/* Left Panel: Student List */}
                 <div className="w-full md:w-1/3 flex flex-col bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
                     <div className="p-4 border-b border-gray-100">

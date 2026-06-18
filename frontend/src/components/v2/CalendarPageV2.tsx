@@ -276,7 +276,7 @@ export default function CalendarPageV2() {
                 </div>
 
                 <Card padding="lg" className="overflow-hidden" data-tour="grid">
-                    <div style={{ height: 'calc(100vh - 280px)', minHeight: 580 }}>
+                    <div style={{ height: 'calc(100dvh - 280px)', minHeight: 580 }}>
                         <DnDCalendar
                             localizer={localizer}
                             culture="ru"
@@ -531,7 +531,7 @@ function EventModal({
                         />
                     </Field>
 
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-2 max-sm:grid-cols-1 gap-3">
                         <Field label="Начало">
                             <input type="datetime-local" value={start} onChange={(e) => setStart(e.target.value)} className={inputCls} />
                         </Field>
@@ -540,7 +540,7 @@ function EventModal({
                         </Field>
                     </div>
 
-                    <div className="grid grid-cols-3 gap-3">
+                    <div className="grid grid-cols-3 max-sm:grid-cols-1 gap-3">
                         <Field label="Тип">
                             <select value={eventType} onChange={(e) => setEventType(e.target.value)} className={inputCls}>
                                 <option value="lesson">Урок</option>
@@ -565,7 +565,7 @@ function EventModal({
                         </Field>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-2 max-sm:grid-cols-1 gap-3">
                         <Field label="Ученик">
                             <select value={studentId} onChange={(e) => setStudentId(e.target.value)} className={inputCls}>
                                 <option value="">— не выбран —</option>

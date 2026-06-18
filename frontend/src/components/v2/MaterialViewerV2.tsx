@@ -710,7 +710,7 @@ export default function MaterialViewerV2({ lessonId, generationId, isEditable = 
                         </button>
                     }
                 />
-                <div className="h-[calc(100vh-64px)]">
+                <div className="h-[calc(100dvh-64px)]">
                     <MaterialViewer lessonId={lessonId} generationId={generationId} isEditable={isEditable} />
                 </div>
             </>
