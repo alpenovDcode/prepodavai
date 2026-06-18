@@ -257,7 +257,7 @@ export default function AdminUsersPage() {
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-right">
                                             <div className="flex justify-end gap-1.5 text-gray-400">
-                                                <Link href={`/admin/users/${user.id}`} className="hover:text-indigo-600 hover:bg-indigo-50 p-2 rounded-xl transition-all" title="Статистика">
+                                                <Link href={`/check/prrv/admin/users/${user.id}`} className="hover:text-indigo-600 hover:bg-indigo-50 p-2 rounded-xl transition-all" title="Статистика">
                                                     <BarChart2 className="w-4 h-4" />
                                                 </Link>
                                                 <button onClick={() => openEditModal(user)} className="hover:text-blue-600 hover:bg-blue-50 p-2 rounded-xl transition-all" title="Редактировать">

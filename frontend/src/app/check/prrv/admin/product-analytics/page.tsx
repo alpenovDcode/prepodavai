@@ -1832,7 +1832,7 @@ export default function ProductAnalyticsPage() {
                             <td className="px-4 py-3 text-right text-gray-600">{u.creditsBalance ?? '—'}</td>
                             <td className="px-4 py-3 text-center">
                               <Link
-                                href={`/admin/users/${u.id}`}
+                                href={`/check/prrv/admin/users/${u.id}`}
                                 className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold hover:underline"
                               >
                                 Открыть →

@@ -146,7 +146,7 @@ export default function UserStatsPage({ params }: { params: { id: string } }) {
     return (
         <div className="space-y-6">
             <div className="flex items-center gap-3">
-                <Link href="/admin/users" className="p-2 hover:bg-gray-100 rounded-xl transition">
+                <Link href="/check/prrv/admin/users" className="p-2 hover:bg-gray-100 rounded-xl transition">
                     <ArrowLeft className="w-5 h-5 text-gray-500" />
                 </Link>
                 <div>
@@ -430,7 +430,7 @@ export default function UserStatsPage({ params }: { params: { id: string } }) {
                                                 <div className="min-w-0">
                                                     {isTeacher && r.invited.exists ? (
                                                         <Link
-                                                            href={`/admin/users/${r.referredUserId}`}
+                                                            href={`/check/prrv/admin/users/${r.referredUserId}`}
                                                             className="font-medium text-indigo-600 hover:underline truncate block"
                                                         >
                                                             {r.invited.name}

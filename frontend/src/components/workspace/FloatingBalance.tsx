@@ -24,10 +24,10 @@ export default function FloatingBalance() {
     const { isMobile, isMiniApp } = useIsMobile()
     const isMobileOrMiniApp = isMobile || isMiniApp
 
-    const { totalCredits, loading, error } = useSubscription({ enabled: isAuthenticated && !pathname.startsWith('/admin') })
+    const { totalCredits, loading, error } = useSubscription({ enabled: isAuthenticated && !pathname.startsWith('/check/prrv/admin') })
 
     // На workspace баланс показывается в сайдбаре; на мобильных — там же или скрыт
-    if (!isAuthenticated || error || pathname.startsWith('/admin') || pathname.startsWith('/workspace') || isMobileOrMiniApp) return null
+    if (!isAuthenticated || error || pathname.startsWith('/check/prrv/admin') || pathname.startsWith('/workspace') || isMobileOrMiniApp) return null
 
     const getLabel = (value: number) => {
         if (value === 0) return 'токенов'

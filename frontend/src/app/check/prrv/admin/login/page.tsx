@@ -37,7 +37,7 @@ export default function AdminLogin() {
                 localStorage.setItem('prepodavai_user', JSON.stringify(userData))
                 localStorage.setItem('prepodavai_authenticated', 'true')
                 // Token is stored in httpOnly cookie by backend
-                router.push('/admin/dashboard')
+                router.push('/check/prrv/admin/dashboard')
             }
         } catch (err: any) {
             setError(err.response?.data?.message || 'Login failed')

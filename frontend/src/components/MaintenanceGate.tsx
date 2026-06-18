@@ -18,7 +18,7 @@ const POLL_INTERVAL_MS = 30_000
  * Админ распознаётся серверно: бэкенд возвращает 503 только не-админам, поэтому
  * запросы под админом проходят как обычно. Для самой заглушки админ виден через
  * статус (он же доступен публично) — мы ВРУЧНУЮ скрываем оверлей, если
- * пользователь сидит в /admin/* (там работает админ).
+ * пользователь сидит в /check/prrv/admin/* (там работает админ).
  */
 export default function MaintenanceGate({ children }: { children: React.ReactNode }) {
     const [status, setStatus] = useState<MaintenanceStatus | null>(null)
@@ -26,7 +26,7 @@ export default function MaintenanceGate({ children }: { children: React.ReactNod
 
     useEffect(() => {
         if (typeof window === 'undefined') return
-        setIsAdminRoute(window.location.pathname.startsWith('/admin'))
+        setIsAdminRoute(window.location.pathname.startsWith('/check/prrv/admin'))
 
         const apiBase = process.env.NEXT_PUBLIC_API_URL || ''
         const url = `${apiBase}/api/system/maintenance`
@@ -46,7 +46,7 @@ export default function MaintenanceGate({ children }: { children: React.ReactNod
 
         // Если в этой же вкладке поменяли путь (Next router) — переоцениваем
         // признак админ-страницы. На full reload работает useEffect выше.
-        const onPath = () => setIsAdminRoute(window.location.pathname.startsWith('/admin'))
+        const onPath = () => setIsAdminRoute(window.location.pathname.startsWith('/check/prrv/admin'))
         window.addEventListener('popstate', onPath)
 
         return () => {

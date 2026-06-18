@@ -140,7 +140,7 @@ export default function AdminFunnelDetailPage() {
             {/* Header */}
             <div className="flex items-start justify-between gap-4 mb-6 flex-wrap">
                 <div>
-                    <Link href="/admin/funnels" className="inline-flex items-center gap-1 text-xs font-semibold text-gray-500 hover:text-primary-600 mb-2">
+                    <Link href="/check/prrv/admin/funnels" className="inline-flex items-center gap-1 text-xs font-semibold text-gray-500 hover:text-primary-600 mb-2">
                         <ArrowLeft className="w-3.5 h-3.5" />
                         Все воронки
                     </Link>

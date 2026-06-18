@@ -158,7 +158,7 @@ export default function AdminFunnelsListPage() {
                             {data.map(row => (
                                 <tr key={row.id} className="hover:bg-gray-50 transition-colors">
                                     <td className="px-5 py-3">
-                                        <Link href={`/admin/funnels/${row.id}`} className="font-semibold text-gray-900 hover:text-primary-600">
+                                        <Link href={`/check/prrv/admin/funnels/${row.id}`} className="font-semibold text-gray-900 hover:text-primary-600">
                                             {row.name}
                                         </Link>
                                         {row.description && (
@@ -186,7 +186,7 @@ export default function AdminFunnelsListPage() {
                                     <td className="px-5 py-3">
                                         <div className="flex items-center justify-end gap-1">
                                             <Link
-                                                href={`/admin/funnels/${row.id}`}
+                                                href={`/check/prrv/admin/funnels/${row.id}`}
                                                 className="inline-flex items-center gap-1 h-8 px-2.5 rounded text-xs font-semibold text-primary-600 hover:bg-primary-50"
                                             >
                                                 <Edit3 className="w-3.5 h-3.5" />

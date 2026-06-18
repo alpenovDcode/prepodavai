@@ -51,10 +51,10 @@ export default function AdminDashboard() {
     }
 
     const statCards = stats ? [
-        { title: 'Пользователи', value: stats.users.total, sub: `${stats.users.active} активных (30д)`, icon: Users, color: 'bg-blue-50 text-blue-600', href: '/admin/users' },
-        { title: 'Генерации ИИ', value: stats.generations.total, sub: `${stats.generations.completed} завершено`, icon: Workflow, color: 'bg-indigo-50 text-indigo-600', href: '/admin/analytics' },
-        { title: 'Токены в системе', value: stats.credits.total.toLocaleString('ru-RU'), sub: `${stats.transactions.total} транзакций`, icon: CreditCard, color: 'bg-emerald-50 text-emerald-600', href: '/admin/finances' },
-        { title: 'Активных подписок', value: stats.subscriptions.active, sub: `Из ${stats.subscriptions.total} всего`, icon: Activity, color: 'bg-orange-50 text-orange-600', href: '/admin/finances' },
+        { title: 'Пользователи', value: stats.users.total, sub: `${stats.users.active} активных (30д)`, icon: Users, color: 'bg-blue-50 text-blue-600', href: '/check/prrv/admin/users' },
+        { title: 'Генерации ИИ', value: stats.generations.total, sub: `${stats.generations.completed} завершено`, icon: Workflow, color: 'bg-indigo-50 text-indigo-600', href: '/check/prrv/admin/analytics' },
+        { title: 'Токены в системе', value: stats.credits.total.toLocaleString('ru-RU'), sub: `${stats.transactions.total} транзакций`, icon: CreditCard, color: 'bg-emerald-50 text-emerald-600', href: '/check/prrv/admin/finances' },
+        { title: 'Активных подписок', value: stats.subscriptions.active, sub: `Из ${stats.subscriptions.total} всего`, icon: Activity, color: 'bg-orange-50 text-orange-600', href: '/check/prrv/admin/finances' },
     ] : []
 
     const topGenTypes = (analytics?.generationsByType || [])
@@ -118,10 +118,10 @@ export default function AdminDashboard() {
             {/* Быстрые ссылки */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {[
-                    { label: 'Аналитика', href: '/admin/analytics', icon: BarChart2, color: 'text-indigo-600 bg-indigo-50' },
-                    { label: 'Классы', href: '/admin/classes', icon: BookOpen, color: 'text-blue-600 bg-blue-50' },
-                    { label: 'Маркетинг', href: '/admin/marketing', icon: GitBranch, color: 'text-violet-600 bg-violet-50' },
-                    { label: 'Логи', href: '/admin/logs', icon: Activity, color: 'text-gray-600 bg-gray-100' },
+                    { label: 'Аналитика', href: '/check/prrv/admin/analytics', icon: BarChart2, color: 'text-indigo-600 bg-indigo-50' },
+                    { label: 'Классы', href: '/check/prrv/admin/classes', icon: BookOpen, color: 'text-blue-600 bg-blue-50' },
+                    { label: 'Маркетинг', href: '/check/prrv/admin/marketing', icon: GitBranch, color: 'text-violet-600 bg-violet-50' },
+                    { label: 'Логи', href: '/check/prrv/admin/logs', icon: Activity, color: 'text-gray-600 bg-gray-100' },
                 ].map(link => {
                     const Icon = link.icon
                     return (
