@@ -7,11 +7,13 @@ import {
   Compass, SlidersHorizontal, Sparkles, Zap, Search, Star,
   BarChart3, MessageSquareText, Check, ArrowRight, MessageCircle,
   RefreshCw, AlertCircle, CheckCircle, Loader2, Gamepad2, ExternalLink, XCircle,
+  ArrowLeft,
 } from 'lucide-react'
 import { apiClient } from '@/lib/api/client'
 import { Topbar } from '@/components/layout/v2/Topbar'
 import { useMobileMenu } from '@/components/layout/v2/DashboardLayoutV2'
 import { useTour } from '@/lib/tour/useTour'
+import { useIsMobile } from '@/lib/hooks/useIsMobile'
 import InteractiveHtmlViewer, { extractHtmlFromOutput } from '@/components/InteractiveHtmlViewer'
 import { DocumentRenderer } from '@/components/blocks/DocumentRenderer'
 import { isJsonBlocksFormat, GenerationDocument as GenerationDocumentSchema } from '@/lib/blocks/schema'
@@ -219,6 +221,7 @@ function showToast(msg: string, type: 'success' | 'error' | 'info' = 'success') 
 export default function GradingPageV2() {
   const menu = useMobileMenu()
   const tour = useTour()
+  const { isMobile } = useIsMobile()
   const [activeTab, setActiveTab] = useState<'pending' | 'done'>('pending')
   const searchParams = useSearchParams()
   const [search, setSearch] = useState(() => searchParams?.get('search') ?? '')
@@ -484,11 +487,11 @@ export default function GradingPageV2() {
         onMobileMenuToggle={menu.toggle}
         hideSearch
         actions={
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={tour.start}
-              className="h-8 px-3 inline-flex items-center gap-1.5 rounded-full border border-ink-200 text-ink-700 text-[12px] font-semibold hover:bg-ink-50 transition-colors"
+              className="h-8 px-3 hidden md:inline-flex items-center gap-1.5 rounded-full border border-ink-200 text-ink-700 text-[12px] font-semibold hover:bg-ink-50 transition-colors"
             >
               <Compass className="w-3.5 h-3.5" /> Тур
             </button>
@@ -497,7 +500,8 @@ export default function GradingPageV2() {
               onClick={() => setRightOpen(v => !v)}
               className="xl:hidden h-8 px-3 inline-flex items-center gap-1.5 rounded-full border border-ink-200 text-ink-700 text-[12px] font-semibold hover:bg-ink-50 transition-colors"
             >
-              <SlidersHorizontal className="w-3.5 h-3.5" /> Оценить
+              <SlidersHorizontal className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Оценить</span>
             </button>
             <button
               type="button"
@@ -508,16 +512,16 @@ export default function GradingPageV2() {
               {batchAiLoading
                 ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
                 : <Sparkles className="w-3.5 h-3.5" />}
-              Проверить всё ИИ
+              <span className="hidden sm:inline">Проверить всё ИИ</span>
             </button>
           </div>
         }
       />
 
       {/* 3-column workspace */}
-      <div className="h-[calc(100dvh-64px)] grid min-h-0 [grid-template-columns:minmax(280px,320px)_minmax(0,1fr)] xl:[grid-template-columns:minmax(280px,320px)_minmax(0,1fr)_minmax(300px,360px)]">
+      <div className="h-[calc(100dvh-64px)] grid min-h-0 grid-cols-1 md:[grid-template-columns:minmax(280px,320px)_minmax(0,1fr)] xl:[grid-template-columns:minmax(280px,320px)_minmax(0,1fr)_minmax(300px,360px)]">
         {/* ── LEFT: Queue ── */}
-        <div data-tour="queue" className="bg-white border-r border-ink-200 flex flex-col overflow-hidden min-w-0">
+        <div data-tour="queue" className={`bg-white border-r border-ink-200 flex-col overflow-hidden min-w-0 ${isMobile && selectedId ? 'hidden' : 'flex'}`}>
           {/* Queue head */}
           <div className="p-3.5 border-b border-ink-200 flex flex-col gap-2.5 sticky top-0 bg-white z-10">
             {/* Tabs */}
@@ -634,7 +638,19 @@ export default function GradingPageV2() {
         </div>
 
         {/* ── CENTER: Document ── */}
-        <div data-tour="document" className="bg-ink-50 overflow-y-auto flex flex-col min-w-0">
+        <div data-tour="document" className={`bg-ink-50 overflow-y-auto flex-col min-w-0 ${isMobile && !selectedId ? 'hidden' : 'flex'}`}>
+          {/* Кнопка "← Назад" только на мобильных, когда открыта работа */}
+          {isMobile && selectedId && (
+            <div className="flex items-center gap-2 px-4 py-2.5 border-b border-ink-200 bg-white flex-shrink-0">
+              <button
+                type="button"
+                onClick={() => setSelectedId(null)}
+                className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-ink-600 hover:text-ink-900 transition-colors"
+              >
+                <ArrowLeft className="w-4 h-4" /> К списку работ
+              </button>
+            </div>
+          )}
           {!selectedId ? (
             <div className="flex flex-col items-center justify-center h-full text-center px-8">
               <div className="w-16 h-16 rounded-2xl bg-ink-100 flex items-center justify-center mb-4">

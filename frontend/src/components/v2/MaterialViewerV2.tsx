@@ -944,7 +944,7 @@ export default function MaterialViewerV2({ lessonId, generationId, isEditable = 
                 )}
 
                 {/* Tabs */}
-                <div className="flex gap-1 mb-4 border-b border-ink-200 mat-tabs-row print-hide">
+                <div className="flex gap-1 mb-4 border-b border-ink-200 mat-tabs-row print-hide overflow-x-auto">
                     <TabBtn active={tab === 'preview'} onClick={() => setTab('preview')} icon={<Eye className="w-4 h-4" />}>Превью</TabBtn>
                     {typeHasAnswers(genType) && (
                         <TabBtn active={tab === 'answers'} onClick={() => setTab('answers')} icon={<KeyRound className="w-4 h-4" />}>С ответами</TabBtn>
@@ -1068,7 +1068,7 @@ function TabBtn({ active, onClick, icon, children, ...rest }: { active: boolean;
             onClick={onClick}
             {...rest}
             className={cn(
-                'relative inline-flex items-center gap-2 px-4 py-3 text-[14px] font-semibold transition-colors',
+                'relative inline-flex items-center gap-2 px-4 py-3 text-[14px] font-semibold transition-colors whitespace-nowrap flex-shrink-0',
                 active ? 'text-brand-700' : 'text-ink-500 hover:text-ink-900',
             )}
         >
