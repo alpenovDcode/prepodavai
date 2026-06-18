@@ -21,6 +21,7 @@ import {
     Bell,
     CrownIcon,
     Filter,
+    Sparkles,
 } from 'lucide-react'
 
 export default function AdminLayout({
@@ -71,6 +72,7 @@ export default function AdminLayout({
         { name: 'Popup-окна', href: '/admin/popups', icon: Megaphone },
         { name: 'Тех. работы', href: '/admin/maintenance', icon: Bell },
         { name: 'UTM-ссылки', href: '/admin/utm', icon: Link2 },
+        { name: 'Умные ссылки', href: '/admin/smart-links', icon: Sparkles },
         { name: 'Тарифы', href: '/admin/tariffs', icon: CrownIcon },
         { name: 'Продукт', href: '/admin/product-analytics', icon: FlaskConical },
         { name: 'Воронки', href: '/admin/funnels', icon: Filter },

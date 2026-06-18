@@ -13,6 +13,6 @@ import { MaxModule } from '../max/max.module';
   imports: [PrismaModule, FilesModule, LogsModule, ReferralsModule, TelegramModule, MaxModule],
   controllers: [AdminController],
   providers: [AdminService, AdminGuard],
-  exports: [AdminService],
+  exports: [AdminService, AdminGuard],
 })
 export class AdminModule {}

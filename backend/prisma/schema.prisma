@@ -628,6 +628,69 @@ model UtmLink {
   @@map("utm_links")
 }
 
+// Умная короткая ссылка-редирект: prepodavai.ru/g/<slug> → targetUrl.
+// При клике инкрементим clickCount и пишем строку в SmartLinkClick (для разбора).
+// UTM-поля при редиректе аппендятся к targetUrl, autoTags применяются к
+// пользователю при первом касании (если узнаём — anon-cookie / lid в URL /
+// /start payload в Telegram-боте).
+model SmartLink {
+  id          String   @id @default(uuid())
+  slug        String   @unique // [A-Za-z0-9_-]{1,48}, например "ig-bio-april"
+  name        String // человекочитаемое название
+  targetUrl   String // куда редиректит (https://t.me/bot?start=... или landing)
+  description String?
+
+  // Опциональные UTM-оверрайды: при редиректе аппендятся к targetUrl как
+  // ?utm_source=...&utm_medium=...&utm_campaign=... — те же поля, что в UtmLink.
+  utmSource   String?
+  utmMedium   String?
+  utmCampaign String?
+  utmContent  String?
+  utmTerm     String?
+
+  // Авто-теги, навешиваемые при первом клике (для сегментации в маркетинге).
+  autoTags    String[] @default([])
+
+  // Быстрые счётчики — инкрементятся в редиректе, чтобы не агрегировать SQL
+  // на каждый список.
+  clickCount     Int @default(0) // всего кликов (uniq не считаем тут)
+  uniqueClicks   Int @default(0) // уникальных по anonId/userId
+  registrations  Int @default(0) // регистраций после клика
+
+  isActive    Boolean   @default(true)
+  expiresAt   DateTime? // null = бессрочная
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  clicks      SmartLinkClick[]
+
+  @@map("smart_links")
+}
+
+model SmartLinkClick {
+  id        String   @id @default(uuid())
+  linkId    String
+  link      SmartLink @relation(fields: [linkId], references: [id], onDelete: Cascade)
+
+  // Идентификация: либо залогиненный userId (если cookie уже есть),
+  // либо анонимный anonId (генерим в редиректе и кладём в cookie).
+  userId    String?
+  anonId    String?
+
+  ip        String?
+  userAgent String?
+  referer   String?
+  country   String?
+
+  createdAt DateTime @default(now())
+
+  @@index([linkId, createdAt])
+  @@index([userId])
+  @@index([anonId])
+  @@map("smart_link_clicks")
+}
+
 // Платежи через CloudPayments
 model Payment {
   id               String    @id @default(uuid())
