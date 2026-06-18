@@ -129,8 +129,8 @@ export default function PresentationV2() {
                 setContent(html)
                 setPdfUrl(pdfUrlFound)
                 setPptxUrl(pptxUrlFound)
-            } else if (pdfUrlFound || pptxUrlFound) {
-                // HTML не пришёл, но файлы есть — показываем минимальный fallback-просмотрщик
+            } else if (pptxUrlFound) {
+                // HTML не пришёл, но PPTX есть — показываем минимальный fallback-просмотрщик
                 setContent(`
 <!DOCTYPE html><html><head><meta charset="UTF-8"><style>
 body{margin:0;padding:40px;font-family:Inter,system-ui,sans-serif;background:#FAFAFA;color:#0F172A;display:flex;align-items:center;justify-content:center;min-height:100vh;text-align:center}
@@ -140,8 +140,7 @@ p{color:#475569;margin:0 0 24px;line-height:1.5}
 a{display:inline-block;background:#FF7E58;color:white;text-decoration:none;padding:10px 20px;border-radius:8px;font-weight:600;margin:4px}
 </style></head><body><div class="box">
 <h2>Презентация готова 🎉</h2>
-<p>HTML-просмотр временно недоступен, но вы можете скачать файлы.</p>
-${pdfUrlFound ? `<a href="${pdfUrlFound}" target="_blank">Скачать PDF</a>` : ''}
+<p>Предпросмотр недоступен, но вы можете скачать файл.</p>
 ${pptxUrlFound ? `<a href="${pptxUrlFound}" target="_blank">Скачать PPTX</a>` : ''}
 </div></body></html>`)
                 setPdfUrl(pdfUrlFound)
