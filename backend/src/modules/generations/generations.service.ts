@@ -176,7 +176,7 @@ export class GenerationsService {
       .catch((e) => this.logger.warn(`analytics track failed: ${e?.message}`));
 
     // Очередь для Вау-урока (lesson_preparation)
-    if (generationType === 'lesson_preparation' || generationType === 'lessonPreparation') {
+    if (generationType === 'lesson_preparation' || generationType === 'lessonPreparation' || (generationType as any) === 'lesson-preparation') {
       this.logger.debug(
         `GenerationsService: Lesson preparation detected for request ${generationRequest.id}, adding to queue and bypassing webhook/direct generation`,
       );
@@ -284,7 +284,8 @@ export class GenerationsService {
     // ДОПОЛНИТЕЛЬНАЯ ПРОВЕРКА: урок не должен идти в вебхук
     if (
       (generationType as any) !== 'lesson_preparation' &&
-      (generationType as any) !== 'lessonPreparation'
+      (generationType as any) !== 'lessonPreparation' &&
+      (generationType as any) !== 'lesson-preparation'
     ) {
       await this.sendToWebhook(generationType, webhookPayload);
     } else {

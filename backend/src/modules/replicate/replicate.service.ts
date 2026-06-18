@@ -291,7 +291,10 @@ export class ReplicateService {
 
         const prediction = response.data;
         if (prediction.status === 'succeeded') {
-          return this.extractOutput(prediction.output);
+          // LLM-модели (Llama 4 и др.) возвращают массив токенов — нужен join.
+          // extractOutput берёт output[0], что верно для картинок, но ломает текст.
+          const out = prediction.output;
+          return Array.isArray(out) ? out.join('') : out;
         } else if (prediction.status === 'failed' || prediction.status === 'canceled') {
           throw new Error(`Prediction ${prediction.status}: ${prediction.error}`);
         }

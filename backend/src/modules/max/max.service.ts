@@ -2832,7 +2832,21 @@ export class MaxService {
   }
 
   private async sendTextResult(chatId: string, generationType: string, result: any, isBotOnlyUser = false) {
-    const content = result?.htmlResult || result?.content || result;
+    let content: any;
+    if (result?.format === 'json-blocks-v1' && result?.outputDoc) {
+      try {
+        const { renderDocumentToHtml } = await import('../generations/v2/json-to-html');
+        const { GenerationDocument } = await import('../generations/v2/blocks-schema');
+        const parsed = GenerationDocument.safeParse(result.outputDoc);
+        content = parsed.success
+          ? renderDocumentToHtml(parsed.data, { showAnswers: false })
+          : result?.content || result;
+      } catch {
+        content = result?.content || result;
+      }
+    } else {
+      content = result?.htmlResult || result?.content || result;
+    }
     const filename = `${generationType}_${new Date().toISOString().split('T')[0]}.pdf`;
 
     try {
