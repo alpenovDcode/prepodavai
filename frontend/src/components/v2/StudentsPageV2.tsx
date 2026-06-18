@@ -324,19 +324,19 @@ export default function StudentsPageV2() {
                         <button
                             type="button"
                             onClick={tour.start}
-                            className="h-8 px-3 inline-flex items-center gap-1.5 rounded-md text-[12px] font-semibold text-ink-700 hover:bg-ink-100 hover:text-ink-900 transition-colors"
+                            className="h-8 px-3 hidden md:inline-flex items-center gap-1.5 rounded-md text-[12px] font-semibold text-ink-700 hover:bg-ink-100 hover:text-ink-900 transition-colors"
                         >
                             <Compass className="w-3.5 h-3.5" />
                             Тур
                         </button>
-                        <Button variant="secondary" size="sm" leftIcon={<Users className="w-4 h-4" />} onClick={() => router.push('/dashboard/classes')}>
+                        <Button variant="secondary" size="sm" leftIcon={<Users className="w-4 h-4" />} onClick={() => router.push('/dashboard/classes')} className="hidden md:inline-flex">
                             Создать класс
                         </Button>
                         <Button variant="secondary" size="sm" leftIcon={<Link2 className="w-4 h-4" />} onClick={() => { setInviteUrl(null); setInviteClassId(''); setShowInviteModal(true) }}>
-                            Пригласить
+                            <span className="hidden md:inline">Пригласить</span>
                         </Button>
                         <Button data-tour="add-student" variant="primary" size="sm" leftIcon={<Plus className="w-4 h-4" />} onClick={() => setShowAddStudent(true)}>
-                            Добавить ученика
+                            <span className="hidden md:inline">Добавить ученика</span>
                         </Button>
                     </div>
                 }
@@ -344,7 +344,7 @@ export default function StudentsPageV2() {
             />
 
             {/* Sub-navigation */}
-            <div className="border-b border-ink-200 bg-surface px-8 max-md:px-4">
+            <div className="border-b border-ink-200 bg-surface px-8 max-md:px-4 overflow-x-auto">
                 <div className="flex gap-0 max-w-[1320px] mx-auto">
                     {([
                         { label: 'Ученики', href: '/dashboard/students', active: true },

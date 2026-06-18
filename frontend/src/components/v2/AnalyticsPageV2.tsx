@@ -116,15 +116,15 @@ export default function AnalyticsPageV2() {
         onMobileMenuToggle={menu.toggle}
         hideSearch
         actions={
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-2">
             <button
               onClick={tour.start}
-              className="h-8 px-3 flex items-center gap-1.5 rounded-lg text-[12px] font-semibold text-ink-600 hover:bg-ink-100 transition-colors"
+              className="h-8 px-3 hidden md:flex items-center gap-1.5 rounded-lg text-[12px] font-semibold text-ink-600 hover:bg-ink-100 transition-colors"
             >
               <Compass className="w-3.5 h-3.5" />
               Тур
             </button>
-            <div data-tour="range-picker" className="flex bg-ink-100 rounded-full p-[3px] gap-[2px]">
+            <div data-tour="range-picker" className="hidden md:flex bg-ink-100 rounded-full p-[3px] gap-[2px]">
               {RANGES.map(r => (
                 <button
                   key={r.key}
@@ -172,13 +172,33 @@ export default function AnalyticsPageV2() {
               className="h-8 px-3 flex items-center gap-1.5 rounded-lg text-[13px] font-semibold text-ink-700 bg-surface border border-ink-200 hover:bg-ink-50 hover:border-ink-300 transition-colors"
             >
               <Download className="w-3.5 h-3.5" />
-              Скачать отчёт
+              <span className="hidden md:inline">Скачать отчёт</span>
             </button>
           </div>
         }
       />
 
       <div className="max-w-[1280px] w-full mx-auto p-6 max-md:p-4">
+
+        {/* ── Период-пикер на мобильных (в topbar скрыт) ── */}
+        <div className="md:hidden flex items-center gap-3 mb-4 flex-wrap">
+          <div className="flex bg-ink-100 rounded-full p-[3px] gap-[2px]">
+            {RANGES.map(r => (
+              <button
+                key={r.key}
+                onClick={() => setRange(r.key)}
+                className={cn(
+                  'h-[30px] px-3.5 rounded-full text-[13px] font-semibold transition-all whitespace-nowrap',
+                  range === r.key
+                    ? 'bg-white text-ink-900 shadow-[0_1px_3px_rgba(0,0,0,0.08)]'
+                    : 'text-ink-600 hover:text-ink-900',
+                )}
+              >
+                {r.label}
+              </button>
+            ))}
+          </div>
+        </div>
 
         {/* ── Фильтры ── */}
         <div data-tour="filters" className="flex items-center gap-2 mb-5 flex-wrap">
