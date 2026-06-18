@@ -11,6 +11,7 @@ import RichTextEditor from '@/components/workspace/RichTextEditor'
 import AssignTaskButton from '@/components/AssignTaskButton'
 import GenerationProgress from '@/components/workspace/GenerationProgress'
 import { ensureMathJaxInHtml } from '@/lib/utils/ensureMathJax'
+import { useIsMobile } from '@/lib/hooks/useIsMobile'
 
 export default function FeedbackGenerator() {
     const [taskType, setTaskType] = useState('')
@@ -18,6 +19,8 @@ export default function FeedbackGenerator() {
     const [level, setLevel] = useState('')
     const [localContent, setLocalContent] = useState('')
     const [editMode, setEditMode] = useState(false)
+    const [activeTab, setActiveTab] = useState<'config' | 'preview'>('config')
+    const { isMobile } = useIsMobile()
     const iframeRef = useRef<HTMLIFrameElement>(null)
 
     const { generateAndWait, isGenerating, activeGenerationId } = useGenerations()
@@ -27,6 +30,7 @@ export default function FeedbackGenerator() {
 
         try {
             setEditMode(false)
+            if (isMobile) setActiveTab('preview')
             const params = { taskType, studentWork, level }
 
             const status = await generateAndWait({ type: 'feedback', params })
@@ -76,9 +80,25 @@ export default function FeedbackGenerator() {
     }, [editMode, localContent])
 
     return (
-        <div className="flex w-full h-full bg-[#F9FAFB]">
+        <div className="flex flex-col md:flex-row w-full h-full bg-[#F9FAFB]">
+            {isMobile && (
+                <div className="flex p-2 bg-white border-b border-gray-100 gap-2 flex-shrink-0">
+                    <button
+                        onClick={() => setActiveTab('config')}
+                        className={`flex-1 py-2 text-sm font-bold rounded-xl transition-all ${activeTab === 'config' ? 'bg-primary-600 text-white shadow-md' : 'text-gray-500 bg-gray-50'}`}
+                    >
+                        Настройка
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('preview')}
+                        className={`flex-1 py-2 text-sm font-bold rounded-xl transition-all ${activeTab === 'preview' ? 'bg-primary-600 text-white shadow-md' : 'text-gray-500 bg-gray-50'}`}
+                    >
+                        Результат
+                    </button>
+                </div>
+            )}
             {/* Configurator Sidebar */}
-            <div className="w-[320px] bg-white border-r border-gray-200 flex flex-col h-full flex-shrink-0 z-10 shadow-[4px_0_24px_rgba(0,0,0,0.02)]">
+            <div className={`${isMobile && activeTab !== 'config' ? 'hidden' : 'flex'} w-full md:w-[320px] bg-white border-r border-gray-200 flex-col h-full flex-shrink-0 z-10 shadow-[4px_0_24px_rgba(0,0,0,0.02)]`}>
                 <div className="p-5 border-b border-gray-100 flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center text-orange-600">
                         <MessageCircle className="w-5 h-5" />
@@ -147,7 +167,7 @@ export default function FeedbackGenerator() {
             </div>
 
             {/* Editor Area */}
-            <div className="flex-1 flex flex-col min-w-0 bg-[#F9FAFB] relative px-4 py-4 md:px-8 md:py-8 overflow-hidden h-full">
+            <div className={`flex-1 flex flex-col min-w-0 bg-[#F9FAFB] relative px-4 py-4 md:px-8 md:py-8 overflow-hidden h-full ${isMobile && activeTab !== 'preview' ? 'hidden' : 'flex'}`}>
                 <div className="flex flex-col h-full bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
                     <div className="h-14 md:h-16 border-b border-gray-100 px-3 md:px-5 flex items-center justify-between bg-white flex-shrink-0">
                         <div className="flex items-center gap-2">

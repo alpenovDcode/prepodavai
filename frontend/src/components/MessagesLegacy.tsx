@@ -5,6 +5,7 @@ import { Send, RefreshCw, Loader2, Maximize2 } from 'lucide-react'
 import { useGenerations } from '@/lib/hooks/useGenerations'
 import RichTextEditor from '@/components/workspace/RichTextEditor'
 import AssignTaskButton from '@/components/AssignTaskButton'
+import { useIsMobile } from '@/lib/hooks/useIsMobile'
 
 const messagePrompts: Record<string, { label: string, value: string }[]> = {
     meeting: [
@@ -88,6 +89,8 @@ export default function MessagesLegacy() {
 
     const { generateAndWait, isGenerating, activeGenerationId } = useGenerations()
     const hasResult = !isGenerating && !!localContent && !localContent.startsWith('<p>Выберите шаблон')
+    const [activeTab, setActiveTab] = useState<'config' | 'preview'>('config')
+    const { isMobile } = useIsMobile()
 
     const handleTemplateChange = (newTemplate: string) => {
         setTemplateId(newTemplate)
@@ -114,6 +117,7 @@ export default function MessagesLegacy() {
         try {
             JSON.parse(formData);
 
+            if (isMobile) setActiveTab('preview')
             setLocalContent('<p>Генерируем сообщение...</p>')
             const params = {
                 templateId,
@@ -142,8 +146,24 @@ export default function MessagesLegacy() {
     }
 
     return (
-        <div className="flex w-full h-full bg-[#F9FAFB]">
-            <div className="w-[340px] bg-white border-r border-gray-200 flex flex-col h-full flex-shrink-0 z-10 shadow-[4px_0_24px_rgba(0,0,0,0.02)]">
+        <div className="flex flex-col md:flex-row w-full h-full bg-[#F9FAFB]">
+            {isMobile && (
+                <div className="flex p-2 bg-white border-b border-gray-100 gap-2 flex-shrink-0">
+                    <button
+                        onClick={() => setActiveTab('config')}
+                        className={`flex-1 py-2 text-sm font-bold rounded-xl transition-all ${activeTab === 'config' ? 'bg-primary-600 text-white shadow-md' : 'text-gray-500 bg-gray-50'}`}
+                    >
+                        Настройка
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('preview')}
+                        className={`flex-1 py-2 text-sm font-bold rounded-xl transition-all ${activeTab === 'preview' ? 'bg-primary-600 text-white shadow-md' : 'text-gray-500 bg-gray-50'}`}
+                    >
+                        Результат
+                    </button>
+                </div>
+            )}
+            <div className={`${isMobile && activeTab !== 'config' ? 'hidden' : 'flex'} w-full md:w-[340px] bg-white border-r border-gray-200 flex-col h-full flex-shrink-0 z-10 shadow-[4px_0_24px_rgba(0,0,0,0.02)]`}>
                 <div className="p-5 border-b border-gray-100 flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600">
                         <Send className="w-5 h-5" />
@@ -221,7 +241,7 @@ export default function MessagesLegacy() {
                 </div>
             </div>
 
-            <div className="flex-1 flex flex-col min-w-0 bg-[#F9FAFB] relative px-4 py-4 md:px-8 md:py-8 overflow-hidden h-full">
+            <div className={`flex-1 flex flex-col min-w-0 bg-[#F9FAFB] relative px-4 py-4 md:px-8 md:py-8 overflow-hidden h-full ${isMobile && activeTab !== 'preview' ? 'hidden' : 'flex'}`}>
                 <div className="flex flex-col h-full bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
                     <div className="h-14 border-b border-gray-100 px-4 flex items-center justify-between bg-white flex-shrink-0">
                         <div className="flex items-center gap-2">
