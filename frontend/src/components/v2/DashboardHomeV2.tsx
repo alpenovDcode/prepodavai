@@ -516,7 +516,7 @@ function ActivityChart({ days }: { days?: { label: string; value: number }[] }) 
     ]
     const max = Math.max(1, ...data.map(d => d.value))
     return (
-        <div className="grid grid-cols-7 gap-3 items-end h-[160px]">
+        <div className="grid grid-cols-7 gap-3 items-end min-h-[160px]">
             {data.map((d, i) => {
                 const h = Math.max(8, Math.round((d.value / max) * 100))
                 return (

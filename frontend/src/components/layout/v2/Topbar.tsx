@@ -1,7 +1,7 @@
 'use client'
 
 import { ReactNode } from 'react'
-import { Menu } from 'lucide-react'
+import { Menu, Search } from 'lucide-react'
 import { SearchBar } from '@/components/ui/v2'
 import { NotificationBellV2 } from '@/components/v2/NotificationBellV2'
 import { cn } from '@/lib/utils/cn'
@@ -84,6 +84,15 @@ export function Topbar({
                             onClick={onSearch}
                             className="hidden lg:block w-[280px]"
                         />
+                        {/* Кнопка поиска только на мобильных */}
+                        <button
+                            type="button"
+                            onClick={onSearch}
+                            aria-label="Поиск"
+                            className="lg:hidden p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                        >
+                            <Search className="w-5 h-5" />
+                        </button>
                     </span>
                 )}
 

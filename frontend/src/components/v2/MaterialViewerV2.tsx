@@ -246,9 +246,10 @@ function extractBodyContent(html: string): string {
 // Override поверх AI-CSS — гарантируем, что наш контейнер не вылезет за
 // ширину iframe и узкое отображение работает.
 const IFRAME_OVERRIDE_STYLES = `
-html, body { width: 100% !important; max-width: 100% !important; overflow-x: hidden; }
+html, body { width: 100% !important; max-width: 100% !important; overflow-x: auto; }
 .container { max-width: 100% !important; width: 100% !important; box-sizing: border-box !important; }
 @media (max-width: 640px) { .container { padding: 20px !important; } }
+table { max-width: 100%; overflow-x: auto; display: block; }
 `
 
 function buildSrcDoc(html: string, opts: { hideAnswers: boolean; editing: boolean }): string {

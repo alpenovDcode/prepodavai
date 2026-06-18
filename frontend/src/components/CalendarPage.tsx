@@ -175,7 +175,7 @@ export default function CalendarPage() {
                     <button onClick={goPrev} className="w-10 h-10 rounded-lg bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 font-bold">
                         <i className="fas fa-chevron-left"></i>
                     </button>
-                    <div className="px-4 py-2 bg-white border border-gray-200 rounded-lg font-semibold text-gray-900 min-w-[180px] text-center">
+                    <div className="px-4 py-2 bg-white border border-gray-200 rounded-lg font-semibold text-gray-900 min-w-[130px] sm:min-w-[180px] text-center">
                         {MONTH_NAMES[currentMonth.getMonth()]} {currentMonth.getFullYear()}
                     </div>
                     <button onClick={goNext} className="w-10 h-10 rounded-lg bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 font-bold">
@@ -196,6 +196,8 @@ export default function CalendarPage() {
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
                 {/* Month grid */}
                 <div className="lg:col-span-3 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                    <div className="overflow-x-auto">
+                    <div style={{ minWidth: '420px' }}>
                     <div className="grid grid-cols-7 bg-gray-50 border-b border-gray-100">
                         {DAY_NAMES.map(d => (
                             <div key={d} className="text-center text-xs font-bold text-gray-500 uppercase py-2">{d}</div>
@@ -263,6 +265,8 @@ export default function CalendarPage() {
                             )
                         })}
                     </div>
+                    </div>{/* end minWidth wrapper */}
+                    </div>{/* end overflow-x-auto */}
                     {loading && (
                         <div className="border-t border-gray-100 py-2 text-center text-xs text-gray-500">
                             <i className="fas fa-spinner fa-spin mr-1"></i> Обновление...
