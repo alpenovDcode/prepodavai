@@ -78,7 +78,7 @@ export class TextV2Service {
             userId,
             generationType,
             inputParams: { ...input, _format: JSON_BLOCKS_FORMAT },
-            model: 'google/gemini-3-flash',
+            model: 'meta/llama-4-maverick-instruct',
             lessonId: resolvedLessonId,
         });
 
@@ -109,7 +109,7 @@ export class TextV2Service {
         const combinedPrompt = `${prompt.system}\n\n${prompt.user}`;
         const first = await this.replicateService.createCompletion(
             combinedPrompt,
-            'google/gemini-3-flash',
+            'meta/llama-4-maverick-instruct',
             { max_tokens: 16384, temperature: 0.4 },
         );
         const validated = this.tryParse(first);
@@ -119,7 +119,7 @@ export class TextV2Service {
         const retryPrompt = `${combinedPrompt}\n\nПРЕДЫДУЩАЯ ПОПЫТКА НЕ ПРОШЛА ВАЛИДАЦИЮ. ОШИБКИ:\n${validated.errors}\n\nИсправь и верни ТОЛЬКО валидный JSON-объект.`;
         const second = await this.replicateService.createCompletion(
             retryPrompt,
-            'google/gemini-3-flash',
+            'meta/llama-4-maverick-instruct',
             { max_tokens: 16384, temperature: 0.2 },
         );
         const retryValidated = this.tryParse(second);

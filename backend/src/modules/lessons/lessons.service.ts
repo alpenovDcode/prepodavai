@@ -394,7 +394,7 @@ ${snippet ? `Фрагменты материалов:\n${snippet}` : ''}
 
     const raw = await this.replicateService.createCompletion(
       prompt,
-      'google/gemini-3-flash',
+      'meta/llama-4-maverick-instruct',
       { max_tokens: 400, temperature: 0.4 },
     );
 

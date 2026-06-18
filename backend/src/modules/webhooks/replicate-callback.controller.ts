@@ -102,7 +102,7 @@ export class ReplicateCallbackController {
           const outputData = {
             provider: 'Replicate (Claude)',
             mode: 'chat',
-            model: metadata.model || 'google/gemini-3-flash',
+            model: metadata.model || 'meta/llama-4-maverick-instruct',
             content: processedContent,
             predictionId: id,
             completedAt: new Date().toISOString(),

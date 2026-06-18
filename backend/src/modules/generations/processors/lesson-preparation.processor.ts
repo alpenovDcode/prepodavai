@@ -272,7 +272,7 @@ ${interests ? `- Интересы аудитории (Интегрируй их 
 Стиль текста: Дерзкий, живой, емкий (Gen Z friendly, без академической скуки).
 `;
 
-    const prediction = await this.runReplicatePrediction('google/gemini-3-flash', {
+    const prediction = await this.runReplicatePrediction('meta/llama-4-maverick-instruct', {
       prompt: prompt,
       max_tokens: 20000,
       system_prompt: 'Output JSON ONLY.',
@@ -1001,7 +1001,7 @@ ${interests ? `- Интересы аудитории (Интегрируй их 
 
     if (specialized) {
       this.logger.log(`Using specialized prompt for ${targetType}`);
-      const prediction = await this.runReplicatePrediction('google/gemini-3-flash', {
+      const prediction = await this.runReplicatePrediction('meta/llama-4-maverick-instruct', {
         prompt: specialized.userPrompt,
         max_tokens: 10000,
         system_prompt: specialized.systemPrompt,
@@ -1176,7 +1176,7 @@ ${context || '(первый раздел — без контекста)'}
     // в 5–7 тыс. русских слов, чтобы избежать обрыва на полуслове закладываем запас.
     const maxTokens = depth === 'short' ? 8000 : depth === 'deep' ? 24000 : 16000;
 
-    const prediction = await this.runReplicatePrediction('google/gemini-3-flash', {
+    const prediction = await this.runReplicatePrediction('meta/llama-4-maverick-instruct', {
       prompt: prompt,
       max_tokens: maxTokens,
       system_prompt:

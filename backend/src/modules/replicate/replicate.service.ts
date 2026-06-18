@@ -7,7 +7,7 @@ export class ReplicateService {
   private readonly logger = new Logger(ReplicateService.name);
   private readonly apiToken: string;
   private readonly http: AxiosInstance;
-  private readonly defaultModel = 'google/gemini-3-flash';
+  private readonly defaultModel = 'meta/llama-4-maverick-instruct';
 
   constructor(private readonly configService: ConfigService) {
     this.apiToken = this.configService.get<string>('REPLICATE_API_TOKEN');
@@ -33,7 +33,7 @@ export class ReplicateService {
   async createTextStreamCompletion(
     systemPrompt: string,
     userPrompt: string,
-    model: string = 'google/gemini-3-flash',
+    model: string = 'meta/llama-4-maverick-instruct',
   ): Promise<string> {
     if (!this.apiToken) {
       throw new Error('REPLICATE_API_TOKEN is not configured');
@@ -51,7 +51,7 @@ export class ReplicateService {
           stream: true,
           input: {
             prompt: fullPrompt,
-            max_new_tokens: 16384,
+            max_tokens: 16384,
             temperature: 0.7,
           },
         },
@@ -143,7 +143,7 @@ export class ReplicateService {
    * Generate text completion via Replicate (synchronous, with Prefer: wait).
    *
    * @param prompt - The user/combined prompt text
-   * @param model - The model to use (e.g. 'google/gemini-3-flash')
+   * @param model - The model to use (e.g. 'meta/llama-4-maverick-instruct')
    * @param options - Optional overrides for max_tokens, temperature
    */
   async createCompletion(
@@ -168,12 +168,12 @@ export class ReplicateService {
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        // Gemini Flash on Replicate does NOT support a separate system_prompt field.
-        // Everything goes into `prompt`. The caller is responsible for combining
-        // system + user prompts before passing them here.
+        // meta/llama-4-maverick-instruct (как и предыдущий gemini-3-flash на
+        // Replicate) не поддерживает отдельное поле system_prompt — всё в
+        // `prompt`. Caller сам склеивает system + user перед вызовом.
         const input: Record<string, any> = {
           prompt,
-          max_new_tokens: maxTokens,
+          max_tokens: maxTokens,
           temperature,
         };
 

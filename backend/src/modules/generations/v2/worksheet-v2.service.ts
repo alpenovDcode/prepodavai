@@ -10,7 +10,7 @@ import { GenerationDocument, JSON_BLOCKS_FORMAT, type GenerationDocumentT } from
  * Сервис для генерации worksheet в JSON-формате (blocks-v1).
  *
  * Использует тот же путь, что и остальные текстовые генерации:
- *   ReplicateService.createCompletion → google/gemini-3-flash.
+ *   ReplicateService.createCompletion → meta/llama-4-maverick-instruct.
  * Это значит общий REPLICATE_API_TOKEN, общая квота, единый pipeline ошибок.
  *
  * Отличие от старого worksheet-flow:
@@ -54,7 +54,7 @@ export class WorksheetV2Service {
             userId,
             generationType: 'worksheet',
             inputParams: { ...input, _format: JSON_BLOCKS_FORMAT },
-            model: 'google/gemini-3-flash',
+            model: 'meta/llama-4-maverick-instruct',
             lessonId: resolvedLessonId,
         });
 
@@ -89,7 +89,7 @@ export class WorksheetV2Service {
         // Первая попытка.
         const first = await this.replicateService.createCompletion(
             combinedPrompt,
-            'google/gemini-3-flash',
+            'meta/llama-4-maverick-instruct',
             { max_tokens: 16384, temperature: 0.4 },
         );
         const validated = this.tryParse(first);
@@ -99,7 +99,7 @@ export class WorksheetV2Service {
         const retryPrompt = `${combinedPrompt}\n\nПРЕДЫДУЩАЯ ПОПЫТКА НЕ ПРОШЛА ВАЛИДАЦИЮ. ОШИБКИ:\n${validated.errors}\n\nИсправь и верни ТОЛЬКО валидный JSON-объект.`;
         const second = await this.replicateService.createCompletion(
             retryPrompt,
-            'google/gemini-3-flash',
+            'meta/llama-4-maverick-instruct',
             { max_tokens: 16384, temperature: 0.2 },
         );
         const retryValidated = this.tryParse(second);

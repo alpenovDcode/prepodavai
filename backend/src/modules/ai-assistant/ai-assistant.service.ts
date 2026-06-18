@@ -40,7 +40,7 @@ export class AiAssistantService {
 
       const assistantMessage = await this.replicateService.createCompletion(
         fullPrompt,
-        'google/gemini-3-flash',
+        'meta/llama-4-maverick-instruct',
         {
           temperature: 0.7,
           max_tokens: 2048,
@@ -90,7 +90,7 @@ export class AiAssistantService {
       // Отправляем запрос в Replicate
       const assistantMessage = await this.replicateService.createCompletion(
         fullPrompt,
-        'google/gemini-3-flash',
+        'meta/llama-4-maverick-instruct',
         {
           temperature: 0.7,
           max_tokens: 2048,

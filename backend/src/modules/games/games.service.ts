@@ -131,7 +131,7 @@ export class GamesService {
             topic,
             type,
           },
-          model: 'google/gemini-3-flash',
+          model: 'meta/llama-4-maverick-instruct',
         },
       });
 
@@ -149,7 +149,7 @@ export class GamesService {
             topic,
             type,
           },
-          model: 'google/gemini-3-flash',
+          model: 'meta/llama-4-maverick-instruct',
           generationRequestId: generationRequest.id,
           lessonId: defaultLesson.id,
         } as any,
@@ -389,7 +389,7 @@ ${hints}
 
   private async callAi(prompt: string): Promise<any> {
     try {
-      const rawContent = await this.replicateService.createCompletion(prompt, 'google/gemini-3-flash', {
+      const rawContent = await this.replicateService.createCompletion(prompt, 'meta/llama-4-maverick-instruct', {
         max_tokens: 5000,
         temperature: 0.7,
       });

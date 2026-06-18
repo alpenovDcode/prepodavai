@@ -3,7 +3,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { AiAssistantService } from '../ai-assistant/ai-assistant.service';
 import { SendMessageDto } from './dto/ai-chats.dto';
 
-const AI_MODEL = 'google/gemini-3-flash';
+const AI_MODEL = 'meta/llama-4-maverick-instruct';
 
 @Injectable()
 export class AiChatsService {

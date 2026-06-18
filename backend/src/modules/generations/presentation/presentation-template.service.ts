@@ -223,7 +223,7 @@ ${p.text ? `ИСХОДНЫЕ ТЕЗИСЫ/ТЕКСТ:\n${p.text}\n` : ''}
       // получается ломаный, парсер потом пытается восстановить и не всегда
       // успешно. Температура чуть ниже стандартной — содержательный учебный
       // текст требует точности, а не креативности.
-      const raw = await this.replicate.createCompletion(prompt, 'google/gemini-3-flash', {
+      const raw = await this.replicate.createCompletion(prompt, 'meta/llama-4-maverick-instruct', {
         max_tokens: 16000,
         temperature: 0.55,
       });

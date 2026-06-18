@@ -451,7 +451,7 @@ ${type === 'sales' ? `
 ${transcript.substring(0, 30000)}
 `;
 
-return this.runReplicatePrediction('google/gemini-3-flash', {
+return this.runReplicatePrediction('meta/llama-4-maverick-instruct', {
   system_prompt: systemPrompt,
   prompt: userPrompt,
   max_tokens: 10000,
@@ -498,7 +498,7 @@ ${transcript.substring(0, 25000)}`;
 
     let raw = '';
     try {
-      raw = await this.runReplicatePrediction('google/gemini-3-flash', {
+      raw = await this.runReplicatePrediction('meta/llama-4-maverick-instruct', {
         prompt: extractorPrompt,
         max_tokens: 1500,
       });

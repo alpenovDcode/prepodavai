@@ -1705,10 +1705,10 @@ export class MaxService {
       `Запрос: «${input}»`;
 
     try {
-      const res = await fetch('https://api.replicate.com/v1/models/google/gemini-3-flash/predictions', {
+      const res = await fetch('https://api.replicate.com/v1/models/meta/llama-4-maverick-instruct/predictions', {
         method: 'POST',
         headers: { Authorization: `Bearer ${replicateToken}`, 'Content-Type': 'application/json', Prefer: 'wait' },
-        body: JSON.stringify({ input: { prompt, max_new_tokens: 200, temperature: 0 } }),
+        body: JSON.stringify({ input: { prompt, max_tokens: 200, temperature: 0 } }),
         signal: AbortSignal.timeout(15000),
       });
       if (!res.ok) return this.nlNavFallback(input);

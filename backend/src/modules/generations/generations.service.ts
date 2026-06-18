@@ -455,7 +455,7 @@ export class GenerationsService {
   ) {
     this.logger.log(`[GenerationsService] Starting video analysis for ${generationType}`);
     const { systemPrompt, userPrompt } = await this.buildGigachatPrompt(generationType, inputParams);
-    const model = requestedModel || 'google/gemini-3-flash';
+    const model = requestedModel || 'meta/llama-4-maverick-instruct';
 
     const combinedPrompt = `${systemPrompt}\n\n${userPrompt}`;
 
@@ -833,7 +833,7 @@ export class GenerationsService {
       `[GenerationsService] Starting text generation via Replicate for ${generationType}`,
     );
     const { systemPrompt, userPrompt } = await this.buildGigachatPrompt(generationType, inputParams);
-    const model = requestedModel || 'google/gemini-3-flash';
+    const model = requestedModel || 'meta/llama-4-maverick-instruct';
 
     // Для КИМ (exam-variant) и распаковки экспертности (unpacking) нужно больше
     // токенов — полный HTML с SVG-графиками / развёрнутый структурированный материал.
@@ -1170,20 +1170,22 @@ export class GenerationsService {
       photosession: 'google/gemini-3-pro-image-preview',
       presentation: 'Gamma AI',
       transcription: 'Whisper AI',
-      lessonPreparation: 'google/gemini-3-flash',
-      lesson_preparation: 'google/gemini-3-flash',
-      game_generation: 'google/gemini-3-flash',
-      'video-analysis': 'google/gemini-3-flash',
-      video_analysis: 'google/gemini-3-flash',
-      'exam-variant': 'google/gemini-3-flash',
-      exam_variant: 'google/gemini-3-flash',
-      unpacking: 'google/gemini-3-flash',
+      lessonPreparation: 'meta/llama-4-maverick-instruct',
+      lesson_preparation: 'meta/llama-4-maverick-instruct',
+      game_generation: 'meta/llama-4-maverick-instruct',
+      'video-analysis': 'meta/llama-4-maverick-instruct',
+      video_analysis: 'meta/llama-4-maverick-instruct',
+      'exam-variant': 'meta/llama-4-maverick-instruct',
+      exam_variant: 'meta/llama-4-maverick-instruct',
+      unpacking: 'meta/llama-4-maverick-instruct',
+      // sales-advisor использует ВИЖН (анализ скриншотов отгрузок), остаётся
+      // на google/gemini-3-flash — Llama Maverick для картинок мы не вызываем.
       'sales-advisor': 'google/gemini-3-flash',
       sales_advisor: 'google/gemini-3-flash',
-      assistant: 'google/gemini-3-flash',
+      assistant: 'meta/llama-4-maverick-instruct',
     };
 
-    return modelMap[generationType] || 'google/gemini-3-flash';
+    return modelMap[generationType] || 'meta/llama-4-maverick-instruct';
   }
 
   /**
