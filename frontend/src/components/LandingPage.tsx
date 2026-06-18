@@ -55,6 +55,8 @@ function CountUp({ to, fmt, duration = 1400 }: { to: number; fmt: (v: number) =>
 export default function LandingPage({ autoOpenAuth = false }: { autoOpenAuth?: boolean }) {
   const [showAuth, setShowAuth] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
+  const [showVideo, setShowVideo] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
   const carouselRef = useRef<HTMLDivElement>(null);
   const router = useRouter()
 
@@ -104,6 +106,15 @@ export default function LandingPage({ autoOpenAuth = false }: { autoOpenAuth?: b
 
   const openRegister = () => { setAuthMode('register'); setShowAuth(true); }
   const openLogin = () => { setAuthMode('login'); setShowAuth(true); }
+
+  const openVideo = () => {
+    setShowVideo(true);
+    setTimeout(() => { videoRef.current?.play(); }, 50);
+  };
+  const closeVideo = () => {
+    setShowVideo(false);
+    if (videoRef.current) { videoRef.current.pause(); videoRef.current.currentTime = 0; }
+  };
 
   const DARK = "#1a1410";
   const DARK_DEEP = "#120e0a";
@@ -278,6 +289,14 @@ export default function LandingPage({ autoOpenAuth = false }: { autoOpenAuth?: b
         .btn-ghost { transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease; }
         .btn-ghost:hover { transform: translateY(-2px); border-color: #fdba74 !important; box-shadow: 0 6px 18px rgba(0,0,0,.08) !important; }
         .btn-ghost:active { transform: translateY(0); }
+        .btn-overview:hover .play-circle { transform: scale(1.12); }
+        .play-circle { transition: transform .2s ease; }
+        @keyframes videoFadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes videoSlideUp { from { opacity: 0; transform: scale(.94) translateY(20px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+        .video-overlay { animation: videoFadeIn .22s ease forwards; }
+        .video-modal { animation: videoSlideUp .3s cubic-bezier(.22,1,.36,1) forwards; }
+        .video-close-btn { transition: background .15s ease, transform .15s ease; }
+        .video-close-btn:hover { background: rgba(255,255,255,.18) !important; transform: scale(1.08); }
         .carousel-card { transition: transform .3s ease, box-shadow .3s ease; }
         .carousel-card:hover { transform: translateY(-8px); box-shadow: 0 24px 60px rgba(0,0,0,.45) !important; }
         .testi-card { transition: transform .25s ease, box-shadow .25s ease; }
@@ -400,6 +419,14 @@ export default function LandingPage({ autoOpenAuth = false }: { autoOpenAuth?: b
             </button>
             <button className="btn-ghost" onClick={openLogin} style={{ padding: "14px 28px", background: "white", color: "#555", border: "1px solid #e0e0e0", borderRadius: 11, fontSize: 15, fontWeight: 500, cursor: "pointer", boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}>
               Войти в аккаунт
+            </button>
+            <button className="btn-ghost btn-overview" onClick={openVideo} style={{ padding: "14px 24px", background: "white", color: "#555", border: "1px solid #e0e0e0", borderRadius: 11, fontSize: 15, fontWeight: 500, cursor: "pointer", boxShadow: "0 1px 4px rgba(0,0,0,0.05)", display: "flex", alignItems: "center", gap: 8 }}>
+              <span className="play-circle" style={{ width: 28, height: 28, borderRadius: "50%", background: "linear-gradient(135deg, #f97316, #f59e0b)", display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <svg width="10" height="12" viewBox="0 0 10 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M1 1.5L9 6L1 10.5V1.5Z" fill="white" stroke="white" strokeWidth="0.5" strokeLinejoin="round"/>
+                </svg>
+              </span>
+              Обзор
             </button>
           </div>
         </div>
@@ -1010,6 +1037,43 @@ export default function LandingPage({ autoOpenAuth = false }: { autoOpenAuth?: b
 
       {showAuth && (
         <AuthModal onClose={() => setShowAuth(false)} onSuccess={handleAuthSuccess} initialMode={authMode} />
+      )}
+
+      {showVideo && (
+        <div
+          className="video-overlay"
+          onClick={closeVideo}
+          style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(10,8,6,0.82)", backdropFilter: "blur(10px)", display: "flex", alignItems: "center", justifyContent: "center", padding: "24px" }}
+        >
+          <div
+            className="video-modal"
+            onClick={e => e.stopPropagation()}
+            style={{ width: "100%", maxWidth: 960, borderRadius: 20, overflow: "hidden", boxShadow: "0 40px 100px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.07)", position: "relative", background: "#120e0a" }}
+          >
+            <div style={{ background: "#1a120c", padding: "10px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+              <div style={{ display: "flex", gap: 5 }}>
+                {["#ff5f57","#febc2e","#28c840"].map(c => <div key={c} style={{ width: 10, height: 10, borderRadius: "50%", background: c }} />)}
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#22c55e", animation: "pulseDot 2s ease-out infinite" }} />
+                <span style={{ fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.5)", letterSpacing: "0.02em" }}>Преподавай — обзор платформы</span>
+              </div>
+              <button
+                className="video-close-btn"
+                onClick={closeVideo}
+                style={{ width: 28, height: 28, borderRadius: "50%", background: "rgba(255,255,255,.08)", border: "none", color: "rgba(255,255,255,0.6)", fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1 }}
+                aria-label="Закрыть"
+              >×</button>
+            </div>
+            <video
+              ref={videoRef}
+              src="/overview.mp4"
+              controls
+              playsInline
+              style={{ width: "100%", display: "block", maxHeight: "75vh", background: "#0a0806" }}
+            />
+          </div>
+        </div>
       )}
     </div>
   );
