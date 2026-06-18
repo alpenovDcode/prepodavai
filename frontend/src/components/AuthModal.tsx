@@ -251,32 +251,40 @@ export default function AuthModal({ onClose, onSuccess, initialMode = 'login' }:
     : 'Введите email вашего аккаунта'
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={onClose}>
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
 
       <div
-        className="relative bg-white rounded-3xl shadow-2xl max-w-md w-full p-8 animate-slide-up"
+        className="relative bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl max-w-md w-full max-h-[92dvh] flex flex-col animate-slide-up"
         onClick={(e) => e.stopPropagation()}
       >
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors"
-        >
-          <i className="fas fa-times text-gray-400" />
-        </button>
-
-        <div className="flex items-center justify-center mb-6">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center">
-            <i className="fas fa-graduation-cap text-white text-3xl" />
-          </div>
+        {/* Шапка — не скроллируется */}
+        <div className="flex-shrink-0 relative px-8 pt-6 pb-2">
+          <button
+            onClick={onClose}
+            className="absolute top-4 right-4 w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors"
+          >
+            <i className="fas fa-times text-gray-400" />
+          </button>
+          {/* Ручка для bottom-sheet на мобильных */}
+          <div className="sm:hidden w-10 h-1 bg-gray-200 rounded-full mx-auto mb-4" />
         </div>
 
-        <h2 className="text-3xl font-bold text-center mb-2">
-          <span className="bg-gradient-to-r from-orange-600 to-orange-500 bg-clip-text text-transparent">
-            {title}
-          </span>
-        </h2>
-        <p className="text-center text-gray-500 mb-8 text-sm">{subtitle}</p>
+        {/* Скроллируемое тело */}
+        <div className="overflow-y-auto flex-1 px-8 pb-8">
+
+          <div className="flex items-center justify-center mb-6">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center">
+              <i className="fas fa-graduation-cap text-white text-3xl" />
+            </div>
+          </div>
+
+            <h2 className="text-3xl font-bold text-center mb-2">
+            <span className="bg-gradient-to-r from-orange-600 to-orange-500 bg-clip-text text-transparent">
+              {title}
+            </span>
+          </h2>
+          <p className="text-center text-gray-500 mb-8 text-sm">{subtitle}</p>
 
         {/* ── ВХОД ─────────────────────────────────────────────────────── */}
         {mode === 'login' && (
@@ -507,8 +515,8 @@ export default function AuthModal({ onClose, onSuccess, initialMode = 'login' }:
           </form>
         )}
 
-        {/* ── НАВИГАЦИЯ ─────────────────────────────────────────────────── */}
-        <div className="mt-6 text-center space-y-2">
+          {/* ── НАВИГАЦИЯ ─────────────────────────────────────────────────── */}
+          <div className="mt-6 text-center space-y-2">
           {mode === 'login' && (
             <>
               <button onClick={() => switchMode('register')} className="text-orange-600 hover:text-orange-700 font-medium block w-full">
@@ -529,7 +537,8 @@ export default function AuthModal({ onClose, onSuccess, initialMode = 'login' }:
               Вспомнили данные? Войти
             </button>
           )}
-        </div>
+          </div>
+        </div> {/* конец overflow-y-auto */}
       </div>
     </div>
   )
