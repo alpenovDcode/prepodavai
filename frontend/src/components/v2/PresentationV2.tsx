@@ -72,8 +72,6 @@ export default function PresentationV2() {
     const [audience, setAudience] = useState<typeof AUDIENCES[number]['value']>('Школьники')
     const [style, setStyle] = useState<StyleKey>('modern')
     const [color, setColor] = useState<ColorKey>('indigo')
-    const [exportFormat, setExportFormat] = useState<'pptx' | 'pdf'>('pptx')
-
     // result
     const [presentationId, setPresentationId] = useState<string | null>(null)
     const [content, setContent] = useState<string | null>(null)
@@ -324,27 +322,6 @@ ${pptxUrlFound ? `<a href="${pptxUrlFound}" target="_blank">Скачать PPTX<
                             </div>
                         </div>
 
-                        {/* Export format */}
-                        <div>
-                            <label className="block text-[11px] font-bold uppercase tracking-wider text-ink-700 mb-1.5">Формат экспорта</label>
-                            <div className="flex gap-1">
-                                {(['pptx', 'pdf'] as const).map(f => (
-                                    <button
-                                        key={f}
-                                        type="button"
-                                        onClick={() => setExportFormat(f)}
-                                        className={`h-9 px-4 rounded-full text-[12px] font-semibold border transition-colors ${
-                                            exportFormat === f
-                                                ? 'bg-brand-500 text-white border-brand-500'
-                                                : 'bg-transparent text-ink-700 border-ink-200 hover:bg-ink-100'
-                                        }`}
-                                    >
-                                        {f.toUpperCase()}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-
                         {/* Generate button */}
                         <div data-tour="generate" className="pt-2 border-t border-ink-100">
                             <Button
@@ -390,9 +367,6 @@ ${pptxUrlFound ? `<a href="${pptxUrlFound}" target="_blank">Скачать PPTX<
                                 </Button>
                                 <Button variant="ghost" size="sm" leftIcon={<RefreshCw className="w-3.5 h-3.5" />} onClick={generate} disabled={isGenerating}>
                                     Заново
-                                </Button>
-                                <Button variant="secondary" size="sm" leftIcon={<FileDown className="w-3.5 h-3.5" />} onClick={() => downloadFile('pdf')}>
-                                    PDF
                                 </Button>
                                 <Button variant="primary" size="sm" leftIcon={<FileDown className="w-3.5 h-3.5" />} onClick={() => downloadFile('pptx')}>
                                     PPTX
