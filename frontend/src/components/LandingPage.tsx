@@ -324,7 +324,9 @@ export default function LandingPage({ autoOpenAuth = false }: { autoOpenAuth?: b
           .lp-preview-mini-stats > div { flex: 1 0 calc(50% - 3px) !important; min-width: 0 !important; }
         }
         /* Мобильник (< 768) */
+        .lp-reviews-sticky { position: sticky; top: 100px; }
         @media (max-width: 767px) {
+          .lp-reviews-sticky { position: static !important; top: auto !important; }
           .lp-header { padding-left: 16px !important; padding-right: 16px !important; height: 60px !important; gap: 12px !important; }
           .lp-header .lp-logo-text { font-size: 17px !important; }
           .lp-header-cta { padding: 7px 12px !important; font-size: 13px !important; }
@@ -887,7 +889,8 @@ export default function LandingPage({ autoOpenAuth = false }: { autoOpenAuth?: b
       {/* ── ОТЗЫВЫ — двухколоночная вертикальная карусель (id=reviews) ── */}
       <section id="reviews" className="lp-section" style={{ background: "#f8f8f6", padding: "80px 32px", position: "relative" }}>
         <div className="lp-reviews-grid" style={{ maxWidth: 1180, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 1.3fr", gap: 56, alignItems: "center" }}>
-          <Reveal style={{ position: "sticky", top: 100 }}>
+          <div className="lp-reviews-sticky">
+          <Reveal>
             <p style={{ fontSize: 12, fontWeight: 700, color: "#f97316", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 12 }}>Отзывы</p>
             <h2 style={{ fontSize: "clamp(28px, 4.5vw, 48px)", fontWeight: 900, letterSpacing: "-0.03em", lineHeight: 1.05, marginBottom: 18, color: "#1a120c" }}>
               5 000+ учителей<br />
@@ -916,6 +919,7 @@ export default function LandingPage({ autoOpenAuth = false }: { autoOpenAuth?: b
               Смотреть все отзывы →
             </a>
           </Reveal>
+          </div>
 
           <div style={{ position: "relative", height: 560, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, overflow: "hidden" }} className="vmarquee-mask lp-reviews-cols">
             <div style={{ position: "relative", overflow: "hidden" }}>
