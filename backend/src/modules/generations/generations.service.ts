@@ -853,18 +853,50 @@ export class GenerationsService {
       // Gemini Flash не поддерживает отдельный system_prompt — склеиваем в один prompt
       const combinedPrompt = `${systemPrompt}\n\n${userPrompt}`;
 
-      const response = await this.replicateService.createCompletion(combinedPrompt, model, {
-        max_tokens: maxTokens,
-        temperature: 0.7,
-      });
+      // Retry до 2 раз, если LLM вернёт «обрезок» (короткая/невалидная
+      // строка). Симптом: PDF выходит почти пустой, в нём только «<!» или
+      // другие первые символы DOCTYPE. Случается при internal timeout
+      // Replicate, safety-фильтре провайдера или ранней остановке стрима.
+      let content = '';
+      let lastErr: any = null;
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        try {
+          content = await this.replicateService.createCompletion(combinedPrompt, model, {
+            max_tokens: maxTokens,
+            temperature: attempt === 1 ? 0.7 : 0.6,
+          });
+        } catch (e) {
+          lastErr = e;
+          this.logger.warn(`[GenerationsService] Attempt ${attempt} threw: ${(e as Error).message}`);
+          continue;
+        }
 
-      const content = response;
-      this.logger.log(
-        `[GenerationsService] Received response from Replicate, content length: ${content?.length || 0}`,
-      );
+        const trimmed = (content || '').trim();
+        const hasHtmlMarker =
+          /<body|<div|<p[\s>]|<section|<h[1-6][\s>]|<ul|<ol|<table/i.test(trimmed);
+
+        if (trimmed.length >= 500 && hasHtmlMarker) {
+          this.logger.log(
+            `[GenerationsService] Attempt ${attempt} OK, content length: ${trimmed.length}`,
+          );
+          break;
+        }
+
+        this.logger.warn(
+          `[GenerationsService] Attempt ${attempt} produced suspicious output ` +
+          `(length=${trimmed.length}, hasHtmlMarker=${hasHtmlMarker}). ` +
+          `Preview: ${JSON.stringify(trimmed.slice(0, 80))}`,
+        );
+        lastErr = new Error(
+          `LLM вернул слишком короткий/неполный HTML (${trimmed.length} символов).`,
+        );
+        content = '';
+      }
 
       if (!content) {
-        throw new BadRequestException('Replicate вернул пустой результат');
+        throw new BadRequestException(
+          lastErr?.message || 'Replicate вернул пустой/обрезанный результат',
+        );
       }
 
       this.logger.log(`[GenerationsService] Starting HTML postprocessing for ${generationType}`);
