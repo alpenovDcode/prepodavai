@@ -546,9 +546,11 @@ export class TelegramService {
     }
 
     try {
-      // Определяем тип файла по URL
+      // Если URL пришёл из pptxUrl — это PPTX независимо от того, есть ли .pptx в пути
       const isPptx =
-        exportUrl.toLowerCase().includes('.pptx') || exportUrl.toLowerCase().includes('pptx');
+        result?.pptxUrl === exportUrl ||
+        exportUrl.toLowerCase().includes('.pptx') ||
+        exportUrl.toLowerCase().includes('pptx');
       const fileExtension = isPptx ? 'pptx' : 'pdf';
       const fileType = isPptx ? 'PPTX' : 'PDF';
       const filename = `presentation_${Date.now()}.${fileExtension}`;

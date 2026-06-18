@@ -2746,7 +2746,11 @@ export class MaxService {
 
     if (exportUrl) {
       try {
-        const isPptx = exportUrl.toLowerCase().includes('.pptx') || exportUrl.toLowerCase().includes('pptx');
+        // Если URL пришёл из pptxUrl — это PPTX независимо от того, есть ли .pptx в пути
+        const isPptx =
+          result?.pptxUrl === exportUrl ||
+          exportUrl.toLowerCase().includes('.pptx') ||
+          exportUrl.toLowerCase().includes('pptx');
         const ext = isPptx ? 'pptx' : 'pdf';
         const filename = `presentation_${Date.now()}.${ext}`;
         this.logger.log(`[MAX] Downloading presentation: ${exportUrl}`);

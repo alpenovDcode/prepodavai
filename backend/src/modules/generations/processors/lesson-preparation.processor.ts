@@ -133,7 +133,7 @@ export class LessonPreparationProcessor extends WorkerHost {
           // Update progress
           await this.generationHelpers.updateProgress(generationRequestId, {
             sections,
-            htmlResult: sections.map((s) => s.content).join('\n\n'),
+            htmlResult: this.combineHtmlSections(sections),
           });
           continue;
         }
@@ -183,7 +183,7 @@ export class LessonPreparationProcessor extends WorkerHost {
           mode: 'lessonPreparation',
           content: null,
           sections: sections,
-          htmlResult: sections.map((s) => s.content).join('\n\n'),
+          htmlResult: this.combineHtmlSections(sections),
           completedAt: null, // Not finished yet
         };
 
@@ -197,7 +197,7 @@ export class LessonPreparationProcessor extends WorkerHost {
         mode: 'lessonPreparation',
         content: null,
         sections: sections,
-        htmlResult: sections.map((s) => s.content).join('\n\n'),
+        htmlResult: this.combineHtmlSections(sections),
         completedAt: new Date().toISOString(),
       };
 
@@ -1524,6 +1524,45 @@ ${context || '(первый раздел — без контекста)'}
       }
     }
     throw new Error('Prediction timed out');
+  }
+
+  // Объединяет несколько полных HTML-документов в один, чтобы MathJax обработал
+  // формулы из всех секций, а Playwright рендерил всю страницу целиком.
+  private combineHtmlSections(sections: { title: string; content: string }[]): string {
+    if (sections.length === 0) return '';
+    if (sections.length === 1) return sections[0].content;
+
+    const seenStyleContents = new Set<string>();
+    const collectedStyles: string[] = [];
+    const bodyParts: string[] = [];
+
+    sections.forEach((section, i) => {
+      const styleMatches = section.content.match(/<style[^>]*>[\s\S]*?<\/style>/gi) || [];
+      for (const styleBlock of styleMatches) {
+        const key = styleBlock.replace(/\s+/g, ' ').trim();
+        if (!seenStyleContents.has(key)) {
+          seenStyleContents.add(key);
+          collectedStyles.push(styleBlock);
+        }
+      }
+
+      const bodyMatch = section.content.match(/<body[^>]*>([\s\S]*?)<\/body\s*>/i);
+      const bodyContent = bodyMatch ? bodyMatch[1].trim() : section.content;
+      const pageBreak = i > 0 ? ' style="page-break-before: always;"' : '';
+      bodyParts.push(`<div class="lesson-section"${pageBreak}>\n${bodyContent}\n</div>`);
+    });
+
+    return `<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+${collectedStyles.join('\n')}
+${SHARED_MATHJAX_SCRIPT}
+</head>
+<body>
+${bodyParts.join('\n')}
+</body>
+</html>`;
   }
 
   @OnWorkerEvent('completed')
