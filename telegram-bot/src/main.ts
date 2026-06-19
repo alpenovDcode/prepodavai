@@ -3067,8 +3067,8 @@ bot.on('message:text', async (ctx: Context) => {
     } catch {
       funnelParsed = { action: 'unknown' } as any;
     }
-    if (funnelParsed.action === 'generate' && funnelParsed.toolKey) {
-      await startNlGenSession(ctx, telegramId, funnelParsed.toolKey, funnelParsed.params || {});
+    if (funnelParsed.action === 'generate' && funnelParsed.tool) {
+      await startNlGenSession(ctx, telegramId, funnelParsed.tool, funnelParsed.params || {});
     } else {
       await ctx.reply('Напишите предмет, класс и тему — например: «биология 8 класс фотосинтез»', { reply_markup: buildMainMenuKeyboard() });
       funnelOnboardingStates.set(telegramId, true);
