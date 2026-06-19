@@ -4,13 +4,14 @@ import useSWR from 'swr'
 import { useState } from 'react'
 import { apiClient } from '@/lib/api/client'
 import {
-  AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip,
-  ResponsiveContainer, CartesianGrid,
+  AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
+  XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend,
 } from 'recharts'
 import {
   Eye, Users, Clock, MousePointerClick, TrendingDown,
-  BookOpen, Send, Bot, CheckCircle, AlertCircle, ExternalLink,
-  Search, TrendingUp, Globe,
+  BookOpen, CheckCircle, AlertCircle, ExternalLink,
+  Search, TrendingUp, Globe, Smartphone, Monitor, Bot,
+  MapPin, Link2, FileText,
 } from 'lucide-react'
 
 const fetcher = (url: string) => apiClient.get(url).then(r => r.data)
@@ -137,7 +138,7 @@ export default function BlogAnalyticsPage() {
     )
   }
 
-  const { traffic, goals, chart } = data
+  const { traffic, goals, chart, sources, devices, cities, referrers, searchPhrases, blogBotStarts } = data
 
   const scrollFunnel = [
     { label: '25%',  value: goals.article_scroll_25  ?? 0 },
@@ -200,31 +201,18 @@ export default function BlogAnalyticsPage() {
 
       {/* KPI row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard
-          title="Визиты на блог"
-          value={traffic.visits?.toLocaleString('ru') ?? '—'}
-          icon={<Eye className="w-5 h-5" />}
-          color="orange"
-        />
-        <KpiCard
-          title="Уникальные пользователи"
-          value={traffic.users?.toLocaleString('ru') ?? '—'}
-          icon={<Users className="w-5 h-5" />}
-          color="blue"
-        />
-        <KpiCard
-          title="Ср. время на странице"
-          value={`${avgDurMin}м ${avgDurSec}с`}
-          icon={<Clock className="w-5 h-5" />}
-          color="purple"
-        />
-        <KpiCard
-          title="Дочитали статью"
-          value={goals.article_finished ?? 0}
-          sub={`${traffic.visits > 0 ? Math.round(((goals.article_finished ?? 0) / traffic.visits) * 100) : 0}% от визитов`}
-          icon={<CheckCircle className="w-5 h-5" />}
-          color="green"
-        />
+        <KpiCard title="Визиты на блог" value={traffic.visits?.toLocaleString('ru') ?? '—'} icon={<Eye className="w-5 h-5" />} color="orange" />
+        <KpiCard title="Уникальные пользователи" value={traffic.users?.toLocaleString('ru') ?? '—'} icon={<Users className="w-5 h-5" />} color="blue" />
+        <KpiCard title="Ср. время на странице" value={`${avgDurMin}м ${avgDurSec}с`} icon={<Clock className="w-5 h-5" />} color="purple" />
+        <KpiCard title="Дочитали статью" value={goals.article_finished ?? 0} sub={`${traffic.visits > 0 ? Math.round(((goals.article_finished ?? 0) / traffic.visits) * 100) : 0}% от визитов`} icon={<CheckCircle className="w-5 h-5" />} color="green" />
+      </div>
+
+      {/* KPI row 2 */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <KpiCard title="Просмотры страниц" value={traffic.pageviews?.toLocaleString('ru') ?? '—'} sub={`${traffic.visits > 0 ? (((traffic.pageviews ?? 0) / traffic.visits).toFixed(1)) : '0'} стр/визит`} icon={<FileText className="w-5 h-5" />} color="orange" />
+        <KpiCard title="Новые пользователи" value={traffic.newUsers?.toLocaleString('ru') ?? '—'} sub={`${traffic.users > 0 ? Math.round(((traffic.newUsers ?? 0) / traffic.users) * 100) : 0}% от всех`} icon={<Users className="w-5 h-5" />} color="blue" />
+        <KpiCard title="Вернувшиеся" value={traffic.returningUsers?.toLocaleString('ru') ?? '—'} sub={`${traffic.users > 0 ? Math.round(((traffic.returningUsers ?? 0) / traffic.users) * 100) : 0}% от всех`} icon={<TrendingUp className="w-5 h-5" />} color="green" />
+        <KpiCard title="Старты бота из блога" value={blogBotStarts ?? 0} sub="клики по кнопке бота" icon={<Bot className="w-5 h-5" />} color="purple" />
       </div>
 
       {/* Chart */}
@@ -244,7 +232,7 @@ export default function BlogAnalyticsPage() {
               <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} width={30} />
               <Tooltip
                 contentStyle={{ borderRadius: 10, border: '1px solid #e5e7eb', fontSize: 12 }}
-                formatter={(v: number, name: string) => [v, name === 'visits' ? 'Визиты' : 'Пользователи']}
+                formatter={(v, name) => [v, name === 'visits' ? 'Визиты' : 'Пользователи']}
               />
               <Area type="monotone" dataKey="visits" stroke="#f97316" strokeWidth={2} fill="url(#blogGrad)" name="visits" />
               <Area type="monotone" dataKey="users" stroke="#3b82f6" strokeWidth={1.5} fill="none" name="users" />
@@ -341,6 +329,132 @@ export default function BlogAnalyticsPage() {
           </div>
         </div>
       </div>
+
+      {/* Sources + Devices */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {sources && sources.length > 0 && (
+          <div className="bg-white rounded-2xl border border-gray-200 p-6">
+            <h2 className="text-base font-semibold text-gray-800 mb-1">Источники трафика</h2>
+            <p className="text-xs text-gray-400 mb-4">Откуда приходят читатели</p>
+            <div className="space-y-2">
+              {sources.map((s: any, i: number) => {
+                const max = sources[0]?.visits || 1
+                const pct = Math.round((s.visits / max) * 100)
+                const colors = ['#f97316','#3b82f6','#22c55e','#a78bfa','#f59e0b','#ec4899','#14b8a6','#64748b']
+                return (
+                  <div key={s.name} className="flex items-center gap-3">
+                    <span className="text-sm text-gray-600 w-28 shrink-0">{s.name}</span>
+                    <div className="flex-1 h-6 bg-gray-100 rounded-lg overflow-hidden">
+                      <div className="h-full rounded-lg" style={{ width: `${Math.max(pct, 2)}%`, background: colors[i % colors.length] }} />
+                    </div>
+                    <span className="text-sm font-semibold text-gray-700 w-10 text-right">{s.visits}</span>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {devices && devices.length > 0 && (
+          <div className="bg-white rounded-2xl border border-gray-200 p-6">
+            <h2 className="text-base font-semibold text-gray-800 mb-1">Устройства</h2>
+            <p className="text-xs text-gray-400 mb-4">С каких устройств читают блог</p>
+            <div className="flex items-center gap-6">
+              <ResponsiveContainer width={160} height={160}>
+                <PieChart>
+                  <Pie data={devices} dataKey="visits" nameKey="name" cx="50%" cy="50%" innerRadius={45} outerRadius={70}>
+                    {devices.map((_: any, i: number) => (
+                      <Cell key={i} fill={['#3b82f6','#f97316','#22c55e'][i % 3]} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(v: number) => [v, 'Визиты']} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="space-y-3 flex-1">
+                {devices.map((d: any, i: number) => {
+                  const total = devices.reduce((s: number, x: any) => s + x.visits, 0) || 1
+                  const pct = Math.round((d.visits / total) * 100)
+                  const icons = [<Monitor key="m" className="w-4 h-4" />, <Smartphone key="s" className="w-4 h-4" />, <Globe key="g" className="w-4 h-4" />]
+                  const colors = ['#3b82f6','#f97316','#22c55e']
+                  return (
+                    <div key={d.name} className="flex items-center gap-2">
+                      <span style={{ color: colors[i % 3] }}>{icons[i % 3]}</span>
+                      <span className="text-sm text-gray-700 flex-1">{d.name}</span>
+                      <span className="text-sm font-bold" style={{ color: colors[i % 3] }}>{pct}%</span>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Cities + Referrers */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {cities && cities.length > 0 && (
+          <div className="bg-white rounded-2xl border border-gray-200 p-6">
+            <div className="flex items-center gap-2 mb-4">
+              <MapPin className="w-4 h-4 text-red-500" />
+              <h2 className="text-base font-semibold text-gray-800">Топ городов</h2>
+            </div>
+            <div className="space-y-2">
+              {cities.map((c: any, i: number) => (
+                <div key={c.name} className="flex items-center gap-3 py-1.5 border-b border-gray-50 last:border-0">
+                  <span className="text-xs font-bold text-gray-400 w-5">#{i + 1}</span>
+                  <span className="flex-1 text-sm text-gray-800">{c.name}</span>
+                  <span className="text-sm font-semibold text-gray-700">{c.visits}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {referrers && referrers.length > 0 && (
+          <div className="bg-white rounded-2xl border border-gray-200 p-6">
+            <div className="flex items-center gap-2 mb-4">
+              <Link2 className="w-4 h-4 text-blue-500" />
+              <h2 className="text-base font-semibold text-gray-800">Реферальные источники</h2>
+            </div>
+            <div className="space-y-2">
+              {referrers.map((r: any, i: number) => (
+                <div key={r.url} className="flex items-center gap-3 py-1.5 border-b border-gray-50 last:border-0">
+                  <span className="text-xs font-bold text-gray-400 w-5">#{i + 1}</span>
+                  <span className="flex-1 text-xs text-gray-600 truncate">{r.url}</span>
+                  <span className="text-sm font-semibold text-gray-700 shrink-0">{r.visits}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Search phrases from Yandex */}
+      {searchPhrases && searchPhrases.length > 0 && (
+        <div className="bg-white rounded-2xl border border-gray-200 p-6">
+          <div className="flex items-center gap-2 mb-1">
+            <Search className="w-4 h-4 text-orange-500" />
+            <h2 className="text-base font-semibold text-gray-800">Поисковые фразы (Яндекс)</h2>
+          </div>
+          <p className="text-xs text-gray-400 mb-4">По каким запросам приходят из Яндекса</p>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-1">
+            {searchPhrases.map((p: any, i: number) => {
+              const max = searchPhrases[0]?.visits || 1
+              const pct = Math.round((p.visits / max) * 100)
+              return (
+                <div key={p.phrase} className="flex items-center gap-3 py-1.5 border-b border-gray-50 last:border-0">
+                  <span className="text-xs font-bold text-gray-400 w-5">#{i + 1}</span>
+                  <span className="flex-1 text-sm text-gray-700 truncate">{p.phrase}</span>
+                  <div className="w-16 h-2 bg-gray-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-orange-400 rounded-full" style={{ width: `${pct}%` }} />
+                  </div>
+                  <span className="text-xs font-semibold text-gray-500 w-6 text-right">{p.visits}</span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Google Search Console */}
       {!gscData || !gscData.configured ? (

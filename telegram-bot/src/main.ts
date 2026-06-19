@@ -1966,6 +1966,14 @@ bot.command('start', async (ctx: Context) => {
     ...(payload && { start_value: payload }),
   });
 
+  if (payload === 'blog') {
+    fetch(`${API_URL}/api/webhook/telegram/internal/blog-start`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-bot-secret': process.env.TELEGRAM_BOT_TOKEN ?? '' },
+      body: JSON.stringify({ telegramId }),
+    }).catch(() => {});
+  }
+
   if (payload && payload.startsWith('link_')) {
     await handleLinkToken(ctx, user, payload.slice(5));
     return;

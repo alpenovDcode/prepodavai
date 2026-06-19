@@ -334,4 +334,26 @@ export class TelegramController {
     }).catch(() => null);
     return funnel || {};
   }
+
+  @Post('internal/blog-start')
+  @HttpCode(200)
+  @SkipThrottle()
+  async trackBlogBotStart(
+    @Body() body: { telegramId?: string },
+    @Headers('x-bot-secret') secret: string,
+  ) {
+    const botToken = this.configService.get<string>('TELEGRAM_BOT_TOKEN');
+    if (!botToken || secret !== botToken) {
+      throw new UnauthorizedException('Invalid secret');
+    }
+    await this.prisma.systemLog.create({
+      data: {
+        level: 'info',
+        category: 'blog_bot_start',
+        message: `Bot start from blog: telegramId=${body.telegramId ?? 'unknown'}`,
+        data: { telegramId: body.telegramId },
+      },
+    });
+    return { ok: true };
+  }
 }

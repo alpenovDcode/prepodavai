@@ -4170,37 +4170,62 @@ export class AdminService {
     try {
       const axios = (await import('axios')).default;
 
-      // Трафик блога
-      const [trafficRes, goalsRes, chartRes] = await Promise.all([
-        axios.get(base, {
-          headers,
-          params: {
-            ids: counterId,
-            metrics: 'ym:s:visits,ym:s:users,ym:s:bounceRate,ym:s:avgVisitDurationSeconds',
-            filters: `ym:s:startURL=@'prepodavai.ru/blog'`,
-            date1: d1, date2: d2,
-          },
-        }),
-        axios.get(base, {
-          headers,
-          params: {
-            ids: counterId,
-            metrics: Object.values(goalIds).map(id => `ym:s:goal${id}reaches`).join(','),
-            date1: d1, date2: d2,
-          },
-        }),
-        axios.get(base, {
-          headers,
-          params: {
-            ids: counterId,
-            dimensions: 'ym:s:date',
-            metrics: 'ym:s:visits,ym:s:users',
-            filters: `ym:s:startURL=@'prepodavai.ru/blog'`,
-            date1: d1, date2: d2,
-            sort: 'ym:s:date',
-            limit: 60,
-          },
-        }),
+      const blogFilter = `ym:s:startURL=@'prepodavai.ru/blog'`;
+
+      const [trafficRes, goalsRes, chartRes, sourcesRes, devicesRes, citiesRes, newUsersRes, referrersRes, searchRes] = await Promise.all([
+        // Основной трафик
+        axios.get(base, { headers, params: {
+          ids: counterId, date1: d1, date2: d2,
+          metrics: 'ym:s:visits,ym:s:users,ym:s:bounceRate,ym:s:avgVisitDurationSeconds,ym:s:pageviews',
+          filters: blogFilter,
+        }}),
+        // Цели
+        axios.get(base, { headers, params: {
+          ids: counterId, date1: d1, date2: d2,
+          metrics: Object.values(goalIds).map(id => `ym:s:goal${id}reaches`).join(','),
+        }}),
+        // График по дням
+        axios.get(base, { headers, params: {
+          ids: counterId, date1: d1, date2: d2,
+          dimensions: 'ym:s:date', metrics: 'ym:s:visits,ym:s:users',
+          filters: blogFilter, sort: 'ym:s:date', limit: 90,
+        }}),
+        // Источники трафика
+        axios.get(base, { headers, params: {
+          ids: counterId, date1: d1, date2: d2,
+          dimensions: 'ym:s:trafficSource', metrics: 'ym:s:visits,ym:s:users',
+          filters: blogFilter, sort: '-ym:s:visits', limit: 10,
+        }}),
+        // Устройства
+        axios.get(base, { headers, params: {
+          ids: counterId, date1: d1, date2: d2,
+          dimensions: 'ym:s:deviceCategory', metrics: 'ym:s:visits,ym:s:users',
+          filters: blogFilter, sort: '-ym:s:visits',
+        }}),
+        // Города
+        axios.get(base, { headers, params: {
+          ids: counterId, date1: d1, date2: d2,
+          dimensions: 'ym:s:regionCity', metrics: 'ym:s:visits',
+          filters: blogFilter, sort: '-ym:s:visits', limit: 10,
+        }}),
+        // Новые vs вернувшиеся
+        axios.get(base, { headers, params: {
+          ids: counterId, date1: d1, date2: d2,
+          metrics: 'ym:s:newUsers',
+          filters: blogFilter,
+        }}),
+        // Реферреры
+        axios.get(base, { headers, params: {
+          ids: counterId, date1: d1, date2: d2,
+          dimensions: 'ym:s:referer', metrics: 'ym:s:visits',
+          filters: blogFilter, sort: '-ym:s:visits', limit: 10,
+        }}),
+        // Поисковые фразы (Яндекс)
+        axios.get(base, { headers, params: {
+          ids: counterId, date1: d1, date2: d2,
+          dimensions: 'ym:s:searchPhrase', metrics: 'ym:s:visits',
+          filters: blogFilter, sort: '-ym:s:visits', limit: 15,
+        }}),
       ]);
 
       const trafficData = trafficRes.data?.data?.[0]?.metrics ?? [];
@@ -4216,17 +4241,82 @@ export class AdminService {
         users:  Math.round(row.metrics?.[1] ?? 0),
       }));
 
+      const sourceLabels: Record<string, string> = {
+        organic: 'Органика', direct: 'Прямые', referral: 'Реферал',
+        social: 'Соцсети', ad: 'Реклама', internal: 'Внутренние',
+        recommendation: 'Рекомендации', messenger: 'Мессенджеры',
+      };
+
+      const sources = (sourcesRes.data?.data ?? []).map((row: any) => ({
+        name:   sourceLabels[row.dimensions?.[0]?.name] ?? row.dimensions?.[0]?.name ?? '—',
+        visits: Math.round(row.metrics?.[0] ?? 0),
+        users:  Math.round(row.metrics?.[1] ?? 0),
+      }));
+
+      const deviceLabels: Record<string, string> = {
+        desktop: 'Desktop', mobile: 'Mobile', tablet: 'Tablet',
+      };
+
+      const devices = (devicesRes.data?.data ?? []).map((row: any) => ({
+        name:   deviceLabels[row.dimensions?.[0]?.name] ?? row.dimensions?.[0]?.name ?? '—',
+        visits: Math.round(row.metrics?.[0] ?? 0),
+        users:  Math.round(row.metrics?.[1] ?? 0),
+      }));
+
+      const cities = (citiesRes.data?.data ?? []).map((row: any) => ({
+        name:   row.dimensions?.[0]?.name ?? '—',
+        visits: Math.round(row.metrics?.[0] ?? 0),
+      }));
+
+      const newUsers      = Math.round(newUsersRes.data?.data?.[0]?.metrics?.[0] ?? 0);
+      const totalUsers    = Math.round(trafficData[1] ?? 0);
+      const returningUsers = Math.max(0, totalUsers - newUsers);
+
+      const referrers = (referrersRes.data?.data ?? [])
+        .filter((row: any) => row.dimensions?.[0]?.name)
+        .map((row: any) => ({
+          url:    row.dimensions?.[0]?.name ?? '—',
+          visits: Math.round(row.metrics?.[0] ?? 0),
+        }));
+
+      const searchPhrases = (searchRes.data?.data ?? [])
+        .filter((row: any) => row.dimensions?.[0]?.name)
+        .map((row: any) => ({
+          phrase: row.dimensions?.[0]?.name ?? '—',
+          visits: Math.round(row.metrics?.[0] ?? 0),
+        }));
+
+      // Старты бота из блога (логируются в SystemLog ботом)
+      const toDateObj = (s: string): Date => {
+        if (s === 'today') return new Date();
+        const m = s.match(/^(\d+)daysAgo$/);
+        if (m) { const d = new Date(); d.setDate(d.getDate() - parseInt(m[1])); return d; }
+        return new Date(s);
+      };
+      const blogBotStarts = await this.prisma.systemLog.count({
+        where: { category: 'blog_bot_start', timestamp: { gte: toDateObj(d1), lte: toDateObj(d2) } },
+      });
+
       return {
         configured: true,
         period: { date1: d1, date2: d2 },
         traffic: {
-          visits:       Math.round(trafficData[0] ?? 0),
-          users:        Math.round(trafficData[1] ?? 0),
-          bounceRate:   Math.round(trafficData[2] ?? 0),
+          visits:         Math.round(trafficData[0] ?? 0),
+          users:          totalUsers,
+          bounceRate:     Math.round(trafficData[2] ?? 0),
           avgDurationSec: Math.round(trafficData[3] ?? 0),
+          pageviews:      Math.round(trafficData[4] ?? 0),
+          newUsers,
+          returningUsers,
         },
         goals,
         chart,
+        sources,
+        devices,
+        cities,
+        referrers,
+        searchPhrases,
+        blogBotStarts,
       };
     } catch (e: any) {
       return { configured: true, error: e?.response?.data?.message ?? 'Metrika API error' };
