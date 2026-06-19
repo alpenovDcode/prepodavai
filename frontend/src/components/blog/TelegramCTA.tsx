@@ -34,7 +34,7 @@ export default function TelegramCTA({ text = 'Подписаться на кан
         </div>
       </div>
       <a
-        href="https://t.me/prepodavaII"
+        href="https://t.me/+vKbOpx63gzA3ZGMy"
         target="_blank" rel="noopener noreferrer"
         onClick={() => trackGoal('cta_telegram_click')}
         style={{
