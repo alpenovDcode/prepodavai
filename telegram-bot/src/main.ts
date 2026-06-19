@@ -1781,7 +1781,7 @@ async function handleFunnelSubscriptionCheck(
   if (!isSubscribed) {
     const promptText: string =
       funnel.subscriptionPromptText?.trim() ||
-      `Похоже, вы ещё не подписались на ${funnel.subscriptionChannelName || 'канал'}. Подпишитесь и нажмите ещё раз.`;
+      `Похоже, вы ещё не подписались. Подпишитесь и нажмите ещё раз.`;
     const ch: string = funnel.subscriptionChannelId;
     const channelUrl = ch.startsWith('http')
       ? ch
@@ -1820,15 +1820,8 @@ async function handleFunnelSubscriptionCheck(
     console.warn(`[Bot] notify channel_subscribed failed: ${e?.message}`);
   }
 
-  const successText: string =
-    funnel.subscriptionSuccessText?.trim() ||
-    '✅ Спасибо за подписку! Открываем сервис.';
-  await ctx.reply(successText, { parse_mode: 'Markdown' });
-
-  // Создаём AppUser + BotUser (shadow) — как в handleSubscriptionCheck для
-  // дефолтного канала. Это даёт юзеру доступ к функционалу бота, не дожидаясь
-  // email-регистрации. После — показываем основное меню инструментов
-  // (НЕ дефолтный SUBSCRIPTION_TEXT про @esvasilevaru — это была ошибка).
+  // Создаём AppUser + BotUser (shadow). source='funnel_bot' — маркер для
+  // post-generation сообщений (1-я и 3-я генерация).
   try {
     const user = ctx.from!;
     const chatId = ctx.chat!.id.toString();
@@ -1856,7 +1849,7 @@ async function handleFunnelSubscriptionCheck(
 
     await (prisma as any).botUser.upsert({
       where: { telegramId },
-      update: { appUserId: shadowAppUser.id, lastActiveAt: new Date(), registrationStatus: preservedStatus },
+      update: { appUserId: shadowAppUser.id, lastActiveAt: new Date(), registrationStatus: preservedStatus, source: 'funnel_bot' },
       create: {
         telegramId,
         appUserId: shadowAppUser.id,
@@ -1864,7 +1857,7 @@ async function handleFunnelSubscriptionCheck(
         lastName: user.last_name || null,
         username: user.username || null,
         registrationStatus: 'subscribed',
-        source: 'telegram_bot',
+        source: 'funnel_bot',
         lastActiveAt: new Date(),
       } as any,
     });
@@ -1872,18 +1865,9 @@ async function handleFunnelSubscriptionCheck(
     console.warn(`[Bot] funnel_sub user upsert failed: ${e?.message}`);
   }
 
-  await ctx.reply(
-    `Добро пожаловать в Преподавай 🎓\n\nЯ Ваш интеллектуальный помощник для:\n— Создания учебных материалов\n— Планирования уроков\n— Создания красочных презентаций\n— Методической поддержки\n— Создания интерактивных игр`,
-    { reply_markup: buildMainMenuKeyboard() },
-  );
-  await ctx.reply(
-    'Как пользоваться:\n\n🛠️ *Создать материал* — выберите инструмент (тест, план урока, рабочий лист и др.) или просто напишите запрос своими словами — бот поймёт\n📋 *Мои генерации* — история ваших материалов, можно посмотреть и назначить как ДЗ\n📚 *Классы* — список классов и учеников\n📊 *Аналитика* — прогресс учеников и статистика\n🎤 Голосовые сообщения — тоже принимаю\n\nПопробуйте прямо сейчас — нажмите *«🛠️ Создать материал»*!',
-    { parse_mode: 'Markdown' },
-  );
-  await ctx.reply('🛠️ *Выберите инструмент:*', {
-    parse_mode: 'Markdown',
-    reply_markup: buildToolSelectionKeyboard(),
-  });
+  const onboardingText: string = funnel.subscriptionSuccessText?.trim() ||
+    `Вы в команде ПреподаваИИ!\n\nА теперь давайте я на одном примере покажу, как всё устроено — соберём ваш первый материал. Так понятнее любой инструкции, а дальше выберете любой инструмент сами.\n\nНапишите три вещи:\n— предмет (например, биология);\n— класс или уровень (например, 8 класс или B1);\n— тему (например, «фотосинтез» или «present perfect»).\n\nЭтого хватит, чтобы я собрал готовый рабочий лист под вашу задачу — не общий текст «для среднего школьника», а под конкретный урок. Через минуту пришлю в PDF.`;
+  await ctx.reply(onboardingText, { reply_markup: buildMainMenuKeyboard() });
 }
 
 async function sendActivationFlow(ctx: Context): Promise<void> {
@@ -2539,12 +2523,36 @@ bot.on('callback_query:data', async (ctx: Context) => {
           await ctx.reply('🛠️ *Выберите инструмент:*', { parse_mode: 'Markdown', reply_markup: buildToolSelectionKeyboard() });
           return;
         }
-        await (prisma as any).botUser.update({
+        const updatedBotUser = await (prisma as any).botUser.update({
           where: { telegramId },
           data: { totalGenerations: { increment: 1 }, generationsThisMonth: { increment: 1 }, lastGenerationAt: new Date() },
-        });
+          select: { totalGenerations: true, source: true },
+        }).catch(() => null);
+        const isFunnelUser = updatedBotUser?.source === 'funnel_bot';
+        const totalGens: number = updatedBotUser?.totalGenerations ?? 0;
+
         if (result.status === 'completed') {
-          await ctx.reply(`✅ Готово! Отправляю ${tool.emoji} *${tool.label}* в чат...`, { parse_mode: 'Markdown' });
+          if (isFunnelUser && totalGens === 1) {
+            await ctx.reply(
+              `Готово — ваш первый материал собран.\n👆 PDF выше.\n\nПара минут вместо вечера — и так с каждым материалом.\n\nЗавтра нужен тест для девятого класса? — собрали за минуту\nК выходным презентация для малышей? — собрали\nКто-то поплыл в теме? — за пять минут готов рабочий лист именно под его пробел.\n\nСоберём следующий?\nВыбирайте инструмент:`,
+            );
+            await ctx.reply('🛠️ *Выберите инструмент:*', { parse_mode: 'Markdown', reply_markup: buildToolSelectionKeyboard() });
+          } else {
+            await ctx.reply(`✅ Готово! Отправляю ${tool.emoji} *${tool.label}* в чат...`, { parse_mode: 'Markdown' });
+            if (isFunnelUser && totalGens === 3) {
+              const webAppUrl = process.env.WEBAPP_URL || 'https://prepodavai.ru';
+              const demoVideoUrl = process.env.DEMO_VIDEO_URL || `${webAppUrl}`;
+              await ctx.reply(
+                `А с платформой ПреподаваИИ вы уже знакомы? 👀\n\nБот — это только часть нашей платформы. Им удобно быстро собрать материал, и вы это уже распробовали.\n\nНо ПреподаваИИ — это ещё и целая платформа, и там вы ведёте ученика целиком до результата.\n\nКак это выглядит на одном ученике:\n— заводите его (или сразу всю группу) — листы и тесты ученика лежат у него, а не в общей куче «Загрузок»;\n— генерируете материал и тут же выдаёте ему как домашку — прямо на платформе, без «скинул в телеграме»;\n— ученик решает и отправляет работу обратно туда же;\n— ИИ может проверить её сам — вы не сидите вечером над пачкой тетрадей;\n— а в аналитике видно: причастия он третью неделю валит — и следующий лист вы собираете ровно под это.\n\nИ всё это абсолютно бесплатно — так же, как бот. Без пробного периода, который однажды кончится, и без тарифа, который ждёт за углом.\nБот под рукой для быстрой задачи, платформа — чтобы вести учеников целиком.`,
+                {
+                  reply_markup: new InlineKeyboard()
+                    .url('▶️ Демо видео', demoVideoUrl)
+                    .row()
+                    .url('🚀 Зарегистрироваться на платформе', `${webAppUrl}/register`),
+                },
+              );
+            }
+          }
         } else {
           await ctx.reply(`✅ Задача принята! Результат придёт в этот чат, как только будет готов.`, { parse_mode: 'Markdown' });
         }
