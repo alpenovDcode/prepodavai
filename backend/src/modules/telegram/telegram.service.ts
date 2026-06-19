@@ -65,10 +65,14 @@ export class TelegramService {
   ) {
     const token = this.configService.get<string>('TELEGRAM_BOT_TOKEN');
     if (token) {
+      this.logger.log(
+        `[INIT] TELEGRAM_BOT_TOKEN set (len=${token.length}, prefix=${token.slice(0, 8)}***), creating bot...`,
+      );
       this.bot = new Bot(token);
       this.registerCommandHandlers();
+      this.logger.log(`[INIT] Bot created & handlers registered (start, sub:check)`);
     } else {
-      this.logger.warn('TELEGRAM_BOT_TOKEN is not set. Telegram bot will not work.');
+      this.logger.error('[INIT] TELEGRAM_BOT_TOKEN is NOT set. Telegram bot will not work!');
     }
   }
 

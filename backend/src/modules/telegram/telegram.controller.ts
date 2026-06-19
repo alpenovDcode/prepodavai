@@ -9,6 +9,7 @@ import {
   UnauthorizedException,
   UseGuards,
   Headers,
+  Logger,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SkipThrottle } from '@nestjs/throttler';
@@ -20,6 +21,8 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 
 @Controller('webhook/telegram')
 export class TelegramController {
+  private readonly logger = new Logger(TelegramController.name);
+
   constructor(
     private readonly telegramService: TelegramService,
     private readonly configService: ConfigService,
@@ -65,8 +68,22 @@ export class TelegramController {
   @HttpCode(200)
   @SkipThrottle()
   async handleWebhook(@Body() body: any) {
+    // Логируем САМЫЙ ВЕРХ webhook'а, чтобы понять — приходят ли вообще
+    // запросы от Telegram. Если этих логов нет — проблема в webhook URL
+    // (BotFather → не туда указано), либо токен не от того бота.
+    const updateType = body?.message ? 'message' :
+                       body?.callback_query ? 'callback_query' :
+                       body?.edited_message ? 'edited_message' :
+                       Object.keys(body || {}).filter(k => k !== 'update_id').join(',') || 'unknown';
+    const fromId = body?.message?.from?.id || body?.callback_query?.from?.id;
+    const text = body?.message?.text || body?.callback_query?.data;
+    this.logger.log(
+      `[WEBHOOK] type=${updateType} fromId=${fromId} text=${JSON.stringify(text)}`,
+    );
+
     const botToken = this.configService.get<string>('TELEGRAM_BOT_TOKEN');
     if (!botToken) {
+      this.logger.error(`[WEBHOOK] TELEGRAM_BOT_TOKEN not set — bot disabled!`);
       throw new UnauthorizedException('Telegram bot not configured');
     }
 
