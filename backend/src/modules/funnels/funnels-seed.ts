@@ -24,7 +24,7 @@ export const FUNNEL_SEED = [
       { order: 0, label: 'Показ страницы блогера',  eventType: 'page_view',           eventFilters: { utmMedium: 'bot_landing' }, isCohortAnchor: true },
       { order: 1, label: 'Клик по ссылке бота',     eventType: 'click',               eventFilters: { eventName: 'bot_link' } },
       { order: 2, label: 'Подписка на канал',       eventType: 'channel_subscribed' },
-      { order: 3, label: 'Просмотр онбординга',     eventType: 'onboarding_view',     eventFilters: { utmMedium: 'bot' } },
+      { order: 3, label: 'Просмотр онбординга',     eventType: 'onboarding_view' },
       { order: 4, label: 'Первая генерация',        eventType: 'generation_created:nth=1' },
       { order: 5, label: 'Третья генерация',        eventType: 'generation_created:nth=3' },
       { order: 6, label: 'Десятая генерация',       eventType: 'generation_created:nth=10' },

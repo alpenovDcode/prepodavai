@@ -19,14 +19,34 @@ export class FunnelsSeedService implements OnModuleInit {
   async onModuleInit() {
     try {
       for (const def of FUNNEL_SEED) {
-        const exists = await this.prisma.funnel.findFirst({ where: { name: def.name } });
-        if (exists) continue;
-        await this.funnels.create({
-          name: def.name,
-          description: def.description,
-          steps: def.steps.map(s => ({ ...s, eventFilters: (s as any).eventFilters ?? null })),
+        const exists = await this.prisma.funnel.findFirst({
+          where: { name: def.name },
+          include: { steps: true },
         });
-        this.logger.log(`Funnel seeded: ${def.name}`);
+        if (!exists) {
+          await this.funnels.create({
+            name: def.name,
+            description: def.description,
+            steps: def.steps.map(s => ({ ...s, eventFilters: (s as any).eventFilters ?? null })),
+          });
+          this.logger.log(`Funnel seeded: ${def.name}`);
+          continue;
+        }
+        // Синхронизируем шаги существующей воронки: обновляем только eventFilters по order
+        for (const seedStep of def.steps) {
+          const dbStep = exists.steps.find(s => s.order === seedStep.order);
+          if (!dbStep) continue;
+          const seedFilters = (seedStep as any).eventFilters ?? null;
+          const dbFilters = dbStep.eventFilters as any;
+          const same = JSON.stringify(seedFilters) === JSON.stringify(dbFilters);
+          if (!same) {
+            await this.prisma.funnelStep.update({
+              where: { id: dbStep.id },
+              data: { eventFilters: seedFilters },
+            });
+            this.logger.log(`Funnel step synced: ${def.name} / order=${seedStep.order}`);
+          }
+        }
       }
     } catch (e: any) {
       this.logger.warn(`Funnel seed skipped: ${e?.message}`);
