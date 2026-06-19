@@ -1591,10 +1591,43 @@ async function handleSmartLinkStart(
 
   console.log(
     `[Bot] smart-link: found=${data?.found} funnelId=${data?.funnelId} ` +
-    `welcome=${data?.welcome ? 'yes' : 'no'}`,
+    `welcome=${data?.welcome ? 'yes' : 'no'} ` +
+    `welcomeText=${data?.welcome?.welcomeText ? JSON.stringify(String(data.welcome.welcomeText).slice(0, 30)) : 'EMPTY'} ` +
+    `subscriptionChannelId=${data?.welcome?.subscriptionChannelId || 'EMPTY'} ` +
+    `welcomeButtonAction=${data?.welcome?.welcomeButtonAction || 'url'}`,
   );
 
   if (!data?.found) return false;
+
+  // Если юзер УЖЕ прошёл онбординг (был хотя бы раз подтверждён через
+  // подписку на канал — статус subscribed/linked/registered) — НЕ пугаем
+  // повторной проверкой. UTM-атрибуция уже сохранилась в Redis через
+  // consume выше, бэк сам подцепит её к юзеру. Шлём только короткий
+  // welcome без subscription-кнопки и сразу главное меню.
+  try {
+    const existingBotUser = await (prisma as any).botUser.findUnique({
+      where: { telegramId },
+      select: { registrationStatus: true },
+    });
+    const ONBOARDED = ['subscribed', 'linked', 'registered'];
+    if (existingBotUser && ONBOARDED.includes(existingBotUser.registrationStatus)) {
+      console.log(
+        `[Bot] smart-link: onboarded user (status=${existingBotUser.registrationStatus}), skip subscription welcome`,
+      );
+      await ctx.reply(
+        `Добро пожаловать в Преподавай 🎓\n\nЯ Ваш интеллектуальный помощник для:\n— Создания учебных материалов\n— Планирования уроков\n— Создания красочных презентаций\n— Методической поддержки\n— Создания интерактивных игр`,
+        { reply_markup: buildMainMenuKeyboard() },
+      );
+      await ctx.reply('🛠️ *Выберите инструмент:*', {
+        parse_mode: 'Markdown',
+        reply_markup: buildToolSelectionKeyboard(),
+      });
+      return true; // mark as handled — основной /start handler НЕ должен ничего делать
+    }
+  } catch (e: any) {
+    console.warn(`[Bot] smart-link onboarded check failed: ${e?.message}`);
+    // На случай ошибки БД — fail-open в обычный flow ниже
+  }
 
   // Если у воронки нет welcomeText — пускаем дефолтный sendActivationFlow
   // ниже, но атрибуция UTM уже сохранилась в Redis (через storeForTgUser).
@@ -1605,6 +1638,22 @@ async function handleSmartLinkStart(
   const action: string = w.welcomeButtonAction || 'url';
   const label: string = (w.welcomeButtonLabel || 'Начать').trim();
   const kb = new InlineKeyboard();
+
+  // Авто-резолв канала из URL кнопки, если поле subscriptionChannelId пустое.
+  // Например welcomeButtonUrl="https://t.me/prepodavai_news" → канал @prepodavai_news.
+  // Так маркетологу достаточно указать ОДИН URL — кнопка «Я подписался»
+  // всё равно появится автоматически.
+  if (!w.subscriptionChannelId && w.welcomeButtonUrl) {
+    const m = /^https?:\/\/t\.me\/(?:s\/)?([a-zA-Z0-9_]{3,32})/i.exec(
+      String(w.welcomeButtonUrl).trim(),
+    );
+    if (m) {
+      w.subscriptionChannelId = '@' + m[1];
+      console.log(
+        `[Bot] auto-resolved subscriptionChannelId=${w.subscriptionChannelId} from welcomeButtonUrl`,
+      );
+    }
+  }
 
   // 1) Главная кнопка по выбору action
   if (action === 'mini_app') {
@@ -1629,7 +1678,13 @@ async function handleSmartLinkStart(
   // а проверка подписки — в отдельной кнопке под ней. Не нужно выбирать
   // именно 'check_subscription' в dropdown'е.
   if (w.subscriptionChannelId && data.funnelId) {
+    console.log(`[Bot] adding "Я подписался" button (funnelId=${data.funnelId})`);
     kb.row().text('✅ Я подписался', `funnel_sub:${data.funnelId}`);
+  } else {
+    console.log(
+      `[Bot] NOT adding "Я подписался" — reason: ` +
+      `subscriptionChannelId=${w.subscriptionChannelId || 'NULL'}, funnelId=${data.funnelId || 'NULL'}`,
+    );
   }
 
   try {
@@ -1743,8 +1798,66 @@ async function handleFunnelSubscriptionCheck(
     funnel.subscriptionSuccessText?.trim() ||
     '✅ Спасибо за подписку! Открываем сервис.';
   await ctx.reply(successText, { parse_mode: 'Markdown' });
-  // Дальше — основной флоу. Если у юзера ещё нет AppUser/BotUser — создаём.
-  await sendActivationFlow(ctx);
+
+  // Создаём AppUser + BotUser (shadow) — как в handleSubscriptionCheck для
+  // дефолтного канала. Это даёт юзеру доступ к функционалу бота, не дожидаясь
+  // email-регистрации. После — показываем основное меню инструментов
+  // (НЕ дефолтный SUBSCRIPTION_TEXT про @esvasilevaru — это была ошибка).
+  try {
+    const user = ctx.from!;
+    const chatId = ctx.chat!.id.toString();
+    const shadowApiKey = crypto.randomBytes(16).toString('hex');
+    const shadowAppUser = await prisma.appUser.upsert({
+      where: { telegramId },
+      update: { lastAccessAt: new Date() },
+      create: {
+        telegramId,
+        telegramChatId: chatId,
+        chatId,
+        username: `tg_${telegramId}`,
+        apiKey: shadowApiKey,
+        source: 'telegram_bot',
+      } as any,
+    });
+
+    const existingBotUser = await (prisma as any).botUser.findUnique({
+      where: { telegramId },
+      select: { registrationStatus: true },
+    });
+    const preservedStatus = existingBotUser && ['linked', 'registered'].includes(existingBotUser.registrationStatus)
+      ? existingBotUser.registrationStatus
+      : 'subscribed';
+
+    await (prisma as any).botUser.upsert({
+      where: { telegramId },
+      update: { appUserId: shadowAppUser.id, lastActiveAt: new Date(), registrationStatus: preservedStatus },
+      create: {
+        telegramId,
+        appUserId: shadowAppUser.id,
+        firstName: user.first_name || null,
+        lastName: user.last_name || null,
+        username: user.username || null,
+        registrationStatus: 'subscribed',
+        source: 'telegram_bot',
+        lastActiveAt: new Date(),
+      } as any,
+    });
+  } catch (e: any) {
+    console.warn(`[Bot] funnel_sub user upsert failed: ${e?.message}`);
+  }
+
+  await ctx.reply(
+    `Добро пожаловать в Преподавай 🎓\n\nЯ Ваш интеллектуальный помощник для:\n— Создания учебных материалов\n— Планирования уроков\n— Создания красочных презентаций\n— Методической поддержки\n— Создания интерактивных игр`,
+    { reply_markup: buildMainMenuKeyboard() },
+  );
+  await ctx.reply(
+    'Как пользоваться:\n\n🛠️ *Создать материал* — выберите инструмент (тест, план урока, рабочий лист и др.) или просто напишите запрос своими словами — бот поймёт\n📋 *Мои генерации* — история ваших материалов, можно посмотреть и назначить как ДЗ\n📚 *Классы* — список классов и учеников\n📊 *Аналитика* — прогресс учеников и статистика\n🎤 Голосовые сообщения — тоже принимаю\n\nПопробуйте прямо сейчас — нажмите *«🛠️ Создать материал»*!',
+    { parse_mode: 'Markdown' },
+  );
+  await ctx.reply('🛠️ *Выберите инструмент:*', {
+    parse_mode: 'Markdown',
+    reply_markup: buildToolSelectionKeyboard(),
+  });
 }
 
 async function sendActivationFlow(ctx: Context): Promise<void> {
