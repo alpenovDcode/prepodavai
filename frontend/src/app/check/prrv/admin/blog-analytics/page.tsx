@@ -291,7 +291,7 @@ export default function BlogAnalyticsPage() {
             <YAxis type="category" dataKey="name" tick={{ fontSize: 12 }} tickLine={false} axisLine={false} width={80} />
             <Tooltip
               contentStyle={{ borderRadius: 10, border: '1px solid #e5e7eb', fontSize: 12 }}
-              formatter={(v: number) => [v, 'Кликов']}
+              formatter={(v: any) => [v, 'Кликов']}
             />
             <Bar dataKey="value" radius={[0, 6, 6, 0]}>
               {ctaData.map((c, i) => (
@@ -373,7 +373,7 @@ export default function BlogAnalyticsPage() {
                       <Cell key={i} fill={['#3b82f6','#f97316','#22c55e'][i % 3]} />
                     ))}
                   </Pie>
-                  <Tooltip formatter={(v: number) => [v, 'Визиты']} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                  <Tooltip formatter={(v: any) => [v, 'Визиты']} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
                 </PieChart>
               </ResponsiveContainer>
               <div className="space-y-3 flex-1">
@@ -664,7 +664,7 @@ GOOGLE_SC_REFRESH_TOKEN=...`}
                   <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} width={35} />
                   <Tooltip
                     contentStyle={{ borderRadius: 10, border: '1px solid #e5e7eb', fontSize: 12 }}
-                    formatter={(v: number, name: string) => [v, name === 'clicks' ? 'Клики' : 'Показы']}
+                    formatter={(v: any, name: any) => [v, name === 'clicks' ? 'Клики' : 'Показы']}
                   />
                   <Area type="monotone" dataKey="clicks" stroke="#3b82f6" strokeWidth={2} fill="url(#gscGrad)" name="clicks" />
                   <Area type="monotone" dataKey="impressions" stroke="#a78bfa" strokeWidth={1.5} fill="none" name="impressions" />
