@@ -4170,7 +4170,7 @@ export class AdminService {
     try {
       const axios = (await import('axios')).default;
 
-      const blogFilter = `ym:s:startURL=@'prepodavai.ru/blog'`;
+      const blogFilter = `ym:pv:URL=@'prepodavai.ru/blog'`;
 
       const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
 
