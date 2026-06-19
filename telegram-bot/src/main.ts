@@ -355,7 +355,18 @@ function buildConfirmMessage(tool: ToolConfig, params: Record<string, string>): 
   const lines: string[] = [`*${tool.emoji} ${tool.label}* — подтверждение\n`];
   for (const field of tool.fields) {
     const val = params[field.key];
-    if (val !== undefined && val !== '') lines.push(`• ${sanitizeMd(val)}`);
+    if (val === undefined || val === '') continue;
+    if (field.type === 'select') {
+      const opts = field.options ?? (field.conditionalOptions ? field.conditionalOptions(params) : []);
+      const found = opts.find(o => o.value === val);
+      lines.push(`• ${sanitizeMd(found ? found.label : val)}`);
+    } else if (field.type === 'multiselect' && field.options) {
+      const selected = val.split(',').filter(Boolean);
+      const labels = selected.map(v => field.options!.find(o => o.value === v)?.label ?? v);
+      lines.push(`• ${sanitizeMd(labels.join(', '))}`);
+    } else {
+      lines.push(`• ${sanitizeMd(val)}`);
+    }
   }
   lines.push(`⏱ Примерное время: *${tool.estimatedTime}*`);
   lines.push('\nГенерировать?');
