@@ -2190,10 +2190,7 @@ async function executeGenSession(ctx: Context, telegramId: string): Promise<void
 
       if (result.status === 'completed') {
         if (isFunnelUser && totalGens === 1) {
-          await ctx.reply(
-            `Готово — ваш первый материал собран.\n👆 PDF выше.\n\nПара минут вместо вечера — и так с каждым материалом.\n\nЗавтра нужен тест для девятого класса? — собрали за минуту\nК выходным презентация для малышей? — собрали\nКто-то поплыл в теме? — за пять минут готов рабочий лист именно под его пробел.\n\nСоберём следующий?\nВыбирайте инструмент:`,
-          );
-          await ctx.reply('🛠️ *Выберите инструмент:*', { parse_mode: 'Markdown', reply_markup: buildToolSelectionKeyboard() });
+          // Сообщение "Готово..." и "🛠️" шлёт бэкенд после PDF (telegram.service.ts finally block)
         } else {
           await ctx.reply(`✅ Готово! Отправляю ${tool.emoji} *${tool.label}* в чат...`, { parse_mode: 'Markdown' });
           if (isFunnelUser && totalGens === 3) {

@@ -854,6 +854,21 @@ export class TelegramService {
       console.error(`[Telegram] Failed to deliver result: type=${generationType} userId=${userId} error=${error}`);
       return { success: false, message: String(error) };
     } finally {
+      // Для funnel-пользователей после 1-й генерации — особое сообщение перед меню
+      // (отправляем здесь, ПОСЛЕ PDF, а не из бота, который шлёт раньше PDF)
+      try {
+        const botUser = await (this.prisma as any).botUser.findUnique({
+          where: { telegramId: appUser.telegramId },
+          select: { source: true, totalGenerations: true },
+        });
+        if (botUser?.source === 'funnel_bot' && botUser?.totalGenerations === 1) {
+          await this.bot.api.sendMessage(
+            chatId,
+            `Готово — ваш первый материал собран.\n👆 PDF выше.\n\nПара минут вместо вечера — и так с каждым материалом.\n\nЗавтра нужен тест для девятого класса? — собрали за минуту\nК выходным презентация для малышей? — собрали\nКто-то поплыл в теме? — за пять минут готов рабочий лист именно под его пробел.\n\nСоберём следующий?\nВыбирайте инструмент:`,
+          ).catch(() => {});
+        }
+      } catch {}
+
       await this.bot.api.sendMessage(chatId, '🛠️ *Выберите инструмент:*', {
         parse_mode: 'Markdown',
         reply_markup: {
