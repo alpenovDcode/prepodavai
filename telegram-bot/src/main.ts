@@ -1628,9 +1628,11 @@ async function handleSmartLinkStart(
         where: { telegramId },
         select: { id: true },
       });
-      if (appUser) {
+      if (appUser && !data.welcome) {
+        // Воронки нет — сразу главное меню для онбордированного пользователя.
+        // Если воронка есть — показываем её даже онбордированному (проверка подписки на нужный канал).
         console.log(
-          `[Bot] smart-link: onboarded user (status=${existingBotUser.registrationStatus}), skip subscription welcome`,
+          `[Bot] smart-link: onboarded user (status=${existingBotUser.registrationStatus}), no funnel welcome → main menu`,
         );
         await ctx.reply(
           `Добро пожаловать в Преподавай 🎓\n\nЯ Ваш интеллектуальный помощник для:\n— Создания учебных материалов\n— Планирования уроков\n— Создания красочных презентаций\n— Методической поддержки\n— Создания интерактивных игр`,
@@ -1640,7 +1642,7 @@ async function handleSmartLinkStart(
           parse_mode: 'Markdown',
           reply_markup: buildToolSelectionKeyboard(),
         });
-        return true; // mark as handled — основной /start handler НЕ должен ничего делать
+        return true;
       }
       console.log(
         `[Bot] smart-link: BotUser onboarded but AppUser not found — treating as new user`,
