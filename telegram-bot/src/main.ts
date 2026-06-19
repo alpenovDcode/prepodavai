@@ -2169,17 +2169,20 @@ async function executeGenSession(ctx: Context, telegramId: string): Promise<void
   genSessions.delete(telegramId);
   lastGenAt.set(telegramId, Date.now());
 
-  await ctx.reply(`⏳ Генерирую ${tool.emoji} *${tool.label}*...\n_${tool.estimatedTime}_`, { parse_mode: 'Markdown' });
+  const chatId = ctx.chat!.id;
+  const genStatusMsg = await ctx.reply(`⏳ Генерирую ${tool.emoji} *${tool.label}*...\n_${tool.estimatedTime}_`, { parse_mode: 'Markdown' });
 
   try {
     const token = await getApiToken(user.username, await ensureApiKey(user));
     if (!token) {
+      await bot.api.deleteMessage(chatId, genStatusMsg.message_id).catch(() => {});
       await ctx.reply('❌ Ошибка авторизации. Попробуйте позже или обратитесь в поддержку.');
       return;
     }
 
     if (tool.serviceType === 'games') {
       const result = await callGamesApi(token, session.params.type, session.params.topic);
+      await bot.api.deleteMessage(chatId, genStatusMsg.message_id).catch(() => {});
       if (!result.url) {
         await ctx.reply('❌ Игра не создана: сервер не вернул ссылку.');
         await ctx.reply('🛠️ *Выберите инструмент:*', { parse_mode: 'Markdown', reply_markup: buildToolSelectionKeyboardWithAssign() });
@@ -2199,31 +2202,23 @@ async function executeGenSession(ctx: Context, telegramId: string): Promise<void
       }
       const result = await callGenerationApi(token, tool.generationType, apiParams);
       tgtrack('send_reach_goal', { user_id: telegramId, target: 'generation_created' });
+      await bot.api.deleteMessage(chatId, genStatusMsg.message_id).catch(() => {});
       if (result.status === 'failed') {
         await ctx.reply('❌ Генерация не удалась.');
         await ctx.reply('🛠️ *Выберите инструмент:*', { parse_mode: 'Markdown', reply_markup: buildToolSelectionKeyboard() });
         return;
       }
-      const updatedBotUser = await (prisma as any).botUser.update({
+      await (prisma as any).botUser.update({
         where: { telegramId },
         data: { totalGenerations: { increment: 1 }, generationsThisMonth: { increment: 1 }, lastGenerationAt: new Date() },
-        select: { totalGenerations: true, source: true },
       }).catch(() => null);
-      const isFunnelUser = updatedBotUser?.source === 'funnel_bot';
-      const totalGens: number = updatedBotUser?.totalGenerations ?? 0;
-
-      if (result.status === 'completed') {
-        if (isFunnelUser && totalGens === 1) {
-          // Сообщение "Готово..." и "🛠️" шлёт бэкенд после PDF (telegram.service.ts finally block)
-        } else {
-          await ctx.reply(`✅ Готово! Отправляю ${tool.emoji} *${tool.label}* в чат...`, { parse_mode: 'Markdown' });
-          // Промо после 3й генерации шлёт бэкенд после PDF (telegram.service.ts finally block)
-        }
-      } else {
+      if (result.status !== 'completed') {
         await ctx.reply(`✅ Задача принята! Результат придёт в этот чат, как только будет готов.`, { parse_mode: 'Markdown' });
       }
+      // Для 'completed': PDF и пост-ген сообщения шлёт бэкенд (telegram.service.ts finally block)
     }
   } catch (err: any) {
+    await bot.api.deleteMessage(chatId, genStatusMsg.message_id).catch(() => {});
     await ctx.reply(humanizeError(err));
     await ctx.reply('🛠️ *Выберите инструмент:*', { parse_mode: 'Markdown', reply_markup: buildToolSelectionKeyboardWithAssign() });
   }
