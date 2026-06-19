@@ -214,29 +214,38 @@ export class SmartLinksService {
     // Аналитические события для funnel-расчётов.
     // Шаг 0 «Показ страницы блогера»: page_view с utm_medium=bot_landing.
     // Шаг 1 «Клик по ссылке бота»: click с eventName=bot_link.
-    // Эмитим ОБА события за один клик smart-link — этого хватает, чтобы
-    // ИИ-бот воронка считала первые 2 шага. anonId из cookie позволит
-    // позже склеить с tg-юзером (через claimAnonEvents при /start).
+    //
+    // ВАЖНО: utmMedium ВСЕГДА ставим 'bot_landing' — это синтетический
+    // маркер для funnel-фильтра. Реальный utm_medium из настроек ссылки
+    // (например 'tg', 'instagram_story') сохраняется в payload.utmMedium,
+    // плюс остальные UTM-поля (source, campaign, content, term) пишутся
+    // как есть. Так funnel считает шаги, а UTM-аналитика не теряется.
+    const realUtmMedium = finalUtm.utm_medium;
     const trackPayload = {
       anonId: args.anonId || null,
       userId: args.userId || null,
       utmSource: finalUtm.utm_source,
-      utmMedium: finalUtm.utm_medium || 'bot_landing',
+      utmMedium: 'bot_landing', // ← синтетический, для funnel filter
       utmCampaign: finalUtm.utm_campaign,
       utmContent: finalUtm.utm_content,
       utmTerm: finalUtm.utm_term,
+    };
+    const payloadExtras = {
+      slug: link.slug,
+      linkId: link.id,
+      realUtmMedium: realUtmMedium || null, // оригинал — для отладки/детального разреза
     };
     this.analytics.track({
       ...trackPayload,
       eventType: EVENT_TYPES.PAGE_VIEW,
       eventName: 'smart_link_landing',
-      payload: { slug: link.slug, linkId: link.id },
+      payload: payloadExtras,
     }).catch((e) => this.logger.warn(`analytics page_view failed: ${e?.message}`));
     this.analytics.track({
       ...trackPayload,
       eventType: EVENT_TYPES.CLICK,
       eventName: 'bot_link',
-      payload: { slug: link.slug, linkId: link.id },
+      payload: payloadExtras,
     }).catch((e) => this.logger.warn(`analytics click failed: ${e?.message}`));
 
     // Особый случай: target ведёт на Telegram (t.me/<bot>?start=...).

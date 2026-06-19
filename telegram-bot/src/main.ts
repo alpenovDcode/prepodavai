@@ -1606,23 +1606,30 @@ async function handleSmartLinkStart(
   const label: string = (w.welcomeButtonLabel || 'Начать').trim();
   const kb = new InlineKeyboard();
 
-  if (action === 'check_subscription' && w.subscriptionChannelId) {
-    // Кнопка-перенаправление + кнопка «Я подписался» с funnelId для callback
+  // 1) Главная кнопка по выбору action
+  if (action === 'mini_app') {
+    const webAppUrl = (w.welcomeButtonUrl || 'https://prepodavai.ru/dashboard').trim();
+    kb.webApp(label, webAppUrl);
+  } else if (action === 'check_subscription' && w.subscriptionChannelId) {
     const ch: string = w.subscriptionChannelId;
     const channelUrl = ch.startsWith('http')
       ? ch
       : ch.startsWith('@')
         ? `https://t.me/${ch.slice(1)}`
         : (w.welcomeButtonUrl || 'https://t.me');
-    kb.url(`📢 ${label}`, channelUrl).row()
-      .text('✅ Я подписался', `funnel_sub:${data.funnelId}`);
-  } else if (action === 'mini_app') {
-    const webAppUrl = (w.welcomeButtonUrl || 'https://prepodavai.ru/dashboard').trim();
-    kb.webApp(label, webAppUrl);
+    kb.url(`📢 ${label}`, channelUrl);
   } else {
     // 'url' (default)
     const url = (w.welcomeButtonUrl || 'https://prepodavai.ru').trim();
     kb.url(label, url);
+  }
+
+  // 2) Кнопка «Я подписался» — добавляем ВСЕГДА, если в воронке указан канал.
+  // Так маркетолог может настроить: главная кнопка ведёт на канал,
+  // а проверка подписки — в отдельной кнопке под ней. Не нужно выбирать
+  // именно 'check_subscription' в dropdown'е.
+  if (w.subscriptionChannelId && data.funnelId) {
+    kb.row().text('✅ Я подписался', `funnel_sub:${data.funnelId}`);
   }
 
   try {
