@@ -2208,10 +2208,10 @@ async function executeGenSession(ctx: Context, telegramId: string): Promise<void
         await ctx.reply('🛠️ *Выберите инструмент:*', { parse_mode: 'Markdown', reply_markup: buildToolSelectionKeyboard() });
         return;
       }
-      await (prisma as any).botUser.update({
-        where: { telegramId },
-        data: { totalGenerations: { increment: 1 }, generationsThisMonth: { increment: 1 }, lastGenerationAt: new Date() },
-      }).catch(() => null);
+      // НЕ инкрементим totalGenerations здесь: это делает бэкенд атомарно в момент
+      // доставки результата (telegram.service.ts → sendGenerationResult). Иначе возникает
+      // гонка с процессором доставки, и пост-ген сообщения (1-я/3-я генерация) шлются не на той
+      // генерации. Игры считаются в боте (выше) — они не проходят через процессор доставки.
       if (result.status !== 'completed') {
         await ctx.reply(`✅ Задача принята! Результат придёт в этот чат, как только будет готов.`, { parse_mode: 'Markdown' });
       }

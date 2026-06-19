@@ -854,13 +854,24 @@ export class TelegramService {
       console.error(`[Telegram] Failed to deliver result: type=${generationType} userId=${userId} error=${error}`);
       return { success: false, message: String(error) };
     } finally {
-      // Для funnel-пользователей после 1-й генерации — особое сообщение перед меню
+      // Для funnel-пользователей после 1-й и 3-й генерации — особое сообщение перед меню
       // (отправляем здесь, ПОСЛЕ PDF, а не из бота, который шлёт раньше PDF)
+      //
+      // Счётчик генераций инкрементим АТОМАРНО ровно здесь, в момент доставки результата:
+      // это единственный источник истины (бот больше не инкрементит обычные генерации),
+      // поэтому totalGenerations гарантированно равен порядковому номеру текущей генерации
+      // без гонки между ботом и процессором доставки. Доставка идёт один раз на генерацию
+      // (idempotency через флаг sentToTelegram в процессоре), так что двойного учёта нет.
       try {
-        const botUser = await (this.prisma as any).botUser.findUnique({
+        const botUser = await (this.prisma as any).botUser.update({
           where: { telegramId: appUser.telegramId },
+          data: {
+            totalGenerations: { increment: 1 },
+            generationsThisMonth: { increment: 1 },
+            lastGenerationAt: new Date(),
+          },
           select: { source: true, totalGenerations: true },
-        });
+        }).catch(() => null);
         if (botUser?.source === 'funnel_bot' && botUser?.totalGenerations === 1) {
           await this.bot.api.sendMessage(
             chatId,
