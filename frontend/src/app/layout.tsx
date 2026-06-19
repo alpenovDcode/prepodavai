@@ -34,6 +34,10 @@ export const metadata: Metadata = {
     icon: '/logo-prepodavai.png',
     apple: '/logo-prepodavai.png',
   },
+  verification: {
+    google: '1e0a6091207ead1d',
+    yandex: '466cf3a9e0954abb',
+  },
 }
 
 export default function RootLayout({
