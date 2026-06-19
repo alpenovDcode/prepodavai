@@ -34,7 +34,7 @@ export default function BotCTA({ text = 'Попробовать ИИ-бота' }
         </div>
       </div>
       <a
-        href="https://t.me/prepodavai_bot"
+        href="https://t.me/prrv_prepodavAI_bot?start=blog"
         target="_blank" rel="noopener noreferrer"
         onClick={() => trackGoal('cta_bot_click')}
         style={{

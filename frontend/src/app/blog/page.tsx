@@ -241,7 +241,7 @@ export default function BlogPage() {
             Без спама, без рекламы, только методика и инструменты.
           </p>
           <a
-            href="https://t.me/prepodavai_news"
+            href="https://t.me/prepodavaII"
             target="_blank"
             rel="noopener noreferrer"
             style={{
