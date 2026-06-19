@@ -2467,6 +2467,9 @@ bot.on('callback_query:data', async (ctx: Context) => {
 
     // Отменяем регистрацию если была активна (иначе текстовый ответ уйдёт в reg flow)
     regStates.delete(telegramId);
+    // Пользователь явно выбрал инструмент — сбрасываем funnel-онбординг,
+    // чтобы не перехватить ввод полей формы
+    funnelOnboardingStates.delete(telegramId);
 
     const user = await prisma.appUser.findUnique({ where: { telegramId } });
     if (!user) {
@@ -2915,6 +2918,7 @@ bot.on('message:text', async (ctx: Context) => {
     const user = await prisma.appUser.findUnique({ where: { telegramId } });
     if (!user) { await ctx.reply('❌ Аккаунт не найден. Используйте /start.'); return; }
     genSessions.delete(telegramId);
+    funnelOnboardingStates.delete(telegramId);
     await ctx.reply('🛠️ *Выберите инструмент:*', { parse_mode: 'Markdown', reply_markup: buildToolSelectionKeyboard() });
     return;
   }
