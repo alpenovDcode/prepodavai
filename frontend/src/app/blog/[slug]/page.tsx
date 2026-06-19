@@ -69,7 +69,7 @@ export default async function BlogPostPage({ params }: { params: { slug: string 
     <div style={{ minHeight: '100vh', background: '#f8f8f6', fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", color: '#1a1a1a' }}>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
 
-      <ReadingProgress />
+      <ReadingProgress slug={post.slug} />
 
       <style>{`
         /* ── Animations ── */

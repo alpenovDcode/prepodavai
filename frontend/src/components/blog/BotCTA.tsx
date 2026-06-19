@@ -1,11 +1,13 @@
+'use client'
+
+import { trackGoal } from '@/lib/analytics'
+
 export default function BotCTA({ text = 'Попробовать ИИ-бота' }: { text?: string }) {
   return (
     <div style={{
-      margin: '40px 0',
-      padding: '28px 32px',
+      margin: '40px 0', padding: '28px 32px',
       background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)',
-      border: '1.5px solid #bbf7d0',
-      borderRadius: 20,
+      border: '1.5px solid #bbf7d0', borderRadius: 20,
       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       gap: 20, flexWrap: 'wrap',
       position: 'relative', overflow: 'hidden',
@@ -18,11 +20,9 @@ export default function BotCTA({ text = 'Попробовать ИИ-бота' }
       }} />
       <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
         <div style={{
-          width: 48, height: 48, borderRadius: 14,
-          background: '#22c55e', display: 'flex',
-          alignItems: 'center', justifyContent: 'center',
-          fontSize: 24, flexShrink: 0,
-          boxShadow: '0 4px 14px rgba(34,197,94,0.3)',
+          width: 48, height: 48, borderRadius: 14, background: '#22c55e',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 24, flexShrink: 0, boxShadow: '0 4px 14px rgba(34,197,94,0.3)',
         }}>🤖</div>
         <div>
           <p style={{ margin: 0, fontWeight: 700, fontSize: 17, color: '#14532d', lineHeight: 1.3 }}>
@@ -36,10 +36,10 @@ export default function BotCTA({ text = 'Попробовать ИИ-бота' }
       <a
         href="https://t.me/prepodavai_bot"
         target="_blank" rel="noopener noreferrer"
+        onClick={() => trackGoal('cta_bot_click')}
         style={{
           display: 'inline-flex', alignItems: 'center', gap: 6,
-          padding: '11px 22px',
-          background: '#22c55e', color: 'white',
+          padding: '11px 22px', background: '#22c55e', color: 'white',
           borderRadius: 11, textDecoration: 'none',
           fontWeight: 700, fontSize: 14, whiteSpace: 'nowrap',
           boxShadow: '0 6px 18px rgba(34,197,94,0.34)',
