@@ -8,7 +8,7 @@ import {
     LayoutDashboard, Wand2, Calendar, BookOpen,
     Users, ClipboardCheck, BarChart3,
     Gift, MessageCircle, Settings, ChevronUp, LogOut,
-    ChevronLeft, ChevronRight,
+    ChevronLeft, ChevronRight, Newspaper, Send,
 } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 
@@ -314,6 +314,8 @@ export function getTeacherNavSections(badges: { studentsAtRisk?: number; pending
         {
             label: 'Прочее',
             items: [
+                { label: 'Блог',          href: '/blog',                   icon: i(Newspaper),       tourId: 'nav-blog' },
+                { label: 'Сообщество',    href: 'https://t.me/prepodavaII', icon: i(Send),           tourId: 'nav-community', external: true },
                 { label: 'Пригласить',    href: '/dashboard/referrals',    icon: i(Gift),            tourId: 'nav-invite' },
                 { label: 'Поддержка',     href: 'https://t.me/prepodavai_help_bot', icon: i(MessageCircle), tourId: 'nav-support', external: true },
                 { label: 'Настройки',     href: '/dashboard/settings',     icon: i(Settings),        tourId: 'nav-settings' },

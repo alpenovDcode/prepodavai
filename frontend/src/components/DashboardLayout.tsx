@@ -7,7 +7,7 @@ import { useUser } from '@/lib/hooks/useUser'
 import { useMiniAppAuth } from '@/lib/hooks/useMiniAppAuth'
 import { LOGO_BASE64 } from '@/constants/branding'
 import { apiClient } from '@/lib/api/client'
-import { Loader2, Menu, X, LayoutDashboard, Wand2, BookOpen, Users, Settings as SettingsIcon, Gift, MessageCircle, Calendar } from 'lucide-react'
+import { Loader2, Menu, X, LayoutDashboard, Wand2, BookOpen, Users, Settings as SettingsIcon, Gift, MessageCircle, Calendar, Newspaper, Send } from 'lucide-react'
 import NotificationBell from '@/components/NotificationBell'
 
 interface DashboardLayoutProps {
@@ -141,6 +141,22 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                                     )
                                 })}
 
+                                <Link
+                                    href="/blog"
+                                    className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+                                >
+                                    <Newspaper className="w-5 h-5 text-gray-400" />
+                                    <span>Блог</span>
+                                </Link>
+                                <a
+                                    href="https://t.me/prepodavaII"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+                                >
+                                    <Send className="w-5 h-5 text-gray-400" />
+                                    <span>Сообщество</span>
+                                </a>
                                 <a
                                     href="https://t.me/prepodavai_help_bot"
                                     target="_blank"
@@ -149,15 +165,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                                 >
                                     <MessageCircle className="w-5 h-5 text-gray-400" />
                                     <span>Поддержка</span>
-                                </a>
-                                <a
-                                    href="https://t.me/+cos_QRyP37k4M2Uy"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
-                                >
-                                    <Users className="w-5 h-5 text-gray-400" />
-                                    <span>Сообщество</span>
                                 </a>
                             </nav>
 
@@ -249,6 +256,22 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                         )
                     })}
 
+                    <Link
+                        href="/blog"
+                        className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold text-gray-500 hover:text-gray-900 hover:bg-gray-50 transition-all border border-transparent"
+                    >
+                        <Newspaper className="w-5 h-5 text-gray-400" />
+                        <span>Блог</span>
+                    </Link>
+                    <a
+                        href="https://t.me/prepodavaII"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold text-gray-500 hover:text-gray-900 hover:bg-gray-50 transition-all border border-transparent"
+                    >
+                        <Send className="w-5 h-5 text-gray-400" />
+                        <span>Сообщество</span>
+                    </a>
                     <a
                         href="https://t.me/prepodavai_help_bot"
                         target="_blank"
@@ -257,15 +280,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                     >
                         <MessageCircle className="w-5 h-5 text-gray-400" />
                         <span>Поддержка</span>
-                    </a>
-                    <a
-                        href="https://t.me/+cos_QRyP37k4M2Uy"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold text-gray-500 hover:text-gray-900 hover:bg-gray-50 transition-all border border-transparent"
-                    >
-                        <Users className="w-5 h-5 text-gray-400" />
-                        <span>Сообщество</span>
                     </a>
                 </nav>
 
