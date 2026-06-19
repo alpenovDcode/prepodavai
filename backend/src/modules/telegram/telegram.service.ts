@@ -86,22 +86,34 @@ export class TelegramService {
       try {
         const payload = (ctx.match || '').trim();
         const tgId = ctx.from?.id;
+        this.logger.log(
+          `[START] tgId=${tgId} payload=${JSON.stringify(payload)} ` +
+          `payloadLen=${payload.length}`,
+        );
         if (!tgId) return;
 
         // 1) Smart-link токен → атрибуция через воронку.
         //    Воронка с welcomeText сама отрисует своё приветствие
         //    (в handleStartPayload → sendFunnelWelcome).
-        if (payload && /^[A-Za-z0-9_-]{10,32}$/.test(payload)) {
+        const isToken = /^[A-Za-z0-9_-]{10,32}$/.test(payload);
+        this.logger.log(`[START] isSmartLinkToken=${isToken}`);
+
+        if (payload && isToken) {
           const attribution = await this.handleStartPayload(String(tgId), payload, ctx);
-          if (attribution?.funnelId) return; // воронка уже отправила своё welcome
+          this.logger.log(
+            `[START] handleStartPayload result: ${JSON.stringify(attribution)}`,
+          );
+          if (attribution?.funnelId) {
+            this.logger.log(`[START] funnel welcome sent, skipping default flow`);
+            return;
+          }
         }
 
         // 2) Иначе — дефолтное приветствие с проверкой подписки на канал
-        //    «Прорыв в репетиторстве». Это же поведение раньше жило в
-        //    отдельном /telegram-bot проекте и в max.service.
+        this.logger.log(`[START] falling through to default activation flow`);
         await this.sendDefaultActivationFlow(ctx);
       } catch (e: any) {
-        this.logger.warn(`/start handler failed: ${e?.message}`);
+        this.logger.error(`/start handler failed: ${e?.message}`, e?.stack);
       }
     });
 
@@ -207,9 +219,16 @@ export class TelegramService {
 
     const attr = await this.smartLinkTokens.consume(payload);
     if (!attr) {
-      this.logger.debug(`/start ${payload}: token не найден / истёк`);
+      this.logger.warn(
+        `[START] token=${payload} НЕ НАЙДЕН в Redis ` +
+        `(либо истёк >30мин, либо Redis недоступен, либо токен повторно использован)`,
+      );
       return null;
     }
+    this.logger.log(
+      `[START] attribution: funnelId=${attr.funnelId || 'NONE'}, ` +
+      `slug=${attr.slug}, age=${Math.round((Date.now() - attr.createdAt) / 1000)}s`,
+    );
 
     this.logger.log(
       `/start smart-link: tgId=${tgId}, slug=${attr.slug}, ` +
@@ -278,9 +297,22 @@ export class TelegramService {
         subscriptionChannelId: true,
         subscriptionChannelName: true,
       },
-    }).catch(() => null);
+    }).catch((e) => {
+      this.logger.error(`[FUNNEL_WELCOME] DB lookup failed for ${funnelId}: ${e?.message}`);
+      return null;
+    });
+
+    this.logger.log(
+      `[FUNNEL_WELCOME] funnelId=${funnelId}, ` +
+      `welcomeText=${funnel?.welcomeText ? `"${funnel.welcomeText.slice(0, 30)}..."` : 'EMPTY'}, ` +
+      `action=${funnel?.welcomeButtonAction}, ` +
+      `url=${funnel?.welcomeButtonUrl || 'EMPTY'}`,
+    );
 
     if (!funnel || !funnel.welcomeText?.trim()) {
+      this.logger.warn(
+        `[FUNNEL_WELCOME] welcomeText пустой → fallback на дефолтное приветствие`,
+      );
       // Воронка без welcome-конфига — fallback на дефолт (web_app кнопка).
       const webAppUrl = this.configService.get<string>('WEB_APP_URL', 'https://prepodavai.ru');
       await ctx.reply('👋 Добро пожаловать в *ПреподаваИИ*!', {

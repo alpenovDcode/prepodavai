@@ -51,22 +51,9 @@ const nextConfig = {
       },
     ]
   },
-  async rewrites() {
-    // Umnnye ssylki: prepodavai.ru/g/<slug> — публичный редирект, который
-    // обрабатывает БЭК (SmartLinksRedirectController). Next.js сам по себе
-    // эту страницу не знает (нет /g/[slug]/page.tsx), поэтому проксируем
-    // на API-сервер. Бэк отвечает 302 → браузер уходит на t.me/?start=...
-    // или на лендинг с UTM-параметрами.
-    //
-    // У бэка global prefix 'api' (main.ts), поэтому реальный путь — /api/g/...
-    const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
-    return [
-      {
-        source: '/g/:slug*',
-        destination: `${apiBase}/api/g/:slug*`,
-      },
-    ]
-  },
+  // Раньше тут был rewrites() для /g/<slug>, но Next.js Node при cross-origin
+  // destination следует за 302 на стороне сервера, и start-payload терялся
+  // (см. src/middleware.ts с пояснением). Заменено на edge-redirect.
 }
 
 module.exports = nextConfig
