@@ -31,7 +31,7 @@ export default function RegisterCTA({ text = 'Начать бесплатно' }
         </p>
       </div>
       <a
-        href="https://prepodavai.ru/?auth=register"
+        href="https://prepodavai.ru/?auth=register&utm_source=blog&utm_medium=article&utm_campaign=blog_cta&utm_content=inline_register"
         onClick={() => trackGoal('cta_register_click')}
         style={{
           display: 'inline-flex', alignItems: 'center', gap: 8,
