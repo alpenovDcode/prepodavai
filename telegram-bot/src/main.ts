@@ -1523,6 +1523,19 @@ async function showAnalytics(ctx: Context, telegramId: string) {
   const todayCount = overview.schedule?.todayCount ?? 0;
   const deadlines = overview.upcoming?.deadlinesIn7Days ?? 0;
 
+  const hasNoData = pending === 0 && riskCount === 0 && watchCount === 0 && todayCount === 0 && deadlines === 0;
+  if (hasNoData) {
+    const webAppUrl = process.env.WEBAPP_URL || 'https://prepodavai.ru';
+    await ctx.reply(
+      `📊 *Аналитика*\n\nПока нечего показать — нет классов и учеников.\n\nАналитика заработает, когда вы создадите класс, добавите учеников и выдадите им задания. Это делается на платформе ПреподаваИИ.`,
+      {
+        parse_mode: 'Markdown',
+        reply_markup: new InlineKeyboard().url('Перейти на платформу', webAppUrl),
+      },
+    );
+    return;
+  }
+
   const lines: string[] = ['📊 *Аналитика*\n'];
 
   lines.push(`📝 *Ждут проверки:* ${pending}`);
@@ -2193,16 +2206,7 @@ async function executeGenSession(ctx: Context, telegramId: string): Promise<void
           // Сообщение "Готово..." и "🛠️" шлёт бэкенд после PDF (telegram.service.ts finally block)
         } else {
           await ctx.reply(`✅ Готово! Отправляю ${tool.emoji} *${tool.label}* в чат...`, { parse_mode: 'Markdown' });
-          if (isFunnelUser && totalGens === 3) {
-            const webAppUrl = process.env.WEBAPP_URL || 'https://prepodavai.ru';
-            await ctx.reply(
-              `А с платформой ПреподаваИИ вы уже знакомы? 👀\n\nБот — это только часть нашей платформы. Им удобно быстро собрать материал, и вы это уже распробовали.\n\nНо ПреподаваИИ — это ещё и целая платформа, и там вы ведёте ученика целиком до результата.\n\nКак это выглядит на одном ученике:\n— заводите его (или сразу всю группу) — листы и тесты ученика лежат у него, а не в общей куче «Загрузок»;\n— генерируете материал и тут же выдаёте ему как домашку — прямо на платформе, без «скинул в телеграме»;\n— ученик решает и отправляет работу обратно туда же;\n— ИИ может проверить её сам — вы не сидите вечером над пачкой тетрадей;\n— а в аналитике видно: причастия он третью неделю валит — и следующий лист вы собираете ровно под это.\n\nИ всё это абсолютно бесплатно — так же, как бот. Без пробного периода, который однажды кончится, и без тарифа, который ждёт за углом.\nБот под рукой для быстрой задачи, платформа — чтобы вести учеников целиком.`,
-              {
-                reply_markup: new InlineKeyboard()
-                  .url('🚀 Зарегистрироваться на платформе', `${webAppUrl}/register`),
-              },
-            );
-          }
+          // Промо после 3й генерации шлёт бэкенд после PDF (telegram.service.ts finally block)
         }
       } else {
         await ctx.reply(`✅ Задача принята! Результат придёт в этот чат, как только будет готов.`, { parse_mode: 'Markdown' });
