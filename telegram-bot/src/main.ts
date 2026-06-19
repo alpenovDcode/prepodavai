@@ -2336,14 +2336,16 @@ async function parseNlRequest(text: string): Promise<NlParsedRequest> {
     `Запрос: «${input}»`;
 
   try {
-    const res = await fetch('https://api.replicate.com/v1/models/google/gemini-3-flash/predictions', {
+    // Llama-4 Maverick: дешевле и быстрее Gemini для коротких JSON-задач.
+    // Llama использует max_tokens (не max_new_tokens как у Gemini).
+    const res = await fetch('https://api.replicate.com/v1/models/meta/llama-4-maverick-instruct/predictions', {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${REPLICATE_API_TOKEN}`,
         'Content-Type': 'application/json',
         Prefer: 'wait',
       },
-      body: JSON.stringify({ input: { prompt, max_new_tokens: 200, temperature: 0 } }),
+      body: JSON.stringify({ input: { prompt, max_tokens: 200, temperature: 0 } }),
       signal: AbortSignal.timeout(15000),
     });
 
