@@ -1623,18 +1623,28 @@ async function handleSmartLinkStart(
     });
     const ONBOARDED = ['subscribed', 'linked', 'registered'];
     if (existingBotUser && ONBOARDED.includes(existingBotUser.registrationStatus)) {
-      console.log(
-        `[Bot] smart-link: onboarded user (status=${existingBotUser.registrationStatus}), skip subscription welcome`,
-      );
-      await ctx.reply(
-        `Добро пожаловать в Преподавай 🎓\n\nЯ Ваш интеллектуальный помощник для:\n— Создания учебных материалов\n— Планирования уроков\n— Создания красочных презентаций\n— Методической поддержки\n— Создания интерактивных игр`,
-        { reply_markup: buildMainMenuKeyboard() },
-      );
-      await ctx.reply('🛠️ *Выберите инструмент:*', {
-        parse_mode: 'Markdown',
-        reply_markup: buildToolSelectionKeyboard(),
+      // Дополнительно проверяем что AppUser ещё существует — мог быть удалён.
+      const appUser = await prisma.appUser.findUnique({
+        where: { telegramId },
+        select: { id: true },
       });
-      return true; // mark as handled — основной /start handler НЕ должен ничего делать
+      if (appUser) {
+        console.log(
+          `[Bot] smart-link: onboarded user (status=${existingBotUser.registrationStatus}), skip subscription welcome`,
+        );
+        await ctx.reply(
+          `Добро пожаловать в Преподавай 🎓\n\nЯ Ваш интеллектуальный помощник для:\n— Создания учебных материалов\n— Планирования уроков\n— Создания красочных презентаций\n— Методической поддержки\n— Создания интерактивных игр`,
+          { reply_markup: buildMainMenuKeyboard() },
+        );
+        await ctx.reply('🛠️ *Выберите инструмент:*', {
+          parse_mode: 'Markdown',
+          reply_markup: buildToolSelectionKeyboard(),
+        });
+        return true; // mark as handled — основной /start handler НЕ должен ничего делать
+      }
+      console.log(
+        `[Bot] smart-link: BotUser onboarded but AppUser not found — treating as new user`,
+      );
     }
   } catch (e: any) {
     console.warn(`[Bot] smart-link onboarded check failed: ${e?.message}`);
