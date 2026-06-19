@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, Logger, NotFoundException } from '@nes
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { randomUUID } from 'crypto';
 import { SmartLinkTokensService } from './smart-link-tokens.service';
+import { AnalyticsEventsService, EVENT_TYPES } from '../analytics-events/analytics-events.service';
 
 export interface CreateSmartLinkDto {
   slug: string;
@@ -31,6 +32,7 @@ export class SmartLinksService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tokens: SmartLinkTokensService,
+    private readonly analytics: AnalyticsEventsService,
   ) {}
 
   // ──────── ADMIN ────────
@@ -208,6 +210,34 @@ export class SmartLinksService {
         },
       }),
     ]).catch((e) => this.logger.warn(`smart-link click write failed: ${e?.message}`));
+
+    // Аналитические события для funnel-расчётов.
+    // Шаг 0 «Показ страницы блогера»: page_view с utm_medium=bot_landing.
+    // Шаг 1 «Клик по ссылке бота»: click с eventName=bot_link.
+    // Эмитим ОБА события за один клик smart-link — этого хватает, чтобы
+    // ИИ-бот воронка считала первые 2 шага. anonId из cookie позволит
+    // позже склеить с tg-юзером (через claimAnonEvents при /start).
+    const trackPayload = {
+      anonId: args.anonId || null,
+      userId: args.userId || null,
+      utmSource: finalUtm.utm_source,
+      utmMedium: finalUtm.utm_medium || 'bot_landing',
+      utmCampaign: finalUtm.utm_campaign,
+      utmContent: finalUtm.utm_content,
+      utmTerm: finalUtm.utm_term,
+    };
+    this.analytics.track({
+      ...trackPayload,
+      eventType: EVENT_TYPES.PAGE_VIEW,
+      eventName: 'smart_link_landing',
+      payload: { slug: link.slug, linkId: link.id },
+    }).catch((e) => this.logger.warn(`analytics page_view failed: ${e?.message}`));
+    this.analytics.track({
+      ...trackPayload,
+      eventType: EVENT_TYPES.CLICK,
+      eventName: 'bot_link',
+      payload: { slug: link.slug, linkId: link.id },
+    }).catch((e) => this.logger.warn(`analytics click failed: ${e?.message}`));
 
     // Особый случай: target ведёт на Telegram (t.me/<bot>?start=...).
     // Telegram режет любые query-параметры за `?start=` — UTM не пройдут.

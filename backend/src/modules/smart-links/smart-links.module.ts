@@ -5,11 +5,12 @@ import {
   SmartLinksRedirectController,
 } from './smart-links.controller';
 import { AdminModule } from '../admin/admin.module';
+import { AnalyticsEventsModule } from '../analytics-events/analytics-events.module';
 
 // SmartLinkTokensService — глобальный (SmartLinkTokensModule в AppModule),
 // поэтому его не указываем тут как provider.
 @Module({
-  imports: [AdminModule], // нужен AdminGuard
+  imports: [AdminModule, AnalyticsEventsModule], // AdminGuard + analytics для funnel events
   controllers: [SmartLinksRedirectController, SmartLinksAdminController],
   providers: [SmartLinksService],
   exports: [SmartLinksService],

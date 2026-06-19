@@ -1709,6 +1709,29 @@ async function handleFunnelSubscriptionCheck(
   }
 
   // Успех — пускаем дальше. Сохраняем подписку как событие воронки.
+  // ВАЖНО для метрик: эмитим channel_subscribed в analytics, иначе
+  // в воронке шаг «Подписка на канал» не будет считаться (chat_member
+  // updates срабатывают только если бот админ канала; при ручной проверке
+  // через кнопку нужно эмитить самим).
+  try {
+    await fetch(`${API_URL}/api/webhook/telegram/internal/channel-event`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-bot-secret': botToken,
+      },
+      body: JSON.stringify({
+        telegramId,
+        channelId: funnel.subscriptionChannelId,
+        eventType: 'channel_subscribed',
+        username: ctx.from?.username || null,
+        firstName: ctx.from?.first_name || null,
+      }),
+    });
+  } catch (e: any) {
+    console.warn(`[Bot] notify channel_subscribed failed: ${e?.message}`);
+  }
+
   const successText: string =
     funnel.subscriptionSuccessText?.trim() ||
     '✅ Спасибо за подписку! Открываем сервис.';

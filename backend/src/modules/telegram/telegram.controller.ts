@@ -232,6 +232,40 @@ export class TelegramController {
       await this.smartLinkTokens.storeForTgUser(body.telegramId, attr);
     }
 
+    // Связь pre-bot событий (page_view + click из smart-link клика, anonId
+    // из browser cookie) с тg-юзером. Два варианта:
+    //  1) AppUser уже есть (юзер заранее связал Telegram) → claimAnonEvents
+    //     прицепит userId к событиям (правильно по схеме).
+    //  2) AppUser нет → меняем anonId с browser-cookie ID на tg:<id>, чтобы
+    //     далее (channel_subscribed, тоже под tg:<id>) попало в ту же
+    //     линию воронки.
+    if (body.telegramId && attr.anonId) {
+      try {
+        const appUser = await this.prisma.appUser.findUnique({
+          where: { telegramId: body.telegramId },
+          select: { id: true },
+        }).catch(() => null);
+
+        if (appUser) {
+          const claimed = await this.analyticsEvents.claimAnonEvents(attr.anonId, appUser.id);
+          this.logger.log(
+            `[SMART_LINK_CONSUME] claimed ${claimed} events anonId=${attr.anonId} → user=${appUser.id}`,
+          );
+        } else {
+          const tgAnon = `tg:${body.telegramId}`;
+          const renamed = await this.prisma.analyticsEvent.updateMany({
+            where: { anonId: attr.anonId, userId: null },
+            data: { anonId: tgAnon },
+          });
+          this.logger.log(
+            `[SMART_LINK_CONSUME] renamed ${renamed.count} events anonId=${attr.anonId} → ${tgAnon}`,
+          );
+        }
+      } catch (e: any) {
+        this.logger.warn(`claim/rename anon events failed: ${e?.message}`);
+      }
+    }
+
     // Если AppUser уже существует — сразу обновляем UTM на нём.
     if (body.telegramId) {
       const appUser = await this.prisma.appUser.findUnique({
