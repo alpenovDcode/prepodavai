@@ -660,6 +660,12 @@ async function completeRegistration(ctx: Context, telegramId: string, state: Reg
     regStates.delete(telegramId);
     console.log(`[RegBot] New user registered: id=${newUser.id} username=${username}`);
 
+    // Привязываем pre-reg события (channel_subscribed и др.) из anonId=tg:<id> к userId
+    prisma.analyticsEvent.updateMany({
+      where: { anonId: `tg:${telegramId}`, userId: null },
+      data: { userId: newUser.id },
+    }).catch(() => {});
+
     // Глубокая цель: регистрация (fire-and-forget)
     tgtrack('send_reach_goal', { user_id: telegramId, target: 'registration_completed' });
 
@@ -776,6 +782,12 @@ async function handleLinkToken(ctx: Context, user: any, token: string) {
   regStates.delete(telegramIdStr);
   genSessions.delete(telegramIdStr);
   platformStates.delete(telegramIdStr);
+
+  // Привязываем pre-link события (channel_subscribed и др.) из anonId=tg:<id> к userId
+  prisma.analyticsEvent.updateMany({
+    where: { anonId: `tg:${telegramIdStr}`, userId: null },
+    data: { userId: linkToken.userId },
+  }).catch(() => {});
 
   // Проверяем, был ли пользователь уже в боте ДО привязки
   const preLinkBotUser = await (prisma as any).botUser.findUnique({
