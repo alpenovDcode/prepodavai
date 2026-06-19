@@ -4172,55 +4172,58 @@ export class AdminService {
 
       const blogFilter = `ym:s:startURL=@'prepodavai.ru/blog'`;
 
-      const [trafficRes, goalsRes, chartRes, sourcesRes, devicesRes, citiesRes, newUsersRes, referrersRes, searchRes] = await Promise.all([
-        // Основной трафик
+      const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
+
+      const [trafficRes, goalsRes, chartRes] = await Promise.all([
         axios.get(base, { headers, params: {
           ids: counterId, date1: d1, date2: d2,
           metrics: 'ym:s:visits,ym:s:users,ym:s:bounceRate,ym:s:avgVisitDurationSeconds,ym:s:pageviews',
           filters: blogFilter,
         }}),
-        // Цели
         axios.get(base, { headers, params: {
           ids: counterId, date1: d1, date2: d2,
           metrics: Object.values(goalIds).map(id => `ym:s:goal${id}reaches`).join(','),
         }}),
-        // График по дням
         axios.get(base, { headers, params: {
           ids: counterId, date1: d1, date2: d2,
           dimensions: 'ym:s:date', metrics: 'ym:s:visits,ym:s:users',
           filters: blogFilter, sort: 'ym:s:date', limit: 90,
         }}),
-        // Источники трафика
+      ]);
+
+      await delay(300);
+
+      const [sourcesRes, devicesRes, citiesRes] = await Promise.all([
         axios.get(base, { headers, params: {
           ids: counterId, date1: d1, date2: d2,
           dimensions: 'ym:s:trafficSource', metrics: 'ym:s:visits,ym:s:users',
           filters: blogFilter, sort: '-ym:s:visits', limit: 10,
         }}),
-        // Устройства
         axios.get(base, { headers, params: {
           ids: counterId, date1: d1, date2: d2,
           dimensions: 'ym:s:deviceCategory', metrics: 'ym:s:visits,ym:s:users',
           filters: blogFilter, sort: '-ym:s:visits',
         }}),
-        // Города
         axios.get(base, { headers, params: {
           ids: counterId, date1: d1, date2: d2,
           dimensions: 'ym:s:regionCity', metrics: 'ym:s:visits',
           filters: blogFilter, sort: '-ym:s:visits', limit: 10,
         }}),
-        // Новые vs вернувшиеся
+      ]);
+
+      await delay(300);
+
+      const [newUsersRes, referrersRes, searchRes] = await Promise.all([
         axios.get(base, { headers, params: {
           ids: counterId, date1: d1, date2: d2,
           metrics: 'ym:s:newUsers',
           filters: blogFilter,
         }}),
-        // Реферреры
         axios.get(base, { headers, params: {
           ids: counterId, date1: d1, date2: d2,
           dimensions: 'ym:s:referer', metrics: 'ym:s:visits',
           filters: blogFilter, sort: '-ym:s:visits', limit: 10,
         }}),
-        // Поисковые фразы (Яндекс)
         axios.get(base, { headers, params: {
           ids: counterId, date1: d1, date2: d2,
           dimensions: 'ym:s:searchPhrase', metrics: 'ym:s:visits',
