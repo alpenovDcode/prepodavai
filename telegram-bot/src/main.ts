@@ -249,6 +249,7 @@ const genSessions = new Map<string, GenerationSession>();
 const lastGenAt = new Map<string, number>();
 const platformStates = new Map<string, PlatformState>();
 const jwtCache = new Map<string, { token: string; expiresAt: number }>();
+const funnelOnboardingStates = new Map<string, boolean>();
 const JWT_CACHE_TTL = 8 * 60_000;
 
 // ── Generation session helpers ────────────────────────────────────────────────
@@ -1849,7 +1850,7 @@ async function handleFunnelSubscriptionCheck(
 
     await (prisma as any).botUser.upsert({
       where: { telegramId },
-      update: { appUserId: shadowAppUser.id, lastActiveAt: new Date(), registrationStatus: preservedStatus, source: 'funnel_bot' },
+      update: { appUserId: shadowAppUser.id, lastActiveAt: new Date(), registrationStatus: preservedStatus, source: 'funnel_bot', totalGenerations: 0 },
       create: {
         telegramId,
         appUserId: shadowAppUser.id,
@@ -1868,6 +1869,7 @@ async function handleFunnelSubscriptionCheck(
   const onboardingText: string = funnel.subscriptionSuccessText?.trim() ||
     `Вы в команде ПреподаваИИ!\n\nА теперь давайте я на одном примере покажу, как всё устроено — соберём ваш первый материал. Так понятнее любой инструкции, а дальше выберете любой инструмент сами.\n\nНапишите три вещи:\n— предмет (например, биология);\n— класс или уровень (например, 8 класс или B1);\n— тему (например, «фотосинтез» или «present perfect»).\n\nЭтого хватит, чтобы я собрал готовый рабочий лист под вашу задачу — не общий текст «для среднего школьника», а под конкретный урок. Через минуту пришлю в PDF.`;
   await ctx.reply(onboardingText, { reply_markup: buildMainMenuKeyboard() });
+  funnelOnboardingStates.set(telegramId, true);
 }
 
 async function sendActivationFlow(ctx: Context): Promise<void> {
@@ -3052,6 +3054,25 @@ bot.on('message:text', async (ctx: Context) => {
   const GREETINGS = new Set(['привет', 'здравствуй', 'здравствуйте', 'ок', 'окей', 'хорошо', 'спасибо', 'да', 'нет', 'ладно', 'пока', 'стоп', 'stop']);
   if (text.length < 4 || GREETINGS.has(text.toLowerCase())) {
     await ctx.reply('Используйте кнопки меню или напишите что хотите сделать — например: «создай тест по биологии для 8 класса».');
+    return;
+  }
+
+  // После фаннел-онбординга: пропускаем диалог подтверждения, сразу генерируем
+  if (funnelOnboardingStates.get(telegramId)) {
+    funnelOnboardingStates.delete(telegramId);
+    await ctx.replyWithChatAction('typing').catch(() => null);
+    let funnelParsed: NlParsedRequest;
+    try {
+      funnelParsed = await parseNlRequest(text);
+    } catch {
+      funnelParsed = { action: 'unknown' } as any;
+    }
+    if (funnelParsed.action === 'generate' && funnelParsed.toolKey) {
+      await startNlGenSession(ctx, telegramId, funnelParsed.toolKey, funnelParsed.params || {});
+    } else {
+      await ctx.reply('Напишите предмет, класс и тему — например: «биология 8 класс фотосинтез»', { reply_markup: buildMainMenuKeyboard() });
+      funnelOnboardingStates.set(telegramId, true);
+    }
     return;
   }
 
