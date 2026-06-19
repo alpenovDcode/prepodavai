@@ -35,7 +35,7 @@ export const metadata: Metadata = {
     apple: '/logo-prepodavai.png',
   },
   verification: {
-    google: '1e0a6091207ead1d',
+    google: 'X1OX0ACK3hLN03joceY7siFkcUW5jpd8j91oKyDL6AE',
     yandex: '466cf3a9e0954abb',
   },
 }
