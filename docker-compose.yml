@@ -99,6 +99,11 @@ services:
       # Внутренний HTTP-сервер Telegram-бота для уведомлений
       BOT_NOTIFY_URL: http://telegram-bot:3002
       BOT_NOTIFY_SECRET: ${BOT_NOTIFY_SECRET:-}
+      # Blog Analytics
+      YANDEX_METRIKA_TOKEN: ${YANDEX_METRIKA_TOKEN:-}
+      GOOGLE_SC_CLIENT_ID: ${GOOGLE_SC_CLIENT_ID:-}
+      GOOGLE_SC_CLIENT_SECRET: ${GOOGLE_SC_CLIENT_SECRET:-}
+      GOOGLE_SC_REFRESH_TOKEN: ${GOOGLE_SC_REFRESH_TOKEN:-}
     depends_on:
       postgres:
         condition: service_healthy
