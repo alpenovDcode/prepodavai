@@ -4136,4 +4136,100 @@ export class AdminService {
       })),
     };
   }
+
+  // ========== BLOG ANALYTICS (Yandex Metrika) ==========
+  async getBlogAnalytics(date1?: string, date2?: string) {
+    const token = process.env.YANDEX_METRIKA_TOKEN;
+    const counterId = '109983527';
+    const d1 = date1 ?? '30daysAgo';
+    const d2 = date2 ?? 'today';
+
+    if (!token) {
+      return { configured: false };
+    }
+
+    const headers = { Authorization: `OAuth ${token}` };
+    const base = 'https://api-metrika.yandex.net/stat/v1/data';
+
+    const goalIds: Record<string, number> = {
+      article_scroll_25:   571248203,
+      article_scroll_50:   571248247,
+      article_scroll_75:   571248282,
+      article_scroll_90:   571248387,
+      article_scroll_100:  571248410,
+      article_finished:    571248453,
+      cta_register_click:  571248479,
+      cta_telegram_click:  571248528,
+      cta_bot_click:       571248556,
+      article_time_30s:    571248618,
+      article_time_1min:   571248671,
+      article_time_2min:   571248715,
+      article_time_5min:   571248741,
+    };
+
+    try {
+      const axios = (await import('axios')).default;
+
+      // Трафик блога
+      const [trafficRes, goalsRes, chartRes] = await Promise.all([
+        axios.get(base, {
+          headers,
+          params: {
+            ids: counterId,
+            metrics: 'ym:s:visits,ym:s:users,ym:s:bounceRate,ym:s:avgVisitDurationSeconds',
+            filters: `ym:s:startURL=@'prepodavai.ru/blog'`,
+            date1: d1, date2: d2,
+          },
+        }),
+        axios.get(base, {
+          headers,
+          params: {
+            ids: counterId,
+            metrics: Object.values(goalIds).map(id => `ym:s:goal${id}reaches`).join(','),
+            date1: d1, date2: d2,
+          },
+        }),
+        axios.get(base, {
+          headers,
+          params: {
+            ids: counterId,
+            dimensions: 'ym:s:date',
+            metrics: 'ym:s:visits,ym:s:users',
+            filters: `ym:s:startURL=@'prepodavai.ru/blog'`,
+            date1: d1, date2: d2,
+            sort: 'ym:s:date',
+            limit: 60,
+          },
+        }),
+      ]);
+
+      const trafficData = trafficRes.data?.data?.[0]?.metrics ?? [];
+      const goalsData   = goalsRes.data?.data?.[0]?.metrics ?? [];
+      const goalKeys    = Object.keys(goalIds);
+
+      const goals: Record<string, number> = {};
+      goalKeys.forEach((key, i) => { goals[key] = Math.round(goalsData[i] ?? 0); });
+
+      const chart = (chartRes.data?.data ?? []).map((row: any) => ({
+        date:   row.dimensions?.[0]?.name ?? '',
+        visits: Math.round(row.metrics?.[0] ?? 0),
+        users:  Math.round(row.metrics?.[1] ?? 0),
+      }));
+
+      return {
+        configured: true,
+        period: { date1: d1, date2: d2 },
+        traffic: {
+          visits:       Math.round(trafficData[0] ?? 0),
+          users:        Math.round(trafficData[1] ?? 0),
+          bounceRate:   Math.round(trafficData[2] ?? 0),
+          avgDurationSec: Math.round(trafficData[3] ?? 0),
+        },
+        goals,
+        chart,
+      };
+    } catch (e: any) {
+      return { configured: true, error: e?.response?.data?.message ?? 'Metrika API error' };
+    }
+  }
 }

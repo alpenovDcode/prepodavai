@@ -23,6 +23,7 @@ import {
     CrownIcon,
     Filter,
     Sparkles,
+    Newspaper,
 } from 'lucide-react'
 
 export default function AdminLayout({
@@ -116,6 +117,7 @@ export default function AdminLayout({
         { name: 'Умные ссылки', href: '/check/prrv/admin/smart-links', icon: Sparkles },
         { name: 'Тарифы', href: '/check/prrv/admin/tariffs', icon: CrownIcon },
         { name: 'Продукт', href: '/check/prrv/admin/product-analytics', icon: FlaskConical },
+        { name: 'Блог Преподавай', href: '/check/prrv/admin/blog-analytics', icon: Newspaper },
         { name: 'Воронки', href: '/check/prrv/admin/funnels', icon: Filter },
         { name: 'Алерты', href: '/check/prrv/admin/alerts', icon: Bell },
         { name: 'Логи', href: '/check/prrv/admin/system-logs', icon: ScrollText },

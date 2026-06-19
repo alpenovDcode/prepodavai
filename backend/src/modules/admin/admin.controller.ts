@@ -371,6 +371,15 @@ export class AdminController {
     return this.adminService.getWinbackList();
   }
 
+  // ========== BLOG ANALYTICS ==========
+  @Get('blog-analytics')
+  async getBlogAnalytics(
+    @Query('date1') date1?: string,
+    @Query('date2') date2?: string,
+  ) {
+    return this.adminService.getBlogAnalytics(date1, date2);
+  }
+
   // ========== ADMIN MANAGEMENT ==========
   @Get('admins')
   async getAdmins() {
