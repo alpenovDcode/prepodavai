@@ -89,7 +89,7 @@ export default function BlogPage() {
             ← На главную
           </Link>
           <a
-            href="https://prepodavai.ru/?auth=register"
+            href="https://prepodavai.ru/?auth=register&utm_source=blog&utm_medium=article&utm_campaign=blog_cta&utm_content=list_register"
             style={{
               padding: '8px 18px',
               background: '#f97316',

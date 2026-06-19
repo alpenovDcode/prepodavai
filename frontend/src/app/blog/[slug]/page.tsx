@@ -189,7 +189,7 @@ export default async function BlogPostPage({ params }: { params: { slug: string 
           <Link href="/blog" className="nav-link" style={{ padding: '8px 14px', color: '#666', textDecoration: 'none', fontSize: 14, fontWeight: 500 }}>
             ← Все статьи
           </Link>
-          <a href="https://prepodavai.ru/?auth=register" style={{
+          <a href="https://prepodavai.ru/?auth=register&utm_source=blog&utm_medium=article&utm_campaign=blog_cta&utm_content=header_register" style={{
             padding: '8px 18px', background: '#f97316', color: 'white',
             borderRadius: 9, fontWeight: 600, fontSize: 14, textDecoration: 'none',
             boxShadow: '0 4px 14px rgba(249,115,22,0.28)',
