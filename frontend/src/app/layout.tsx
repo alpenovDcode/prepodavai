@@ -4,6 +4,7 @@ import './globals.css'
 import { Providers } from './providers'
 import Script from 'next/script'
 import UtmCapture from '@/components/UtmCapture'
+import YandexMetrika from '@/components/YandexMetrika'
 
 // Inter — body шрифт (используется и в legacy, и в v2).
 const inter = Inter({
@@ -111,6 +112,7 @@ export default function RootLayout({
       <body className={`${inter.className} ${jakarta.variable} ${mono.variable}`}>
         <Providers>{children}</Providers>
         <UtmCapture />
+        <YandexMetrika />
       </body>
     </html>
   )
