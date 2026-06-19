@@ -1687,15 +1687,17 @@ async function handleSmartLinkStart(
     );
   }
 
+  const wText = (w.welcomeText || '').trim() ||
+    'Подпишитесь на наш канал, чтобы начать пользоваться сервисом бесплатно 👇';
   try {
-    await ctx.reply(w.welcomeText, {
+    await ctx.reply(wText, {
       parse_mode: 'Markdown',
       reply_markup: kb,
     });
   } catch (e: any) {
     // Markdown сломался — пробуем без форматирования
     console.warn(`[Bot] welcome markdown failed: ${e?.message}, retrying plain`);
-    await ctx.reply(w.welcomeText, { reply_markup: kb });
+    await ctx.reply(wText, { reply_markup: kb });
   }
   return true;
 }

@@ -195,14 +195,30 @@ export class TelegramController {
     }
     if (!body?.token) throw new BadRequestException('token required');
 
-    const attr = await this.smartLinkTokens.consume(body.token);
+    let attr = await this.smartLinkTokens.consume(body.token);
+    let fromCache = false;
     if (!attr) {
-      this.logger.warn(`[SMART_LINK_CONSUME] token=${body.token} not found / expired`);
-      return { found: false };
+      // Токен не найден — возможно, уже потреблён при предыдущем retry/race.
+      // Проверяем кэш tgattr (хранится 30 дней). peek=true: ключ не удаляем.
+      if (body.telegramId) {
+        const cached = await this.smartLinkTokens.getForTgUser(body.telegramId, { peek: true });
+        if (cached?.funnelId) {
+          this.logger.log(
+            `[SMART_LINK_CONSUME] token=${body.token} уже потреблён — ` +
+            `tgattr-fallback tgId=${body.telegramId} funnelId=${cached.funnelId}`,
+          );
+          attr = cached;
+          fromCache = true;
+        }
+      }
+      if (!attr) {
+        this.logger.warn(`[SMART_LINK_CONSUME] token=${body.token} not found / expired`);
+        return { found: false };
+      }
     }
     this.logger.log(
-      `[SMART_LINK_CONSUME] token=${body.token} slug=${attr.slug} ` +
-      `funnelId=${attr.funnelId || 'NONE'} tgId=${body.telegramId}`,
+      `[SMART_LINK_CONSUME] token=${body.token} slug=${attr.slug || '-'} ` +
+      `funnelId=${attr.funnelId || 'NONE'} tgId=${body.telegramId} fromCache=${fromCache}`,
     );
 
     // Если есть funnelId — резолвим welcome-конфиг и UTM сразу здесь, чтобы
@@ -222,13 +238,16 @@ export class TelegramController {
           subscriptionSuccessText: true,
         },
       }).catch(() => null);
-      if (funnel?.welcomeText?.trim()) welcome = funnel;
+      // Отдаём welcome даже без welcomeText — достаточно subscriptionChannelId,
+      // бот покажет текст-заглушку и нужные кнопки для канала воронки.
+      if (funnel && (funnel.welcomeText?.trim() || funnel.subscriptionChannelId)) welcome = funnel;
     }
 
     // Сохраняем отложенную атрибуцию по telegramId — нужно для случая,
     // когда AppUser ещё не создан (бот сам сделает upsert), а UTM хотим
     // потом подхватить при регистрации.
-    if (body.telegramId) {
+    // fromCache: tgattr уже есть (читали с peek=true), повторно не пишем.
+    if (!fromCache && body.telegramId) {
       await this.smartLinkTokens.storeForTgUser(body.telegramId, attr);
     }
 
@@ -239,7 +258,8 @@ export class TelegramController {
     //  2) AppUser нет → меняем anonId с browser-cookie ID на tg:<id>, чтобы
     //     далее (channel_subscribed, тоже под tg:<id>) попало в ту же
     //     линию воронки.
-    if (body.telegramId && attr.anonId) {
+    // fromCache: эта работа уже была сделана при первом consume.
+    if (!fromCache && body.telegramId && attr.anonId) {
       try {
         const appUser = await this.prisma.appUser.findUnique({
           where: { telegramId: body.telegramId },
