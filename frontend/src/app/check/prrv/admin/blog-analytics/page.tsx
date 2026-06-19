@@ -11,7 +11,7 @@ import {
   Eye, Users, Clock, MousePointerClick, TrendingDown,
   BookOpen, CheckCircle, AlertCircle, ExternalLink,
   Search, TrendingUp, Globe, Smartphone, Monitor, Bot,
-  MapPin, Link2, FileText,
+  MapPin, Link2, FileText, ShieldCheck, Bug, Map,
 } from 'lucide-react'
 
 const fetcher = (url: string) => apiClient.get(url).then(r => r.data)
@@ -71,6 +71,12 @@ export default function BlogAnalyticsPage() {
 
   const { data, error, isLoading } = useSWR(
     `/admin/blog-analytics?date1=${period.d1}&date2=${period.d2}`,
+    fetcher,
+    { refreshInterval: 0 },
+  )
+
+  const { data: wmData } = useSWR(
+    `/admin/blog-webmaster?date1=${period.d1}&date2=${period.d2}`,
     fetcher,
     { refreshInterval: 0 },
   )
@@ -452,6 +458,119 @@ export default function BlogAnalyticsPage() {
                 </div>
               )
             })}
+          </div>
+        </div>
+      )}
+
+      {/* Yandex Webmaster */}
+      {!wmData || !wmData.configured ? (
+        <div className="bg-white rounded-2xl border border-gray-200 p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <ShieldCheck className="w-5 h-5 text-orange-500" />
+            <h2 className="text-base font-semibold text-gray-800">Яндекс Вебмастер</h2>
+          </div>
+          <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-orange-500 mt-0.5 shrink-0" />
+            <div>
+              <p className="font-semibold text-orange-800 text-sm">Нужен токен Яндекс Вебмастер</p>
+              <p className="text-xs text-orange-700 mt-1">Добавьте в <code className="bg-orange-100 px-1 rounded">.env</code> бэкенда:</p>
+              <pre className="mt-2 bg-orange-100 rounded-lg p-3 text-xs text-orange-900">YANDEX_WEBMASTER_TOKEN=y0_AgAAAA...</pre>
+              <p className="text-xs text-orange-600 mt-2">Инструкция по получению токена — см. ниже в чате.</p>
+            </div>
+          </div>
+        </div>
+      ) : wmData.error ? (
+        <div className="bg-white rounded-2xl border border-gray-200 p-6">
+          <div className="flex items-center gap-2 mb-2">
+            <ShieldCheck className="w-5 h-5 text-orange-500" />
+            <h2 className="text-base font-semibold text-gray-800">Яндекс Вебмастер</h2>
+          </div>
+          <p className="text-sm text-red-500">Ошибка: {wmData.error}</p>
+        </div>
+      ) : (
+        <div className="space-y-6">
+          {/* WM header + site KPI */}
+          <div className="bg-white rounded-2xl border border-gray-200 p-6">
+            <div className="flex items-center gap-2 mb-5">
+              <ShieldCheck className="w-5 h-5 text-orange-500" />
+              <h2 className="text-base font-semibold text-gray-800">Яндекс Вебмастер</h2>
+              <span className="text-xs text-gray-400 ml-1">— индексация и поиск Яндекса</span>
+            </div>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <KpiCard title="Страниц в индексе" value={wmData.site.indexedPages ?? '—'} icon={<CheckCircle className="w-5 h-5" />} color="green" />
+              <KpiCard title="Не в индексе" value={wmData.site.excludedPages ?? '—'} icon={<AlertCircle className="w-5 h-5" />} color="red" />
+              <KpiCard title="Внешних ссылок" value={wmData.site.externalLinksCount?.toLocaleString('ru') ?? '—'} icon={<Link2 className="w-5 h-5" />} color="blue" />
+              <KpiCard title="Ошибок краулинга" value={wmData.crawlErrors.total} icon={<Bug className="w-5 h-5" />} color={wmData.crawlErrors.total > 0 ? 'red' : 'green'} />
+            </div>
+          </div>
+
+          {/* WM top queries + crawl errors */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {wmData.topQueries && wmData.topQueries.length > 0 && (
+              <div className="bg-white rounded-2xl border border-gray-200 p-6">
+                <h2 className="text-base font-semibold text-gray-800 mb-4">Топ запросов Яндекса</h2>
+                <div className="space-y-2">
+                  {wmData.topQueries.map((q: any, i: number) => (
+                    <div key={q.query} className="flex items-center gap-3 py-2 border-b border-gray-50 last:border-0">
+                      <span className="text-xs font-bold text-gray-400 w-5 shrink-0">#{i + 1}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-800 truncate">{q.query}</p>
+                        <p className="text-xs text-gray-400">поз. {q.position} · CTR {q.ctr}%</p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-sm font-bold text-orange-600">{q.clicks}</p>
+                        <p className="text-xs text-gray-400">{q.impressions} показов</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-4">
+              {/* Crawl errors */}
+              {wmData.crawlErrors.total > 0 && (
+                <div className="bg-white rounded-2xl border border-red-100 p-6">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Bug className="w-4 h-4 text-red-500" />
+                    <h2 className="text-base font-semibold text-gray-800">Ошибки краулинга</h2>
+                  </div>
+                  <div className="space-y-2 mb-3">
+                    {Object.entries(wmData.crawlErrors.byCode).map(([code, count]: [string, any]) => (
+                      <div key={code} className="flex items-center justify-between text-sm">
+                        <span className="text-gray-600">HTTP {code}</span>
+                        <span className="font-bold text-red-600">{count}</span>
+                      </div>
+                    ))}
+                  </div>
+                  {wmData.crawlErrors.samples?.length > 0 && (
+                    <div className="mt-3 pt-3 border-t border-gray-100">
+                      <p className="text-xs text-gray-500 mb-2">Примеры страниц:</p>
+                      {wmData.crawlErrors.samples.slice(0, 5).map((s: any, i: number) => (
+                        <p key={i} className="text-xs text-gray-600 truncate">{s.url} <span className="text-red-500">({s.code})</span></p>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Sitemaps */}
+              {wmData.sitemaps?.length > 0 && (
+                <div className="bg-white rounded-2xl border border-gray-200 p-6">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Map className="w-4 h-4 text-blue-500" />
+                    <h2 className="text-base font-semibold text-gray-800">Sitemap</h2>
+                  </div>
+                  {wmData.sitemaps.map((s: any, i: number) => (
+                    <div key={i} className="flex items-center gap-2 text-sm py-1">
+                      <CheckCircle className="w-4 h-4 text-green-500 shrink-0" />
+                      <span className="text-gray-600 truncate flex-1">{s.url}</span>
+                      <span className="text-gray-400 shrink-0">{s.urls} URL</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

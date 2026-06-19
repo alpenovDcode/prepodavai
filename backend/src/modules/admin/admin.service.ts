@@ -4323,6 +4323,106 @@ export class AdminService {
     }
   }
 
+  // ========== YANDEX WEBMASTER ==========
+  async getBlogWebmasterData(date1?: string, date2?: string) {
+    const token = process.env.YANDEX_WEBMASTER_TOKEN;
+    if (!token) return { configured: false };
+
+    const headers = { Authorization: `OAuth ${token}` };
+    const base = 'https://api.webmaster.yandex.net/v4';
+
+    const toISO = (s: string): string => {
+      if (s === 'today') return new Date().toISOString().slice(0, 10);
+      const m = s.match(/^(\d+)daysAgo$/);
+      if (m) { const d = new Date(); d.setDate(d.getDate() - parseInt(m[1])); return d.toISOString().slice(0, 10); }
+      return s;
+    };
+    const dateFrom = toISO(date1 ?? '30daysAgo');
+    const dateTo   = toISO(date2 ?? 'today');
+
+    try {
+      const axios = (await import('axios')).default;
+
+      const userRes = await axios.get(`${base}/user/`, { headers });
+      const userId: string = userRes.data.user_id;
+
+      const hostsRes = await axios.get(`${base}/user/${userId}/hosts/`, { headers });
+      const hosts: any[] = hostsRes.data.hosts ?? [];
+      const host = hosts.find((h: any) =>
+        h.unicode_host_url?.includes('prepodavai.ru') ||
+        h.ascii_host_url?.includes('prepodavai.ru')
+      );
+      if (!host) return { configured: true, error: 'Сайт prepodavai.ru не найден в Вебмастере' };
+
+      const hostId: string = host.host_id;
+      const enc = encodeURIComponent(hostId);
+
+      const [summaryRes, queriesRes, errorsRes, linksRes, sitemapsRes] = await Promise.allSettled([
+        axios.get(`${base}/user/${userId}/hosts/${enc}/summary/`, { headers }),
+        axios.get(`${base}/user/${userId}/hosts/${enc}/search-queries/all/history`, {
+          headers, params: { date_from: dateFrom, date_to: dateTo, limit: 20 },
+        }),
+        axios.get(`${base}/user/${userId}/hosts/${enc}/crawl-errors/`, { headers }),
+        axios.get(`${base}/user/${userId}/hosts/${enc}/links/external/samples`, {
+          headers, params: { limit: 1 },
+        }),
+        axios.get(`${base}/user/${userId}/hosts/${enc}/sitemaps/`, { headers }),
+      ]);
+
+      const ok = <T>(r: PromiseSettledResult<{ data: T }>): T | null =>
+        r.status === 'fulfilled' ? r.value.data : null;
+
+      const summary  = ok(summaryRes)  as any;
+      const queries  = ok(queriesRes)  as any;
+      const errors   = ok(errorsRes)   as any;
+      const links    = ok(linksRes)    as any;
+      const sitemaps = ok(sitemapsRes) as any;
+
+      const topQueries = ((queries?.queries ?? []) as any[]).slice(0, 15).map((q: any) => ({
+        query:       q.query_text ?? '—',
+        clicks:      Math.round(q.clicks ?? 0),
+        impressions: Math.round(q.impressions ?? 0),
+        ctr:         Math.round((q.ctr ?? 0) * 10) / 10,
+        position:    Math.round((q.average_position ?? 0) * 10) / 10,
+      }));
+
+      const crawlSamples: any[] = errors?.crawl_error_samples ?? [];
+      const errorCounts: Record<string, number> = {};
+      crawlSamples.forEach((e: any) => {
+        const t = e.http_response_code?.toString() ?? e.crawl_error_type ?? 'other';
+        errorCounts[t] = (errorCounts[t] ?? 0) + 1;
+      });
+
+      return {
+        configured: true,
+        period: { dateFrom, dateTo },
+        site: {
+          url:              host.unicode_host_url ?? host.ascii_host_url,
+          indexedPages:     summary?.indexes?.site_indexed ?? null,
+          excludedPages:    summary?.indexes?.site_not_indexed ?? null,
+          externalLinksCount: links?.total_count ?? null,
+        },
+        topQueries,
+        crawlErrors: {
+          total:   crawlSamples.length,
+          byCode:  errorCounts,
+          samples: crawlSamples.slice(0, 10).map((e: any) => ({
+            url:  e.url,
+            code: e.http_response_code ?? e.crawl_error_type,
+          })),
+        },
+        sitemaps: ((sitemaps?.sitemaps ?? []) as any[]).map((s: any) => ({
+          url:    s.url,
+          status: s.processing_status ?? s.sitemap_type,
+          urls:   s.urls_count ?? 0,
+        })),
+      };
+    } catch (e: any) {
+      const msg = e?.response?.data?.error_message ?? e?.response?.data?.message ?? 'Webmaster API error';
+      return { configured: true, error: msg };
+    }
+  }
+
   // ========== GOOGLE SEARCH CONSOLE ==========
   async getBlogGscData(date1?: string, date2?: string) {
     const clientId     = process.env.GOOGLE_SC_CLIENT_ID;
