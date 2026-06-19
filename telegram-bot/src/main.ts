@@ -1550,6 +1550,173 @@ async function checkChannelSubscription(telegramId: string): Promise<boolean> {
   }
 }
 
+/**
+ * Обработчик smart-link старта. Дёргает internal-эндпоинт бэка, который
+ * читает Redis-токен и отдаёт welcome-конфиг привязанной воронки.
+ * Возвращает true, если приветствие отправлено (юзер ничего больше не
+ * должен видеть). false — если токен не найден или воронки нет (вызывающий
+ * провалится в дефолтный sendActivationFlow).
+ */
+async function handleSmartLinkStart(
+  ctx: Context,
+  telegramId: string,
+  token: string,
+): Promise<boolean> {
+  const botToken = process.env.TELEGRAM_BOT_TOKEN || '';
+  if (!botToken) return false;
+
+  let data: any = null;
+  try {
+    const resp = await fetch(
+      `${API_URL}/api/webhook/telegram/internal/smart-link/consume`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-bot-secret': botToken,
+        },
+        body: JSON.stringify({ token, telegramId }),
+        signal: AbortSignal.timeout(8000),
+      },
+    );
+    if (!resp.ok) {
+      console.warn(`[Bot] smart-link consume failed: HTTP ${resp.status}`);
+      return false;
+    }
+    data = await resp.json();
+  } catch (e: any) {
+    console.warn(`[Bot] smart-link consume threw: ${e?.message}`);
+    return false;
+  }
+
+  console.log(
+    `[Bot] smart-link: found=${data?.found} funnelId=${data?.funnelId} ` +
+    `welcome=${data?.welcome ? 'yes' : 'no'}`,
+  );
+
+  if (!data?.found) return false;
+
+  // Если у воронки нет welcomeText — пускаем дефолтный sendActivationFlow
+  // ниже, но атрибуция UTM уже сохранилась в Redis (через storeForTgUser).
+  if (!data.welcome) return false;
+
+  // Рендерим welcome
+  const w = data.welcome;
+  const action: string = w.welcomeButtonAction || 'url';
+  const label: string = (w.welcomeButtonLabel || 'Начать').trim();
+  const kb = new InlineKeyboard();
+
+  if (action === 'check_subscription' && w.subscriptionChannelId) {
+    // Кнопка-перенаправление + кнопка «Я подписался» с funnelId для callback
+    const ch: string = w.subscriptionChannelId;
+    const channelUrl = ch.startsWith('http')
+      ? ch
+      : ch.startsWith('@')
+        ? `https://t.me/${ch.slice(1)}`
+        : (w.welcomeButtonUrl || 'https://t.me');
+    kb.url(`📢 ${label}`, channelUrl).row()
+      .text('✅ Я подписался', `funnel_sub:${data.funnelId}`);
+  } else if (action === 'mini_app') {
+    const webAppUrl = (w.welcomeButtonUrl || 'https://prepodavai.ru/dashboard').trim();
+    kb.webApp(label, webAppUrl);
+  } else {
+    // 'url' (default)
+    const url = (w.welcomeButtonUrl || 'https://prepodavai.ru').trim();
+    kb.url(label, url);
+  }
+
+  try {
+    await ctx.reply(w.welcomeText, {
+      parse_mode: 'Markdown',
+      reply_markup: kb,
+    });
+  } catch (e: any) {
+    // Markdown сломался — пробуем без форматирования
+    console.warn(`[Bot] welcome markdown failed: ${e?.message}, retrying plain`);
+    await ctx.reply(w.welcomeText, { reply_markup: kb });
+  }
+  return true;
+}
+
+/**
+ * Проверка подписки на канал воронки (вызывается через callback funnel_sub:<id>).
+ * Дёргает бэк, чтобы узнать channelId + промпт + success-текст из конфига
+ * воронки, потом сам `getChatMember` к каналу.
+ */
+async function handleFunnelSubscriptionCheck(
+  ctx: Context,
+  telegramId: string,
+  funnelId: string,
+): Promise<void> {
+  const botToken = process.env.TELEGRAM_BOT_TOKEN || '';
+  if (!botToken || !funnelId) return;
+
+  // Берём конфиг воронки через тот же internal-эндпоинт (peek: токен не нужен,
+  // используем отдельный route — добавим его позже если потребуется. Сейчас
+  // самый простой путь — прямой GET к /api/admin/funnels/:id, но он защищён
+  // AdminGuard. Вместо этого делаем простой POST с теми же полями.)
+  // На MVP — просто перечитываем funnel через прямой axios.
+  let funnel: any = null;
+  try {
+    const resp = await fetch(
+      `${API_URL}/api/webhook/telegram/internal/funnel-welcome?id=${encodeURIComponent(funnelId)}`,
+      {
+        method: 'GET',
+        headers: { 'x-bot-secret': botToken },
+        signal: AbortSignal.timeout(5000),
+      },
+    );
+    if (resp.ok) funnel = await resp.json();
+  } catch (e: any) {
+    console.warn(`[Bot] funnel fetch failed: ${e?.message}`);
+  }
+
+  if (!funnel?.subscriptionChannelId) {
+    await ctx.reply('Канал не настроен. Обратитесь к администратору.');
+    return;
+  }
+
+  // getChatMember в TG: бот должен быть админом канала.
+  let isSubscribed = false;
+  try {
+    const member = await bot.api.getChatMember(
+      funnel.subscriptionChannelId,
+      parseInt(telegramId, 10),
+    );
+    isSubscribed = ['member', 'administrator', 'creator'].includes(member.status);
+  } catch (e: any) {
+    console.warn(
+      `[Bot] getChatMember failed for ${funnel.subscriptionChannelId}/${telegramId}: ${e?.message}`,
+    );
+  }
+
+  if (!isSubscribed) {
+    const promptText: string =
+      funnel.subscriptionPromptText?.trim() ||
+      `Похоже, вы ещё не подписались на ${funnel.subscriptionChannelName || 'канал'}. Подпишитесь и нажмите ещё раз.`;
+    const ch: string = funnel.subscriptionChannelId;
+    const channelUrl = ch.startsWith('http')
+      ? ch
+      : ch.startsWith('@')
+        ? `https://t.me/${ch.slice(1)}`
+        : 'https://t.me';
+    const label: string = (funnel.welcomeButtonLabel || 'Подписаться').trim();
+    const kb = new InlineKeyboard()
+      .url(`📢 ${label}`, channelUrl).row()
+      .text('✅ Я подписался', `funnel_sub:${funnelId}`);
+    await ctx.reply(promptText, { reply_markup: kb });
+    return;
+  }
+
+  // Успех — пускаем дальше. Сохраняем подписку как событие воронки.
+  const successText: string =
+    funnel.subscriptionSuccessText?.trim() ||
+    '✅ Спасибо за подписку! Открываем сервис.';
+  await ctx.reply(successText, { parse_mode: 'Markdown' });
+  // Дальше — основной флоу. Если у юзера ещё нет AppUser/BotUser — создаём.
+  await sendActivationFlow(ctx);
+}
+
 async function sendActivationFlow(ctx: Context): Promise<void> {
   // Явно убираем reply-клавиатуру — она могла остаться от предыдущей сессии
   await ctx.reply('Коллега, рада вас видеть 👋', { reply_markup: { remove_keyboard: true } });
@@ -1645,6 +1812,7 @@ bot.command('start', async (ctx: Context) => {
   console.log(`[Bot] /start from ${telegramId} (@${user.username ?? 'no_username'})`);
 
   const payload = ctx.match as string | undefined;
+  console.log(`[Bot] /start payload=${JSON.stringify(payload)}`);
 
   // Фиксируем старт бота в Откуда Подписки (fire-and-forget)
   tgtrack('user_did_start_bot', {
@@ -1658,6 +1826,14 @@ bot.command('start', async (ctx: Context) => {
   if (payload && payload.startsWith('link_')) {
     await handleLinkToken(ctx, user, payload.slice(5));
     return;
+  }
+
+  // Smart-link токен: 10-32 символа base64url. Если payload похож на токен —
+  // дёргаем бэк, узнаём funnel + welcome, рендерим кастомное приветствие.
+  if (payload && /^[A-Za-z0-9_-]{10,32}$/.test(payload)) {
+    const handled = await handleSmartLinkStart(ctx, telegramId, payload);
+    if (handled) return;
+    // Если токен не найден / нет funnel — проваливаемся в дефолтный flow ниже.
   }
 
   const existingUser = await prisma.appUser.findUnique({
@@ -1798,6 +1974,17 @@ bot.on('callback_query:data', async (ctx: Context) => {
   if (data === 'sub:check') {
     console.log(`[Bot] sub:check from ${telegramId}`);
     await handleSubscriptionCheck(ctx, telegramId);
+    return;
+  }
+
+  // funnel_sub:<funnelId> — проверка подписки на канал, который привязан к
+  // конкретной воронке (welcomeButtonAction='check_subscription' + ID канала
+  // настроены в админке воронки). Отличается от sub:check тем, что канал
+  // не глобальный TELEGRAM_CHANNEL_ID, а из БД.
+  if (data.startsWith('funnel_sub:')) {
+    const funnelId = data.slice('funnel_sub:'.length).trim();
+    console.log(`[Bot] funnel_sub from ${telegramId} funnelId=${funnelId}`);
+    await handleFunnelSubscriptionCheck(ctx, telegramId, funnelId);
     return;
   }
 

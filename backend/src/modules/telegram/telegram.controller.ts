@@ -18,6 +18,7 @@ import { WebhookAuthGuard } from '../webhooks/guards/webhook-auth.guard';
 import { EmailService } from '../../common/services/email.service';
 import { AnalyticsEventsService } from '../analytics-events/analytics-events.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { SmartLinkTokensService } from '../smart-links/smart-link-tokens.service';
 
 @Controller('webhook/telegram')
 export class TelegramController {
@@ -29,6 +30,7 @@ export class TelegramController {
     private readonly emailService: EmailService,
     private readonly analyticsEvents: AnalyticsEventsService,
     private readonly prisma: PrismaService,
+    private readonly smartLinkTokens: SmartLinkTokensService,
   ) {}
 
   /**
@@ -165,5 +167,137 @@ export class TelegramController {
     });
 
     return { ok: true };
+  }
+
+  /**
+   * Внутренний endpoint: TG-бот (отдельный сервис telegram-bot/main.ts)
+   * проверяет, прислан ли в /start <payload> smart-link токен и получает
+   * полный welcome-конфиг привязанной воронки. Защищён x-bot-secret.
+   *
+   * Поток:
+   *   юзер кликает prepodavai.ru/g/<slug>
+   *   → middleware → редирект → бэк ставит токен в Redis (TTL 30мин),
+   *     302 на t.me/<bot>?start=<token>
+   *   → TG-бот ловит /start <token>
+   *   → шлёт сюда POST {token, telegramId}
+   *   → возвращаем atribution + funnel welcome (если есть)
+   */
+  @Post('internal/smart-link/consume')
+  @HttpCode(200)
+  @SkipThrottle()
+  async consumeSmartLink(
+    @Body() body: { token: string; telegramId?: string },
+    @Headers('x-bot-secret') secret: string,
+  ) {
+    const botToken = this.configService.get<string>('TELEGRAM_BOT_TOKEN');
+    if (!botToken || secret !== botToken) {
+      throw new UnauthorizedException('Invalid secret');
+    }
+    if (!body?.token) throw new BadRequestException('token required');
+
+    const attr = await this.smartLinkTokens.consume(body.token);
+    if (!attr) {
+      this.logger.warn(`[SMART_LINK_CONSUME] token=${body.token} not found / expired`);
+      return { found: false };
+    }
+    this.logger.log(
+      `[SMART_LINK_CONSUME] token=${body.token} slug=${attr.slug} ` +
+      `funnelId=${attr.funnelId || 'NONE'} tgId=${body.telegramId}`,
+    );
+
+    // Если есть funnelId — резолвим welcome-конфиг и UTM сразу здесь, чтобы
+    // боту не нужны были отдельные запросы.
+    let welcome: any = null;
+    if (attr.funnelId) {
+      const funnel = await this.prisma.funnel.findUnique({
+        where: { id: attr.funnelId },
+        select: {
+          welcomeText: true,
+          welcomeButtonLabel: true,
+          welcomeButtonAction: true,
+          welcomeButtonUrl: true,
+          subscriptionChannelId: true,
+          subscriptionChannelName: true,
+          subscriptionPromptText: true,
+          subscriptionSuccessText: true,
+        },
+      }).catch(() => null);
+      if (funnel?.welcomeText?.trim()) welcome = funnel;
+    }
+
+    // Сохраняем отложенную атрибуцию по telegramId — нужно для случая,
+    // когда AppUser ещё не создан (бот сам сделает upsert), а UTM хотим
+    // потом подхватить при регистрации.
+    if (body.telegramId) {
+      await this.smartLinkTokens.storeForTgUser(body.telegramId, attr);
+    }
+
+    // Если AppUser уже существует — сразу обновляем UTM на нём.
+    if (body.telegramId) {
+      const appUser = await this.prisma.appUser.findUnique({
+        where: { telegramId: body.telegramId },
+        select: { id: true },
+      }).catch(() => null);
+      if (appUser) {
+        await this.prisma.appUser.update({
+          where: { id: appUser.id },
+          data: {
+            ...(attr.utmSource && { utmSource: attr.utmSource }),
+            ...(attr.utmMedium && { utmMedium: attr.utmMedium }),
+            ...(attr.utmCampaign && { utmCampaign: attr.utmCampaign }),
+            ...(attr.utmContent && { utmContent: attr.utmContent }),
+            ...(attr.utmTerm && { utmTerm: attr.utmTerm }),
+          },
+        }).catch(() => {});
+      }
+    }
+
+    return {
+      found: true,
+      slug: attr.slug,
+      utm: {
+        source: attr.utmSource,
+        medium: attr.utmMedium,
+        campaign: attr.utmCampaign,
+        content: attr.utmContent,
+        term: attr.utmTerm,
+      },
+      autoTags: attr.autoTags || [],
+      funnelId: attr.funnelId || null,
+      welcome,
+    };
+  }
+
+  /**
+   * Внутренний endpoint: TG-бот запрашивает welcome-конфиг воронки по ID.
+   * Используется при callback `funnel_sub:<funnelId>` — бот хочет узнать
+   * channelId и тексты, чтобы проверить подписку.
+   */
+  @Get('internal/funnel-welcome')
+  @SkipThrottle()
+  async getFunnelWelcome(
+    @Query('id') id: string,
+    @Headers('x-bot-secret') secret: string,
+  ) {
+    const botToken = this.configService.get<string>('TELEGRAM_BOT_TOKEN');
+    if (!botToken || secret !== botToken) {
+      throw new UnauthorizedException('Invalid secret');
+    }
+    if (!id) throw new BadRequestException('id required');
+
+    const funnel = await this.prisma.funnel.findUnique({
+      where: { id },
+      select: {
+        welcomeText: true,
+        welcomeButtonLabel: true,
+        welcomeButtonAction: true,
+        welcomeButtonUrl: true,
+        subscriptionChannelId: true,
+        subscriptionChannelName: true,
+        subscriptionPromptText: true,
+        subscriptionSuccessText: true,
+      },
+    }).catch(() => null);
+    return funnel || {};
   }
 }
