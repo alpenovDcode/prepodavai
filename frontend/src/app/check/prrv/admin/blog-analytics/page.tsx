@@ -10,6 +10,7 @@ import {
 import {
   Eye, Users, Clock, MousePointerClick, TrendingDown,
   BookOpen, Send, Bot, CheckCircle, AlertCircle, ExternalLink,
+  Search, TrendingUp, Globe,
 } from 'lucide-react'
 
 const fetcher = (url: string) => apiClient.get(url).then(r => r.data)
@@ -69,6 +70,12 @@ export default function BlogAnalyticsPage() {
 
   const { data, error, isLoading } = useSWR(
     `/admin/blog-analytics?date1=${period.d1}&date2=${period.d2}`,
+    fetcher,
+    { refreshInterval: 0 },
+  )
+
+  const { data: gscData } = useSWR(
+    `/admin/blog-gsc?date1=${period.d1}&date2=${period.d2}`,
     fetcher,
     { refreshInterval: 0 },
   )
@@ -334,6 +341,156 @@ export default function BlogAnalyticsPage() {
           </div>
         </div>
       </div>
+
+      {/* Google Search Console */}
+      {!gscData || !gscData.configured ? (
+        <div className="bg-white rounded-2xl border border-gray-200 p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <Search className="w-5 h-5 text-blue-500" />
+            <h2 className="text-base font-semibold text-gray-800">Google Search Console</h2>
+          </div>
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-blue-500 mt-0.5 shrink-0" />
+            <div>
+              <p className="font-semibold text-blue-800 text-sm">Нужны учётные данные Google</p>
+              <p className="text-xs text-blue-700 mt-1">
+                Добавьте в <code className="bg-blue-100 px-1 rounded">.env</code> бэкенда:
+              </p>
+              <pre className="mt-2 bg-blue-100 rounded-lg p-3 text-xs text-blue-900 overflow-x-auto">
+{`GOOGLE_SC_CLIENT_ID=...
+GOOGLE_SC_CLIENT_SECRET=...
+GOOGLE_SC_REFRESH_TOKEN=...`}
+              </pre>
+              <p className="text-xs text-blue-600 mt-2">
+                Инструкция: Google Cloud Console → OAuth 2.0 → Search Console API → получить refresh_token через Playground.
+              </p>
+            </div>
+          </div>
+        </div>
+      ) : gscData.error ? (
+        <div className="bg-white rounded-2xl border border-gray-200 p-6">
+          <div className="flex items-center gap-2 mb-2">
+            <Search className="w-5 h-5 text-blue-500" />
+            <h2 className="text-base font-semibold text-gray-800">Google Search Console</h2>
+          </div>
+          <p className="text-sm text-red-500">Ошибка: {gscData.error}</p>
+        </div>
+      ) : (
+        <div className="space-y-6">
+          {/* GSC header + KPI */}
+          <div className="bg-white rounded-2xl border border-gray-200 p-6">
+            <div className="flex items-center gap-2 mb-5">
+              <Search className="w-5 h-5 text-blue-500" />
+              <h2 className="text-base font-semibold text-gray-800">Google Search Console</h2>
+              <span className="text-xs text-gray-400 ml-1">— видимость в поиске Google</span>
+            </div>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <KpiCard
+                title="Клики из Google"
+                value={gscData.summary.clicks.toLocaleString('ru')}
+                icon={<MousePointerClick className="w-5 h-5" />}
+                color="blue"
+              />
+              <KpiCard
+                title="Показы в поиске"
+                value={gscData.summary.impressions.toLocaleString('ru')}
+                icon={<Eye className="w-5 h-5" />}
+                color="purple"
+              />
+              <KpiCard
+                title="CTR"
+                value={`${gscData.summary.ctr}%`}
+                sub="кликов от показов"
+                icon={<TrendingUp className="w-5 h-5" />}
+                color="green"
+              />
+              <KpiCard
+                title="Средняя позиция"
+                value={gscData.summary.position}
+                sub="место в Google"
+                icon={<Globe className="w-5 h-5" />}
+                color="orange"
+              />
+            </div>
+          </div>
+
+          {/* GSC chart */}
+          {gscData.chart && gscData.chart.length > 0 && (
+            <div className="bg-white rounded-2xl border border-gray-200 p-6">
+              <h2 className="text-base font-semibold text-gray-800 mb-4">Клики и показы из Google по дням</h2>
+              <ResponsiveContainer width="100%" height={180}>
+                <AreaChart data={gscData.chart}>
+                  <defs>
+                    <linearGradient id="gscGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.2} />
+                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                  <XAxis dataKey="date" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
+                  <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} width={35} />
+                  <Tooltip
+                    contentStyle={{ borderRadius: 10, border: '1px solid #e5e7eb', fontSize: 12 }}
+                    formatter={(v: number, name: string) => [v, name === 'clicks' ? 'Клики' : 'Показы']}
+                  />
+                  <Area type="monotone" dataKey="clicks" stroke="#3b82f6" strokeWidth={2} fill="url(#gscGrad)" name="clicks" />
+                  <Area type="monotone" dataKey="impressions" stroke="#a78bfa" strokeWidth={1.5} fill="none" name="impressions" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+
+          {/* Top queries + Top pages */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Top queries */}
+            {gscData.topQueries && gscData.topQueries.length > 0 && (
+              <div className="bg-white rounded-2xl border border-gray-200 p-6">
+                <h2 className="text-base font-semibold text-gray-800 mb-4">Топ запросов</h2>
+                <div className="space-y-2">
+                  {gscData.topQueries.map((q: any, i: number) => (
+                    <div key={q.query} className="flex items-center gap-3 py-2 border-b border-gray-50 last:border-0">
+                      <span className="text-xs font-bold text-gray-400 w-5 shrink-0">#{i + 1}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-800 truncate">{q.query}</p>
+                        <p className="text-xs text-gray-400">позиция {q.position} · CTR {q.ctr}%</p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-sm font-bold text-blue-600">{q.clicks}</p>
+                        <p className="text-xs text-gray-400">{q.impressions} показов</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Top pages */}
+            {gscData.topPages && gscData.topPages.length > 0 && (
+              <div className="bg-white rounded-2xl border border-gray-200 p-6">
+                <h2 className="text-base font-semibold text-gray-800 mb-4">Топ страниц</h2>
+                <div className="space-y-2">
+                  {gscData.topPages.map((p: any, i: number) => {
+                    const slug = p.page.replace('https://prepodavai.ru', '') || '/'
+                    return (
+                      <div key={p.page} className="flex items-center gap-3 py-2 border-b border-gray-50 last:border-0">
+                        <span className="text-xs font-bold text-gray-400 w-5 shrink-0">#{i + 1}</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-800 truncate">{slug}</p>
+                          <p className="text-xs text-gray-400">позиция {p.position}</p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="text-sm font-bold text-green-600">{p.clicks}</p>
+                          <p className="text-xs text-gray-400">{p.impressions} показов</p>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Quick links */}
       <div className="bg-gray-50 rounded-2xl border border-gray-200 p-6">

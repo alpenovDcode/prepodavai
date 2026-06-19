@@ -4232,4 +4232,121 @@ export class AdminService {
       return { configured: true, error: e?.response?.data?.message ?? 'Metrika API error' };
     }
   }
+
+  // ========== GOOGLE SEARCH CONSOLE ==========
+  async getBlogGscData(date1?: string, date2?: string) {
+    const clientId     = process.env.GOOGLE_SC_CLIENT_ID;
+    const clientSecret = process.env.GOOGLE_SC_CLIENT_SECRET;
+    const refreshToken = process.env.GOOGLE_SC_REFRESH_TOKEN;
+
+    if (!clientId || !clientSecret || !refreshToken) {
+      return { configured: false };
+    }
+
+    // Преобразуем "NdaysAgo" / "today" в YYYY-MM-DD
+    const toDate = (s: string): string => {
+      if (s === 'today') {
+        return new Date().toISOString().slice(0, 10);
+      }
+      const m = s.match(/^(\d+)daysAgo$/);
+      if (m) {
+        const d = new Date();
+        d.setDate(d.getDate() - parseInt(m[1]));
+        return d.toISOString().slice(0, 10);
+      }
+      return s;
+    };
+
+    const startDate = toDate(date1 ?? '30daysAgo');
+    const endDate   = toDate(date2 ?? 'today');
+    const siteUrl   = 'https://prepodavai.ru/';
+    const apiBase   = `https://www.googleapis.com/webmasters/v3/sites/${encodeURIComponent(siteUrl)}/searchAnalytics/query`;
+
+    try {
+      const axios = (await import('axios')).default;
+
+      // Получаем access_token через refresh_token
+      const tokenRes = await axios.post('https://oauth2.googleapis.com/token', {
+        client_id: clientId,
+        client_secret: clientSecret,
+        refresh_token: refreshToken,
+        grant_type: 'refresh_token',
+      });
+      const accessToken: string = tokenRes.data.access_token;
+      const headers = { Authorization: `Bearer ${accessToken}` };
+
+      const blogFilter = {
+        dimensionFilterGroups: [{
+          filters: [{ dimension: 'page', operator: 'contains', expression: '/blog' }],
+        }],
+      };
+
+      // 1. Суммарные метрики блога
+      // 2. Топ запросов
+      // 3. Динамика по дням
+      // 4. Топ страниц
+      const [summaryRes, queriesRes, chartRes, pagesRes] = await Promise.all([
+        axios.post(apiBase, {
+          startDate, endDate, rowLimit: 1,
+          ...blogFilter,
+        }, { headers }),
+
+        axios.post(apiBase, {
+          startDate, endDate,
+          dimensions: ['query'],
+          rowLimit: 10,
+          ...blogFilter,
+        }, { headers }),
+
+        axios.post(apiBase, {
+          startDate, endDate,
+          dimensions: ['date'],
+          rowLimit: 90,
+          ...blogFilter,
+        }, { headers }),
+
+        axios.post(apiBase, {
+          startDate, endDate,
+          dimensions: ['page'],
+          rowLimit: 10,
+          ...blogFilter,
+        }, { headers }),
+      ]);
+
+      const summary = summaryRes.data?.rows?.[0] ?? {};
+      const round2 = (n: number) => Math.round(n * 100) / 100;
+
+      return {
+        configured: true,
+        period: { startDate, endDate },
+        summary: {
+          clicks:      Math.round(summary.clicks      ?? 0),
+          impressions: Math.round(summary.impressions ?? 0),
+          ctr:         round2((summary.ctr ?? 0) * 100),
+          position:    round2(summary.position ?? 0),
+        },
+        topQueries: (queriesRes.data?.rows ?? []).map((r: any) => ({
+          query:       r.keys?.[0] ?? '',
+          clicks:      Math.round(r.clicks),
+          impressions: Math.round(r.impressions),
+          ctr:         round2(r.ctr * 100),
+          position:    round2(r.position),
+        })),
+        chart: (chartRes.data?.rows ?? []).map((r: any) => ({
+          date:        r.keys?.[0] ?? '',
+          clicks:      Math.round(r.clicks),
+          impressions: Math.round(r.impressions),
+        })),
+        topPages: (pagesRes.data?.rows ?? []).map((r: any) => ({
+          page:        r.keys?.[0] ?? '',
+          clicks:      Math.round(r.clicks),
+          impressions: Math.round(r.impressions),
+          position:    round2(r.position),
+        })),
+      };
+    } catch (e: any) {
+      const msg = e?.response?.data?.error?.message ?? e?.response?.data?.error ?? 'GSC API error';
+      return { configured: true, error: msg };
+    }
+  }
 }

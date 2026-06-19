@@ -380,6 +380,14 @@ export class AdminController {
     return this.adminService.getBlogAnalytics(date1, date2);
   }
 
+  @Get('blog-gsc')
+  async getBlogGsc(
+    @Query('date1') date1?: string,
+    @Query('date2') date2?: string,
+  ) {
+    return this.adminService.getBlogGscData(date1, date2);
+  }
+
   // ========== ADMIN MANAGEMENT ==========
   @Get('admins')
   async getAdmins() {
