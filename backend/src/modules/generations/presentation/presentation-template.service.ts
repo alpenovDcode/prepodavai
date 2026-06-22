@@ -377,11 +377,21 @@ ${p.text ? `ИСХОДНЫЕ ТЕЗИСЫ/ТЕКСТ:\n${p.text}\n` : ''}
     //    Валидные JSON-escapes: \" \\ \/ \b \f \n \r \t \uXXXX
     //    LaTeX-команды (\frac, \ln, \(, \[) и одиночные \ в кириллице ломают JSON.
     //    Переэкранируем их в \\X.
-    json = json.replace(/\\(u[0-9a-fA-F]{4}|[^])/g, (match, group1) => {
+    //    КРИТИЧНО: \b \f \n \r \t — валидные JSON-escapes (whitespace), но
+    //    в LaTeX могут быть началом команды: \to \frac \neq \rightarrow \begin.
+    //    Если следующий символ — буква, это LaTeX-команда, нужно переэкранировать,
+    //    иначе JSON.parse превратит \t в TAB и команда \to пропадёт.
+    json = json.replace(/\\(u[0-9a-fA-F]{4}|[^])/g, (match, group1, offset, full) => {
       // \uXXXX оставляем как есть
       if (group1.length === 5 && group1.startsWith('u')) return match;
       const ch = group1;
-      // Валидные одиночные escapes JSON
+      const nextChar = full[offset + match.length] ?? '';
+      const isLatexContinuation = /[a-zA-Z]/.test(nextChar);
+      // \b \f \n \r \t перед буквой — точно LaTeX-команда, переэкранируем
+      if (isLatexContinuation && ['b', 'f', 'n', 'r', 't'].includes(ch)) {
+        return '\\\\' + ch;
+      }
+      // Валидные одиночные escapes JSON в не-LaTeX контексте
       if (['"', '\\', '/', 'b', 'f', 'n', 'r', 't'].includes(ch)) return match;
       // Невалидный — экранируем backslash
       return '\\\\' + ch;

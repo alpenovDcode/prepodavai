@@ -92,6 +92,12 @@ mjx-container[display="true"]{margin:16px 0;font-size:1.1em!important}
   .layout-image-text .image-text{grid-template-columns:1fr;gap:24px}
   .layout-quote .q{font-size:32px}
 }
+/* MathJax errors — НИКОГДА не показываем "Math input error" пользователю.
+   noerrors-package обычно справляется, но если он не успел подгрузиться
+   с CDN — этот CSS режет последний рубеж. */
+mjx-merror, .mjx-merror, [class*="merror"], mjx-container[data-mjx-error]{
+  display:none !important;
+}
 </style>
 </head>
 <body>
