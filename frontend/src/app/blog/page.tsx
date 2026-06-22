@@ -19,8 +19,11 @@ export const metadata: Metadata = {
 
 export default function BlogPage() {
   const posts = getAllPosts()
-  const featured = posts[0] ?? null
-  const rest = posts.slice(1)
+  // При 2 постах не выделяем featured — иначе вторая карточка висит одна в 3-колоночной сетке.
+  const useFeatured = posts.length !== 2
+  const featured = useFeatured ? posts[0] ?? null : null
+  const rest = useFeatured ? posts.slice(1) : posts
+  const gridCols = rest.length === 2 ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)'
 
   return (
     <div
@@ -188,7 +191,7 @@ export default function BlogPage() {
         <section style={{ maxWidth: 1100, margin: '0 auto', padding: '0 24px 80px' }}>
           <div
             className="posts-grid"
-            style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 22 }}
+            style={{ display: 'grid', gridTemplateColumns: gridCols, gap: 22 }}
           >
             {rest.map(p => (
               <PostCard key={p.slug} post={p} />
