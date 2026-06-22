@@ -158,16 +158,20 @@ export class PresentationPptxV2Service {
         '0':'₀','1':'₁','2':'₂','3':'₃','4':'₄','5':'₅','6':'₆','7':'₇','8':'₈','9':'₉',
         'n':'ₙ','i':'ᵢ','j':'ⱼ','k':'ₖ','m':'ₘ','a':'ₐ','x':'ₓ','+':'₊','-':'₋',
       };
-      // ^{abc} → попытка посимвольно, иначе ^(abc)
-      s = s.replace(/\^\{([^}]+)\}/g, (_, g) =>
-        g.length === 1 && supMap[g] ? supMap[g] : `^(${g})`
-      );
-      s = s.replace(/\^([0-9a-zA-Z])/g, (_, g) => supMap[g] || `^${g}`);
-      // _{abc}
-      s = s.replace(/_\{([^}]+)\}/g, (_, g) =>
-        g.length === 1 && subMap[g] ? subMap[g] : `₍${g}₎`
-      );
-      s = s.replace(/_([0-9a-zA-Z])/g, (_, g) => subMap[g] || `_${g}`);
+      // Пробуем посимвольно конвертнуть весь содержимый ^{...} / _{...} в Unicode.
+      // Если все символы маппятся — получаем красиво (Fₙ₋₁). Иначе — fallback ^(...) / _(...).
+      const tryRun = (text: string, map: Record<string, string>): string | null => {
+        let out = '';
+        for (const ch of text) {
+          if (map[ch]) out += map[ch];
+          else return null;
+        }
+        return out;
+      };
+      s = s.replace(/\^\{([^}]+)\}/g, (_, g) => tryRun(g, supMap) ?? `^(${g})`);
+      s = s.replace(/\^([0-9a-zA-Z+\-])/g, (_, g) => supMap[g] || `^${g}`);
+      s = s.replace(/_\{([^}]+)\}/g, (_, g) => tryRun(g, subMap) ?? `_(${g})`);
+      s = s.replace(/_([0-9a-zA-Z+\-])/g, (_, g) => subMap[g] || `_${g}`);
 
       // Убираем фигурные скобки и оставшиеся команды
       s = s.replace(/\{|\}/g, '').replace(/\\[a-zA-Z]+\s?/g, '');
