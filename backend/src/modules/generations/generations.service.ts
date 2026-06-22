@@ -1645,19 +1645,36 @@ export class GenerationsService {
       if (file) return file.buffer;
     }
 
-    // 2. Fallback: пересоздаём на лету из presentationData (новый формат)
-    const presentationData: PresentationData | undefined = result?.presentationData;
-    if (presentationData?.slides?.length) {
+    // 2. Fallback: пересоздаём на лету из presentationData.
+    // Проверяем несколько возможных мест хранения (разные версии формата outputData).
+    const slidesArray: any[] | undefined =
+      result?.presentationData?.slides ??  // новый формат
+      result?.slides ??                    // устаревший формат (slides на верхнем уровне)
+      result?.data?.slides;               // ещё один старый вариант
+
+    if (slidesArray?.length) {
+      const presentationData: PresentationData = result?.presentationData ?? {
+        topic: result?.topic ?? '',
+        audience: result?.audience ?? '',
+        style: result?.style ?? 'modern',
+        color: result?.color ?? 'indigo',
+        slides: slidesArray,
+      };
       if (format === 'pptx') {
         return this.presentationPptxService.build(presentationData);
       }
-      // PDF из HTML
-      const html: string | undefined = result?.content;
+      // PDF из HTML — landscape, т.к. презентация 16:9
+      const html: string | undefined = result?.content ?? result?.html;
       if (html) {
-        return this.htmlExportService.htmlToPdf(html);
+        return this.htmlExportService.htmlToPdf(html, { landscape: true });
       }
+      // PDF без готового HTML: нет возможности пересобрать без LLM, кидаем 404.
     }
 
+    this.logger.warn(
+      `exportPresentation: no slides data for requestId=${requestId}, ` +
+      `resultKeys=${Object.keys(result ?? {}).join(',')}`,
+    );
     throw new NotFoundException('Файл презентации недоступен');
   }
 

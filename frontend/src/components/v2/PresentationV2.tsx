@@ -113,10 +113,14 @@ export default function PresentationV2() {
 
             // pollStatus отдаёт `outputData` из БД, но иногда бэк/контроллер
             // оборачивает его дополнительным слоем — пробуем все возможные пути.
+            // `html` — fallback для старых генераций, где поле называлось иначе.
             const candidates = [
                 r?.content,
+                r?.html,
                 r?.outputData?.content,
+                r?.outputData?.html,
                 r?.result?.content,
+                r?.result?.html,
                 r?.data?.content,
             ]
             // Принимаем любую достаточно длинную строку — HTML может не начинаться
@@ -176,13 +180,9 @@ ${pptxUrlFound ? `<a href="${pptxUrlFound}" target="_blank">Скачать PPTX<
 
     const downloadFile = async (format: 'pdf' | 'pptx') => {
         if (!presentationId) return
-        // Если URL уже есть — открываем напрямую
-        const direct = format === 'pptx' ? pptxUrl : pdfUrl
-        if (direct) {
-            window.open(direct, '_blank', 'noopener')
-            return
-        }
-        // Иначе — fallback на endpoint экспорта
+        // Всегда качаем через endpoint экспорта (с JWT-авторизацией).
+        // window.open без auth-header не работает с /api/files/:hash.
+        // Endpoint сам проверяет закешированный файл, при необходимости пересобирает.
         try {
             const res = await apiClient.post(
                 `/generate/${presentationId}/presentation/${format}`,
