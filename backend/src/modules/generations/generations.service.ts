@@ -22,7 +22,7 @@ import { getEffectiveHtml } from '../../common/utils/effective-html.util';
 import { FilesService } from '../files/files.service';
 import { StrategyRegistryService } from './strategies/strategy-registry.service';
 import { PresentationPptxV2Service } from './presentation/presentation-pptx-v2.service';
-import { PresentationData } from './presentation/presentation-template.service';
+import { PresentationData, PresentationLayout, PresentationColor, PresentationStyle, PresentationSlide, PresentationTemplateService } from './presentation/presentation-template.service';
 import { AnalyticsEventsService, EVENT_TYPES } from '../analytics-events/analytics-events.service';
 
 export const LOGO_BASE64 =
@@ -119,6 +119,7 @@ export class GenerationsService {
     private readonly onboardingQuestService: OnboardingQuestService,
     private readonly strategyRegistry: StrategyRegistryService,
     private readonly presentationPptxService: PresentationPptxV2Service,
+    private readonly presentationTemplateService: PresentationTemplateService,
     private readonly analyticsEvents: AnalyticsEventsService,
   ) { }
 
@@ -1426,7 +1427,85 @@ export class GenerationsService {
       }
     }
 
+    // Ленивая миграция: старый slideDoc-формат (из n8n) → content+presentationData
+    const genType = generation.userGeneration?.generationType ?? generation.type;
+    if (genType === 'presentation') {
+      const ug = generation.userGeneration;
+      const cur = (ug?.outputData ?? generation.result) as any;
+      if (cur?.slideDoc && !cur?.content) {
+        try {
+          const migratedData = this.migrateSlideDocToPresentation(cur);
+          const html = await this.presentationTemplateService.renderHtml(migratedData);
+          const newOutputData = { ...cur, content: html, presentationData: migratedData };
+          await this.prisma.generationRequest.update({
+            where: { id: generation.id },
+            data: { result: newOutputData },
+          });
+          if (ug) {
+            await this.prisma.userGeneration.update({
+              where: { id: ug.id },
+              data: { outputData: newOutputData },
+            });
+            ug.outputData = newOutputData;
+          } else {
+            generation.result = newOutputData;
+          }
+          this.logger.log(`[presentations] Lazy migrated slideDoc for ${generation.id} (${migratedData.slides.length} slides)`);
+        } catch (e: any) {
+          this.logger.warn(`[presentations] slideDoc migration failed for ${generation.id}: ${e?.message}`);
+        }
+      }
+    }
+
     return this.formatGenerationStatus(generation);
+  }
+
+  /**
+   * Конвертирует старый slideDoc (формат n8n) в PresentationData нового пайплайна.
+   * Зеркало логики в scripts/migrate-old-presentations.ts (без LLM-вызовов).
+   */
+  private migrateSlideDocToPresentation(result: any): PresentationData {
+    const slideDoc = result.slideDoc ?? {};
+    const OLD_LAYOUTS: Record<string, PresentationLayout> = {
+      title: 'title', agenda: 'bullets', bullets: 'bullets',
+      'two-column': 'two-column', 'image-text': 'content',
+      quote: 'quote', quiz: 'bullets', summary: 'summary', content: 'content',
+    };
+    const THEME_TO_COLOR: Record<string, PresentationColor> = {
+      indigo: 'indigo', emerald: 'emerald', violet: 'violet', blue: 'blue', slate: 'slate',
+    };
+
+    const slides: PresentationSlide[] = (slideDoc.slides ?? []).map((old: any): PresentationSlide => {
+      const layout: PresentationLayout = OLD_LAYOUTS[(old?.layout || 'content').toLowerCase()] || 'content';
+      const c = old?.content ?? {};
+      const slide: PresentationSlide = { layout };
+      if (c.title)    slide.title    = c.title;
+      if (c.subtitle) slide.subtitle = c.subtitle;
+      if (c.eyebrow)  slide.eyebrow  = c.eyebrow;
+      if (c.author)   slide.author   = c.author;
+      switch (layout) {
+        case 'bullets':  slide.items = c.bullets || c.items || []; break;
+        case 'two-column':
+          slide.leftTitle  = c.leftTitle  || '';
+          slide.leftText   = c.leftText   || '';
+          slide.rightTitle = c.rightTitle || '';
+          slide.rightText  = c.rightText  || '';
+          break;
+        case 'quote':   slide.text       = c.text || c.question || ''; break;
+        case 'summary': slide.items      = c.items || c.bullets || []; break;
+        case 'content': slide.paragraphs = c.paragraphs || (c.text ? [c.text] : []); break;
+      }
+      return slide;
+    });
+
+    const themeId = (slideDoc.themeId || result.themeId || 'indigo').toLowerCase();
+    return {
+      topic:    slideDoc.topic    || result.topic    || 'Презентация',
+      audience: slideDoc.audience || result.audience || 'Школьники',
+      style:    (result.style as PresentationStyle)  || 'modern',
+      color:    (THEME_TO_COLOR[themeId] || 'indigo') as PresentationColor,
+      slides,
+    };
   }
 
   /**
