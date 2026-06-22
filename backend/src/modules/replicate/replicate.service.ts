@@ -211,8 +211,21 @@ export class ReplicateService {
           continue;
         }
 
-        this.logger.error(`Replicate API error: ${error.message}`, error.response?.data);
-        throw error;
+        // Расширенное логирование: видим HTTP-статус, тело ответа, axios-код и URL.
+        // Иначе всё прячется за общим "Replicate вернул пустой/обрезанный результат" выше по стеку.
+        this.logger.error(
+          `Replicate API error [model=${targetModel}, attempt=${attempt}/${maxRetries}]: ` +
+            `status=${status ?? 'n/a'}, code=${error.code ?? 'n/a'}, message="${error.message}", ` +
+            `body=${JSON.stringify(error.response?.data ?? null).slice(0, 500)}`,
+        );
+        // Перебрасываем с обогащённым сообщением — попадёт в outer catch generations.service
+        // и в итоге в текст ошибки пользователю / в логи Sentry / Loki.
+        const enrichedMsg = status
+          ? `Replicate HTTP ${status}: ${error.response?.data?.detail || error.response?.data?.title || error.message}`
+          : `Replicate network error (${error.code ?? 'unknown'}): ${error.message}`;
+        const wrapped = new Error(enrichedMsg);
+        (wrapped as any).original = error;
+        throw wrapped;
       }
     }
 
