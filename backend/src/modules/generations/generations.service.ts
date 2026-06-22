@@ -1435,7 +1435,7 @@ export class GenerationsService {
       // v2: правильное извлечение полей (paragraph, leftColumn/rightColumn, quote, quiz).
       // Презентации мигрированные старой (багованной) версией не имеют _migv — их
       // нужно пере-мигрировать из сохранённого slideDoc.
-      const MIG_VERSION = 5;
+      const MIG_VERSION = 6;
       const needsMigration = cur?.slideDoc && (!cur?.content || cur?._migv !== MIG_VERSION);
       if (needsMigration) {
         try {

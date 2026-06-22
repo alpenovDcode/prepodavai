@@ -206,18 +206,40 @@ export class PresentationPptxV2Service {
    * Возвращает true если успешно вставлено как картинка.
    */
   private async tryAddFormulaImage(
-    _s: any,
-    _latex: string,
-    _box: { x: number; y: number; w: number; h: number },
-    _color: string,
-    _fontPx: number,
+    s: any,
+    latex: string,
+    box: { x: number; y: number; w: number; h: number },
+    color: string,
+    fontPx: number,
   ): Promise<boolean> {
-    // ОТКЛЮЧЕНО: PowerPoint падает на встроенных SVG от MathJax (Mac PPT не
-    // понимает <use>-ссылки внутри SVG). Возвращаем false → caller рендерит
-    // формулу как Unicode-текст через this.latex() — некрасиво, но валидно.
-    // TODO: переключиться на PNG (через sharp/puppeteer), тогда снова можно
-    // будет вставлять формулы картинками.
-    return false;
+    // MathJax → SVG → PNG (через resvg-js). PowerPoint понимает PNG идеально,
+    // в отличие от SVG с <use>-ссылками.
+    const raw = latex.replace(/^\s*\$\$?|\$\$?\s*$/g, '').trim();
+    if (!raw) return false;
+    const img = await this.mathRenderer.renderToPng(raw, {
+      color: '#' + color,
+      display: true,
+      fontPx,
+    });
+    if (!img) return false;
+
+    // Вписываем в box с сохранением пропорций.
+    let w = img.widthInch;
+    let h = img.heightInch;
+    if (h > box.h) { const k = box.h / h; w *= k; h *= k; }
+    if (w > box.w) { const k = box.w / w; w *= k; h *= k; }
+    try {
+      s.addImage({
+        data: img.dataUri,
+        x: box.x,
+        y: box.y + Math.max(0, (box.h - h) / 2),
+        w, h,
+      });
+      return true;
+    } catch (e: any) {
+      this.logger.warn(`[math] addImage failed: ${e?.message}`);
+      return false;
+    }
   }
 
   private async renderLayout(
