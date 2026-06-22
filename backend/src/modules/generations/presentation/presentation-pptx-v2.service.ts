@@ -83,11 +83,98 @@ export class PresentationPptxV2Service {
 
       // Speaker note: первая значимая строка слайда
       const note = slide.subtitle || slide.text || slide.items?.[0] || '';
-      if (note) s.addNotes(String(note));
+      if (note) s.addNotes(this.latex(String(note)));
     });
 
     const buf = await pres.write({ outputType: 'nodebuffer' });
     return buf as Buffer;
+  }
+
+  /** Конвертирует LaTeX-разметку ($...$) в читаемый текст с Unicode-символами. */
+  private latex(text: string): string {
+    if (!text || !text.includes('$')) return text;
+
+    const convert = (expr: string): string => {
+      let s = expr.trim();
+
+      // Греческие буквы
+      const greek: [RegExp, string][] = [
+        [/\\alpha/g,'α'],[/\\beta/g,'β'],[/\\gamma/g,'γ'],[/\\delta/g,'δ'],
+        [/\\epsilon/g,'ε'],[/\\varepsilon/g,'ε'],[/\\zeta/g,'ζ'],[/\\eta/g,'η'],
+        [/\\theta/g,'θ'],[/\\vartheta/g,'θ'],[/\\iota/g,'ι'],[/\\kappa/g,'κ'],
+        [/\\lambda/g,'λ'],[/\\mu/g,'μ'],[/\\nu/g,'ν'],[/\\xi/g,'ξ'],
+        [/\\pi/g,'π'],[/\\varpi/g,'π'],[/\\rho/g,'ρ'],[/\\varrho/g,'ρ'],
+        [/\\sigma/g,'σ'],[/\\tau/g,'τ'],[/\\upsilon/g,'υ'],[/\\phi/g,'φ'],
+        [/\\varphi/g,'φ'],[/\\chi/g,'χ'],[/\\psi/g,'ψ'],[/\\omega/g,'ω'],
+        [/\\Gamma/g,'Γ'],[/\\Delta/g,'Δ'],[/\\Theta/g,'Θ'],[/\\Lambda/g,'Λ'],
+        [/\\Xi/g,'Ξ'],[/\\Pi/g,'Π'],[/\\Sigma/g,'Σ'],[/\\Phi/g,'Φ'],
+        [/\\Psi/g,'Ψ'],[/\\Omega/g,'Ω'],
+      ];
+      for (const [re, sym] of greek) s = s.replace(re, sym);
+
+      // Операторы
+      s = s.replace(/\\to\b/g,'→').replace(/\\rightarrow/g,'→').replace(/\\leftarrow/g,'←')
+           .replace(/\\Rightarrow/g,'⇒').replace(/\\Leftrightarrow/g,'⟺')
+           .replace(/\\infty/g,'∞').replace(/\\pm/g,'±').replace(/\\mp/g,'∓')
+           .replace(/\\times/g,'×').replace(/\\div/g,'÷').replace(/\\cdot/g,'·')
+           .replace(/\\neq/g,'≠').replace(/\\ne\b/g,'≠')
+           .replace(/\\leq/g,'≤').replace(/\\le\b/g,'≤')
+           .replace(/\\geq/g,'≥').replace(/\\ge\b/g,'≥')
+           .replace(/\\approx/g,'≈').replace(/\\equiv/g,'≡').replace(/\\sim/g,'~')
+           .replace(/\\in\b/g,'∈').replace(/\\notin/g,'∉')
+           .replace(/\\subset/g,'⊂').replace(/\\supset/g,'⊃')
+           .replace(/\\cup/g,'∪').replace(/\\cap/g,'∩')
+           .replace(/\\forall/g,'∀').replace(/\\exists/g,'∃')
+           .replace(/\\partial/g,'∂').replace(/\\nabla/g,'∇')
+           .replace(/\\ldots/g,'…').replace(/\\cdots/g,'⋯');
+
+      // Функции
+      s = s.replace(/\\lim_\{([^}]+)\}/g,'lim($1)')
+           .replace(/\\lim/g,'lim')
+           .replace(/\\sum_\{([^}]*)\}\^\{([^}]*)\}/g,'Σ[$1→$2]')
+           .replace(/\\sum/g,'Σ')
+           .replace(/\\prod/g,'∏')
+           .replace(/\\int_\{([^}]*)\}\^\{([^}]*)\}/g,'∫[$1→$2]')
+           .replace(/\\int/g,'∫')
+           .replace(/\\sqrt\{([^}]+)\}/g,'√($1)')
+           .replace(/\\sqrt\s/g,'√')
+           .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g,'($1)/($2)')
+           .replace(/\\log/g,'log').replace(/\\ln/g,'ln')
+           .replace(/\\sin/g,'sin').replace(/\\cos/g,'cos').replace(/\\tan/g,'tan')
+           .replace(/\\sec/g,'sec').replace(/\\csc/g,'csc').replace(/\\cot/g,'cot')
+           .replace(/\\arcsin/g,'arcsin').replace(/\\arccos/g,'arccos').replace(/\\arctan/g,'arctan')
+           .replace(/\\exp/g,'exp').replace(/\\max/g,'max').replace(/\\min/g,'min')
+           .replace(/\\det/g,'det').replace(/\\dim/g,'dim');
+
+      // Верхние индексы в Unicode (0-9, n, x)
+      const supMap: Record<string,string> = {
+        '0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹',
+        'n':'ⁿ','i':'ⁱ','j':'ʲ','k':'ᵏ','m':'ᵐ','a':'ᵃ','b':'ᵇ','c':'ᶜ','+':'⁺','-':'⁻',
+      };
+      const subMap: Record<string,string> = {
+        '0':'₀','1':'₁','2':'₂','3':'₃','4':'₄','5':'₅','6':'₆','7':'₇','8':'₈','9':'₉',
+        'n':'ₙ','i':'ᵢ','j':'ⱼ','k':'ₖ','m':'ₘ','a':'ₐ','x':'ₓ','+':'₊','-':'₋',
+      };
+      // ^{abc} → попытка посимвольно, иначе ^(abc)
+      s = s.replace(/\^\{([^}]+)\}/g, (_, g) =>
+        g.length === 1 && supMap[g] ? supMap[g] : `^(${g})`
+      );
+      s = s.replace(/\^([0-9a-zA-Z])/g, (_, g) => supMap[g] || `^${g}`);
+      // _{abc}
+      s = s.replace(/_\{([^}]+)\}/g, (_, g) =>
+        g.length === 1 && subMap[g] ? subMap[g] : `₍${g}₎`
+      );
+      s = s.replace(/_([0-9a-zA-Z])/g, (_, g) => subMap[g] || `_${g}`);
+
+      // Убираем фигурные скобки и оставшиеся команды
+      s = s.replace(/\{|\}/g, '').replace(/\\[a-zA-Z]+\s?/g, '');
+      return s;
+    };
+
+    // Сначала $$...$$, потом $...$
+    return text
+      .replace(/\$\$([^$]+)\$\$/g, (_, e) => convert(e))
+      .replace(/\$([^$\n]+?)\$/g, (_, e) => convert(e));
   }
 
   private renderLayout(
@@ -106,18 +193,18 @@ export class PresentationPptxV2Service {
             charSpacing: 200,
           });
         }
-        s.addText(slide.title || '', {
+        s.addText(this.latex(slide.title || ''), {
           x: 0.6, y: 2.2, w: 12, h: 2.4,
           fontSize: 54, fontFace: 'Inter', bold: true, color: fgText,
         });
         if (slide.subtitle) {
-          s.addText(slide.subtitle, {
+          s.addText(this.latex(slide.subtitle), {
             x: 0.6, y: 4.6, w: 11, h: 1.2,
             fontSize: 22, fontFace: 'Inter', color: fgSoft,
           });
         }
         if (slide.meta) {
-          s.addText(slide.meta, {
+          s.addText(this.latex(slide.meta), {
             x: 0.6, y: 6.6, w: 8, h: 0.4,
             fontSize: 11, fontFace: 'Inter', color: COL.textMute, charSpacing: 150,
           });
@@ -128,7 +215,7 @@ export class PresentationPptxV2Service {
       }
 
       case 'bullets': {
-        s.addText(slide.title || '', {
+        s.addText(this.latex(slide.title || ''), {
           x: 0.6, y: 0.9, w: 12, h: 0.8,
           fontSize: 32, fontFace: 'Inter', bold: true, color: fgText,
         });
@@ -136,12 +223,11 @@ export class PresentationPptxV2Service {
         const startY = 2.0;
         const lineH = items.length > 5 ? 0.55 : 0.7;
         items.forEach((item, i) => {
-          // Bullet точка
           s.addShape('ellipse', {
             x: 0.7, y: startY + i * lineH + 0.18, w: 0.12, h: 0.12,
             fill: { color: COL.accent }, line: { color: COL.accent, width: 0 },
           });
-          s.addText(item, {
+          s.addText(this.latex(item), {
             x: 1.0, y: startY + i * lineH, w: 11.5, h: lineH,
             fontSize: items.length > 5 ? 16 : 18, fontFace: 'Inter', color: fgSoft, valign: 'top',
           });
@@ -150,34 +236,31 @@ export class PresentationPptxV2Service {
       }
 
       case 'two-column': {
-        s.addText(slide.title || '', {
+        s.addText(this.latex(slide.title || ''), {
           x: 0.6, y: 0.9, w: 12, h: 0.8,
           fontSize: 32, fontFace: 'Inter', bold: true, color: fgText,
         });
         const colY = 2.0;
         const colW = 5.7;
-        // LEFT
-        s.addText(slide.leftTitle || '', {
+        s.addText(this.latex(slide.leftTitle || ''), {
           x: 0.6, y: colY, w: colW, h: 0.5,
           fontSize: 16, fontFace: 'Inter', bold: true, color: COL.accent,
           charSpacing: 100,
         });
-        s.addText(slide.leftText || '', {
+        s.addText(this.latex(slide.leftText || ''), {
           x: 0.6, y: colY + 0.6, w: colW, h: 4,
           fontSize: 14, fontFace: 'Inter', color: fgSoft, valign: 'top',
         });
-        // Separator
         s.addShape('line', {
           x: 6.65, y: colY, w: 0, h: 4.5,
           line: { color: COL.border, width: 1 },
         });
-        // RIGHT
-        s.addText(slide.rightTitle || '', {
+        s.addText(this.latex(slide.rightTitle || ''), {
           x: 7.0, y: colY, w: colW, h: 0.5,
           fontSize: 16, fontFace: 'Inter', bold: true, color: COL.accent,
           charSpacing: 100,
         });
-        s.addText(slide.rightText || '', {
+        s.addText(this.latex(slide.rightText || ''), {
           x: 7.0, y: colY + 0.6, w: colW, h: 4,
           fontSize: 14, fontFace: 'Inter', color: fgSoft, valign: 'top',
         });
@@ -189,12 +272,12 @@ export class PresentationPptxV2Service {
           x: 0.6, y: 1.0, w: 1.5, h: 1.5,
           fontSize: 96, fontFace: 'Georgia', bold: true, color: COL.accent,
         });
-        s.addText(slide.text || '', {
+        s.addText(this.latex(slide.text || ''), {
           x: 1.0, y: 2.3, w: 11.5, h: 3.5,
           fontSize: 32, fontFace: 'Inter', italic: true, color: fgText,
         });
         if (slide.author) {
-          s.addText(`— ${slide.author}`, {
+          s.addText(`— ${this.latex(slide.author)}`, {
             x: 1.0, y: 6.0, w: 11.5, h: 0.5,
             fontSize: 14, fontFace: 'Inter', bold: true, color: COL.textMute,
             charSpacing: 200,
@@ -204,7 +287,7 @@ export class PresentationPptxV2Service {
       }
 
       case 'summary': {
-        s.addText(slide.title || '', {
+        s.addText(this.latex(slide.title || ''), {
           x: 0.6, y: 0.9, w: 12, h: 0.8,
           fontSize: 32, fontFace: 'Inter', bold: true, color: fgText,
         });
@@ -218,20 +301,17 @@ export class PresentationPptxV2Service {
           const c = i % cols;
           const x = 0.6 + c * (cellW + 0.4);
           const y = 2.0 + r * (cellH + 0.2);
-          // карточка-фон
           s.addShape('rect', {
             x, y, w: cellW, h: cellH,
             fill: { color: ctx.isDark ? '1A1A2E' : 'F8FAFC' },
             line: { color: COL.border, width: 0.5 },
           });
-          // номер
           s.addText(String(i + 1).padStart(2, '0'), {
             x: x + 0.2, y: y + 0.15, w: 0.8, h: 0.4,
             fontSize: 12, fontFace: 'Inter', bold: true, color: COL.accent,
             charSpacing: 150,
           });
-          // текст
-          s.addText(item, {
+          s.addText(this.latex(item), {
             x: x + 0.2, y: y + 0.55, w: cellW - 0.4, h: cellH - 0.65,
             fontSize: 13, fontFace: 'Inter', bold: true, color: fgText, valign: 'top',
           });
@@ -241,13 +321,13 @@ export class PresentationPptxV2Service {
 
       case 'content':
       default: {
-        s.addText(slide.title || '', {
+        s.addText(this.latex(slide.title || ''), {
           x: 0.6, y: 0.9, w: 12, h: 0.8,
           fontSize: 32, fontFace: 'Inter', bold: true, color: fgText,
         });
         const text = (slide.paragraphs && slide.paragraphs.length)
-          ? slide.paragraphs.join('\n\n')
-          : (slide.text || '');
+          ? slide.paragraphs.map(p => this.latex(p)).join('\n\n')
+          : this.latex(slide.text || '');
         s.addText(text, {
           x: 0.6, y: 2.0, w: 12, h: 5,
           fontSize: 16, fontFace: 'Inter', color: fgSoft, valign: 'top',
