@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { ChevronUp, ChevronDown, Trash2, Plus, X, Save, RotateCcw } from 'lucide-react'
 import { Button } from '@/components/ui/v2/Button'
 import { cn } from '@/lib/utils/cn'
@@ -281,6 +281,21 @@ export default function PresentationSlideEditorComponent({
 }) {
     const [data, setData] = useState<PresentationData>(initialData)
     const [activeIdx, setActiveIdx] = useState(0)
+
+    // Если родитель прокинул новый initialData (например, после внешнего save),
+    // синхронизируем локальное состояние. Без этого useState(initialData)
+    // забирал данные только на маунте — последующие правки от parent игнорировались.
+    useEffect(() => {
+        setData(initialData)
+        setActiveIdx(prev => Math.min(prev, Math.max(0, (initialData.slides?.length || 1) - 1)))
+    }, [initialData])
+
+    // Лог при маунте — чтобы было видно в DevTools что редактор реально открылся.
+    useEffect(() => {
+        console.log('[PresentationSlideEditor] mounted with', initialData?.slides?.length, 'slides')
+        return () => console.log('[PresentationSlideEditor] unmounted')
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
 
     const updateSlide = (idx: number, next: PresentationSlide) => {
         const slides = [...data.slides]

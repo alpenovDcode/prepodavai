@@ -230,7 +230,10 @@ ${pptxUrlFound ? `<a href="${pptxUrlFound}" target="_blank">Скачать PPTX<
     }
 
     const saveEdits = async (next: SlideEditorData) => {
-        if (!presentationId) return
+        if (!presentationId) {
+            toast.error('Нет presentationId — нечего сохранять')
+            return
+        }
         setSavingEdit(true)
         try {
             const res = await apiClient.patch(`/generate/${presentationId}`, {
@@ -248,7 +251,8 @@ ${pptxUrlFound ? `<a href="${pptxUrlFound}" target="_blank">Скачать PPTX<
         } catch (e: any) {
             const resp = e?.response?.data
             const msg = (Array.isArray(resp?.message) ? resp.message.join('; ') : resp?.message) || e?.message || 'Не удалось сохранить'
-            toast.error(msg)
+            console.error('[PresentationV2] saveEdits failed:', { status: e?.response?.status, data: resp, error: e })
+            toast.error(`Не удалось сохранить: ${msg}`)
         } finally {
             setSavingEdit(false)
         }
@@ -416,7 +420,10 @@ ${pptxUrlFound ? `<a href="${pptxUrlFound}" target="_blank">Скачать PPTX<
                         {hasResult && (
                             <div className="flex items-center gap-1.5 flex-wrap">
                                 {presentationData && !editing && (
-                                    <Button variant="secondary" size="sm" leftIcon={<Edit3 className="w-3.5 h-3.5" />} onClick={() => setEditing(true)}>
+                                    <Button variant="secondary" size="sm" leftIcon={<Edit3 className="w-3.5 h-3.5" />} onClick={() => {
+                                        console.log('[PresentationV2] Edit clicked. presentationData slides:', presentationData?.slides?.length)
+                                        setEditing(true)
+                                    }}>
                                         Редактировать
                                     </Button>
                                 )}
