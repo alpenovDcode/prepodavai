@@ -286,7 +286,7 @@ ${pptxUrlFound ? `<a href="${pptxUrlFound}" target="_blank">Скачать PPTX<
                         <IconTile color="success" size="md"><PresentationIcon className="w-[18px] h-[18px]" /></IconTile>
                         <div>
                             <h2 className="font-display font-bold text-[16px] text-ink-900">Презентация</h2>
-                            <p className="text-[11px] text-ink-500">PPTX/PDF · ~60 секунд</p>
+                            <p className="text-[11px] text-ink-500">PDF · ~60 секунд</p>
                         </div>
                     </div>
 
@@ -426,8 +426,8 @@ ${pptxUrlFound ? `<a href="${pptxUrlFound}" target="_blank">Скачать PPTX<
                                 <Button variant="ghost" size="sm" leftIcon={<RefreshCw className="w-3.5 h-3.5" />} onClick={generate} disabled={isGenerating || editing}>
                                     Заново
                                 </Button>
-                                <Button variant="primary" size="sm" leftIcon={<FileDown className="w-3.5 h-3.5" />} onClick={() => downloadFile('pptx')} disabled={editing}>
-                                    PPTX
+                                <Button variant="primary" size="sm" leftIcon={<FileDown className="w-3.5 h-3.5" />} onClick={() => downloadFile('pdf')} disabled={editing}>
+                                    PDF
                                 </Button>
                                 {presentationId && (
                                     <AssignTaskButton
