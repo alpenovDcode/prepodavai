@@ -129,7 +129,7 @@ window.PRESENTATION_DATA = {{DATA}};
 const LOGO_URL = '{{LOGO_URL}}';
 const TOPIC = '{{TOPIC}}';
 function esc(s){return String(s??'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}
-function renderMath(s){if(!s)return '';var t=String(s).replace(/\$\$([^$]+)\$\$/g,'\\[$1\\]').replace(/\$([^$\n]+)\$/g,'\\($1\\)');return t.replace(/[A-Za-z0-9\\(){}\[\]_^=+\-*\/<>.\s]+/g,function(m){if(/\\[\(\)\[\]]/.test(m))return m;if(!/\\[a-zA-Z]|[\^_]\{|[\^_][A-Za-z0-9]/.test(m))return m;var trimmed=m.replace(/^[\s.]+|[\s.]+$/g,'');if(!trimmed)return m;var pre=m.slice(0,m.indexOf(trimmed));var post=m.slice(pre.length+trimmed.length);return pre+'\\('+trimmed+'\\)'+post;});}
+function renderMath(s){if(!s)return '';var t=String(s).replace(/\$\$([^$]+)\$\$/g,'\\[$1\\]').replace(/\$([^$\n]+)\$/g,'\\($1\\)');if(!/[Ѐ-ӿ]/.test(t)&&!/[$]|\\\(|\\\)|\\\[|\\\]/.test(t)&&/\\(?:frac|sqrt|sum|int|prod|lim|pm|mp|cdot|circ|to|infty|leq|geq|neq|approx|alpha|beta|gamma|delta|theta|lambda|mu|sigma|pi|phi|omega)\b|[\^_]\{|[\^_][A-Za-z0-9]/.test(t)&&t.trim().length>0&&t.length<200){t='\\('+t.trim()+'\\)';}var oi=(t.match(/\\\(/g)||[]).length,ci=(t.match(/\\\)/g)||[]).length,od=(t.match(/\\\[/g)||[]).length,cd=(t.match(/\\\]/g)||[]).length;if(oi!==ci)t=t.replace(/\\\(|\\\)/g,'');if(od!==cd)t=t.replace(/\\\[|\\\]/g,'');return t;}
 function renderSlide(s,idx,total){
   const header=`<div class="slide-header"><div class="topic">${esc(TOPIC)}</div><div class="num">${String(idx+1).padStart(2,'0')} / ${String(total).padStart(2,'0')}</div></div>`;
   const foot=`<div class="footer-rule"></div><div class="footer-meta">Преподавай · ИИ Генератор</div>`;

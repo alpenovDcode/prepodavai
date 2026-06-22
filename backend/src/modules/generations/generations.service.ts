@@ -2248,6 +2248,13 @@ export class GenerationsService {
         };
         updateData.outputData = newOutput;
         this.logger.log(`[presentations] User edited ${generation.id} (${pdata.slides?.length || 0} slides)`);
+        // Возвращаем сразу — не пускаем правку дальше в общий контент-merge,
+        // иначе он перезатрёт наш newOutput.content исходным DB-значением
+        // (брал existing = generation.outputData, не updateData.outputData).
+        return this.prisma.userGeneration.update({
+          where: { id: generation.id },
+          data: updateData,
+        });
       } catch (e: any) {
         this.logger.warn(`[presentations] re-render failed on edit: ${e?.message}`);
         throw new BadRequestException(`Не удалось пересобрать презентацию: ${e?.message || e}`);
