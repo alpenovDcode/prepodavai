@@ -15,6 +15,7 @@ import {
 import { GenerationsService } from './generations.service';
 import { WorksheetV2Service } from './v2/worksheet-v2.service';
 import { TextV2Service } from './v2/text-v2.service';
+import { SkipThrottle } from '@nestjs/throttler';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { GenerationsThrottlerGuard } from '../../common/guards/generations-throttler.guard';
 import {
@@ -446,9 +447,13 @@ export class GenerationsController {
     );
   }
 
-  // Получить статус генерации
+  // Получить статус генерации. SkipThrottle — это polling-эндпоинт,
+  // фронт дёргает его раз в 15с (а с несколькими вкладками — кратно),
+  // защищать глобальным rate-limit'ом смысла нет (только GET по своим данным,
+  // JWT уже отсекает анонимов).
   @Get(':requestId')
   @UseGuards(JwtAuthGuard)
+  @SkipThrottle()
   @Header('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate')
   @Header('Pragma', 'no-cache')
   @Header('Expires', '0')
