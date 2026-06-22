@@ -1023,7 +1023,7 @@ window.MathJax = {
 
   async htmlToPdf(
     html: string,
-    options?: { blockExternalRequests?: boolean; wideMargins?: boolean },
+    options?: { blockExternalRequests?: boolean; wideMargins?: boolean; landscape?: boolean },
   ): Promise<Buffer> {
     await this.acquireSlot();
     try {
@@ -1057,7 +1057,7 @@ window.MathJax = {
 
   private async htmlToPdfOnce(
     html: string,
-    options?: { blockExternalRequests?: boolean; wideMargins?: boolean },
+    options?: { blockExternalRequests?: boolean; wideMargins?: boolean; landscape?: boolean },
   ): Promise<Buffer> {
     console.log(`[HtmlExport] Starting PDF generation, HTML length: ${html.length}`);
     await this.recycleBrowserIfNeeded();
@@ -1078,10 +1078,12 @@ window.MathJax = {
       const processedHtml = this.prepareHtml(html);
       const hasMathJax = /<script[^>]+src=["'][^"']*mathjax[^"']*["']/i.test(processedHtml);
 
-      // A4 at 96 DPI = 794×1123. Совпадение viewport со страницей PDF
-      // нужно, чтобы page.pdf() считал высоту страницы так же, как layout —
-      // иначе строки перед разрывом стабильно «съезжают».
-      await page.setViewportSize({ width: 794, height: 1123 });
+      // A4 portrait 96 DPI = 794×1123; landscape = 1123×794.
+      // Viewport должен совпадать с размером страницы PDF — иначе 100vh/100vw
+      // в слайдах считаются неверно и строки съезжают.
+      await page.setViewportSize(
+        options?.landscape ? { width: 1123, height: 794 } : { width: 794, height: 1123 },
+      );
 
       if (options?.blockExternalRequests) {
         // Bot context: block external HTTP requests to prevent hanging.
@@ -1235,12 +1237,16 @@ window.MathJax = {
       // quiz и т.п.), где внутри уже есть `.container` с собственным padding.
       // У Вау-урока контент рендерится «во всю страницу» без container'а —
       // в этом случае wideMargins даёт нормальные поля документа.
-      const pdfMargins = options?.wideMargins
-        ? { top: '40px', right: '50px', bottom: '40px', left: '50px' }
-        : { top: '20px', right: '20px', bottom: '20px', left: '20px' };
+      // Для landscape (презентации) поля нулевые — слайды сами задают padding.
+      const pdfMargins = options?.landscape
+        ? { top: '0px', right: '0px', bottom: '0px', left: '0px' }
+        : options?.wideMargins
+          ? { top: '40px', right: '50px', bottom: '40px', left: '50px' }
+          : { top: '20px', right: '20px', bottom: '20px', left: '20px' };
 
       const pdf = await page.pdf({
         format: 'A4',
+        landscape: options?.landscape ?? false,
         printBackground: true,
         margin: pdfMargins,
         preferCSSPageSize: false,

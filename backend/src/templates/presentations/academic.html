@@ -85,7 +85,7 @@ mjx-container[display="true"]{margin:18px 0;font-size:1.1em!important}
 .nav button:disabled{opacity:.3;cursor:not-allowed}
 .nav .counter{font-size:12px;font-weight:600;color:var(--text-soft);padding:0 8px;letter-spacing:.12em;min-width:60px;text-align:center}
 
-@media print{.nav{display:none}.slide{display:flex!important;opacity:1!important;page-break-after:always}}
+@media print{html,body{overflow:visible!important;height:auto!important}.deck{position:static!important;height:auto!important}.slide{position:relative!important;inset:auto!important;display:flex!important;opacity:1!important;page-break-after:always!important;break-after:page!important;height:100vh!important}.nav{display:none!important}}
 @media (max-width:900px){
   .slide{padding:40px 32px 90px}
   .header-rule,.footer-rule,.footer-meta,.slide-num,.footer-logo{left:32px;right:32px}

@@ -95,7 +95,7 @@ mjx-container[display="true"]{margin:18px 0;font-size:1.05em!important}
 .nav button:disabled{opacity:.3;cursor:not-allowed}
 .nav .counter{font-size:12px;font-weight:600;color:var(--text);padding:0 16px;letter-spacing:.1em;min-width:80px;text-align:center;border-right:1px solid var(--border);height:40px;display:inline-flex;align-items:center;justify-content:center}
 
-@media print{.nav{display:none}.slide{display:flex!important;opacity:1!important;page-break-after:always}}
+@media print{html,body{overflow:visible!important;height:auto!important}.deck{position:static!important;height:auto!important}.slide{position:relative!important;inset:auto!important;display:flex!important;opacity:1!important;page-break-after:always!important;break-after:page!important;height:100vh!important}.nav{display:none!important}}
 @media (max-width:900px){
   .slide{padding:64px 32px 80px}
   .slide-header{padding:0 32px;font-size:10px}
