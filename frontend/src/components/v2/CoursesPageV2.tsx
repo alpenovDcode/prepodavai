@@ -774,14 +774,23 @@ export default function CoursesPageV2() {
     const counts = data?.counts || {}
     const totalCount = useMemo(() => Object.values(counts).reduce((s, n) => s + n, 0), [counts])
 
-    // Вычисляем уникальные папки из данных
+    // Локальные папки (в т.ч. пустые) — хранятся в localStorage
+    const LOCAL_FOLDERS_KEY = 'courses_v2_local_folders'
+    const [localFolders, setLocalFolders] = useState<string[]>(() => {
+        if (typeof window === 'undefined') return []
+        try { return JSON.parse(localStorage.getItem(LOCAL_FOLDERS_KEY) || '[]') } catch { return [] }
+    })
+    useEffect(() => {
+        try { localStorage.setItem(LOCAL_FOLDERS_KEY, JSON.stringify(localFolders)) } catch {}
+    }, [localFolders])
+
+    // Объединяем папки из данных + локально созданные (могут быть пустыми)
     const folders = useMemo(() => {
         const set = new Set<string>()
-        for (const g of allItems) {
-            if (g.folder) set.add(g.folder)
-        }
+        for (const g of allItems) { if (g.folder) set.add(g.folder) }
+        for (const f of localFolders) set.add(f)
         return Array.from(set).sort((a, b) => a.localeCompare(b, 'ru'))
-    }, [allItems])
+    }, [allItems, localFolders])
 
     // Счётчики по папкам
     const folderCounts = useMemo(() => {
@@ -961,15 +970,13 @@ export default function CoursesPageV2() {
                     ...prev,
                     items: prev.items.map(g => g.folder === folderRenameOld ? { ...g, folder: name } : g),
                 } : prev, { revalidate: false })
+                setLocalFolders(prev => prev.map(f => f === folderRenameOld ? name : f))
                 if (activeFolder === folderRenameOld) setActiveFolder(name)
                 toast.success('Папка переименована')
             } else {
-                // Просто создаём папку — она появится когда добавим туда что-нибудь
-                // Переключаем на неё для UX
-                toast.success(`Папка «${name}» создана. Перетащите сюда материалы.`)
-                // Добавляем пустую папку через мутацию (фиктивно — она появится только с материалами)
-                // Активируем её, чтобы показать пустой экран с подсказкой
+                setLocalFolders(prev => prev.includes(name) ? prev : [...prev, name])
                 setActiveFolder(name)
+                toast.success(`Папка «${name}» создана`)
             }
             setFolderModalMode(null)
         } catch {
@@ -988,6 +995,7 @@ export default function CoursesPageV2() {
                 ...prev,
                 items: prev.items.map(g => g.folder === name ? { ...g, folder: null } : g),
             } : prev, { revalidate: false })
+            setLocalFolders(prev => prev.filter(f => f !== name))
             if (activeFolder === name) setActiveFolder(null)
             toast.success(`Папка «${name}» удалена`)
         } catch {
