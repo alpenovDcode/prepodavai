@@ -349,6 +349,7 @@ export default function MaterialViewerV2({ lessonId, generationId, isEditable = 
         lessonId && lessonId !== generationId ? lessonId : null,
     )
     const [showPdf, setShowPdf] = useState(false)
+    const [downloadingPptx, setDownloadingPptx] = useState(false)
     const [showMenu, setShowMenu] = useState(false)
     const menuRef = useRef<HTMLDivElement>(null)
 
@@ -429,7 +430,28 @@ export default function MaterialViewerV2({ lessonId, generationId, isEditable = 
     }, [showMenu])
 
     const genType = generation?.generationType || ''
+    const isPresentation = genType === 'presentation'
     const isLessonPrep = genType === 'lesson_preparation' || genType === 'lesson-preparation'
+
+    const handleDownloadPptx = async () => {
+        if (!generation) return
+        setDownloadingPptx(true)
+        try {
+            const res = await apiClient.post(`/generate/${generation.id}/presentation/pptx`, {}, { responseType: 'blob' })
+            const url = URL.createObjectURL(res.data)
+            const a = document.createElement('a')
+            a.href = url
+            a.download = `${displayTitle || 'presentation'}.pptx`
+            document.body.appendChild(a)
+            a.click()
+            document.body.removeChild(a)
+            URL.revokeObjectURL(url)
+        } catch {
+            toast.error('Не удалось скачать PPTX')
+        } finally {
+            setDownloadingPptx(false)
+        }
+    }
 
     // Секции Вау-урока: [{ title, content }]. Берём массив для табов.
     const sections = useMemo<Array<{ title: string; content: string }>>(() => {
@@ -772,11 +794,13 @@ export default function MaterialViewerV2({ lessonId, generationId, isEditable = 
                             variant="secondary"
                             size="sm"
                             leftIcon={<Download className="w-3.5 h-3.5" />}
-                            onClick={() => setShowPdf(true)}
-                            disabled={tab === 'edit'}
-                            title="Скачать PDF"
+                            onClick={() => isPresentation ? handleDownloadPptx() : setShowPdf(true)}
+                            disabled={tab === 'edit' || downloadingPptx}
+                            title={isPresentation ? 'Скачать PPTX' : 'Скачать PDF'}
                         >
-                            <span className="max-sm:hidden">Скачать</span>
+                            <span className="max-sm:hidden">
+                                {isPresentation ? (downloadingPptx ? 'Скачиваем…' : 'Скачать PPTX') : 'Скачать'}
+                            </span>
                         </Button>
                         <Button variant="primary" size="sm" leftIcon={<Send className="w-3.5 h-3.5" />} onClick={openAssignModal} disabled={preparingAssign}>
                             <span className="max-sm:hidden">{preparingAssign ? 'Готовим…' : 'Выдать ученикам'}</span>

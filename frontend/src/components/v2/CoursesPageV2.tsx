@@ -351,7 +351,6 @@ function CardMenu({
                     {type === 'presentation' ? (
                         <>
                             <MenuItem icon={<Download />} onClick={action(handleDownloadPptx)}>Скачать PPTX</MenuItem>
-                            <MenuItem icon={<Download />} onClick={action(() => window.open(`/api/generate/${genId}/pdf`, '_blank'))}>Скачать PDF</MenuItem>
                         </>
                     ) : type === 'image' ? (
                         <>
