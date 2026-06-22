@@ -3,6 +3,7 @@ import { Logger } from '@nestjs/common';
 import { Job, Queue } from 'bullmq';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
+import { HttpsProxyAgent } from 'https-proxy-agent';
 import { marked } from 'marked';
 import { GenerationHelpersService } from '../generation-helpers.service';
 import { PrismaService } from '../../../common/prisma/prisma.service';
@@ -29,6 +30,8 @@ export interface LessonPreparationJobData {
 export class LessonPreparationProcessor extends WorkerHost {
   private readonly logger = new Logger(LessonPreparationProcessor.name);
   private readonly replicateToken: string;
+  // Прокси для egress к api.replicate.com (РКН блок). Тот же URL, что у бота.
+  private readonly proxyAgent: HttpsProxyAgent<string> | undefined;
 
   constructor(
     private readonly configService: ConfigService,
@@ -45,6 +48,26 @@ export class LessonPreparationProcessor extends WorkerHost {
       this.logger.warn(
         'REPLICATE_API_TOKEN is not configured. Lesson preparation generation will not work.',
       );
+    }
+
+    const proxyUrl = (
+      this.configService.get<string>('REPLICATE_PROXY') ||
+      this.configService.get<string>('TELEGRAM_PROXY') ||
+      this.configService.get<string>('HTTPS_PROXY') ||
+      this.configService.get<string>('https_proxy') ||
+      this.configService.get<string>('ALL_PROXY') ||
+      ''
+    ).trim();
+    if (proxyUrl) {
+      try {
+        this.proxyAgent = new HttpsProxyAgent(proxyUrl);
+        const u = new URL(proxyUrl);
+        this.logger.log(
+          `Replicate egress (lesson-preparation) через прокси: ${u.protocol}//${u.host}`,
+        );
+      } catch (e) {
+        this.logger.error(`Failed to init proxy agent: ${(e as Error).message}`);
+      }
     }
   }
 
@@ -1461,6 +1484,7 @@ ${context || '(первый раздел — без контекста)'}
               'Content-Type': 'application/json',
               Prefer: 'wait',
             },
+            ...(this.proxyAgent ? { httpsAgent: this.proxyAgent, proxy: false } : {}),
           },
         );
 
@@ -1512,6 +1536,7 @@ ${context || '(первый раздел — без контекста)'}
           Authorization: `Bearer ${this.replicateToken}`,
           'Content-Type': 'application/json',
         },
+        ...(this.proxyAgent ? { httpsAgent: this.proxyAgent, proxy: false } : {}),
       });
 
       const prediction = response.data;

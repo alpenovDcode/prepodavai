@@ -1,12 +1,56 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
+import { ValidationPipe, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import helmet from 'helmet';
 import * as compression from 'compression';
+import axios from 'axios';
+import { HttpsProxyAgent } from 'https-proxy-agent';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 
+/**
+ * Глобальный axios-интерсептор: автоматически проксирует ВСЕ запросы к Replicate
+ * (api.replicate.com, *.replicate.delivery) через HTTPS-прокси, если он задан в env.
+ * Причина: РКН блокирует прямой путь к Replicate с РФ-хостинга. На прод-сервере
+ * уже поднят tinyproxy для Telegram (TELEGRAM_PROXY) — переиспользуем его.
+ *
+ * Применяется к любому коду — replicate.service, processors, прямые axios.post —
+ * не нужно дёргать каждый вызов вручную. Прокси задаётся одним из env (порядок
+ * приоритета): REPLICATE_PROXY, TELEGRAM_PROXY, HTTPS_PROXY, https_proxy, ALL_PROXY.
+ */
+function setupReplicateProxyInterceptor() {
+  const proxyUrl = (
+    process.env.REPLICATE_PROXY ||
+    process.env.TELEGRAM_PROXY ||
+    process.env.HTTPS_PROXY ||
+    process.env.https_proxy ||
+    process.env.ALL_PROXY ||
+    ''
+  ).trim();
+  if (!proxyUrl) return;
+  let agent: HttpsProxyAgent<string>;
+  try {
+    agent = new HttpsProxyAgent(proxyUrl);
+  } catch (e) {
+    Logger.error(`[bootstrap] Bad proxy URL "${proxyUrl}": ${(e as Error).message}`);
+    return;
+  }
+  const u = new URL(proxyUrl);
+  Logger.log(
+    `[bootstrap] Routing api.replicate.com/replicate.delivery через прокси ${u.protocol}//${u.host}`,
+  );
+  axios.interceptors.request.use((config) => {
+    const url = (config.baseURL || '') + (config.url || '');
+    if (/api\.replicate\.com|replicate\.delivery/i.test(url)) {
+      config.httpsAgent = agent;
+      config.proxy = false;
+    }
+    return config;
+  });
+}
+
 async function bootstrap() {
+  setupReplicateProxyInterceptor();
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService);
 

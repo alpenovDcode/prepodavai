@@ -76,6 +76,11 @@ services:
       CONTENT_BASE_URL: ${CONTENT_BASE_URL:-https://content.prepodavai.ru}
       # Replicate API
       REPLICATE_API_TOKEN: ${REPLICATE_API_TOKEN}
+      # Egress-прокси для Replicate (РКН блокирует прямой путь). Тот же URL,
+      # что использует telegram-bot для api.telegram.org. Если не задано —
+      # axios идёт напрямую (поведение до правки сохранено).
+      REPLICATE_PROXY: ${REPLICATE_PROXY:-}
+      TELEGRAM_PROXY: ${TELEGRAM_PROXY:-}
       # Polza.ai API
       POLZA_AI_API_KEY: ${POLZA_AI_API_KEY}
       # AssemblyAI API
