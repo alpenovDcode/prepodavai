@@ -57,6 +57,12 @@ export class UpdateGenerationDto {
   @IsObject()
   @IsOptional()
   outputData?: Record<string, unknown>;
+
+  // Для презентаций: структурированные данные слайдов. Backend пере-рендерит
+  // HTML и сбросит pdfUrl/pptxUrl (форсируем пересборку файлов при скачивании).
+  @IsObject()
+  @IsOptional()
+  presentationData?: Record<string, unknown>;
 }
 
 /**

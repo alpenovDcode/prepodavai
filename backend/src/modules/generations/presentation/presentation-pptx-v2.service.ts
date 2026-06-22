@@ -423,6 +423,48 @@ export class PresentationPptxV2Service {
         }
         break;
       }
+
+      case 'image-text': {
+        s.addText(this.latex(slide.title || ''), {
+          x: 0.6, y: 0.9, w: 12, h: 0.8,
+          fontSize: 32, fontFace: 'Inter', bold: true, color: fgText,
+        });
+        const items = slide.items ?? [];
+        const hasImg = !!slide.imageUrl;
+        const listW = hasImg ? 5.8 : 12;
+        const startY = 2.0;
+        const lineH = items.length > 5 ? 0.55 : 0.7;
+        const fontPx = items.length > 5 ? 14 : 16;
+        for (let i = 0; i < items.length; i++) {
+          const item = items[i];
+          s.addShape('ellipse', {
+            x: 0.7, y: startY + i * lineH + 0.18, w: 0.10, h: 0.10,
+            fill: { color: COL.accent }, line: { color: COL.accent, width: 0 },
+          });
+          const box = { x: 0.95, y: startY + i * lineH, w: listW - 0.35, h: lineH };
+          const rendered = this.isPureFormula(item)
+            ? await this.tryAddFormulaImage(s, item, box, fgSoft, fontPx)
+            : false;
+          if (!rendered) {
+            s.addText(this.latex(item), {
+              ...box,
+              fontSize: fontPx, fontFace: 'Inter', color: fgSoft, valign: 'top',
+            });
+          }
+        }
+        if (hasImg) {
+          try {
+            s.addImage({
+              path: slide.imageUrl,
+              x: 6.8, y: 2.0, w: 5.8, h: 4.5,
+              sizing: { type: 'contain', w: 5.8, h: 4.5 },
+            });
+          } catch (e: any) {
+            this.logger.warn(`[pptx] image-text addImage failed: ${e?.message}`);
+          }
+        }
+        break;
+      }
     }
   }
 }

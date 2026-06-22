@@ -28,6 +28,7 @@ import { DocumentRenderer } from '@/components/blocks/DocumentRenderer'
 import { isJsonBlocksFormat, GenerationDocument as GenerationDocumentSchema, JSON_BLOCKS_FORMAT } from '@/lib/blocks/schema'
 import type { GenerationDocument as GenerationDocumentT } from '@/lib/blocks/schema'
 import { DocumentEditor } from '@/components/blocks/editor/DocumentEditor'
+import PresentationSlideEditor, { type PresentationData as SlideEditorData } from '@/components/v2/PresentationSlideEditor'
 
 interface Props {
     lessonId: string
@@ -432,6 +433,15 @@ export default function MaterialViewerV2({ lessonId, generationId, isEditable = 
     const genType = generation?.generationType || ''
     const isPresentation = genType === 'presentation'
     const isLessonPrep = genType === 'lesson_preparation' || genType === 'lesson-preparation'
+
+    // Структурированные данные презентации (если есть). Редактор работает только когда они есть.
+    const presentationData: SlideEditorData | null = useMemo(() => {
+        if (!isPresentation) return null
+        const od: any = generation?.outputData
+        const pd = od?.presentationData
+        if (pd && Array.isArray(pd.slides) && pd.slides.length > 0) return pd as SlideEditorData
+        return null
+    }, [isPresentation, generation?.outputData])
 
     const handleDownloadPptx = async () => {
         if (!generation) return
@@ -973,12 +983,12 @@ export default function MaterialViewerV2({ lessonId, generationId, isEditable = 
                     {typeHasAnswers(genType) && (
                         <TabBtn active={tab === 'answers'} onClick={() => setTab('answers')} icon={<KeyRound className="w-4 h-4" />}>С ответами</TabBtn>
                     )}
-                    {/* Кнопка редактирования: JSON — DocumentEditor, HTML — contentEditable iframe. */}
-                    {(isV2 || !!srcDoc) && (
+                    {/* Кнопка редактирования: JSON — DocumentEditor, HTML — contentEditable iframe, презентация — PresentationSlideEditor. */}
+                    {(isV2 || !!srcDoc || !!presentationData) && (
                         <TabBtn active={tab === 'edit'} onClick={() => setTab('edit')} icon={<Edit3 className="w-4 h-4" />} data-tour="edit-tab">Редактировать</TabBtn>
                     )}
 
-                    {tab === 'edit' && !isV2 && (
+                    {tab === 'edit' && !isV2 && !presentationData && (
                         <div className="ml-auto flex items-center gap-1.5 pb-2">
                             <Button variant="ghost" size="sm" leftIcon={<X className="w-3.5 h-3.5" />} onClick={() => setTab('preview')} disabled={savingHtml}>
                                 Отмена
@@ -991,7 +1001,34 @@ export default function MaterialViewerV2({ lessonId, generationId, isEditable = 
                 </div>
 
                 {/* Preview frame */}
-                {isV2 && v2Doc && tab === 'edit' ? (
+                {presentationData && tab === 'edit' ? (
+                    <div className="bg-surface border border-ink-200 rounded-lg overflow-hidden h-[calc(100vh-260px)] min-h-[500px]">
+                        <PresentationSlideEditor
+                            initialData={presentationData}
+                            saving={savingHtml}
+                            onCancel={() => setTab('preview')}
+                            onSave={async (next) => {
+                                setSavingHtml(true)
+                                try {
+                                    const res = await apiClient.patch(`/generate/${generation.id}`, {
+                                        presentationData: next,
+                                    })
+                                    // Backend пересобрал content (HTML). Подменяем outputData локально, чтобы превью показало новое.
+                                    const newOutput = res?.data?.outputData ?? res?.data?.result
+                                    setGeneration((g) => g ? { ...g, outputData: newOutput ?? { ...(g.outputData || {}), presentationData: next } } : g)
+                                    toast.success('Презентация обновлена')
+                                    setTab('preview')
+                                } catch (err: any) {
+                                    const resp = err?.response?.data
+                                    const msg = (Array.isArray(resp?.message) ? resp.message.join('; ') : resp?.message) || err?.message || 'Не удалось сохранить'
+                                    toast.error(msg)
+                                } finally {
+                                    setSavingHtml(false)
+                                }
+                            }}
+                        />
+                    </div>
+                ) : isV2 && v2Doc && tab === 'edit' ? (
                     <div className="bg-ink-50 rounded-lg p-4 max-md:p-2">
                         <DocumentEditor
                             initialDoc={v2Doc}

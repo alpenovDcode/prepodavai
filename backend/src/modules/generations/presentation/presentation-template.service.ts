@@ -38,7 +38,7 @@ export interface PresentationParams {
  * Расширять можно добавив новый case в renderSlide() в HTML-шаблонах.
  */
 export const PRESENTATION_LAYOUTS = [
-  'title', 'bullets', 'two-column', 'quote', 'summary', 'content',
+  'title', 'bullets', 'two-column', 'quote', 'summary', 'content', 'image-text',
 ] as const;
 export type PresentationLayout = (typeof PRESENTATION_LAYOUTS)[number];
 
@@ -56,6 +56,8 @@ export interface PresentationSlide {
   author?: string;
   paragraphs?: string[];
   meta?: string;
+  imageUrl?: string;  // для image-text layout
+  imageAlt?: string;
 }
 
 export interface PresentationData {
@@ -324,6 +326,8 @@ ${p.text ? `ИСХОДНЫЕ ТЕЗИСЫ/ТЕКСТ:\n${p.text}\n` : ''}
         author: s.author || undefined,
         paragraphs: Array.isArray(s.paragraphs) ? s.paragraphs.map(String) : undefined,
         meta: s.meta || undefined,
+        imageUrl: s.imageUrl || undefined,
+        imageAlt: s.imageAlt || undefined,
       };
     });
 

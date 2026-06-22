@@ -1435,7 +1435,7 @@ export class GenerationsService {
       // v2: правильное извлечение полей (paragraph, leftColumn/rightColumn, quote, quiz).
       // Презентации мигрированные старой (багованной) версией не имеют _migv — их
       // нужно пере-мигрировать из сохранённого slideDoc.
-      const MIG_VERSION = 3;
+      const MIG_VERSION = 4;
       const needsMigration = cur?.slideDoc && (!cur?.content || cur?._migv !== MIG_VERSION);
       if (needsMigration) {
         try {
@@ -1473,7 +1473,7 @@ export class GenerationsService {
     const slideDoc = result.slideDoc ?? {};
     const OLD_LAYOUTS: Record<string, PresentationLayout> = {
       title: 'title', agenda: 'bullets', bullets: 'bullets',
-      'two-column': 'two-column', 'image-text': 'content',
+      'two-column': 'two-column', 'image-text': 'image-text',
       quote: 'quote', quiz: 'bullets', summary: 'summary', content: 'content',
     };
     const THEME_TO_COLOR: Record<string, PresentationColor> = {
@@ -1524,9 +1524,20 @@ export class GenerationsService {
         case 'summary':
           slide.items = [...(c.bullets || []).map(String), ...math];
           break;
+        case 'image-text': {
+          // bullets + paragraph слева, картинка справа
+          const items: string[] = [];
+          if (Array.isArray(c.bullets)) items.push(...c.bullets.map(String));
+          if (c.paragraph) items.push(String(c.paragraph));
+          items.push(...math);
+          slide.items = items;
+          if (old?.image?.url) slide.imageUrl = String(old.image.url);
+          if (old?.image?.alt) slide.imageAlt = String(old.image.alt);
+          break;
+        }
         case 'content':
         default: {
-          // image-text и прочее: paragraph (единственное число) + math
+          // обычный content: paragraph + bullets + math
           const paras: string[] = [];
           if (c.paragraph) paras.push(String(c.paragraph));
           if (Array.isArray(c.bullets)) paras.push(...c.bullets.map((b: any) => `• ${b}`));
@@ -2213,6 +2224,34 @@ export class GenerationsService {
     if (typeof data?.folder === 'string') {
       const trimmed = data.folder.trim().slice(0, 100);
       updateData.folder = trimmed.length > 0 ? trimmed : null;
+    }
+
+    // Редактирование презентации: фронт присылает обновлённый presentationData,
+    // мы пере-рендерим HTML (теми же шаблонами что и превью) и сбрасываем
+    // pdfUrl/pptxUrl чтобы при следующем скачивании файлы пересобрались из
+    // нового HTML/JSON.
+    if (data?.presentationData && typeof data.presentationData === 'object') {
+      try {
+        const pdata = data.presentationData as PresentationData;
+        const html = await this.presentationTemplateService.renderHtml(pdata);
+        const currentOutput = (generation.outputData as any) ?? {};
+        const newOutput = {
+          ...currentOutput,
+          content: html,
+          presentationData: pdata,
+          // Сбрасываем url'ы, чтобы при следующем скачивании пересобрались.
+          pdfUrl: null,
+          pptxUrl: null,
+          exportUrl: null,
+          // Помечаем что это пользовательская правка (не миграция).
+          _userEdited: true,
+        };
+        updateData.outputData = newOutput;
+        this.logger.log(`[presentations] User edited ${generation.id} (${pdata.slides?.length || 0} slides)`);
+      } catch (e: any) {
+        this.logger.warn(`[presentations] re-render failed on edit: ${e?.message}`);
+        throw new BadRequestException(`Не удалось пересобрать презентацию: ${e?.message || e}`);
+      }
     }
 
     // Контент-payload. Канонично приходит в `outputData`; старые вызовы клали

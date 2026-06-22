@@ -75,6 +75,13 @@ p,li{font-size:22px;line-height:1.6;color:var(--text-soft)}
 .layout-content .body p:first-of-type{text-indent:0}
 .layout-content .body p:first-of-type::first-letter{font-size:64px;font-weight:700;color:var(--accent);float:left;line-height:1;padding:6px 12px 0 0}
 
+/* layout: image-text */
+.layout-image-text .image-text{display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:start;max-width:1280px;margin-top:16px}
+.layout-image-text .image-text-list{list-style:disc;padding-left:24px}
+.layout-image-text .image-text-list li{font-size:20px;line-height:1.55;margin-bottom:14px;color:var(--text)}
+.layout-image-text .image-text-img{display:flex;align-items:center;justify-content:center}
+.layout-image-text .image-text-img img{max-width:100%;max-height:480px;object-fit:contain}
+
 /* math */
 mjx-container[display="true"]{margin:18px 0;font-size:1.1em!important}
 
@@ -134,6 +141,9 @@ function renderSlide(s, idx, total){
       break;
     case 'content':
       body = `<h2>${esc(s.title)}</h2><div class="body">${(s.paragraphs||[]).map(p=>`<p>${renderMath(esc(p))}</p>`).join('')}</div>`;
+      break;
+    case 'image-text':
+      body = `<h2>${esc(s.title)}</h2><div class="image-text"><ul class="image-text-list">${(s.items||[]).map(i=>`<li>${renderMath(esc(i))}</li>`).join('')}</ul>${s.imageUrl?`<div class="image-text-img"><img src="${esc(s.imageUrl)}" alt="${esc(s.imageAlt||'')}"></div>`:''}</div>`;
       break;
     default:
       body = `<h2>${esc(s.title||s.layout)}</h2><p>${renderMath(esc(s.text||''))}</p>`;
