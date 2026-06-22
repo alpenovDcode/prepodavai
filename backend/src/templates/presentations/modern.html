@@ -101,7 +101,13 @@ const LOGO_URL = '{{LOGO_URL}}';
 function esc(s){return String(s??'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}
 function renderMath(s){
   if(!s) return '';
-  return String(s).replace(/\$\$([^$]+)\$\$/g,'\\[$1\\]').replace(/\$([^$\n]+)\$/g,'\\($1\\)');
+  var t = String(s).replace(/\$\$([^$]+)\$\$/g,'\\[$1\\]').replace(/\$([^$\n]+)\$/g,'\\($1\\)');
+  return t.replace(/[A-Za-z0-9\\(){}\[\]_^=+\-*\/<>,;:.\s]+/g, function(m){
+    if(/\\[\(\)\[\]]/.test(m)) return m;
+    if(!/\\[a-zA-Z]|[\^_][\{A-Za-z0-9]/.test(m)) return m;
+    var l=m.match(/^\s*/)[0], r=m.match(/\s*$/)[0], c=m.slice(l.length, m.length-r.length);
+    return c ? l+'\\('+c+'\\)'+r : m;
+  });
 }
 
 function renderSlide(s, idx, total){

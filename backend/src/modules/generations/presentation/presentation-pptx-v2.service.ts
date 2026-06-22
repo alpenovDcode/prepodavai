@@ -90,9 +90,12 @@ export class PresentationPptxV2Service {
     return buf as Buffer;
   }
 
-  /** Конвертирует LaTeX-разметку ($...$) в читаемый текст с Unicode-символами. */
+  /** Конвертирует LaTeX-разметку (в $...$ или голую) в Unicode-текст. */
   private latex(text: string): string {
-    if (!text || !text.includes('$')) return text;
+    if (!text) return text;
+    // Голый LaTeX вне $...$ тоже нужно обрабатывать: если есть \cmd или ^/_ — гоним через convert.
+    const hasMath = text.includes('$') || /\\[a-zA-Z]+|[\^_][\{A-Za-z0-9]/.test(text);
+    if (!hasMath) return text;
 
     const convert = (expr: string): string => {
       let s = expr.trim();
@@ -172,9 +175,14 @@ export class PresentationPptxV2Service {
     };
 
     // Сначала $$...$$, потом $...$
-    return text
+    let out = text
       .replace(/\$\$([^$]+)\$\$/g, (_, e) => convert(e))
       .replace(/\$([^$\n]+?)\$/g, (_, e) => convert(e));
+    // Голый LaTeX вне $...$ (n8n присылает без обёртки) — конвертим то, что осталось.
+    if (/\\[a-zA-Z]+|[\^_][\{A-Za-z0-9]/.test(out)) {
+      out = convert(out);
+    }
+    return out;
   }
 
   private renderLayout(
