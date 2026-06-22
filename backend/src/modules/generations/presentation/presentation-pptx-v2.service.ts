@@ -6,6 +6,7 @@ import {
   PresentationColor,
 } from './presentation-template.service';
 import { LOGO_BASE64 } from '../generation.constants';
+import { MathRendererService } from './math-renderer.service';
 
 // pptxgenjs не имеет нормальных типов для default import под тот tsconfig что есть в проекте.
 // games.service делает то же самое — этот паттерн стандартный для проекта.
@@ -25,6 +26,8 @@ const PptxGenJS: any = require('pptxgenjs');
 @Injectable()
 export class PresentationPptxV2Service {
   private readonly logger = new Logger(PresentationPptxV2Service.name);
+
+  constructor(private readonly mathRenderer: MathRendererService) {}
 
   async build(data: PresentationData): Promise<Buffer> {
     const palette = PRESENTATION_COLORS[(data.color as PresentationColor) ?? 'indigo'];
@@ -50,7 +53,8 @@ export class PresentationPptxV2Service {
     const fgText = isDark ? 'FFFFFF' : COL.text;
     const fgSoft = isDark ? 'C7C9D9' : COL.textSoft;
 
-    data.slides.forEach((slide, idx) => {
+    for (let idx = 0; idx < data.slides.length; idx++) {
+      const slide = data.slides[idx];
       const s: any = pres.addSlide();
       s.background = { color: COL.bg };
 
@@ -68,7 +72,7 @@ export class PresentationPptxV2Service {
         }
       }
 
-      this.renderLayout(s, slide, { COL, isDark, fgText, fgSoft });
+      await this.renderLayout(s, slide, { COL, isDark, fgText, fgSoft });
 
       // Логотип 32×32 (≈ 0.33×0.33 inch) — на каждом слайде в правом нижнем углу
       try {
@@ -84,7 +88,7 @@ export class PresentationPptxV2Service {
       // Speaker note: первая значимая строка слайда
       const note = slide.subtitle || slide.text || slide.items?.[0] || '';
       if (note) s.addNotes(this.latex(String(note)));
-    });
+    }
 
     const buf = await pres.write({ outputType: 'nodebuffer' });
     return buf as Buffer;
@@ -189,11 +193,55 @@ export class PresentationPptxV2Service {
     return out;
   }
 
-  private renderLayout(
+  /** Целая ли строка — формула (LaTeX без кириллицы)? */
+  private isPureFormula(text: string): boolean {
+    if (!text) return false;
+    if (/[А-Яа-яЁё]/.test(text)) return false;
+    return /\\[a-zA-Z]+|[\^_][\{A-Za-z0-9]|\$/.test(text);
+  }
+
+  /**
+   * Рендерит формульный bullet/строку как картинку через MathJax.
+   * Если MathJax падает — fallback на текстовую версию с Unicode.
+   * Возвращает true если успешно вставлено как картинка.
+   */
+  private async tryAddFormulaImage(
+    s: any,
+    latex: string,
+    box: { x: number; y: number; w: number; h: number },
+    color: string,
+    fontPx: number,
+  ): Promise<boolean> {
+    // Убираем обёртки $...$ — MathJax ждёт чистый LaTeX.
+    const raw = latex.replace(/^\s*\$\$?|\$\$?\s*$/g, '').trim();
+    const img = await this.mathRenderer.renderToDataUri(raw, { color: '#' + color, display: true });
+    if (!img) return false;
+    // Em → дюймы. Базовый em ≈ fontPx/72. Прижимаем к высоте box.
+    const emToInch = fontPx / 72;
+    let w = img.widthEm * emToInch;
+    let h = img.heightEm * emToInch;
+    // Не вылезаем за box: масштабируем пропорционально.
+    if (h > box.h) { const k = box.h / h; w *= k; h *= k; }
+    if (w > box.w) { const k = box.w / w; w *= k; h *= k; }
+    try {
+      s.addImage({
+        data: img.dataUri,
+        x: box.x,
+        y: box.y + Math.max(0, (box.h - h) / 2),
+        w, h,
+      });
+      return true;
+    } catch (e: any) {
+      this.logger.warn(`[math] addImage failed: ${e?.message}`);
+      return false;
+    }
+  }
+
+  private async renderLayout(
     s: any,
     slide: PresentationSlide,
     ctx: { COL: any; isDark: boolean; fgText: string; fgSoft: string },
-  ) {
+  ): Promise<void> {
     const { COL, fgText, fgSoft } = ctx;
 
     switch (slide.layout) {
@@ -234,16 +282,24 @@ export class PresentationPptxV2Service {
         const items = slide.items ?? [];
         const startY = 2.0;
         const lineH = items.length > 5 ? 0.55 : 0.7;
-        items.forEach((item, i) => {
+        const fontPx = items.length > 5 ? 16 : 18;
+        for (let i = 0; i < items.length; i++) {
+          const item = items[i];
           s.addShape('ellipse', {
             x: 0.7, y: startY + i * lineH + 0.18, w: 0.12, h: 0.12,
             fill: { color: COL.accent }, line: { color: COL.accent, width: 0 },
           });
-          s.addText(this.latex(item), {
-            x: 1.0, y: startY + i * lineH, w: 11.5, h: lineH,
-            fontSize: items.length > 5 ? 16 : 18, fontFace: 'Inter', color: fgSoft, valign: 'top',
-          });
-        });
+          const box = { x: 1.0, y: startY + i * lineH, w: 11.5, h: lineH };
+          const rendered = this.isPureFormula(item)
+            ? await this.tryAddFormulaImage(s, item, box, fgSoft, fontPx)
+            : false;
+          if (!rendered) {
+            s.addText(this.latex(item), {
+              ...box,
+              fontSize: fontPx, fontFace: 'Inter', color: fgSoft, valign: 'top',
+            });
+          }
+        }
         break;
       }
 
@@ -308,7 +364,8 @@ export class PresentationPptxV2Service {
         const rows = Math.ceil(items.length / cols);
         const cellW = 6.0;
         const cellH = Math.min(1.4, 4.5 / rows);
-        items.forEach((item, i) => {
+        for (let i = 0; i < items.length; i++) {
+          const item = items[i];
           const r = Math.floor(i / cols);
           const c = i % cols;
           const x = 0.6 + c * (cellW + 0.4);
@@ -323,11 +380,17 @@ export class PresentationPptxV2Service {
             fontSize: 12, fontFace: 'Inter', bold: true, color: COL.accent,
             charSpacing: 150,
           });
-          s.addText(this.latex(item), {
-            x: x + 0.2, y: y + 0.55, w: cellW - 0.4, h: cellH - 0.65,
-            fontSize: 13, fontFace: 'Inter', bold: true, color: fgText, valign: 'top',
-          });
-        });
+          const box = { x: x + 0.2, y: y + 0.55, w: cellW - 0.4, h: cellH - 0.65 };
+          const rendered = this.isPureFormula(item)
+            ? await this.tryAddFormulaImage(s, item, box, fgText, 13)
+            : false;
+          if (!rendered) {
+            s.addText(this.latex(item), {
+              ...box,
+              fontSize: 13, fontFace: 'Inter', bold: true, color: fgText, valign: 'top',
+            });
+          }
+        }
         break;
       }
 
@@ -337,14 +400,27 @@ export class PresentationPptxV2Service {
           x: 0.6, y: 0.9, w: 12, h: 0.8,
           fontSize: 32, fontFace: 'Inter', bold: true, color: fgText,
         });
-        const text = (slide.paragraphs && slide.paragraphs.length)
-          ? slide.paragraphs.map(p => this.latex(p)).join('\n\n')
-          : this.latex(slide.text || '');
-        s.addText(text, {
-          x: 0.6, y: 2.0, w: 12, h: 5,
-          fontSize: 16, fontFace: 'Inter', color: fgSoft, valign: 'top',
-          paraSpaceAfter: 12,
-        });
+        const paras = (slide.paragraphs && slide.paragraphs.length)
+          ? slide.paragraphs
+          : (slide.text ? [slide.text] : []);
+        // Раскладываем параграфы вертикально, формульные — как картинки.
+        const startY = 2.0;
+        const totalH = 5.0;
+        const blockH = paras.length > 0 ? totalH / paras.length : totalH;
+        for (let i = 0; i < paras.length; i++) {
+          const p = paras[i];
+          const box = { x: 0.6, y: startY + i * blockH, w: 12, h: blockH };
+          const rendered = this.isPureFormula(p)
+            ? await this.tryAddFormulaImage(s, p, box, fgSoft, 16)
+            : false;
+          if (!rendered) {
+            s.addText(this.latex(p), {
+              ...box,
+              fontSize: 16, fontFace: 'Inter', color: fgSoft, valign: 'top',
+              paraSpaceAfter: 12,
+            });
+          }
+        }
         break;
       }
     }

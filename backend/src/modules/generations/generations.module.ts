@@ -8,6 +8,7 @@ import { GammaPollingProcessor } from './processors/gamma-polling.processor';
 import { ReplicatePresentationProcessor } from './processors/replicate-presentation.processor';
 import { PresentationTemplateService } from './presentation/presentation-template.service';
 import { PresentationPptxV2Service } from './presentation/presentation-pptx-v2.service';
+import { MathRendererService } from './presentation/math-renderer.service';
 import { LessonPreparationProcessor } from './processors/lesson-preparation.processor';
 // import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 
@@ -90,6 +91,7 @@ import { TextV2Service } from './v2/text-v2.service';
     ReplicatePresentationProcessor,
     PresentationTemplateService,
     PresentationPptxV2Service,
+    MathRendererService,
     LessonPreparationProcessor,
     VideoAnalysisProcessor,
     SalesAdvisorProcessor,
