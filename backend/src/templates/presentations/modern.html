@@ -110,11 +110,18 @@ function esc(s){return String(s??'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;
 function renderMath(s){
   if(!s) return '';
   var t = String(s).replace(/\$\$([^$]+)\$\$/g,'\\[$1\\]').replace(/\$([^$\n]+)\$/g,'\\($1\\)');
-  return t.replace(/[A-Za-z0-9\\(){}\[\]_^=+\-*\/<>,;:.\s]+/g, function(m){
+  // Голый LaTeX: оборачиваем фрагменты с \cmd или ^{/_{ или \cmd{}.
+  // Запятые/двоеточия НЕ включаем в класс — они разрывают чанк, чтобы
+  // ведущая пунктуация не лезла внутрь \(...\) и не путала MathJax.
+  return t.replace(/[A-Za-z0-9\\(){}\[\]_^=+\-*\/<>.\s]+/g, function(m){
     if(/\\[\(\)\[\]]/.test(m)) return m;
-    if(!/\\[a-zA-Z]|[\^_][\{A-Za-z0-9]/.test(m)) return m;
-    var l=m.match(/^\s*/)[0], r=m.match(/\s*$/)[0], c=m.slice(l.length, m.length-r.length);
-    return c ? l+'\\('+c+'\\)'+r : m;
+    if(!/\\[a-zA-Z]|[\^_]\{|[\^_][A-Za-z0-9]/.test(m)) return m;
+    // Срезаем ведущие/хвостовые пробелы и пунктуацию.
+    var trimmed = m.replace(/^[\s.]+|[\s.]+$/g,'');
+    if(!trimmed) return m;
+    var pre = m.slice(0, m.indexOf(trimmed));
+    var post = m.slice(pre.length + trimmed.length);
+    return pre + '\\(' + trimmed + '\\)' + post;
   });
 }
 
@@ -177,8 +184,8 @@ document.addEventListener('keydown', e=>{
 go(0);
 
 window.MathJax = {
-  loader: { load: ['[tex]/mhchem'] },
-  tex: { inlineMath: [['\\(','\\)']], displayMath: [['\\[','\\]']], packages: { '[+]': ['mhchem'] } },
+  loader: { load: ['[tex]/mhchem', '[tex]/noerrors'] },
+  tex: { inlineMath: [['\\(','\\)']], displayMath: [['\\[','\\]']], packages: { '[+]': ['mhchem', 'noerrors'] } },
   options: { enableMenu: false }
 };
 </script>

@@ -206,35 +206,18 @@ export class PresentationPptxV2Service {
    * Возвращает true если успешно вставлено как картинка.
    */
   private async tryAddFormulaImage(
-    s: any,
-    latex: string,
-    box: { x: number; y: number; w: number; h: number },
-    color: string,
-    fontPx: number,
+    _s: any,
+    _latex: string,
+    _box: { x: number; y: number; w: number; h: number },
+    _color: string,
+    _fontPx: number,
   ): Promise<boolean> {
-    // Убираем обёртки $...$ — MathJax ждёт чистый LaTeX.
-    const raw = latex.replace(/^\s*\$\$?|\$\$?\s*$/g, '').trim();
-    const img = await this.mathRenderer.renderToDataUri(raw, { color: '#' + color, display: true });
-    if (!img) return false;
-    // Em → дюймы. Базовый em ≈ fontPx/72. Прижимаем к высоте box.
-    const emToInch = fontPx / 72;
-    let w = img.widthEm * emToInch;
-    let h = img.heightEm * emToInch;
-    // Не вылезаем за box: масштабируем пропорционально.
-    if (h > box.h) { const k = box.h / h; w *= k; h *= k; }
-    if (w > box.w) { const k = box.w / w; w *= k; h *= k; }
-    try {
-      s.addImage({
-        data: img.dataUri,
-        x: box.x,
-        y: box.y + Math.max(0, (box.h - h) / 2),
-        w, h,
-      });
-      return true;
-    } catch (e: any) {
-      this.logger.warn(`[math] addImage failed: ${e?.message}`);
-      return false;
-    }
+    // ОТКЛЮЧЕНО: PowerPoint падает на встроенных SVG от MathJax (Mac PPT не
+    // понимает <use>-ссылки внутри SVG). Возвращаем false → caller рендерит
+    // формулу как Unicode-текст через this.latex() — некрасиво, но валидно.
+    // TODO: переключиться на PNG (через sharp/puppeteer), тогда снова можно
+    // будет вставлять формулы картинками.
+    return false;
   }
 
   private async renderLayout(
@@ -452,17 +435,10 @@ export class PresentationPptxV2Service {
             });
           }
         }
-        if (hasImg) {
-          try {
-            s.addImage({
-              path: slide.imageUrl,
-              x: 6.8, y: 2.0, w: 5.8, h: 4.5,
-              sizing: { type: 'contain', w: 5.8, h: 4.5 },
-            });
-          } catch (e: any) {
-            this.logger.warn(`[pptx] image-text addImage failed: ${e?.message}`);
-          }
-        }
+        // Картинку для image-text в PPTX пока не встраиваем: pptxgenjs делает
+        // sync-fetch по path: URL во время write(), и если URL недоступен/CORS —
+        // PPTX получается битым целиком. Превью и PDF картинку показывают.
+        // TODO: предзагружать в Buffer и передавать через data:.
         break;
       }
     }

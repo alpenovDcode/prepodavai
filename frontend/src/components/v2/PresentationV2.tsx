@@ -2,8 +2,9 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
-    Presentation as PresentationIcon, FileDown, Copy, Check, RefreshCw, Loader2, Eye, Wand2, Users, Compass,
+    Presentation as PresentationIcon, FileDown, Copy, Check, RefreshCw, Loader2, Eye, Wand2, Users, Compass, Edit3,
 } from 'lucide-react'
+import PresentationSlideEditor, { type PresentationData as SlideEditorData } from '@/components/v2/PresentationSlideEditor'
 import toast from 'react-hot-toast'
 import { useGenerations } from '@/lib/hooks/useGenerations'
 import { apiClient } from '@/lib/api/client'
@@ -78,6 +79,10 @@ export default function PresentationV2() {
     const [pdfUrl, setPdfUrl] = useState<string | null>(null)
     const [pptxUrl, setPptxUrl] = useState<string | null>(null)
     const [errorMsg, setErrorMsg] = useState<string>('')
+    // structured data for editor
+    const [presentationData, setPresentationData] = useState<SlideEditorData | null>(null)
+    const [editing, setEditing] = useState(false)
+    const [savingEdit, setSavingEdit] = useState(false)
 
     const { generate: startGeneration, pollStatus, isGenerating } = useGenerations()
     const [mobileTab, setMobileTab] = useState<'config' | 'preview'>('config')
@@ -92,6 +97,8 @@ export default function PresentationV2() {
         setContent(null)
         setPdfUrl(null)
         setPptxUrl(null)
+        setPresentationData(null)
+        setEditing(false)
         setMobileTab('preview')
 
         try {
@@ -139,6 +146,16 @@ export default function PresentationV2() {
                     ),
                     '| pptxUrlFound:', pptxUrlFound,
                 )
+            }
+
+            // Структурные данные для редактора (если есть)
+            const pdata =
+                r?.presentationData ??
+                r?.outputData?.presentationData ??
+                r?.result?.presentationData ??
+                null
+            if (pdata && Array.isArray(pdata.slides) && pdata.slides.length > 0) {
+                setPresentationData(pdata as SlideEditorData)
             }
 
             if (html) {
@@ -209,6 +226,31 @@ ${pptxUrlFound ? `<a href="${pptxUrlFound}" target="_blank">Скачать PPTX<
             window.URL.revokeObjectURL(url)
         } catch (e: any) {
             toast.error(`Не удалось скачать ${format.toUpperCase()}: ${e?.message || ''}`)
+        }
+    }
+
+    const saveEdits = async (next: SlideEditorData) => {
+        if (!presentationId) return
+        setSavingEdit(true)
+        try {
+            const res = await apiClient.patch(`/generate/${presentationId}`, {
+                presentationData: next,
+            })
+            const newOutput = res?.data?.outputData ?? res?.data?.result ?? {}
+            const newHtml = newOutput.content ?? newOutput.html
+            if (newHtml) setContent(newHtml)
+            setPresentationData(next)
+            setEditing(false)
+            // Сбрасываем кэшированные URL'ы — backend их обнулил, перескачивание соберёт заново.
+            setPdfUrl(null)
+            setPptxUrl(null)
+            toast.success('Презентация обновлена')
+        } catch (e: any) {
+            const resp = e?.response?.data
+            const msg = (Array.isArray(resp?.message) ? resp.message.join('; ') : resp?.message) || e?.message || 'Не удалось сохранить'
+            toast.error(msg)
+        } finally {
+            setSavingEdit(false)
         }
     }
 
@@ -373,13 +415,18 @@ ${pptxUrlFound ? `<a href="${pptxUrlFound}" target="_blank">Скачать PPTX<
 
                         {hasResult && (
                             <div className="flex items-center gap-1.5 flex-wrap">
-                                <Button variant="ghost" size="sm" leftIcon={copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />} onClick={copyHtml}>
+                                {presentationData && !editing && (
+                                    <Button variant="secondary" size="sm" leftIcon={<Edit3 className="w-3.5 h-3.5" />} onClick={() => setEditing(true)}>
+                                        Редактировать
+                                    </Button>
+                                )}
+                                <Button variant="ghost" size="sm" leftIcon={copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />} onClick={copyHtml} disabled={editing}>
                                     {copied ? 'Скопировано' : 'HTML'}
                                 </Button>
-                                <Button variant="ghost" size="sm" leftIcon={<RefreshCw className="w-3.5 h-3.5" />} onClick={generate} disabled={isGenerating}>
+                                <Button variant="ghost" size="sm" leftIcon={<RefreshCw className="w-3.5 h-3.5" />} onClick={generate} disabled={isGenerating || editing}>
                                     Заново
                                 </Button>
-                                <Button variant="primary" size="sm" leftIcon={<FileDown className="w-3.5 h-3.5" />} onClick={() => downloadFile('pptx')}>
+                                <Button variant="primary" size="sm" leftIcon={<FileDown className="w-3.5 h-3.5" />} onClick={() => downloadFile('pptx')} disabled={editing}>
                                     PPTX
                                 </Button>
                                 {presentationId && (
@@ -399,6 +446,15 @@ ${pptxUrlFound ? `<a href="${pptxUrlFound}" target="_blank">Скачать PPTX<
                         {isGenerating ? (
                             <div className="h-full p-6 flex items-center justify-center">
                                 <GenerationProgress active={isGenerating} title="Создаём презентацию…" accentClassName="bg-brand-500" estimatedSeconds={60} />
+                            </div>
+                        ) : editing && presentationData ? (
+                            <div className="h-full bg-surface">
+                                <PresentationSlideEditor
+                                    initialData={presentationData}
+                                    saving={savingEdit}
+                                    onCancel={() => setEditing(false)}
+                                    onSave={saveEdits}
+                                />
                             </div>
                         ) : content ? (
                             <iframe

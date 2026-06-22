@@ -113,7 +113,7 @@ mjx-container[display="true"]{margin:16px 0;font-size:1.1em!important}
 window.PRESENTATION_DATA = {{DATA}};
 const LOGO_URL = '{{LOGO_URL}}';
 function esc(s){return String(s??'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}
-function renderMath(s){if(!s)return '';var t=String(s).replace(/\$\$([^$]+)\$\$/g,'\\[$1\\]').replace(/\$([^$\n]+)\$/g,'\\($1\\)');return t.replace(/[A-Za-z0-9\\(){}\[\]_^=+\-*\/<>,;:.\s]+/g,function(m){if(/\\[\(\)\[\]]/.test(m))return m;if(!/\\[a-zA-Z]|[\^_][\{A-Za-z0-9]/.test(m))return m;var l=m.match(/^\s*/)[0],r=m.match(/\s*$/)[0],c=m.slice(l.length,m.length-r.length);return c?l+'\\('+c+'\\)'+r:m;});}
+function renderMath(s){if(!s)return '';var t=String(s).replace(/\$\$([^$]+)\$\$/g,'\\[$1\\]').replace(/\$([^$\n]+)\$/g,'\\($1\\)');return t.replace(/[A-Za-z0-9\\(){}\[\]_^=+\-*\/<>.\s]+/g,function(m){if(/\\[\(\)\[\]]/.test(m))return m;if(!/\\[a-zA-Z]|[\^_]\{|[\^_][A-Za-z0-9]/.test(m))return m;var trimmed=m.replace(/^[\s.]+|[\s.]+$/g,'');if(!trimmed)return m;var pre=m.slice(0,m.indexOf(trimmed));var post=m.slice(pre.length+trimmed.length);return pre+'\\('+trimmed+'\\)'+post;});}
 function renderSlide(s,idx,total){
   const num=`<div class="slide-num">${String(idx+1).padStart(2,'0')} of ${String(total).padStart(2,'0')}</div>`;
   const blobs='<div class="blob a"></div><div class="blob b"></div>';
@@ -157,7 +157,7 @@ document.getElementById('prev').onclick=()=>go(current-1);
 document.getElementById('next').onclick=()=>go(current+1);
 document.addEventListener('keydown',e=>{if(e.key==='ArrowRight'||e.key===' '||e.key==='PageDown'){e.preventDefault();go(current+1);}if(e.key==='ArrowLeft'||e.key==='PageUp'){e.preventDefault();go(current-1);}if(e.key==='Home')go(0);if(e.key==='End')go(slides.length-1);});
 go(0);
-window.MathJax={loader:{load:['[tex]/mhchem']},tex:{inlineMath:[['\\(','\\)']],displayMath:[['\\[','\\]']],packages:{'[+]':['mhchem']}},options:{enableMenu:false}};
+window.MathJax={loader:{load:['[tex]/mhchem','[tex]/noerrors']},tex:{inlineMath:[['\\(','\\)']],displayMath:[['\\[','\\]']],packages:{'[+]':['mhchem','noerrors']}},options:{enableMenu:false}};
 </script>
 <script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
 </body>
