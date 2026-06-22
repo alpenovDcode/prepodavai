@@ -1432,11 +1432,16 @@ export class GenerationsService {
     if (genType === 'presentation') {
       const ug = generation.userGeneration;
       const cur = (ug?.outputData ?? generation.result) as any;
-      if (cur?.slideDoc && !cur?.content) {
+      // v2: правильное извлечение полей (paragraph, leftColumn/rightColumn, quote, quiz).
+      // Презентации мигрированные старой (багованной) версией не имеют _migv — их
+      // нужно пере-мигрировать из сохранённого slideDoc.
+      const MIG_VERSION = 2;
+      const needsMigration = cur?.slideDoc && (!cur?.content || cur?._migv !== MIG_VERSION);
+      if (needsMigration) {
         try {
           const migratedData = this.migrateSlideDocToPresentation(cur);
           const html = await this.presentationTemplateService.renderHtml(migratedData);
-          const newOutputData = { ...cur, content: html, presentationData: migratedData };
+          const newOutputData = { ...cur, content: html, presentationData: migratedData, _migv: MIG_VERSION };
           await this.prisma.generationRequest.update({
             where: { id: generation.id },
             data: { result: newOutputData },
@@ -1475,25 +1480,60 @@ export class GenerationsService {
       indigo: 'indigo', emerald: 'emerald', violet: 'violet', blue: 'blue', slate: 'slate',
     };
 
+    // Старый формат SlideContent (slide-doc.types.ts):
+    //   { title, subtitle, bullets[], paragraph, math[],
+    //     leftColumn{heading,bullets[],paragraph}, rightColumn{...},
+    //     quote{text,attribution}, quiz{question,options[],answerIndex} }
+    const colText = (col: any): string => {
+      if (!col) return '';
+      const parts: string[] = [];
+      if (col.paragraph) parts.push(String(col.paragraph));
+      if (Array.isArray(col.bullets)) parts.push(...col.bullets.map((b: any) => `• ${b}`));
+      return parts.join('\n');
+    };
+
     const slides: PresentationSlide[] = (slideDoc.slides ?? []).map((old: any): PresentationSlide => {
       const layout: PresentationLayout = OLD_LAYOUTS[(old?.layout || 'content').toLowerCase()] || 'content';
       const c = old?.content ?? {};
+      const math: string[] = Array.isArray(c.math) ? c.math.map(String) : [];
       const slide: PresentationSlide = { layout };
       if (c.title)    slide.title    = c.title;
       if (c.subtitle) slide.subtitle = c.subtitle;
-      if (c.eyebrow)  slide.eyebrow  = c.eyebrow;
-      if (c.author)   slide.author   = c.author;
+
       switch (layout) {
-        case 'bullets':  slide.items = c.bullets || c.items || []; break;
-        case 'two-column':
-          slide.leftTitle  = c.leftTitle  || '';
-          slide.leftText   = c.leftText   || '';
-          slide.rightTitle = c.rightTitle || '';
-          slide.rightText  = c.rightText  || '';
+        case 'bullets': {
+          // agenda / bullets / quiz
+          if (c.quiz) {
+            const opts = Array.isArray(c.quiz.options) ? c.quiz.options : [];
+            slide.items = [c.quiz.question, ...opts].filter(Boolean).map(String);
+          } else {
+            slide.items = [...(c.bullets || []).map(String), ...math];
+          }
           break;
-        case 'quote':   slide.text       = c.text || c.question || ''; break;
-        case 'summary': slide.items      = c.items || c.bullets || []; break;
-        case 'content': slide.paragraphs = c.paragraphs || (c.text ? [c.text] : []); break;
+        }
+        case 'two-column':
+          slide.leftTitle  = c.leftColumn?.heading  || '';
+          slide.leftText   = colText(c.leftColumn);
+          slide.rightTitle = c.rightColumn?.heading || '';
+          slide.rightText  = colText(c.rightColumn);
+          break;
+        case 'quote':
+          slide.text   = c.quote?.text || c.paragraph || '';
+          slide.author = c.quote?.attribution || '';
+          break;
+        case 'summary':
+          slide.items = [...(c.bullets || []).map(String), ...math];
+          break;
+        case 'content':
+        default: {
+          // image-text и прочее: paragraph (единственное число) + math
+          const paras: string[] = [];
+          if (c.paragraph) paras.push(String(c.paragraph));
+          if (Array.isArray(c.bullets)) paras.push(...c.bullets.map((b: any) => `• ${b}`));
+          paras.push(...math);
+          slide.paragraphs = paras;
+          break;
+        }
       }
       return slide;
     });
