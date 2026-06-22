@@ -131,6 +131,16 @@ export default function PresentationV2() {
             const pdfUrlFound = r?.pdfUrl ?? r?.outputData?.pdfUrl ?? r?.result?.pdfUrl ?? r?.exportUrl ?? null
             const pptxUrlFound = r?.pptxUrl ?? r?.outputData?.pptxUrl ?? r?.result?.pptxUrl ?? null
 
+            if (!html) {
+                // Диагностика: логируем структуру r чтобы понять откуда идёт фолбэк
+                console.warn('[PresentationV2] html not found. r keys:', Object.keys(r ?? {}),
+                    '| candidates types/lengths:', candidates.map(c =>
+                        c == null ? 'null' : typeof c === 'string' ? `str(${c.length})` : typeof c
+                    ),
+                    '| pptxUrlFound:', pptxUrlFound,
+                )
+            }
+
             if (html) {
                 setContent(html)
                 setPdfUrl(pdfUrlFound)
