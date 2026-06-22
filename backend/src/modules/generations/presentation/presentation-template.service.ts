@@ -75,12 +75,14 @@ export class PresentationTemplateService {
   constructor(private readonly replicate: ReplicateService) {}
 
   /**
-   * Главная точка входа. Делает 4 вещи:
+   * Главная точка входа. Делает 3 вещи:
    *   1. Просит LLM вернуть JSON со слайдами по заданной теме/тезисам.
-   *      LLM также отмечает imageBudget слайдов как image-text с imagePrompt.
-   *   2. Параллельно генерит картинки через Replicate flux-schnell для отмеченных слайдов.
-   *   3. Загружает HTML-шаблон под стиль (modern/academic/creative/corporate).
-   *   4. Подставляет {{DATA}}, {{LOGO_URL}}, цветовые CSS-vars.
+   *   2. Загружает HTML-шаблон под стиль (modern/academic/creative/corporate).
+   *   3. Подставляет {{DATA}}, {{LOGO_URL}}, цветовые CSS-vars.
+   *
+   * НЕ генерирует картинки — пробовали через Replicate flux-schnell (557e0fa),
+   * откатили: 6 параллельных image-вызовов на презентацию выжигали Replicate-квоту
+   * и валили другие генерации (lesson-plan/worksheet/vocabulary/quiz).
    */
   async generate(params: PresentationParams): Promise<{ html: string; data: PresentationData }> {
     const style = (params.style && PRESENTATION_STYLES.includes(params.style))
@@ -89,24 +91,16 @@ export class PresentationTemplateService {
       ? params.color : 'indigo';
     const audience = params.audience?.trim() || 'Школьники';
     const slidesCount = clamp(params.slidesCount ?? 10, 5, 24);
-    // Бюджет картинок: 1 на каждые ~5 слайдов, но не более 6.
-    // 5-9 слайдов → 1-2, 10-14 → 2-3, 15-19 → 3-4, 20-24 → 4-5, 25-29 → 5-6, 30+ → 6.
-    const imageBudget = Math.min(6, Math.max(1, Math.ceil(slidesCount / 5)));
 
     const prompt = this.buildPrompt({
       topic: params.topic,
       text: params.text || '',
       slidesCount,
       audience,
-      imageBudget,
     });
 
     const rawJson = await this.callLLM(prompt);
     const slides = this.parseSlides(rawJson, slidesCount);
-
-    // Генерим картинки для слайдов, которые LLM отметил imagePrompt'ом.
-    // Если все упадут — слайды останутся без картинок (image-text layout это переживает).
-    await this.generateImagesForSlides(slides, imageBudget);
 
     const data: PresentationData = {
       topic: params.topic,
@@ -121,52 +115,10 @@ export class PresentationTemplateService {
   }
 
   /**
-   * Параллельно генерим картинки через Replicate flux-schnell для слайдов,
-   * у которых LLM добавил поле imagePrompt. Capped at budget.
-   * Промт чистится из слайда после генерации (не нужен в финальном JSON).
-   */
-  private async generateImagesForSlides(
-    slides: PresentationSlide[],
-    budget: number,
-  ): Promise<void> {
-    const candidates = slides
-      .map((slide, idx) => ({ slide, idx, prompt: (slide as any).imagePrompt as string | undefined }))
-      .filter(c => typeof c.prompt === 'string' && c.prompt.trim().length > 5);
-
-    if (candidates.length === 0) {
-      this.logger.warn(`[presentations] LLM не отметил ни одного слайда imagePrompt'ом (бюджет был ${budget})`);
-      return;
-    }
-
-    const toGenerate = candidates.slice(0, budget);
-    this.logger.log(`[presentations] Генерирую ${toGenerate.length} картинок (бюджет ${budget}, кандидатов ${candidates.length})`);
-
-    const results = await Promise.allSettled(
-      toGenerate.map(({ prompt }) =>
-        this.replicate.createImage(prompt!, 'black-forest-labs/flux-schnell', '16:9'),
-      ),
-    );
-
-    results.forEach((res, i) => {
-      const { slide, idx } = toGenerate[i];
-      if (res.status === 'fulfilled' && typeof res.value === 'string' && res.value.length > 0) {
-        slide.imageUrl = res.value;
-        slide.imageAlt = slide.title || 'Иллюстрация к слайду';
-      } else {
-        const reason = res.status === 'rejected' ? (res.reason?.message || String(res.reason)) : 'empty output';
-        this.logger.warn(`[presentations] Не смог сгенерить картинку для слайда #${idx}: ${reason}`);
-      }
-    });
-
-    // Чистим служебное поле imagePrompt из всех слайдов — оно не нужно в финальном JSON.
-    slides.forEach(s => { delete (s as any).imagePrompt; });
-  }
-
-  /**
    * Промпт для LLM. Короткий, строго JSON, без HTML/CSS/JS. Запрещены картинки.
    * Логика «1-я → 3-я → 10-я генерация» сохранена через payload.nth в analytics-events.
    */
-  private buildPrompt(p: { topic: string; text: string; slidesCount: number; audience: string; imageBudget: number }): string {
+  private buildPrompt(p: { topic: string; text: string; slidesCount: number; audience: string }): string {
     return `Ты — методист и дизайнер презентаций. Сгенерируй данные для презентации.
 
 ТЕМА: ${p.topic}
@@ -222,32 +174,14 @@ ${p.text ? `ИСХОДНЫЕ ТЕЗИСЫ/ТЕКСТ:\n${p.text}\n` : ''}
       4-6 items, каждый — 1 полное предложение 12-25 слов с ключевым выводом.
       НЕ просто заголовки разделов. Каждый — самостоятельная важная мысль.
 
-  • "image-text" — слайд с иллюстрацией справа и списком тезисов слева
-      items: 3-5 пунктов, КАЖДЫЙ — 1-2 полных предложения с конкретикой
-             (как в bullets, чуть короче из-за места под картинку).
-      imagePrompt: ОБЯЗАТЕЛЬНОЕ поле для этого layout.
-             Короткое (12-25 слов) описание иллюстрации НА АНГЛИЙСКОМ для
-             AI-генератора (flux-schnell). Конкретные объекты, стиль, композиция.
-             Без текста на картинке (модели плохо его рисуют).
-             ПЛОХО:   "math derivative"
-             ХОРОШО:  "Mathematical chalkboard illustration showing
-                       a curve tangent line at a point, soft pastel colors,
-                       educational diagram style, clean composition, no text"
-
 СТРУКТУРА ВСЕЙ ПРЕЗЕНТАЦИИ:
   • Слайд 1: title (обложка)
   • Слайд 2: bullets — что узнаем сегодня (краткий план)
-  • Слайды 3..N-2: разнообразие layouts (bullets, two-column, content, quote, image-text)
+  • Слайды 3..N-2: разнообразие layouts (bullets, two-column, content, quote)
     Чередуй типы — не более 2 одинаковых подряд.
     Минимум 2 content-слайда с глубоким разбором.
   • Предпоследний слайд: quote с реальной цитатой или content с выводами
   • Последний слайд: summary с ключевыми итогами
-
-🖼️  КАРТИНКИ — РОВНО ${p.imageBudget} СЛАЙДОВ типа "image-text":
-  • Используй layout "image-text" ровно ${p.imageBudget} раз — не больше, не меньше.
-  • Распредели их равномерно по середине презентации (НЕ на title, НЕ на quote, НЕ на summary).
-  • Выбирай слайды, где картинка реально помогает понять материал.
-  • У КАЖДОГО такого слайда обязательное поле imagePrompt (на английском, см. описание layout).
 
 ТЕХНИЧЕСКИЕ ПРАВИЛА:
 1. Верни ТОЛЬКО валидный JSON-массив слайдов, без markdown, без комментариев.
@@ -450,11 +384,6 @@ ${p.text ? `ИСХОДНЫЕ ТЕЗИСЫ/ТЕКСТ:\n${p.text}\n` : ''}
         imageUrl: s.imageUrl || undefined,
         imageAlt: s.imageAlt || undefined,
       };
-      // imagePrompt — служебное поле, в типе его нет; чистится в generateImagesForSlides
-      // после того как картинка сгенерирована. Прокидываем как any, чтобы не плодить тип.
-      if (typeof s.imagePrompt === 'string' && s.imagePrompt.trim()) {
-        (slide as any).imagePrompt = s.imagePrompt.trim();
-      }
       return slide;
     });
 
