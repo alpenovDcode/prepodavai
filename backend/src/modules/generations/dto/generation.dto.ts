@@ -48,6 +48,12 @@ export class UpdateGenerationDto {
   @MaxLength(200)
   title?: string;
 
+  // Пустая строка — убрать из папки (вернуть в «Без папки»).
+  @IsString()
+  @IsOptional()
+  @MaxLength(100)
+  folder?: string;
+
   @IsObject()
   @IsOptional()
   outputData?: Record<string, unknown>;

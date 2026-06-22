@@ -2071,6 +2071,7 @@ export class GenerationsService {
           title: (gen as any).title ?? null,
           status: gen.status,
           lessonId: gen.lessonId,
+          folder: (gen as any).folder ?? null,
           params: trimParams(gen.inputParams),
           createdAt: gen.createdAt,
           updatedAt: gen.updatedAt,
@@ -2166,6 +2167,12 @@ export class GenerationsService {
     if (typeof data?.title === 'string') {
       const trimmed = data.title.trim().slice(0, 200);
       updateData.title = trimmed.length > 0 ? trimmed : null;
+    }
+
+    // Перемещение в папку. Пустая строка = убрать из папки.
+    if (typeof data?.folder === 'string') {
+      const trimmed = data.folder.trim().slice(0, 100);
+      updateData.folder = trimmed.length > 0 ? trimmed : null;
     }
 
     // Контент-payload. Канонично приходит в `outputData`; старые вызовы клали

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { apiClient } from '@/lib/api/client'
 import { useRouter } from 'next/navigation'
 import { useTour } from '@/lib/tour/useTour'
@@ -63,6 +63,35 @@ export default function StudentProfilePage({ params }: { params: { id: string } 
     const [loading, setLoading] = useState(true)
     const router = useRouter()
     const tour = useTour()
+
+    // Rename student
+    const [editingName, setEditingName] = useState(false)
+    const [nameDraft, setNameDraft] = useState('')
+    const [savingName, setSavingName] = useState(false)
+    const nameInputRef = useRef<HTMLInputElement>(null)
+
+    const handleStartEditName = () => {
+        if (!student) return
+        setNameDraft(student.name)
+        setEditingName(true)
+        setTimeout(() => nameInputRef.current?.select(), 0)
+    }
+
+    const handleSaveName = async () => {
+        if (!student) return
+        const next = nameDraft.trim()
+        if (!next) return
+        setSavingName(true)
+        try {
+            await apiClient.put(`/students/${params.id}`, { name: next })
+            setStudent(prev => prev ? { ...prev, name: next } : prev)
+            setEditingName(false)
+        } catch {
+            // silent — don't lose the draft
+        } finally {
+            setSavingName(false)
+        }
+    }
 
     // Password change state
     const [newPassword, setNewPassword] = useState('')
@@ -170,7 +199,39 @@ export default function StudentProfilePage({ params }: { params: { id: string } 
                 </div>
                 <div className="flex-1">
                     <div className="flex items-center gap-3 mb-2 flex-wrap">
-                        <h1 className="text-3xl font-bold text-gray-900">{student.name}</h1>
+                        {editingName ? (
+                            <form onSubmit={e => { e.preventDefault(); handleSaveName() }} className="flex items-center gap-2">
+                                <input
+                                    ref={nameInputRef}
+                                    value={nameDraft}
+                                    onChange={e => setNameDraft(e.target.value)}
+                                    maxLength={200}
+                                    autoFocus
+                                    onKeyDown={e => { if (e.key === 'Escape') setEditingName(false) }}
+                                    className="text-3xl font-bold text-gray-900 border-b-2 border-primary-400 bg-transparent outline-none w-auto min-w-[200px]"
+                                />
+                                <button type="submit" disabled={!nameDraft.trim() || savingName}
+                                    className="px-3 py-1 rounded-md bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold transition-colors disabled:opacity-60">
+                                    {savingName ? '…' : 'Сохранить'}
+                                </button>
+                                <button type="button" onClick={() => setEditingName(false)}
+                                    className="px-3 py-1 rounded-md border border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors">
+                                    Отмена
+                                </button>
+                            </form>
+                        ) : (
+                            <div className="flex items-center gap-2">
+                                <h1 className="text-3xl font-bold text-gray-900">{student.name}</h1>
+                                <button type="button" onClick={handleStartEditName}
+                                    title="Переименовать"
+                                    className="w-7 h-7 rounded-md flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors">
+                                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                                    </svg>
+                                </button>
+                            </div>
+                        )}
                         {riskBadge && (
                             <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${riskBadge.classes}`}>
                                 <i className={`fas ${risk!.level === 'good' ? 'fa-check-circle' : risk!.level === 'risk' ? 'fa-exclamation-circle' : 'fa-eye'}`}></i>

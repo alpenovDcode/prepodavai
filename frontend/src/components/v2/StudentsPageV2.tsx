@@ -26,6 +26,7 @@ import {
     ChevronLeft,
     ChevronRight,
     Link2,
+    PenLine,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { cn } from '@/lib/utils/cn'
@@ -113,6 +114,10 @@ export default function StudentsPageV2() {
     const [inviteCopied, setInviteCopied] = useState(false)
     // Confirm dialog
     const [confirmModal, setConfirmModal] = useState<{ msg: string; onConfirm: () => void } | null>(null)
+    // Rename student modal
+    const [renameFor, setRenameFor] = useState<{ id: string; name: string } | null>(null)
+    const [renameDraft, setRenameDraft] = useState('')
+    const [renameLoading, setRenameLoading] = useState(false)
 
     useEffect(() => {
         apiClient
@@ -271,6 +276,20 @@ export default function StudentsPageV2() {
     // показывает список генераций (материалов) с поиском, по выбору создаёт
     // Assignment с прямой привязкой к этому ученику.
     const [assignFor, setAssignFor] = useState<{ id: string; name: string } | null>(null)
+
+    const handleRenameStudent = async () => {
+        if (!renameFor) return
+        const next = renameDraft.trim()
+        if (!next) { toast.error('Имя не может быть пустым'); return }
+        setRenameLoading(true)
+        try {
+            await apiClient.put(`/students/${renameFor.id}`, { name: next })
+            setStudents(prev => prev.map(s => s.id === renameFor!.id ? { ...s, name: next } : s))
+            toast.success('Имя обновлено')
+            setRenameFor(null)
+        } catch { toast.error('Не удалось переименовать') }
+        finally { setRenameLoading(false) }
+    }
 
     const handleDeleteStudent = (id: string, name: string) => {
         setConfirmModal({
@@ -682,6 +701,10 @@ export default function StudentsPageV2() {
                                                                 onAssign={() =>
                                                                     setAssignFor({ id: s.id, name: s.name })
                                                                 }
+                                                                onRename={() => {
+                                                                    setRenameFor({ id: s.id, name: s.name })
+                                                                    setRenameDraft(s.name)
+                                                                }}
                                                             />
                                                         )}
                                                     </td>
@@ -896,6 +919,32 @@ export default function StudentsPageV2() {
                 </div>
             )}
 
+            {renameFor && (
+                <div className="fixed inset-0 bg-black/40 z-[100] flex items-center justify-center p-4" onClick={() => setRenameFor(null)}>
+                    <form className="bg-surface rounded-2xl shadow-2xl w-full max-w-sm p-6" onSubmit={e => { e.preventDefault(); handleRenameStudent() }} onClick={e => e.stopPropagation()}>
+                        <h3 className="text-[16px] font-bold text-ink-900 mb-4">Переименовать ученика</h3>
+                        <input
+                            autoFocus
+                            value={renameDraft}
+                            onChange={e => setRenameDraft(e.target.value)}
+                            maxLength={200}
+                            placeholder="Имя ученика"
+                            className="w-full h-10 px-3.5 rounded-lg border border-ink-200 text-sm text-ink-900 placeholder:text-ink-400 focus:outline-none focus:border-brand-400 focus:ring-[3px] focus:ring-brand-400/15 transition-all mb-4"
+                        />
+                        <div className="flex gap-2">
+                            <button type="button" onClick={() => setRenameFor(null)}
+                                className="flex-1 h-10 rounded-md border border-ink-200 text-sm font-semibold text-ink-700 hover:bg-ink-50 transition-colors">
+                                Отмена
+                            </button>
+                            <button type="submit" disabled={!renameDraft.trim() || renameLoading}
+                                className="flex-1 h-10 rounded-md bg-brand-600 hover:bg-brand-700 text-white text-sm font-bold transition-colors disabled:opacity-60">
+                                {renameLoading ? 'Сохраняем…' : 'Сохранить'}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            )}
+
             {confirmModal && (
                 <div className="fixed inset-0 bg-black/40 z-[100] flex items-center justify-center p-4">
                     <div className="bg-surface rounded-2xl shadow-2xl w-full max-w-sm p-6">
@@ -1039,12 +1088,14 @@ function RowActions({
     onView,
     onDelete,
     onAssign,
+    onRename,
 }: {
     isOpen: boolean
     onToggle: () => void
     onView: () => void
     onDelete: () => void
     onAssign: () => void
+    onRename: () => void
 }) {
     const router = useRouter()
     const btnRef = useRef<HTMLButtonElement>(null)
@@ -1105,6 +1156,11 @@ function RowActions({
                         icon={<User className="w-3.5 h-3.5" />}
                         label="Открыть профиль"
                         onClick={() => { onView(); onToggle() }}
+                    />
+                    <MenuItem
+                        icon={<PenLine className="w-3.5 h-3.5" />}
+                        label="Переименовать"
+                        onClick={() => { onRename(); onToggle() }}
                     />
                     <MenuItem
                         icon={<CalendarPlus className="w-3.5 h-3.5" />}

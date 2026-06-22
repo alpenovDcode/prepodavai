@@ -226,6 +226,7 @@ model UserGeneration {
   tokensUsed          Int? // Количество потраченных токенов
   creditCost          Int? // Итоговая стоимость Токенов
   lessonId            String?
+  folder              String?   // Пользовательская папка (строка, не FK)
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 
