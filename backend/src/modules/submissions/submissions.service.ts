@@ -538,6 +538,24 @@ export class SubmissionsService {
       submission.assignment.student?.class?.teacherId;
     if (teacherIdOfClass !== teacherId) throw new ForbiddenException('Access denied');
 
+    // Загруженные пользователем материалы (PDF/JPG/PNG) AI не проверяет —
+    // text-only модель не видит ни файл учителя, ни фото ученика, оценка
+    // была бы наугад. Если в задании ТОЛЬКО такие материалы — возвращаем
+    // понятный отказ без обращения к LLM.
+    const generationsForCheck = submission.assignment.lesson.generations || [];
+    const onlyUploadedFiles =
+      generationsForCheck.length > 0 &&
+      generationsForCheck.every(
+        g => g.generationType === 'uploaded_file' || g.generationType === 'uploadedFile',
+      );
+    if (onlyUploadedFiles) {
+      return {
+        feedback:
+          'AI-проверка не применяется к загруженным материалам — оцените работу вручную.',
+        grade: null,
+      };
+    }
+
     const lessonTitle = submission.assignment.lesson.title;
     const lessonTopic = submission.assignment.lesson.topic || '';
     const studentName = submission.student?.name || 'Ученик';

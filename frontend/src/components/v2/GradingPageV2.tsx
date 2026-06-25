@@ -305,9 +305,20 @@ export default function GradingPageV2() {
     }
   }, [detail?.id])
 
+  // Признак «в задании ТОЛЬКО загруженные пользователем материалы».
+  // AI-проверка для них не запускается (см. backend generateAiFeedback):
+  // text-only модель не видит файл учителя и фото ученика, оценка была
+  // бы наугад. Скрываем AI-блок учителю.
+  const hasOnlyUploadedFiles = useMemo(() => {
+    const gens = detail?.assignment.generations
+    if (!gens || gens.length === 0) return false
+    return gens.every(g => g.type === 'uploaded_file' || g.type === 'uploadedFile')
+  }, [detail?.assignment.generations])
+
   // Auto-load AI suggestion when detail is loaded and no AI text yet
   useEffect(() => {
     if (!detail) return
+    if (hasOnlyUploadedFiles) return
     const cached = aiDrafts[detail.id]
     if (cached) {
       setAiText(cached.feedback)
@@ -315,7 +326,7 @@ export default function GradingPageV2() {
     } else if (!detail.grade && !aiText && !aiLoading) {
       handleAiSuggest()
     }
-  }, [detail?.id])
+  }, [detail?.id, hasOnlyUploadedFiles])
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -908,6 +919,10 @@ export default function GradingPageV2() {
                   </button>
                 </div>
               </>
+            ) : hasOnlyUploadedFiles ? (
+              <div className="text-[12px] text-ink-500 leading-relaxed">
+                AI-проверка не применяется к загруженным материалам — оцените работу вручную.
+              </div>
             ) : selectedId ? (
               <button
                 type="button"
