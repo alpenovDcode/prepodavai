@@ -17,6 +17,8 @@ import { useTour } from '@/lib/tour/useTour'
 import { getEffectiveHtml } from '@/lib/utils/effectiveHtml'
 import { cn } from '@/lib/utils/cn'
 import { UploadedMaterialPreview } from '@/components/v2/UploadedMaterialPreview'
+import { DocumentRenderer } from '@/components/blocks/DocumentRenderer'
+import { isJsonBlocksFormat, GenerationDocument as GenerationDocumentSchema } from '@/lib/blocks/schema'
 
 interface Props {
     assignmentId: string
@@ -183,6 +185,20 @@ export default function AssignmentOverviewV2({ assignmentId }: Props) {
 
     const htmlPick = useMemo(() => data ? pickHtmlGeneration(data.lesson.generations) : null, [data])
     const srcDoc = useMemo(() => htmlPick ? buildPreviewSrcDoc(htmlPick.html) : '', [htmlPick])
+    // Сгенерированные AI-материалы в новом формате blocks-v1 (worksheet,
+    // quiz, lesson_plan, vocabulary, lesson_preparation) — pickHtmlGeneration
+    // их не подхватывает. Достаём отдельно и рендерим через DocumentRenderer.
+    const v2Docs = useMemo(() => {
+        if (!data) return [] as Array<{ id: string; doc: any }>
+        const out: Array<{ id: string; doc: any }> = []
+        for (const g of data.lesson.generations) {
+            const od = g.outputData
+            if (!isJsonBlocksFormat(od)) continue
+            const parsed = GenerationDocumentSchema.safeParse(od.outputDoc)
+            if (parsed.success) out.push({ id: g.id, doc: parsed.data })
+        }
+        return out
+    }, [data])
 
     if (isLoading) {
         return (
@@ -311,6 +327,23 @@ export default function AssignmentOverviewV2({ assignmentId }: Props) {
                             <UploadedMaterialPreview outputData={g.outputData} />
                         </div>
                     ))}
+
+                {/* Сгенерированные AI-материалы в формате blocks-v1
+                    (worksheet/quiz/lesson_plan/...). pickHtmlGeneration их
+                    тоже не берёт — рендерим отдельно через DocumentRenderer. */}
+                {v2Docs.map(({ id, doc }) => (
+                    <Card key={id} padding="lg" className="mb-5">
+                        <div className="flex items-center gap-2 mb-3">
+                            <FileText className="w-4 h-4 text-ink-500" />
+                            <span className="font-semibold text-[14px] text-ink-900">
+                                Материал задания {doc.title ? `· ${doc.title}` : ''}
+                            </span>
+                        </div>
+                        <div className="bg-ink-50 rounded-lg p-4 max-md:p-2">
+                            <DocumentRenderer doc={doc} showAnswers={false} />
+                        </div>
+                    </Card>
+                ))}
 
                 {/* Material preview (collapsible) */}
                 {srcDoc ? (
