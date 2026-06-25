@@ -17,7 +17,7 @@ import { useIsMobile } from '@/lib/hooks/useIsMobile'
 import InteractiveHtmlViewer, { extractHtmlFromOutput } from '@/components/InteractiveHtmlViewer'
 import { DocumentRenderer } from '@/components/blocks/DocumentRenderer'
 import { isJsonBlocksFormat, GenerationDocument as GenerationDocumentSchema } from '@/lib/blocks/schema'
-import { useAuthedFileUrl } from '@/hooks/useAuthedFileUrl'
+import { UploadedMaterialPreview } from '@/components/v2/UploadedMaterialPreview'
 
 const fetcher = (url: string) => apiClient.get(url).then((r: any) => r.data)
 
@@ -734,7 +734,9 @@ export default function GradingPageV2() {
                 {detail.assignment.generations
                   .filter(g => g.type === 'uploaded_file' || g.type === 'uploadedFile')
                   .map(g => (
-                    <UploadedMaterialPreview key={g.id} outputData={g.outputData} />
+                    <div key={g.id} className="mb-5">
+                      <UploadedMaterialPreview outputData={g.outputData} />
+                    </div>
                   ))}
 
                 {/* Свободный ответ + прикреплённые фото от ученика.
@@ -1128,53 +1130,6 @@ const GAME_TYPE_LABEL: Record<string, string> = {
   memory: 'Memory',
   crossword: 'Кроссворд',
   truefalse: 'Правда или ложь',
-}
-
-/**
- * Превью выданного учителем материала (PDF / JPG / PNG) в карточке проверки.
- * Учителю нужно видеть рядом и материал, и сданный ответ. PDF тянется
- * через blob URL (обход X-Frame-Options).
- */
-function UploadedMaterialPreview({ outputData }: { outputData: any }) {
-  const out = typeof outputData === 'object' && outputData ? outputData : {}
-  const fileUrl: string | undefined = out.fileUrl || out.url
-  const mimeType: string | undefined = out.mimeType
-  const originalName: string | undefined = out.originalName
-  const isPdf = mimeType === 'application/pdf'
-  const pdfAuth = useAuthedFileUrl(isPdf ? fileUrl || null : null)
-  if (!fileUrl) return null
-  return (
-    <div className="mb-5 rounded-lg border border-ink-200 bg-white overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-2 border-b border-ink-100 bg-ink-50/40">
-        <span className="text-[12px] font-bold text-ink-700 uppercase tracking-wide">
-          Материал учителя {originalName ? `· ${originalName}` : ''}
-        </span>
-        <a href={fileUrl} target="_blank" rel="noopener noreferrer"
-          className="text-[12px] text-ink-500 hover:text-ink-700 underline">
-          Открыть в новой вкладке
-        </a>
-      </div>
-      {isPdf ? (
-        <div className="relative bg-white" style={{ minHeight: 520, height: '65vh' }}>
-          {pdfAuth.loading && (
-            <div className="absolute inset-0 z-10 flex items-center justify-center bg-white">
-              <Loader2 className="w-5 h-5 text-brand-500 animate-spin" />
-            </div>
-          )}
-          {pdfAuth.error ? (
-            <div className="p-6 text-center text-[13px] text-ink-500">Не удалось загрузить PDF.</div>
-          ) : pdfAuth.blobUrl ? (
-            <iframe src={pdfAuth.blobUrl} title={originalName || 'Материал'} className="w-full h-full border-0 bg-white" />
-          ) : null}
-        </div>
-      ) : (
-        <div className="flex justify-center p-3">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={fileUrl} alt={originalName || 'Материал'} className="max-w-full max-h-[60vh] h-auto object-contain rounded-md" />
-        </div>
-      )}
-    </div>
-  )
 }
 
 function GameResultCard({ out, result }: { out: any; result: any }) {
