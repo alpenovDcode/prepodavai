@@ -31,12 +31,19 @@ interface QueueItem {
   isOverdue: boolean
 }
 
+interface SubmissionAttachment {
+  url: string
+  name?: string
+  type?: string
+}
+
 interface SubmissionDetail {
   id: string
   status: string
   grade: number | null
   feedback: string | null
   content: string | null
+  attachments: SubmissionAttachment[] | null
   formData: Record<string, Record<string, string>> | null
   createdAt: string
   student: { id: string; name: string; avatar: string | null; className: string | null } | null
@@ -97,10 +104,9 @@ function extractAnswerBlocks(detail: SubmissionDetail) {
   const formData = detail.formData
   const gens = detail.assignment.generations || []
 
+  // detail.content и detail.attachments теперь рендерятся отдельной
+  // секцией «Ответ ученика» в основной разметке — здесь не дублируем.
   if (!formData || Object.keys(formData).length === 0) {
-    if (detail.content) {
-      blocks.push({ question: '', answer: detail.content, correct: null, hint: '' })
-    }
     return blocks
   }
 
@@ -151,10 +157,6 @@ function extractAnswerBlocks(detail: SubmissionDetail) {
         hint: isCorrect === false && correctAnswer ? `Правильный ответ: ${correctAnswer}` : '',
       })
     }
-  }
-
-  if (blocks.length === 0 && detail.content) {
-    blocks.push({ question: '', answer: detail.content, correct: null, hint: '' })
   }
 
   return blocks
@@ -712,6 +714,41 @@ export default function GradingPageV2() {
                     {gameResultCards.map(({ genId, out, result }) => (
                       <GameResultCard key={genId} out={out} result={result} />
                     ))}
+                  </div>
+                )}
+
+                {/* Свободный ответ + прикреплённые фото от ученика.
+                    Особенно важно для типа uploaded_file (раздаточный
+                    материал) — это единственный способ ответа. */}
+                {(detail.content || (detail.attachments && detail.attachments.length > 0)) && (
+                  <div className="mb-5 rounded-lg border border-ink-200 bg-white p-4">
+                    <h4 className="text-[13px] font-bold text-ink-900 mb-2">Ответ ученика</h4>
+                    {detail.content && (
+                      <div className="mb-3 whitespace-pre-wrap text-[14px] text-ink-800 leading-relaxed">
+                        {detail.content}
+                      </div>
+                    )}
+                    {detail.attachments && detail.attachments.length > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        {detail.attachments.map((a, i) => (
+                          <a
+                            key={i}
+                            href={a.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="block w-28 h-28 rounded-md border border-ink-200 overflow-hidden bg-ink-50 hover:border-brand-400 transition"
+                            title={a.name || 'Прикрепление'}
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={a.url}
+                              alt={a.name || ''}
+                              className="w-full h-full object-cover"
+                            />
+                          </a>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
 
