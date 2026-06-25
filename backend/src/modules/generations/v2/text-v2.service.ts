@@ -11,6 +11,12 @@ import {
     buildLessonPreparationPrompt, LessonPreparationGenInput,
 } from './prompts';
 import { GenerationDocument, JSON_BLOCKS_FORMAT, type GenerationDocumentT } from './blocks-schema';
+import {
+    validateBlocksContent,
+    fixBlocksContent,
+    formatContentIssues,
+    type ContentIssue,
+} from './blocks-content-validator';
 
 /**
  * Универсальный сервис генерации в JSON-формате blocks-v1 для всех
@@ -112,7 +118,7 @@ export class TextV2Service {
             'meta/llama-4-maverick-instruct',
             { max_tokens: 16384, temperature: 0.4 },
         );
-        const validated = this.tryParse(first);
+        const validated = this.tryParseAndValidate(first);
         if (validated.ok === true) return validated.doc;
 
         this.logger.warn(`v2: first attempt invalid, retrying. errors: ${validated.errors}`);
@@ -122,13 +128,34 @@ export class TextV2Service {
             'meta/llama-4-maverick-instruct',
             { max_tokens: 16384, temperature: 0.2 },
         );
-        const retryValidated = this.tryParse(second);
+        const retryValidated = this.tryParseAndValidate(second);
         if (retryValidated.ok === true) return retryValidated.doc;
+
+        // Last-resort auto-fix: если JSON+Zod прошли, но контент всё ещё нарушает
+        // правила формул — программно чиним $..{{N}}..$ → $..$ {{N}} $..$
+        // (стратегия A в blocks-content-validator.ts).
+        const fallbackDoc = retryValidated.doc ?? validated.doc;
+        if (fallbackDoc) {
+            this.logger.warn(
+                `v2: applying deterministic auto-fix after retry. content issues remained: ${retryValidated.errors}`,
+            );
+            const fixed = fixBlocksContent(fallbackDoc);
+            const residual = validateBlocksContent(fixed);
+            if (residual.length === 0) return fixed;
+            this.logger.error(
+                `v2: auto-fix did not remove all issues: ${formatContentIssues(residual)}`,
+            );
+            // Возвращаем починенный док всё равно — это лучше, чем сырой LaTeX
+            // в UI. Оставшиеся «швы» рендерятся клиентским фолбэком (Math.tsx).
+            return fixed;
+        }
 
         throw new Error(`AI вернул невалидный JSON после повтора: ${retryValidated.errors}`);
     }
 
-    private tryParse(raw: string): { ok: true; doc: GenerationDocumentT } | { ok: false; errors: string } {
+    private tryParseAndValidate(
+        raw: string,
+    ): { ok: true; doc: GenerationDocumentT } | { ok: false; errors: string; doc?: GenerationDocumentT } {
         const cleaned = stripJsonFences(raw);
         let parsed: unknown;
         try {
@@ -139,9 +166,9 @@ export class TextV2Service {
                 errors: `Невалидный JSON: ${e?.message}. Начало ответа: ${cleaned.slice(0, 200)}`,
             };
         }
+        let doc: GenerationDocumentT;
         try {
-            const doc = GenerationDocument.parse(parsed);
-            return { ok: true, doc };
+            doc = GenerationDocument.parse(parsed);
         } catch (e: any) {
             const issues = Array.isArray(e?.issues)
                 ? e.issues
@@ -151,6 +178,15 @@ export class TextV2Service {
                 : e?.message || String(e);
             return { ok: false, errors: issues };
         }
+        const contentIssues: ContentIssue[] = validateBlocksContent(doc);
+        if (contentIssues.length > 0) {
+            return {
+                ok: false,
+                errors: `Нарушения правил формул:\n${formatContentIssues(contentIssues)}`,
+                doc,
+            };
+        }
+        return { ok: true, doc };
     }
 }
 
