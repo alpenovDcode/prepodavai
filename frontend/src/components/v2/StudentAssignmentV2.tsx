@@ -522,6 +522,54 @@ export default function StudentAssignmentV2({ assignmentId }: StudentAssignmentV
             )
         }
 
+        // ── Загруженный материал учителя (PDF / JPG / PNG) ──
+        // outputData содержит { fileUrl, mimeType, originalName }.
+        // Рендерим один-в-один как в MaterialViewerV2: PDF в iframe,
+        // картинку inline. Ученик может смотреть, отправлять submission
+        // ему не нужно (это раздаточный материал, не задание-форма).
+        if (gen.generationType === 'uploaded_file' || gen.generationType === 'uploadedFile') {
+            const out: any = typeof gen.outputData === 'object' && gen.outputData ? gen.outputData : {}
+            const fileUrl: string | undefined = out.fileUrl || out.url
+            const mimeType: string | undefined = out.mimeType
+            const originalName: string | undefined = out.originalName
+            if (!fileUrl) {
+                return <div className="p-5 text-[13px] text-ink-500">Файл недоступен</div>
+            }
+            if (mimeType === 'application/pdf') {
+                return (
+                    <div className="p-5">
+                        <iframe
+                            src={fileUrl}
+                            title={originalName || 'Материал'}
+                            className="w-full bg-white border border-ink-200 rounded-md"
+                            style={{ height: '75vh', minHeight: 520, border: 'none' }}
+                        />
+                        <div className="mt-2 text-right">
+                            <a href={fileUrl} target="_blank" rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-[12px] text-ink-500 hover:text-ink-700">
+                                Открыть в новой вкладке <ExternalLink className="w-3 h-3" />
+                            </a>
+                        </div>
+                    </div>
+                )
+            }
+            // Картинка (JPG/PNG) или другой mime (на всякий случай — показываем как картинку).
+            return (
+                <div className="p-5 flex flex-col items-center gap-3">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                        src={fileUrl}
+                        alt={originalName || 'Материал'}
+                        className="max-w-full max-h-[75vh] h-auto object-contain rounded-md border border-ink-200 bg-white"
+                    />
+                    <a href={fileUrl} target="_blank" rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-[12px] text-ink-500 hover:text-ink-700">
+                        Открыть в новой вкладке <ExternalLink className="w-3 h-3" />
+                    </a>
+                </div>
+            )
+        }
+
         // ── JSON blocks-v1 формат ──
         // Новый pipeline: рендерим DocumentRenderer с управляемыми блоками.
         // Ответы ученика хранятся в том же `draftFormDataMap[gen.id]` (для
