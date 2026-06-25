@@ -1,7 +1,7 @@
 'use client'
 
-import { useCallback, useRef, useState } from 'react'
-import { Upload, FileText, ImageIcon, X, Loader2 } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Upload, FileText, ImageIcon, X, Loader2, CheckCircle2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { apiClient } from '@/lib/api/client'
 import { Modal } from '@/components/ui/v2/Modal'
@@ -16,9 +16,18 @@ function formatSize(bytes: number): string {
     return `${(bytes / 1024 / 1024).toFixed(1)} MB`
 }
 
-function fileLabel(file: File): { icon: typeof FileText; tag: string } {
-    if (file.type === 'application/pdf') return { icon: FileText, tag: 'PDF' }
-    return { icon: ImageIcon, tag: file.type === 'image/png' ? 'PNG' : 'JPG' }
+type FileKind = 'pdf' | 'png' | 'jpg'
+function kindOf(file: File): FileKind {
+    if (file.type === 'application/pdf') return 'pdf'
+    if (file.type === 'image/png') return 'png'
+    return 'jpg'
+}
+
+// Цветовые плитки по типу файла — повторяют логику TYPE_CONFIG в материалах.
+const TILE_STYLE: Record<FileKind, { bg: string; text: string; label: string; Icon: typeof FileText }> = {
+    pdf: { bg: 'bg-[#FEF2F2]', text: 'text-[#B91C1C]', label: 'PDF', Icon: FileText },
+    png: { bg: 'bg-[#EFF6FF]', text: 'text-[#1D4ED8]', label: 'PNG', Icon: ImageIcon },
+    jpg: { bg: 'bg-[#FFFBEB]', text: 'text-[#B45309]', label: 'JPG', Icon: ImageIcon },
 }
 
 export interface UploadMaterialModalProps {
@@ -34,7 +43,19 @@ export function UploadMaterialModal({ isOpen, onClose, onUploaded }: UploadMater
     const [error, setError] = useState<string | null>(null)
     const [uploading, setUploading] = useState(false)
     const [dragOver, setDragOver] = useState(false)
+    const [previewUrl, setPreviewUrl] = useState<string | null>(null)
     const inputRef = useRef<HTMLInputElement>(null)
+
+    // Локальное превью для картинок — никакой сети, просто object URL.
+    useEffect(() => {
+        if (!file || !file.type.startsWith('image/')) {
+            setPreviewUrl(null)
+            return
+        }
+        const url = URL.createObjectURL(file)
+        setPreviewUrl(url)
+        return () => URL.revokeObjectURL(url)
+    }, [file])
 
     const reset = useCallback(() => {
         setFile(null)
@@ -66,7 +87,6 @@ export function UploadMaterialModal({ isOpen, onClose, onUploaded }: UploadMater
         }
         setError(null)
         setFile(f)
-        // Префилл названия из имени файла без расширения
         if (!title) {
             const dot = f.name.lastIndexOf('.')
             setTitle(dot > 0 ? f.name.slice(0, dot) : f.name)
@@ -108,11 +128,12 @@ export function UploadMaterialModal({ isOpen, onClose, onUploaded }: UploadMater
         }
     }
 
-    const FilePreviewIcon = file ? fileLabel(file).icon : null
+    const tile = file ? TILE_STYLE[kindOf(file)] : null
 
     return (
         <Modal open={isOpen} onClose={handleClose} title="Загрузить материал" size="md">
-            <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-5">
+                {/* Drop zone / выбранный файл */}
                 {!file ? (
                     <div
                         onClick={() => inputRef.current?.click()}
@@ -120,18 +141,20 @@ export function UploadMaterialModal({ isOpen, onClose, onUploaded }: UploadMater
                         onDragLeave={() => setDragOver(false)}
                         onDrop={onDrop}
                         className={cn(
-                            'cursor-pointer rounded-xl border-2 border-dashed px-6 py-10 text-center transition-colors',
+                            'cursor-pointer rounded-2xl border-2 border-dashed px-6 py-8 text-center transition-colors',
                             dragOver
                                 ? 'border-[var(--brand-400)] bg-[var(--brand-50)]'
-                                : 'border-ink-200 bg-ink-50 hover:border-ink-300 hover:bg-ink-100',
+                                : 'border-ink-200 bg-ink-50/60 hover:border-ink-300 hover:bg-ink-50',
                         )}
                     >
-                        <Upload className="w-8 h-8 text-ink-400 mx-auto mb-3" />
-                        <p className="text-[14px] font-semibold text-ink-800">
-                            Перетащите файл сюда или нажмите для выбора
+                        <div className="mx-auto mb-3 w-12 h-12 rounded-2xl bg-white border border-ink-200 flex items-center justify-center shadow-sm">
+                            <Upload className="w-5 h-5 text-ink-500" />
+                        </div>
+                        <p className="text-[14px] font-semibold text-ink-900">
+                            Перетащите файл сюда
                         </p>
                         <p className="text-[12px] text-ink-500 mt-1">
-                            PDF, JPG или PNG, до 50 MB
+                            или нажмите, чтобы выбрать · PDF, JPG, PNG · до 50 MB
                         </p>
                         <input
                             ref={inputRef}
@@ -142,19 +165,36 @@ export function UploadMaterialModal({ isOpen, onClose, onUploaded }: UploadMater
                         />
                     </div>
                 ) : (
-                    <div className="flex items-center gap-3 rounded-xl border border-ink-200 bg-white px-4 py-3">
-                        {FilePreviewIcon && <FilePreviewIcon className="w-6 h-6 text-ink-500" />}
+                    <div className="flex items-center gap-3 rounded-2xl border border-ink-200 bg-white p-3">
+                        {previewUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                                src={previewUrl}
+                                alt=""
+                                className="w-12 h-12 rounded-lg object-cover bg-ink-50"
+                            />
+                        ) : tile ? (
+                            <div className={cn('w-12 h-12 rounded-lg flex items-center justify-center', tile.bg)}>
+                                <tile.Icon className={cn('w-5 h-5', tile.text)} />
+                            </div>
+                        ) : null}
                         <div className="flex-1 min-w-0">
-                            <p className="text-[14px] font-semibold text-ink-800 truncate">{file.name}</p>
-                            <p className="text-[12px] text-ink-500">
-                                {fileLabel(file).tag} · {formatSize(file.size)}
+                            <p className="text-[14px] font-semibold text-ink-900 truncate">{file.name}</p>
+                            <p className="text-[12px] text-ink-500 flex items-center gap-1.5 mt-0.5">
+                                {tile && (
+                                    <span className={cn('px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide', tile.bg, tile.text)}>
+                                        {tile.label}
+                                    </span>
+                                )}
+                                <span>{formatSize(file.size)}</span>
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
                             </p>
                         </div>
                         <button
                             type="button"
                             onClick={reset}
                             disabled={uploading}
-                            className="p-1 rounded hover:bg-ink-100 disabled:opacity-50"
+                            className="p-1.5 rounded-lg hover:bg-ink-100 disabled:opacity-50 transition-colors"
                             aria-label="Убрать файл"
                         >
                             <X className="w-4 h-4 text-ink-500" />
@@ -162,28 +202,31 @@ export function UploadMaterialModal({ isOpen, onClose, onUploaded }: UploadMater
                     </div>
                 )}
 
+                {/* Название */}
                 <div>
-                    <label htmlFor="upload-material-title" className="block text-[12px] font-semibold text-ink-700 mb-1">
-                        Название (опционально)
+                    <label htmlFor="upload-material-title" className="block text-[13px] font-semibold text-ink-900 mb-1.5">
+                        Название
+                        <span className="text-ink-400 font-normal"> · опционально</span>
                     </label>
                     <input
                         id="upload-material-title"
                         type="text"
                         value={title}
                         onChange={(e) => setTitle(e.target.value)}
-                        placeholder="Например: Учебник Алгебра 7 класс"
+                        placeholder="Например: Учебник «Алгебра 7 класс»"
                         disabled={uploading}
-                        className="w-full h-10 px-3 rounded-lg border border-ink-200 bg-white text-[14px] outline-none focus:border-[var(--brand-400)] focus:ring-2 focus:ring-[var(--brand-100)] disabled:opacity-60"
+                        className="w-full h-11 px-3.5 rounded-xl border border-ink-200 bg-white text-[14px] outline-none transition-shadow focus:border-[var(--brand-400)] focus:ring-4 focus:ring-[var(--brand-100)] disabled:opacity-60"
                     />
                 </div>
 
                 {error && (
-                    <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-[13px] text-red-700">
+                    <div className="rounded-xl bg-red-50 border border-red-200 px-3.5 py-2.5 text-[13px] text-red-700">
                         {error}
                     </div>
                 )}
 
-                <div className="flex justify-end gap-2 pt-2">
+                {/* Кнопки */}
+                <div className="flex justify-end gap-2 pt-1">
                     <Button variant="ghost" onClick={handleClose} disabled={uploading}>
                         Отмена
                     </Button>

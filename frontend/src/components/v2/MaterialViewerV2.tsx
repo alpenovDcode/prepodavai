@@ -28,6 +28,7 @@ import { DocumentRenderer } from '@/components/blocks/DocumentRenderer'
 import { isJsonBlocksFormat, GenerationDocument as GenerationDocumentSchema, JSON_BLOCKS_FORMAT } from '@/lib/blocks/schema'
 import type { GenerationDocument as GenerationDocumentT } from '@/lib/blocks/schema'
 import { DocumentEditor } from '@/components/blocks/editor/DocumentEditor'
+import { useAuthedFileUrl } from '@/hooks/useAuthedFileUrl'
 import PresentationSlideEditor, { type PresentationData as SlideEditorData } from '@/components/v2/PresentationSlideEditor'
 
 interface Props {
@@ -487,6 +488,11 @@ export default function MaterialViewerV2({ lessonId, generationId, isEditable = 
         if (!url || !mimeType) return null
         return { url, mimeType, originalName: od.originalName as string | undefined }
     }, [isUploadedFile, generation?.outputData])
+    // Для PDF тянем через blob URL (см. useAuthedFileUrl) —
+    // backend ставит X-Frame-Options: SAMEORIGIN, прямой src блокируется.
+    const uploadedPdf = useAuthedFileUrl(
+        uploadedFile?.mimeType === 'application/pdf' ? uploadedFile.url : null,
+    )
 
     // ── Маршрутизация на новый JSON-формат blocks-v1 ──
     // Если outputData содержит { format: 'json-blocks-v1', outputDoc: <doc> },
@@ -1067,12 +1073,25 @@ export default function MaterialViewerV2({ lessonId, generationId, isEditable = 
                 ) : isUploadedFile && uploadedFile ? (
                     uploadedFile.mimeType === 'application/pdf' ? (
                         <div className="relative bg-white border border-ink-200 rounded-lg overflow-hidden shadow-sm print-frame">
-                            <iframe
-                                src={uploadedFile.url}
-                                title={displayTitle}
-                                className="block w-full bg-white border-0"
-                                style={{ minHeight: '600px', height: '80vh' }}
-                            />
+                            {uploadedPdf.loading && (
+                                <div className="absolute inset-0 z-10 flex items-center justify-center bg-white">
+                                    <Loader2 className="w-6 h-6 text-brand-500 animate-spin" />
+                                </div>
+                            )}
+                            {uploadedPdf.error ? (
+                                <div className="p-8 text-center text-[13px] text-ink-500">
+                                    Не удалось загрузить PDF. <a href={uploadedFile.url} target="_blank" rel="noopener noreferrer" className="text-brand-600 underline">Открыть в новой вкладке</a>
+                                </div>
+                            ) : uploadedPdf.blobUrl ? (
+                                <iframe
+                                    src={uploadedPdf.blobUrl}
+                                    title={displayTitle}
+                                    className="block w-full bg-white border-0"
+                                    style={{ minHeight: '600px', height: '80vh' }}
+                                />
+                            ) : (
+                                <div style={{ minHeight: '600px', height: '80vh' }} />
+                            )}
                         </div>
                     ) : (
                         <div className="relative bg-white border border-ink-200 rounded-lg overflow-hidden shadow-sm flex items-center justify-center p-6 print-frame">

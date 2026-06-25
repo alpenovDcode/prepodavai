@@ -19,6 +19,7 @@ import { stripAnswerKey } from '@/lib/strip-answer-key'
 import Image from 'next/image'
 import { DocumentRenderer } from '@/components/blocks/DocumentRenderer'
 import { isJsonBlocksFormat, GenerationDocument as GenerationDocumentSchema } from '@/lib/blocks/schema'
+import { useAuthedFileUrl } from '@/hooks/useAuthedFileUrl'
 
 // ─── Типы ────────────────────────────────────────────────────────────────────
 
@@ -146,6 +147,72 @@ function countWorksheetTasks(outputData: any): number {
 
 function isOpenByDefault(type: string): boolean {
     return type === 'worksheet' || type === 'quiz'
+}
+
+/**
+ * Тело задания типа uploaded_file: PDF через blob URL (обход
+ * X-Frame-Options) либо картинку напрямую через img.
+ * Сделан компонентом, потому что renderGenBody — обычная функция,
+ * хуки нельзя вызывать внутри неё.
+ */
+function UploadedFileBody({ outputData }: { outputData: any }) {
+    const out = typeof outputData === 'object' && outputData ? outputData : {}
+    const fileUrl: string | undefined = out.fileUrl || out.url
+    const mimeType: string | undefined = out.mimeType
+    const originalName: string | undefined = out.originalName
+    const isPdf = mimeType === 'application/pdf'
+    const pdfAuth = useAuthedFileUrl(isPdf ? fileUrl || null : null)
+
+    if (!fileUrl) {
+        return <div className="p-5 text-[13px] text-ink-500">Файл недоступен</div>
+    }
+    const preview = isPdf ? (
+        <div className="relative w-full bg-white border border-ink-200 rounded-md overflow-hidden" style={{ minHeight: 520, height: '75vh' }}>
+            {pdfAuth.loading && (
+                <div className="absolute inset-0 z-10 flex items-center justify-center bg-white">
+                    <Loader2 className="w-5 h-5 text-brand-500 animate-spin" />
+                </div>
+            )}
+            {pdfAuth.error ? (
+                <div className="p-6 text-center text-[13px] text-ink-500">
+                    Не удалось загрузить PDF.{' '}
+                    <a href={fileUrl} target="_blank" rel="noopener noreferrer" className="text-brand-600 underline">
+                        Открыть в новой вкладке
+                    </a>
+                </div>
+            ) : pdfAuth.blobUrl ? (
+                <iframe
+                    src={pdfAuth.blobUrl}
+                    title={originalName || 'Материал'}
+                    className="w-full h-full bg-white border-0"
+                />
+            ) : null}
+        </div>
+    ) : (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+            src={fileUrl}
+            alt={originalName || 'Материал'}
+            className="max-w-full max-h-[75vh] h-auto object-contain rounded-md border border-ink-200 bg-white"
+        />
+    )
+    return (
+        <div className="p-5 flex flex-col gap-3">
+            {preview}
+            <div className="flex items-start gap-2 px-3 py-2.5 rounded-md bg-amber-50 border border-amber-200 text-[12px] text-amber-800">
+                <span className="font-bold">Как сдать:</span>
+                <span>
+                    Запиши решение в поле «Дополнительно к ответам» ниже или прикрепи фото своей работы.
+                </span>
+            </div>
+            <div className="text-right">
+                <a href={fileUrl} target="_blank" rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-[12px] text-ink-500 hover:text-ink-700">
+                    Открыть файл в новой вкладке <ExternalLink className="w-3 h-3" />
+                </a>
+            </div>
+        </div>
+    )
 }
 
 function getStatusBadge(type: string, filled: boolean) {
@@ -523,50 +590,10 @@ export default function StudentAssignmentV2({ assignmentId }: StudentAssignmentV
         }
 
         // ── Загруженный материал учителя (PDF / JPG / PNG) ──
-        // outputData содержит { fileUrl, mimeType, originalName }.
-        // Ученик смотрит файл, ответ записывает в общий блок «Дополнительно
-        // к ответам» ниже (textarea + фото) — он рендерится отдельно для всего
-        // задания. AI этот тип НЕ проверяет — учитель оценивает вручную.
+        // Делегируем компоненту, чтобы валидно использовать useAuthedFileUrl
+        // (хуки нельзя внутри функции renderGenBody).
         if (gen.generationType === 'uploaded_file' || gen.generationType === 'uploadedFile') {
-            const out: any = typeof gen.outputData === 'object' && gen.outputData ? gen.outputData : {}
-            const fileUrl: string | undefined = out.fileUrl || out.url
-            const mimeType: string | undefined = out.mimeType
-            const originalName: string | undefined = out.originalName
-            if (!fileUrl) {
-                return <div className="p-5 text-[13px] text-ink-500">Файл недоступен</div>
-            }
-            const filePreview = mimeType === 'application/pdf' ? (
-                <iframe
-                    src={fileUrl}
-                    title={originalName || 'Материал'}
-                    className="w-full bg-white border border-ink-200 rounded-md"
-                    style={{ height: '75vh', minHeight: 520, border: 'none' }}
-                />
-            ) : (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                    src={fileUrl}
-                    alt={originalName || 'Материал'}
-                    className="max-w-full max-h-[75vh] h-auto object-contain rounded-md border border-ink-200 bg-white"
-                />
-            )
-            return (
-                <div className="p-5 flex flex-col gap-3">
-                    {filePreview}
-                    <div className="flex items-start gap-2 px-3 py-2.5 rounded-md bg-amber-50 border border-amber-200 text-[12px] text-amber-800">
-                        <span className="font-bold">Как сдать:</span>
-                        <span>
-                            Запиши решение в поле «Дополнительно к ответам» ниже или прикрепи фото своей работы.
-                        </span>
-                    </div>
-                    <div className="text-right">
-                        <a href={fileUrl} target="_blank" rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-[12px] text-ink-500 hover:text-ink-700">
-                            Открыть файл в новой вкладке <ExternalLink className="w-3 h-3" />
-                        </a>
-                    </div>
-                </div>
-            )
+            return <UploadedFileBody outputData={gen.outputData} />
         }
 
         // ── JSON blocks-v1 формат ──
