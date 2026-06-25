@@ -20,16 +20,28 @@ import type { GenerationDocumentT, BlockT } from './blocks-schema';
 export type ContentIssue = {
     /** Читаемый путь до поля, например `blocks[2] (fill-blank fb-1).template`. */
     path: string;
-    code: 'placeholder_in_formula' | 'unbalanced_dollars';
+    code: 'placeholder_in_formula' | 'unbalanced_dollars' | 'task_count_mismatch';
     /** Нарушающий фрагмент из строки (для подсказки LLM). */
     excerpt: string;
     /** Что LLM нужно сделать. */
     suggestion: string;
 };
 
+export type ValidateOptions = {
+    /**
+     * Сколько карточек-заданий («Задание N. ...» heading level 2)
+     * должно быть в документе. Срабатывает только для type='worksheet'.
+     * Допускается небольшой перебор, но НЕдоборы выдают issue.
+     */
+    expectedTaskCount?: number;
+};
+
 // ─── валидатор ────────────────────────────────────────────────────
 
-export function validateBlocksContent(doc: GenerationDocumentT): ContentIssue[] {
+export function validateBlocksContent(
+    doc: GenerationDocumentT,
+    opts: ValidateOptions = {},
+): ContentIssue[] {
     const issues: ContentIssue[] = [];
     doc.blocks.forEach((block, idx) => {
         const base = `blocks[${idx}] (${block.type} ${block.id})`;
@@ -37,7 +49,42 @@ export function validateBlocksContent(doc: GenerationDocumentT): ContentIssue[] 
             checkString(field.value, `${base}.${field.name}`, issues);
         }
     });
+    if (opts.expectedTaskCount !== undefined && doc.type === 'worksheet') {
+        const actual = countWorksheetTaskCards(doc);
+        const expected = opts.expectedTaskCount;
+        if (actual < expected) {
+            const missing = expected - actual;
+            issues.push({
+                path: 'blocks (worksheet root)',
+                code: 'task_count_mismatch',
+                excerpt: `Найдено ${actual} карточек-заданий, ожидалось ${expected}.`,
+                suggestion:
+                    `Не хватает ${missing} заданий. ` +
+                    `Добавь ещё ${missing} карточек по схеме: ` +
+                    `heading level 2 «Задание N. <название>» + интерактивный блок ` +
+                    `(fill-blank / multiple-choice / short-answer / matching). ` +
+                    `Итого должно быть РОВНО ${expected} карточек «Задание N. ...».`,
+            });
+        }
+    }
     return issues;
+}
+
+const TASK_CARD_RE = /^Задание\s+\d+/;
+
+/**
+ * Считает heading level 2 с текстом, начинающимся с «Задание N» —
+ * именно так промпт worksheet просит оформлять карточки задач.
+ * Секции-разделители («Блок N: ...», «Раздел …», «Часть …») не учитываются.
+ */
+export function countWorksheetTaskCards(doc: GenerationDocumentT): number {
+    let n = 0;
+    for (const b of doc.blocks) {
+        if (b.type === 'heading' && b.level === 2 && TASK_CARD_RE.test(b.text)) {
+            n++;
+        }
+    }
+    return n;
 }
 
 function checkString(s: string, path: string, out: ContentIssue[]): void {

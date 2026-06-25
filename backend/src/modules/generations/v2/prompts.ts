@@ -197,10 +197,14 @@ ${BASE_SCHEMA_DESCRIPTION}
 === СПЕЦИФИКА WORKSHEET ===
 
 - type: "worksheet"
-- ${tasks}–${tasks + 3} карточек-заданий, сгруппированных в 2–4 секции «Блок N: Название» по смыслу.
-- Каждое задание — отдельная карточка через heading level 2 «Задание N. Краткое название».
-- Внутри задания: paragraph с условием + ОДИН интерактивный блок (fill-blank/multiple-choice/short-answer/matching).
+- РОВНО ${tasks} карточек-заданий — не меньше, не больше. Это ЖЁСТКОЕ требование.
+- Каждое задание — отдельная карточка через heading level 2 «Задание N. Краткое название» (N — порядковый номер 1..${tasks}).
+- Если ${tasks} ≥ 6 — сгруппируй задания в 2–4 секции через heading level 2 «Блок N: Название» (это секции-разделители, они НЕ считаются заданиями).
+- Если ${tasks} ≤ 5 — секции «Блок» не нужны, все задания подряд.
+- Внутри каждого задания: paragraph с условием + ОДИН интерактивный блок (fill-blank/multiple-choice/short-answer/matching).
 - Между секциями — spacer size:"md".
+
+ПЕРЕД ОТДАЧЕЙ JSON ОБЯЗАТЕЛЬНО ПРОВЕРЬ: количество heading level 2, текст которых начинается с «Задание », должно быть равно ${tasks}. Если меньше — допиши недостающие карточки.
 - Если задание с числовым ответом — добавляй short-answer с expectedAnswer (всё в LaTeX).
 - Если задание выбрать из списка — multiple-choice с 3–5 вариантами.
 - Если заполнить пропуски — fill-blank с 1–4 пропусками.
@@ -247,7 +251,7 @@ ${COMMON_TAIL}`;
     if (input.subject) lines.push(`Предмет: ${input.subject}`);
     if (input.grade) lines.push(`Класс: ${input.grade}`);
     if (input.duration) lines.push(`Длительность: ${input.duration}`);
-    if (input.numTasks) lines.push(`Количество заданий: ${input.numTasks}`);
+    if (input.numTasks) lines.push(`Количество заданий: РОВНО ${input.numTasks} (карточек heading «Задание N. ...»).`);
     if (input.interests && input.interests.trim()) {
         lines.push(`Интересы учеников (используй в формулировках задач, метафорах, примерах): ${input.interests.trim()}`);
     }

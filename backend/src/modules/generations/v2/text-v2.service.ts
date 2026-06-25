@@ -43,7 +43,9 @@ export class TextV2Service {
     ) {}
 
     async generateWorksheet(userId: string, input: WorksheetGenInput, lessonId?: string) {
-        return this.run(userId, 'worksheet', input, lessonId, buildWorksheetPrompt(input));
+        return this.run(userId, 'worksheet', input, lessonId, buildWorksheetPrompt(input), {
+            expectedTaskCount: input.numTasks,
+        });
     }
     async generateQuiz(userId: string, input: QuizGenInput, lessonId?: string) {
         return this.run(userId, 'quiz', input, lessonId, buildQuizPrompt(input));
@@ -64,6 +66,7 @@ export class TextV2Service {
         input: Record<string, any>,
         lessonId: string | undefined,
         prompt: { system: string; user: string },
+        validateOpts: { expectedTaskCount?: number } = {},
     ) {
         const topic = input?.topic;
         if (!topic || typeof topic !== 'string' || !topic.trim()) {
@@ -89,7 +92,7 @@ export class TextV2Service {
         });
 
         try {
-            const doc = await this.generateAndValidate(prompt);
+            const doc = await this.generateAndValidate(prompt, validateOpts);
             const outputData = { format: JSON_BLOCKS_FORMAT, outputDoc: doc };
             await this.generationHelpers.completeGeneration(generationRequest.id, outputData);
 
@@ -111,14 +114,17 @@ export class TextV2Service {
         }
     }
 
-    private async generateAndValidate(prompt: { system: string; user: string }): Promise<GenerationDocumentT> {
+    private async generateAndValidate(
+        prompt: { system: string; user: string },
+        validateOpts: { expectedTaskCount?: number } = {},
+    ): Promise<GenerationDocumentT> {
         const combinedPrompt = `${prompt.system}\n\n${prompt.user}`;
         const first = await this.replicateService.createCompletion(
             combinedPrompt,
             'meta/llama-4-maverick-instruct',
             { max_tokens: 16384, temperature: 0.4 },
         );
-        const validated = this.tryParseAndValidate(first);
+        const validated = this.tryParseAndValidate(first, validateOpts);
         if (validated.ok === true) return validated.doc;
 
         this.logger.warn(`v2: first attempt invalid, retrying. errors: ${validated.errors}`);
@@ -128,12 +134,15 @@ export class TextV2Service {
             'meta/llama-4-maverick-instruct',
             { max_tokens: 16384, temperature: 0.2 },
         );
-        const retryValidated = this.tryParseAndValidate(second);
+        const retryValidated = this.tryParseAndValidate(second, validateOpts);
         if (retryValidated.ok === true) return retryValidated.doc;
 
         // Last-resort auto-fix: если JSON+Zod прошли, но контент всё ещё нарушает
         // правила формул — программно чиним $..{{N}}..$ → $..$ {{N}} $..$
         // (стратегия A в blocks-content-validator.ts).
+        // ВАЖНО: счётчик заданий валидируем БЕЗ expectedTaskCount — недобор
+        // заданий мы автоматически починить не можем (новые задания LLM-only),
+        // так что отдаём что есть, чтобы пользователь не получил 500.
         const fallbackDoc = retryValidated.doc ?? validated.doc;
         if (fallbackDoc) {
             this.logger.warn(
@@ -145,8 +154,6 @@ export class TextV2Service {
             this.logger.error(
                 `v2: auto-fix did not remove all issues: ${formatContentIssues(residual)}`,
             );
-            // Возвращаем починенный док всё равно — это лучше, чем сырой LaTeX
-            // в UI. Оставшиеся «швы» рендерятся клиентским фолбэком (Math.tsx).
             return fixed;
         }
 
@@ -155,6 +162,7 @@ export class TextV2Service {
 
     private tryParseAndValidate(
         raw: string,
+        validateOpts: { expectedTaskCount?: number } = {},
     ): { ok: true; doc: GenerationDocumentT } | { ok: false; errors: string; doc?: GenerationDocumentT } {
         const cleaned = stripJsonFences(raw);
         let parsed: unknown;
@@ -178,11 +186,11 @@ export class TextV2Service {
                 : e?.message || String(e);
             return { ok: false, errors: issues };
         }
-        const contentIssues: ContentIssue[] = validateBlocksContent(doc);
+        const contentIssues: ContentIssue[] = validateBlocksContent(doc, validateOpts);
         if (contentIssues.length > 0) {
             return {
                 ok: false,
-                errors: `Нарушения правил формул:\n${formatContentIssues(contentIssues)}`,
+                errors: `Нарушения контент-валидации:\n${formatContentIssues(contentIssues)}`,
                 doc,
             };
         }

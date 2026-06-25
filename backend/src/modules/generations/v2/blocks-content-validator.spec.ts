@@ -1,18 +1,29 @@
 import {
     validateBlocksContent,
     fixBlocksContent,
+    countWorksheetTaskCards,
     type ContentIssue,
 } from './blocks-content-validator';
 import type { GenerationDocumentT } from './blocks-schema';
 
-function docWithBlocks(blocks: any[]): GenerationDocumentT {
+function docWithBlocks(blocks: any[], docType: GenerationDocumentT['type'] = 'worksheet'): GenerationDocumentT {
     return {
         schemaVersion: 1,
-        type: 'worksheet',
+        type: docType,
         title: 'T',
         meta: {},
         blocks,
     } as GenerationDocumentT;
+}
+
+function taskHeading(n: number, name = 'Задача'): any {
+    return { type: 'heading', id: `h-${n}`, level: 2, text: `Задание ${n}. ${name}` };
+}
+function sectionHeading(n: number, name = 'Подтема'): any {
+    return { type: 'heading', id: `h-s${n}`, level: 2, text: `Блок ${n}: ${name}` };
+}
+function fillBlank(id: string): any {
+    return { type: 'fill-blank', id, template: 'X = {{1}}', blanks: [{ index: 1, answer: '1' }] };
 }
 
 describe('validateBlocksContent', () => {
@@ -317,5 +328,100 @@ describe('fixBlocksContent', () => {
         // $a = 5$ должен остаться нетронутым.
         expect(fb.template).toContain('$a = 5$');
         expect(fb.template).toContain('{{1}}');
+    });
+});
+
+describe('countWorksheetTaskCards', () => {
+    it('считает heading level 2 с текстом «Задание N. ...»', () => {
+        const doc = docWithBlocks([
+            taskHeading(1),
+            fillBlank('fb-1'),
+            taskHeading(2),
+            fillBlank('fb-2'),
+            taskHeading(3),
+            fillBlank('fb-3'),
+        ]);
+        expect(countWorksheetTaskCards(doc)).toBe(3);
+    });
+
+    it('не считает секции-разделители «Блок N: ...»', () => {
+        const doc = docWithBlocks([
+            sectionHeading(1),
+            taskHeading(1),
+            taskHeading(2),
+            sectionHeading(2),
+            taskHeading(3),
+        ]);
+        expect(countWorksheetTaskCards(doc)).toBe(3);
+    });
+
+    it('не считает «Задание» в heading других уровней', () => {
+        const doc = docWithBlocks([
+            { type: 'heading', id: 'h-1', level: 1, text: 'Задание 1. Hello' },
+            { type: 'heading', id: 'h-2', level: 3, text: 'Задание 2. World' },
+        ]);
+        expect(countWorksheetTaskCards(doc)).toBe(0);
+    });
+
+    it('терпим к двоеточию вместо точки («Задание 1: …»)', () => {
+        const doc = docWithBlocks([
+            { type: 'heading', id: 'h-1', level: 2, text: 'Задание 1: Что-то' },
+            { type: 'heading', id: 'h-2', level: 2, text: 'Задание 2 Что-то' },
+        ]);
+        expect(countWorksheetTaskCards(doc)).toBe(2);
+    });
+});
+
+describe('validateBlocksContent с expectedTaskCount', () => {
+    it('не выдаёт issue если фактическое число задач === ожидаемое', () => {
+        const doc = docWithBlocks([
+            taskHeading(1), fillBlank('fb-1'),
+            taskHeading(2), fillBlank('fb-2'),
+            taskHeading(3), fillBlank('fb-3'),
+        ]);
+        const issues = validateBlocksContent(doc, { expectedTaskCount: 3 });
+        expect(issues).toEqual([]);
+    });
+
+    it('выдаёт task_count_mismatch если фактическое меньше ожидаемого', () => {
+        const doc = docWithBlocks([
+            taskHeading(1), fillBlank('fb-1'),
+            taskHeading(2), fillBlank('fb-2'),
+        ]);
+        const issues = validateBlocksContent(doc, { expectedTaskCount: 13 });
+        expect(issues).toHaveLength(1);
+        expect(issues[0].code).toBe('task_count_mismatch');
+        expect(issues[0].suggestion).toContain('13');
+        expect(issues[0].suggestion).toContain('2');
+        expect(issues[0].suggestion).toMatch(/добавь|ещё|11/i);
+    });
+
+    it('терпим к небольшому перебору (фактическое > ожидаемого ≤ +3)', () => {
+        // LLM может слегка перебрать — это не критично, не реджектим.
+        const doc = docWithBlocks([
+            taskHeading(1), fillBlank('fb-1'),
+            taskHeading(2), fillBlank('fb-2'),
+            taskHeading(3), fillBlank('fb-3'),
+            taskHeading(4), fillBlank('fb-4'),
+        ]);
+        const issues = validateBlocksContent(doc, { expectedTaskCount: 3 });
+        expect(issues).toEqual([]);
+    });
+
+    it('срабатывает только для type === worksheet', () => {
+        // Если для quiz/vocabulary случайно передан expectedTaskCount — игнорируем.
+        const quizDoc = docWithBlocks([
+            { type: 'heading', id: 'h-1', level: 2, text: 'Вопрос 1' },
+        ], 'quiz');
+        const issues = validateBlocksContent(quizDoc, { expectedTaskCount: 10 });
+        expect(issues.filter(i => i.code === 'task_count_mismatch')).toEqual([]);
+    });
+
+    it('без expectedTaskCount счётчик не запускается', () => {
+        const doc = docWithBlocks([
+            taskHeading(1), fillBlank('fb-1'),
+        ]);
+        const issues = validateBlocksContent(doc);
+        expect(issues.filter(i => i.code === 'task_count_mismatch')).toEqual([]);
     });
 });
