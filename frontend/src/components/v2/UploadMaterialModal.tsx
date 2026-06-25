@@ -132,7 +132,7 @@ export function UploadMaterialModal({ isOpen, onClose, onUploaded }: UploadMater
 
     return (
         <Modal open={isOpen} onClose={handleClose} title="Загрузить материал" size="lg">
-            <div className="flex flex-col gap-6 py-2">
+            <div className="mx-auto w-full max-w-[460px] flex flex-col gap-6 py-2">
                 {/* Drop zone / выбранный файл */}
                 {!file ? (
                     <div
