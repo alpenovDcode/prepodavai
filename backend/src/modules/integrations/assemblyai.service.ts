@@ -1,6 +1,7 @@
 import { Injectable, Logger, HttpException, HttpStatus } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import axios from 'axios';
+import axios, { AxiosInstance } from 'axios';
+import { HttpsProxyAgent } from 'https-proxy-agent';
 
 export interface TranscriptionResult {
   text: string;
@@ -10,14 +11,49 @@ export interface TranscriptionResult {
 @Injectable()
 export class AssemblyAiService {
   private readonly logger = new Logger(AssemblyAiService.name);
-  private readonly apiUrl = 'https://api.assemblyai.com/v2';
   private apiKey: string;
+  private readonly http: AxiosInstance;
+  // Прокси для egress к api.assemblyai.com — РКН блокирует прямой путь
+  // с РФ-хостинга (как с api.replicate.com). Переиспользуем TELEGRAM_PROXY.
+  private readonly proxyAgent: HttpsProxyAgent<string> | undefined;
 
   constructor(private readonly configService: ConfigService) {
     this.apiKey = this.configService.get<string>('ASSEMBLYAI_API_KEY');
     if (!this.apiKey) {
       this.logger.warn('ASSEMBLYAI_API_KEY is not set. Transcription features will not work.');
     }
+
+    const proxyUrl = (
+      this.configService.get<string>('ASSEMBLYAI_PROXY') ||
+      this.configService.get<string>('TELEGRAM_PROXY') ||
+      this.configService.get<string>('HTTPS_PROXY') ||
+      this.configService.get<string>('https_proxy') ||
+      this.configService.get<string>('ALL_PROXY') ||
+      ''
+    ).trim();
+    if (proxyUrl) {
+      try {
+        this.proxyAgent = new HttpsProxyAgent(proxyUrl);
+        const u = new URL(proxyUrl);
+        this.logger.log(
+          `Routing AssemblyAI egress через прокси: ${u.protocol}//${u.host} (auth: ${u.username ? 'yes' : 'no'})`,
+        );
+      } catch (e) {
+        this.logger.error(`Failed to init proxy agent for "${proxyUrl}": ${(e as Error).message}`);
+      }
+    }
+
+    this.http = axios.create({
+      baseURL: 'https://api.assemblyai.com/v2',
+      headers: {
+        authorization: this.apiKey,
+        'content-type': 'application/json',
+      },
+      timeout: 180000,
+      ...(this.proxyAgent
+        ? { httpsAgent: this.proxyAgent, proxy: false }
+        : {}),
+    });
   }
 
   async transcribeFile(fileUrl: string): Promise<string> {
@@ -31,46 +67,40 @@ export class AssemblyAiService {
     try {
       this.logger.log(`Starting transcription for URL: ${fileUrl}`);
 
-      // 1. Submit transcription job
-      const submitResponse = await axios.post(
-        `${this.apiUrl}/transcript`,
-        {
-          audio_url: fileUrl,
-          speaker_labels: true,
-          language_code: 'ru', // Defaulting to Russian as per context
-        },
-        {
-          headers: {
-            authorization: this.apiKey,
-            'content-type': 'application/json',
-          },
-        },
-      );
+      const submitResponse = await this.http.post('/transcript', {
+        audio_url: fileUrl,
+        speaker_labels: true,
+        language_code: 'ru',
+      });
 
       const transcriptId = submitResponse.data.id;
       this.logger.log(`Transcription job submitted. ID: ${transcriptId}`);
 
-      // 2. Poll for completion
       return await this.pollTranscription(transcriptId);
     } catch (error: any) {
-      this.logger.error(`Transcription failed: ${error.message}`, error.response?.data);
+      const apiError = error.response?.data?.error;
+      const code = error.code; // ENOTFOUND / ECONNRESET / ETIMEDOUT / ECONNREFUSED
+      const status = error.response?.status;
+      const detail = apiError || code || error.message || 'unknown network error';
+      this.logger.error(
+        `Transcription failed: ${detail} (status=${status ?? 'n/a'}, code=${code ?? 'n/a'})`,
+        error.response?.data ?? error.stack,
+      );
       throw new HttpException(
-        `Transcription failed: ${error.response?.data?.error || error.message}`,
+        `Transcription failed: ${detail}`,
         HttpStatus.BAD_GATEWAY,
       );
     }
   }
 
   private async pollTranscription(transcriptId: string): Promise<string> {
-    const pollingInterval = 3000; // 3 seconds
-    const maxAttempts = 300; // ~15 minutes timeout
+    const pollingInterval = 3000;
+    const maxAttempts = 300;
 
     for (let i = 0; i < maxAttempts; i++) {
       await new Promise((resolve) => setTimeout(resolve, pollingInterval));
 
-      const response = await axios.get(`${this.apiUrl}/transcript/${transcriptId}`, {
-        headers: { authorization: this.apiKey },
-      });
+      const response = await this.http.get(`/transcript/${transcriptId}`);
 
       const status = response.data.status;
 
@@ -80,20 +110,16 @@ export class AssemblyAiService {
       } else if (status === 'error') {
         throw new Error(`Transcription failed: ${response.data.error}`);
       }
-
-      // If 'queued' or 'processing', continue loop
     }
 
     throw new Error('Transcription timed out');
   }
 
   private formatTranscript(data: any): string {
-    // If we have speaker diarization, use it
     if (data.utterances && data.utterances.length > 0) {
       return data.utterances.map((u: any) => `Speaker ${u.speaker}: ${u.text}`).join('\n\n');
     }
 
-    // Fallback to plain text
     return data.text || '';
   }
 }
