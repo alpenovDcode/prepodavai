@@ -41,6 +41,7 @@ import { FeedbackStrategy } from './strategies/feedback.strategy';
 import { VideoAnalysisStrategy } from './strategies/video-analysis.strategy';
 import { WorksheetV2Service } from './v2/worksheet-v2.service';
 import { TextV2Service } from './v2/text-v2.service';
+import { UploadMaterialService } from './upload-material.service';
 
 @Module({
   imports: [
@@ -113,7 +114,8 @@ import { TextV2Service } from './v2/text-v2.service';
     VideoAnalysisStrategy,
     WorksheetV2Service,
     TextV2Service,
+    UploadMaterialService,
   ],
-  exports: [GenerationsService, GenerationQueueService, GenerationHelpersService, WorksheetV2Service, TextV2Service],
+  exports: [GenerationsService, GenerationQueueService, GenerationHelpersService, WorksheetV2Service, TextV2Service, UploadMaterialService],
 })
 export class GenerationsModule {}

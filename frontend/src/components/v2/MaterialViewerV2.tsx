@@ -475,6 +475,19 @@ export default function MaterialViewerV2({ lessonId, generationId, isEditable = 
         return od.imageUrl || od.imageUrls?.[0] || od.url || od.image || null
     }, [generation?.outputData, isImageType])
 
+    // Загруженный пользователем материал (PDF / JPG / PNG).
+    // outputData содержит { fileHash, fileUrl, mimeType, originalName, size }.
+    const isUploadedFile = genType === 'uploaded_file' || genType === 'uploadedFile'
+    const uploadedFile = useMemo(() => {
+        if (!isUploadedFile) return null
+        const od: any = generation?.outputData
+        if (!od || typeof od !== 'object') return null
+        const url: string | undefined = od.fileUrl
+        const mimeType: string | undefined = od.mimeType
+        if (!url || !mimeType) return null
+        return { url, mimeType, originalName: od.originalName as string | undefined }
+    }, [isUploadedFile, generation?.outputData])
+
     // ── Маршрутизация на новый JSON-формат blocks-v1 ──
     // Если outputData содержит { format: 'json-blocks-v1', outputDoc: <doc> },
     // мы рендерим через DocumentRenderer вместо iframe со старым HTML.
@@ -490,7 +503,12 @@ export default function MaterialViewerV2({ lessonId, generationId, isEditable = 
     // V2 JSON-blocks НЕ показываем через legacy — у них свой Renderer/Editor.
     // Иначе у JSON-генераций (новый формат) исчезает табs row и кнопка
     // редактирования — учитель видит только PDF + «Выдать задание».
-    const showAsLegacy = !!generation && !isHtmlType && !(isImageType && imageUrl) && !isV2
+    const showAsLegacy =
+        !!generation &&
+        !isHtmlType &&
+        !(isImageType && imageUrl) &&
+        !isV2 &&
+        !(isUploadedFile && uploadedFile)
     const displayTitle = (generation?.title?.trim() || lesson?.title || 'Материал').trim()
 
     const srcDoc = useMemo(() => {
@@ -1046,6 +1064,26 @@ export default function MaterialViewerV2({ lessonId, generationId, isEditable = 
                             className="max-w-full max-h-[80vh] h-auto object-contain rounded-md"
                         />
                     </div>
+                ) : isUploadedFile && uploadedFile ? (
+                    uploadedFile.mimeType === 'application/pdf' ? (
+                        <div className="relative bg-white border border-ink-200 rounded-lg overflow-hidden shadow-sm print-frame">
+                            <iframe
+                                src={uploadedFile.url}
+                                title={displayTitle}
+                                className="block w-full bg-white border-0"
+                                style={{ minHeight: '600px', height: '80vh' }}
+                            />
+                        </div>
+                    ) : (
+                        <div className="relative bg-white border border-ink-200 rounded-lg overflow-hidden shadow-sm flex items-center justify-center p-6 print-frame">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                                src={uploadedFile.url}
+                                alt={displayTitle}
+                                className="max-w-full max-h-[80vh] h-auto object-contain rounded-md"
+                            />
+                        </div>
+                    )
                 ) : srcDoc ? (
                     <div className="relative bg-white border border-ink-200 rounded-lg overflow-hidden shadow-sm print-frame">
                         {iframeLoading && (

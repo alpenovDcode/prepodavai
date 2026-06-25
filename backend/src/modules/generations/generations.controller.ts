@@ -11,10 +11,17 @@ import {
   Header,
   Patch,
   StreamableFile,
+  UploadedFile,
+  UseInterceptors,
+  BadRequestException,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { Throttle } from '@nestjs/throttler';
 import { GenerationsService } from './generations.service';
 import { WorksheetV2Service } from './v2/worksheet-v2.service';
 import { TextV2Service } from './v2/text-v2.service';
+import { UploadMaterialService } from './upload-material.service';
+import { MAX_MATERIAL_SIZE_BYTES, isAllowedMaterialMime } from './upload-material.validators';
 import { SkipThrottle } from '@nestjs/throttler';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { GenerationsThrottlerGuard } from '../../common/guards/generations-throttler.guard';
@@ -31,6 +38,7 @@ export class GenerationsController {
     private readonly generationsService: GenerationsService,
     private readonly worksheetV2Service: WorksheetV2Service,
     private readonly textV2Service: TextV2Service,
+    private readonly uploadMaterialService: UploadMaterialService,
   ) {}
 
   private userId(req: any): string {
@@ -145,6 +153,43 @@ export class GenerationsController {
       },
       body.lessonId ? String(body.lessonId) : undefined,
     );
+  }
+
+  /**
+   * Загрузка пользовательского материала (PDF/JPG/PNG, ≤50MB).
+   * Создаёт UserGeneration со status=completed и generationType='uploaded_file' —
+   * материал сразу появляется в разделе «Материалы» рядом с AI-генерациями.
+   */
+  @Post('upload-material')
+  @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { ttl: 60000, limit: 20 } })
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: MAX_MATERIAL_SIZE_BYTES },
+      fileFilter: (_req, file, cb) => {
+        if (!isAllowedMaterialMime(file.mimetype)) {
+          return cb(
+            new BadRequestException(
+              'Поддерживаются только PDF, JPG и PNG. Получен: ' + file.mimetype,
+            ),
+            false,
+          );
+        }
+        cb(null, true);
+      },
+    }),
+  )
+  async uploadMaterial(
+    @UploadedFile() file: Express.Multer.File,
+    @Body() body: Record<string, unknown>,
+    @Request() req: any,
+  ) {
+    return this.uploadMaterialService.upload({
+      userId: this.userId(req),
+      file,
+      title: body.title ? String(body.title) : undefined,
+      lessonId: body.lessonId ? String(body.lessonId) : undefined,
+    });
   }
 
   @Post('quiz')

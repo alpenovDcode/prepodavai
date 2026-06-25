@@ -7,7 +7,7 @@ import {
     Layers, FileText, HelpCircle, Presentation, ClipboardList, ImageIcon, Gamepad2,
     Plus, Compass, LayoutGrid, List, MoreHorizontal, Eye, Edit3, PenLine,
     Copy, Download, Send, Trash2, Book, Wand2, RefreshCw, Link2, QrCode,
-    Folder, FolderOpen, FolderPlus, FolderX, ChevronRight,
+    Folder, FolderOpen, FolderPlus, FolderX, ChevronRight, Upload,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { apiClient } from '@/lib/api/client'
@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/v2/Button'
 import { Modal } from '@/components/ui/v2/Modal'
 import { cn } from '@/lib/utils/cn'
 import { useTour } from '@/lib/tour/useTour'
+import { UploadMaterialModal } from '@/components/v2/UploadMaterialModal'
 
 // ── Типы ──────────────────────────────────────────────────────────────────────
 
@@ -111,9 +112,17 @@ const TYPE_CONFIG: Record<string, {
         hoverBorder: 'hover:border-[#FCA5A5]',
         Icon: Wand2,
     },
+    uploadedFile: {
+        label: 'Загружено',
+        pillLabel: 'Загруженные',
+        chipBg: 'bg-[#F1F5F9]',
+        chipText: 'text-[#475569]',
+        hoverBorder: 'hover:border-[#94A3B8]',
+        Icon: Upload,
+    },
 }
 
-const PILL_TYPES = ['lessonPreparation', 'worksheet', 'quiz', 'presentation', 'lessonPlan', 'image', 'game'] as const
+const PILL_TYPES = ['lessonPreparation', 'worksheet', 'quiz', 'presentation', 'lessonPlan', 'image', 'game', 'uploadedFile'] as const
 
 const SUBJECTS = [
     'Математика', 'Физика', 'Химия', 'Биология',
@@ -138,6 +147,8 @@ function normalizeType(dbType: string): string {
         game_generation: 'game',
         game: 'game',
         vocabulary: 'vocabulary',
+        uploaded_file: 'uploadedFile',
+        uploadedFile: 'uploadedFile',
     }
     return map[dbType] || dbType
 }
@@ -744,6 +755,9 @@ export default function CoursesPageV2() {
     const [draggingId, setDraggingId] = useState<string | null>(null)
     const [dragOverFolder, setDragOverFolder] = useState<string | null | undefined>(undefined)
 
+    // Загрузка собственных материалов
+    const [showUpload, setShowUpload] = useState(false)
+
     useEffect(() => {
         const t = setTimeout(() => setDebouncedQuery(query), 250)
         return () => clearTimeout(t)
@@ -1069,6 +1083,14 @@ export default function CoursesPageV2() {
                             Тур
                         </Button>
                         <Button
+                            variant="ghost"
+                            size="sm"
+                            leftIcon={<Upload className="w-4 h-4" />}
+                            onClick={() => setShowUpload(true)}
+                        >
+                            Загрузить файл
+                        </Button>
+                        <Button
                             data-tour="create-btn"
                             variant="primary"
                             size="sm"
@@ -1079,6 +1101,12 @@ export default function CoursesPageV2() {
                         </Button>
                     </div>
                 }
+            />
+
+            <UploadMaterialModal
+                isOpen={showUpload}
+                onClose={() => setShowUpload(false)}
+                onUploaded={() => { void mutate() }}
             />
 
             <div className="max-w-[1380px] w-full mx-auto p-8 max-md:p-4">
