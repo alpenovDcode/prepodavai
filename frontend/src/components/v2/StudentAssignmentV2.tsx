@@ -557,7 +557,6 @@ export default function StudentAssignmentV2({ assignmentId }: StudentAssignmentV
                         <span className="font-bold">Как сдать:</span>
                         <span>
                             Запиши решение в поле «Дополнительно к ответам» ниже или прикрепи фото своей работы.
-                            Эту работу проверит учитель вручную — автопроверка ИИ для этого материала не запускается.
                         </span>
                     </div>
                     <div className="text-right">
