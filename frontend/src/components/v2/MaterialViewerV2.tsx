@@ -803,16 +803,21 @@ export default function MaterialViewerV2({ lessonId, generationId, isEditable = 
                 }
                 actions={
                     <div className="flex items-center gap-1.5 print-hide max-sm:gap-1">
-                        <Button
-                            variant="secondary"
-                            size="sm"
-                            leftIcon={<Download className="w-3.5 h-3.5" />}
-                            onClick={() => setShowPdf(true)}
-                            disabled={tab === 'edit'}
-                            title="Скачать PDF"
-                        >
-                            <span className="max-sm:hidden">Скачать</span>
-                        </Button>
+                        {/* Для загруженных файлов наша «Скачать PDF» неприменима
+                            (он генерируется из HTML, которого нет). У встроенного
+                            PDF-viewer'а есть своя кнопка скачивания. */}
+                        {!isUploadedFile && (
+                            <Button
+                                variant="secondary"
+                                size="sm"
+                                leftIcon={<Download className="w-3.5 h-3.5" />}
+                                onClick={() => setShowPdf(true)}
+                                disabled={tab === 'edit'}
+                                title="Скачать PDF"
+                            >
+                                <span className="max-sm:hidden">Скачать</span>
+                            </Button>
+                        )}
                         <Button variant="primary" size="sm" leftIcon={<Send className="w-3.5 h-3.5" />} onClick={openAssignModal} disabled={preparingAssign}>
                             <span className="max-sm:hidden">{preparingAssign ? 'Готовим…' : 'Выдать ученикам'}</span>
                             <span className="hidden max-sm:inline">{preparingAssign ? '…' : 'Выдать'}</span>

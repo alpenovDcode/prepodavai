@@ -95,6 +95,7 @@ function getGenIcon(type: string) {
         case 'presentation': return { icon: MonitorPlay, tileColor: 'warning' as const }
         case 'game': case 'game_generation': return { icon: Gamepad2, tileColor: 'teal' as const }
         case 'quiz': return { icon: HelpCircle, tileColor: 'info' as const }
+        case 'uploaded_file': case 'uploadedFile': return { icon: BookOpen, tileColor: 'neutral' as const }
         default: return { icon: BookOpen, tileColor: 'neutral' as const }
     }
 }
@@ -117,6 +118,10 @@ function getGenTitle(type: string, outputData: any): string {
         case 'quiz': {
             const questions = Array.isArray(out?.questions) ? out.questions.length : 0
             return `Тест${questions ? ` · ${questions} вопросов` : ''}`
+        }
+        case 'uploaded_file': case 'uploadedFile': {
+            const name = typeof out?.originalName === 'string' ? out.originalName : ''
+            return name ? `Материал · ${name}` : 'Материал учителя'
         }
         default: return 'Учебный материал'
     }
@@ -146,7 +151,7 @@ function countWorksheetTasks(outputData: any): number {
 }
 
 function isOpenByDefault(type: string): boolean {
-    return type === 'worksheet' || type === 'quiz'
+    return type === 'worksheet' || type === 'quiz' || type === 'uploaded_file' || type === 'uploadedFile'
 }
 
 /**
@@ -971,6 +976,36 @@ export default function StudentAssignmentV2({ assignmentId }: StudentAssignmentV
                             <Star className="w-4 h-4 text-amber-400 flex-shrink-0" />
                             <span>Сдай вовремя — получишь <strong className="text-warning-700">+30 XP</strong> и сохранишь стрик!</span>
                         </div>
+                    </div>
+                )}
+
+                {/* Read-only показ собственного сданного ответа, когда
+                    работа уже отправлена/проверена. Иначе ученик не видит
+                    что именно он отправил. */}
+                {isSubmitted && (submissionText || attachments.length > 0) && (
+                    <div className="bg-surface border border-ink-200 rounded-lg p-5 mt-6">
+                        <h3 className="text-[14px] font-bold text-ink-900 mb-3">Твой ответ</h3>
+                        {submissionText && (
+                            <div className="mb-3 whitespace-pre-wrap text-[14px] text-ink-800 leading-relaxed">
+                                {submissionText}
+                            </div>
+                        )}
+                        {attachments.length > 0 && (
+                            <div className="flex flex-wrap gap-2">
+                                {attachments.map((a, i) => (
+                                    <a
+                                        key={i}
+                                        href={a.url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="block w-24 h-24 rounded-md border border-ink-200 overflow-hidden bg-ink-50 hover:border-brand-400 transition"
+                                    >
+                                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                                        <img src={a.url} alt={a.name || ''} className="w-full h-full object-cover" />
+                                    </a>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 )}
 

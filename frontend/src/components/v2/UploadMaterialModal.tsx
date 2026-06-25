@@ -131,8 +131,8 @@ export function UploadMaterialModal({ isOpen, onClose, onUploaded }: UploadMater
     const tile = file ? TILE_STYLE[kindOf(file)] : null
 
     return (
-        <Modal open={isOpen} onClose={handleClose} title="Загрузить материал" size="md">
-            <div className="flex flex-col gap-5">
+        <Modal open={isOpen} onClose={handleClose} title="Загрузить материал" size="lg">
+            <div className="flex flex-col gap-6 py-2">
                 {/* Drop zone / выбранный файл */}
                 {!file ? (
                     <div
@@ -141,20 +141,23 @@ export function UploadMaterialModal({ isOpen, onClose, onUploaded }: UploadMater
                         onDragLeave={() => setDragOver(false)}
                         onDrop={onDrop}
                         className={cn(
-                            'cursor-pointer rounded-2xl border-2 border-dashed px-6 py-8 text-center transition-colors',
+                            'cursor-pointer rounded-2xl border-2 border-dashed px-6 py-14 text-center transition-colors',
                             dragOver
                                 ? 'border-[var(--brand-400)] bg-[var(--brand-50)]'
                                 : 'border-ink-200 bg-ink-50/60 hover:border-ink-300 hover:bg-ink-50',
                         )}
                     >
-                        <div className="mx-auto mb-3 w-12 h-12 rounded-2xl bg-white border border-ink-200 flex items-center justify-center shadow-sm">
-                            <Upload className="w-5 h-5 text-ink-500" />
+                        <div className="mx-auto mb-4 w-14 h-14 rounded-2xl bg-white border border-ink-200 flex items-center justify-center shadow-sm">
+                            <Upload className="w-6 h-6 text-ink-500" />
                         </div>
-                        <p className="text-[14px] font-semibold text-ink-900">
+                        <p className="text-[15px] font-semibold text-ink-900">
                             Перетащите файл сюда
                         </p>
-                        <p className="text-[12px] text-ink-500 mt-1">
-                            или нажмите, чтобы выбрать · PDF, JPG, PNG · до 50 MB
+                        <p className="text-[13px] text-ink-500 mt-1.5">
+                            или нажмите, чтобы выбрать
+                        </p>
+                        <p className="text-[12px] text-ink-400 mt-3">
+                            PDF, JPG, PNG · до 50 MB
                         </p>
                         <input
                             ref={inputRef}
