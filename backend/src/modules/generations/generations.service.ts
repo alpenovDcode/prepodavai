@@ -2011,6 +2011,8 @@ export class GenerationsService {
     image: ['image_generation', 'image'],
     game: ['game_generation', 'game'],
     vocabulary: ['vocabulary'],
+    uploadedFile: ['uploaded_file', 'uploadedFile'],
+    videoAnalysis: ['video-analysis', 'video_analysis', 'videoAnalysis'],
   };
 
   private static dbToFrontend(dbType: string): string {
@@ -2029,6 +2031,11 @@ export class GenerationsService {
       game_generation: 'game',
       game: 'game',
       vocabulary: 'vocabulary',
+      uploaded_file: 'uploadedFile',
+      uploadedFile: 'uploadedFile',
+      'video-analysis': 'videoAnalysis',
+      video_analysis: 'videoAnalysis',
+      videoAnalysis: 'videoAnalysis',
     };
     return map[dbType] || dbType;
   }

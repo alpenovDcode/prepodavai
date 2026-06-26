@@ -7,7 +7,7 @@ import {
     Layers, FileText, HelpCircle, Presentation, ClipboardList, ImageIcon, Gamepad2,
     Plus, Compass, LayoutGrid, List, MoreHorizontal, Eye, Edit3, PenLine,
     Copy, Download, Send, Trash2, Book, Wand2, RefreshCw, Link2, QrCode,
-    Folder, FolderOpen, FolderPlus, FolderX, ChevronRight, Upload,
+    Folder, FolderOpen, FolderPlus, FolderX, ChevronRight, Upload, Video,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { apiClient } from '@/lib/api/client'
@@ -120,9 +120,17 @@ const TYPE_CONFIG: Record<string, {
         hoverBorder: 'hover:border-[#94A3B8]',
         Icon: Upload,
     },
+    videoAnalysis: {
+        label: 'Анализ видео',
+        pillLabel: 'Анализ видео',
+        chipBg: 'bg-[#F5F3FF]',
+        chipText: 'text-[#6D28D9]',
+        hoverBorder: 'hover:border-[#C4B5FD]',
+        Icon: Video,
+    },
 }
 
-const PILL_TYPES = ['lessonPreparation', 'worksheet', 'quiz', 'presentation', 'lessonPlan', 'image', 'game', 'uploadedFile'] as const
+const PILL_TYPES = ['lessonPreparation', 'worksheet', 'quiz', 'presentation', 'lessonPlan', 'image', 'game', 'uploadedFile', 'videoAnalysis'] as const
 
 const SUBJECTS = [
     'Математика', 'Физика', 'Химия', 'Биология',
@@ -149,6 +157,9 @@ function normalizeType(dbType: string): string {
         vocabulary: 'vocabulary',
         uploaded_file: 'uploadedFile',
         uploadedFile: 'uploadedFile',
+        'video-analysis': 'videoAnalysis',
+        video_analysis: 'videoAnalysis',
+        videoAnalysis: 'videoAnalysis',
     }
     return map[dbType] || dbType
 }
