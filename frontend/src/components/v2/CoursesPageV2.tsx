@@ -834,6 +834,8 @@ export default function CoursesPageV2() {
         lessonPreparation: ['lesson_preparation', 'lesson-preparation', 'lessonPreparation'],
         image:        ['image', 'image_generation', 'photosession'],
         game:         ['game', 'game_generation'],
+        uploadedFile: ['uploaded_file', 'uploadedFile'],
+        videoAnalysis: ['video-analysis', 'video_analysis', 'videoAnalysis'],
     }), [])
 
     const filtered = useMemo(() => {
