@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Body,
+  Query,
   Request,
   UseGuards,
   HttpCode,
@@ -13,6 +14,20 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AdminGuard } from '../admin/guards/admin.guard';
 
 class SetMaintenanceDto {
+  @IsBoolean()
+  enabled: boolean;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(1000)
+  message?: string;
+}
+
+class SetToolStatusDto {
+  @IsString()
+  @MaxLength(50)
+  opKey: string;
+
   @IsBoolean()
   enabled: boolean;
 
@@ -40,6 +55,20 @@ export class SystemController {
       updatedAt: status.updatedAt,
     };
   }
+
+  @Get('tool-status')
+  async getToolStatus(@Query('opKey') opKey: string) {
+    if (!opKey) {
+      return { error: 'opKey required' };
+    }
+    const status = await this.systemService.getToolStatus(opKey);
+    return {
+      opKey,
+      enabled: status.enabled,
+      message: status.message,
+      updatedAt: status.updatedAt,
+    };
+  }
 }
 
 /**
@@ -59,5 +88,32 @@ export class AdminSystemController {
   @HttpCode(200)
   async set(@Request() req: any, @Body() body: SetMaintenanceDto) {
     return this.systemService.setMaintenance(body.enabled, body.message, req.user.id);
+  }
+}
+
+/**
+ * Универсальный админский переключатель per-tool флагов.
+ * Через него живёт биржа лидов (opKey='tutor_exchange') и любые будущие
+ * инструменты, требующие глобального switch с сообщением при выключении.
+ */
+@Controller('admin/tool-status')
+@UseGuards(JwtAuthGuard, AdminGuard)
+export class AdminToolStatusController {
+  constructor(private readonly systemService: SystemService) {}
+
+  @Get()
+  async get(@Query('opKey') opKey: string) {
+    if (!opKey) return { error: 'opKey required' };
+    return this.systemService.getToolStatus(opKey, true);
+  }
+
+  @Post()
+  @HttpCode(200)
+  async set(@Request() req: any, @Body() body: SetToolStatusDto) {
+    return this.systemService.setToolStatus(
+      body.opKey,
+      { enabled: body.enabled, message: body.message },
+      req.user.id,
+    );
   }
 }
