@@ -72,6 +72,15 @@ model AppUser {
   analyticsEvents      AnalyticsEvent[]
   calendarEvents       CalendarEvent[]
 
+  // Tutor exchange (биржа лидов) — Stage 1 back-relations
+  marketProfile      TutorMarketProfile?
+  leadsCreated       Lead[]              @relation("leadCreator")
+  dialogsAsResponder LeadDialog[]        @relation("dialogResponder")
+  leadMessages       LeadMessage[]
+  violationReports   ViolationReport[]   @relation("violationReporter")
+  ratingsGiven       TutorRating[]       @relation("ratingRater")
+  ratingsReceived    TutorRating[]       @relation("ratingRatee")
+
   @@index([telegramId])
   @@index([maxId])
   @@index([chatId])
@@ -1172,4 +1181,118 @@ model RecurrenceRule {
   events    CalendarEvent[]
 
   @@map("recurrence_rules")
+}
+
+// ========== TUTOR EXCHANGE (биржа лидов) — Stage 1 ==========
+
+model TutorMarketProfile {
+  id             String    @id @default(uuid())
+  userId         String    @unique
+  user           AppUser   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  avgPrice       Float     @default(0)
+  experience     Int       @default(0)
+  ratingAvg      Float     @default(5.0)
+  ratingCount    Int       @default(0)
+  dealsCompleted Int       @default(0)
+  disabledAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@map("tutor_market_profiles")
+}
+
+model Lead {
+  id             String    @id @default(uuid())
+  creatorId      String
+  creator        AppUser   @relation("leadCreator", fields: [creatorId], references: [id])
+  subject        String
+  subjectLower   String
+  grade          String
+  format         String
+  city           String?
+  description    String
+  studentContact String
+  type           String
+  price          Float     @default(0)
+  status         String    @default("ACTIVE")
+  lockedById     String?
+  lockedAt       DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  dialogs LeadDialog[]
+
+  @@index([status, subjectLower])
+  @@index([creatorId])
+  @@map("leads")
+}
+
+model LeadDialog {
+  id                       String    @id @default(uuid())
+  leadId                   String
+  lead                     Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  responderId              String
+  responder                AppUser   @relation("dialogResponder", fields: [responderId], references: [id])
+  status                   String    @default("OPEN")
+  trialLessonLink          String?
+  trialScheduledAt         DateTime?
+  trialResultAt            DateTime?
+  paymentDeadline          DateTime?
+  paymentSentAt            DateTime?
+  paymentOverdueNotifiedAt DateTime?
+  createdAt                DateTime  @default(now())
+  closedAt                 DateTime?
+
+  messages LeadMessage[]
+  reports  ViolationReport[]
+  ratings  TutorRating[]
+
+  @@index([responderId, status])
+  @@index([leadId])
+  @@map("lead_dialogs")
+}
+
+model LeadMessage {
+  id        String     @id @default(uuid())
+  dialogId  String
+  dialog    LeadDialog @relation(fields: [dialogId], references: [id], onDelete: Cascade)
+  senderId  String?
+  sender    AppUser?   @relation(fields: [senderId], references: [id])
+  content   String
+  flagged   Boolean    @default(false)
+  isSystem  Boolean    @default(false)
+  createdAt DateTime   @default(now())
+
+  @@index([dialogId, createdAt])
+  @@map("lead_messages")
+}
+
+model ViolationReport {
+  id          String     @id @default(uuid())
+  dialogId    String
+  dialog      LeadDialog @relation(fields: [dialogId], references: [id])
+  reporterId  String
+  reporter    AppUser    @relation("violationReporter", fields: [reporterId], references: [id])
+  description String
+  status      String     @default("PENDING")
+  createdAt   DateTime   @default(now())
+
+  @@map("violation_reports")
+}
+
+model TutorRating {
+  id        String     @id @default(uuid())
+  dialogId  String
+  dialog    LeadDialog @relation(fields: [dialogId], references: [id])
+  raterId   String
+  rater     AppUser    @relation("ratingRater", fields: [raterId], references: [id])
+  rateeId   String
+  ratee     AppUser    @relation("ratingRatee", fields: [rateeId], references: [id])
+  score     Int
+  comment   String?
+  createdAt DateTime   @default(now())
+
+  @@unique([dialogId, raterId])
+  @@index([rateeId])
+  @@map("tutor_ratings")
 }
