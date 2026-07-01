@@ -46,6 +46,7 @@ import { OnboardingQuestModule } from './modules/onboarding-quest/onboarding-que
 // import { PaymentsModule } from './modules/payments/payments.module';
 import { TeacherDiaryModule } from './modules/teacher-diary/teacher-diary.module';
 import { CalendarModule } from './modules/calendar/calendar.module';
+import { TutorExchangeModule } from './modules/tutor-exchange/tutor-exchange.module';
 import { PopupsModule } from './modules/popups/popups.module';
 import { SystemModule } from './modules/system/system.module';
 import { AiChatsModule } from './modules/ai-chats/ai-chats.module';
@@ -127,6 +128,7 @@ import { AiChatsModule } from './modules/ai-chats/ai-chats.module';
     PopupsModule,
     SystemModule,
     AiChatsModule,
+    TutorExchangeModule,
   ],
   controllers: [AppController],
   providers: [
