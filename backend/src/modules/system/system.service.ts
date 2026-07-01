@@ -12,6 +12,24 @@ export interface MaintenanceStatus {
   updatedAt: Date | null;
 }
 
+const TOOL_DEFAULT_MESSAGES: Record<string, string> = {
+  tutor_exchange: 'Биржа лидов скоро откроется — мы обкатываем последние детали',
+};
+const TOOL_FALLBACK_MESSAGE = 'Инструмент временно недоступен';
+
+export interface ToolStatus {
+  enabled: boolean;
+  message: string;
+  updatedAt: Date | null;
+}
+
+function toolKeys(opKey: string) {
+  return {
+    enabled: `tools.${opKey}.enabled`,
+    message: `tools.${opKey}.message`,
+  };
+}
+
 @Injectable()
 export class SystemService {
   private readonly logger = new Logger(SystemService.name);
@@ -88,5 +106,75 @@ export class SystemService {
         (message !== undefined ? ` message="${message}"` : ''),
     );
     return this.getMaintenanceStatus(true);
+  }
+
+  // Per-tool cache: opKey → { status, expiresAt }
+  private toolCache = new Map<string, { status: ToolStatus; expiresAt: number }>();
+
+  async getToolStatus(opKey: string, force = false): Promise<ToolStatus> {
+    const now = Date.now();
+    const cached = this.toolCache.get(opKey);
+    if (!force && cached && cached.expiresAt > now) return cached.status;
+
+    const keys = toolKeys(opKey);
+    const rows = await (this.prisma as any).systemSetting.findMany({
+      where: { key: { in: [keys.enabled, keys.message] } },
+    });
+    const enabledRow = rows.find((r: any) => r.key === keys.enabled);
+    const messageRow = rows.find((r: any) => r.key === keys.message);
+
+    const status: ToolStatus = {
+      enabled: enabledRow?.value === 'true',
+      message:
+        messageRow?.value ||
+        TOOL_DEFAULT_MESSAGES[opKey] ||
+        TOOL_FALLBACK_MESSAGE,
+      updatedAt: enabledRow?.updatedAt ?? messageRow?.updatedAt ?? null,
+    };
+    this.toolCache.set(opKey, {
+      status,
+      expiresAt: now + SystemService.CACHE_TTL_MS,
+    });
+    return status;
+  }
+
+  async setToolStatus(
+    opKey: string,
+    patch: { enabled: boolean; message?: string },
+    adminId: string,
+  ): Promise<ToolStatus> {
+    const keys = toolKeys(opKey);
+    const ops: Promise<any>[] = [
+      (this.prisma as any).systemSetting.upsert({
+        where: { key: keys.enabled },
+        update: { value: patch.enabled ? 'true' : 'false', updatedBy: adminId },
+        create: {
+          key: keys.enabled,
+          value: patch.enabled ? 'true' : 'false',
+          updatedBy: adminId,
+        },
+      }),
+    ];
+    if (patch.message !== undefined) {
+      const trimmed = (patch.message ?? '').slice(0, 1000);
+      ops.push(
+        (this.prisma as any).systemSetting.upsert({
+          where: { key: keys.message },
+          update: { value: trimmed || null, updatedBy: adminId },
+          create: {
+            key: keys.message,
+            value: trimmed || null,
+            updatedBy: adminId,
+          },
+        }),
+      );
+    }
+    await Promise.all(ops);
+    this.toolCache.delete(opKey);
+    this.logger.warn(
+      `[Tool ${opKey}] toggled by admin=${adminId}: enabled=${patch.enabled}` +
+        (patch.message !== undefined ? ` message="${patch.message}"` : ''),
+    );
+    return this.getToolStatus(opKey, true);
   }
 }
