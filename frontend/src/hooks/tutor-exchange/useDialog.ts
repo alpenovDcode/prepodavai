@@ -20,6 +20,11 @@ export interface DialogDetails {
     createdAt: string
     closedAt: string | null
     paymentDeadline: string | null
+    paymentSentAt: string | null
+    paymentOverdueNotifiedAt: string | null
+    trialLessonLink: string | null
+    trialScheduledAt: string | null
+    trialResultAt: string | null
     lead: {
         id: string
         subject: string

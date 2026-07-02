@@ -2,12 +2,22 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import { ArrowLeft, Loader2, AlertCircle, User, XCircle, CheckCircle2, Lock } from 'lucide-react'
-import { apiClient } from '@/lib/api/client'
+import {
+    ArrowLeft,
+    Loader2,
+    AlertCircle,
+    User,
+    XCircle,
+    CheckCircle2,
+    Lock,
+    ExternalLink,
+} from 'lucide-react'
 import { useUser } from '@/lib/hooks/useUser'
 import { useDialog } from '@/hooks/tutor-exchange/useDialog'
 import { DialogChat } from './DialogChat'
+import { DialogActionsPanel } from './DialogActionsPanel'
+import { PaymentCountdown } from './PaymentCountdown'
+import { ViolationForm } from './ViolationForm'
 
 const STATUS_LABEL: Record<string, string> = {
     OPEN: 'Открыт',
@@ -26,10 +36,9 @@ const counterpart = (dialog: any, meId?: string) => {
 }
 
 export function DialogRoom({ dialogId }: { dialogId: string }) {
-    const router = useRouter()
     const { user } = useUser()
     const { dialog, isLoading, error, disabled, disabledMessage, reload } = useDialog(dialogId)
-    const [cancelling, setCancelling] = useState(false)
+    const [reportOpen, setReportOpen] = useState(false)
 
     if (disabled) {
         return (
@@ -66,19 +75,6 @@ export function DialogRoom({ dialogId }: { dialogId: string }) {
     const isResponder = user?.id === dialog.responderId
     const isParticipant = isCreator || isResponder
     const canWrite = isParticipant && ACTIVE_STATUSES.includes(dialog.status)
-    const canCancel = isParticipant && ACTIVE_STATUSES.includes(dialog.status)
-
-    const cancelDialog = async () => {
-        if (!confirm('Отменить диалог? Заявка снова станет доступна в ленте.')) return
-        setCancelling(true)
-        try {
-            await apiClient.post(`/tutor-exchange/dialogs/${dialog.id}/actions`, { action: 'cancel' })
-            router.push('/dashboard/dialogs')
-        } catch (err: any) {
-            alert(err?.response?.data?.message || 'Не удалось отменить диалог')
-            setCancelling(false)
-        }
-    }
 
     return (
         <div className="p-6 max-w-4xl mx-auto">
@@ -118,6 +114,33 @@ export function DialogRoom({ dialogId }: { dialogId: string }) {
                             )}
                             {STATUS_LABEL[dialog.status] || dialog.status}
                         </div>
+
+                        {dialog.status === 'TRIAL_PENDING' && dialog.trialLessonLink && (
+                            <div className="mt-3 text-xs">
+                                <div className="text-gray-500 mb-1">Ссылка на пробный:</div>
+                                <a
+                                    href={dialog.trialLessonLink}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 text-blue-600 hover:underline break-all"
+                                >
+                                    {dialog.trialLessonLink}
+                                    <ExternalLink className="w-3 h-3" />
+                                </a>
+                            </div>
+                        )}
+
+                        {dialog.status === 'PAYMENT_PENDING' && dialog.paymentDeadline && (
+                            <div className="mt-3 text-xs">
+                                <div className="text-gray-500 mb-1">До оплаты:</div>
+                                <PaymentCountdown deadline={dialog.paymentDeadline} />
+                                {dialog.paymentSentAt && (
+                                    <div className="text-emerald-700 mt-1">
+                                        Оплата отмечена {new Date(dialog.paymentSentAt).toLocaleString('ru-RU')}
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </section>
 
                     <section className="border border-gray-200 rounded-2xl p-4 bg-white">
@@ -134,26 +157,24 @@ export function DialogRoom({ dialogId }: { dialogId: string }) {
                         )}
                     </section>
 
-                    <section className="border border-gray-200 rounded-2xl p-4 bg-white">
-                        <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
-                            Действия
-                        </div>
-                        <div className="text-[11px] text-gray-400 mb-3">
-                            Полная state-machine (пробный урок, оплата, спор) — этап 4.
-                        </div>
-                        {canCancel && (
-                            <button
-                                onClick={cancelDialog}
-                                disabled={cancelling}
-                                className="w-full inline-flex items-center justify-center gap-1 px-3 py-2 text-sm text-red-700 border border-red-200 bg-red-50 hover:bg-red-100 rounded-lg disabled:opacity-50"
-                            >
-                                <XCircle className="w-4 h-4" />
-                                {cancelling ? 'Отменяем...' : 'Отменить диалог'}
-                            </button>
-                        )}
-                    </section>
+                    {isParticipant && (
+                        <DialogActionsPanel
+                            dialog={dialog}
+                            meId={user?.id}
+                            onDone={reload}
+                            onReport={() => setReportOpen(true)}
+                        />
+                    )}
                 </aside>
             </div>
+
+            {reportOpen && (
+                <ViolationForm
+                    dialogId={dialog.id}
+                    onClose={() => setReportOpen(false)}
+                    onDone={() => alert('Жалоба отправлена. Модератор рассмотрит в течение суток.')}
+                />
+            )}
         </div>
     )
 }
