@@ -101,6 +101,14 @@ export class VerifyEmailCodeDto {
   @IsString()
   @IsOptional()
   utmLinkId?: string;
+
+  // Анонимный id аналитики (prepodavai_anon_id) — фронт прокидывает его
+  // при верификации, чтобы бэк склеил pre-reg события с новым аккаунтом.
+  // Без объявления здесь глобальный ValidationPipe (forbidNonWhitelisted)
+  // отбивал весь запрос: «property anonId should not exist».
+  @IsString()
+  @IsOptional()
+  anonId?: string | null;
 }
 
 export class GenerateLinkTokenDto {
