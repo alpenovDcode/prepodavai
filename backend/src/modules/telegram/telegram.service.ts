@@ -802,6 +802,35 @@ export class TelegramService {
   }
 
   /**
+   * Отправка сообщения AppUser'у по его id, если он привязал Telegram.
+   * Тихо no-op, если у пользователя нет BotUser с telegramId.
+   * Не бросает ошибки — только логирует.
+   */
+  async sendToAppUser(
+    appUserId: string,
+    text: string,
+    opts?: { parseMode?: 'Markdown' | 'HTML' },
+  ): Promise<boolean> {
+    if (!this.bot) return false;
+    try {
+      const botUser = await (this.prisma as any).botUser.findFirst({
+        where: { appUserId, telegramId: { not: null } },
+        select: { telegramId: true },
+      });
+      if (!botUser?.telegramId) return false;
+      await this.bot.api.sendMessage(botUser.telegramId, text, {
+        parse_mode: opts?.parseMode,
+      });
+      return true;
+    } catch (err) {
+      this.logger.warn(
+        `sendToAppUser failed for ${appUserId}: ${(err as Error).message}`,
+      );
+      return false;
+    }
+  }
+
+  /**
    * Отправка результата генерации в Telegram
    */
   async sendGenerationResult(params: {
