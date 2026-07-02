@@ -91,9 +91,12 @@ export function DialogRoom({ dialogId }: { dialogId: string }) {
                         <h1 className="text-xl font-bold text-gray-900">{dialog.lead.subject}</h1>
                         <p className="text-xs text-gray-500 mt-0.5">
                             {dialog.lead.grade} · с{' '}
-                            <span className="inline-flex items-center gap-1">
+                            <Link
+                                href={`/dashboard/tutor/${user?.id === dialog.responderId ? dialog.lead.creatorId : dialog.responderId}`}
+                                className="inline-flex items-center gap-1 hover:text-gray-800 hover:underline"
+                            >
                                 <User className="w-3 h-3" /> {counterpart(dialog, user?.id)}
-                            </span>
+                            </Link>
                         </p>
                     </div>
                     <DialogChat dialog={dialog} meId={user?.id} canWrite={canWrite} onSent={reload} />

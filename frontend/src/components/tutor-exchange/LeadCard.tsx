@@ -55,7 +55,13 @@ export function LeadCard({ lead }: { lead: LeadCardData }) {
                     ) : (
                         <span className="inline-flex items-center gap-1"><MapPin className="w-3.5 h-3.5" /> {lead.city || 'Оффлайн'}</span>
                     )}
-                    <span className="inline-flex items-center gap-1"><User className="w-3.5 h-3.5" /> {formatName(lead.creator)}</span>
+                    <Link
+                        href={`/dashboard/tutor/${lead.creator.id}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="inline-flex items-center gap-1 hover:text-gray-800 hover:underline"
+                    >
+                        <User className="w-3.5 h-3.5" /> {formatName(lead.creator)}
+                    </Link>
                     <span className="ml-auto">{new Date(lead.createdAt).toLocaleDateString('ru-RU')}</span>
                 </div>
             </article>

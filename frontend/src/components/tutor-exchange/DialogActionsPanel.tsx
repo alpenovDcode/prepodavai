@@ -11,8 +11,10 @@ import {
     Send,
     ShieldCheck,
     AlertTriangle,
+    Star,
 } from 'lucide-react'
 import type { DialogDetails } from '@/hooks/tutor-exchange/useDialog'
+import { RatingForm } from './RatingForm'
 
 type Action =
     | 'schedule_trial'
@@ -35,6 +37,8 @@ export function DialogActionsPanel({ dialog, meId, onDone, onReport }: Props) {
     const [busy, setBusy] = useState<Action | null>(null)
     const [showTrialModal, setShowTrialModal] = useState(false)
     const [trialLink, setTrialLink] = useState('')
+    const [showRatingForm, setShowRatingForm] = useState(false)
+    const [ratingSubmitted, setRatingSubmitted] = useState(false)
 
     const isCreator = meId === dialog.lead.creatorId
     const isResponder = meId === dialog.responderId
@@ -169,6 +173,25 @@ export function DialogActionsPanel({ dialog, meId, onDone, onReport }: Props) {
         )
     }
 
+    if (status === 'CONFIRMED' && (isCreator || isResponder)) {
+        buttons.push(
+            <ActionButton
+                key="rate"
+                onClick={() => setShowRatingForm(true)}
+                busy={false}
+                icon={<Star className="w-4 h-4" />}
+                label={ratingSubmitted ? 'Оценка отправлена' : 'Оценить сделку'}
+                tone="primary"
+                disabled={ratingSubmitted}
+            />,
+        )
+    }
+
+    const counterpartLabel = () => {
+        const c = isCreator ? dialog.responder : dialog.lead.creator
+        return [c.firstName, c.lastName].filter(Boolean).join(' ').trim() || 'участника'
+    }
+
     return (
         <section className="border border-gray-200 rounded-2xl p-4 bg-white space-y-2">
             <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
@@ -180,6 +203,15 @@ export function DialogActionsPanel({ dialog, meId, onDone, onReport }: Props) {
                 </div>
             )}
             {buttons}
+
+            {showRatingForm && (
+                <RatingForm
+                    dialogId={dialog.id}
+                    counterpartName={counterpartLabel()}
+                    onClose={() => setShowRatingForm(false)}
+                    onDone={() => setRatingSubmitted(true)}
+                />
+            )}
 
             {showTrialModal && (
                 <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => setShowTrialModal(false)}>
