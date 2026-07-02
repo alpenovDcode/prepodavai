@@ -291,9 +291,12 @@ function SidebarNavItem({ item, collapsed = false }: { item: NavItem; collapsed?
  * Дефолтные секции навигации для учителя.
  * Иконки lucide-react.
  */
-export function getTeacherNavSections(badges: { studentsAtRisk?: number; pendingGrading?: number } = {}): NavSection[] {
+export function getTeacherNavSections(
+    badges: { studentsAtRisk?: number; pendingGrading?: number } = {},
+    options: { tutorExchangeEnabled?: boolean } = {},
+): NavSection[] {
     const i = (Icon: typeof LayoutDashboard) => <Icon className="w-[18px] h-[18px]" />
-    return [
+    const sections: NavSection[] = [
         {
             label: 'Рабочий стол',
             items: [
@@ -311,15 +314,27 @@ export function getTeacherNavSections(badges: { studentsAtRisk?: number; pending
                 { label: 'Аналитика',     href: '/dashboard/analytics',    icon: i(BarChart3),       tourId: 'nav-analytics' },
             ],
         },
-        {
-            label: 'Прочее',
-            items: [
-                { label: 'Блог',          href: '/blog',                   icon: i(Newspaper),       tourId: 'nav-blog' },
-                { label: 'Сообщество',    href: 'https://t.me/prepodavaII', icon: i(Send),           tourId: 'nav-community', external: true },
-                { label: 'Пригласить',    href: '/dashboard/referrals',    icon: i(Gift),            tourId: 'nav-invite' },
-                { label: 'Поддержка',     href: 'https://t.me/prepodavai_help_bot', icon: i(MessageCircle), tourId: 'nav-support', external: true },
-                { label: 'Настройки',     href: '/dashboard/settings',     icon: i(Settings),        tourId: 'nav-settings' },
-            ],
-        },
     ]
+
+    if (options.tutorExchangeEnabled) {
+        sections.push({
+            label: 'Биржа',
+            items: [
+                { label: 'Заявки', href: '/dashboard/leads', icon: i(MessageCircle), tourId: 'nav-tutor-exchange' },
+            ],
+        })
+    }
+
+    sections.push({
+        label: 'Прочее',
+        items: [
+            { label: 'Блог',          href: '/blog',                   icon: i(Newspaper),       tourId: 'nav-blog' },
+            { label: 'Сообщество',    href: 'https://t.me/prepodavaII', icon: i(Send),           tourId: 'nav-community', external: true },
+            { label: 'Пригласить',    href: '/dashboard/referrals',    icon: i(Gift),            tourId: 'nav-invite' },
+            { label: 'Поддержка',     href: 'https://t.me/prepodavai_help_bot', icon: i(MessageCircle), tourId: 'nav-support', external: true },
+            { label: 'Настройки',     href: '/dashboard/settings',     icon: i(Settings),        tourId: 'nav-settings' },
+        ],
+    })
+
+    return sections
 }
