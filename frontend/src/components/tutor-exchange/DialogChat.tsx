@@ -41,7 +41,7 @@ export function DialogChat({ dialog, meId, canWrite, onSent }: Props) {
     }
 
     return (
-        <div className="flex flex-col h-[60vh] min-h-[400px] border border-gray-200 rounded-2xl bg-white overflow-hidden">
+        <div className="flex flex-col h-[50vh] min-h-[320px] md:h-[60vh] md:min-h-[400px] border border-gray-200 rounded-2xl bg-white overflow-hidden">
             <div ref={listRef} className="flex-1 overflow-y-auto p-4 space-y-2">
                 {dialog.messages.length === 0 && (
                     <div className="text-center text-xs text-gray-400 py-6">Пока нет сообщений</div>

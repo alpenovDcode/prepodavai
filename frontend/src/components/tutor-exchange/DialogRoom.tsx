@@ -77,7 +77,7 @@ export function DialogRoom({ dialogId }: { dialogId: string }) {
     const canWrite = isParticipant && ACTIVE_STATUSES.includes(dialog.status)
 
     return (
-        <div className="p-6 max-w-4xl mx-auto">
+        <div className="p-4 md:p-6 max-w-4xl mx-auto">
             <Link
                 href="/dashboard/dialogs"
                 className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-800 mb-4"
@@ -88,8 +88,8 @@ export function DialogRoom({ dialogId }: { dialogId: string }) {
             <div className="grid grid-cols-1 md:grid-cols-[1fr,280px] gap-4">
                 <div>
                     <div className="mb-3">
-                        <h1 className="text-xl font-bold text-gray-900">{dialog.lead.subject}</h1>
-                        <p className="text-xs text-gray-500 mt-0.5">
+                        <h1 className="text-lg md:text-xl font-bold text-gray-900 break-words">{dialog.lead.subject}</h1>
+                        <p className="text-xs text-gray-500 mt-0.5 break-words">
                             {dialog.lead.grade} · с{' '}
                             <Link
                                 href={`/dashboard/tutor/${user?.id === dialog.responderId ? dialog.lead.creatorId : dialog.responderId}`}
