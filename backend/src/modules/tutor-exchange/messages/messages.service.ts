@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../../common/prisma/prisma.service';
 import { ModerationService } from './moderation.service';
+import { TutorExchangeNotifier } from '../notifications/tutor-exchange-notifier.service';
 
 const OPEN_STATUSES = ['OPEN', 'TRIAL_PENDING', 'PAYMENT_PENDING'] as const;
 
@@ -24,6 +25,7 @@ export class MessagesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly moderation: ModerationService,
+    private readonly notifier: TutorExchangeNotifier,
   ) {}
 
   async sendMessage(userId: string, dialogId: string, input: { content: string }) {
@@ -35,9 +37,11 @@ export class MessagesService {
     if (!content) throw new BadRequestException('Пустое сообщение');
 
     const hit = this.moderation.detectContacts(content);
+    const recipientId = dialog.responderId === userId ? dialog.lead.creatorId : dialog.responderId;
 
+    let msg: any;
     if (!hit) {
-      return (this.prisma as any).leadMessage.create({
+      msg = await (this.prisma as any).leadMessage.create({
         data: {
           dialogId,
           senderId: userId,
@@ -47,30 +51,42 @@ export class MessagesService {
         },
         select: MESSAGE_SELECT,
       });
+    } else {
+      const warning = this.moderation.moderationWarningText(hit);
+      const [created] = await this.prisma.$transaction([
+        (this.prisma as any).leadMessage.create({
+          data: {
+            dialogId,
+            senderId: userId,
+            content,
+            flagged: true,
+            isSystem: false,
+          },
+          select: MESSAGE_SELECT,
+        }),
+        (this.prisma as any).leadMessage.create({
+          data: {
+            dialogId,
+            senderId: null,
+            content: warning,
+            flagged: false,
+            isSystem: true,
+          },
+        }),
+      ]);
+      msg = created;
     }
 
-    const warning = this.moderation.moderationWarningText(hit);
-    const [msg] = await this.prisma.$transaction([
-      (this.prisma as any).leadMessage.create({
-        data: {
-          dialogId,
-          senderId: userId,
-          content,
-          flagged: true,
-          isSystem: false,
-        },
-        select: MESSAGE_SELECT,
-      }),
-      (this.prisma as any).leadMessage.create({
-        data: {
-          dialogId,
-          senderId: null,
-          content: warning,
-          flagged: false,
-          isSystem: true,
-        },
-      }),
-    ]);
+    this.notifier.notifyMessageNew(
+      {
+        id: dialog.id,
+        responderId: dialog.responderId,
+        lead: { id: dialog.lead.id, subject: dialog.lead.subject, creatorId: dialog.lead.creatorId },
+      },
+      userId,
+      recipientId,
+    );
+
     return msg;
   }
 
@@ -90,7 +106,7 @@ export class MessagesService {
         id: true,
         status: true,
         responderId: true,
-        lead: { select: { creatorId: true } },
+        lead: { select: { id: true, subject: true, creatorId: true } },
       },
     });
     if (!dialog) throw new NotFoundException('Диалог не найден');

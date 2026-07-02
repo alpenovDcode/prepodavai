@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { DialogsService } from './dialogs.service';
 import { PrismaService } from '../../../common/prisma/prisma.service';
+import { TutorExchangeNotifier } from '../notifications/tutor-exchange-notifier.service';
 
 describe('DialogsService', () => {
   let service: DialogsService;
@@ -40,6 +41,12 @@ describe('DialogsService', () => {
       providers: [
         DialogsService,
         { provide: PrismaService, useValue: prisma },
+        {
+          provide: TutorExchangeNotifier,
+          useValue: {
+            notifyDialogCreated: jest.fn().mockResolvedValue(undefined),
+          },
+        },
       ],
     }).compile();
 
@@ -88,7 +95,10 @@ describe('DialogsService', () => {
       prisma.leadDialog.findFirst.mockResolvedValue(null);
       prisma.lead.update.mockReturnValue({ __lead_update: true });
       prisma.leadDialog.create.mockReturnValue({ __dialog_create: true });
-      prisma.$transaction.mockResolvedValue([{}, { id: 'd-1', status: 'OPEN' }]);
+      prisma.$transaction.mockResolvedValue([
+        {},
+        { id: 'd-1', status: 'OPEN', lead: { id: 'lead-1', subject: 'X' } },
+      ]);
 
       const result = await service.createDialog('me', { leadId: 'lead-1' });
       expect(prisma.lead.update).toHaveBeenCalledWith(
@@ -107,7 +117,7 @@ describe('DialogsService', () => {
         }),
       );
       expect(prisma.$transaction).toHaveBeenCalled();
-      expect(result).toEqual({ id: 'd-1', status: 'OPEN' });
+      expect(result).toEqual({ id: 'd-1', status: 'OPEN', lead: { id: 'lead-1', subject: 'X' } });
     });
   });
 

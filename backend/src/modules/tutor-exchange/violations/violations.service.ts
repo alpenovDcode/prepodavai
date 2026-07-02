@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../../common/prisma/prisma.service';
 import { ViolationStatus } from './dto/update-violation.dto';
+import { TutorExchangeNotifier } from '../notifications/tutor-exchange-notifier.service';
 
 const ADMIN_LIST_INCLUDE = {
   dialog: {
@@ -32,7 +33,10 @@ const ADMIN_LIST_INCLUDE = {
 
 @Injectable()
 export class ViolationsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifier: TutorExchangeNotifier,
+  ) {}
 
   async createViolation(
     userId: string,
@@ -52,7 +56,7 @@ export class ViolationsService {
       dialog.responderId === userId || dialog.lead.creatorId === userId;
     if (!isParticipant) throw new ForbiddenException('Нет доступа к диалогу');
 
-    return (this.prisma as any).violationReport.create({
+    const violation = await (this.prisma as any).violationReport.create({
       data: {
         dialogId,
         reporterId: userId,
@@ -60,6 +64,13 @@ export class ViolationsService {
         status: 'PENDING',
       },
     });
+    void this.notifier.notifyViolationReported({
+      id: violation.id,
+      dialogId,
+      reporterId: userId,
+      description: violation.description,
+    });
+    return violation;
   }
 
   async listViolations(filter: { status?: string } = {}) {

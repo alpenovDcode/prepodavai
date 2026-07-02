@@ -7,6 +7,7 @@ import {
 import { DialogActionsService } from './dialog-actions.service';
 import { DialogAction } from './dto/action.dto';
 import { PrismaService } from '../../../common/prisma/prisma.service';
+import { TutorExchangeNotifier } from '../notifications/tutor-exchange-notifier.service';
 
 describe('DialogActionsService', () => {
   let service: DialogActionsService;
@@ -39,6 +40,16 @@ describe('DialogActionsService', () => {
       providers: [
         DialogActionsService,
         { provide: PrismaService, useValue: prisma },
+        {
+          provide: TutorExchangeNotifier,
+          useValue: {
+            notifyTrialScheduled: jest.fn().mockResolvedValue(undefined),
+            notifyTrialResult: jest.fn().mockResolvedValue(undefined),
+            notifyPaymentReported: jest.fn().mockResolvedValue(undefined),
+            notifyPaymentConfirmed: jest.fn().mockResolvedValue(undefined),
+            notifyDisputeOpened: jest.fn().mockResolvedValue(undefined),
+          },
+        },
       ],
     }).compile();
 

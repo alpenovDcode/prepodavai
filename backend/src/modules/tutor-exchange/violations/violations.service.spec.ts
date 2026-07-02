@@ -6,6 +6,7 @@ import {
 import { ViolationsService } from './violations.service';
 import { ViolationStatus } from './dto/update-violation.dto';
 import { PrismaService } from '../../../common/prisma/prisma.service';
+import { TutorExchangeNotifier } from '../notifications/tutor-exchange-notifier.service';
 
 describe('ViolationsService', () => {
   let service: ViolationsService;
@@ -40,6 +41,10 @@ describe('ViolationsService', () => {
       providers: [
         ViolationsService,
         { provide: PrismaService, useValue: prisma },
+        {
+          provide: TutorExchangeNotifier,
+          useValue: { notifyViolationReported: jest.fn().mockResolvedValue(undefined) },
+        },
       ],
     }).compile();
 

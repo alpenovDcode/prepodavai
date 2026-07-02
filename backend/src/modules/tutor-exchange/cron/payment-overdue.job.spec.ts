@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { PaymentOverdueJob } from './payment-overdue.job';
 import { PrismaService } from '../../../common/prisma/prisma.service';
+import { TutorExchangeNotifier } from '../notifications/tutor-exchange-notifier.service';
 
 describe('PaymentOverdueJob', () => {
   let job: PaymentOverdueJob;
@@ -17,6 +18,10 @@ describe('PaymentOverdueJob', () => {
       providers: [
         PaymentOverdueJob,
         { provide: PrismaService, useValue: prisma },
+        {
+          provide: TutorExchangeNotifier,
+          useValue: { notifyPaymentOverdue: jest.fn().mockResolvedValue(undefined) },
+        },
       ],
     }).compile();
 
@@ -39,7 +44,10 @@ describe('PaymentOverdueJob', () => {
   });
 
   it('marks all overdue dialogs with paymentOverdueNotifiedAt', async () => {
-    prisma.leadDialog.findMany.mockResolvedValue([{ id: 'a' }, { id: 'b' }]);
+    prisma.leadDialog.findMany.mockResolvedValue([
+      { id: 'a', responderId: 'r1', lead: { id: 'l1', subject: 's1', creatorId: 'c1' } },
+      { id: 'b', responderId: 'r2', lead: { id: 'l2', subject: 's2', creatorId: 'c2' } },
+    ]);
     prisma.leadDialog.updateMany.mockResolvedValue({ count: 2 });
     const n = await job.markOverdue();
     expect(n).toBe(2);

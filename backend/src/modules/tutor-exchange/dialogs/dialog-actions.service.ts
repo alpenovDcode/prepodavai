@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../../common/prisma/prisma.service';
 import { DialogAction } from './dto/action.dto';
+import { TutorExchangeNotifier } from '../notifications/tutor-exchange-notifier.service';
 
 const PAYMENT_DEADLINE_DAYS = 3;
 
@@ -15,7 +16,10 @@ interface TransitionPayload {
 
 @Injectable()
 export class DialogActionsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifier: TutorExchangeNotifier,
+  ) {}
 
   async transition(
     actorId: string,
@@ -25,7 +29,9 @@ export class DialogActionsService {
   ) {
     const dialog = await (this.prisma as any).leadDialog.findUnique({
       where: { id: dialogId },
-      include: { lead: { select: { id: true, creatorId: true, type: true } } },
+      include: {
+        lead: { select: { id: true, subject: true, creatorId: true, type: true } },
+      },
     });
     if (!dialog) throw new NotFoundException('Диалог не найден');
 
@@ -35,23 +41,54 @@ export class DialogActionsService {
       throw new ForbiddenException('Нет доступа к диалогу');
     }
 
-    switch (action) {
-      case DialogAction.SCHEDULE_TRIAL:
-        return this.scheduleTrial(dialog, { isCreator }, payload);
-      case DialogAction.TRIAL_SUCCESS:
-        return this.trialSuccess(dialog, { isResponder });
-      case DialogAction.TRIAL_FAIL:
-        return this.trialFail(dialog, { isResponder });
-      case DialogAction.PAYMENT_SENT:
-        return this.paymentSent(dialog, { isResponder });
-      case DialogAction.CONFIRM_PAYMENT:
-        return this.confirmPayment(dialog, { isCreator });
-      case DialogAction.DISPUTE:
-        return this.dispute(dialog);
-      case DialogAction.CANCEL:
-        return this.cancel(dialog);
-      default:
-        throw new BadRequestException('Неизвестное действие');
+    const result = await (async () => {
+      switch (action) {
+        case DialogAction.SCHEDULE_TRIAL:
+          return this.scheduleTrial(dialog, { isCreator }, payload);
+        case DialogAction.TRIAL_SUCCESS:
+          return this.trialSuccess(dialog, { isResponder });
+        case DialogAction.TRIAL_FAIL:
+          return this.trialFail(dialog, { isResponder });
+        case DialogAction.PAYMENT_SENT:
+          return this.paymentSent(dialog, { isResponder });
+        case DialogAction.CONFIRM_PAYMENT:
+          return this.confirmPayment(dialog, { isCreator });
+        case DialogAction.DISPUTE:
+          return this.dispute(dialog);
+        case DialogAction.CANCEL:
+          return this.cancel(dialog);
+        default:
+          throw new BadRequestException('Неизвестное действие');
+      }
+    })();
+
+    void this.emitNotification(action, dialog, actorId);
+    return result;
+  }
+
+  private async emitNotification(action: DialogAction, dialog: any, actorId: string) {
+    const lite = {
+      id: dialog.id,
+      responderId: dialog.responderId,
+      lead: { id: dialog.lead.id, subject: dialog.lead.subject, creatorId: dialog.lead.creatorId },
+    };
+    try {
+      switch (action) {
+        case DialogAction.SCHEDULE_TRIAL:
+          return await this.notifier.notifyTrialScheduled(lite);
+        case DialogAction.TRIAL_SUCCESS:
+          return await this.notifier.notifyTrialResult(lite, true);
+        case DialogAction.TRIAL_FAIL:
+          return await this.notifier.notifyTrialResult(lite, false);
+        case DialogAction.PAYMENT_SENT:
+          return await this.notifier.notifyPaymentReported(lite);
+        case DialogAction.CONFIRM_PAYMENT:
+          return await this.notifier.notifyPaymentConfirmed(lite);
+        case DialogAction.DISPUTE:
+          return await this.notifier.notifyDisputeOpened(lite, actorId);
+      }
+    } catch {
+      // notifier сам ловит ошибки, но защитимся ещё раз
     }
   }
 

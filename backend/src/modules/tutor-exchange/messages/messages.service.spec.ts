@@ -7,6 +7,7 @@ import {
 import { MessagesService } from './messages.service';
 import { ModerationService } from './moderation.service';
 import { PrismaService } from '../../../common/prisma/prisma.service';
+import { TutorExchangeNotifier } from '../notifications/tutor-exchange-notifier.service';
 
 describe('MessagesService', () => {
   let service: MessagesService;
@@ -20,7 +21,7 @@ describe('MessagesService', () => {
     id: 'd-1',
     status: 'OPEN',
     responderId: 'responder',
-    lead: { creatorId: 'creator' },
+    lead: { id: 'lead-1', subject: 'Математика', creatorId: 'creator' },
   };
 
   beforeEach(async () => {
@@ -35,6 +36,10 @@ describe('MessagesService', () => {
         MessagesService,
         ModerationService,
         { provide: PrismaService, useValue: prisma },
+        {
+          provide: TutorExchangeNotifier,
+          useValue: { notifyMessageNew: jest.fn() },
+        },
       ],
     }).compile();
 

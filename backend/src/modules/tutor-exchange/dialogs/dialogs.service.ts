@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../../../common/prisma/prisma.service';
+import { TutorExchangeNotifier } from '../notifications/tutor-exchange-notifier.service';
 
 const ACTIVE_DIALOG_STATUSES = ['OPEN', 'TRIAL_PENDING', 'PAYMENT_PENDING'] as const;
 const MAX_ACTIVE_DIALOGS = 5;
@@ -39,7 +40,10 @@ const DIALOG_LIST_SELECT = {
 
 @Injectable()
 export class DialogsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifier: TutorExchangeNotifier,
+  ) {}
 
   async createDialog(userId: string, input: { leadId: string }) {
     const lead = await (this.prisma as any).lead.findUnique({
@@ -90,6 +94,11 @@ export class DialogsService {
         select: DIALOG_LIST_SELECT,
       }),
     ]);
+    void this.notifier.notifyDialogCreated({
+      id: dialog.id,
+      responderId: userId,
+      lead: { id: lead.id, subject: dialog.lead.subject, creatorId: lead.creatorId },
+    });
     return dialog;
   }
 
