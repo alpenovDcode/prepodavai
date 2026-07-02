@@ -5,6 +5,7 @@ import { MapPin, Globe, User, Sparkles, Coins } from 'lucide-react'
 
 export interface LeadCardData {
     id: string
+    creatorId: string
     subject: string
     grade: string
     format: 'ONLINE' | 'OFFLINE'
