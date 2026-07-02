@@ -7,7 +7,7 @@ import Image from 'next/image'
 import {
     LayoutDashboard, Wand2, Calendar, BookOpen,
     Users, ClipboardCheck, BarChart3,
-    Gift, MessageCircle, Settings, ChevronUp, LogOut,
+    Gift, MessageCircle, MessageSquare, Settings, ChevronUp, LogOut,
     ChevronLeft, ChevronRight, Newspaper, Send,
 } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
@@ -320,7 +320,8 @@ export function getTeacherNavSections(
         sections.push({
             label: 'Биржа',
             items: [
-                { label: 'Заявки', href: '/dashboard/leads', icon: i(MessageCircle), tourId: 'nav-tutor-exchange' },
+                { label: 'Заявки',  href: '/dashboard/leads',   icon: i(MessageCircle),  tourId: 'nav-tutor-exchange-leads' },
+                { label: 'Диалоги', href: '/dashboard/dialogs', icon: i(MessageSquare),  tourId: 'nav-tutor-exchange-dialogs' },
             ],
         })
     }
