@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../../../common/prisma/prisma.service';
@@ -16,6 +17,8 @@ interface TransitionPayload {
 
 @Injectable()
 export class DialogActionsService {
+  private readonly logger = new Logger(DialogActionsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifier: TutorExchangeNotifier,
@@ -41,6 +44,7 @@ export class DialogActionsService {
       throw new ForbiddenException('Нет доступа к диалогу');
     }
 
+    const prev = dialog.status;
     const result = await (async () => {
       switch (action) {
         case DialogAction.SCHEDULE_TRIAL:
@@ -61,6 +65,11 @@ export class DialogActionsService {
           throw new BadRequestException('Неизвестное действие');
       }
     })();
+
+    const next = result?.dialog?.status ?? prev;
+    this.logger.log(
+      `transition dialog=${dialog.id} action=${action} actor=${actorId} ${prev} -> ${next}`,
+    );
 
     void this.emitNotification(action, dialog, actorId);
     return result;
