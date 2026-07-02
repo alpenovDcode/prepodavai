@@ -22,6 +22,7 @@ export function LeadDetails({ leadId }: { leadId: string }) {
     const [lead, setLead] = useState<LeadDetailsData | null>(null)
     const [error, setError] = useState<string | null>(null)
     const [deleting, setDeleting] = useState(false)
+    const [responding, setResponding] = useState(false)
 
     useEffect(() => {
         let cancelled = false
@@ -36,6 +37,28 @@ export function LeadDetails({ leadId }: { leadId: string }) {
             })
         return () => { cancelled = true }
     }, [leadId])
+
+    const respond = async () => {
+        setResponding(true)
+        try {
+            const res = await apiClient.post<{ id: string }>('/tutor-exchange/dialogs', { leadId })
+            router.push(`/dashboard/dialogs/${res.data.id}`)
+        } catch (err: any) {
+            const code = err?.response?.data?.code
+            const msg =
+                code === 'LimitReached'
+                    ? 'У вас уже 5 активных диалогов — закройте или отмените один из них.'
+                    : code === 'OverduePayment'
+                        ? 'Есть просроченная комиссия по другому диалогу — сначала закройте её.'
+                        : code === 'LeadNotAvailable'
+                            ? 'Заявка уже занята другим репетитором.'
+                            : code === 'OwnLead'
+                                ? 'Это ваша собственная заявка.'
+                                : err?.response?.data?.message || 'Не удалось откликнуться'
+            alert(msg)
+            setResponding(false)
+        }
+    }
 
     const remove = async () => {
         if (!confirm('Снять заявку с публикации? Это действие необратимо.')) return
@@ -121,11 +144,11 @@ export function LeadDetails({ leadId }: { leadId: string }) {
                 <div className="flex flex-wrap gap-2">
                     {canRespond && (
                         <button
-                            disabled
-                            title="Откликаться можно с этапа 3 (диалоги)"
-                            className="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg disabled:opacity-50 cursor-not-allowed"
+                            onClick={respond}
+                            disabled={responding}
+                            className="px-4 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-50"
                         >
-                            Откликнуться (скоро)
+                            {responding ? 'Откликаемся...' : 'Откликнуться'}
                         </button>
                     )}
                     {isCreator && lead.status === 'ACTIVE' && (
