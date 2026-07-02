@@ -2,9 +2,13 @@
 
 import { useEffect, useState, useMemo } from 'react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { apiClient } from '@/lib/api/client'
-import { Plus, Search, Loader2, AlertCircle } from 'lucide-react'
+import { Plus, Search, Loader2, AlertCircle, Globe, Users } from 'lucide-react'
 import { LeadCard, LeadCardData } from './LeadCard'
+import { useUser } from '@/lib/hooks/useUser'
+
+type Tab = 'all' | 'mine'
 
 interface Filters {
     subject: string
@@ -16,6 +20,10 @@ interface Filters {
 const EMPTY_FILTERS: Filters = { subject: '', format: '', type: '', city: '' }
 
 export function LeadsFeed() {
+    const { user } = useUser()
+    const searchParams = useSearchParams()
+    const initialTab: Tab = searchParams?.get('tab') === 'mine' ? 'mine' : 'all'
+    const [tab, setTab] = useState<Tab>(initialTab)
     const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS)
     const [leads, setLeads] = useState<LeadCardData[] | null>(null)
     const [error, setError] = useState<string | null>(null)
@@ -33,9 +41,18 @@ export function LeadsFeed() {
         let cancelled = false
         setLeads(null)
         setError(null)
+
+        const url =
+            tab === 'mine'
+                ? '/tutor-exchange/leads/mine'
+                : `/tutor-exchange/leads${query ? `?${query}` : ''}`
+
         apiClient
-            .get<LeadCardData[]>(`/tutor-exchange/leads${query ? `?${query}` : ''}`)
-            .then((resp) => { if (!cancelled) setLeads(resp.data) })
+            .get<LeadCardData[]>(url)
+            .then((resp) => {
+                if (cancelled) return
+                setLeads(resp.data)
+            })
             .catch((err) => {
                 if (cancelled) return
                 if (err?.response?.status === 503 && err.response.data?.tutorExchangeDisabled) {
@@ -44,83 +61,129 @@ export function LeadsFeed() {
                     setError(err?.response?.data?.message || 'Не удалось загрузить заявки')
                 }
             })
-        return () => { cancelled = true }
-    }, [query])
+        return () => {
+            cancelled = true
+        }
+    }, [query, tab])
 
     return (
-        <div className="p-6 max-w-6xl mx-auto">
-            <header className="flex items-start justify-between gap-4 mb-6">
-                <div>
-                    <h1 className="text-2xl font-bold text-gray-900">Биржа лидов</h1>
-                    <p className="text-sm text-gray-500 mt-1">
+        <div className="p-6 md:p-8 max-w-6xl mx-auto">
+            <header className="flex flex-wrap items-start justify-between gap-4 mb-6">
+                <div className="min-w-0">
+                    <h1 className="text-3xl font-bold text-gray-900">Биржа лидов</h1>
+                    <p className="text-base text-gray-500 mt-1.5 max-w-2xl">
                         Передайте ученика коллеге или заберите чужого — открытые заявки других репетиторов.
                     </p>
                 </div>
-                <Link href="/dashboard/leads/new" className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-lg">
-                    <Plus className="w-4 h-4" /> Разместить заявку
+                <Link
+                    href="/dashboard/leads/new"
+                    className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-base font-semibold px-5 py-3 rounded-xl shadow-sm transition"
+                >
+                    <Plus className="w-5 h-5" /> Разместить заявку
                 </Link>
             </header>
 
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-6">
-                <div className="md:col-span-2 relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                    <input
-                        value={filters.subject}
-                        onChange={(e) => setFilters((f) => ({ ...f, subject: e.target.value }))}
-                        placeholder="Предмет: математика, английский..."
-                        className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-blue-400"
-                    />
-                </div>
-                <select
-                    value={filters.format}
-                    onChange={(e) => setFilters((f) => ({ ...f, format: e.target.value as Filters['format'] }))}
-                    className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-blue-400"
+            <div className="inline-flex bg-gray-100 rounded-xl p-1 mb-6">
+                <button
+                    onClick={() => setTab('all')}
+                    className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition ${
+                        tab === 'all' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-800'
+                    }`}
                 >
-                    <option value="">Любой формат</option>
-                    <option value="ONLINE">Онлайн</option>
-                    <option value="OFFLINE">Оффлайн</option>
-                </select>
-                <select
-                    value={filters.type}
-                    onChange={(e) => setFilters((f) => ({ ...f, type: e.target.value as Filters['type'] }))}
-                    className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-blue-400"
+                    <Globe className="w-4 h-4" /> Все заявки
+                </button>
+                <button
+                    onClick={() => setTab('mine')}
+                    className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition ${
+                        tab === 'mine' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-800'
+                    }`}
                 >
-                    <option value="">Все типы</option>
-                    <option value="FREE">Бесплатно</option>
-                    <option value="COMMISSION">С комиссией</option>
-                </select>
-                {filters.format === 'OFFLINE' && (
-                    <input
-                        value={filters.city}
-                        onChange={(e) => setFilters((f) => ({ ...f, city: e.target.value }))}
-                        placeholder="Город"
-                        className="md:col-span-4 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-blue-400"
-                    />
-                )}
+                    <Users className="w-4 h-4" /> Мои заявки
+                </button>
             </div>
 
+            {tab === 'all' && (
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-6">
+                    <div className="md:col-span-2 relative">
+                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                        <input
+                            value={filters.subject}
+                            onChange={(e) => setFilters((f) => ({ ...f, subject: e.target.value }))}
+                            placeholder="Предмет: математика, английский..."
+                            className="w-full pl-11 pr-4 py-3 text-base border border-gray-200 rounded-xl bg-white focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                        />
+                    </div>
+                    <select
+                        value={filters.format}
+                        onChange={(e) => setFilters((f) => ({ ...f, format: e.target.value as Filters['format'] }))}
+                        className="px-4 py-3 text-base border border-gray-200 rounded-xl bg-white focus:outline-none focus:border-blue-400"
+                    >
+                        <option value="">Любой формат</option>
+                        <option value="ONLINE">Онлайн</option>
+                        <option value="OFFLINE">Оффлайн</option>
+                    </select>
+                    <select
+                        value={filters.type}
+                        onChange={(e) => setFilters((f) => ({ ...f, type: e.target.value as Filters['type'] }))}
+                        className="px-4 py-3 text-base border border-gray-200 rounded-xl bg-white focus:outline-none focus:border-blue-400"
+                    >
+                        <option value="">Все типы</option>
+                        <option value="FREE">Бесплатно</option>
+                        <option value="COMMISSION">С комиссией</option>
+                    </select>
+                    {filters.format === 'OFFLINE' && (
+                        <input
+                            value={filters.city}
+                            onChange={(e) => setFilters((f) => ({ ...f, city: e.target.value }))}
+                            placeholder="Город"
+                            className="md:col-span-4 px-4 py-3 text-base border border-gray-200 rounded-xl bg-white focus:outline-none focus:border-blue-400"
+                        />
+                    )}
+                </div>
+            )}
+
             {error && (
-                <div className="border border-amber-200 bg-amber-50 rounded-xl p-4 text-sm text-amber-800 flex gap-2 items-start">
-                    <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                <div className="border border-amber-200 bg-amber-50 rounded-2xl p-5 text-base text-amber-800 flex gap-3 items-start">
+                    <AlertCircle className="w-5 h-5 mt-0.5 shrink-0" />
                     <span>{error}</span>
                 </div>
             )}
 
             {!error && leads === null && (
-                <div className="flex items-center justify-center py-16 text-gray-500 text-sm">
-                    <Loader2 className="w-4 h-4 animate-spin mr-2" /> Загружаем ленту...
+                <div className="flex items-center justify-center py-24 text-gray-500 text-base">
+                    <Loader2 className="w-5 h-5 animate-spin mr-2" /> Загружаем ленту...
                 </div>
             )}
 
             {!error && leads?.length === 0 && (
-                <div className="border border-dashed border-gray-200 rounded-xl p-10 text-center text-gray-500 text-sm">
-                    Пока нет заявок по вашим фильтрам. Первым разместите свою — <Link href="/dashboard/leads/new" className="text-blue-600 underline">заполнить форму</Link>.
+                <div className="border-2 border-dashed border-gray-200 rounded-2xl p-12 text-center">
+                    {tab === 'mine' ? (
+                        <>
+                            <div className="text-5xl mb-3">📭</div>
+                            <p className="text-lg text-gray-700 font-semibold mb-2">Пока нет ваших заявок</p>
+                            <p className="text-sm text-gray-500 mb-5">Разместите первую — коллеги-репетиторы увидят её в ленте.</p>
+                            <Link
+                                href="/dashboard/leads/new"
+                                className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-base font-semibold px-5 py-3 rounded-xl"
+                            >
+                                <Plus className="w-4 h-4" /> Разместить заявку
+                            </Link>
+                        </>
+                    ) : (
+                        <>
+                            <div className="text-5xl mb-3">🔍</div>
+                            <p className="text-lg text-gray-700 font-semibold mb-2">Пока нет подходящих заявок</p>
+                            <p className="text-sm text-gray-500">Попробуйте изменить фильтры или разместите свою.</p>
+                        </>
+                    )}
                 </div>
             )}
 
             {!error && leads && leads.length > 0 && (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                    {leads.map((lead) => (<LeadCard key={lead.id} lead={lead} />))}
+                    {leads.map((lead) => (
+                        <LeadCard key={lead.id} lead={lead} meId={user?.id} showStatus={tab === 'mine'} />
+                    ))}
                 </div>
             )}
         </div>

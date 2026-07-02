@@ -1,12 +1,27 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { apiClient } from '@/lib/api/client'
 import { useUser } from '@/lib/hooks/useUser'
-import { ArrowLeft, Globe, MapPin, User, Lock, CheckCircle2, Trash2, Loader2, AlertCircle } from 'lucide-react'
+import {
+    ArrowLeft,
+    Globe,
+    MapPin,
+    User,
+    Lock,
+    CheckCircle2,
+    Trash2,
+    Loader2,
+    AlertCircle,
+    Pencil,
+    MessagesSquare,
+    Sparkles,
+    Coins,
+} from 'lucide-react'
 import type { LeadCardData } from './LeadCard'
+import { EditLeadModal } from './EditLeadModal'
 
 interface LeadDetailsData extends LeadCardData {
     studentContact?: string
@@ -16,6 +31,13 @@ interface LeadDetailsData extends LeadCardData {
 const formatName = (c: LeadDetailsData['creator']) =>
     [c.firstName, c.lastName].filter(Boolean).join(' ').trim() || 'Репетитор'
 
+const STATUS_INFO: Record<string, { label: string; cls: string }> = {
+    ACTIVE: { label: 'Активна · видна в ленте', cls: 'text-blue-700 bg-blue-50 border-blue-200' },
+    LOCKED: { label: 'В работе · есть отклик', cls: 'text-indigo-700 bg-indigo-50 border-indigo-200' },
+    CLOSED: { label: 'Сделка закрыта', cls: 'text-emerald-700 bg-emerald-50 border-emerald-200' },
+    CANCELLED: { label: 'Снята', cls: 'text-gray-500 bg-gray-100 border-gray-200' },
+}
+
 export function LeadDetails({ leadId }: { leadId: string }) {
     const router = useRouter()
     const { user: me } = useUser()
@@ -23,20 +45,24 @@ export function LeadDetails({ leadId }: { leadId: string }) {
     const [error, setError] = useState<string | null>(null)
     const [deleting, setDeleting] = useState(false)
     const [responding, setResponding] = useState(false)
+    const [editOpen, setEditOpen] = useState(false)
 
-    useEffect(() => {
-        let cancelled = false
+    const load = useCallback(() => {
         apiClient
             .get<LeadDetailsData>(`/tutor-exchange/leads/${leadId}`)
-            .then((r) => { if (!cancelled) setLead(r.data) })
+            .then((r) => setLead(r.data))
             .catch((err) => {
-                if (cancelled) return
                 if (err?.response?.status === 404) setError('Заявка не найдена или была снята')
                 else if (err?.response?.status === 503 && err.response.data?.tutorExchangeDisabled) setError(err.response.data.message || 'Биржа временно недоступна')
                 else setError(err?.response?.data?.message || 'Не удалось загрузить заявку')
             })
-        return () => { cancelled = true }
     }, [leadId])
+
+    useEffect(() => {
+        setError(null)
+        setLead(null)
+        load()
+    }, [load])
 
     const respond = async () => {
         setResponding(true)
@@ -74,20 +100,20 @@ export function LeadDetails({ leadId }: { leadId: string }) {
 
     if (error) {
         return (
-            <div className="p-6 max-w-2xl mx-auto">
-                <Link href="/dashboard/leads" className="inline-flex items-center gap-1 text-sm text-gray-500 mb-4">
+            <div className="p-6 md:p-8 max-w-3xl mx-auto">
+                <Link href="/dashboard/leads" className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 mb-6">
                     <ArrowLeft className="w-4 h-4" /> К ленте
                 </Link>
-                <div className="border border-amber-200 bg-amber-50 rounded-xl p-4 text-sm text-amber-800 flex gap-2 items-start">
-                    <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" /> {error}
+                <div className="border border-amber-200 bg-amber-50 rounded-2xl p-5 text-base text-amber-800 flex gap-3 items-start">
+                    <AlertCircle className="w-5 h-5 mt-0.5 shrink-0" /> {error}
                 </div>
             </div>
         )
     }
     if (!lead) {
         return (
-            <div className="p-6 max-w-2xl mx-auto text-sm text-gray-500 flex items-center gap-2">
-                <Loader2 className="w-4 h-4 animate-spin" /> Загружаем заявку...
+            <div className="p-6 md:p-8 max-w-3xl mx-auto text-base text-gray-500 flex items-center gap-2">
+                <Loader2 className="w-5 h-5 animate-spin" /> Загружаем заявку...
             </div>
         )
     }
@@ -96,72 +122,131 @@ export function LeadDetails({ leadId }: { leadId: string }) {
     const isCreator = me?.id === lead.creatorId
     const canRespond = !isCreator && lead.status === 'ACTIVE'
     const contactVisible = typeof lead.studentContact === 'string' && lead.studentContact.length > 0
+    const statusInfo = STATUS_INFO[lead.status]
 
     return (
-        <div className="p-6 max-w-3xl mx-auto">
-            <Link href="/dashboard/leads" className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-800 mb-4">
-                <ArrowLeft className="w-4 h-4" /> К ленте
-            </Link>
+        <div className="p-6 md:p-8 max-w-3xl mx-auto">
+            <div className="flex items-center justify-between mb-6">
+                <Link href="/dashboard/leads" className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800">
+                    <ArrowLeft className="w-4 h-4" /> К ленте
+                </Link>
+                {isCreator && (
+                    <Link
+                        href="/dashboard/leads?tab=mine"
+                        className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800"
+                    >
+                        Мои заявки →
+                    </Link>
+                )}
+            </div>
 
-            <div className="bg-white border border-gray-200 rounded-2xl p-6">
-                <div className="flex items-start justify-between gap-3 mb-3">
-                    <div>
-                        <h1 className="text-2xl font-bold text-gray-900">{lead.subject}</h1>
-                        <p className="text-sm text-gray-500 mt-0.5">{lead.grade}</p>
+            <div className="bg-white border border-gray-200 rounded-2xl p-6 md:p-8">
+                <div className="flex flex-wrap items-center gap-2 mb-4">
+                    {isCreator && (
+                        <span className="inline-flex items-center gap-1 text-xs font-semibold uppercase tracking-wide px-2.5 py-1 rounded-lg bg-blue-600 text-white">
+                            Ваша заявка
+                        </span>
+                    )}
+                    {statusInfo && (
+                        <span className={`text-xs font-semibold px-2.5 py-1 rounded-lg border ${statusInfo.cls}`}>
+                            {statusInfo.label}
+                        </span>
+                    )}
+                </div>
+
+                <div className="flex items-start justify-between gap-4 mb-4">
+                    <div className="min-w-0 flex-1">
+                        <h1 className="text-3xl font-bold text-gray-900 break-words leading-tight">{lead.subject}</h1>
+                        <p className="text-base text-gray-500 mt-1">{lead.grade}</p>
                     </div>
-                    <span className={`text-xs font-semibold px-2 py-1 rounded-md border ${isFree ? 'text-emerald-700 bg-emerald-50 border-emerald-200' : 'text-amber-700 bg-amber-50 border-amber-200'}`}>
-                        {isFree ? 'FREE' : `${lead.price.toLocaleString('ru-RU')} ₽`}
+                    <span className={`shrink-0 text-sm font-semibold px-3 py-1.5 rounded-lg border ${isFree ? 'text-emerald-700 bg-emerald-50 border-emerald-200' : 'text-amber-700 bg-amber-50 border-amber-200'}`}>
+                        {isFree ? (
+                            <span className="inline-flex items-center gap-1"><Sparkles className="w-4 h-4" /> FREE</span>
+                        ) : (
+                            <span className="inline-flex items-center gap-1"><Coins className="w-4 h-4" /> {lead.price.toLocaleString('ru-RU')} ₽</span>
+                        )}
                     </span>
                 </div>
 
-                <div className="flex items-center gap-4 text-sm text-gray-500 mb-5">
+                <div className="flex items-center gap-5 text-sm text-gray-600 mb-6 flex-wrap">
                     {lead.format === 'ONLINE' ? (
-                        <span className="inline-flex items-center gap-1"><Globe className="w-4 h-4" /> Онлайн</span>
+                        <span className="inline-flex items-center gap-1.5"><Globe className="w-4 h-4" /> Онлайн</span>
                     ) : (
-                        <span className="inline-flex items-center gap-1"><MapPin className="w-4 h-4" /> {lead.city || 'Оффлайн'}</span>
+                        <span className="inline-flex items-center gap-1.5"><MapPin className="w-4 h-4" /> {lead.city || 'Оффлайн'}</span>
                     )}
-                    <span className="inline-flex items-center gap-1"><User className="w-4 h-4" /> {formatName(lead.creator)}</span>
+                    <Link
+                        href={`/dashboard/tutor/${lead.creator.id}`}
+                        className="inline-flex items-center gap-1.5 hover:text-gray-900 hover:underline"
+                    >
+                        <User className="w-4 h-4" /> {formatName(lead.creator)}
+                    </Link>
                 </div>
 
-                <div className="prose prose-sm max-w-none text-gray-800 whitespace-pre-wrap mb-6">
+                <div className="prose prose-base max-w-none text-gray-800 whitespace-pre-wrap mb-6 leading-relaxed border-l-4 border-gray-100 pl-4">
                     {lead.description}
                 </div>
 
-                <div className={`rounded-xl border p-4 mb-6 ${contactVisible ? 'border-emerald-200 bg-emerald-50' : 'border-gray-200 bg-gray-50'}`}>
-                    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-gray-600 mb-1">
+                <div className={`rounded-2xl border p-5 mb-6 ${contactVisible ? 'border-emerald-200 bg-emerald-50' : 'border-gray-200 bg-gray-50'}`}>
+                    <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-gray-700 mb-1.5">
                         {contactVisible ? <CheckCircle2 className="w-4 h-4 text-emerald-600" /> : <Lock className="w-4 h-4 text-gray-500" />}
                         Контакт ученика
                     </div>
                     {contactVisible ? (
-                        <div className="text-sm font-semibold text-emerald-900">{lead.studentContact}</div>
+                        <div className="text-lg font-bold text-emerald-900">{lead.studentContact}</div>
                     ) : (
-                        <div className="text-sm text-gray-500">
+                        <div className="text-sm text-gray-600">
                             Скрыт — станет виден откликнувшемуся после закрытия сделки.
                         </div>
                     )}
                 </div>
 
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-3">
                     {canRespond && (
                         <button
                             onClick={respond}
                             disabled={responding}
-                            className="px-4 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-50"
+                            className="inline-flex items-center gap-2 px-6 py-3 text-base font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl disabled:opacity-50 shadow-sm"
                         >
+                            <MessagesSquare className="w-5 h-5" />
                             {responding ? 'Откликаемся...' : 'Откликнуться'}
                         </button>
                     )}
                     {isCreator && lead.status === 'ACTIVE' && (
-                        <button
-                            onClick={remove}
-                            disabled={deleting}
-                            className="inline-flex items-center gap-2 px-4 py-2 text-sm text-red-700 border border-red-200 bg-red-50 hover:bg-red-100 rounded-lg disabled:opacity-50"
-                        >
-                            <Trash2 className="w-4 h-4" /> {deleting ? 'Снимаем...' : 'Снять с публикации'}
-                        </button>
+                        <>
+                            <button
+                                onClick={() => setEditOpen(true)}
+                                className="inline-flex items-center gap-2 px-5 py-3 text-base text-gray-700 border border-gray-200 hover:bg-gray-50 rounded-xl"
+                            >
+                                <Pencil className="w-4 h-4" /> Редактировать
+                            </button>
+                            <button
+                                onClick={remove}
+                                disabled={deleting}
+                                className="inline-flex items-center gap-2 px-5 py-3 text-base text-red-700 border border-red-200 bg-red-50 hover:bg-red-100 rounded-xl disabled:opacity-50 ml-auto"
+                            >
+                                <Trash2 className="w-4 h-4" /> {deleting ? 'Снимаем...' : 'Снять с публикации'}
+                            </button>
+                        </>
                     )}
                 </div>
             </div>
+
+            {editOpen && (
+                <EditLeadModal
+                    leadId={lead.id}
+                    initial={{
+                        grade: lead.grade,
+                        format: lead.format,
+                        city: lead.city,
+                        description: lead.description,
+                        studentContact: lead.studentContact,
+                        type: lead.type,
+                        price: lead.price,
+                    }}
+                    onClose={() => setEditOpen(false)}
+                    onSaved={load}
+                />
+            )}
         </div>
     )
 }

@@ -138,6 +138,52 @@ export class LeadsService {
     return lead;
   }
 
+  async updateLead(userId: string, leadId: string, patch: Partial<CreateLeadInput>) {
+    const lead = await (this.prisma as any).lead.findUnique({
+      where: { id: leadId },
+      select: { id: true, creatorId: true, status: true, type: true },
+    });
+    if (!lead) throw new NotFoundException('Заявка не найдена');
+    if (lead.creatorId !== userId) throw new ForbiddenException('Не ваша заявка');
+    if (lead.status !== 'ACTIVE') {
+      throw new BadRequestException('Изменить можно только активную заявку');
+    }
+
+    const data: Record<string, any> = {};
+    if (patch.grade !== undefined) data.grade = patch.grade.trim();
+    if (patch.format !== undefined) data.format = patch.format;
+    if (patch.description !== undefined) {
+      const description = patch.description.trim();
+      if (description.length < 30) {
+        throw new BadRequestException('Описание должно быть не короче 30 символов');
+      }
+      data.description = description;
+    }
+    if (patch.studentContact !== undefined) {
+      const c = patch.studentContact.trim();
+      if (!c) throw new BadRequestException('Контакт не может быть пустым');
+      data.studentContact = c;
+    }
+    if (patch.city !== undefined) {
+      data.city = data.format === 'OFFLINE' || (patch.format === 'OFFLINE')
+        ? patch.city?.trim() || null
+        : null;
+    }
+    if (patch.price !== undefined && lead.type === 'COMMISSION') {
+      const p = Number(patch.price);
+      if (!Number.isFinite(p) || p < 100) {
+        throw new BadRequestException('Комиссия должна быть не меньше 100 ₽');
+      }
+      data.price = p;
+    }
+
+    return (this.prisma as any).lead.update({
+      where: { id: leadId },
+      data,
+      select: { ...PUBLIC_LEAD_SELECT, studentContact: true },
+    });
+  }
+
   async deleteLead(userId: string, leadId: string) {
     const lead = await (this.prisma as any).lead.findUnique({
       where: { id: leadId },
