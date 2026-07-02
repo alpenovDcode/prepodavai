@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   Body,
   Controller,
   Get,
@@ -11,13 +10,17 @@ import {
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { ExchangeEnabledGuard } from '../guards/exchange-enabled.guard';
 import { DialogsService } from './dialogs.service';
+import { DialogActionsService } from './dialog-actions.service';
 import { CreateDialogDto } from './dto/create-dialog.dto';
-import { DialogAction, DialogActionDto } from './dto/action.dto';
+import { DialogActionDto } from './dto/action.dto';
 
 @Controller('tutor-exchange/dialogs')
 @UseGuards(JwtAuthGuard, ExchangeEnabledGuard)
 export class DialogsController {
-  constructor(private readonly dialogsService: DialogsService) {}
+  constructor(
+    private readonly dialogsService: DialogsService,
+    private readonly actions: DialogActionsService,
+  ) {}
 
   @Get()
   list(@Request() req: any) {
@@ -36,9 +39,8 @@ export class DialogsController {
 
   @Post(':id/actions')
   action(@Request() req: any, @Param('id') id: string, @Body() body: DialogActionDto) {
-    if (body.action === DialogAction.CANCEL) {
-      return this.dialogsService.cancelDialog(req.user.id, id);
-    }
-    throw new BadRequestException('Неизвестное действие');
+    return this.actions.transition(req.user.id, id, body.action, {
+      trialLessonLink: body.trialLessonLink,
+    });
   }
 }

@@ -50,6 +50,7 @@ import { TutorExchangeModule } from './modules/tutor-exchange/tutor-exchange.mod
 import { PopupsModule } from './modules/popups/popups.module';
 import { SystemModule } from './modules/system/system.module';
 import { AiChatsModule } from './modules/ai-chats/ai-chats.module';
+import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({
   imports: [
@@ -58,6 +59,9 @@ import { AiChatsModule } from './modules/ai-chats/ai-chats.module';
       isGlobal: true,
       envFilePath: ['.env.local', '.env'],
     }),
+
+    // Scheduled tasks (cron)
+    ScheduleModule.forRoot(),
 
     // Rate Limiting
     ThrottlerModule.forRoot([
