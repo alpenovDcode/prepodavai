@@ -531,6 +531,23 @@ function DocumentStyles() {
                 background: #ecfdf5;
                 color: #065f46;
             }
+            /* Выбор ученика в режиме просмотра (проверка ДЗ) — синим */
+            .prepodavai-doc .mc-list li.student-selected {
+                background: #eff6ff;
+                border: 1px solid #93c5fd;
+                color: #1e40af;
+                font-weight: 600;
+            }
+            .prepodavai-doc input.student-filled,
+            .prepodavai-doc textarea.student-filled {
+                background: #eff6ff !important;
+                border-color: #93c5fd !important;
+                color: #1e40af;
+                font-weight: 600;
+            }
+            .prepodavai-doc .inline-input.student-filled {
+                border-bottom: 2px solid #3b82f6 !important;
+            }
             .prepodavai-doc figure {
                 margin: 16px 0;
             }

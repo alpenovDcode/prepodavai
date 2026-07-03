@@ -355,10 +355,16 @@ export default function StudentAssignmentV2({ assignmentId }: StudentAssignmentV
         setFieldCountMap(prev => ({ ...prev, [genId]: count }))
     }, [])
 
-    // Listener результата игры. Шаблоны игр после endGame() шлют
-    // window.parent.postMessage({ type: 'GAME_RESULT', score, total, ... }).
+    // Listener результата игры. Мост в игре шлёт:
+    //   GAME_PROGRESS — промежуточный прогресс (outcome: 'in_progress'),
+    //   GAME_RESULT — финальный результат.
     // Сопоставляем источник iframe → gen.id, кладём в _game и засчитываем
-    // как одно «заполненное поле» для прогресс-бара.
+    // как одно «заполненное поле» для прогресс-бара. Прогресс никогда не
+    // затирает уже записанный финальный результат.
+    //
+    // Обновление через функциональный setState — иначе при быстрой смене
+    // V2-ответов в других блоках закрытие захватывало устаревший formDataMap
+    // и следующая GAME_PROGRESS-запись затирала свежие правки ученика.
     useEffect(() => {
         if (!assignment) return
         const gens = assignment.lesson.generations
@@ -368,7 +374,8 @@ export default function StudentAssignmentV2({ assignmentId }: StudentAssignmentV
         const onMessage = (e: MessageEvent) => {
             const data: any = e.data
             if (!data || typeof data !== 'object') return
-            if (data.type !== 'GAME_RESULT') return
+            if (data.type !== 'GAME_RESULT' && data.type !== 'GAME_PROGRESS') return
+            const isFinal = data.type === 'GAME_RESULT'
             // Находим, какой именно игре принадлежит iframe-источник —
             // ищем по совпадению e.source с contentWindow одного из iframe.
             for (const gen of gameGens) {
@@ -380,21 +387,30 @@ export default function StudentAssignmentV2({ assignmentId }: StudentAssignmentV
                 const iframes = Array.from(document.querySelectorAll('iframe[title="Игра"]')) as HTMLIFrameElement[]
                 const match = iframes.find(i => i.contentWindow === e.source)
                 if (gameGens.length === 1 || (match && match.src === expectedUrl)) {
-                    const next = {
-                        ...(formDataMap[gen.id] || {}),
-                        _game: {
-                            score: Number(data.score) || 0,
-                            total: Number(data.total) || 0,
-                            moves: data.moves,
-                            time: data.time,
-                            outcome: data.outcome,
-                            message: data.message,
-                            gameType: data.gameType,
-                            topic: data.topic,
+                    setFormDataMap(prev => {
+                        const current = prev[gen.id] || {}
+                        const prevGame: any = (current as any)._game
+                        const prevIsFinal = prevGame && ['win', 'lose', 'finished'].includes(prevGame.outcome)
+                        // Промежуточный прогресс не понижает финальный результат.
+                        if (!isFinal && prevIsFinal) return prev
+                        // Числа: 0 — валидное значение. Number(undef)=NaN → null.
+                        const num = (v: any) => {
+                            const n = Number(v)
+                            return Number.isFinite(n) ? n : null
+                        }
+                        const nextGame = {
+                            score: num(data.score) ?? 0,
+                            total: num(data.total) ?? 0,
+                            moves: num(data.moves),
+                            time: data.time || null,
+                            outcome: isFinal ? (data.outcome || 'finished') : 'in_progress',
+                            message: data.message || '',
+                            gameType: data.gameType || '',
+                            topic: data.topic || '',
                             finishedAt: new Date().toISOString(),
-                        },
-                    }
-                    setFormDataMap(prev => ({ ...prev, [gen.id]: next }))
+                        }
+                        return { ...prev, [gen.id]: { ...current, _game: nextGame } }
+                    })
                     setFieldCountMap(prev => ({ ...prev, [gen.id]: 1 }))
                     break
                 }
@@ -402,7 +418,7 @@ export default function StudentAssignmentV2({ assignmentId }: StudentAssignmentV
         }
         window.addEventListener('message', onMessage)
         return () => window.removeEventListener('message', onMessage)
-    }, [assignment, formDataMap])
+    }, [assignment])
 
     const toggleSection = (id: string) => {
         setOpenSections(prev => {
@@ -497,10 +513,15 @@ export default function StudentAssignmentV2({ assignmentId }: StudentAssignmentV
             return (
                 <div className="p-5">
                     {gameResult && (
-                        <div className="mb-3 p-3 rounded-lg bg-success-50 border border-success-500/20 text-[13px] text-success-700 flex items-center gap-2">
+                        <div className={`mb-3 p-3 rounded-lg text-[13px] flex items-center gap-2 ${
+                            gameResult.outcome === 'in_progress'
+                                ? 'bg-info-50 border border-info-500/20 text-info-700'
+                                : 'bg-success-50 border border-success-500/20 text-success-700'
+                        }`}>
                             <CheckCircle className="w-4 h-4" />
                             <span>
-                                Результат записан: <strong>{gameResult.score}/{gameResult.total}</strong>
+                                {gameResult.outcome === 'in_progress' ? 'Прогресс сохраняется: ' : 'Результат записан: '}
+                                <strong>{gameResult.score}{gameResult.total ? `/${gameResult.total}` : ''}</strong>
                                 {gameResult.message ? ` · ${gameResult.message}` : ''}
                             </span>
                         </div>
@@ -867,6 +888,11 @@ export default function StudentAssignmentV2({ assignmentId }: StudentAssignmentV
                     const { icon: GenIcon, tileColor } = getGenIcon(gen.generationType)
                     const isFilled = (fieldCountMap[gen.id] ?? 0) > 0 &&
                         Object.values(formDataMap[gen.id] ?? {}).filter(isFilledValue).length > 0
+                    // Игры не размонтируем при сворачивании: iframe хранит
+                    // текущее состояние игры + мост из бэка шлёт прогресс
+                    // каждые ~3 сек. Размонтирование обрывает игру и
+                    // теряет неотправленный прогресс.
+                    const isGame = gen.generationType === 'game' || gen.generationType === 'game_generation'
 
                     return (
                         <div
@@ -902,8 +928,14 @@ export default function StudentAssignmentV2({ assignmentId }: StudentAssignmentV
                                 </div>
                             </button>
 
-                            {/* acc-body */}
-                            {isOpen && (
+                            {/* acc-body: для игр держим iframe постоянно
+                                смонтированным (иначе прогресс теряется),
+                                просто скрываем через display:none. */}
+                            {isGame ? (
+                                <div style={{ display: isOpen ? 'block' : 'none' }}>
+                                    {renderGenBody(gen)}
+                                </div>
+                            ) : isOpen && (
                                 <div>{renderGenBody(gen)}</div>
                             )}
                         </div>

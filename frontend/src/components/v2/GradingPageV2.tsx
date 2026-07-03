@@ -7,7 +7,7 @@ import {
   Compass, SlidersHorizontal, Sparkles, Zap, Search, Star,
   BarChart3, MessageSquareText, Check, ArrowRight, MessageCircle,
   RefreshCw, AlertCircle, CheckCircle, Loader2, Gamepad2, ExternalLink, XCircle,
-  ArrowLeft,
+  ArrowLeft, Eye,
 } from 'lucide-react'
 import { apiClient } from '@/lib/api/client'
 import { Topbar } from '@/components/layout/v2/Topbar'
@@ -15,6 +15,7 @@ import { useMobileMenu } from '@/components/layout/v2/DashboardLayoutV2'
 import { useTour } from '@/lib/tour/useTour'
 import { useIsMobile } from '@/lib/hooks/useIsMobile'
 import InteractiveHtmlViewer, { extractHtmlFromOutput } from '@/components/InteractiveHtmlViewer'
+import { stripAnswerKey } from '@/lib/strip-answer-key'
 import { DocumentRenderer } from '@/components/blocks/DocumentRenderer'
 import { isJsonBlocksFormat, GenerationDocument as GenerationDocumentSchema } from '@/lib/blocks/schema'
 import { UploadedMaterialPreview } from '@/components/v2/UploadedMaterialPreview'
@@ -99,6 +100,69 @@ function useDebounce<T>(value: T, ms: number) {
   return debouncedValue
 }
 
+// Сверка ответа V2-блока (json-blocks-v1) с ключом. Возвращает пары
+// «вопрос/ответ/вердикт» для правой панели «Прогресс по работе».
+function extractV2AnswerBlocks(doc: any, genFields: Record<string, any>) {
+  const out: { question: string; answer: string; correct: boolean | null; hint: string }[] = []
+  const norm = (s: any) => String(s ?? '').trim().toLowerCase().replace(/\s+/g, ' ').replace(/,/g, '.')
+  for (const block of doc.blocks || []) {
+    const answer = genFields?.[block.id]
+    if (block.type === 'multiple-choice') {
+      const options: any[] = block.options || []
+      const correctIds = options.filter((o: any) => o.correct).map((o: any) => String(o.id))
+      const optText = (id: any) => options.find((o: any) => String(o.id) === String(id))?.text ?? String(id)
+      const selected: string[] = Array.isArray(answer) ? answer.map(String) : (answer != null && answer !== '' ? [String(answer)] : [])
+      if (selected.length === 0) continue
+      const ok = selected.length === correctIds.length && selected.every(s => correctIds.includes(s))
+      out.push({
+        question: block.question,
+        answer: selected.map(optText).join('; '),
+        correct: ok,
+        hint: ok ? '' : `Правильный ответ: ${correctIds.map(optText).join('; ')}`,
+      })
+    } else if (block.type === 'fill-blank') {
+      for (const b of block.blanks || []) {
+        const student = answer && typeof answer === 'object' ? answer[b.index] : undefined
+        if (student == null || String(student).trim() === '') continue
+        const ok = norm(student) === norm(b.answer)
+        out.push({
+          question: `Пропуск ${b.index}: ${String(block.template).replace(/\{\{\d+\}\}/g, '___').slice(0, 120)}`,
+          answer: String(student),
+          correct: ok,
+          hint: ok ? '' : `Правильный ответ: ${b.answer}`,
+        })
+      }
+    } else if (block.type === 'short-answer') {
+      const student = typeof answer === 'string' ? answer : ''
+      if (!student.trim()) continue
+      const ok = block.expectedAnswer ? norm(student) === norm(block.expectedAnswer) : null
+      out.push({
+        question: block.question,
+        answer: student,
+        correct: ok,
+        hint: ok === false ? `Ожидаемый ответ: ${block.expectedAnswer}` : '',
+      })
+    } else if (block.type === 'matching') {
+      const studentMap = answer && typeof answer === 'object' && !Array.isArray(answer) ? answer : {}
+      const rightText = (id: any) => (block.right || []).find((r: any) => String(r.id) === String(id))?.text ?? String(id)
+      const leftText = (id: any) => (block.left || []).find((l: any) => String(l.id) === String(id))?.text ?? String(id)
+      const correctMap = new Map((block.pairs || []).map(([l, r]: [string, string]) => [String(l), String(r)]))
+      for (const [l, r] of Object.entries(studentMap)) {
+        if (r == null || r === '') continue
+        const expected = correctMap.get(String(l))
+        const ok = expected === String(r)
+        out.push({
+          question: `Соответствие: ${leftText(l)}`,
+          answer: rightText(r),
+          correct: ok,
+          hint: ok ? '' : `Правильно: ${expected ? rightText(expected) : '—'}`,
+        })
+      }
+    }
+  }
+  return out
+}
+
 // Extract question/answer pairs from submission
 function extractAnswerBlocks(detail: SubmissionDetail) {
   const blocks: { question: string; answer: string; correct: boolean | null; hint: string }[] = []
@@ -115,6 +179,13 @@ function extractAnswerBlocks(detail: SubmissionDetail) {
     const genFields = formData[gen.id]
     if (!genFields) continue
     const outputData = gen.outputData as any
+
+    // V2 (json-blocks-v1): точная сверка по блокам документа.
+    if (isJsonBlocksFormat(outputData)) {
+      blocks.push(...extractV2AnswerBlocks(outputData.outputDoc, genFields))
+      continue
+    }
+
     const questions: { text: string; key: string; answer?: string }[] = []
 
     // Extract questions from various generation types
@@ -178,16 +249,25 @@ function pickWorksheetGen(detail: SubmissionDetail): { id: string; type: string;
         return Object.entries(fields).some(([k, v]) => k !== '_game' && v !== '' && v !== null && v !== undefined)
     }
 
+    // ВАЖНО: та же резка ключа ответов, что и на странице ученика.
+    // Auto-id полей (hw_f_N) назначаются по порядку DOM — если ученик
+    // заполнял урезанный HTML, а учитель смотрит полный, ключи сместятся
+    // и предзаполнение промахнётся мимо полей (бланк выглядит пустым).
+    const toHtml = (outputData: any) => {
+        const raw = extractHtmlFromOutput(outputData)
+        return raw ? stripAnswerKey(raw) : null
+    }
+
     // 1) HTML + есть ответы ученика
     for (const gen of gens) {
-        const html = extractHtmlFromOutput(gen.outputData)
+        const html = toHtml(gen.outputData)
         if (html && hasStudentData(gen.id)) {
             return { id: gen.id, type: gen.type, html }
         }
     }
     // 2) Fallback: просто первая HTML-гена
     for (const gen of gens) {
-        const html = extractHtmlFromOutput(gen.outputData)
+        const html = toHtml(gen.outputData)
         if (html) {
             return { id: gen.id, type: gen.type, html }
         }
@@ -781,13 +861,42 @@ export default function GradingPageV2() {
                   // JSON-blocks v1: рендерим DocumentRenderer с ответами ученика.
                   // Учителю показываем заполненные поля (как студент сдал),
                   // но БЕЗ showAnswers — ключ ответов отдельно через таб.
+                  (() => {
+                    // Считаем только ответы на интерактивные блоки документа.
+                    // `_game` и мусорные ключи не должны включать баннер «синим».
+                    const blockIds = new Set(
+                      (jsonBlocksSubmission.doc.blocks as any[])
+                        .filter((b: any) => ['multiple-choice', 'fill-blank', 'short-answer', 'matching'].includes(b.type))
+                        .map((b: any) => b.id),
+                    )
+                    const isNonEmpty = (v: any) =>
+                      v != null && v !== '' &&
+                      !(Array.isArray(v) && v.length === 0) &&
+                      !(typeof v === 'object' && !Array.isArray(v) && Object.values(v).every((x: any) => x == null || x === ''))
+                    const filledCount = Object.entries(jsonBlocksSubmission.answers)
+                      .filter(([k, v]) => blockIds.has(k) && isNonEmpty(v))
+                      .length
+                    return (
                   <div key={`${detail!.id}_${jsonBlocksSubmission.genId}`}>
+                    {filledCount > 0 ? (
+                      <div className="mb-2 flex items-center gap-2 px-3 py-2 bg-indigo-50 border border-indigo-200 rounded-xl text-sm text-indigo-700 font-medium">
+                        <Eye size={15} className="flex-shrink-0" />
+                        Ответы ученика выделены синим цветом ({filledCount} {filledCount === 1 ? 'ответ' : filledCount < 5 ? 'ответа' : 'ответов'})
+                      </div>
+                    ) : (
+                      <div className="mb-2 flex items-center gap-2 px-3 py-2 bg-warning-50 border border-warning-500/30 rounded-xl text-sm text-warning-700 font-medium">
+                        <AlertCircle size={15} className="flex-shrink-0" />
+                        Ученик не заполнил интерактивные поля этого материала
+                      </div>
+                    )}
                     <DocumentRenderer
                       doc={jsonBlocksSubmission.doc}
                       answers={jsonBlocksSubmission.answers}
                       showAnswers={false}
                     />
                   </div>
+                    )
+                  })()
                 ) : worksheetGen ? (
                   // key с id сабмишена форсит ремоунт InteractiveHtmlViewer
                   // при смене работы — иначе React переиспользует тот же
@@ -1138,6 +1247,7 @@ function GameResultCard({ out, result }: { out: any; result: any }) {
   const topic = out?.topic as string | undefined
   const isWin = result?.outcome === 'win'
   const isLose = result?.outcome === 'lose'
+  const isPartial = result?.outcome === 'in_progress'
   return (
     <div className="border border-ink-200 rounded-xl overflow-hidden">
       <div className="px-4 py-3 flex flex-wrap items-center gap-2 bg-brand-50/60 border-b border-brand-100">
@@ -1162,13 +1272,14 @@ function GameResultCard({ out, result }: { out: any; result: any }) {
       </div>
       <div className="p-4">
         {result ? (
-          <div className={`rounded-xl p-4 border ${isWin ? 'bg-success-50 border-success-200' : isLose ? 'bg-danger-50 border-danger-200' : 'bg-ink-50 border-ink-200'}`}>
+          <div className={`rounded-xl p-4 border ${isWin ? 'bg-success-50 border-success-200' : isLose ? 'bg-danger-50 border-danger-200' : isPartial ? 'bg-warning-50 border-warning-500/30' : 'bg-ink-50 border-ink-200'}`}>
             <div className="flex items-center gap-2 mb-3">
               {isWin ? <CheckCircle className="w-4 h-4 text-success-600" />
                 : isLose ? <XCircle className="w-4 h-4 text-danger-600" />
+                : isPartial ? <AlertCircle className="w-4 h-4 text-warning-700" />
                 : <CheckCircle className="w-4 h-4 text-ink-500" />}
-              <span className={`font-bold text-[14px] ${isWin ? 'text-success-700' : isLose ? 'text-danger-700' : 'text-ink-800'}`}>
-                {isWin ? 'Победа' : isLose ? 'Поражение' : 'Игра пройдена'}
+              <span className={`font-bold text-[14px] ${isWin ? 'text-success-700' : isLose ? 'text-danger-700' : isPartial ? 'text-warning-700' : 'text-ink-800'}`}>
+                {isWin ? 'Победа' : isLose ? 'Поражение' : isPartial ? 'Не завершена — промежуточный результат' : 'Игра пройдена'}
               </span>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-[13px]">

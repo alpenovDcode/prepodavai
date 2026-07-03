@@ -103,11 +103,12 @@ export function FillBlank({
                         </span>
                     )
                 }
+                const filled = value?.[idx] != null && String(value[idx]).trim() !== ''
                 return (
                     <input
                         key={i}
                         type="text"
-                        className="inline-input"
+                        className={`inline-input${!onChange && filled ? ' student-filled' : ''}`}
                         value={value?.[idx] ?? ''}
                         onChange={onChange ? (e) => onChange({ ...(value || {}), [idx]: e.target.value }) : undefined}
                         readOnly={!onChange}
@@ -138,6 +139,9 @@ export function MultipleChoice({
             onChange(optId)
         }
     }
+    // read-only (проверка ДЗ у учителя): выбор ученика подсвечиваем синим,
+    // чтобы ответ было видно сразу, а не только по едва заметной радио-точке.
+    const readOnly = !onChange
     return (
         <div>
             <p style={{ fontWeight: 600, marginBottom: 8 }}><InlineMathText text={question} /></p>
@@ -146,18 +150,25 @@ export function MultipleChoice({
                     const isSelected = selected.has(opt.id)
                     const isCorrect = opt.correct
                     const showCorrectness = showAnswers
+                    const cls = [
+                        showCorrectness && isCorrect ? 'correct' : '',
+                        readOnly && isSelected ? 'student-selected' : '',
+                    ].filter(Boolean).join(' ')
                     return (
-                        <li key={opt.id} className={showCorrectness && isCorrect ? 'correct' : ''}>
+                        <li key={opt.id} className={cls}>
                             <input
                                 type={multiple ? 'checkbox' : 'radio'}
                                 name={groupId}
                                 checked={isSelected}
                                 onChange={() => toggle(opt.id)}
                                 disabled={!onChange}
-                                style={{ marginTop: 4, flexShrink: 0 }}
+                                style={{ marginTop: 4, flexShrink: 0, accentColor: '#3B82F6' }}
                             />
                             <label style={{ flex: 1 }}>
                                 <InlineMathText text={opt.text} />
+                                {readOnly && isSelected && !showCorrectness && (
+                                    <strong style={{ marginLeft: 8, color: '#1d4ed8', fontSize: 12 }}>← ответ ученика</strong>
+                                )}
                                 {showCorrectness && isCorrect && <strong style={{ marginLeft: 8 }}>✓</strong>}
                             </label>
                         </li>
@@ -182,12 +193,14 @@ export function ShortAnswer({
             {rows === 1 ? (
                 <input
                     type="text"
+                    className={!onChange && value ? 'student-filled' : undefined}
                     value={value ?? ''}
                     onChange={onChange ? (e) => onChange(e.target.value) : undefined}
                     readOnly={!onChange}
                 />
             ) : (
                 <textarea
+                    className={!onChange && value ? 'student-filled' : undefined}
                     value={value ?? ''}
                     onChange={onChange ? (e) => onChange(e.target.value) : undefined}
                     readOnly={!onChange}

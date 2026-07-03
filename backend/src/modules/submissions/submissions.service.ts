@@ -120,21 +120,29 @@ export class SubmissionsService {
   }
 
   /**
-   * Приводит formData к безопасному виду. Раньше в БД попадало `any`,
-   * теперь служебный ключ `_game` валидируется по схеме (числа — числа,
-   * строки — строки, лишние поля выкидываются), а обычные поля копируются
-   * как примитивы. Защищает от инъекций и кривых клиентов.
+   * Приводит formData к безопасному виду. Служебный ключ `_game`
+   * валидируется по схеме (числа — числа, строки — строки, лишние поля
+   * выкидываются). Обычные поля — примитивы, а также ОДИН уровень
+   * вложенности для ответов V2-блоков (json-blocks-v1):
+   *   fill-blank → { "1": "ответ" }, matching → { leftId: rightId },
+   *   multiple-choice с multiple:true → ["a", "c"].
+   * Раньше объекты/массивы молча выбрасывались — ответы ученика по этим
+   * блокам не доходили до БД, и учитель видел пустую работу.
    */
   private _sanitizeFormData(input: any): any {
     if (!input || typeof input !== 'object') return null;
     const isPrimitive = (v: any) =>
       v === null || ['string', 'number', 'boolean'].includes(typeof v);
+    const cleanPrimitive = (v: any) => (typeof v === 'string' ? v.slice(0, 10_000) : v);
     const sanitizeGame = (g: any) => {
       if (!g || typeof g !== 'object') return null;
       const num = (v: any) => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
       const str = (v: any, max = 200) =>
         typeof v === 'string' ? v.slice(0, max) : undefined;
-      const outcome = ['win', 'lose', 'finished'].includes(g.outcome) ? g.outcome : undefined;
+      // 'in_progress' — промежуточный результат: игра начата, но не завершена.
+      const outcome = ['win', 'lose', 'finished', 'in_progress'].includes(g.outcome)
+        ? g.outcome
+        : undefined;
       return {
         outcome,
         score: num(g.score),
@@ -148,6 +156,23 @@ export class SubmissionsService {
         topic: str(g.topic, 200),
         finishedAt: str(g.finishedAt, 40),
       };
+    };
+    // Ответ V2-блока: массив примитивов или плоский объект с примитивами.
+    const sanitizeNested = (v: any): any | undefined => {
+      if (Array.isArray(v)) {
+        const arr = v.filter(isPrimitive).slice(0, 200).map(cleanPrimitive);
+        return arr.length ? arr : undefined;
+      }
+      if (v && typeof v === 'object') {
+        const obj: Record<string, any> = {};
+        for (const [k, val] of Object.entries(v).slice(0, 200)) {
+          if (!isPrimitive(val)) continue;
+          if (typeof val === 'string' && val.trim() === '') continue;
+          obj[k.slice(0, 100)] = cleanPrimitive(val);
+        }
+        return Object.keys(obj).length ? obj : undefined;
+      }
+      return undefined;
     };
     const out: Record<string, Record<string, any>> = {};
     for (const [genId, fields] of Object.entries(input as Record<string, any>)) {
@@ -163,7 +188,10 @@ export class SubmissionsService {
           // так что «очистку» поля это не теряет.
           if (typeof v === 'string' && v.trim() === '') continue;
           // Ограничиваем длину строк, чтобы не складировать гигабайты в JSON
-          cleanFields[k] = typeof v === 'string' ? v.slice(0, 10_000) : v;
+          cleanFields[k] = cleanPrimitive(v);
+        } else {
+          const nested = sanitizeNested(v);
+          if (nested !== undefined) cleanFields[k] = nested;
         }
       }
       if (Object.keys(cleanFields).length) out[genId] = cleanFields;
@@ -572,6 +600,9 @@ export class SubmissionsService {
     // Extract task content and answer keys from generations
     const generations = submission.assignment.lesson.generations || [];
     let taskContent = '';
+    // Автосверка ответов для V2-генераций (json-blocks-v1): точные счётчики
+    // «верно/неверно», чтобы LLM не гадала по сырым blockId-ключам.
+    const autoCheck = { correct: 0, wrong: 0, unanswered: 0, manual: 0, hasV2: false };
     for (const gen of generations) {
       if (taskContent.length >= MAX_TASK_CHARS) break;
       const output = gen.outputData as any;
@@ -579,8 +610,21 @@ export class SubmissionsService {
       let text = '';
       if (typeof output === 'string') {
         text = output;
+      } else if (output.format === 'json-blocks-v1' && output.outputDoc) {
+        // V2: структурированный документ. Разворачиваем блоки в читаемый
+        // разбор «вопрос → правильный ответ → ответ ученика → вердикт».
+        const genAnswers = (rawFormData as any)?.[gen.id] || {};
+        const described = this._describeJsonBlocksForAi(output.outputDoc, genAnswers);
+        if (described) {
+          text = described.text;
+          autoCheck.correct += described.correct;
+          autoCheck.wrong += described.wrong;
+          autoCheck.unanswered += described.unanswered;
+          autoCheck.manual += described.manual;
+          autoCheck.hasV2 = true;
+        }
       } else {
-        // Try all known outputData fields
+        // Legacy: try all known outputData fields
         const raw = output.content || output.htmlResult || output.html || output.text || '';
         if (typeof raw === 'string' && raw.trim()) {
           // Strip HTML tags to get plain text for prompt
@@ -594,6 +638,11 @@ export class SubmissionsService {
     if (taskContent.length > MAX_TASK_CHARS) {
       taskContent = taskContent.slice(0, MAX_TASK_CHARS);
     }
+    const autoCheckSummary = autoCheck.hasV2
+      ? `\nАВТОМАТИЧЕСКАЯ СВЕРКА ОТВЕТОВ (доверяй ей, не пересчитывай сам): верно — ${autoCheck.correct}, неверно — ${autoCheck.wrong}, без ответа — ${autoCheck.unanswered}${autoCheck.manual ? `, требуют ручной оценки (открытые вопросы) — ${autoCheck.manual}` : ''}.`
+      : '';
+    // Итоги мини-игр — короткой строкой (для V2-пути, где сырой JSON не шлём).
+    const gameSummary = autoCheck.hasV2 ? this._describeGamesForAi(rawFormData) : '';
 
     const prompt = `Ты — опытный и доброжелательный учитель, проверяющий работу ученика.
 
@@ -601,7 +650,7 @@ export class SubmissionsService {
 Ученик: ${studentName}
 ${taskContent ? `\nСодержание задания (включая правильные ответы, если есть):\n${taskContent}` : ''}
 Ответ ученика:
-${textAnswer || '(текстовый ответ отсутствует)'}${formData ? `\n\nЗаполненные поля задания (JSON):\n${formData}\n\nПримечание: внутри JSON поле «_game» — это итог пройденной учеником мини-игры (поля: outcome — finished/win/lose; score, total — счёт; moves — число ходов; time — затраченное время; winAmount — выигрыш; message — итоговое сообщение игры). Учитывай это при оценке: высокий процент правильных ответов или победа = высокая оценка.` : ''}
+${textAnswer || '(текстовый ответ отсутствует)'}${autoCheckSummary}${formData && !autoCheck.hasV2 ? `\n\nЗаполненные поля задания (JSON):\n${formData}\n\nПримечание: внутри JSON поле «_game» — это итог пройденной учеником мини-игры (поля: outcome — finished/win/lose/in_progress; score, total — счёт; moves — число ходов; time — затраченное время; winAmount — выигрыш; message — итоговое сообщение игры). Учитывай это при оценке: высокий процент правильных ответов или победа = высокая оценка; in_progress — игра начата, но не завершена.` : ''}${gameSummary ? `\n\nМини-игры (итоги): ${gameSummary}` : ''}
 
 Проверь работу ученика, сравнив его ответы с правильными ответами из задания. Верни ТОЛЬКО валидный JSON без пояснений, без markdown-обёртки, без комментариев до или после. Формат строго такой:
 {"grade": <целое число от 1 до 5>, "feedback": "<краткий, конструктивный и поддерживающий комментарий 3–5 предложений на русском языке. Укажи количество правильных и неправильных ответов, отметь что сделано хорошо, и если есть ошибки — мягко укажи на них с пояснением правильного ответа. Связный текст без заголовков и маркеров.>"}
@@ -620,6 +669,146 @@ ${textAnswer || '(текстовый ответ отсутствует)'}${formD
     );
 
     return this._parseAiDraft(raw);
+  }
+
+  /**
+   * Разворачивает V2-документ (json-blocks-v1) + ответы ученика в читаемый
+   * для LLM разбор и заодно детерминированно сверяет закрытые вопросы.
+   * blockId-ключи из formData сопоставляются с блоками документа, поэтому
+   * модель видит «вопрос → правильный ответ → ответ ученика → вердикт»,
+   * а не бессмысленные пары типа "mc-3": "b".
+   */
+  private _describeJsonBlocksForAi(
+    doc: any,
+    genAnswers: Record<string, any>,
+  ): { text: string; correct: number; wrong: number; unanswered: number; manual: number } | null {
+    if (!doc || !Array.isArray(doc.blocks)) return null;
+    const norm = (s: any) =>
+      String(s ?? '')
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, ' ')
+        .replace(/,/g, '.')
+        .replace(/[.!?;:]+$/g, '');
+    const lines: string[] = [];
+    if (doc.title) lines.push(`Название: ${doc.title}`);
+    let correct = 0;
+    let wrong = 0;
+    let unanswered = 0;
+    let manual = 0;
+    let qNum = 0;
+
+    for (const block of doc.blocks) {
+      if (!block || typeof block !== 'object') continue;
+      const answer = genAnswers?.[block.id];
+
+      if (block.type === 'multiple-choice') {
+        qNum++;
+        const options: any[] = Array.isArray(block.options) ? block.options : [];
+        const correctIds = options.filter((o) => o?.correct).map((o) => String(o.id));
+        const optText = (id: any) =>
+          options.find((o) => String(o?.id) === String(id))?.text ?? String(id);
+        const selected: string[] = Array.isArray(answer)
+          ? answer.map(String)
+          : answer != null && answer !== ''
+            ? [String(answer)]
+            : [];
+        lines.push(`Вопрос ${qNum}: ${block.question}`);
+        lines.push(`  Варианты: ${options.map((o) => `${o.id}) ${o.text}`).join('; ')}`);
+        lines.push(`  Правильный ответ: ${correctIds.map(optText).join('; ') || '—'}`);
+        if (selected.length === 0) {
+          unanswered++;
+          lines.push('  Ответ ученика: (нет ответа)');
+        } else {
+          const ok =
+            selected.length === correctIds.length &&
+            selected.every((s) => correctIds.includes(s));
+          if (ok) correct++; else wrong++;
+          lines.push(`  Ответ ученика: ${selected.map(optText).join('; ')} → ${ok ? 'ВЕРНО' : 'НЕВЕРНО'}`);
+        }
+      } else if (block.type === 'fill-blank') {
+        qNum++;
+        const blanks: any[] = Array.isArray(block.blanks) ? block.blanks : [];
+        lines.push(`Вопрос ${qNum} (заполнить пропуски): ${block.template}`);
+        for (const b of blanks) {
+          const student = answer && typeof answer === 'object' ? answer[b.index] : undefined;
+          if (student == null || String(student).trim() === '') {
+            unanswered++;
+            lines.push(`  Пропуск ${b.index}: правильно «${b.answer}», ученик — (пусто)`);
+          } else {
+            const ok = norm(student) === norm(b.answer);
+            if (ok) correct++; else wrong++;
+            lines.push(`  Пропуск ${b.index}: правильно «${b.answer}», ученик — «${student}» → ${ok ? 'ВЕРНО' : 'НЕВЕРНО'}`);
+          }
+        }
+      } else if (block.type === 'short-answer') {
+        qNum++;
+        lines.push(`Вопрос ${qNum} (открытый): ${block.question}`);
+        if (block.expectedAnswer) lines.push(`  Ожидаемый ответ: ${block.expectedAnswer}`);
+        const student = typeof answer === 'string' ? answer : '';
+        if (!student.trim()) {
+          unanswered++;
+          lines.push('  Ответ ученика: (нет ответа)');
+        } else if (block.expectedAnswer && norm(student) === norm(block.expectedAnswer)) {
+          correct++;
+          lines.push(`  Ответ ученика: «${student}» → ВЕРНО`);
+        } else {
+          // Открытый вопрос: точного совпадения нет — пусть модель оценит сама.
+          manual++;
+          lines.push(`  Ответ ученика: «${student}» → оцени сам (свободная формулировка)`);
+        }
+      } else if (block.type === 'matching') {
+        qNum++;
+        const pairs: [string, string][] = Array.isArray(block.pairs) ? block.pairs : [];
+        const leftText = (id: any) =>
+          (Array.isArray(block.left) ? block.left : []).find((l: any) => String(l?.id) === String(id))?.text ?? String(id);
+        const rightText = (id: any) =>
+          (Array.isArray(block.right) ? block.right : []).find((r: any) => String(r?.id) === String(id))?.text ?? String(id);
+        lines.push(`Вопрос ${qNum} (соответствия): ${block.instruction}`);
+        const studentMap = answer && typeof answer === 'object' && !Array.isArray(answer) ? answer : {};
+        for (const [l, r] of pairs) {
+          const student = (studentMap as any)[l];
+          if (student == null || student === '') {
+            unanswered++;
+            lines.push(`  «${leftText(l)}» → правильно «${rightText(r)}», ученик — (пусто)`);
+          } else {
+            const ok = String(student) === String(r);
+            if (ok) correct++; else wrong++;
+            lines.push(`  «${leftText(l)}» → правильно «${rightText(r)}», ученик — «${rightText(student)}» → ${ok ? 'ВЕРНО' : 'НЕВЕРНО'}`);
+          }
+        }
+      } else if (block.type === 'heading' || block.type === 'paragraph' || block.type === 'callout') {
+        // Контекст задания — компактно, чтобы модель понимала тему.
+        const t = block.text || '';
+        if (t && t.length < 300) lines.push(String(t));
+      }
+    }
+
+    if (qNum === 0) return null;
+    const MAX = 12_000;
+    let text = lines.join('\n');
+    if (text.length > MAX) text = text.slice(0, MAX);
+    return { text, correct, wrong, unanswered, manual };
+  }
+
+  /** Короткая строка с итогами мини-игр из formData (ключи `_game`). */
+  private _describeGamesForAi(rawFormData: any): string {
+    if (!rawFormData || typeof rawFormData !== 'object') return '';
+    const parts: string[] = [];
+    for (const fields of Object.values(rawFormData as Record<string, any>)) {
+      const g = (fields as any)?._game;
+      if (!g || typeof g !== 'object') continue;
+      const outcome =
+        g.outcome === 'win' ? 'победа'
+        : g.outcome === 'lose' ? 'поражение'
+        : g.outcome === 'in_progress' ? 'не завершена'
+        : 'пройдена';
+      const score = typeof g.score === 'number'
+        ? ` счёт ${g.score}${typeof g.total === 'number' ? `/${g.total}` : ''}`
+        : '';
+      parts.push(`${g.gameType || 'игра'} (${g.topic || 'без темы'}): ${outcome}${score}`);
+    }
+    return parts.join('; ');
   }
 
   private _parseAiDraft(raw: string): { feedback: string; grade: number | null } {
