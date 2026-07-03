@@ -7,7 +7,7 @@ import {
     Layers, FileText, HelpCircle, Presentation, ClipboardList, ImageIcon, Gamepad2,
     Plus, Compass, LayoutGrid, List, MoreHorizontal, Eye, Edit3, PenLine,
     Copy, Download, Send, Trash2, Book, Wand2, RefreshCw, Link2, QrCode,
-    Folder, FolderOpen, FolderPlus, FolderX, ChevronRight, Upload, Video,
+    Folder, FolderOpen, FolderPlus, FolderX, ChevronRight, Upload, Video, PackageOpen,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { apiClient } from '@/lib/api/client'
@@ -128,9 +128,17 @@ const TYPE_CONFIG: Record<string, {
         hoverBorder: 'hover:border-[#C4B5FD]',
         Icon: Video,
     },
+    unpacking: {
+        label: 'Распаковка экспертности',
+        pillLabel: 'Распаковка экспертности',
+        chipBg: 'bg-[#ECFEFF]',
+        chipText: 'text-[#0E7490]',
+        hoverBorder: 'hover:border-[#67E8F9]',
+        Icon: PackageOpen,
+    },
 }
 
-const PILL_TYPES = ['lessonPreparation', 'worksheet', 'quiz', 'presentation', 'lessonPlan', 'image', 'game', 'uploadedFile', 'videoAnalysis'] as const
+const PILL_TYPES = ['lessonPreparation', 'worksheet', 'quiz', 'presentation', 'lessonPlan', 'image', 'game', 'uploadedFile', 'videoAnalysis', 'unpacking'] as const
 
 const SUBJECTS = [
     'Математика', 'Физика', 'Химия', 'Биология',
@@ -160,6 +168,7 @@ function normalizeType(dbType: string): string {
         'video-analysis': 'videoAnalysis',
         video_analysis: 'videoAnalysis',
         videoAnalysis: 'videoAnalysis',
+        unpacking: 'unpacking',
     }
     return map[dbType] || dbType
 }
@@ -836,6 +845,7 @@ export default function CoursesPageV2() {
         game:         ['game', 'game_generation'],
         uploadedFile: ['uploaded_file', 'uploadedFile'],
         videoAnalysis: ['video-analysis', 'video_analysis', 'videoAnalysis'],
+        unpacking: ['unpacking'],
     }), [])
 
     const filtered = useMemo(() => {

@@ -2013,6 +2013,7 @@ export class GenerationsService {
     vocabulary: ['vocabulary'],
     uploadedFile: ['uploaded_file', 'uploadedFile'],
     videoAnalysis: ['video-analysis', 'video_analysis', 'videoAnalysis'],
+    unpacking: ['unpacking'],
   };
 
   private static dbToFrontend(dbType: string): string {
@@ -2036,6 +2037,7 @@ export class GenerationsService {
       'video-analysis': 'videoAnalysis',
       video_analysis: 'videoAnalysis',
       videoAnalysis: 'videoAnalysis',
+      unpacking: 'unpacking',
     };
     return map[dbType] || dbType;
   }
