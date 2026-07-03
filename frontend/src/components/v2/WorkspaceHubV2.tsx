@@ -65,7 +65,7 @@ const TOOLS: ToolDef[] = [
     { id: 'assistant',       title: 'AI-ассистент',            description: 'Умный помощник для мозгового штурма и сложных задач.',            icon: MessageSquare,   color: 'warning', path: '/workspace/assistant',       cost: 3,  opKey: 'message',              cat: 'comms',      eta: 'в реальном времени' },
     { id: 'messages',        title: 'Сообщения родителям',     description: 'Шаблонные тексты для общения с родителями учеников.',             icon: Mail,            color: 'info',    path: '/workspace/messages',        cost: 1,  opKey: 'parent_message',       cat: 'comms',      eta: '~10 сек',         tourId: 'tool-message' },
 
-    // BACKLOG: { id: 'unpacking', title: 'Распаковка экспертности', ... cat: 'other' }
+    { id: 'unpacking',       title: 'Распаковка экспертности', description: 'Структурируйте и оформите ваши знания в понятный формат.',        icon: PackageOpen,     color: 'teal',    path: '/workspace/unpacking',       cost: 5,  opKey: 'unpacking',            cat: 'other',      eta: '~1 мин' },
     // BACKLOG: { id: 'sales-advisor', title: 'ИИ-продажник', ... cat: 'other' }
 ]
 
