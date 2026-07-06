@@ -15,16 +15,16 @@ export interface LeadCardData {
     price: number
     status: string
     createdAt: string
-    creator: {
+    creator?: {
         id: string
         firstName?: string | null
         lastName?: string | null
         subject?: string | null
-    }
+    } | null
 }
 
 const formatName = (c: LeadCardData['creator']) =>
-    [c.firstName, c.lastName].filter(Boolean).join(' ').trim() || 'Репетитор'
+    [c?.firstName, c?.lastName].filter(Boolean).join(' ').trim() || 'Репетитор'
 
 const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
     ACTIVE: { label: 'Активна', cls: 'text-blue-700 bg-blue-50 border-blue-200' },
@@ -77,13 +77,19 @@ export function LeadCard({ lead, meId, showStatus = false }: { lead: LeadCardDat
                     ) : (
                         <span className="inline-flex items-center gap-1"><MapPin className="w-3.5 h-3.5" /> {lead.city || 'Оффлайн'}</span>
                     )}
-                    <Link
-                        href={`/dashboard/tutor/${lead.creator.id}`}
-                        onClick={(e) => e.stopPropagation()}
-                        className="inline-flex items-center gap-1 hover:text-gray-800 hover:underline"
-                    >
-                        <User className="w-3.5 h-3.5" /> {formatName(lead.creator)}
-                    </Link>
+                    {lead.creator?.id ? (
+                        <Link
+                            href={`/dashboard/tutor/${lead.creator.id}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="inline-flex items-center gap-1 hover:text-gray-800 hover:underline"
+                        >
+                            <User className="w-3.5 h-3.5" /> {formatName(lead.creator)}
+                        </Link>
+                    ) : (
+                        <span className="inline-flex items-center gap-1 text-gray-400">
+                            <User className="w-3.5 h-3.5" /> {formatName(lead.creator)}
+                        </span>
+                    )}
                     <span className="ml-auto">{new Date(lead.createdAt).toLocaleDateString('ru-RU')}</span>
                 </div>
             </article>

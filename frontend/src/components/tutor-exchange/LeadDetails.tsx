@@ -29,7 +29,7 @@ interface LeadDetailsData extends LeadCardData {
 }
 
 const formatName = (c: LeadDetailsData['creator']) =>
-    [c.firstName, c.lastName].filter(Boolean).join(' ').trim() || 'Репетитор'
+    [c?.firstName, c?.lastName].filter(Boolean).join(' ').trim() || 'Репетитор'
 
 const STATUS_INFO: Record<string, { label: string; cls: string }> = {
     ACTIVE: { label: 'Активна · видна в ленте', cls: 'text-blue-700 bg-blue-50 border-blue-200' },
@@ -174,12 +174,18 @@ export function LeadDetails({ leadId }: { leadId: string }) {
                     ) : (
                         <span className="inline-flex items-center gap-1.5"><MapPin className="w-4 h-4" /> {lead.city || 'Оффлайн'}</span>
                     )}
-                    <Link
-                        href={`/dashboard/tutor/${lead.creator.id}`}
-                        className="inline-flex items-center gap-1.5 hover:text-gray-900 hover:underline"
-                    >
-                        <User className="w-4 h-4" /> {formatName(lead.creator)}
-                    </Link>
+                    {lead.creator?.id ? (
+                        <Link
+                            href={`/dashboard/tutor/${lead.creator.id}`}
+                            className="inline-flex items-center gap-1.5 hover:text-gray-900 hover:underline"
+                        >
+                            <User className="w-4 h-4" /> {formatName(lead.creator)}
+                        </Link>
+                    ) : (
+                        <span className="inline-flex items-center gap-1.5 text-gray-400">
+                            <User className="w-4 h-4" /> {formatName(lead.creator)}
+                        </span>
+                    )}
                 </div>
 
                 <div className="prose prose-base max-w-none text-gray-800 whitespace-pre-wrap mb-6 leading-relaxed border-l-4 border-gray-100 pl-4">
