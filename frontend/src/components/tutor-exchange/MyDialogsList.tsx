@@ -55,21 +55,21 @@ const dateShort = (iso: string) => {
 }
 
 function PageShell({ children }: { children: React.ReactNode }) {
-    return <div className="p-6 md:p-8 max-w-4xl mx-auto">{children}</div>
+    return <div className="p-6 md:p-8 lg:p-10 max-w-6xl mx-auto w-full">{children}</div>
 }
 
 function Header({ hint }: { hint?: string }) {
     return (
-        <header className="mb-6 flex items-start justify-between gap-4 flex-wrap">
+        <header className="mb-8 flex items-start justify-between gap-4 flex-wrap">
             <div className="min-w-0">
-                <h1 className="font-display text-3xl font-bold text-ink-900 tracking-tight">Мои диалоги</h1>
-                {hint && <p className="mt-1.5 text-sm text-ink-500">{hint}</p>}
+                <h1 className="font-display text-3xl md:text-4xl font-bold text-ink-900 tracking-tight">Мои диалоги</h1>
+                {hint && <p className="mt-2 text-sm md:text-base text-ink-500">{hint}</p>}
             </div>
             <Link
                 href="/dashboard/leads"
-                className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-700 hover:text-brand-800 transition-colors duration-fast"
+                className="inline-flex items-center gap-1.5 text-sm md:text-base font-semibold text-brand-700 hover:text-brand-800 transition-colors duration-fast"
             >
-                К ленте заявок <ArrowRight className="w-4 h-4" />
+                К ленте заявок <ArrowRight className="w-4 h-4 md:w-5 md:h-5" />
             </Link>
         </header>
     )
@@ -151,7 +151,7 @@ export function MyDialogsList() {
     return (
         <PageShell>
             <Header hint={`Всего ${dialogs.length} ${pluralize(dialogs.length, ['диалог', 'диалога', 'диалогов'])}.`} />
-            <ul className="space-y-2.5">
+            <ul className="space-y-3">
                 {dialogs.map((d) => {
                     const meta = STATUS[d.status]
                     const StatusIcon = meta.Icon
@@ -161,33 +161,33 @@ export function MyDialogsList() {
                         <li key={d.id}>
                             <Link
                                 href={`/dashboard/dialogs/${d.id}`}
-                                className="group block rounded-2xl border border-ink-200 bg-surface p-4 md:p-5 hover:border-brand-300 hover:shadow-sm transition-all duration-fast"
+                                className="group block rounded-2xl border border-ink-200 bg-surface p-5 md:p-6 hover:border-brand-300 hover:shadow-sm transition-all duration-fast"
                             >
-                                <div className="flex items-center gap-4">
-                                    <div className="w-11 h-11 rounded-full bg-ink-100 text-ink-600 flex items-center justify-center font-semibold text-sm shrink-0 shadow-xs">
+                                <div className="flex items-center gap-5">
+                                    <div className="w-14 h-14 md:w-16 md:h-16 rounded-full bg-ink-100 text-ink-700 flex items-center justify-center font-semibold text-base md:text-lg shrink-0 shadow-xs">
                                         {initials(name)}
                                     </div>
                                     <div className="min-w-0 flex-1">
-                                        <div className="flex items-center gap-2 flex-wrap mb-0.5">
-                                            <span className="font-display font-bold text-ink-900 text-base truncate">{d.lead.subject}</span>
-                                            <span className="text-ink-400 text-xs">·</span>
-                                            <span className="text-ink-500 text-xs">{d.lead.grade}</span>
+                                        <div className="flex items-center gap-2 flex-wrap mb-1">
+                                            <span className="font-display font-bold text-ink-900 text-lg md:text-xl truncate">{d.lead.subject}</span>
+                                            <span className="text-ink-400 text-sm">·</span>
+                                            <span className="text-ink-500 text-sm">{d.lead.grade}</span>
                                         </div>
-                                        <div className="text-sm text-ink-600 truncate">
-                                            {isMyLead ? 'Откликнулся ' : 'С '}<span className="font-medium text-ink-800">{name}</span>
+                                        <div className="text-sm md:text-base text-ink-600 truncate">
+                                            {isMyLead ? 'Откликнулся ' : 'С '}<span className="font-semibold text-ink-800">{name}</span>
                                         </div>
                                     </div>
-                                    <div className="hidden sm:flex flex-col items-end gap-1.5 shrink-0">
-                                        <span className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-semibold ${meta.chip}`}>
-                                            <StatusIcon className="w-3.5 h-3.5" />
+                                    <div className="hidden sm:flex flex-col items-end gap-2 shrink-0">
+                                        <span className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold ${meta.chip}`}>
+                                            <StatusIcon className="w-4 h-4" />
                                             {meta.label}
                                         </span>
-                                        <span className="text-[11px] text-ink-400 tnum">{dateShort(d.createdAt)}</span>
+                                        <span className="text-xs text-ink-400 tnum">{dateShort(d.createdAt)}</span>
                                     </div>
-                                    <ChevronRight className="w-5 h-5 text-ink-300 group-hover:text-brand-400 shrink-0 transition-colors duration-fast" />
+                                    <ChevronRight className="w-6 h-6 text-ink-300 group-hover:text-brand-400 shrink-0 transition-colors duration-fast" />
                                 </div>
                                 <div className="sm:hidden mt-3 flex items-center justify-between">
-                                    <span className={`inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-xs font-semibold ${meta.chip}`}>
+                                    <span className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold ${meta.chip}`}>
                                         <StatusIcon className="w-3.5 h-3.5" />
                                         {meta.label}
                                     </span>

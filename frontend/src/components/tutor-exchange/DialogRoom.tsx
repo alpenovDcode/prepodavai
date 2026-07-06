@@ -147,36 +147,36 @@ export function DialogRoom({ dialogId }: { dialogId: string }) {
             <BackLink />
 
             {/* Header card: subject + counterpart avatar + status */}
-            <header className="rounded-2xl border border-ink-200 bg-surface p-4 md:p-5 mb-4 shadow-xs">
-                <div className="flex items-start gap-4">
+            <header className="rounded-2xl border border-ink-200 bg-surface p-5 md:p-6 mb-5 shadow-xs">
+                <div className="flex items-start gap-5">
                     <Link
                         href={`/dashboard/tutor/${counterpartId}`}
-                        className="w-12 h-12 rounded-full bg-ink-100 text-ink-700 flex items-center justify-center font-semibold text-sm shrink-0 hover:ring-4 hover:ring-brand-500/10 transition-all duration-fast"
+                        className="w-14 h-14 md:w-16 md:h-16 rounded-full bg-ink-100 text-ink-700 flex items-center justify-center font-semibold text-lg md:text-xl shrink-0 hover:ring-4 hover:ring-brand-500/10 transition-all duration-fast"
                     >
                         {initials(name)}
                     </Link>
                     <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2 flex-wrap mb-1">
-                            <h1 className="font-display text-lg md:text-xl font-bold text-ink-900 truncate">
+                        <div className="flex items-center gap-2 flex-wrap mb-1.5">
+                            <h1 className="font-display text-xl md:text-2xl font-bold text-ink-900 truncate">
                                 {dialog.lead.subject}
                             </h1>
-                            <span className="text-ink-400 text-sm">·</span>
-                            <span className="text-ink-500 text-sm">{dialog.lead.grade}</span>
+                            <span className="text-ink-400 text-base">·</span>
+                            <span className="text-ink-500 text-base">{dialog.lead.grade}</span>
                         </div>
-                        <div className="text-sm text-ink-600">
+                        <div className="text-sm md:text-base text-ink-600">
                             С{' '}
                             <Link
                                 href={`/dashboard/tutor/${counterpartId}`}
-                                className="inline-flex items-center gap-1 font-medium text-ink-800 hover:text-brand-700 hover:underline"
+                                className="inline-flex items-center gap-1 font-semibold text-ink-800 hover:text-brand-700 hover:underline"
                             >
-                                <User className="w-3.5 h-3.5" /> {name}
+                                <User className="w-4 h-4" /> {name}
                             </Link>
                         </div>
                     </div>
                     <span
-                        className={`hidden sm:inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold shrink-0 ${status.chip}`}
+                        className={`hidden sm:inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold shrink-0 ${status.chip}`}
                     >
-                        <status.Icon className="w-3.5 h-3.5" />
+                        <status.Icon className="w-4 h-4" />
                         {status.label}
                     </span>
                 </div>
@@ -191,7 +191,7 @@ export function DialogRoom({ dialogId }: { dialogId: string }) {
             </header>
 
             {/* Main grid: chat + aside */}
-            <div className="grid grid-cols-1 md:grid-cols-[1fr,320px] gap-4">
+            <div className="grid grid-cols-1 lg:grid-cols-[1fr,380px] gap-5">
                 <DialogChat dialog={dialog} meId={user?.id} canWrite={canWrite} onSent={reload} />
 
                 <aside className="space-y-3 md:space-y-4">
@@ -305,7 +305,7 @@ export function DialogRoom({ dialogId }: { dialogId: string }) {
 }
 
 function Shell({ children }: { children: React.ReactNode }) {
-    return <div className="p-4 md:p-6 max-w-5xl mx-auto">{children}</div>
+    return <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto w-full">{children}</div>
 }
 
 function BackLink() {

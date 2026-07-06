@@ -52,19 +52,19 @@ export function DialogChat({ dialog, meId, canWrite, onSent }: Props) {
     }
 
     return (
-        <div className="flex flex-col h-[60vh] min-h-[420px] md:h-[calc(100vh-260px)] rounded-2xl border border-ink-200 bg-surface overflow-hidden shadow-xs">
+        <div className="flex flex-col h-[65vh] min-h-[500px] md:h-[calc(100vh-220px)] md:min-h-[600px] rounded-2xl border border-ink-200 bg-surface overflow-hidden shadow-xs">
             <div
                 ref={listRef}
-                className="flex-1 overflow-y-auto px-4 md:px-6 py-5 space-y-3"
+                className="flex-1 overflow-y-auto px-5 md:px-7 py-6 space-y-3"
                 style={{ background: 'linear-gradient(180deg, var(--surface) 0%, var(--surface-soft) 100%)' }}
             >
                 {dialog.messages.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-center px-6">
-                        <div className="inline-flex w-14 h-14 rounded-2xl bg-brand-50 text-brand-500 items-center justify-center mb-3">
-                            <MessageCircle className="w-7 h-7" />
+                        <div className="inline-flex w-16 h-16 rounded-2xl bg-brand-50 text-brand-500 items-center justify-center mb-4">
+                            <MessageCircle className="w-8 h-8" />
                         </div>
-                        <p className="font-display text-base font-bold text-ink-900 mb-1">Начните разговор</p>
-                        <p className="text-sm text-ink-500 max-w-xs leading-relaxed">
+                        <p className="font-display text-lg font-bold text-ink-900 mb-1.5">Начните разговор</p>
+                        <p className="text-sm md:text-base text-ink-500 max-w-sm leading-relaxed">
                             Обсудите ученика, договоритесь о времени и назначьте пробный урок.
                         </p>
                     </div>
@@ -80,7 +80,7 @@ export function DialogChat({ dialog, meId, canWrite, onSent }: Props) {
             {canWrite ? (
                 <form
                     onSubmit={handleSend}
-                    className="border-t border-ink-200 bg-surface p-3 md:p-4 flex gap-2 items-end"
+                    className="border-t border-ink-200 bg-surface p-4 md:p-5 flex gap-3 items-end"
                 >
                     <div className="flex-1 relative">
                         <textarea
@@ -89,9 +89,9 @@ export function DialogChat({ dialog, meId, canWrite, onSent }: Props) {
                             onKeyDown={handleKeyDown}
                             rows={1}
                             placeholder="Написать сообщение..."
-                            className="w-full resize-none rounded-xl border border-ink-200 bg-surface px-4 py-3 text-sm placeholder:text-ink-400 focus:outline-none focus:border-brand-400 focus:ring-4 focus:ring-brand-500/10 transition-all duration-fast max-h-40"
+                            className="w-full resize-none rounded-xl border border-ink-200 bg-surface px-4 py-3.5 text-sm md:text-base placeholder:text-ink-400 focus:outline-none focus:border-brand-400 focus:ring-4 focus:ring-brand-500/10 transition-all duration-fast max-h-40"
                             disabled={sending}
-                            style={{ minHeight: 44 }}
+                            style={{ minHeight: 48 }}
                         />
                         {text.length > 0 && (
                             <div className="pointer-events-none absolute right-3 bottom-2 text-[10px] text-ink-400 tabular-nums">
@@ -103,7 +103,7 @@ export function DialogChat({ dialog, meId, canWrite, onSent }: Props) {
                         type="submit"
                         disabled={!text.trim() || sending}
                         aria-label="Отправить"
-                        className="inline-flex items-center justify-center h-11 w-11 rounded-xl bg-brand-500 text-white hover:bg-brand-600 disabled:bg-ink-200 disabled:text-ink-400 shadow-brand-glow disabled:shadow-none transition-all duration-fast"
+                        className="inline-flex items-center justify-center h-12 w-12 rounded-xl bg-brand-500 text-white hover:bg-brand-600 disabled:bg-ink-200 disabled:text-ink-400 shadow-brand-glow disabled:shadow-none transition-all duration-fast"
                     >
                         {sending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
                     </button>
