@@ -8,6 +8,7 @@ import {
     Plus, Compass, LayoutGrid, List, MoreHorizontal, Eye, Edit3, PenLine,
     Copy, Download, Send, Trash2, Book, Wand2, RefreshCw, Link2, QrCode,
     Folder, FolderOpen, FolderPlus, FolderX, ChevronRight, Upload, Video, PackageOpen,
+    Wrench, MessageSquare, MessageCircle, ThumbsUp, Mic, GraduationCap, LineChart,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { apiClient } from '@/lib/api/client'
@@ -136,6 +137,65 @@ const TYPE_CONFIG: Record<string, {
         hoverBorder: 'hover:border-[#67E8F9]',
         Icon: PackageOpen,
     },
+    // Вторичные типы. В PILL_TYPES не добавляем — шапка фильтров и так плотная,
+    // а эти чаще всего одиночные записи в истории. Задача — не показывать их
+    // как «Рабочий лист» (fallback был на worksheet).
+    contentAdaptation: {
+        label: 'Адаптация текста',
+        pillLabel: 'Адаптация текста',
+        chipBg: 'bg-[#F0F9FF]',
+        chipText: 'text-[#0369A1]',
+        hoverBorder: 'hover:border-[#7DD3FC]',
+        Icon: Wrench,
+    },
+    message: {
+        label: 'Сообщение',
+        pillLabel: 'Сообщения',
+        chipBg: 'bg-[#FDF2F8]',
+        chipText: 'text-[#BE185D]',
+        hoverBorder: 'hover:border-[#F9A8D4]',
+        Icon: MessageSquare,
+    },
+    feedback: {
+        label: 'Фидбек',
+        pillLabel: 'Фидбек',
+        chipBg: 'bg-[#F0FDF4]',
+        chipText: 'text-[#15803D]',
+        hoverBorder: 'hover:border-[#86EFAC]',
+        Icon: ThumbsUp,
+    },
+    transcription: {
+        label: 'Транскрибация',
+        pillLabel: 'Транскрибация',
+        chipBg: 'bg-[#EFF6FF]',
+        chipText: 'text-[#1E40AF]',
+        hoverBorder: 'hover:border-[#93C5FD]',
+        Icon: Mic,
+    },
+    examVariant: {
+        label: 'Вариант экзамена',
+        pillLabel: 'Варианты экзамена',
+        chipBg: 'bg-[#FFF1F2]',
+        chipText: 'text-[#BE123C]',
+        hoverBorder: 'hover:border-[#FDA4AF]',
+        Icon: GraduationCap,
+    },
+    salesAdvisor: {
+        label: 'ИИ-Продажник',
+        pillLabel: 'ИИ-Продажник',
+        chipBg: 'bg-[#ECFDF5]',
+        chipText: 'text-[#065F46]',
+        hoverBorder: 'hover:border-[#6EE7B7]',
+        Icon: LineChart,
+    },
+    assistant: {
+        label: 'AI-ассистент',
+        pillLabel: 'AI-ассистент',
+        chipBg: 'bg-[#EEF2FF]',
+        chipText: 'text-[#3730A3]',
+        hoverBorder: 'hover:border-[#A5B4FC]',
+        Icon: MessageCircle,
+    },
 }
 
 const PILL_TYPES = ['lessonPreparation', 'worksheet', 'quiz', 'presentation', 'lessonPlan', 'image', 'game', 'uploadedFile', 'videoAnalysis', 'unpacking'] as const
@@ -160,6 +220,7 @@ function normalizeType(dbType: string): string {
         lessonPreparation: 'lessonPreparation',
         image_generation: 'image',
         image: 'image',
+        photosession: 'image',
         game_generation: 'game',
         game: 'game',
         vocabulary: 'vocabulary',
@@ -169,6 +230,19 @@ function normalizeType(dbType: string): string {
         video_analysis: 'videoAnalysis',
         videoAnalysis: 'videoAnalysis',
         unpacking: 'unpacking',
+        'content-adaptation': 'contentAdaptation',
+        content_adaptation: 'contentAdaptation',
+        contentAdaptation: 'contentAdaptation',
+        message: 'message',
+        feedback: 'feedback',
+        transcription: 'transcription',
+        'exam-variant': 'examVariant',
+        exam_variant: 'examVariant',
+        examVariant: 'examVariant',
+        sales_advisor: 'salesAdvisor',
+        'sales-advisor': 'salesAdvisor',
+        salesAdvisor: 'salesAdvisor',
+        assistant: 'assistant',
     }
     return map[dbType] || dbType
 }

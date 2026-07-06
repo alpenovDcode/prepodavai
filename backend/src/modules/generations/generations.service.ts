@@ -2039,6 +2039,16 @@ export class GenerationsService {
       video_analysis: 'videoAnalysis',
       videoAnalysis: 'videoAnalysis',
       unpacking: 'unpacking',
+      'content-adaptation': 'contentAdaptation',
+      content_adaptation: 'contentAdaptation',
+      message: 'message',
+      feedback: 'feedback',
+      transcription: 'transcription',
+      'exam-variant': 'examVariant',
+      exam_variant: 'examVariant',
+      sales_advisor: 'salesAdvisor',
+      'sales-advisor': 'salesAdvisor',
+      assistant: 'assistant',
     };
     return map[dbType] || dbType;
   }
