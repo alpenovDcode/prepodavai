@@ -599,11 +599,16 @@
                         input.dataset.x = cx;
                         input.dataset.y = cy;
 
-                        // События ввода
-                        input.addEventListener('click', () => highlightWord(w));
-                        input.addEventListener('focus', () => highlightWord(w));
-                        input.addEventListener('input', (e) => handleInput(e, w));
-                        input.addEventListener('keydown', (e) => handleKey(e, cx, cy, w));
+                        // Все обработчики используют координаты клетки, а
+                        // конкретное «активное слово» вычисляется в момент
+                        // события через currentActiveWord/chooseWordForCell.
+                        // Иначе на пересечении across+down closure «залипал»
+                        // на первом слове, добавленном в клетку, и после
+                        // ввода буквы фокус уходил не в ту сторону.
+                        input.addEventListener('click', () => onCellClick(cx, cy));
+                        input.addEventListener('focus', () => onCellFocus(cx, cy));
+                        input.addEventListener('input', (e) => handleInput(e, cx, cy));
+                        input.addEventListener('keydown', (e) => handleKey(e, cx, cy));
 
                         cell.appendChild(input);
                     }
@@ -676,30 +681,69 @@
             currentActiveWord = wordObj;
         }
 
-        function handleInput(e, wordObj) {
+        /**
+         * Возвращает все слова, проходящие через клетку (x, y).
+         */
+        function getWordsAtCell(x, y) {
+            return gameData.words.filter((w) => {
+                if (w.dir === 'across') return y === w.y && x >= w.x && x < w.x + w.word.length;
+                return x === w.x && y >= w.y && y < w.y + w.word.length;
+            });
+        }
+
+        /**
+         * Какое слово считать активным для этой клетки?
+         * Если currentActiveWord уже проходит через клетку — сохраняем его
+         * (чтобы фокус, приезжающий через input event, не скакал на другое
+         * направление). Иначе берём первое из слов клетки.
+         */
+        function chooseWordForCell(x, y) {
+            const words = getWordsAtCell(x, y);
+            if (words.length === 0) return null;
+            if (currentActiveWord && words.includes(currentActiveWord)) {
+                return currentActiveWord;
+            }
+            return words[0];
+        }
+
+        function onCellClick(x, y) {
+            const words = getWordsAtCell(x, y);
+            if (words.length === 0) return;
+            // Повторный клик по клетке-пересечению переключает направление —
+            // стандартный UX кроссвордов.
+            if (words.length > 1 && currentActiveWord && words.includes(currentActiveWord)) {
+                const other = words.find((w) => w !== currentActiveWord);
+                if (other) { highlightWord(other); return; }
+            }
+            highlightWord(chooseWordForCell(x, y));
+        }
+
+        function onCellFocus(x, y) {
+            const w = chooseWordForCell(x, y);
+            if (w) highlightWord(w);
+        }
+
+        function handleInput(e, x, y) {
             const val = e.target.value;
-            if (val) {
-                // Переход к следующей букве
-                const inputX = parseInt(e.target.dataset.x);
-                const inputY = parseInt(e.target.dataset.y);
+            if (!val) return;
+            // Используем актуальное активное слово, а не закреплённое
+            // в замыкании при создании инпута.
+            const wordObj = currentActiveWord || chooseWordForCell(x, y);
+            if (!wordObj) return;
 
-                // Ищем индекс текущей буквы в слове
-                let indexInWord = -1;
-                if (wordObj.dir === 'across') indexInWord = inputX - wordObj.x;
-                else indexInWord = inputY - wordObj.y;
-
-                if (indexInWord < wordObj.word.length - 1) {
-                    const nextX = wordObj.x + (wordObj.dir === 'across' ? indexInWord + 1 : 0);
-                    const nextY = wordObj.y + (wordObj.dir === 'down' ? indexInWord + 1 : 0);
-                    const nextInput = getCell(nextX, nextY).querySelector('input');
-                    if (nextInput) nextInput.focus();
-                }
+            let indexInWord = wordObj.dir === 'across' ? x - wordObj.x : y - wordObj.y;
+            if (indexInWord < wordObj.word.length - 1) {
+                const nextX = wordObj.x + (wordObj.dir === 'across' ? indexInWord + 1 : 0);
+                const nextY = wordObj.y + (wordObj.dir === 'down' ? indexInWord + 1 : 0);
+                const nextInput = getCell(nextX, nextY).querySelector('input');
+                if (nextInput) nextInput.focus();
             }
         }
 
-        function handleKey(e, x, y, wordObj) {
+        function handleKey(e, x, y) {
             if (e.key === 'Backspace' && e.target.value === '') {
-                // Переход назад
+                const wordObj = currentActiveWord || chooseWordForCell(x, y);
+                if (!wordObj) return;
                 let prevX = x, prevY = y;
                 if (wordObj.dir === 'across') prevX--;
                 else prevY--;
