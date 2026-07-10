@@ -306,16 +306,29 @@
         const GAME_TOPIC = GAME_CONFIG.topic;
 
         /**
-         * Убирает диакритику и приводит к верхнему регистру.
-         * Нужно, чтобы «FÁCIL» и «FACIL» считались одним словом:
-         * ученик обычно вводит без акцентов, а AI-генератор может вернуть
-         * слово в оригинальной орфографии (испанский, португальский, ...).
+         * Нормализация буквы для сравнения в кроссворде.
+         *
+         * СИНХРОНИЗИРОВАТЬ с backend/src/modules/games/utils/crossword-normalize.ts
+         * (юнит-тесты живут там; браузер не может импортировать TS-модуль).
+         *
+         * Правила:
+         *   1) toUpperCase (в JS для 'ß' даёт 'SS').
+         *   2) ẞ → SS явно (если пришло в верхнем регистре).
+         *   3) Ё → Е (в русских кроссвордах взаимозаменяемы). Й/И НЕ смешиваем.
+         *   4) NFD → снятие combining marks после ЛАТИНСКИХ букв → NFC.
+         *      FÁCIL/FACIL, GARÇON/GARCON, SCHÖNE/SCHONE — совпадают.
+         *      Й = И + ̆ (breve): обе кириллические, regex не сработает,
+         *      NFC вернёт Й в композит. Й ≠ И.
          */
         function normalizeLetters(s) {
-            return String(s || '')
+            let out = String(s || '').toUpperCase();
+            out = out.replace(/ẞ/g, 'SS');
+            out = out.replace(/Ё/g, 'Е');
+            out = out
                 .normalize('NFD')
-                .replace(/[̀-ͯ]/g, '')
-                .toUpperCase();
+                .replace(/([A-Z])[̀-ͯ]+/g, '$1')
+                .normalize('NFC');
+            return out;
         }
 
         // Clean word list - remove spaces from words + strip diacritics
