@@ -305,10 +305,23 @@
         const WORD_LIST = GAME_CONFIG.data;
         const GAME_TOPIC = GAME_CONFIG.topic;
 
-        // Clean word list - remove spaces from words
+        /**
+         * Убирает диакритику и приводит к верхнему регистру.
+         * Нужно, чтобы «FÁCIL» и «FACIL» считались одним словом:
+         * ученик обычно вводит без акцентов, а AI-генератор может вернуть
+         * слово в оригинальной орфографии (испанский, португальский, ...).
+         */
+        function normalizeLetters(s) {
+            return String(s || '')
+                .normalize('NFD')
+                .replace(/[̀-ͯ]/g, '')
+                .toUpperCase();
+        }
+
+        // Clean word list - remove spaces from words + strip diacritics
         const cleanedWordList = WORD_LIST.map(item => ({
             ...item,
-            word: item.word.replace(/\s+/g, '').toUpperCase()
+            word: normalizeLetters(item.word.replace(/\s+/g, ''))
         }));
 
         // Update page title
@@ -492,10 +505,40 @@
         function initGame() {
             const generator = new CrosswordGenerator(cleanedWordList);
             gameData = generator.generate();
+            assignClueNumbers(gameData.words);
 
             renderGrid(gameData.width, gameData.height);
             renderWords(gameData.words);
             renderClues(gameData.words);
+        }
+
+        /**
+         * Присваивает каждому слову w.number — номер его стартовой клетки.
+         * Правила классического кроссворда: нумерация идёт по клеткам,
+         * а не по словам. Если в одной клетке начинается два слова
+         * (across + down), они получают ОДИН номер. Порядок — сверху вниз,
+         * слева направо.
+         *
+         * До этой правки w.number = index + 1 (в порядке размещения на сетке),
+         * при пересечении на поле оставался номер первого слова, а в списке
+         * подсказок каждое слово получало свой — из-за чего «на поле 7,
+         * а в задании 8».
+         */
+        function assignClueNumbers(words) {
+            const cellNumber = new Map();
+            const uniqueStarts = [];
+            for (const w of words) {
+                const key = w.y + '_' + w.x;
+                if (!cellNumber.has(key)) {
+                    cellNumber.set(key, null); // placeholder — назначим номер после сортировки
+                    uniqueStarts.push({ key, x: w.x, y: w.y });
+                }
+            }
+            uniqueStarts.sort((a, b) => a.y - b.y || a.x - b.x);
+            uniqueStarts.forEach((s, i) => cellNumber.set(s.key, i + 1));
+            for (const w of words) {
+                w.number = cellNumber.get(w.y + '_' + w.x);
+            }
         }
 
         function renderGrid(w, h) {
@@ -516,15 +559,16 @@
 
         function renderWords(words) {
             // Маркируем активные клетки и добавляем инпуты
-            words.forEach((w, index) => {
-                const number = index + 1;
-
-                // Ставим номер
+            words.forEach((w) => {
+                // Номер клетки уже присвоен через assignClueNumbers.
+                // Второе слово с той же стартовой клеткой (across+down в одной
+                // точке) увидит существующий .cell-number и просто не создаст
+                // свой — так и должно быть в классической нумерации.
                 const startCell = getCell(w.x, w.y);
                 if (!startCell.querySelector('.cell-number')) {
                     const numSpan = document.createElement('span');
                     numSpan.className = 'cell-number';
-                    numSpan.innerText = number;
+                    numSpan.innerText = w.number;
                     startCell.appendChild(numSpan);
                 }
 
@@ -555,21 +599,33 @@
         }
 
         function renderClues(words) {
-            words.forEach((w, index) => {
+            // Показываем подсказки в порядке номеров (стандарт кроссворда),
+            // а не в порядке размещения на сетке. data-word-index оставляем
+            // равным индексу в массиве words — checkAnswers ищет clue-item
+            // именно по этому индексу.
+            const withIndex = words.map((w, index) => ({ w, index }));
+            const acrossItems = withIndex
+                .filter(({ w }) => w.dir === 'across')
+                .sort((a, b) => a.w.number - b.w.number);
+            const downItems = withIndex
+                .filter(({ w }) => w.dir === 'down')
+                .sort((a, b) => a.w.number - b.w.number);
+
+            const appendClue = (parent, { w, index }) => {
                 const li = document.createElement('li');
                 li.className = 'clue-item';
-                li.innerHTML = `<span>${index + 1}.</span> ${w.clue}`;
+                li.innerHTML = `<span>${w.number}.</span> ${w.clue}`;
                 li.dataset.wordIndex = index;
                 li.onclick = () => {
-                    // Фокус на первую букву
                     const input = getCell(w.x, w.y).querySelector('input');
                     input.focus();
                     highlightWord(w);
                 };
+                parent.appendChild(li);
+            };
 
-                if (w.dir === 'across') listAcross.appendChild(li);
-                else listDown.appendChild(li);
-            });
+            acrossItems.forEach((it) => appendClue(listAcross, it));
+            downItems.forEach((it) => appendClue(listDown, it));
 
             // Trigger MathJax
             if (window.MathJax) {
@@ -662,8 +718,8 @@
             let isAllCorrect = true;
 
             inputs.forEach(input => {
-                const val = input.value.toUpperCase();
-                const correct = input.dataset.answer;
+                const val = normalizeLetters(input.value);
+                const correct = normalizeLetters(input.dataset.answer);
 
                 if (val === correct) {
                     input.parentElement.classList.add('correct');
@@ -681,7 +737,7 @@
                     const cx = w.x + (w.dir === 'across' ? i : 0);
                     const cy = w.y + (w.dir === 'down' ? i : 0);
                     const input = getCell(cx, cy).querySelector('input');
-                    if (input.value.toUpperCase() !== w.word[i]) wordCorrect = false;
+                    if (normalizeLetters(input.value) !== normalizeLetters(w.word[i])) wordCorrect = false;
                 }
 
                 const clueItem = document.querySelector(`.clue-item[data-word-index="${index}"]`);
