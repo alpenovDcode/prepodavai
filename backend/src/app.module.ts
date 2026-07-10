@@ -2,8 +2,9 @@ import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { XssInterceptor } from './common/interceptors/xss.interceptor';
+import { GlobalThrottlerGuard } from './common/guards/global-throttler.guard';
 
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -63,15 +64,20 @@ import { ScheduleModule } from '@nestjs/schedule';
     // Scheduled tasks (cron)
     ScheduleModule.forRoot(),
 
-    // Rate Limiting
+    // Rate Limiting.
+    // Лимиты — per-user (см. GlobalThrottlerGuard), не per-IP.
+    // При открытии страницы фронт может параллельно выпустить 5–10 запросов
+    // (dashboard, notifications, maintenance, tool-status), плюс polling
+    // диалога 20/мин — старые 10/сек и 200/мин упирали в 429 на нормальном
+    // сценарии. Ставим запас.
     ThrottlerModule.forRoot([
       {
         ttl: 1000, // 1 second
-        limit: 10, // 10 requests per second
+        limit: 30, // 30 requests per second (per user)
       },
       {
         ttl: 60000, // 1 minute
-        limit: 200, // 200 requests per minute
+        limit: 500, // 500 requests per minute (per user)
       },
     ]),
 
@@ -138,7 +144,7 @@ import { ScheduleModule } from '@nestjs/schedule';
   providers: [
     {
       provide: APP_GUARD,
-      useClass: ThrottlerGuard,
+      useClass: GlobalThrottlerGuard,
     },
     {
       provide: APP_INTERCEPTOR,

@@ -8,6 +8,7 @@ import {
   UseGuards,
   HttpCode,
 } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
 import { IsBoolean, IsOptional, IsString, MaxLength } from 'class-validator';
 import { SystemService } from './system.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -41,8 +42,15 @@ class SetToolStatusDto {
  * Публичный + админский эндпоинты для maintenance-режима.
  * GET /api/system/maintenance — публично, чтобы фронт мог показать заглушку
  *   даже неавторизованному пользователю.
+ *
+ * SkipThrottle: оба публичных эндпоинта фронт поллит каждые 30 секунд
+ *   (MaintenanceGate + useTutorExchangeEnabled) с КАЖДОЙ открытой вкладки.
+ *   Под общим лимитом они съедали бюджет реальных пользовательских запросов
+ *   и триггерили 429 на страницах с активным polling'ом. Сами эндпоинты
+ *   read-only и не требуют защиты от спама.
  */
 @Controller('system')
+@SkipThrottle()
 export class SystemController {
   constructor(private readonly systemService: SystemService) {}
 
