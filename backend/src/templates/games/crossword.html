@@ -640,9 +640,18 @@
                     // первой клетке слова не был ошибочно засчитан как
                     // «второй» и не переключил направление обратно.
                     lastClickedCellKey = null;
-                    const input = getCell(w.x, w.y).querySelector('input');
-                    input.focus();
+                    // currentActiveWord должно совпадать со словом подсказки
+                    // ДО вызова findNextEmptyInputInWord (иначе фокус на пустой
+                    // клетке через onCellFocus подсветит другое пересекающееся
+                    // слово и мы прыгнем не туда).
                     highlightWord(w);
+                    // Курсор ставим в первую ПУСТУЮ клетку слова —
+                    // если начало заполнено через пересечение, пользователю
+                    // не приходится перепрыгивать вручную.
+                    const target =
+                        findNextEmptyInputInWord(w, 0) ||
+                        getCell(w.x, w.y).querySelector('input');
+                    if (target) target.focus();
                 };
                 parent.appendChild(li);
             };
@@ -743,6 +752,23 @@
             if (w) highlightWord(w);
         }
 
+        /**
+         * Ищет первую пустую клетку слова начиная с fromIndex.
+         * Возвращает input или null (если все клетки от fromIndex до
+         * конца слова уже заполнены).
+         */
+        function findNextEmptyInputInWord(wordObj, fromIndex) {
+            for (let i = fromIndex; i < wordObj.word.length; i++) {
+                const cx = wordObj.x + (wordObj.dir === 'across' ? i : 0);
+                const cy = wordObj.y + (wordObj.dir === 'down' ? i : 0);
+                const cell = getCell(cx, cy);
+                if (!cell) continue;
+                const input = cell.querySelector('input');
+                if (input && !input.value) return input;
+            }
+            return null;
+        }
+
         function handleInput(e, x, y) {
             const val = e.target.value;
             if (!val) return;
@@ -751,13 +777,11 @@
             const wordObj = currentActiveWord || chooseWordForCell(x, y);
             if (!wordObj) return;
 
-            let indexInWord = wordObj.dir === 'across' ? x - wordObj.x : y - wordObj.y;
-            if (indexInWord < wordObj.word.length - 1) {
-                const nextX = wordObj.x + (wordObj.dir === 'across' ? indexInWord + 1 : 0);
-                const nextY = wordObj.y + (wordObj.dir === 'down' ? indexInWord + 1 : 0);
-                const nextInput = getCell(nextX, nextY).querySelector('input');
-                if (nextInput) nextInput.focus();
-            }
+            // Перепрыгиваем уже заполненные клетки (буквы от пересекающихся
+            // слов): курсор идёт вперёд по слову до первой пустой клетки.
+            const indexInWord = wordObj.dir === 'across' ? x - wordObj.x : y - wordObj.y;
+            const nextInput = findNextEmptyInputInWord(wordObj, indexInWord + 1);
+            if (nextInput) nextInput.focus();
         }
 
         function handleKey(e, x, y) {
