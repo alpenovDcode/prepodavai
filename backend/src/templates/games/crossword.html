@@ -635,6 +635,11 @@
                 li.innerHTML = `<span>${w.number}.</span> ${w.clue}`;
                 li.dataset.wordIndex = index;
                 li.onclick = () => {
+                    // Клик по подсказке — это не клик по клетке. Сбрасываем
+                    // счётчик повторных кликов, чтобы следующий клик по
+                    // первой клетке слова не был ошибочно засчитан как
+                    // «второй» и не переключил направление обратно.
+                    lastClickedCellKey = null;
                     const input = getCell(w.x, w.y).querySelector('input');
                     input.focus();
                     highlightWord(w);
@@ -658,6 +663,10 @@
         // --- ВЗАИМОДЕЙСТВИЕ ---
 
         let currentActiveWord = null;
+        // Помним, на какой клетке был предыдущий клик — чтобы переключать
+        // направление на пересечении только на ВТОРОМ клике по той же
+        // клетке (стандартный UX кроссвордов).
+        let lastClickedCellKey = null;
 
         function highlightWord(wordObj) {
             // Снимаем старую подсветку
@@ -709,9 +718,20 @@
         function onCellClick(x, y) {
             const words = getWordsAtCell(x, y);
             if (words.length === 0) return;
-            // Повторный клик по клетке-пересечению переключает направление —
-            // стандартный UX кроссвордов.
-            if (words.length > 1 && currentActiveWord && words.includes(currentActiveWord)) {
+            const cellKey = x + '_' + y;
+            const isSecondClickOnSameCell = lastClickedCellKey === cellKey;
+            lastClickedCellKey = cellKey;
+
+            // Переключаем направление ТОЛЬКО при повторном клике по той же
+            // клетке-пересечению. На первом клике сохраняем текущее слово
+            // (иначе клик по клетке слова, только что выбранного через
+            // подсказку, сразу перепрыгивал на пересекающее направление).
+            if (
+                isSecondClickOnSameCell &&
+                words.length > 1 &&
+                currentActiveWord &&
+                words.includes(currentActiveWord)
+            ) {
                 const other = words.find((w) => w !== currentActiveWord);
                 if (other) { highlightWord(other); return; }
             }
