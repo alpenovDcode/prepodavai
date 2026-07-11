@@ -155,6 +155,55 @@ export class DisputeService {
     return { ok: true as const, dialog: updated };
   }
 
+  /**
+   * Все диалоги в статусе спора — для отдельной вкладки «Споры» в админке.
+   * Спор может быть открыт БЕЗ жалобы (экшен dispute не создаёт
+   * ViolationReport), поэтому список строится по статусу диалога, а не по
+   * жалобам. Прикладываем жалобы (если есть) как контекст.
+   */
+  async listDisputes() {
+    return (this.prisma as any).leadDialog.findMany({
+      where: { status: 'DISPUTED' },
+      select: {
+        id: true,
+        status: true,
+        createdAt: true,
+        paymentDeadline: true,
+        lead: {
+          select: {
+            id: true,
+            subject: true,
+            grade: true,
+            type: true,
+            price: true,
+            creatorId: true,
+            creator: { select: { id: true, firstName: true, lastName: true } },
+          },
+        },
+        responder: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            marketProfile: { select: { disabledAt: true } },
+          },
+        },
+        reports: {
+          select: {
+            id: true,
+            description: true,
+            status: true,
+            createdAt: true,
+            reporter: { select: { id: true, firstName: true, lastName: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+    });
+  }
+
   async unfreezeTutor(userId: string) {
     await (this.prisma as any).tutorMarketProfile.update({
       where: { userId },

@@ -18,7 +18,7 @@ describe('DisputeService', () => {
 
   beforeEach(async () => {
     prisma = {
-      leadDialog: { findUnique: jest.fn(), update: jest.fn() },
+      leadDialog: { findUnique: jest.fn(), update: jest.fn(), findMany: jest.fn() },
       lead: { update: jest.fn() },
       violationReport: { updateMany: jest.fn() },
       tutorMarketProfile: { upsert: jest.fn(), update: jest.fn() },
@@ -126,6 +126,14 @@ describe('DisputeService', () => {
         update: expect.objectContaining({ disabledByAdminId: 'admin' }),
       }),
     );
+  });
+
+  it('listDisputes возвращает только DISPUTED-диалоги', async () => {
+    prisma.leadDialog.findMany.mockResolvedValue([{ id: 'd-1', status: 'DISPUTED' }]);
+    const r = await service.listDisputes();
+    const call = prisma.leadDialog.findMany.mock.calls[0][0];
+    expect(call.where).toEqual({ status: 'DISPUTED' });
+    expect(r).toEqual([{ id: 'd-1', status: 'DISPUTED' }]);
   });
 
   it('unfreezeTutor снимает заморозку', async () => {

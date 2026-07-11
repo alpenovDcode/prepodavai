@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Get,
   Param,
   Post,
   Request,
@@ -19,6 +20,11 @@ import { ResolveDisputeDto } from './dto/resolve-dispute.dto';
 @UseGuards(JwtAuthGuard, AdminGuard)
 export class AdminDisputeController {
   constructor(private readonly disputes: DisputeService) {}
+
+  @Get('disputes')
+  list() {
+    return this.disputes.listDisputes();
+  }
 
   @Post('dialogs/:dialogId/resolve')
   resolve(
