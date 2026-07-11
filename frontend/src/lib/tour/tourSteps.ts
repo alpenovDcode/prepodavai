@@ -401,6 +401,59 @@ export const TOUR_CONFIGS: Record<string, TourConfig> = {
       { target: null, isModal: true, illustration: '🎉', title: 'Архив под контролем', body: 'Все материалы — в одном месте. Ищите, фильтруйте, переиспользуйте. Нужен новый — кнопка «Создать» всегда в шапке.', primaryLabel: 'Отлично' },
     ],
   },
+
+  'leads-feed': {
+    storageKey: 'prepodavai_leads_feed_tour_v1',
+    steps: [
+      { target: null, isModal: true, illustration: '🤝', title: 'Биржа лидов', body: 'Здесь репетиторы передают учеников друг другу. Отдайте своего ученика коллеге — бесплатно или за комиссию — или заберите чужого. Контакт ученика скрыт до закрытия сделки, поэтому обойти платформу не получится. За минуту покажу, как всё устроено.', primaryLabel: 'Поехали' },
+      { target: '[data-tour="feed-tabs"]', placement: 'bottom', padding: 6, title: 'Все заявки / Мои заявки', body: '«Все заявки» — чужие лиды, на которые можно откликнуться. «Мои заявки» — то, что разместили вы, с их статусом.' },
+      { target: '[data-tour="feed-filters"]', placement: 'bottom', padding: 6, title: 'Фильтры', body: 'Сузьте ленту по предмету, формату (онлайн/офлайн), типу (бесплатно или с комиссией) и городу для офлайна.' },
+      { target: '[data-tour="feed-list"]', placement: 'top', padding: 8, title: 'Карточки заявок', body: 'FREE — ученика отдают безвозмездно. С суммой в ₽ — за комиссию, которую платят после успешного пробного урока. Клик по карточке открывает детали и кнопку «Откликнуться».' },
+      { target: '[data-tour="create-lead"]', placement: 'bottom', title: '+ Разместить заявку', body: 'Есть ученик, которого не берёте — не ваш профиль, нет времени, не подошли? Разместите заявку и передайте его коллеге.' },
+      { target: null, isModal: true, illustration: '🎉', title: 'Как это работает', body: 'Откликнулись на заявку — появляется диалог в разделе «Диалоги», где вы ведёте сделку: пробный урок, оплата комиссии, закрытие. Контакт ученика откроется после того, как сделка закрыта.', primaryLabel: 'Понятно' },
+    ],
+  },
+
+  'new-lead': {
+    storageKey: 'prepodavai_new_lead_tour_v1',
+    steps: [
+      { target: null, isModal: true, illustration: '📝', title: 'Новая заявка за 3 шага', body: 'Тип передачи → данные об ученике → проверка и публикация. Быстро покажу каждый шаг.', primaryLabel: 'Начнём' },
+      { target: '[data-tour="lead-type"]', placement: 'top', padding: 8, title: 'Шаг 1 — тип передачи', body: '«Бесплатная передача» — просто отдаёте ученика коллеге. «С комиссией» — коллега платит вам разово от 100 ₽ после успешного пробного урока.' },
+      { target: null, isModal: true, illustration: '✍️', title: 'Шаг 2 — данные', body: 'Предмет, класс, формат, описание ученика (минимум 30 символов) и его контакт. Контакт виден только вам — откликнувшийся получит его после закрытия сделки. Для комиссии укажите сумму.', primaryLabel: 'Дальше' },
+      { target: null, isModal: true, illustration: '✅', title: 'Шаг 3 — проверка и публикация', body: 'Проверяете превью, ставите галочку-согласие и жмёте «Опубликовать». Заявка сразу появляется в общей ленте — коллеги смогут откликнуться.', primaryLabel: 'Понятно' },
+    ],
+  },
+
+  'lead-detail': {
+    storageKey: 'prepodavai_lead_detail_tour_v1',
+    steps: [
+      { target: null, isModal: true, illustration: '👀', title: 'Заявка изнутри', body: 'Здесь вы решаете, брать ли ученика: предмет, класс, описание и условия. Покажу главное.', primaryLabel: 'Смотрим' },
+      { target: '[data-tour="lead-contact"]', placement: 'top', padding: 8, title: 'Контакт ученика', body: 'Сейчас скрыт. Он откроется откликнувшемуся репетитору после того, как сделка будет закрыта. Так автор заявки защищён от обхода комиссии.' },
+      { target: '[data-tour="lead-respond"]', placement: 'top', title: 'Откликнуться', body: 'Нажмите — создастся диалог с автором заявки, и вы начнёте вести сделку. Кнопки нет, если это ваша заявка или она уже занята.' },
+      { target: null, isModal: true, illustration: '🎉', title: 'Готово', body: 'После отклика продолжайте в разделе «Диалоги» — там весь путь сделки до открытия контакта.', primaryLabel: 'Понятно' },
+    ],
+  },
+
+  'my-dialogs': {
+    storageKey: 'prepodavai_my_dialogs_tour_v1',
+    steps: [
+      { target: null, isModal: true, illustration: '💬', title: 'Мои диалоги', body: 'Все ваши сделки по заявкам биржи — и там, где вы откликнулись, и там, где откликнулись на вашу заявку.', primaryLabel: 'Поехали' },
+      { target: '[data-tour="dialogs-list"]', placement: 'top', padding: 8, title: 'Список сделок', body: 'Каждая строка — диалог с цветным статусом: открыт, пробный урок, ожидание оплаты, закрыт или спор. Клик по строке открывает комнату диалога.' },
+      { target: null, isModal: true, illustration: '🎉', title: 'Готово', body: 'Статус подсказывает, на каком этапе сделка и что делать дальше. Заходите сюда, чтобы не потерять активные диалоги.', primaryLabel: 'Понятно' },
+    ],
+  },
+
+  'dialog-room': {
+    storageKey: 'prepodavai_dialog_room_tour_v1',
+    steps: [
+      { target: null, isModal: true, illustration: '🤝', title: 'Комната сделки', body: 'Здесь вы ведёте сделку от знакомства до закрытия: переписка, этапы, контакт. За минуту покажу все части.', primaryLabel: 'Поехали' },
+      { target: '[data-tour="dialog-status"]', placement: 'left', padding: 8, title: 'Статус сделки', body: 'Показывает, на каком этапе вы сейчас, и подсказку что делать. Путь: открыт → пробный урок → (для комиссии — оплата) → сделка закрыта. Или спор, если что-то пошло не так.' },
+      { target: '[data-tour="dialog-chat"]', placement: 'right', padding: 6, title: 'Переписка', body: 'Договаривайтесь о пробном, времени, деталях. Обмен личными контактами и уход во внешние мессенджеры блокируются — пока сделка внутри платформы, она защищена.' },
+      { target: '[data-tour="dialog-actions"]', placement: 'left', padding: 8, title: 'Действия по этапу', body: 'Назначить пробный, отметить его результат, отправить/подтвердить оплату, оценить сделку или открыть спор. Набор кнопок меняется в зависимости от этапа и вашей роли.' },
+      { target: '[data-tour="dialog-contact"]', placement: 'left', padding: 8, title: 'Контакт ученика', body: 'Пока скрыт. Откроется здесь автоматически, как только сделка будет закрыта.' },
+      { target: null, isModal: true, illustration: '🎉', title: 'Готово', body: 'Доводите сделку до статуса «Сделка закрыта» — и контакт откроется. Если возник конфликт, жмите «Открыть спор»: ситуацию рассмотрит модератор.', primaryLabel: 'Понятно' },
+    ],
+  },
 }
 
 export function matchTourConfig(pathname: string): string | null {
@@ -431,5 +484,12 @@ export function matchTourConfig(pathname: string): string | null {
   if (pathname === '/student/grades') return 'student-grades'
   if (pathname === '/student/achievements') return 'student-achievements'
   if (pathname === '/student/ai-teacher') return 'student-ai-teacher'
+  // Биржа лидов. Порядок важен: точные пути до regex, иначе
+  // /dashboard/leads/new и /dashboard/leads/:id перепутаются.
+  if (pathname === '/dashboard/leads') return 'leads-feed'
+  if (pathname === '/dashboard/leads/new') return 'new-lead'
+  if (/^\/dashboard\/leads\/[^/]+$/.test(pathname)) return 'lead-detail'
+  if (pathname === '/dashboard/dialogs') return 'my-dialogs'
+  if (/^\/dashboard\/dialogs\/[^/]+$/.test(pathname)) return 'dialog-room'
   return null
 }

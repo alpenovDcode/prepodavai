@@ -52,7 +52,7 @@ export function DialogChat({ dialog, meId, canWrite, onSent }: Props) {
     }
 
     return (
-        <div className="flex flex-col h-[65vh] min-h-[500px] md:h-[calc(100vh-220px)] md:min-h-[600px] rounded-2xl border border-ink-200 bg-surface overflow-hidden shadow-xs">
+        <div data-tour="dialog-chat" className="flex flex-col h-[65vh] min-h-[500px] md:h-[calc(100vh-220px)] md:min-h-[600px] rounded-2xl border border-ink-200 bg-surface overflow-hidden shadow-xs">
             <div
                 ref={listRef}
                 className="flex-1 overflow-y-auto px-5 md:px-7 py-6 space-y-3"

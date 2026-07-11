@@ -77,13 +77,14 @@ export function LeadsFeed() {
                 </div>
                 <Link
                     href="/dashboard/leads/new"
+                    data-tour="create-lead"
                     className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-base font-semibold px-5 py-3 rounded-xl shadow-sm transition"
                 >
                     <Plus className="w-5 h-5" /> Разместить заявку
                 </Link>
             </header>
 
-            <div className="inline-flex bg-gray-100 rounded-xl p-1 mb-6">
+            <div data-tour="feed-tabs" className="inline-flex bg-gray-100 rounded-xl p-1 mb-6">
                 <button
                     onClick={() => setTab('all')}
                     className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition ${
@@ -103,7 +104,7 @@ export function LeadsFeed() {
             </div>
 
             {tab === 'all' && (
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-6">
+                <div data-tour="feed-filters" className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-6">
                     <div className="md:col-span-2 relative">
                         <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                         <input
@@ -180,7 +181,7 @@ export function LeadsFeed() {
             )}
 
             {!error && leads && leads.length > 0 && (
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                <div data-tour="feed-list" className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                     {leads.map((lead) => (
                         <LeadCard key={lead.id} lead={lead} meId={user?.id} showStatus={tab === 'mine'} />
                     ))}

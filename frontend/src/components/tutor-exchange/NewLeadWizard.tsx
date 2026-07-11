@@ -113,7 +113,7 @@ export function NewLeadWizard() {
                 <Stepper step={step} />
                 <h1 className="text-3xl font-bold text-gray-900 mb-2">Новая заявка</h1>
                 <p className="text-base text-gray-500 mb-8">Выберите тип — как хотите передать ученика.</p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div data-tour="lead-type" className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <button
                         onClick={() => { setForm((f) => ({ ...f, type: 'FREE' })); setStep('form') }}
                         className="text-left p-7 border-2 border-gray-200 rounded-2xl hover:border-emerald-400 hover:shadow-md bg-white transition-all"

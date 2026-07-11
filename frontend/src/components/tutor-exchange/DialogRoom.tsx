@@ -202,7 +202,7 @@ export function DialogRoom({ dialogId }: { dialogId: string }) {
 
                 <aside className="space-y-3 md:space-y-4">
                     {/* Status hint card */}
-                    <section className="rounded-2xl border border-ink-200 bg-surface p-4 shadow-xs">
+                    <section data-tour="dialog-status" className="rounded-2xl border border-ink-200 bg-surface p-4 shadow-xs">
                         <SectionTitle>Статус сделки</SectionTitle>
                         <div className="flex items-start gap-2.5">
                             <div className={`shrink-0 mt-0.5 w-8 h-8 rounded-lg flex items-center justify-center ${status.chip}`}>
@@ -253,7 +253,7 @@ export function DialogRoom({ dialogId }: { dialogId: string }) {
                     </section>
 
                     {/* Contact card */}
-                    <section className="rounded-2xl border border-ink-200 bg-surface p-4 shadow-xs">
+                    <section data-tour="dialog-contact" className="rounded-2xl border border-ink-200 bg-surface p-4 shadow-xs">
                         <SectionTitle>Контакт ученика</SectionTitle>
                         {dialog.lead.studentContact ? (
                             <div className="flex items-start gap-2">

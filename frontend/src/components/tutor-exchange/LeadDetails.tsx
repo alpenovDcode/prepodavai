@@ -192,7 +192,7 @@ export function LeadDetails({ leadId }: { leadId: string }) {
                     {lead.description}
                 </div>
 
-                <div className={`rounded-2xl border p-5 mb-6 ${contactVisible ? 'border-emerald-200 bg-emerald-50' : 'border-gray-200 bg-gray-50'}`}>
+                <div data-tour="lead-contact" className={`rounded-2xl border p-5 mb-6 ${contactVisible ? 'border-emerald-200 bg-emerald-50' : 'border-gray-200 bg-gray-50'}`}>
                     <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-gray-700 mb-1.5">
                         {contactVisible ? <CheckCircle2 className="w-4 h-4 text-emerald-600" /> : <Lock className="w-4 h-4 text-gray-500" />}
                         Контакт ученика
@@ -211,6 +211,7 @@ export function LeadDetails({ leadId }: { leadId: string }) {
                         <button
                             onClick={respond}
                             disabled={responding}
+                            data-tour="lead-respond"
                             className="inline-flex items-center gap-2 px-6 py-3 text-base font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl disabled:opacity-50 shadow-sm"
                         >
                             <MessagesSquare className="w-5 h-5" />

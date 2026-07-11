@@ -151,7 +151,7 @@ export function MyDialogsList() {
     return (
         <PageShell>
             <Header hint={`Всего ${dialogs.length} ${pluralize(dialogs.length, ['диалог', 'диалога', 'диалогов'])}.`} />
-            <ul className="space-y-3">
+            <ul data-tour="dialogs-list" className="space-y-3">
                 {dialogs.map((d) => {
                     const meta = STATUS[d.status]
                     const StatusIcon = meta.Icon

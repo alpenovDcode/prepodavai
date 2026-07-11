@@ -201,7 +201,7 @@ export function DialogActionsPanel({ dialog, meId, onDone, onReport }: Props) {
     }
 
     return (
-        <section className="rounded-2xl border border-ink-200 bg-surface p-4 shadow-xs">
+        <section data-tour="dialog-actions" className="rounded-2xl border border-ink-200 bg-surface p-4 shadow-xs">
             <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-500 mb-3">
                 Действия
             </div>
