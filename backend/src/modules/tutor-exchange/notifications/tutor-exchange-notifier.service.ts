@@ -102,6 +102,25 @@ export class TutorExchangeNotifier {
     });
   }
 
+  async notifyDisputeResolved(dialog: DialogLite, resolution: string): Promise<void> {
+    const human =
+      resolution === 'DEAL_CONFIRMED'
+        ? 'сделка засчитана'
+        : resolution === 'RETURNED_TO_FEED'
+          ? 'заявка возвращена в ленту'
+          : 'диалог закрыт';
+    const recipients = [dialog.lead.creatorId, dialog.responderId];
+    for (const userId of recipients) {
+      await this.deliver(userId, {
+        type: 'tutor_exchange.dispute_resolved',
+        title: 'Спор разрешён модератором',
+        message: `Спор по «${dialog.lead.subject}»: ${human}.`,
+        metadata: { dialogId: dialog.id, resolution },
+        tgText: `⚖️ Спор по «${dialog.lead.subject}» разрешён: ${human}. ${linkTo(dialog.id)}`,
+      });
+    }
+  }
+
   /** Not awaited — вызывается синхронно из sendMessage. */
   notifyMessageNew(dialog: DialogLite, senderId: string, recipientId: string): void {
     const key = `${recipientId}:${dialog.id}`;
