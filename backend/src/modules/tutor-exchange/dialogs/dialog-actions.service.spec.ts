@@ -99,6 +99,59 @@ describe('DialogActionsService', () => {
       );
       expect(res.ok).toBe(true);
     });
+
+    it('принимает http-ссылку', async () => {
+      prisma.leadDialog.findUnique.mockResolvedValue(makeDialog());
+      prisma.leadDialog.update.mockResolvedValue({ id: 'd-1', status: 'TRIAL_PENDING' });
+      await service.transition('creator', 'd-1', DialogAction.SCHEDULE_TRIAL, {
+        trialLessonLink: 'http://meet.example.com/abc',
+      });
+      expect(prisma.leadDialog.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ trialLessonLink: 'http://meet.example.com/abc' }),
+        }),
+      );
+    });
+
+    it('назначает пробный без ссылки (link=null)', async () => {
+      prisma.leadDialog.findUnique.mockResolvedValue(makeDialog());
+      prisma.leadDialog.update.mockResolvedValue({ id: 'd-1', status: 'TRIAL_PENDING' });
+      await service.transition('creator', 'd-1', DialogAction.SCHEDULE_TRIAL, {});
+      expect(prisma.leadDialog.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ trialLessonLink: null }),
+        }),
+      );
+    });
+
+    it('отклоняет javascript:-ссылку (защита от XSS в href)', async () => {
+      prisma.leadDialog.findUnique.mockResolvedValue(makeDialog());
+      await expect(
+        service.transition('creator', 'd-1', DialogAction.SCHEDULE_TRIAL, {
+          // eslint-disable-next-line no-script-url
+          trialLessonLink: 'javascript:alert(document.cookie)',
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(prisma.leadDialog.update).not.toHaveBeenCalled();
+    });
+
+    it('отклоняет data:-ссылку', async () => {
+      prisma.leadDialog.findUnique.mockResolvedValue(makeDialog());
+      await expect(
+        service.transition('creator', 'd-1', DialogAction.SCHEDULE_TRIAL, {
+          trialLessonLink: 'data:text/html,<script>alert(1)</script>',
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('отклоняет ссылку без схемы (zoom.us/j/1)', async () => {
+      prisma.leadDialog.findUnique.mockResolvedValue(makeDialog());
+      await expect(
+        service.transition('creator', 'd-1', DialogAction.SCHEDULE_TRIAL, {
+          trialLessonLink: 'zoom.us/j/1',
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
   });
 
   describe('trial_success', () => {

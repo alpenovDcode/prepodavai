@@ -141,6 +141,12 @@ export function DialogRoom({ dialogId }: { dialogId: string }) {
     const status = STATUS[dialog.status] || STATUS.OPEN
     const counterpartId = user?.id === dialog.responderId ? dialog.lead.creatorId : dialog.responderId
     const name = counterpartName(dialog, user?.id)
+    // Защита от javascript:/data: в href (backend уже валидирует при записи,
+    // но старые записи и любой обход клиента не должны давать XSS по клику).
+    const safeTrialLink =
+        dialog.trialLessonLink && /^https?:\/\//i.test(dialog.trialLessonLink)
+            ? dialog.trialLessonLink
+            : null
 
     return (
         <Shell>
@@ -208,9 +214,9 @@ export function DialogRoom({ dialogId }: { dialogId: string }) {
                             </div>
                         </div>
 
-                        {dialog.status === 'TRIAL_PENDING' && dialog.trialLessonLink && (
+                        {dialog.status === 'TRIAL_PENDING' && safeTrialLink && (
                             <a
-                                href={dialog.trialLessonLink}
+                                href={safeTrialLink}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="mt-3 flex items-center gap-2 rounded-xl border border-brand-200 bg-brand-50/60 hover:bg-brand-50 p-3 transition-colors duration-fast group"
@@ -223,7 +229,7 @@ export function DialogRoom({ dialogId }: { dialogId: string }) {
                                         Ссылка на пробный
                                     </div>
                                     <div className="text-xs text-ink-700 truncate group-hover:text-brand-800">
-                                        {dialog.trialLessonLink}
+                                        {safeTrialLink}
                                     </div>
                                 </div>
                                 <ExternalLink className="w-4 h-4 text-brand-500 shrink-0" />

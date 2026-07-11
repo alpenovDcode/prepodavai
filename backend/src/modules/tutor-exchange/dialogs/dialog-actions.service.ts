@@ -110,15 +110,33 @@ export class DialogActionsService {
     if (dialog.status !== 'OPEN') {
       throw new BadRequestException('Пробный можно назначить только в статусе OPEN');
     }
+    const trialLessonLink = this.sanitizeTrialLink(payload.trialLessonLink);
     const updated = await (this.prisma as any).leadDialog.update({
       where: { id: dialog.id },
       data: {
         status: 'TRIAL_PENDING',
-        trialLessonLink: payload.trialLessonLink?.trim() || null,
+        trialLessonLink,
         trialScheduledAt: new Date(),
       },
     });
     return { ok: true as const, dialog: updated };
+  }
+
+  /**
+   * Ссылка на пробный урок попадает в <a href> на фронте у собеседника.
+   * Разрешаем ТОЛЬКО http/https — иначе `javascript:`/`data:` дают XSS
+   * по клику (stored XSS: создатель заявки — атакующий, откликнувшийся —
+   * жертва). DTO ограничивает только длину/тип, схему проверяем здесь.
+   */
+  private sanitizeTrialLink(raw?: string): string | null {
+    const link = raw?.trim();
+    if (!link) return null;
+    if (!/^https?:\/\//i.test(link)) {
+      throw new BadRequestException(
+        'Ссылка на пробный должна начинаться с http:// или https://',
+      );
+    }
+    return link;
   }
 
   private async trialSuccess(dialog: any, { isResponder }: { isResponder: boolean }) {
