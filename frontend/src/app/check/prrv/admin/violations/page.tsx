@@ -4,7 +4,15 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { apiClient } from '@/lib/api/client'
 import { useAdminViolations, AdminViolation } from '@/hooks/tutor-exchange/useAdminViolations'
-import { Loader2, AlertOctagon, CheckCircle2, XCircle } from 'lucide-react'
+import { Loader2, AlertOctagon, CheckCircle2, XCircle, Scale, Snowflake, Undo2 } from 'lucide-react'
+
+type Resolution = 'DEAL_CONFIRMED' | 'RETURNED_TO_FEED' | 'CANCELLED'
+
+const RESOLUTION_LABEL: Record<Resolution, string> = {
+    DEAL_CONFIRMED: 'Засчитать сделку',
+    RETURNED_TO_FEED: 'Вернуть заявку в ленту',
+    CANCELLED: 'Закрыть без возврата',
+}
 
 const STATUS_LABEL: Record<string, string> = {
     PENDING: 'Ожидает',
@@ -29,6 +37,30 @@ export default function AdminViolationsPage() {
             alert(err?.response?.data?.message || 'Не удалось обновить жалобу')
         } finally {
             setBusyId(null)
+        }
+    }
+
+    const resolveDispute = async (
+        dialogId: string,
+        resolution: Resolution,
+        note: string,
+        freezeResponder: boolean,
+    ) => {
+        await apiClient.post(`/admin/tutor-exchange/dialogs/${dialogId}/resolve`, {
+            resolution,
+            note,
+            freezeResponder,
+        })
+        reload()
+    }
+
+    const unfreeze = async (userId: string) => {
+        if (!confirm('Разморозить репетитора? Он снова сможет откликаться и размещать заявки.')) return
+        try {
+            await apiClient.post(`/admin/tutor-exchange/tutors/${userId}/unfreeze`, {})
+            reload()
+        } catch (err: any) {
+            alert(err?.response?.data?.message || 'Не удалось разморозить')
         }
     }
 
@@ -79,8 +111,19 @@ export default function AdminViolationsPage() {
                                 <div className="text-sm font-semibold text-gray-900">
                                     {v.dialog.lead.subject}
                                 </div>
-                                <div className="text-xs text-gray-500 mt-0.5">
-                                    Заказчик — {nameOf(v.dialog.lead.creator)}, репетитор — {nameOf(v.dialog.responder)}
+                                <div className="text-xs text-gray-500 mt-0.5 flex items-center gap-1.5 flex-wrap">
+                                    <span>Заказчик — {nameOf(v.dialog.lead.creator)}, репетитор — {nameOf(v.dialog.responder)}</span>
+                                    {v.dialog.responder.marketProfile?.disabledAt && (
+                                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-sky-700 bg-sky-50 border border-sky-200 rounded-md px-1.5 py-0.5">
+                                            <Snowflake className="w-3 h-3" /> заморожен
+                                            <button
+                                                onClick={() => unfreeze(v.dialog.responder.id)}
+                                                className="ml-1 inline-flex items-center gap-0.5 text-sky-700 hover:text-sky-900 underline"
+                                            >
+                                                <Undo2 className="w-3 h-3" /> разморозить
+                                            </button>
+                                        </span>
+                                    )}
                                 </div>
                             </div>
                             <span
@@ -133,9 +176,99 @@ export default function AdminViolationsPage() {
                                 </span>
                             )}
                         </div>
+
+                        {v.dialog.status === 'DISPUTED' && (
+                            <DisputeResolver
+                                onResolve={(resolution, note, freeze) =>
+                                    resolveDispute(v.dialogId, resolution, note, freeze)
+                                }
+                            />
+                        )}
                     </div>
                 ))}
             </div>
+        </div>
+    )
+}
+
+function DisputeResolver({
+    onResolve,
+}: {
+    onResolve: (resolution: Resolution, note: string, freeze: boolean) => Promise<void>
+}) {
+    const [resolution, setResolution] = useState<Resolution>('DEAL_CONFIRMED')
+    const [note, setNote] = useState('')
+    const [freeze, setFreeze] = useState(false)
+    const [busy, setBusy] = useState(false)
+    const [error, setError] = useState<string | null>(null)
+
+    const submit = async () => {
+        if (note.trim().length < 5) {
+            setError('Опишите решение — минимум 5 символов.')
+            return
+        }
+        setBusy(true)
+        setError(null)
+        try {
+            await onResolve(resolution, note.trim(), freeze)
+        } catch (err: any) {
+            setError(err?.response?.data?.message || 'Не удалось разрешить спор')
+            setBusy(false)
+        }
+    }
+
+    return (
+        <div className="mt-3 border-t border-gray-100 pt-3">
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-gray-700 mb-2">
+                <Scale className="w-3.5 h-3.5" /> Разрешить спор
+            </div>
+            <div className="flex flex-col gap-1.5 mb-2">
+                {(Object.keys(RESOLUTION_LABEL) as Resolution[]).map((r) => (
+                    <label
+                        key={r}
+                        className={`flex items-center gap-2 text-sm px-3 py-2 rounded-lg border cursor-pointer ${
+                            resolution === r
+                                ? 'border-blue-400 bg-blue-50 text-blue-900'
+                                : 'border-gray-200 hover:bg-gray-50 text-gray-700'
+                        }`}
+                    >
+                        <input
+                            type="radio"
+                            name="resolution"
+                            checked={resolution === r}
+                            onChange={() => setResolution(r)}
+                            className="text-blue-600 focus:ring-blue-500"
+                        />
+                        {RESOLUTION_LABEL[r]}
+                    </label>
+                ))}
+            </div>
+            <textarea
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                rows={2}
+                placeholder="Комментарий модератора: что решили и почему (обязательно)"
+                className="w-full resize-none rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 mb-2"
+            />
+            <label className="flex items-center gap-2 text-sm text-gray-700 mb-2 cursor-pointer">
+                <input
+                    type="checkbox"
+                    checked={freeze}
+                    onChange={(e) => setFreeze(e.target.checked)}
+                    className="rounded border-gray-300 text-sky-600 focus:ring-sky-500"
+                />
+                <Snowflake className="w-3.5 h-3.5 text-sky-600" />
+                Заморозить репетитора (запретить отклики и размещение заявок)
+            </label>
+            {error && <div className="text-xs text-red-600 mb-2">{error}</div>}
+            <button
+                onClick={submit}
+                disabled={busy}
+                className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-50"
+            >
+                {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Scale className="w-4 h-4" />}
+                Разрешить спор
+            </button>
         </div>
     )
 }

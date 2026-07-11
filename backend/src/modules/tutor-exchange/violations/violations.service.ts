@@ -22,7 +22,12 @@ const ADMIN_LIST_INCLUDE = {
         },
       },
       responder: {
-        select: { id: true, firstName: true, lastName: true },
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          marketProfile: { select: { disabledAt: true } },
+        },
       },
     },
   },

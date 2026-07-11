@@ -18,7 +18,12 @@ export interface AdminViolation {
             subject: string
             creator: { id: string; firstName: string | null; lastName: string | null }
         }
-        responder: { id: string; firstName: string | null; lastName: string | null }
+        responder: {
+            id: string
+            firstName: string | null
+            lastName: string | null
+            marketProfile?: { disabledAt: string | null } | null
+        }
     }
     reporter: { id: string; firstName: string | null; lastName: string | null; email: string | null }
 }
