@@ -178,15 +178,19 @@ export function DialogActionsPanel({ dialog, meId, onDone, onReport }: Props) {
     }
 
     if (status === 'CONFIRMED' && (isCreator || isResponder)) {
+        // hasRated приходит с сервера — кнопка неактивна сразу после
+        // перезагрузки, если оценка уже стоит (без этого повторный клик
+        // получал 409). ratingSubmitted покрывает оценку в этой же сессии.
+        const alreadyRated = ratingSubmitted || !!dialog.hasRated
         buttons.push(
             <ActionButton
                 key="rate"
                 onClick={() => setShowRatingForm(true)}
                 busy={false}
                 icon={<Star className="w-4 h-4" />}
-                label={ratingSubmitted ? 'Оценка отправлена' : 'Оценить сделку'}
+                label={alreadyRated ? 'Оценка отправлена' : 'Оценить сделку'}
                 tone="primary"
-                disabled={ratingSubmitted}
+                disabled={alreadyRated}
             />,
         )
     }

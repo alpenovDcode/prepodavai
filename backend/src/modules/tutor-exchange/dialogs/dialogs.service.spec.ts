@@ -21,6 +21,7 @@ describe('DialogsService', () => {
       create: jest.Mock;
       update: jest.Mock;
     };
+    tutorRating: { findFirst: jest.Mock };
     $transaction: jest.Mock;
   };
   let access: { assertNotFrozen: jest.Mock };
@@ -36,6 +37,7 @@ describe('DialogsService', () => {
         create: jest.fn(),
         update: jest.fn(),
       },
+      tutorRating: { findFirst: jest.fn().mockResolvedValue(null) },
       // Поддерживаем обе формы: interactive ($transaction(async tx => ...))
       // и массивную ($transaction([...])). В interactive-режиме передаём
       // сам prisma-мок как tx.
@@ -199,54 +201,29 @@ describe('DialogsService', () => {
       const d = await service.getDialog('responder', 'd-1');
       expect(d.lead.studentContact).toBe('+7...');
     });
-  });
 
-  describe('cancelDialog', () => {
-    const active = {
-      id: 'd-1',
-      status: 'OPEN',
-      leadId: 'lead-1',
-      responderId: 'responder',
-      lead: { creatorId: 'creator' },
-    } as any;
-
-    it('throws Forbidden if not participant', async () => {
-      prisma.leadDialog.findUnique.mockResolvedValue(active);
-      await expect(service.cancelDialog('stranger', 'd-1'))
-        .rejects.toBeInstanceOf(ForbiddenException);
+    it('hasRated=false для не-CONFIRMED (рейтинг не запрашиваем)', async () => {
+      prisma.leadDialog.findUnique.mockResolvedValue(baseDialog);
+      const d = await service.getDialog('responder', 'd-1');
+      expect(d.hasRated).toBe(false);
+      expect(prisma.tutorRating.findFirst).not.toHaveBeenCalled();
     });
 
-    it('rejects if dialog already CLOSED/CANCELLED/CONFIRMED', async () => {
-      prisma.leadDialog.findUnique.mockResolvedValue({ ...active, status: 'CANCELLED' });
-      await expect(service.cancelDialog('responder', 'd-1'))
-        .rejects.toBeInstanceOf(BadRequestException);
-    });
-
-    it('runs transaction: dialog→CANCELLED + lead→ACTIVE', async () => {
-      prisma.leadDialog.findUnique.mockResolvedValue(active);
-      prisma.leadDialog.update.mockReturnValue({ __d: true });
-      prisma.lead.update.mockReturnValue({ __l: true });
-      prisma.$transaction.mockResolvedValue([{}, {}]);
-      const res = await service.cancelDialog('responder', 'd-1');
-      expect(prisma.leadDialog.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { id: 'd-1' },
-          data: expect.objectContaining({ status: 'CANCELLED' }),
-        }),
+    it('hasRated=true если пользователь уже оценил CONFIRMED-сделку', async () => {
+      prisma.leadDialog.findUnique.mockResolvedValue({ ...baseDialog, status: 'CONFIRMED' });
+      prisma.tutorRating.findFirst.mockResolvedValue({ id: 'r-1' });
+      const d = await service.getDialog('responder', 'd-1');
+      expect(d.hasRated).toBe(true);
+      expect(prisma.tutorRating.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { dialogId: 'd-1', raterId: 'responder' } }),
       );
-      expect(prisma.lead.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { id: 'lead-1' },
-          data: expect.objectContaining({ status: 'ACTIVE', lockedById: null }),
-        }),
-      );
-      expect(res).toEqual({ ok: true });
     });
 
-    it('allows creator to cancel', async () => {
-      prisma.leadDialog.findUnique.mockResolvedValue(active);
-      prisma.$transaction.mockResolvedValue([{}, {}]);
-      await expect(service.cancelDialog('creator', 'd-1')).resolves.toEqual({ ok: true });
+    it('hasRated=false если ещё не оценил CONFIRMED-сделку', async () => {
+      prisma.leadDialog.findUnique.mockResolvedValue({ ...baseDialog, status: 'CONFIRMED' });
+      prisma.tutorRating.findFirst.mockResolvedValue(null);
+      const d = await service.getDialog('creator', 'd-1');
+      expect(d.hasRated).toBe(false);
     });
   });
 });

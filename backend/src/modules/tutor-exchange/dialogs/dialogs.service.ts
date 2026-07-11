@@ -157,43 +157,23 @@ export class DialogsService {
       dialog.responderId === userId || dialog.lead.creatorId === userId;
     if (!isParticipant) throw new ForbiddenException('Нет доступа к диалогу');
 
+    // Оценить сделку можно только раз. Отдаём фронту признак «я уже оценил»,
+    // чтобы кнопка была неактивна сразу после перезагрузки (иначе повторный
+    // клик получал 409). Рейтинг возможен только на CONFIRMED — только там
+    // и проверяем, лишний запрос не делаем.
+    let hasRated = false;
+    if (dialog.status === 'CONFIRMED') {
+      const mine = await (this.prisma as any).tutorRating.findFirst({
+        where: { dialogId, raterId: userId },
+        select: { id: true },
+      });
+      hasRated = !!mine;
+    }
+
     if (dialog.status !== 'CONFIRMED') {
       const { studentContact: _hidden, ...leadRest } = dialog.lead;
-      return { ...dialog, lead: leadRest };
+      return { ...dialog, lead: leadRest, hasRated };
     }
-    return dialog;
-  }
-
-  async cancelDialog(userId: string, dialogId: string) {
-    const dialog = await (this.prisma as any).leadDialog.findUnique({
-      where: { id: dialogId },
-      select: {
-        id: true,
-        status: true,
-        leadId: true,
-        responderId: true,
-        lead: { select: { creatorId: true } },
-      },
-    });
-    if (!dialog) throw new NotFoundException('Диалог не найден');
-    const isParticipant =
-      dialog.responderId === userId || dialog.lead.creatorId === userId;
-    if (!isParticipant) throw new ForbiddenException('Нет доступа к диалогу');
-    if (!ACTIVE_DIALOG_STATUSES.includes(dialog.status)) {
-      throw new BadRequestException('Диалог уже закрыт');
-    }
-
-    const now = new Date();
-    await this.prisma.$transaction([
-      (this.prisma as any).leadDialog.update({
-        where: { id: dialog.id },
-        data: { status: 'CANCELLED', closedAt: now },
-      }),
-      (this.prisma as any).lead.update({
-        where: { id: dialog.leadId },
-        data: { status: 'ACTIVE', lockedById: null, lockedAt: null },
-      }),
-    ]);
-    return { ok: true as const };
+    return { ...dialog, hasRated };
   }
 }

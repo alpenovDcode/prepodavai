@@ -41,6 +41,7 @@ export interface DialogDetails {
     }
     responder: { id: string; firstName?: string | null; lastName?: string | null; avatar?: string | null }
     messages: DialogMessage[]
+    hasRated?: boolean
 }
 
 interface State {
