@@ -1194,7 +1194,9 @@ model TutorMarketProfile {
   ratingAvg      Float     @default(5.0)
   ratingCount    Int       @default(0)
   dealsCompleted Int       @default(0)
-  disabledAt     DateTime?
+  disabledAt        DateTime?
+  disabledReason    String?
+  disabledByAdminId String?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
@@ -1242,6 +1244,10 @@ model LeadDialog {
   paymentOverdueNotifiedAt DateTime?
   createdAt                DateTime  @default(now())
   closedAt                 DateTime?
+  disputeResolution        String?
+  resolvedByAdminId        String?
+  resolvedAt               DateTime?
+  resolutionNote           String?
 
   messages LeadMessage[]
   reports  ViolationReport[]
