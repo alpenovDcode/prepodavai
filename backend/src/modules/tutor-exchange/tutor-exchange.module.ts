@@ -23,6 +23,7 @@ import { RatingsController } from './ratings/ratings.controller';
 import { RatingsService } from './ratings/ratings.service';
 import { TutorsController } from './tutors/tutors.controller';
 import { TutorsService } from './tutors/tutors.service';
+import { TutorMarketAccessService } from './tutors/tutor-market-access.service';
 
 /**
  * Биржа лидов между репетиторами. Этап 4 добавил state-machine
@@ -60,6 +61,7 @@ import { TutorsService } from './tutors/tutors.service';
     TutorExchangeNotifier,
     RatingsService,
     TutorsService,
+    TutorMarketAccessService,
   ],
   exports: [ExchangeEnabledGuard],
 })

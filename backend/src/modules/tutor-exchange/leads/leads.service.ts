@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../../../common/prisma/prisma.service';
+import { TutorMarketAccessService } from '../tutors/tutor-market-access.service';
 
 export interface LeadFilters {
   subject?: string;
@@ -50,9 +51,13 @@ const PUBLIC_LEAD_SELECT = {
 
 @Injectable()
 export class LeadsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly access: TutorMarketAccessService,
+  ) {}
 
   async createLead(userId: string, input: CreateLeadInput) {
+    await this.access.assertNotFrozen(userId);
     if (input.type === 'COMMISSION' && (!input.price || Number(input.price) < 100)) {
       throw new BadRequestException('Комиссия должна быть не меньше 100 ₽');
     }

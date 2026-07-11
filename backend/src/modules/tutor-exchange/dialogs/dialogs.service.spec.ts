@@ -7,6 +7,7 @@ import {
 import { DialogsService } from './dialogs.service';
 import { PrismaService } from '../../../common/prisma/prisma.service';
 import { TutorExchangeNotifier } from '../notifications/tutor-exchange-notifier.service';
+import { TutorMarketAccessService } from '../tutors/tutor-market-access.service';
 
 describe('DialogsService', () => {
   let service: DialogsService;
@@ -22,6 +23,7 @@ describe('DialogsService', () => {
     };
     $transaction: jest.Mock;
   };
+  let access: { assertNotFrozen: jest.Mock };
 
   beforeEach(async () => {
     prisma = {
@@ -42,6 +44,8 @@ describe('DialogsService', () => {
       ),
     };
 
+    access = { assertNotFrozen: jest.fn().mockResolvedValue(undefined) };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         DialogsService,
@@ -52,6 +56,7 @@ describe('DialogsService', () => {
             notifyDialogCreated: jest.fn().mockResolvedValue(undefined),
           },
         },
+        { provide: TutorMarketAccessService, useValue: access },
       ],
     }).compile();
 
@@ -65,6 +70,15 @@ describe('DialogsService', () => {
       prisma.lead.findUnique.mockResolvedValue(null);
       await expect(service.createDialog('me', { leadId: 'x' }))
         .rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('отклоняет отклик замороженного репетитора', async () => {
+      access.assertNotFrozen.mockRejectedValueOnce(
+        new ForbiddenException({ code: 'AccountFrozen' }),
+      );
+      await expect(service.createDialog('frozen', { leadId: 'lead-1' }))
+        .rejects.toBeInstanceOf(ForbiddenException);
+      expect(prisma.lead.findUnique).not.toHaveBeenCalled();
     });
 
     it('rejects when lead belongs to caller', async () => {

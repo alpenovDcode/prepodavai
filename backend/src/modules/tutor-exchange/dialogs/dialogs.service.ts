@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../../common/prisma/prisma.service';
 import { TutorExchangeNotifier } from '../notifications/tutor-exchange-notifier.service';
+import { TutorMarketAccessService } from '../tutors/tutor-market-access.service';
 
 const ACTIVE_DIALOG_STATUSES = ['OPEN', 'TRIAL_PENDING', 'PAYMENT_PENDING'] as const;
 const MAX_ACTIVE_DIALOGS = 5;
@@ -43,9 +44,11 @@ export class DialogsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifier: TutorExchangeNotifier,
+    private readonly access: TutorMarketAccessService,
   ) {}
 
   async createDialog(userId: string, input: { leadId: string }) {
+    await this.access.assertNotFrozen(userId);
     const lead = await (this.prisma as any).lead.findUnique({
       where: { id: input.leadId },
       select: { id: true, status: true, creatorId: true },

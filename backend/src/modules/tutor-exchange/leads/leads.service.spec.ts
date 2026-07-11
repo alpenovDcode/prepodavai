@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { LeadsService } from './leads.service';
 import { PrismaService } from '../../../common/prisma/prisma.service';
+import { TutorMarketAccessService } from '../tutors/tutor-market-access.service';
 
 describe('LeadsService', () => {
   let service: LeadsService;
@@ -17,6 +18,7 @@ describe('LeadsService', () => {
       findFirst: jest.Mock;
     };
   };
+  let access: { assertNotFrozen: jest.Mock };
 
   beforeEach(async () => {
     prisma = {
@@ -32,10 +34,13 @@ describe('LeadsService', () => {
       },
     };
 
+    access = { assertNotFrozen: jest.fn().mockResolvedValue(undefined) };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         LeadsService,
         { provide: PrismaService, useValue: prisma },
+        { provide: TutorMarketAccessService, useValue: access },
       ],
     }).compile();
 
@@ -64,6 +69,23 @@ describe('LeadsService', () => {
           }),
         }),
       );
+    });
+
+    it('отклоняет размещение заявки замороженным', async () => {
+      access.assertNotFrozen.mockRejectedValueOnce(
+        new ForbiddenException({ code: 'AccountFrozen' }),
+      );
+      await expect(
+        service.createLead('frozen', {
+          type: 'FREE',
+          subject: 'x',
+          grade: '1',
+          format: 'ONLINE',
+          description: 'x'.repeat(30),
+          studentContact: '+7',
+        }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(prisma.lead.create).not.toHaveBeenCalled();
     });
 
     it('rejects COMMISSION with price < 100', async () => {
