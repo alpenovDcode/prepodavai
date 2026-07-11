@@ -130,7 +130,24 @@ export class LeadsService {
     });
     if (!lead) throw new NotFoundException('Заявка не найдена');
 
-    const canSeeContact = lead.creatorId === userId || lead.status === 'CLOSED';
+    // Контакт ученика — чувствительные ПДн и «товар» комиссионной модели.
+    // Раскрываем ТОЛЬКО:
+    //   1) создателю заявки (это его контакт), либо
+    //   2) победившему откликнувшемуся — тому, у кого есть CONFIRMED-диалог
+    //      по этой заявке.
+    // Раньше здесь стояло `lead.status === 'CLOSED'`, что раскрывало контакт
+    // ЛЮБОМУ авторизованному пользователю по прямому GET /leads/:id после
+    // закрытия сделки: и утечка ПДн ученика, и бесплатный обход комиссии
+    // (контакт можно было забрать, не заплатив за отклик).
+    let canSeeContact = lead.creatorId === userId;
+    if (!canSeeContact && lead.status === 'CLOSED') {
+      const wonDialog = await (this.prisma as any).leadDialog.findFirst({
+        where: { leadId, responderId: userId, status: 'CONFIRMED' },
+        select: { id: true },
+      });
+      canSeeContact = !!wonDialog;
+    }
+
     if (!canSeeContact) {
       const { studentContact: _hidden, ...rest } = lead;
       return rest;
@@ -141,7 +158,7 @@ export class LeadsService {
   async updateLead(userId: string, leadId: string, patch: Partial<CreateLeadInput>) {
     const lead = await (this.prisma as any).lead.findUnique({
       where: { id: leadId },
-      select: { id: true, creatorId: true, status: true, type: true },
+      select: { id: true, creatorId: true, status: true, type: true, format: true },
     });
     if (!lead) throw new NotFoundException('Заявка не найдена');
     if (lead.creatorId !== userId) throw new ForbiddenException('Не ваша заявка');
@@ -165,9 +182,12 @@ export class LeadsService {
       data.studentContact = c;
     }
     if (patch.city !== undefined) {
-      data.city = data.format === 'OFFLINE' || (patch.format === 'OFFLINE')
-        ? patch.city?.trim() || null
-        : null;
+      // Эффективный формат = присланный в патче, иначе текущий из БД.
+      // Раньше опирались только на patch.format: правка одного города
+      // (без повторной отправки format) у OFFLINE-заявки затирала город
+      // в null, т.к. текущий формат был неизвестен.
+      const effectiveFormat = patch.format ?? lead.format;
+      data.city = effectiveFormat === 'OFFLINE' ? patch.city?.trim() || null : null;
     }
     if (patch.price !== undefined && lead.type === 'COMMISSION') {
       const p = Number(patch.price);

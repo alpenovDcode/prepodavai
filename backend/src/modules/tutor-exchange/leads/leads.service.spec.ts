@@ -13,6 +13,9 @@ describe('LeadsService', () => {
       update: jest.Mock;
       delete: jest.Mock;
     };
+    leadDialog: {
+      findFirst: jest.Mock;
+    };
   };
 
   beforeEach(async () => {
@@ -23,6 +26,9 @@ describe('LeadsService', () => {
         findUnique: jest.fn(),
         update: jest.fn(),
         delete: jest.fn(),
+      },
+      leadDialog: {
+        findFirst: jest.fn(),
       },
     };
 
@@ -141,10 +147,35 @@ describe('LeadsService', () => {
       expect(lead.studentContact).toBeUndefined();
     });
 
-    it('reveals studentContact once lead is CLOSED', async () => {
+    it('НЕ раскрывает контакт постороннему даже на CLOSED (нет CONFIRMED-диалога)', async () => {
       prisma.lead.findUnique.mockResolvedValue({ ...baseLead, status: 'CLOSED' });
+      prisma.leadDialog.findFirst.mockResolvedValue(null);
       const lead = await service.getLead('stranger', 'lead-1');
+      expect(lead.studentContact).toBeUndefined();
+    });
+
+    it('раскрывает контакт победившему откликнувшемуся на CLOSED', async () => {
+      prisma.lead.findUnique.mockResolvedValue({ ...baseLead, status: 'CLOSED' });
+      prisma.leadDialog.findFirst.mockResolvedValue({ id: 'dialog-won' });
+      const lead = await service.getLead('winner', 'lead-1');
       expect(lead.studentContact).toBe('+7 (999) 111-22-33');
+      // проверяем что ищем именно CONFIRMED-диалог этого юзера
+      expect(prisma.leadDialog.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            leadId: 'lead-1',
+            responderId: 'winner',
+            status: 'CONFIRMED',
+          }),
+        }),
+      );
+    });
+
+    it('раскрывает контакт создателю без обращения к диалогам', async () => {
+      prisma.lead.findUnique.mockResolvedValue({ ...baseLead, status: 'CLOSED' });
+      const lead = await service.getLead('author', 'lead-1');
+      expect(lead.studentContact).toBe('+7 (999) 111-22-33');
+      expect(prisma.leadDialog.findFirst).not.toHaveBeenCalled();
     });
 
     it('throws NotFound when lead does not exist', async () => {

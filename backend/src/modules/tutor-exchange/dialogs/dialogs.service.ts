@@ -84,16 +84,28 @@ export class DialogsService {
     }
 
     const now = new Date();
-    const [, dialog] = await this.prisma.$transaction([
-      (this.prisma as any).lead.update({
-        where: { id: lead.id },
+    // Атомарный захват заявки: conditional updateMany работает как
+    // compare-and-swap по строке lead. Если два репетитора откликаются
+    // одновременно, оба проходят предварительную проверку status===ACTIVE
+    // выше (TOCTOU), но заблокировать заявку сможет только один —
+    // второй увидит count===0 и получит LeadNotAvailable. Без этого
+    // на один lead создавалось два диалога.
+    const dialog = await this.prisma.$transaction(async (tx) => {
+      const locked = await (tx as any).lead.updateMany({
+        where: { id: lead.id, status: 'ACTIVE' },
         data: { status: 'LOCKED', lockedById: userId, lockedAt: now },
-      }),
-      (this.prisma as any).leadDialog.create({
+      });
+      if (locked.count !== 1) {
+        throw new BadRequestException({
+          code: 'LeadNotAvailable',
+          message: 'Заявка уже занята или снята',
+        });
+      }
+      return (tx as any).leadDialog.create({
         data: { leadId: lead.id, responderId: userId, status: 'OPEN' },
         select: DIALOG_LIST_SELECT,
-      }),
-    ]);
+      });
+    });
     void this.notifier.notifyDialogCreated({
       id: dialog.id,
       responderId: userId,

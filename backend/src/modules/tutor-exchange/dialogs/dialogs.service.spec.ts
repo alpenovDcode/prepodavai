@@ -11,7 +11,7 @@ import { TutorExchangeNotifier } from '../notifications/tutor-exchange-notifier.
 describe('DialogsService', () => {
   let service: DialogsService;
   let prisma: {
-    lead: { findUnique: jest.Mock; update: jest.Mock };
+    lead: { findUnique: jest.Mock; update: jest.Mock; updateMany: jest.Mock };
     leadDialog: {
       count: jest.Mock;
       findFirst: jest.Mock;
@@ -25,7 +25,7 @@ describe('DialogsService', () => {
 
   beforeEach(async () => {
     prisma = {
-      lead: { findUnique: jest.fn(), update: jest.fn() },
+      lead: { findUnique: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
       leadDialog: {
         count: jest.fn(),
         findFirst: jest.fn(),
@@ -34,7 +34,12 @@ describe('DialogsService', () => {
         create: jest.fn(),
         update: jest.fn(),
       },
-      $transaction: jest.fn(async (ops: any[]) => Promise.all(ops)),
+      // Поддерживаем обе формы: interactive ($transaction(async tx => ...))
+      // и массивную ($transaction([...])). В interactive-режиме передаём
+      // сам prisma-мок как tx.
+      $transaction: jest.fn(async (arg: any) =>
+        typeof arg === 'function' ? arg(prisma) : Promise.all(arg),
+      ),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -89,21 +94,22 @@ describe('DialogsService', () => {
         .rejects.toBeInstanceOf(BadRequestException);
     });
 
-    it('locks lead and creates dialog in one transaction on success', async () => {
+    it('locks lead atomically and creates dialog on success', async () => {
       prisma.lead.findUnique.mockResolvedValue(activeLead);
       prisma.leadDialog.count.mockResolvedValue(0);
       prisma.leadDialog.findFirst.mockResolvedValue(null);
-      prisma.lead.update.mockReturnValue({ __lead_update: true });
-      prisma.leadDialog.create.mockReturnValue({ __dialog_create: true });
-      prisma.$transaction.mockResolvedValue([
-        {},
-        { id: 'd-1', status: 'OPEN', lead: { id: 'lead-1', subject: 'X' } },
-      ]);
+      prisma.lead.updateMany.mockResolvedValue({ count: 1 });
+      prisma.leadDialog.create.mockResolvedValue({
+        id: 'd-1',
+        status: 'OPEN',
+        lead: { id: 'lead-1', subject: 'X' },
+      });
 
       const result = await service.createDialog('me', { leadId: 'lead-1' });
-      expect(prisma.lead.update).toHaveBeenCalledWith(
+      // conditional updateMany: захват только если ещё ACTIVE
+      expect(prisma.lead.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { id: 'lead-1' },
+          where: { id: 'lead-1', status: 'ACTIVE' },
           data: expect.objectContaining({ status: 'LOCKED', lockedById: 'me' }),
         }),
       );
@@ -118,6 +124,18 @@ describe('DialogsService', () => {
       );
       expect(prisma.$transaction).toHaveBeenCalled();
       expect(result).toEqual({ id: 'd-1', status: 'OPEN', lead: { id: 'lead-1', subject: 'X' } });
+    });
+
+    it('проигранная гонка: updateMany count=0 → LeadNotAvailable, диалог не создаётся', async () => {
+      prisma.lead.findUnique.mockResolvedValue(activeLead);
+      prisma.leadDialog.count.mockResolvedValue(0);
+      prisma.leadDialog.findFirst.mockResolvedValue(null);
+      // Другой репетитор успел захватить заявку между findUnique и updateMany.
+      prisma.lead.updateMany.mockResolvedValue({ count: 0 });
+
+      await expect(service.createDialog('me', { leadId: 'lead-1' }))
+        .rejects.toBeInstanceOf(BadRequestException);
+      expect(prisma.leadDialog.create).not.toHaveBeenCalled();
     });
   });
 
