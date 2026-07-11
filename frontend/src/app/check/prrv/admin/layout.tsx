@@ -24,6 +24,8 @@ import {
     Filter,
     Sparkles,
     Newspaper,
+    Scale,
+    ShieldAlert,
 } from 'lucide-react'
 
 export default function AdminLayout({
@@ -113,6 +115,8 @@ export default function AdminLayout({
         { name: 'Маркетинг', href: '/check/prrv/admin/marketing', icon: Megaphone },
         { name: 'Popup-окна', href: '/check/prrv/admin/popups', icon: Megaphone },
         { name: 'Тех. работы', href: '/check/prrv/admin/maintenance', icon: Bell },
+        { name: 'Споры', href: '/check/prrv/admin/disputes', icon: Scale },
+        { name: 'Жалобы', href: '/check/prrv/admin/violations', icon: ShieldAlert },
         { name: 'Инструменты', href: '/check/prrv/admin/tools', icon: Sparkles },
         { name: 'UTM-ссылки', href: '/check/prrv/admin/utm', icon: Link2 },
         { name: 'Умные ссылки', href: '/check/prrv/admin/smart-links', icon: Sparkles },
