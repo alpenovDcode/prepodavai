@@ -11,6 +11,8 @@ import { LeadsService } from './leads/leads.service';
 import { DialogsController } from './dialogs/dialogs.controller';
 import { DialogsService } from './dialogs/dialogs.service';
 import { DialogActionsService } from './dialogs/dialog-actions.service';
+import { AdminDisputeController } from './dialogs/admin-dispute.controller';
+import { DisputeService } from './dialogs/dispute.service';
 import { MessagesController } from './messages/messages.controller';
 import { MessagesService } from './messages/messages.service';
 import { ModerationService } from './messages/moderation.service';
@@ -46,6 +48,7 @@ import { TutorMarketAccessService } from './tutors/tutor-market-access.service';
     MessagesController,
     ViolationsController,
     AdminViolationsController,
+    AdminDisputeController,
     RatingsController,
     TutorsController,
   ],
@@ -54,6 +57,7 @@ import { TutorMarketAccessService } from './tutors/tutor-market-access.service';
     LeadsService,
     DialogsService,
     DialogActionsService,
+    DisputeService,
     MessagesService,
     ModerationService,
     ViolationsService,
