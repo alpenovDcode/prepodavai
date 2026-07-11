@@ -19,9 +19,14 @@ import {
     MessagesSquare,
     Sparkles,
     Coins,
+    Compass,
 } from 'lucide-react'
 import type { LeadCardData } from './LeadCard'
 import { EditLeadModal } from './EditLeadModal'
+import { Topbar } from '@/components/layout/v2/Topbar'
+import { Button } from '@/components/ui/v2/Button'
+import { useMobileMenu } from '@/components/layout/v2/DashboardLayoutV2'
+import { useTour } from '@/lib/tour/useTour'
 
 interface LeadDetailsData extends LeadCardData {
     studentContact?: string
@@ -46,6 +51,8 @@ export function LeadDetails({ leadId }: { leadId: string }) {
     const [deleting, setDeleting] = useState(false)
     const [responding, setResponding] = useState(false)
     const [editOpen, setEditOpen] = useState(false)
+    const menu = useMobileMenu()
+    const tour = useTour()
 
     const load = useCallback(() => {
         apiClient
@@ -98,21 +105,41 @@ export function LeadDetails({ leadId }: { leadId: string }) {
         }
     }
 
+    const chrome = (children: React.ReactNode) => (
+        <>
+            <Topbar
+                title={lead?.subject || 'Заявка'}
+                onMobileMenuToggle={menu.toggle}
+                hideSearch
+                leading={
+                    <Link
+                        href="/dashboard/leads"
+                        aria-label="К ленте"
+                        className="w-9 h-9 inline-flex items-center justify-center rounded-md text-ink-600 hover:bg-ink-100 transition-colors"
+                    >
+                        <ArrowLeft className="w-5 h-5" />
+                    </Link>
+                }
+                actions={
+                    <Button variant="ghost" size="sm" leftIcon={<Compass className="w-4 h-4" />} onClick={tour.start}>
+                        Тур
+                    </Button>
+                }
+            />
+            <div className="p-6 md:p-8 max-w-3xl mx-auto">{children}</div>
+        </>
+    )
+
     if (error) {
-        return (
-            <div className="p-6 md:p-8 max-w-3xl mx-auto">
-                <Link href="/dashboard/leads" className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 mb-6">
-                    <ArrowLeft className="w-4 h-4" /> К ленте
-                </Link>
-                <div className="border border-amber-200 bg-amber-50 rounded-2xl p-5 text-base text-amber-800 flex gap-3 items-start">
-                    <AlertCircle className="w-5 h-5 mt-0.5 shrink-0" /> {error}
-                </div>
+        return chrome(
+            <div className="border border-amber-200 bg-amber-50 rounded-2xl p-5 text-base text-amber-800 flex gap-3 items-start">
+                <AlertCircle className="w-5 h-5 mt-0.5 shrink-0" /> {error}
             </div>
         )
     }
     if (!lead) {
-        return (
-            <div className="p-6 md:p-8 max-w-3xl mx-auto text-base text-gray-500 flex items-center gap-2">
+        return chrome(
+            <div className="text-base text-gray-500 flex items-center gap-2">
                 <Loader2 className="w-5 h-5 animate-spin" /> Загружаем заявку...
             </div>
         )
@@ -124,8 +151,8 @@ export function LeadDetails({ leadId }: { leadId: string }) {
     const contactVisible = typeof lead.studentContact === 'string' && lead.studentContact.length > 0
     const statusInfo = STATUS_INFO[lead.status]
 
-    return (
-        <div className="p-6 md:p-8 max-w-3xl mx-auto">
+    return chrome(
+        <>
             <div className="flex items-center justify-between mb-6">
                 <Link href="/dashboard/leads" className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800">
                     <ArrowLeft className="w-4 h-4" /> К ленте
@@ -254,6 +281,6 @@ export function LeadDetails({ leadId }: { leadId: string }) {
                     onSaved={load}
                 />
             )}
-        </div>
+        </>
     )
 }

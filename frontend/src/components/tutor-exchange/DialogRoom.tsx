@@ -18,6 +18,7 @@ import {
     Video,
     Sparkles,
     Info,
+    Compass,
 } from 'lucide-react'
 import { useUser } from '@/lib/hooks/useUser'
 import { useDialog } from '@/hooks/tutor-exchange/useDialog'
@@ -25,6 +26,10 @@ import { DialogChat } from './DialogChat'
 import { DialogActionsPanel } from './DialogActionsPanel'
 import { PaymentCountdown } from './PaymentCountdown'
 import { ViolationForm } from './ViolationForm'
+import { Topbar } from '@/components/layout/v2/Topbar'
+import { Button } from '@/components/ui/v2/Button'
+import { useMobileMenu } from '@/components/layout/v2/DashboardLayoutV2'
+import { useTour } from '@/lib/tour/useTour'
 
 type StatusMeta = {
     label: string
@@ -98,39 +103,60 @@ export function DialogRoom({ dialogId }: { dialogId: string }) {
     const { user } = useUser()
     const { dialog, isLoading, error, disabled, disabledMessage, reload } = useDialog(dialogId)
     const [reportOpen, setReportOpen] = useState(false)
+    const menu = useMobileMenu()
+    const tour = useTour()
+
+    const topbar = (
+        <Topbar
+            title="Диалог сделки"
+            onMobileMenuToggle={menu.toggle}
+            hideSearch
+            leading={
+                <Link
+                    href="/dashboard/dialogs"
+                    aria-label="К диалогам"
+                    className="w-9 h-9 inline-flex items-center justify-center rounded-md text-ink-600 hover:bg-ink-100 transition-colors"
+                >
+                    <ArrowLeft className="w-5 h-5" />
+                </Link>
+            }
+            actions={
+                <Button variant="ghost" size="sm" leftIcon={<Compass className="w-4 h-4" />} onClick={tour.start}>
+                    Тур
+                </Button>
+            }
+        />
+    )
+    const chrome = (children: React.ReactNode) => (
+        <>
+            {topbar}
+            <Shell>{children}</Shell>
+        </>
+    )
 
     if (disabled) {
-        return (
-            <Shell>
-                <BackLink />
-                <div className="rounded-2xl border border-warning-500/25 bg-warning-50 p-5 text-sm text-warning-700 flex gap-3 items-start">
-                    <AlertCircle className="w-5 h-5 mt-0.5 shrink-0" />
-                    <span>{disabledMessage || 'Биржа временно недоступна'}</span>
-                </div>
-            </Shell>
+        return chrome(
+            <div className="rounded-2xl border border-warning-500/25 bg-warning-50 p-5 text-sm text-warning-700 flex gap-3 items-start">
+                <AlertCircle className="w-5 h-5 mt-0.5 shrink-0" />
+                <span>{disabledMessage || 'Биржа временно недоступна'}</span>
+            </div>
         )
     }
 
     if (error) {
-        return (
-            <Shell>
-                <BackLink />
-                <div className="rounded-2xl border border-danger-500/25 bg-danger-50 p-5 text-sm text-danger-700 flex gap-3 items-start">
-                    <AlertCircle className="w-5 h-5 mt-0.5 shrink-0" />
-                    <span>{error}</span>
-                </div>
-            </Shell>
+        return chrome(
+            <div className="rounded-2xl border border-danger-500/25 bg-danger-50 p-5 text-sm text-danger-700 flex gap-3 items-start">
+                <AlertCircle className="w-5 h-5 mt-0.5 shrink-0" />
+                <span>{error}</span>
+            </div>
         )
     }
 
     if (isLoading || !dialog) {
-        return (
-            <Shell>
-                <BackLink />
-                <div className="rounded-2xl border border-ink-200 bg-surface p-8 text-sm text-ink-500 flex items-center gap-2 justify-center">
-                    <Loader2 className="w-4 h-4 animate-spin" /> Загружаем диалог...
-                </div>
-            </Shell>
+        return chrome(
+            <div className="rounded-2xl border border-ink-200 bg-surface p-8 text-sm text-ink-500 flex items-center gap-2 justify-center">
+                <Loader2 className="w-4 h-4 animate-spin" /> Загружаем диалог...
+            </div>
         )
     }
 
@@ -148,10 +174,8 @@ export function DialogRoom({ dialogId }: { dialogId: string }) {
             ? dialog.trialLessonLink
             : null
 
-    return (
-        <Shell>
-            <BackLink />
-
+    return chrome(
+        <>
             {/* Header card: subject + counterpart avatar + status */}
             <header className="rounded-2xl border border-ink-200 bg-surface p-5 md:p-6 mb-5 shadow-xs">
                 <div className="flex items-start gap-5">
@@ -306,23 +330,12 @@ export function DialogRoom({ dialogId }: { dialogId: string }) {
                     onDone={() => alert('Жалоба отправлена. Модератор рассмотрит в течение суток.')}
                 />
             )}
-        </Shell>
+        </>
     )
 }
 
 function Shell({ children }: { children: React.ReactNode }) {
     return <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto w-full">{children}</div>
-}
-
-function BackLink() {
-    return (
-        <Link
-            href="/dashboard/dialogs"
-            className="inline-flex items-center gap-1 text-sm text-ink-500 hover:text-ink-800 mb-4 transition-colors duration-fast"
-        >
-            <ArrowLeft className="w-4 h-4" /> К диалогам
-        </Link>
-    )
 }
 
 function SectionTitle({ children }: { children: React.ReactNode }) {

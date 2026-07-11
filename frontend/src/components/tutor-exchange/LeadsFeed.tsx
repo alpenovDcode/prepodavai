@@ -2,11 +2,15 @@
 
 import { useEffect, useState, useMemo } from 'react'
 import Link from 'next/link'
-import { useSearchParams } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { apiClient } from '@/lib/api/client'
-import { Plus, Search, Loader2, AlertCircle, Globe, Users } from 'lucide-react'
+import { Plus, Search, Loader2, AlertCircle, Globe, Users, Compass } from 'lucide-react'
 import { LeadCard, LeadCardData } from './LeadCard'
 import { useUser } from '@/lib/hooks/useUser'
+import { Topbar } from '@/components/layout/v2/Topbar'
+import { Button } from '@/components/ui/v2/Button'
+import { useMobileMenu } from '@/components/layout/v2/DashboardLayoutV2'
+import { useTour } from '@/lib/tour/useTour'
 
 type Tab = 'all' | 'mine'
 
@@ -21,6 +25,9 @@ const EMPTY_FILTERS: Filters = { subject: '', format: '', type: '', city: '' }
 
 export function LeadsFeed() {
     const { user } = useUser()
+    const router = useRouter()
+    const menu = useMobileMenu()
+    const tour = useTour()
     const searchParams = useSearchParams()
     const initialTab: Tab = searchParams?.get('tab') === 'mine' ? 'mine' : 'all'
     const [tab, setTab] = useState<Tab>(initialTab)
@@ -67,22 +74,30 @@ export function LeadsFeed() {
     }, [query, tab])
 
     return (
-        <div className="p-6 md:p-8 max-w-6xl mx-auto">
-            <header className="flex flex-wrap items-start justify-between gap-4 mb-6">
-                <div className="min-w-0">
-                    <h1 className="text-3xl font-bold text-gray-900">Биржа лидов</h1>
-                    <p className="text-base text-gray-500 mt-1.5 max-w-2xl">
-                        Передайте ученика коллеге или заберите чужого — открытые заявки других репетиторов.
-                    </p>
-                </div>
-                <Link
-                    href="/dashboard/leads/new"
-                    data-tour="create-lead"
-                    className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-base font-semibold px-5 py-3 rounded-xl shadow-sm transition"
-                >
-                    <Plus className="w-5 h-5" /> Разместить заявку
-                </Link>
-            </header>
+        <>
+            <Topbar
+                title="Биржа лидов"
+                subtitle="Передайте ученика коллеге или заберите чужого."
+                onMobileMenuToggle={menu.toggle}
+                hideSearch
+                actions={
+                    <div className="flex items-center gap-2">
+                        <Button variant="ghost" size="sm" leftIcon={<Compass className="w-4 h-4" />} onClick={tour.start}>
+                            Тур
+                        </Button>
+                        <Button
+                            data-tour="create-lead"
+                            variant="primary"
+                            size="sm"
+                            leftIcon={<Plus className="w-4 h-4" />}
+                            onClick={() => router.push('/dashboard/leads/new')}
+                        >
+                            Разместить заявку
+                        </Button>
+                    </div>
+                }
+            />
+            <div className="p-6 md:p-8 max-w-6xl mx-auto">
 
             <div data-tour="feed-tabs" className="inline-flex bg-gray-100 rounded-xl p-1 mb-6">
                 <button
@@ -187,6 +202,7 @@ export function LeadsFeed() {
                     ))}
                 </div>
             )}
-        </div>
+            </div>
+        </>
     )
 }

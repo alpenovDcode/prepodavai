@@ -13,9 +13,15 @@ import {
     XCircle,
     ShieldAlert,
     ChevronRight,
+    Compass,
 } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 import { useMyDialogs, DialogListItem } from '@/hooks/tutor-exchange/useMyDialogs'
 import { useUser } from '@/lib/hooks/useUser'
+import { Topbar } from '@/components/layout/v2/Topbar'
+import { Button } from '@/components/ui/v2/Button'
+import { useMobileMenu } from '@/components/layout/v2/DashboardLayoutV2'
+import { useTour } from '@/lib/tour/useTour'
 
 type StatusMeta = {
     label: string
@@ -58,43 +64,49 @@ function PageShell({ children }: { children: React.ReactNode }) {
     return <div className="p-6 md:p-8 lg:p-10 max-w-6xl mx-auto w-full">{children}</div>
 }
 
-function Header({ hint }: { hint?: string }) {
-    return (
-        <header className="mb-8 flex items-start justify-between gap-4 flex-wrap">
-            <div className="min-w-0">
-                <h1 className="font-display text-3xl md:text-4xl font-bold text-ink-900 tracking-tight">Мои диалоги</h1>
-                {hint && <p className="mt-2 text-sm md:text-base text-ink-500">{hint}</p>}
-            </div>
-            <Link
-                href="/dashboard/leads"
-                className="inline-flex items-center gap-1.5 text-sm md:text-base font-semibold text-brand-700 hover:text-brand-800 transition-colors duration-fast"
-            >
-                К ленте заявок <ArrowRight className="w-4 h-4 md:w-5 md:h-5" />
-            </Link>
-        </header>
-    )
-}
-
 export function MyDialogsList() {
     const { dialogs, isLoading, error, disabled, disabledMessage } = useMyDialogs()
     const { user } = useUser()
+    const menu = useMobileMenu()
+    const tour = useTour()
+    const router = useRouter()
+
+    const topbar = (
+        <Topbar
+            title="Мои диалоги"
+            subtitle="Все ваши сделки по заявкам биржи."
+            onMobileMenuToggle={menu.toggle}
+            hideSearch
+            actions={
+                <div className="flex items-center gap-2">
+                    <Button variant="ghost" size="sm" leftIcon={<Compass className="w-4 h-4" />} onClick={tour.start}>
+                        Тур
+                    </Button>
+                    <Button variant="ghost" size="sm" leftIcon={<ArrowRight className="w-4 h-4" />} onClick={() => router.push('/dashboard/leads')}>
+                        К ленте
+                    </Button>
+                </div>
+            }
+        />
+    )
+    const shell = (children: React.ReactNode) => (
+        <>
+            {topbar}
+            <PageShell>{children}</PageShell>
+        </>
+    )
 
     if (disabled) {
-        return (
-            <PageShell>
-                <Header />
-                <div className="rounded-2xl border border-warning-500/25 bg-warning-50 p-5 text-sm text-warning-700 flex gap-3 items-start">
-                    <AlertCircle className="w-5 h-5 mt-0.5 shrink-0" />
-                    <span>{disabledMessage || 'Биржа временно недоступна'}</span>
-                </div>
-            </PageShell>
+        return shell(
+            <div className="rounded-2xl border border-warning-500/25 bg-warning-50 p-5 text-sm text-warning-700 flex gap-3 items-start">
+                <AlertCircle className="w-5 h-5 mt-0.5 shrink-0" />
+                <span>{disabledMessage || 'Биржа временно недоступна'}</span>
+            </div>
         )
     }
 
     if (isLoading) {
-        return (
-            <PageShell>
-                <Header />
+        return shell(
                 <ul className="space-y-3">
                     {[0, 1, 2].map((i) => (
                         <li key={i} className="rounded-2xl border border-ink-200 bg-surface p-5 animate-pulse">
@@ -109,26 +121,20 @@ export function MyDialogsList() {
                         </li>
                     ))}
                 </ul>
-            </PageShell>
         )
     }
 
     if (error) {
-        return (
-            <PageShell>
-                <Header />
-                <div className="rounded-2xl border border-danger-500/25 bg-danger-50 p-5 text-sm text-danger-700 flex gap-3 items-start">
-                    <AlertCircle className="w-5 h-5 mt-0.5 shrink-0" />
-                    <span>{error}</span>
-                </div>
-            </PageShell>
+        return shell(
+            <div className="rounded-2xl border border-danger-500/25 bg-danger-50 p-5 text-sm text-danger-700 flex gap-3 items-start">
+                <AlertCircle className="w-5 h-5 mt-0.5 shrink-0" />
+                <span>{error}</span>
+            </div>
         )
     }
 
     if (!dialogs.length) {
-        return (
-            <PageShell>
-                <Header hint="Здесь появятся ваши диалоги по заявкам с биржи." />
+        return shell(
                 <div className="rounded-2xl border-2 border-dashed border-ink-200 bg-surface p-12 text-center">
                     <div className="inline-flex w-14 h-14 rounded-2xl bg-brand-50 text-brand-500 items-center justify-center mb-4">
                         <MessageSquare className="w-7 h-7" />
@@ -144,13 +150,10 @@ export function MyDialogsList() {
                         Открыть ленту заявок <ArrowRight className="w-4 h-4" />
                     </Link>
                 </div>
-            </PageShell>
         )
     }
 
-    return (
-        <PageShell>
-            <Header hint={`Всего ${dialogs.length} ${pluralize(dialogs.length, ['диалог', 'диалога', 'диалогов'])}.`} />
+    return shell(
             <ul data-tour="dialogs-list" className="space-y-3">
                 {dialogs.map((d) => {
                     const meta = STATUS[d.status]
@@ -198,15 +201,5 @@ export function MyDialogsList() {
                     )
                 })}
             </ul>
-        </PageShell>
-    )
-}
-
-function pluralize(n: number, forms: [string, string, string]) {
-    const mod10 = n % 10
-    const mod100 = n % 100
-    if (mod100 >= 11 && mod100 <= 14) return forms[2]
-    if (mod10 === 1) return forms[0]
-    if (mod10 >= 2 && mod10 <= 4) return forms[1]
-    return forms[2]
+        )
 }

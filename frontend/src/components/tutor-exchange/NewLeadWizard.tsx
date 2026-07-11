@@ -4,7 +4,11 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { apiClient } from '@/lib/api/client'
-import { ArrowLeft, Sparkles, Coins, Loader2, CheckCircle2 } from 'lucide-react'
+import { ArrowLeft, Sparkles, Coins, Loader2, CheckCircle2, Compass } from 'lucide-react'
+import { Topbar } from '@/components/layout/v2/Topbar'
+import { Button } from '@/components/ui/v2/Button'
+import { useMobileMenu } from '@/components/layout/v2/DashboardLayoutV2'
+import { useTour } from '@/lib/tour/useTour'
 
 type Step = 'type' | 'form' | 'preview'
 
@@ -65,11 +69,38 @@ function Stepper({ step }: { step: Step }) {
 
 export function NewLeadWizard() {
     const router = useRouter()
+    const menu = useMobileMenu()
+    const tour = useTour()
     const [step, setStep] = useState<Step>('type')
     const [form, setForm] = useState<Form>(EMPTY)
     const [accepted, setAccepted] = useState(false)
     const [saving, setSaving] = useState(false)
     const [error, setError] = useState<string | null>(null)
+
+    const chrome = (children: React.ReactNode) => (
+        <>
+            <Topbar
+                title="Новая заявка"
+                onMobileMenuToggle={menu.toggle}
+                hideSearch
+                leading={
+                    <Link
+                        href="/dashboard/leads"
+                        aria-label="К ленте"
+                        className="w-9 h-9 inline-flex items-center justify-center rounded-md text-ink-600 hover:bg-ink-100 transition-colors"
+                    >
+                        <ArrowLeft className="w-5 h-5" />
+                    </Link>
+                }
+                actions={
+                    <Button variant="ghost" size="sm" leftIcon={<Compass className="w-4 h-4" />} onClick={tour.start}>
+                        Тур
+                    </Button>
+                }
+            />
+            <div className="p-6 md:p-8 max-w-3xl mx-auto">{children}</div>
+        </>
+    )
 
     const set = (k: keyof Form, v: string) => setForm((f) => ({ ...f, [k]: v }))
 
@@ -105,11 +136,8 @@ export function NewLeadWizard() {
     }
 
     if (step === 'type') {
-        return (
-            <div className="p-6 md:p-8 max-w-3xl mx-auto">
-                <Link href="/dashboard/leads" className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 mb-6">
-                    <ArrowLeft className="w-4 h-4" /> К ленте
-                </Link>
+        return chrome(
+            <>
                 <Stepper step={step} />
                 <h1 className="text-3xl font-bold text-gray-900 mb-2">Новая заявка</h1>
                 <p className="text-base text-gray-500 mb-8">Выберите тип — как хотите передать ученика.</p>
@@ -135,13 +163,13 @@ export function NewLeadWizard() {
                         <p className="text-sm text-gray-500 leading-relaxed">Коллега платит вам разово от 100 ₽ после успешного пробного.</p>
                     </button>
                 </div>
-            </div>
+            </>
         )
     }
 
     if (step === 'form') {
-        return (
-            <div className="p-6 md:p-8 max-w-3xl mx-auto">
+        return chrome(
+            <>
                 <button onClick={() => setStep('type')} className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 mb-6">
                     <ArrowLeft className="w-4 h-4" /> Изменить тип
                 </button>
@@ -217,12 +245,12 @@ export function NewLeadWizard() {
                         Проверить и опубликовать →
                     </button>
                 </div>
-            </div>
+            </>
         )
     }
 
-    return (
-        <div className="p-6 md:p-8 max-w-3xl mx-auto">
+    return chrome(
+        <>
             <button onClick={() => setStep('form')} className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 mb-6">
                 <ArrowLeft className="w-4 h-4" /> Исправить
             </button>
@@ -268,6 +296,6 @@ export function NewLeadWizard() {
                     {saving ? 'Публикуем...' : 'Опубликовать заявку'}
                 </button>
             </div>
-        </div>
+        </>
     )
 }
