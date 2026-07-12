@@ -138,7 +138,7 @@ export function DialogRoom({ dialogId }: { dialogId: string }) {
         return chrome(
             <div className="rounded-2xl border border-warning-500/25 bg-warning-50 p-5 text-sm text-warning-700 flex gap-3 items-start">
                 <AlertCircle className="w-5 h-5 mt-0.5 shrink-0" />
-                <span>{disabledMessage || 'Биржа временно недоступна'}</span>
+                <span>{disabledMessage || 'Обмен учениками временно недоступен'}</span>
             </div>
         )
     }

@@ -13,7 +13,7 @@ export interface MaintenanceStatus {
 }
 
 const TOOL_DEFAULT_MESSAGES: Record<string, string> = {
-  tutor_exchange: 'Биржа лидов скоро откроется — мы обкатываем последние детали',
+  tutor_exchange: 'Раздел «Обмен учениками» скоро откроется — мы обкатываем последние детали',
 };
 const TOOL_FALLBACK_MESSAGE = 'Инструмент временно недоступен';
 

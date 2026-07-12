@@ -74,7 +74,7 @@ export function MyDialogsList() {
     const topbar = (
         <Topbar
             title="Мои диалоги"
-            subtitle="Все ваши сделки по заявкам биржи."
+            subtitle="Все ваши сделки по обмену учениками."
             onMobileMenuToggle={menu.toggle}
             hideSearch
             actions={
@@ -100,7 +100,7 @@ export function MyDialogsList() {
         return shell(
             <div className="rounded-2xl border border-warning-500/25 bg-warning-50 p-5 text-sm text-warning-700 flex gap-3 items-start">
                 <AlertCircle className="w-5 h-5 mt-0.5 shrink-0" />
-                <span>{disabledMessage || 'Биржа временно недоступна'}</span>
+                <span>{disabledMessage || 'Обмен учениками временно недоступен'}</span>
             </div>
         )
     }

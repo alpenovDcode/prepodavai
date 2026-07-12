@@ -42,7 +42,7 @@ export default function AdminDisputesPage() {
         <div className="p-6 max-w-5xl mx-auto">
             <div className="flex items-center justify-between mb-1">
                 <h1 className="text-xl font-bold text-gray-900 inline-flex items-center gap-2">
-                    <ShieldAlert className="w-5 h-5 text-red-600" /> Споры на бирже
+                    <ShieldAlert className="w-5 h-5 text-red-600" /> Споры по обмену учениками
                 </h1>
                 <Link href="/check/prrv/admin/violations" className="text-sm text-gray-500 hover:text-gray-800">
                     К жалобам

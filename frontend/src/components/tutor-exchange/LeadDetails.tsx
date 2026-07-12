@@ -60,7 +60,7 @@ export function LeadDetails({ leadId }: { leadId: string }) {
             .then((r) => setLead(r.data))
             .catch((err) => {
                 if (err?.response?.status === 404) setError('Заявка не найдена или была снята')
-                else if (err?.response?.status === 503 && err.response.data?.tutorExchangeDisabled) setError(err.response.data.message || 'Биржа временно недоступна')
+                else if (err?.response?.status === 503 && err.response.data?.tutorExchangeDisabled) setError(err.response.data.message || 'Обмен учениками временно недоступен')
                 else setError(err?.response?.data?.message || 'Не удалось загрузить заявку')
             })
     }, [leadId])

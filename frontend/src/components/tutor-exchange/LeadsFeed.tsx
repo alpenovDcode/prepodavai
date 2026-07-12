@@ -63,7 +63,7 @@ export function LeadsFeed() {
             .catch((err) => {
                 if (cancelled) return
                 if (err?.response?.status === 503 && err.response.data?.tutorExchangeDisabled) {
-                    setError(err.response.data.message || 'Биржа временно недоступна')
+                    setError(err.response.data.message || 'Обмен учениками временно недоступен')
                 } else {
                     setError(err?.response?.data?.message || 'Не удалось загрузить заявки')
                 }
@@ -76,7 +76,7 @@ export function LeadsFeed() {
     return (
         <>
             <Topbar
-                title="Биржа лидов"
+                title="Обмен учениками"
                 subtitle="Передайте ученика коллеге или заберите чужого."
                 onMobileMenuToggle={menu.toggle}
                 hideSearch

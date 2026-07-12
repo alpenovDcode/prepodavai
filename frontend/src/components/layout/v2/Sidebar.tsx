@@ -318,7 +318,7 @@ export function getTeacherNavSections(
 
     if (options.tutorExchangeEnabled) {
         sections.push({
-            label: 'Биржа',
+            label: 'Обмен учениками',
             items: [
                 { label: 'Заявки',  href: '/dashboard/leads',   icon: i(MessageCircle),  tourId: 'nav-tutor-exchange-leads' },
                 { label: 'Диалоги', href: '/dashboard/dialogs', icon: i(MessageSquare),  tourId: 'nav-tutor-exchange-dialogs' },

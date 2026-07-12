@@ -22,7 +22,7 @@ export class TutorMarketAccessService {
       throw new ForbiddenException({
         code: 'AccountFrozen',
         message:
-          'Ваш аккаунт на бирже заморожен модератором. Обратитесь в поддержку.',
+          'Обмен учениками недоступен: ваш аккаунт заморожен модератором. Обратитесь в поддержку.',
       });
     }
   }

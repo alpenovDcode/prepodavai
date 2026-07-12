@@ -60,7 +60,7 @@ export default function AdminViolationsPage() {
     return (
         <div className="p-6 max-w-5xl mx-auto">
             <div className="flex items-center justify-between mb-4">
-                <h1 className="text-xl font-bold text-gray-900">Жалобы на бирже</h1>
+                <h1 className="text-xl font-bold text-gray-900">Жалобы по обмену учениками</h1>
                 <Link href="/check/prrv/admin/tools" className="text-sm text-gray-500 hover:text-gray-800">
                     К инструментам
                 </Link>

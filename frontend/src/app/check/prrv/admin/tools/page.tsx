@@ -12,9 +12,9 @@ interface ToolStatus {
 }
 
 const OP_KEY = 'tutor_exchange'
-const OP_TITLE = 'Биржа лидов'
+const OP_TITLE = 'Обмен учениками'
 const OP_DESCRIPTION = 'Раздел передачи учеников между репетиторами. Пока выключен — пункт в сайдбаре пользователей скрыт.'
-const DEFAULT_MESSAGE = 'Биржа лидов скоро откроется — мы обкатываем последние детали'
+const DEFAULT_MESSAGE = 'Раздел «Обмен учениками» скоро откроется — мы обкатываем последние детали'
 
 export default function AdminToolsPage() {
     const [status, setStatus] = useState<ToolStatus | null>(null)
