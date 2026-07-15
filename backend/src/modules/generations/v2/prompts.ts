@@ -8,6 +8,8 @@
  * и blocks-schema.ts на бэке (Zod валидация).
  */
 
+import { subjectLanguageDirective } from '../utils/subject-language.util';
+
 // ─── Общая часть схемы для всех промптов ──────────────────────────
 
 const BASE_SCHEMA_DESCRIPTION = `
@@ -249,6 +251,10 @@ ${COMMON_TAIL}`;
 
     const lines: string[] = [`Сгенерируй worksheet по теме: "${input.topic}"`];
     if (input.subject) lines.push(`Предмет: ${input.subject}`);
+    if (input.subject) {
+        const langDirective = subjectLanguageDirective(input.subject);
+        if (langDirective) lines.push(langDirective);
+    }
     if (input.grade) lines.push(`Класс: ${input.grade}`);
     if (input.duration) lines.push(`Длительность: ${input.duration}`);
     if (input.numTasks) lines.push(`Количество заданий: РОВНО ${input.numTasks} (карточек heading «Задание N. ...»).`);
@@ -327,6 +333,10 @@ ${BASE_SCHEMA_DESCRIPTION}
 ${COMMON_TAIL}`;
     const lines: string[] = [`Сгенерируй тест по теме: "${input.topic}"`];
     if (input.subject) lines.push(`Предмет: ${input.subject}`);
+    if (input.subject) {
+        const langDirective = subjectLanguageDirective(input.subject);
+        if (langDirective) lines.push(langDirective);
+    }
     if (input.grade) lines.push(`Класс: ${input.grade}`);
     if (input.numQuestions) lines.push(`Количество вопросов: ${input.numQuestions}`);
     if (input.interests && input.interests.trim()) {
@@ -400,6 +410,10 @@ ${BASE_SCHEMA_DESCRIPTION}
 ${COMMON_TAIL}`;
     const lines: string[] = [`Сгенерируй план урока по теме: "${input.topic}"`];
     if (input.subject) lines.push(`Предмет: ${input.subject}`);
+    if (input.subject) {
+        const langDirective = subjectLanguageDirective(input.subject);
+        if (langDirective) lines.push(langDirective);
+    }
     if (input.grade) lines.push(`Класс: ${input.grade}`);
     if (input.duration) lines.push(`Длительность урока: ${input.duration}`);
     if (input.lessonType) lines.push(`Тип урока: ${input.lessonType}`);
@@ -566,6 +580,10 @@ ${BASE_SCHEMA_DESCRIPTION}
 ${COMMON_TAIL}`;
     const lines: string[] = [`Сгенерируй полный план «вау-урока» по теме: "${input.topic}"`];
     if (input.subject) lines.push(`Предмет: ${input.subject}`);
+    if (input.subject) {
+        const langDirective = subjectLanguageDirective(input.subject);
+        if (langDirective) lines.push(langDirective);
+    }
     if (input.grade) lines.push(`Класс: ${input.grade}`);
     if (input.duration) lines.push(`Длительность: ${input.duration}`);
     if (input.interests && input.interests.trim()) {

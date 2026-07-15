@@ -11,6 +11,7 @@ import { HtmlExportService } from '../../../common/services/html-export.service'
 import { FilesService } from '../../files/files.service';
 import { HtmlPostprocessorService } from '../../../common/services/html-postprocessor.service';
 import { LOGO_BASE64, SHARED_CSS, SHARED_MATHJAX_SCRIPT } from '../generation.constants';
+import { subjectLanguageDirective } from '../utils/subject-language.util';
 
 // Глобальная настройка marked: GFM (таблицы, ~~strikethrough~~, autolinks),
 // конверсия одиночных \n в <br>. HTML-вставки модели (input/figure/...) проходят как есть.
@@ -1080,7 +1081,7 @@ ${interests ? `- Интересы аудитории (Интегрируй их 
 
 ═══ РОЛЬ И ЯЗЫК ═══
 Ты — методист, который создаёт раздел «${typeLabel}» учебного материала.
-ЯЗЫК ВЫВОДА: строго русский.
+${subjectLanguageDirective(subject) || 'ЯЗЫК ВЫВОДА: строго русский.'}
 Формулы: LaTeX в \\(...\\) для inline, \\[...\\] для блочных. ЗАПРЕЩЕНО $...$.
 
 ═══ РЕЖИМ ПОДАЧИ ПО ПРЕДМЕТУ ═══
