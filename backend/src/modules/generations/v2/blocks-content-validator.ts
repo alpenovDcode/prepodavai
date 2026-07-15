@@ -380,3 +380,43 @@ export function formatContentIssues(issues: ContentIssue[]): string {
         )
         .join('\n\n');
 }
+
+// ─── санитизация сырого JSON от LLM (до Zod) ──────────────────────
+
+/**
+ * Детерминированная чистка СЫРОГО распарсенного JSON от LLM ДО Zod-парсинга.
+ *
+ * Зачем: LLM иногда вставляет структурно-битые «пустышки» — чаще всего
+ * блок math-display с пустым latex (модель добавляет формулу там, где её
+ * нет, например в уроке иностранного языка или литературы). Zod min(1) на
+ * таких полях роняет ВСЮ генерацию, а fixBlocksContent к сырому объекту
+ * неприменим (работает только с уже Zod-валидным doc). Здесь мы просто
+ * выкидываем пустые блоки, чтобы валидная часть документа прошла валидацию.
+ *
+ * Консервативно: удаляем блок ТОЛЬКО если его ключевое текстовое поле —
+ * пустая строка или пробелы (такой блок бесполезен и всё равно не отрендерится).
+ */
+export function sanitizeRawBlocks(parsed: unknown): unknown {
+    if (!parsed || typeof parsed !== 'object') return parsed;
+    const doc = parsed as Record<string, any>;
+    if (!Array.isArray(doc.blocks)) return parsed;
+
+    const isBlank = (v: unknown): boolean => typeof v !== 'string' || v.trim() === '';
+
+    doc.blocks = doc.blocks.filter((block: any) => {
+        if (!block || typeof block !== 'object') return false;
+        switch (block.type) {
+            case 'math-display':
+                return !isBlank(block.latex);
+            case 'html-snippet':
+                return !isBlank(block.html);
+            case 'paragraph':
+            case 'heading':
+            case 'callout':
+                return !isBlank(block.text);
+            default:
+                return true;
+        }
+    });
+    return doc;
+}

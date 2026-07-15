@@ -2,9 +2,10 @@ import {
     validateBlocksContent,
     fixBlocksContent,
     countWorksheetTaskCards,
+    sanitizeRawBlocks,
     type ContentIssue,
 } from './blocks-content-validator';
-import type { GenerationDocumentT } from './blocks-schema';
+import { GenerationDocument, type GenerationDocumentT } from './blocks-schema';
 
 function docWithBlocks(blocks: any[], docType: GenerationDocumentT['type'] = 'worksheet'): GenerationDocumentT {
     return {
@@ -423,5 +424,59 @@ describe('validateBlocksContent с expectedTaskCount', () => {
         ]);
         const issues = validateBlocksContent(doc);
         expect(issues.filter(i => i.code === 'task_count_mismatch')).toEqual([]);
+    });
+});
+
+describe('sanitizeRawBlocks', () => {
+    const rawDoc = (blocks: any[]) => ({
+        schemaVersion: 1, type: 'lesson_plan', title: 'T', meta: {}, blocks,
+    });
+
+    it('удаляет math-display с пустым latex (главный кейс бага)', () => {
+        const out: any = sanitizeRawBlocks(rawDoc([
+            { type: 'heading', id: 'h-1', level: 2, text: 'Этап 1' },
+            { type: 'math-display', id: 'md-1', latex: '' },
+            { type: 'paragraph', id: 'p-1', text: 'Текст' },
+        ]));
+        expect(out.blocks.map((b: any) => b.type)).toEqual(['heading', 'paragraph']);
+    });
+
+    it('удаляет math-display с latex из одних пробелов', () => {
+        const out: any = sanitizeRawBlocks(rawDoc([
+            { type: 'math-display', id: 'md-1', latex: '   ' },
+        ]));
+        expect(out.blocks).toEqual([]);
+    });
+
+    it('сохраняет math-display с реальной формулой', () => {
+        const out: any = sanitizeRawBlocks(rawDoc([
+            { type: 'math-display', id: 'md-1', latex: 'a^2 + b^2 = c^2' },
+        ]));
+        expect(out.blocks).toHaveLength(1);
+    });
+
+    it('удаляет пустые paragraph/heading/callout и html-snippet', () => {
+        const out: any = sanitizeRawBlocks(rawDoc([
+            { type: 'paragraph', id: 'p-1', text: '' },
+            { type: 'heading', id: 'h-1', level: 2, text: '  ' },
+            { type: 'callout', id: 'c-1', variant: 'info', text: '' },
+            { type: 'html-snippet', id: 'x-1', html: '' },
+            { type: 'paragraph', id: 'p-2', text: 'Оставить' },
+        ]));
+        expect(out.blocks.map((b: any) => b.id)).toEqual(['p-2']);
+    });
+
+    it('после санитизации документ с пустым latex проходит Zod-схему', () => {
+        const cleaned = sanitizeRawBlocks(rawDoc([
+            { type: 'heading', id: 'h-1', level: 2, text: 'Этап 1' },
+            { type: 'math-display', id: 'md-1', latex: '' },
+        ]));
+        expect(() => GenerationDocument.parse(cleaned)).not.toThrow();
+    });
+
+    it('не трогает вход, если это не документ с блоками', () => {
+        expect(sanitizeRawBlocks(null)).toBeNull();
+        expect(sanitizeRawBlocks('строка')).toBe('строка');
+        expect(sanitizeRawBlocks({ foo: 1 })).toEqual({ foo: 1 });
     });
 });

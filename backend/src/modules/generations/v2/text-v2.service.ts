@@ -15,6 +15,7 @@ import {
     validateBlocksContent,
     fixBlocksContent,
     formatContentIssues,
+    sanitizeRawBlocks,
     type ContentIssue,
 } from './blocks-content-validator';
 
@@ -174,6 +175,9 @@ export class TextV2Service {
                 errors: `Невалидный JSON: ${e?.message}. Начало ответа: ${cleaned.slice(0, 200)}`,
             };
         }
+        // Детерминированная чистка пустых блоков-пустышек (напр. math-display
+        // с пустым latex) ДО Zod: иначе min(1) роняет всю генерацию.
+        parsed = sanitizeRawBlocks(parsed);
         let doc: GenerationDocumentT;
         try {
             doc = GenerationDocument.parse(parsed);
