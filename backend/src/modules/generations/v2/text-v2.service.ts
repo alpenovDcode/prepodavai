@@ -11,6 +11,7 @@ import {
     replaceTaskRange,
     reassignBlockIds,
     collectIds,
+    parseBlocksArray,
     type RawBlock,
 } from './regenerate-task.util';
 import { GenerationHelpersService } from '../generation-helpers.service';
@@ -254,6 +255,9 @@ export class TextV2Service {
             (b) => b && typeof b.type === 'string' && b.type !== 'heading',
         );
         if (parsed.length === 0) {
+            this.logger.warn(
+                `regenerateTask: не распарсил тело. raw[0..500]: ${String(raw).slice(0, 500)}`,
+            );
             throw new BadRequestException('ИИ вернул пустой результат. Попробуйте ещё раз.');
         }
 
@@ -314,27 +318,6 @@ ${JSON.stringify(bodyBlocks, null, 0)}
 - Без markdown, без комментариев, без \`\`\`. Только JSON-массив.`;
 }
 
-/** Парсит JSON-массив блоков из ответа LLM (терпим к обёрткам и fences). */
-function parseBlocksArray(raw: string): RawBlock[] {
-    let s = (raw || '').trim();
-    if (s.startsWith('```')) {
-        s = s.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
-    }
-    const firstBracket = s.indexOf('[');
-    const lastBracket = s.lastIndexOf(']');
-    let candidate = s;
-    if (firstBracket >= 0 && lastBracket > firstBracket) {
-        candidate = s.slice(firstBracket, lastBracket + 1);
-    }
-    try {
-        const parsed = JSON.parse(candidate);
-        if (Array.isArray(parsed)) return parsed as RawBlock[];
-        if (parsed && Array.isArray(parsed.blocks)) return parsed.blocks as RawBlock[];
-        return [];
-    } catch {
-        return [];
-    }
-}
 
 function stripJsonFences(raw: string): string {
     let s = raw.trim();

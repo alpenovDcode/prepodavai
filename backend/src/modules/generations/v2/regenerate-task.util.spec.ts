@@ -3,6 +3,7 @@ import {
     replaceTaskRange,
     reassignBlockIds,
     collectIds,
+    parseBlocksArray,
     RawBlock,
 } from './regenerate-task.util';
 
@@ -79,5 +80,46 @@ describe('collectIds', () => {
     it('собирает все id документа', () => {
         expect(collectIds(doc).has('h-2')).toBe(true);
         expect(collectIds(doc).size).toBe(8);
+    });
+});
+
+describe('parseBlocksArray', () => {
+    it('массив блоков', () => {
+        const r = parseBlocksArray('[{"type":"paragraph","text":"a"},{"type":"short-answer"}]');
+        expect(r).toHaveLength(2);
+        expect(r[0].type).toBe('paragraph');
+    });
+
+    it('ОДИНОЧНЫЙ объект-блок → оборачивается в массив (главный кейс бага)', () => {
+        const r = parseBlocksArray('{"type":"multiple-choice","question":"?","options":[]}');
+        expect(r).toHaveLength(1);
+        expect(r[0].type).toBe('multiple-choice');
+    });
+
+    it('обёртка { blocks: [...] }', () => {
+        const r = parseBlocksArray('{"blocks":[{"type":"paragraph"},{"type":"fill-blank"}]}');
+        expect(r).toHaveLength(2);
+    });
+
+    it('markdown-fence ```json ... ```', () => {
+        const r = parseBlocksArray('```json\n[{"type":"paragraph","text":"x"}]\n```');
+        expect(r).toHaveLength(1);
+    });
+
+    it('пояснительный текст до массива', () => {
+        const r = parseBlocksArray('Вот новый вариант:\n[{"type":"short-answer","question":"?"}]');
+        expect(r).toHaveLength(1);
+        expect(r[0].type).toBe('short-answer');
+    });
+
+    it('пояснительный текст до одиночного объекта', () => {
+        const r = parseBlocksArray('Готово: {"type":"multiple-choice","options":[{"id":"a"}]}');
+        expect(r).toHaveLength(1);
+        expect(r[0].type).toBe('multiple-choice');
+    });
+
+    it('пусто/мусор → []', () => {
+        expect(parseBlocksArray('')).toEqual([]);
+        expect(parseBlocksArray('бла-бла без json')).toEqual([]);
     });
 });
