@@ -355,7 +355,7 @@ export default function WorksheetGeneratorV2(): React.ReactElement {
                                 onChange={e => setQuestionType(e.target.value as any)}
                                 className="block w-full h-10 px-3 rounded-md border border-ink-200 bg-surface text-[14px] text-ink-900 focus:outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-400/15 transition-colors"
                             >
-                                <option value="mixed">Разные (на выбор ИИ)</option>
+                                <option value="mixed">Разные</option>
                                 <option value="multiple-choice">Тестовые (с вариантами)</option>
                                 <option value="short-answer">Развёрнутый ответ</option>
                                 <option value="fill-blank">Заполни пропуски</option>
