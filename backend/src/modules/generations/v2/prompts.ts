@@ -184,12 +184,53 @@ const COMMON_TAIL = `
 
 // ─── WORKSHEET ────────────────────────────────────────────────────
 
+export type DifficultyLevel = 'easy' | 'medium' | 'hard';
+
+/**
+ * Директива уровня сложности для промпта. Управляется полем формы
+ * «Сложность» (легко/средне/сложно) на рабочем листе и тесте.
+ */
+export function difficultyDirective(d?: DifficultyLevel): string | null {
+    switch (d) {
+        case 'easy':
+            return 'Уровень сложности: ЛЁГКИЙ — базовые задания на прямое применение правила, простые числа, 1 шаг решения. Подходит для отработки и слабых учеников.';
+        case 'medium':
+            return 'Уровень сложности: СРЕДНИЙ — стандартные задания школьной программы, 2–3 шага решения.';
+        case 'hard':
+            return 'Уровень сложности: СЛОЖНЫЙ — задания повышенной сложности, многошаговые, олимпиадного или экзаменационного уровня (ОГЭ/ЕГЭ).';
+        default:
+            return null;
+    }
+}
+
+export type WorksheetQuestionType =
+    | 'mixed'
+    | 'multiple-choice'
+    | 'short-answer'
+    | 'fill-blank';
+
+/** Директива формата заданий рабочего листа. mixed → без ограничения. */
+function worksheetTypeDirective(t?: WorksheetQuestionType): string | null {
+    switch (t) {
+        case 'multiple-choice':
+            return 'Формат заданий: используй ТОЛЬКО multiple-choice (тестовые вопросы с вариантами). НЕ используй fill-blank, short-answer, matching.';
+        case 'short-answer':
+            return 'Формат заданий: в основном short-answer (открытый развёрнутый ответ с местом для решения). Тестовых вопросов — минимум.';
+        case 'fill-blank':
+            return 'Формат заданий: в основном fill-blank (заполни пропуски {{N}}). Разбавляй короткими multiple-choice при необходимости.';
+        default:
+            return null;
+    }
+}
+
 export interface WorksheetGenInput {
     topic: string;
     subject?: string;
     grade?: string | number;
     duration?: string;
     numTasks?: number;
+    difficulty?: DifficultyLevel;
+    questionTypes?: WorksheetQuestionType;
     interests?: string;
     extraNotes?: string;
 }
@@ -262,6 +303,10 @@ ${COMMON_TAIL}`;
     if (input.grade) lines.push(`Класс: ${input.grade}`);
     if (input.duration) lines.push(`Длительность: ${input.duration}`);
     if (input.numTasks) lines.push(`Количество заданий: РОВНО ${input.numTasks} (карточек heading «Задание N. ...»).`);
+    const wsDiff = difficultyDirective(input.difficulty);
+    if (wsDiff) lines.push(wsDiff);
+    const wsType = worksheetTypeDirective(input.questionTypes);
+    if (wsType) lines.push(wsType);
     if (input.interests && input.interests.trim()) {
         lines.push(`Интересы учеников (используй в формулировках задач, метафорах, примерах): ${input.interests.trim()}`);
     }
@@ -279,6 +324,7 @@ export interface QuizGenInput {
     numQuestions?: number;
     numAnswers?: number;
     questionTypes?: 'multiple-choice' | 'mixed';
+    difficulty?: DifficultyLevel;
     interests?: string;
     extraNotes?: string;
 }
@@ -343,6 +389,8 @@ ${COMMON_TAIL}`;
     }
     if (input.grade) lines.push(`Класс: ${input.grade}`);
     if (input.numQuestions) lines.push(`Количество вопросов: ${input.numQuestions}`);
+    const quizDiff = difficultyDirective(input.difficulty);
+    if (quizDiff) lines.push(quizDiff);
     if (input.interests && input.interests.trim()) {
         lines.push(`Интересы учеников (используй в формулировках вопросов): ${input.interests.trim()}`);
     }
