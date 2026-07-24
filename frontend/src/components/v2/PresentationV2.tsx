@@ -65,6 +65,64 @@ const AUDIENCES = [
     { value: 'Коллеги',    backend: 'colleagues' },
 ] as const
 
+/** Схематичная мини-превьюшка стиля слайда (16:9). */
+function StyleThumb({ styleKey }: { styleKey: StyleKey }) {
+    const base = 'w-full aspect-[16/9] rounded-md overflow-hidden border border-ink-100'
+    if (styleKey === 'modern') {
+        return (
+            <div className={`${base} bg-white flex`}>
+                <div className="w-1.5 bg-indigo-500" />
+                <div className="flex-1 p-2 flex flex-col gap-1 justify-center">
+                    <div className="h-1.5 w-3/4 rounded bg-ink-800" />
+                    <div className="h-1 w-full rounded bg-ink-200" />
+                    <div className="h-1 w-5/6 rounded bg-ink-200" />
+                </div>
+            </div>
+        )
+    }
+    if (styleKey === 'academic') {
+        return (
+            <div className={`${base} bg-[#FBFAF7] p-2 flex flex-col items-center justify-center gap-1`}>
+                <div className="h-1.5 w-1/2 rounded bg-ink-700" />
+                <div className="h-[2px] w-8 bg-amber-600/70" />
+                <div className="h-1 w-4/5 rounded bg-ink-300 mt-0.5" />
+                <div className="h-1 w-3/4 rounded bg-ink-300" />
+            </div>
+        )
+    }
+    if (styleKey === 'creative') {
+        return (
+            <div className={`${base} bg-white flex flex-col`}>
+                <div className="h-1/2 bg-gradient-to-r from-violet-500 to-pink-500 flex items-center px-2">
+                    <div className="h-1.5 w-2/3 rounded bg-white/90" />
+                </div>
+                <div className="flex-1 p-2 flex flex-col gap-1 justify-center">
+                    <div className="h-1 w-full rounded bg-ink-200" />
+                    <div className="h-1 w-4/5 rounded bg-ink-200" />
+                </div>
+            </div>
+        )
+    }
+    // corporate
+    return (
+        <div className={`${base} bg-white flex flex-col`}>
+            <div className="h-1/3 bg-slate-800 flex items-center px-2">
+                <div className="h-1.5 w-1/2 rounded bg-white/80" />
+            </div>
+            <div className="flex-1 p-2 grid grid-cols-2 gap-1.5">
+                <div className="flex flex-col gap-1 justify-center">
+                    <div className="h-1 w-full rounded bg-ink-200" />
+                    <div className="h-1 w-4/5 rounded bg-ink-200" />
+                </div>
+                <div className="flex flex-col gap-1 justify-center">
+                    <div className="h-1 w-full rounded bg-ink-200" />
+                    <div className="h-1 w-3/4 rounded bg-ink-200" />
+                </div>
+            </div>
+        </div>
+    )
+}
+
 export default function PresentationV2() {
     // form
     const [topic, setTopic] = useState('')
@@ -355,14 +413,28 @@ ${pptxUrlFound ? `<a href="${pptxUrlFound}" target="_blank">Скачать PPTX<
                             ]}
                         />
 
-                        {/* Style */}
+                        {/* Style — визуальные миниатюры */}
                         <div>
                             <label className="block text-[11px] font-bold uppercase tracking-wider text-ink-700 mb-1.5">Стиль</label>
-                            <Select
-                                value={style}
-                                onChange={e => setStyle(e.target.value as StyleKey)}
-                                options={STYLES.map(s => ({ value: s.value, label: s.label }))}
-                            />
+                            <div className="grid grid-cols-2 gap-2">
+                                {STYLES.map(s => (
+                                    <button
+                                        key={s.value}
+                                        type="button"
+                                        onClick={() => setStyle(s.value)}
+                                        className={`text-left rounded-lg border p-1.5 transition-all ${
+                                            style === s.value
+                                                ? 'border-brand-400 ring-2 ring-brand-400/20 bg-brand-50/40'
+                                                : 'border-ink-200 hover:border-ink-300 bg-surface'
+                                        }`}
+                                    >
+                                        <StyleThumb styleKey={s.value} />
+                                        <div className={`text-[11px] font-semibold mt-1 px-0.5 ${style === s.value ? 'text-brand-700' : 'text-ink-600'}`}>
+                                            {s.label}
+                                        </div>
+                                    </button>
+                                ))}
+                            </div>
                         </div>
 
                         {/* Color swatches */}
