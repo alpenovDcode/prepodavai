@@ -159,6 +159,25 @@ export class GenerationsController {
   }
 
   /**
+   * Перегенерация одного задания в blocks-v1 материале (лист/тест).
+   * body: { headingId } — id heading-блока задания. Меняет только тело,
+   * заголовок и остальные задания сохраняются.
+   */
+  @Post('v2/:id/regenerate-task')
+  @UseGuards(JwtAuthGuard, GenerationsThrottlerGuard)
+  async regenerateTaskV2(
+    @Request() req: any,
+    @Param('id') id: string,
+    @Body() body: Record<string, unknown>,
+  ) {
+    return this.textV2Service.regenerateTask(
+      this.userId(req),
+      id,
+      String(body.headingId || ''),
+    );
+  }
+
+  /**
    * Загрузка пользовательского материала (PDF/JPG/PNG, ≤50MB).
    * Создаёт UserGeneration со status=completed и generationType='uploaded_file' —
    * материал сразу появляется в разделе «Материалы» рядом с AI-генерациями.
