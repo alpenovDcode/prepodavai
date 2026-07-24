@@ -205,15 +205,16 @@ export function difficultyDirective(d?: DifficultyLevel): string | null {
 
 export type WorksheetQuestionType =
     | 'mixed'
-    | 'multiple-choice'
     | 'short-answer'
     | 'fill-blank';
 
-/** Директива формата заданий рабочего листа. mixed → без ограничения. */
+/**
+ * Директива формата заданий рабочего листа. mixed → без ограничения.
+ * «Только тестовые» намеренно НЕ предлагаем — для чистого теста есть
+ * отдельный инструмент «Тест» с управлением числом вариантов.
+ */
 function worksheetTypeDirective(t?: WorksheetQuestionType): string | null {
     switch (t) {
-        case 'multiple-choice':
-            return 'Формат заданий: используй ТОЛЬКО multiple-choice (тестовые вопросы с вариантами). В КАЖДОМ вопросе РОВНО 4 варианта ответа. НЕ используй fill-blank, short-answer, matching.';
         case 'short-answer':
             return 'Формат заданий: в основном short-answer (открытый развёрнутый ответ с местом для решения). Тестовых вопросов — минимум.';
         case 'fill-blank':

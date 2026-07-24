@@ -58,7 +58,7 @@ export default function WorksheetGeneratorV2(): React.ReactElement {
     const [level, setLevel] = useState('5 класс')
     const [questionsCount, setQuestionsCount] = useState(10)
     const [difficulty, setDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium')
-    const [questionType, setQuestionType] = useState<'mixed' | 'multiple-choice' | 'short-answer' | 'fill-blank'>('mixed')
+    const [questionType, setQuestionType] = useState<'mixed' | 'short-answer' | 'fill-blank'>('mixed')
     const [extraNotes, setExtraNotes] = useState('')
 
     // result
@@ -356,7 +356,6 @@ export default function WorksheetGeneratorV2(): React.ReactElement {
                                 className="block w-full h-10 px-3 rounded-md border border-ink-200 bg-surface text-[14px] text-ink-900 focus:outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-400/15 transition-colors"
                             >
                                 <option value="mixed">Разные</option>
-                                <option value="multiple-choice">Тестовые</option>
                                 <option value="short-answer">Развёрнутый ответ</option>
                                 <option value="fill-blank">Заполни пропуски</option>
                             </select>
