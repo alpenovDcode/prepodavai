@@ -36,6 +36,7 @@ export function useV2Toggle(storageKey: string) {
     const [v2IsGenerating, setV2IsGenerating] = useState(false)
     const [v2IsSaving, setV2IsSaving] = useState(false)
     const [v2Mode, setV2Mode] = useState<'preview' | 'answers' | 'edit'>('preview')
+    const [regeneratingId, setRegeneratingId] = useState<string | null>(null)
 
     const toggleV2 = useCallback((next: boolean) => {
         setUseV2(next)
@@ -83,6 +84,25 @@ export function useV2Toggle(storageKey: string) {
         }
     }, [v2GenerationId])
 
+    const regenerateTask = useCallback(async (headingId: string) => {
+        if (!v2GenerationId) return
+        setRegeneratingId(headingId)
+        try {
+            const res = await apiClient.post(`/generate/v2/${v2GenerationId}/regenerate-task`, { headingId })
+            if (res.data?.outputDoc) {
+                setV2Doc(res.data.outputDoc)
+                toast.success('Задание обновлено')
+            } else {
+                toast.error('ИИ вернул пустой ответ')
+            }
+        } catch (e: any) {
+            const msg = e?.response?.data?.message || e?.message || 'Не удалось перегенерировать'
+            toast.error(Array.isArray(msg) ? msg.join('; ') : msg)
+        } finally {
+            setRegeneratingId(null)
+        }
+    }, [v2GenerationId])
+
     return {
         useV2, toggleV2,
         v2Doc, setV2Doc,
@@ -92,6 +112,7 @@ export function useV2Toggle(storageKey: string) {
         v2Mode, setV2Mode,
         generateV2,
         saveV2,
+        regenerateTask, regeneratingId,
         hasV2Result: !!v2Doc && !v2IsGenerating,
     }
 }

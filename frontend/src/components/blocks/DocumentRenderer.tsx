@@ -1,5 +1,6 @@
 'use client'
 
+import { RefreshCw, Loader2 } from 'lucide-react'
 import { BlockRenderer } from './Blocks'
 import type { Block, GenerationDocument } from '@/lib/blocks/schema'
 import { LOGO_BASE64 } from '@/constants/branding'
@@ -27,10 +28,15 @@ export interface DocumentRendererProps {
     onAnswerChange?: (blockId: string, value: any) => void
     showAnswers?: boolean
     className?: string
+    /** Учительское превью: перегенерировать одно задание по id его heading. */
+    onRegenerateTask?: (headingId: string) => void
+    /** headingId задания, которое сейчас перегенерируется (для спиннера). */
+    regeneratingId?: string | null
 }
 
 export function DocumentRenderer({
     doc, answers, onAnswerChange, showAnswers, className,
+    onRegenerateTask, regeneratingId,
 }: DocumentRendererProps) {
     const grouped = groupBlocks(doc.blocks)
     return (
@@ -65,6 +71,20 @@ export function DocumentRenderer({
                                     {card.title && (
                                         <div className="task-card-title">
                                             <InlineMathText text={card.title} />
+                                            {onRegenerateTask && card.headingId && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => onRegenerateTask(card.headingId!)}
+                                                    disabled={regeneratingId === card.headingId}
+                                                    title="Перегенерировать это задание"
+                                                    className="task-regen-btn"
+                                                >
+                                                    {regeneratingId === card.headingId
+                                                        ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                        : <RefreshCw className="w-3.5 h-3.5" />}
+                                                    Заново
+                                                </button>
+                                            )}
                                         </div>
                                     )}
                                     {card.blocks.map((block) => (
@@ -100,7 +120,7 @@ export function DocumentRenderer({
  *   достаточно ставить heading-разделители, и мы автоматом дадим вёрстку
  *   карточек как в исходном HTML-формате.
  */
-interface Card { title: string | null; blocks: Block[] }
+interface Card { title: string | null; headingId: string | null; blocks: Block[] }
 interface Section { title: string | null; cards: Card[] }
 
 function groupBlocks(blocks: Block[]): { intro: Block[]; sections: Section[] } {
@@ -114,9 +134,9 @@ function groupBlocks(blocks: Block[]): { intro: Block[]; sections: Section[] } {
         sections.push(currentSection)
         currentCard = null
     }
-    const openCard = (title: string | null) => {
+    const openCard = (title: string | null, headingId: string | null) => {
         if (!currentSection) openSection(null)
-        currentCard = { title, blocks: [] }
+        currentCard = { title, headingId, blocks: [] }
         currentSection!.cards.push(currentCard)
     }
 
@@ -128,7 +148,7 @@ function groupBlocks(blocks: Block[]): { intro: Block[]; sections: Section[] } {
                 continue
             }
             // обычное «Задание …» / иное → новая карточка
-            openCard(text)
+            openCard(text, block.id)
             continue
         }
 
@@ -139,7 +159,7 @@ function groupBlocks(blocks: Block[]): { intro: Block[]; sections: Section[] } {
         }
         if (!currentCard) {
             // секция открыта, но карточки ещё нет — заводим безымянную
-            openCard(null)
+            openCard(null, null)
         }
         currentCard!.blocks.push(block)
     }
@@ -407,7 +427,29 @@ function DocumentStyles() {
                 font-weight: 700;
                 color: #4f46e5;
                 margin-bottom: 12px;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 12px;
             }
+            .prepodavai-doc .task-regen-btn {
+                flex-shrink: 0;
+                display: inline-flex;
+                align-items: center;
+                gap: 5px;
+                font-size: 12px;
+                font-weight: 600;
+                color: #6b7280;
+                background: #f3f4f6;
+                border: none;
+                border-radius: 7px;
+                padding: 4px 10px;
+                cursor: pointer;
+                transition: background .15s, color .15s;
+            }
+            .prepodavai-doc .task-regen-btn:hover:not(:disabled) { background: #e5e7eb; color: #4f46e5; }
+            .prepodavai-doc .task-regen-btn:disabled { opacity: .6; cursor: default; }
+            @media print { .prepodavai-doc .task-regen-btn { display: none !important; } }
             .prepodavai-doc .task-card > *:first-child { margin-top: 0; }
             .prepodavai-doc .task-card > *:last-child { margin-bottom: 0; }
             /* h2/h3 ВНУТРИ карточки чуть скромнее, не дублируют title */

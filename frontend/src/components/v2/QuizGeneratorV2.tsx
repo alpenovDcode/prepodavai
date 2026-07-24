@@ -487,7 +487,12 @@ export default function QuizGeneratorV2() {
                                         onSave={v2.saveV2}
                                     />
                                 ) : (
-                                    <DocumentRenderer doc={v2.v2Doc} showAnswers={v2.v2Mode === 'answers'} />
+                                    <DocumentRenderer
+                                        doc={v2.v2Doc}
+                                        showAnswers={v2.v2Mode === 'answers'}
+                                        onRegenerateTask={v2.regenerateTask}
+                                        regeneratingId={v2.regeneratingId}
+                                    />
                                 )
                             ) : (
                                 <div className="h-full flex flex-col items-center justify-center text-center p-10 text-ink-500">

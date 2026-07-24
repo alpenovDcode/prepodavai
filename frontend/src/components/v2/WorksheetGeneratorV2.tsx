@@ -91,6 +91,26 @@ export default function WorksheetGeneratorV2(): React.ReactElement {
     const [v2IsGenerating, setV2IsGenerating] = useState(false)
     const [v2Mode, setV2Mode] = useState<'preview' | 'answers' | 'edit'>('preview')
     const [v2IsSaving, setV2IsSaving] = useState(false)
+    const [v2RegeneratingId, setV2RegeneratingId] = useState<string | null>(null)
+
+    const regenerateV2Task = async (headingId: string) => {
+        if (!v2GenerationId) return
+        setV2RegeneratingId(headingId)
+        try {
+            const res = await apiClient.post(`/generate/v2/${v2GenerationId}/regenerate-task`, { headingId })
+            if (res.data?.outputDoc) {
+                setV2Doc(res.data.outputDoc)
+                toast.success('Задание обновлено')
+            } else {
+                toast.error('ИИ вернул пустой ответ')
+            }
+        } catch (e: any) {
+            const msg = e?.response?.data?.message || e?.message || 'Не удалось перегенерировать'
+            toast.error(Array.isArray(msg) ? msg.join('; ') : msg)
+        } finally {
+            setV2RegeneratingId(null)
+        }
+    }
     const toggleV2 = (next: boolean) => {
         setUseV2(next)
         try { localStorage.setItem('worksheet_use_v2_format', next ? '1' : '0') } catch {}
@@ -498,7 +518,12 @@ export default function WorksheetGeneratorV2(): React.ReactElement {
                                         }}
                                     />
                                 ) : (
-                                    <DocumentRenderer doc={v2Doc} showAnswers={v2Mode === 'answers'} />
+                                    <DocumentRenderer
+                                        doc={v2Doc}
+                                        showAnswers={v2Mode === 'answers'}
+                                        onRegenerateTask={regenerateV2Task}
+                                        regeneratingId={v2RegeneratingId}
+                                    />
                                 )
                             ) : (
                                 <div className="h-full flex flex-col items-center justify-center text-center p-10 text-ink-500">
