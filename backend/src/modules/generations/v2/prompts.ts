@@ -213,7 +213,7 @@ export type WorksheetQuestionType =
 function worksheetTypeDirective(t?: WorksheetQuestionType): string | null {
     switch (t) {
         case 'multiple-choice':
-            return 'Формат заданий: используй ТОЛЬКО multiple-choice (тестовые вопросы с вариантами). НЕ используй fill-blank, short-answer, matching.';
+            return 'Формат заданий: используй ТОЛЬКО multiple-choice (тестовые вопросы с вариантами). В КАЖДОМ вопросе РОВНО 4 варианта ответа. НЕ используй fill-blank, short-answer, matching.';
         case 'short-answer':
             return 'Формат заданий: в основном short-answer (открытый развёрнутый ответ с местом для решения). Тестовых вопросов — минимум.';
         case 'fill-blank':
@@ -253,7 +253,7 @@ ${BASE_SCHEMA_DESCRIPTION}
 
 ПЕРЕД ОТДАЧЕЙ JSON ОБЯЗАТЕЛЬНО ПРОВЕРЬ: количество heading level 2, текст которых начинается с «Задание », должно быть равно ${tasks}. Если меньше — допиши недостающие карточки.
 - Если задание с числовым ответом — добавляй short-answer с expectedAnswer (всё в LaTeX).
-- Если задание выбрать из списка — multiple-choice с 3–5 вариантами.
+- Если задание выбрать из списка — multiple-choice. ПО УМОЛЧАНИЮ РОВНО 4 варианта ответа (3 или 5 — только если по смыслу иначе никак).
 - Если заполнить пропуски — fill-blank с 1–4 пропусками.
 - Если сопоставить — matching с 3–5 левыми и правыми элементами.
 

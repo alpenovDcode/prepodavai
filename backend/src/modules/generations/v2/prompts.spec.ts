@@ -21,9 +21,10 @@ describe('buildWorksheetPrompt', () => {
         expect(user).toMatch(/Уровень сложности:\s*СЛОЖНЫЙ/i);
     });
 
-    it('questionTypes=multiple-choice → директива «только multiple-choice»', () => {
+    it('questionTypes=multiple-choice → директива «только multiple-choice» + 4 варианта', () => {
         const { user } = buildWorksheetPrompt({ topic: 'Дроби', questionTypes: 'multiple-choice' });
         expect(user).toMatch(/только.*multiple-choice/i);
+        expect(user).toMatch(/РОВНО 4 варианта/i);
     });
 
     it('questionTypes=fill-blank → директива про заполнение пропусков', () => {
