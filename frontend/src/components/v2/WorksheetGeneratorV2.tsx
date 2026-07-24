@@ -57,6 +57,9 @@ export default function WorksheetGeneratorV2(): React.ReactElement {
     const [subject, setSubject] = useState('Математика')
     const [level, setLevel] = useState('5 класс')
     const [questionsCount, setQuestionsCount] = useState(10)
+    const [difficulty, setDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium')
+    const [questionType, setQuestionType] = useState<'mixed' | 'multiple-choice' | 'short-answer' | 'fill-blank'>('mixed')
+    const [extraNotes, setExtraNotes] = useState('')
 
     // result
     const [localContent, setLocalContent] = useState(INITIAL_HTML)
@@ -151,6 +154,9 @@ export default function WorksheetGeneratorV2(): React.ReactElement {
         try {
             const res = await apiClient.post('/generate/v2/worksheet', {
                 topic, subject, grade: level, numTasks: questionsCount,
+                difficulty,
+                questionTypes: questionType,
+                extraNotes: extraNotes.trim() || undefined,
             })
             const data = res.data
             if (!data?.outputDoc) {
@@ -307,6 +313,45 @@ export default function WorksheetGeneratorV2(): React.ReactElement {
                                     {questionsCount}
                                 </div>
                             </div>
+                        </div>
+
+                        {/* Difficulty */}
+                        <div>
+                            <label className="block text-[12px] font-semibold text-ink-700 mb-2 uppercase tracking-wider">Сложность</label>
+                            <div className="flex gap-1.5">
+                                {([['easy', 'Легко'], ['medium', 'Средне'], ['hard', 'Сложно']] as const).map(([v, l]) => (
+                                    <ChipButton key={v} active={difficulty === v} onClick={() => setDifficulty(v)}>
+                                        {l}
+                                    </ChipButton>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Question type */}
+                        <div>
+                            <label className="block text-[12px] font-semibold text-ink-700 mb-2 uppercase tracking-wider">Тип заданий</label>
+                            <select
+                                value={questionType}
+                                onChange={e => setQuestionType(e.target.value as any)}
+                                className="block w-full h-10 px-3 rounded-md border border-ink-200 bg-surface text-[14px] text-ink-900 focus:outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-400/15 transition-colors"
+                            >
+                                <option value="mixed">Разные (на выбор ИИ)</option>
+                                <option value="multiple-choice">Тестовые (с вариантами)</option>
+                                <option value="short-answer">Развёрнутый ответ</option>
+                                <option value="fill-blank">Заполни пропуски</option>
+                            </select>
+                        </div>
+
+                        {/* Extra notes */}
+                        <div>
+                            <label className="block text-[12px] font-semibold text-ink-700 mb-2 uppercase tracking-wider">Пожелания <span className="text-ink-400 normal-case font-normal">— необязательно</span></label>
+                            <textarea
+                                value={extraNotes}
+                                onChange={e => setExtraNotes(e.target.value)}
+                                rows={2}
+                                placeholder="Например: в контексте футбола · формат ОГЭ · последние 2 задания со звёздочкой"
+                                className="w-full p-3 rounded-md border border-ink-200 text-[13px] bg-surface focus:outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-400/15 transition-colors resize-none"
+                            />
                         </div>
 
                         <div className="pt-2 border-t border-ink-100">

@@ -60,6 +60,9 @@ export default function QuizGeneratorV2() {
     const [level, setLevel] = useState('5 класс')
     const [questionsCount, setQuestionsCount] = useState(10)
     const [answersCount, setAnswersCount] = useState(4)
+    const [difficulty, setDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium')
+    const [questionType, setQuestionType] = useState<'mixed' | 'multiple-choice'>('multiple-choice')
+    const [extraNotes, setExtraNotes] = useState('')
 
     // result
     const [localContent, setLocalContent] = useState(INITIAL_HTML)
@@ -96,6 +99,9 @@ export default function QuizGeneratorV2() {
             setMobileTab('preview')
             return v2.generateV2('/generate/v2/quiz', {
                 topic, subject, grade: level, numQuestions: questionsCount, numAnswers: answersCount,
+                difficulty,
+                questionTypes: questionType,
+                extraNotes: extraNotes.trim() || undefined,
             })
         }
         try {
@@ -194,7 +200,7 @@ export default function QuizGeneratorV2() {
         window.addEventListener('keydown', onKey)
         return () => window.removeEventListener('keydown', onKey)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [topic, isGenerating, subject, level, questionsCount, answersCount])
+    }, [topic, isGenerating, subject, level, questionsCount, answersCount, difficulty, questionType, extraNotes])
 
     const presets = PRESETS_BY_SUBJECT[subject] ?? []
 
@@ -310,6 +316,42 @@ export default function QuizGeneratorV2() {
                                     </ChipButton>
                                 ))}
                             </div>
+                        </div>
+
+                        {/* Difficulty */}
+                        <div>
+                            <label className="block text-[12px] font-semibold text-ink-700 mb-2 uppercase tracking-wider">Сложность</label>
+                            <div className="flex gap-1.5">
+                                {([['easy', 'Легко'], ['medium', 'Средне'], ['hard', 'Сложно']] as const).map(([v, l]) => (
+                                    <ChipButton key={v} active={difficulty === v} onClick={() => setDifficulty(v)}>
+                                        {l}
+                                    </ChipButton>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Question type */}
+                        <div>
+                            <label className="block text-[12px] font-semibold text-ink-700 mb-2 uppercase tracking-wider">Тип вопросов</label>
+                            <div className="flex gap-1.5">
+                                {([['multiple-choice', 'Только тесты'], ['mixed', 'С открытыми']] as const).map(([v, l]) => (
+                                    <ChipButton key={v} active={questionType === v} onClick={() => setQuestionType(v)}>
+                                        {l}
+                                    </ChipButton>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Extra notes */}
+                        <div>
+                            <label className="block text-[12px] font-semibold text-ink-700 mb-2 uppercase tracking-wider">Пожелания <span className="text-ink-400 normal-case font-normal">— необязательно</span></label>
+                            <textarea
+                                value={extraNotes}
+                                onChange={e => setExtraNotes(e.target.value)}
+                                rows={2}
+                                placeholder="Например: с пояснениями к ответам · формат ЕГЭ · без картинок"
+                                className="w-full p-3 rounded-md border border-ink-200 text-[13px] bg-surface focus:outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-400/15 transition-colors resize-none"
+                            />
                         </div>
 
                         <div className="pt-2 border-t border-ink-100">
