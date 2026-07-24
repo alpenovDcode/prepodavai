@@ -947,7 +947,7 @@ export class GenerationsService {
       `[GenerationsService] Enqueuing Replicate presentation generation for request ${generationRequestId}`,
     );
 
-    const { topic, text, duration, style, targetAudience, numCards, slidesCount, color } = inputParams;
+    const { topic, text, duration, style, targetAudience, numCards, slidesCount, color, grade, extraNotes } = inputParams;
 
     if (!topic) {
       throw new BadRequestException('No topic provided for presentation generation');
@@ -971,6 +971,8 @@ export class GenerationsService {
       style,                              // modern | academic | creative | corporate
       color,                              // indigo | emerald | violet | blue | slate
       targetAudience,
+      grade,                              // класс 1..11 (для сложности изложения)
+      extraNotes,                         // свободные пожелания учителя
       slidesCount: finalSlidesCount,      // основное поле
       numCards: finalSlidesCount,         // legacy совместимость
     });

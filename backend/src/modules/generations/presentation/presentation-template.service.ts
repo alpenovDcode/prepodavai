@@ -31,6 +31,8 @@ export interface PresentationParams {
   audience?: string;    // 'Школьники' | 'Студенты' | 'Учителя' | свободная строка
   style?: PresentationStyle;
   color?: PresentationColor;
+  grade?: string | number;  // класс 1..11 — сложность изложения
+  extraNotes?: string;      // свободные пожелания учителя
 }
 
 /**
@@ -97,6 +99,8 @@ export class PresentationTemplateService {
       text: params.text || '',
       slidesCount,
       audience,
+      grade: params.grade != null ? String(params.grade) : '',
+      extraNotes: params.extraNotes?.trim() || '',
     });
 
     const rawJson = await this.callLLM(prompt);
@@ -118,13 +122,13 @@ export class PresentationTemplateService {
    * Промпт для LLM. Короткий, строго JSON, без HTML/CSS/JS. Запрещены картинки.
    * Логика «1-я → 3-я → 10-я генерация» сохранена через payload.nth в analytics-events.
    */
-  private buildPrompt(p: { topic: string; text: string; slidesCount: number; audience: string }): string {
+  private buildPrompt(p: { topic: string; text: string; slidesCount: number; audience: string; grade?: string; extraNotes?: string }): string {
     return `Ты — методист и дизайнер презентаций. Сгенерируй данные для презентации.
 
 ТЕМА: ${p.topic}
 АУДИТОРИЯ: ${p.audience}
-КОЛИЧЕСТВО СЛАЙДОВ: ${p.slidesCount}
-${p.text ? `ИСХОДНЫЕ ТЕЗИСЫ/ТЕКСТ:\n${p.text}\n` : ''}
+${p.grade ? `КЛАСС: ${p.grade} — подбирай сложность изложения, лексику и глубину под этот возраст.\n` : ''}КОЛИЧЕСТВО СЛАЙДОВ: ${p.slidesCount}
+${p.text ? `ИСХОДНЫЕ ТЕЗИСЫ/ТЕКСТ:\n${p.text}\n` : ''}${p.extraNotes ? `ПОЖЕЛАНИЯ УЧИТЕЛЯ (обязательно учти): ${p.extraNotes}\n` : ''}
 
 🔥 ГЛАВНОЕ ПРАВИЛО — НАПОЛНЕНИЕ КАЖДОГО СЛАЙДА:
 Каждый слайд должен содержать МНОГО важного, осмысленного текста по теме.

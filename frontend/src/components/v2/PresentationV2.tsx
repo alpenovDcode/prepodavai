@@ -71,6 +71,8 @@ export default function PresentationV2() {
     const [thesis, setThesis] = useState('')
     const [slidesCount, setSlidesCount] = useState(12)
     const [audience, setAudience] = useState<typeof AUDIENCES[number]['value']>('Школьники')
+    const [grade, setGrade] = useState('')
+    const [extraNotes, setExtraNotes] = useState('')
     const [style, setStyle] = useState<StyleKey>('modern')
     const [color, setColor] = useState<ColorKey>('indigo')
     // result
@@ -110,6 +112,8 @@ export default function PresentationV2() {
                 style,
                 color,
                 targetAudience: backendAudience,
+                grade: grade || undefined,
+                extraNotes: extraNotes.trim() || undefined,
             }
             const requestId = await startGeneration({ type: 'presentation', params })
             if (!requestId) throw new Error('Не удалось создать запрос')
@@ -341,6 +345,16 @@ ${pptxUrlFound ? `<a href="${pptxUrlFound}" target="_blank">Скачать PPTX<
                             options={AUDIENCES.map(a => ({ value: a.value, label: a.value }))}
                         />
 
+                        <Select
+                            label="Класс"
+                            value={grade}
+                            onChange={e => setGrade(e.target.value)}
+                            options={[
+                                { value: '', label: 'Не указан' },
+                                ...Array.from({ length: 11 }, (_, i) => ({ value: `${i + 1} класс`, label: `${i + 1} класс` })),
+                            ]}
+                        />
+
                         {/* Style */}
                         <div>
                             <label className="block text-[11px] font-bold uppercase tracking-wider text-ink-700 mb-1.5">Стиль</label>
@@ -377,6 +391,20 @@ ${pptxUrlFound ? `<a href="${pptxUrlFound}" target="_blank">Скачать PPTX<
                             <div className="text-[11px] text-ink-500 mt-1.5">
                                 {COLORS.find(c => c.value === color)?.label}
                             </div>
+                        </div>
+
+                        {/* Extra notes */}
+                        <div>
+                            <label className="block text-[11px] font-bold uppercase tracking-wider text-ink-700 mb-1.5">
+                                Пожелания <span className="text-ink-400 normal-case font-normal">— необязательно</span>
+                            </label>
+                            <textarea
+                                value={extraNotes}
+                                onChange={e => setExtraNotes(e.target.value)}
+                                rows={2}
+                                placeholder="Например: больше примеров · сделай проще · с датами и картами"
+                                className="w-full p-3 rounded-md border border-ink-200 text-[13px] bg-surface focus:outline-none focus:border-brand-400 focus:ring-[3px] focus:ring-brand-400/15 transition-all resize-none"
+                            />
                         </div>
 
                         {/* Generate button */}

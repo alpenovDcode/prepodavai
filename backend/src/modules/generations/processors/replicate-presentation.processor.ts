@@ -24,6 +24,10 @@ export interface ReplicatePresentationJobData {
   slidesCount?: number;
   /** Цветовая тема: indigo | emerald | violet | blue | slate */
   color?: PresentationColor | string;
+  /** Класс 1..11 — влияет на сложность изложения. */
+  grade?: string | number;
+  /** Свободные пожелания учителя. */
+  extraNotes?: string;
   /** @deprecated — themeId был раньше, теперь только color. */
   themeId?: string;
 }
@@ -55,7 +59,7 @@ export class ReplicatePresentationProcessor extends WorkerHost {
   async process(job: Job<ReplicatePresentationJobData>): Promise<void> {
     const {
       generationRequestId, topic, text, duration, targetAudience,
-      numCards, slidesCount, style, color,
+      numCards, slidesCount, style, color, grade, extraNotes,
     } = job.data;
 
     this.logger.log(`Processing presentation ${generationRequestId}: "${topic}"`);
@@ -74,6 +78,8 @@ export class ReplicatePresentationProcessor extends WorkerHost {
         audience: targetAudience,
         style: style as PresentationStyle,
         color: color as PresentationColor,
+        grade,
+        extraNotes,
       });
 
       if (!html || html.length < 200) {
