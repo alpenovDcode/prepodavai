@@ -28,8 +28,9 @@ export const CanvasElementSchema = z.object({
     type: z.enum(['text', 'image', 'shape']),
     x: z.number().min(-2560).max(3840),
     y: z.number().min(-1440).max(2160),
-    width: z.number().min(8).max(2560),
-    height: z.number().min(8).max(1440),
+    // 1–2 px нужны для декоративных линий старых шаблонов.
+    width: z.number().min(1).max(2560),
+    height: z.number().min(1).max(1440),
     rotation: z.number().min(-360).max(360),
     zIndex: z.number().int().min(0).max(1000),
     text: z.string().max(20_000).optional(),

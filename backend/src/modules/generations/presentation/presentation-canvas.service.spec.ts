@@ -38,6 +38,28 @@ describe('PresentationCanvasService', () => {
     expect(first.slides[0].elements.some((element) => element.type === 'text')).toBe(true);
   });
 
+  it('принимает тонкие разделители из two-column legacy-конвертера', () => {
+    const withDivider: PresentationData = {
+      ...semantic,
+      slides: semantic.slides.map((slide, index) => index === 2 ? {
+        layout: 'two-column',
+        title: 'Сравнение',
+        leftTitle: 'Слева',
+        leftText: 'Описание слева',
+        rightTitle: 'Справа',
+        rightText: 'Описание справа',
+      } : slide),
+    };
+
+    const canvas = convertPresentationDataToCanvas(withDivider);
+    const divider = canvas.slides[2].elements.find((element) =>
+      element.id.endsWith('-divider'),
+    );
+
+    expect(divider?.width).toBe(2);
+    expect(() => service.parse(canvas)).not.toThrow();
+  });
+
   it('экранирует пользовательский текст и не создаёт исполняемый script', async () => {
     const canvas = convertPresentationDataToCanvas(semantic);
     canvas.slides[0].elements.push({

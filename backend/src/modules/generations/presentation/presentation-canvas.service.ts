@@ -34,8 +34,10 @@ export const CanvasElementSchema = z.object({
   type: z.enum(['text', 'image', 'shape']),
   x: z.number().finite().min(-2560).max(3840),
   y: z.number().finite().min(-1440).max(2160),
-  width: z.number().finite().min(8).max(2560),
-  height: z.number().finite().min(8).max(1440),
+  // Тонкие линии/разделители из legacy-конвертера имеют толщину 1–2 px.
+  // Интерактивный resize всё равно держит пользовательские объекты >= 24 px.
+  width: z.number().finite().min(1).max(2560),
+  height: z.number().finite().min(1).max(1440),
   rotation: z.number().finite().min(-360).max(360).default(0),
   zIndex: z.number().int().min(0).max(1000),
   text: z.string().max(20_000).optional(),
