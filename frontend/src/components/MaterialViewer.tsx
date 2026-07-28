@@ -916,7 +916,7 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
                                     {isSlideDocEditing ? <span>Просмотр</span> : <span>Редактировать</span>}
                                 </button>
                                 <button
-                                    onClick={() => handleDownload()}
+                                    onClick={() => setShowPdfModal(true)}
                                     disabled={isDownloading}
                                     className="px-4 py-2 text-white bg-orange-500 hover:bg-orange-600 rounded-lg transition font-medium flex items-center gap-2 disabled:opacity-50"
                                 >
@@ -1222,6 +1222,7 @@ export default function MaterialViewer({ lessonId, generationId, type, content: 
                 generationId={generationId}
                 filename={`${lessonTitle || generationType.replace(/[^a-zA-Zа-яА-Я0-9]/g, '_') || 'result'}.pdf`}
                 hasAnswers={typeHasAnswers(generationType)}
+                presentation={generationType === 'presentation'}
             />
         </div>
     )

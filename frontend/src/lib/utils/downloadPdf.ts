@@ -31,17 +31,20 @@ export async function downloadPdfById(
 }
 
 /**
- * Презентации рендерятся отдельным endpoint в landscape-режиме 16:9.
+ * Презентации рендерятся отдельным endpoint с выбранной ориентацией.
  * Общий /pdf предназначен для документов A4 portrait.
  */
+export type PresentationPdfLayout = 'landscape' | 'portrait'
+
 export async function downloadPresentationPdfById(
     id: string,
     filename = 'presentation.pdf',
+    layout: PresentationPdfLayout = 'landscape',
 ): Promise<void> {
     if (!id) throw new Error('generation id is required')
 
     const response = await apiClient.post(
-        `/generate/${encodeURIComponent(id)}/presentation/pdf`,
+        `/generate/${encodeURIComponent(id)}/presentation/pdf?layout=${layout}`,
         {},
         { responseType: 'blob' },
     )

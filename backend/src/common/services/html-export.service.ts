@@ -118,6 +118,28 @@ export function isAllowedProtectedPdfRequest(rawUrl: string): boolean {
   }
 }
 
+/**
+ * Custom width/height already define orientation. Passing landscape:false
+ * alongside them makes newer Chromium swap 1280×720 into portrait 720×1280.
+ */
+export function getPdfPageGeometry(options?: {
+  landscape?: boolean;
+  pageSize?: { width: number; height: number };
+}):
+  | { width: string; height: string }
+  | { format: 'A4'; landscape: boolean } {
+  if (options?.pageSize) {
+    return {
+      width: `${options.pageSize.width}px`,
+      height: `${options.pageSize.height}px`,
+    };
+  }
+  return {
+    format: 'A4',
+    landscape: options?.landscape ?? false,
+  };
+}
+
 @Injectable()
 export class HtmlExportService implements OnModuleDestroy {
   private browserPromise: Promise<Browser> | null = null;
@@ -1277,16 +1299,7 @@ window.MathJax = {
           : { top: '20px', right: '20px', bottom: '20px', left: '20px' };
 
       const pdf = await page.pdf({
-        ...(options?.pageSize
-          ? {
-              width: `${options.pageSize.width}px`,
-              height: `${options.pageSize.height}px`,
-              landscape: false,
-            }
-          : {
-              format: 'A4' as const,
-              landscape: options?.landscape ?? false,
-            }),
+        ...getPdfPageGeometry(options),
         printBackground: true,
         margin: pdfMargins,
         preferCSSPageSize: false,

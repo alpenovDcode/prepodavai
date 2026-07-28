@@ -1,8 +1,21 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { CheckCircle2, Download, FileText, Loader2, Users, X } from 'lucide-react'
-import { downloadPdfById, downloadPresentationPdfById } from '@/lib/utils/downloadPdf'
+import {
+    CheckCircle2,
+    Download,
+    FileText,
+    Loader2,
+    Monitor,
+    Smartphone,
+    Users,
+    X,
+} from 'lucide-react'
+import {
+    downloadPdfById,
+    downloadPresentationPdfById,
+    type PresentationPdfLayout,
+} from '@/lib/utils/downloadPdf'
 
 // DOCX-экспорт временно отключён (дублирование контента), оставляем только PDF.
 
@@ -49,7 +62,10 @@ export default function DownloadPdfModal({
         }
     }, [isOpen])
 
-    const download = async (withAnswers: boolean) => {
+    const download = async (
+        withAnswers: boolean,
+        presentationLayout: PresentationPdfLayout = 'landscape',
+    ) => {
         if (!generationId) {
             setError('Не найден id генерации')
             setState('error')
@@ -62,7 +78,7 @@ export default function DownloadPdfModal({
             const suffix = hasAnswers && !withAnswers ? '-student' : ''
             const finalName = `${baseName}${suffix}.pdf`
             if (presentation) {
-                await downloadPresentationPdfById(generationId, finalName)
+                await downloadPresentationPdfById(generationId, finalName, presentationLayout)
             } else {
                 await downloadPdfById(generationId, finalName, { withAnswers, sectionIndex })
             }
@@ -92,9 +108,15 @@ export default function DownloadPdfModal({
                             <Download className="w-5 h-5 text-yellow-700" />
                         </div>
                         <div>
-                            <h2 className="text-lg font-bold text-gray-900">Скачать документ</h2>
+                            <h2 className="text-lg font-bold text-gray-900">
+                                {presentation ? 'Скачать презентацию' : 'Скачать документ'}
+                            </h2>
                             <p className="text-[12px] text-gray-500">
-                                {hasAnswers ? 'Выберите формат и вариант' : 'Выберите формат'}
+                                {presentation
+                                    ? 'Выберите ориентацию PDF'
+                                    : hasAnswers
+                                        ? 'Выберите формат и вариант'
+                                        : 'Выберите формат'}
                             </p>
                         </div>
                     </div>
@@ -146,7 +168,39 @@ export default function DownloadPdfModal({
                         отключён до фикса дублирования контента. */}
 
                     {state === 'idle' && (
-                        hasAnswers ? (
+                        presentation ? (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <button
+                                    onClick={() => download(true, 'landscape')}
+                                    className="group relative flex flex-col items-start gap-3 p-4 rounded-xl border-2 border-brand-200 hover:border-brand-500 hover:bg-brand-50 transition-all text-left"
+                                >
+                                    <span className="absolute top-2.5 right-2.5 rounded-full bg-brand-100 px-2 py-0.5 text-[10px] font-bold text-brand-700">
+                                        Рекомендуем
+                                    </span>
+                                    <div className="w-12 h-9 bg-brand-100 rounded-lg flex items-center justify-center group-hover:bg-brand-200 transition-colors">
+                                        <Monitor className="w-6 h-6 text-brand-700" />
+                                    </div>
+                                    <div>
+                                        <p className="text-sm font-semibold text-gray-900">Горизонтально</p>
+                                        <p className="text-[12px] text-gray-500 mt-0.5">16:9 · 1280 × 720</p>
+                                        <p className="text-[11px] text-gray-400 mt-1">Обычная презентация</p>
+                                    </div>
+                                </button>
+                                <button
+                                    onClick={() => download(true, 'portrait')}
+                                    className="group flex flex-col items-start gap-3 p-4 rounded-xl border border-gray-200 hover:border-violet-300 hover:bg-violet-50 transition-all text-left"
+                                >
+                                    <div className="w-9 h-12 bg-violet-100 rounded-lg flex items-center justify-center group-hover:bg-violet-200 transition-colors">
+                                        <Smartphone className="w-5 h-5 text-violet-700" />
+                                    </div>
+                                    <div>
+                                        <p className="text-sm font-semibold text-gray-900">Вертикально</p>
+                                        <p className="text-[12px] text-gray-500 mt-0.5">9:16 · 720 × 1280</p>
+                                        <p className="text-[11px] text-gray-400 mt-1">Как текущий PDF</p>
+                                    </div>
+                                </button>
+                            </div>
+                        ) : hasAnswers ? (
                             <div className="flex flex-col gap-2">
                                 <button
                                     onClick={() => download(true)}

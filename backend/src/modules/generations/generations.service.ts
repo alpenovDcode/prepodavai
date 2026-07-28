@@ -1758,6 +1758,7 @@ export class GenerationsService {
     requestId: string,
     userId: string,
     format: 'pdf' | 'pptx',
+    options: { pdfLayout?: 'landscape' | 'portrait' } = {},
   ): Promise<Buffer> {
     let userGen = await this.prisma.userGeneration.findUnique({
       where: { generationRequestId: requestId },
@@ -1783,21 +1784,27 @@ export class GenerationsService {
         if (pdata?.slides?.length) return this.presentationPptxService.build(pdata);
       } else {
         const canvas = this.presentationCanvasService.parse(result.canvasData);
+        const pageSize = options.pdfLayout === 'portrait'
+          ? { width: canvas.height, height: canvas.width }
+          : { width: canvas.width, height: canvas.height };
         const html = await this.presentationCanvasService.renderHtml(canvas, {
           userId,
           embedAssets: true,
+          printPageSize: pageSize,
         });
         return this.htmlExportService.htmlToPdf(html, {
           blockExternalRequests: true,
-          pageSize: { width: canvas.width, height: canvas.height },
+          pageSize,
         });
       }
     }
 
-    // 1. Сначала проверяем готовые URL'ы — генерация уже сохранила файлы при completed.
+    // Готовый PPTX можно вернуть из хранилища. PDF всегда пересобираем из
+    // структурированных данных: ориентация выбирается только при скачивании,
+    // а сохранённый pdfUrl может иметь прежний размер страницы.
     const fileUrl = format === 'pptx' ? result?.pptxUrl : (result?.pdfUrl || result?.exportUrl);
     const hashMatch = fileUrl?.match(/\/api\/files\/([a-f0-9]{32})/i);
-    if (hashMatch) {
+    if (format === 'pptx' && hashMatch) {
       const file = await this.filesService.getFile(hashMatch[1]);
       if (file) return file.buffer;
     }
@@ -1823,13 +1830,17 @@ export class GenerationsService {
       // Старый semantic JSON конвертируем в canvas на лету. Это даёт настоящий
       // 16:9 и не требует массовой миграции записей в БД.
       const canvas = convertPresentationDataToCanvas(presentationData);
+      const pageSize = options.pdfLayout === 'portrait'
+        ? { width: canvas.height, height: canvas.width }
+        : { width: canvas.width, height: canvas.height };
       const canvasHtml = await this.presentationCanvasService.renderHtml(canvas, {
         userId,
         embedAssets: true,
+        printPageSize: pageSize,
       });
       return this.htmlExportService.htmlToPdf(canvasHtml, {
         blockExternalRequests: true,
-        pageSize: { width: canvas.width, height: canvas.height },
+        pageSize,
       });
 
       // Legacy HTML/A4-landscape путь сохранён для быстрого rollback:
@@ -1841,6 +1852,13 @@ export class GenerationsService {
       //   });
       // }
       // PDF без готового HTML: нет возможности пересобрать без LLM, кидаем 404.
+    }
+
+    // Самые старые записи могут не содержать JSON слайдов. Для них оставляем
+    // сохранённый PDF как совместимый fallback (без смены ориентации).
+    if (format === 'pdf' && hashMatch) {
+      const file = await this.filesService.getFile(hashMatch[1]);
+      if (file) return file.buffer;
     }
 
     this.logger.warn(

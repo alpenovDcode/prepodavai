@@ -832,7 +832,11 @@ export default function GenerationHistory() {
                     !!(selectedGeneration.result as any)?.audioUrl || !!getImageUrl(selectedGeneration)
                   return (
                     <button
-                      onClick={() => (isHtml && !hasMedia ? setShowPdfModal(true) : downloadGeneration())}
+                      onClick={() => (
+                        (isHtml && !hasMedia) || isPresentationType(selectedGeneration)
+                          ? setShowPdfModal(true)
+                          : downloadGeneration()
+                      )}
                       disabled={isDownloading}
                       className="w-full py-3 bg-blue-50 text-blue-600 rounded-xl font-medium disabled:opacity-50"
                     >
@@ -859,6 +863,7 @@ export default function GenerationHistory() {
           generationId={selectedGeneration.id}
           filename={`${(getTypeLabel(selectedGeneration.type).replace(/[^a-zA-Zа-яА-Я0-9]/g, '_') || 'result')}_${new Date().toISOString().split('T')[0]}.pdf`}
           hasAnswers={typeHasAnswers(selectedGeneration.type)}
+          presentation={isPresentationType(selectedGeneration)}
         />
       )}
     </div>

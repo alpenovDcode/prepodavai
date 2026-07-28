@@ -26,6 +26,7 @@ import { IconTile } from '@/components/ui/v2/IconTile'
 import { Tabs } from '@/components/ui/v2/Tabs'
 import GenerationProgress from '@/components/workspace/GenerationProgress'
 import AssignTaskButton from '@/components/AssignTaskButton'
+import DownloadPdfModal from '@/components/workspace/DownloadPdfModal'
 
 /**
  * Презентации V2 — упрощённый просмотрщик.
@@ -153,6 +154,7 @@ export default function PresentationV2() {
     const [canvasData, setCanvasData] = useState<CanvasPresentation | null>(null)
     const [editing, setEditing] = useState(false)
     const [savingEdit, setSavingEdit] = useState(false)
+    const [showPdfModal, setShowPdfModal] = useState(false)
 
     const { generate: startGeneration, pollStatus, isGenerating } = useGenerations()
     const [mobileTab, setMobileTab] = useState<'config' | 'preview'>('config')
@@ -580,7 +582,7 @@ ${pptxUrlFound ? `<a href="${pptxUrlFound}" target="_blank">Скачать PPTX<
                                 <Button variant="ghost" size="sm" leftIcon={<RefreshCw className="w-3.5 h-3.5" />} onClick={generate} disabled={isGenerating || editing}>
                                     Заново
                                 </Button>
-                                <Button variant="primary" size="sm" leftIcon={<FileDown className="w-3.5 h-3.5" />} onClick={() => downloadFile('pdf')} disabled={editing}>
+                                <Button variant="primary" size="sm" leftIcon={<FileDown className="w-3.5 h-3.5" />} onClick={() => setShowPdfModal(true)} disabled={editing}>
                                     PDF
                                 </Button>
                                 {presentationId && (
@@ -646,6 +648,13 @@ ${pptxUrlFound ? `<a href="${pptxUrlFound}" target="_blank">Скачать PPTX<
                     </div>
                 </Card>
             </div>
+            <DownloadPdfModal
+                isOpen={showPdfModal}
+                onClose={() => setShowPdfModal(false)}
+                generationId={presentationId}
+                filename={`${topic || 'presentation'}.pdf`}
+                presentation
+            />
         </div>
     )
 }
