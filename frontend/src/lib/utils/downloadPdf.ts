@@ -31,6 +31,24 @@ export async function downloadPdfById(
 }
 
 /**
+ * Презентации рендерятся отдельным endpoint в landscape-режиме 16:9.
+ * Общий /pdf предназначен для документов A4 portrait.
+ */
+export async function downloadPresentationPdfById(
+    id: string,
+    filename = 'presentation.pdf',
+): Promise<void> {
+    if (!id) throw new Error('generation id is required')
+
+    const response = await apiClient.post(
+        `/generate/${encodeURIComponent(id)}/presentation/pdf`,
+        {},
+        { responseType: 'blob' },
+    )
+    saveBlob(response.data, filename)
+}
+
+/**
  * Скачать DOCX той же генерации — параллельный эндпоинт `/generate/:id/docx`
  * на бэке прогоняет HTML через html-to-docx. Удобно учителю довести лист
  * в Word до печати.
@@ -64,7 +82,11 @@ async function downloadGenerationFile(
         { responseType: 'blob' },
     )
 
-    const url = URL.createObjectURL(response.data)
+    saveBlob(response.data, filename)
+}
+
+function saveBlob(blob: Blob, filename: string): void {
+    const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
     a.download = filename

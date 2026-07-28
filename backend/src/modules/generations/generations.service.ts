@@ -23,6 +23,10 @@ import { FilesService } from '../files/files.service';
 import { StrategyRegistryService } from './strategies/strategy-registry.service';
 import { PresentationPptxV2Service } from './presentation/presentation-pptx-v2.service';
 import { PresentationData, PresentationLayout, PresentationColor, PresentationStyle, PresentationSlide, PresentationTemplateService } from './presentation/presentation-template.service';
+import {
+  PresentationCanvasService,
+  convertPresentationDataToCanvas,
+} from './presentation/presentation-canvas.service';
 import { AnalyticsEventsService, EVENT_TYPES } from '../analytics-events/analytics-events.service';
 
 export const LOGO_BASE64 =
@@ -120,6 +124,7 @@ export class GenerationsService {
     private readonly strategyRegistry: StrategyRegistryService,
     private readonly presentationPptxService: PresentationPptxV2Service,
     private readonly presentationTemplateService: PresentationTemplateService,
+    private readonly presentationCanvasService: PresentationCanvasService,
     private readonly analyticsEvents: AnalyticsEventsService,
   ) { }
 
@@ -1769,6 +1774,26 @@ export class GenerationsService {
 
     const result = (userGen.outputData ?? userGen.generationRequest?.result) as any;
 
+    // Canvas-редактор хранит точные координаты элементов. Он является
+    // каноническим источником для PDF после первой свободной правки.
+    if (result?.canvasData) {
+      if (format === 'pptx') {
+        // Старый PPTX-путь сохранён без изменений и использует semantic JSON.
+        const pdata = result?.presentationData as PresentationData | undefined;
+        if (pdata?.slides?.length) return this.presentationPptxService.build(pdata);
+      } else {
+        const canvas = this.presentationCanvasService.parse(result.canvasData);
+        const html = await this.presentationCanvasService.renderHtml(canvas, {
+          userId,
+          embedAssets: true,
+        });
+        return this.htmlExportService.htmlToPdf(html, {
+          blockExternalRequests: true,
+          pageSize: { width: canvas.width, height: canvas.height },
+        });
+      }
+    }
+
     // 1. Сначала проверяем готовые URL'ы — генерация уже сохранила файлы при completed.
     const fileUrl = format === 'pptx' ? result?.pptxUrl : (result?.pdfUrl || result?.exportUrl);
     const hashMatch = fileUrl?.match(/\/api\/files\/([a-f0-9]{32})/i);
@@ -1795,11 +1820,26 @@ export class GenerationsService {
       if (format === 'pptx') {
         return this.presentationPptxService.build(presentationData);
       }
-      // PDF из HTML — landscape, т.к. презентация 16:9
-      const html: string | undefined = result?.content ?? result?.html;
-      if (html) {
-        return this.htmlExportService.htmlToPdf(html, { landscape: true });
-      }
+      // Старый semantic JSON конвертируем в canvas на лету. Это даёт настоящий
+      // 16:9 и не требует массовой миграции записей в БД.
+      const canvas = convertPresentationDataToCanvas(presentationData);
+      const canvasHtml = await this.presentationCanvasService.renderHtml(canvas, {
+        userId,
+        embedAssets: true,
+      });
+      return this.htmlExportService.htmlToPdf(canvasHtml, {
+        blockExternalRequests: true,
+        pageSize: { width: canvas.width, height: canvas.height },
+      });
+
+      // Legacy HTML/A4-landscape путь сохранён для быстрого rollback:
+      // const html: string | undefined = result?.content ?? result?.html;
+      // if (html) {
+      //   return this.htmlExportService.htmlToPdf(html, {
+      //     landscape: true,
+      //     blockExternalRequests: true,
+      //   });
+      // }
       // PDF без готового HTML: нет возможности пересобрать без LLM, кидаем 404.
     }
 
@@ -2246,6 +2286,39 @@ export class GenerationsService {
     if (typeof data?.folder === 'string') {
       const trimmed = data.folder.trim().slice(0, 100);
       updateData.folder = trimmed.length > 0 ? trimmed : null;
+    }
+
+    // Свободный canvas-редактор. Старый presentationData намеренно остаётся
+    // рядом в outputData: переключение назад не требует миграции или отката БД.
+    if (data?.canvasData && typeof data.canvasData === 'object') {
+      try {
+        const canvas = this.presentationCanvasService.parse(data.canvasData);
+        const html = await this.presentationCanvasService.renderHtml(canvas);
+        const currentOutput = (generation.outputData as any) ?? {};
+        const newOutput = {
+          ...currentOutput,
+          content: html,
+          canvasData: canvas,
+          pdfUrl: null,
+          pptxUrl: null,
+          exportUrl: null,
+          _userEdited: true,
+          _canvasEdited: true,
+        };
+        updateData.outputData = newOutput;
+        this.logger.log(
+          `[presentations] Canvas edited ${generation.id} (${canvas.slides.length} slides)`,
+        );
+        return this.prisma.userGeneration.update({
+          where: { id: generation.id },
+          data: updateData,
+        });
+      } catch (e: any) {
+        this.logger.warn(`[presentations] canvas validation/render failed: ${e?.message}`);
+        throw new BadRequestException(
+          `Не удалось сохранить свободную разметку: ${e?.message || e}`,
+        );
+      }
     }
 
     // Редактирование презентации: фронт присылает обновлённый presentationData,

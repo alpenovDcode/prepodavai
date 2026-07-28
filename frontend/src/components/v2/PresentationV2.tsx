@@ -5,6 +5,15 @@ import {
     Presentation as PresentationIcon, FileDown, Copy, Check, RefreshCw, Loader2, Eye, Wand2, Users, Compass, Edit3,
 } from 'lucide-react'
 import PresentationSlideEditor, { type PresentationData as SlideEditorData } from '@/components/v2/PresentationSlideEditor'
+import PresentationCanvasEditor, {
+    PresentationCanvasPlayer,
+} from '@/components/v2/presentation-canvas/PresentationCanvas'
+import {
+    type CanvasPresentation,
+    convertPresentationDataToCanvas,
+    parseCanvasPresentation,
+} from '@/types/presentation-canvas'
+import { USE_PRESENTATION_CANVAS_EDITOR } from '@/lib/features/presentationCanvas'
 import toast from 'react-hot-toast'
 import { useGenerations } from '@/lib/hooks/useGenerations'
 import { apiClient } from '@/lib/api/client'
@@ -141,6 +150,7 @@ export default function PresentationV2() {
     const [errorMsg, setErrorMsg] = useState<string>('')
     // structured data for editor
     const [presentationData, setPresentationData] = useState<SlideEditorData | null>(null)
+    const [canvasData, setCanvasData] = useState<CanvasPresentation | null>(null)
     const [editing, setEditing] = useState(false)
     const [savingEdit, setSavingEdit] = useState(false)
 
@@ -149,7 +159,7 @@ export default function PresentationV2() {
     const iframeRef = useRef<HTMLIFrameElement>(null)
     const [copied, setCopied] = useState(false)
 
-    const hasResult = !!content && !isGenerating
+    const hasResult = (!!content || !!canvasData) && !isGenerating
 
     const generate = async () => {
         if (!topic.trim()) { toast.error('Укажите тему презентации'); return }
@@ -158,6 +168,7 @@ export default function PresentationV2() {
         setPdfUrl(null)
         setPptxUrl(null)
         setPresentationData(null)
+        setCanvasData(null)
         setEditing(false)
         setMobileTab('preview')
 
@@ -218,6 +229,18 @@ export default function PresentationV2() {
                 null
             if (pdata && Array.isArray(pdata.slides) && pdata.slides.length > 0) {
                 setPresentationData(pdata as SlideEditorData)
+            }
+            const rawCanvas =
+                r?.canvasData ??
+                r?.outputData?.canvasData ??
+                r?.result?.canvasData ??
+                null
+            const parsedCanvas = parseCanvasPresentation(rawCanvas)
+            if (parsedCanvas) {
+                setCanvasData(parsedCanvas)
+            } else if (pdata && Array.isArray(pdata.slides) && pdata.slides.length > 0) {
+                // Старые презентации конвертируются без изменения исходного JSON.
+                setCanvasData(convertPresentationDataToCanvas(pdata as SlideEditorData))
             }
 
             if (html) {
@@ -314,6 +337,31 @@ ${pptxUrlFound ? `<a href="${pptxUrlFound}" target="_blank">Скачать PPTX<
             const resp = e?.response?.data
             const msg = (Array.isArray(resp?.message) ? resp.message.join('; ') : resp?.message) || e?.message || 'Не удалось сохранить'
             console.error('[PresentationV2] saveEdits failed:', { status: e?.response?.status, data: resp, error: e })
+            toast.error(`Не удалось сохранить: ${msg}`)
+        } finally {
+            setSavingEdit(false)
+        }
+    }
+
+    const saveCanvasEdits = async (next: CanvasPresentation) => {
+        if (!presentationId) {
+            toast.error('Нет presentationId — нечего сохранять')
+            return
+        }
+        setSavingEdit(true)
+        try {
+            const res = await apiClient.patch(`/generate/${presentationId}`, { canvasData: next })
+            const newOutput = res?.data?.outputData ?? res?.data?.result ?? {}
+            const savedCanvas = parseCanvasPresentation(newOutput.canvasData) || next
+            setCanvasData(savedCanvas)
+            if (newOutput.content) setContent(newOutput.content)
+            setPdfUrl(null)
+            setPptxUrl(null)
+            setEditing(false)
+            toast.success('Презентация обновлена')
+        } catch (e: any) {
+            const resp = e?.response?.data
+            const msg = (Array.isArray(resp?.message) ? resp.message.join('; ') : resp?.message) || e?.message || 'Не удалось сохранить'
             toast.error(`Не удалось сохранить: ${msg}`)
         } finally {
             setSavingEdit(false)
@@ -519,9 +567,8 @@ ${pptxUrlFound ? `<a href="${pptxUrlFound}" target="_blank">Скачать PPTX<
 
                         {hasResult && (
                             <div className="flex items-center gap-1.5 flex-wrap">
-                                {presentationData && !editing && (
+                                {(canvasData || presentationData) && !editing && (
                                     <Button variant="secondary" size="sm" leftIcon={<Edit3 className="w-3.5 h-3.5" />} onClick={() => {
-                                        console.log('[PresentationV2] Edit clicked. presentationData slides:', presentationData?.slides?.length)
                                         setEditing(true)
                                     }}>
                                         Редактировать
@@ -554,6 +601,15 @@ ${pptxUrlFound ? `<a href="${pptxUrlFound}" target="_blank">Скачать PPTX<
                             <div className="h-full p-6 flex items-center justify-center">
                                 <GenerationProgress active={isGenerating} title="Создаём презентацию…" accentClassName="bg-brand-500" estimatedSeconds={60} />
                             </div>
+                        ) : editing && USE_PRESENTATION_CANVAS_EDITOR && canvasData ? (
+                            <div className="h-full bg-surface">
+                                <PresentationCanvasEditor
+                                    initialData={canvasData}
+                                    saving={savingEdit}
+                                    onCancel={() => setEditing(false)}
+                                    onSave={saveCanvasEdits}
+                                />
+                            </div>
                         ) : editing && presentationData ? (
                             <div className="h-full bg-surface">
                                 <PresentationSlideEditor
@@ -563,13 +619,15 @@ ${pptxUrlFound ? `<a href="${pptxUrlFound}" target="_blank">Скачать PPTX<
                                     onSave={saveEdits}
                                 />
                             </div>
+                        ) : USE_PRESENTATION_CANVAS_EDITOR && canvasData ? (
+                            <PresentationCanvasPlayer data={canvasData} />
                         ) : content ? (
                             <iframe
                                 ref={iframeRef}
                                 srcDoc={content}
                                 className="w-full h-full bg-white"
                                 title="presentation-preview"
-                                sandbox="allow-scripts allow-same-origin allow-forms"
+                                sandbox="allow-scripts"
                             />
                         ) : (
                             <div className="h-full flex items-center justify-center text-center px-8">

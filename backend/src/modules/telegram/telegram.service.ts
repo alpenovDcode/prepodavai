@@ -9,6 +9,7 @@ import { HtmlExportService } from '../../common/services/html-export.service';
 import { EmailService } from '../../common/services/email.service';
 import { FilesService } from '../files/files.service';
 import { AnalyticsEventsService } from '../analytics-events/analytics-events.service';
+import { PresentationCanvasService } from '../generations/presentation/presentation-canvas.service';
 import { SmartLinkTokensService } from '../smart-links/smart-link-tokens.service';
 
 // ── Типы состояний диалога регистрации ──────────────────────────────────────
@@ -49,6 +50,7 @@ const DEFAULT_SUBSCRIBED_TEXT =
 export class TelegramService {
   private readonly logger = new Logger(TelegramService.name);
   private bot: Bot;
+  private readonly presentationCanvasService: PresentationCanvasService;
 
   private readonly regStates = new Map<string, RegistrationState>();
 
@@ -63,6 +65,7 @@ export class TelegramService {
     private readonly analyticsEvents: AnalyticsEventsService,
     private readonly smartLinkTokens: SmartLinkTokensService,
   ) {
+    this.presentationCanvasService = new PresentationCanvasService(filesService);
     const token = this.configService.get<string>('TELEGRAM_BOT_TOKEN');
     if (token) {
       this.logger.log(
@@ -873,7 +876,7 @@ export class TelegramService {
       ) {
         await this.sendImage(chatId, result);
       } else if (generationType === 'presentation') {
-        await this.sendPresentation(chatId, result);
+        await this.sendPresentation(chatId, result, userId);
       } else {
         await this.sendTextResult(chatId, generationType, result, isBotOnlyUser);
       }
@@ -1022,7 +1025,31 @@ export class TelegramService {
   /**
    * Отправка презентации
    */
-  private async sendPresentation(chatId: string, result: any) {
+  private async sendPresentation(chatId: string, result: any, userId: string) {
+    // Новый канонический путь: canvas JSON → точный 16:9 PDF. Старый URL-путь
+    // ниже оставлен для legacy/Gamma результатов.
+    if (result?.canvasData) {
+      try {
+        const canvas = this.presentationCanvasService.parse(result.canvasData);
+        const html = await this.presentationCanvasService.renderHtml(canvas, {
+          userId,
+          embedAssets: true,
+        });
+        const pdf = await this.htmlExportService.htmlToPdf(html, {
+          blockExternalRequests: true,
+          pageSize: { width: canvas.width, height: canvas.height },
+        });
+        await this.bot.api.sendDocument(
+          chatId,
+          new InputFile(pdf, `presentation_${Date.now()}.pdf`),
+          { caption: '✅ Ваша презентация готова (PDF)!' },
+        );
+        return;
+      } catch (error) {
+        this.logger.error(`Canvas presentation delivery failed: ${error}`);
+      }
+    }
+
     const exportUrl = result.exportUrl || result.pdfUrl || result.pptxUrl;
 
     if (!exportUrl) {

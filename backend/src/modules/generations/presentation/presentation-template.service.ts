@@ -457,7 +457,7 @@ ${p.text ? `ИСХОДНЫЕ ТЕЗИСЫ/ТЕКСТ:\n${p.text}\n` : ''}${p.ext
 
     const palette = PRESENTATION_COLORS[data.color];
     const title = data.slides[0]?.title || data.topic;
-    const dataJson = JSON.stringify({ slides: data.slides });
+    const dataJson = serializeForInlineScript({ slides: data.slides });
 
     return tpl
       .replace(/\{\{ACCENT\}\}/g, palette.accent)
@@ -480,4 +480,18 @@ function escapeHtml(s: string): string {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+}
+
+/**
+ * JSON внутри обычного <script> должен экранировать HTML-significant символы.
+ * JSON.stringify сам по себе оставляет `</script>` без изменений, поэтому
+ * пользовательский текст мог преждевременно закрыть script и выполнить HTML/JS.
+ */
+export function serializeForInlineScript(value: unknown): string {
+  return JSON.stringify(value)
+    .replace(/&/g, '\\u0026')
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029');
 }

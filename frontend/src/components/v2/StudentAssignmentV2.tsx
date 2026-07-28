@@ -220,6 +220,97 @@ function UploadedFileBody({ outputData }: { outputData: any }) {
     )
 }
 
+/**
+ * Презентации V2 не хранят готовый pdfUrl: PDF собирается бэкендом по запросу
+ * из сохранённого HTML. Загружаем его с cookie-авторизацией через apiClient,
+ * создаём локальный blob URL для iframe и освобождаем URL при размонтировании.
+ */
+function PresentationPdfBody({ generationId }: { generationId: string }) {
+    const [blobUrl, setBlobUrl] = useState<string | null>(null)
+    const [loading, setLoading] = useState(true)
+    const [error, setError] = useState<string | null>(null)
+    const [attempt, setAttempt] = useState(0)
+
+    useEffect(() => {
+        let active = true
+        let objectUrl: string | null = null
+        const controller = new AbortController()
+
+        setBlobUrl(null)
+        setLoading(true)
+        setError(null)
+
+        apiClient.post(
+            `/generate/${encodeURIComponent(generationId)}/presentation/pdf`,
+            {},
+            { responseType: 'blob', signal: controller.signal },
+        ).then((response) => {
+            if (!active) return
+            const pdfBlob = response.data instanceof Blob && response.data.type === 'application/pdf'
+                ? response.data
+                : new Blob([response.data], { type: 'application/pdf' })
+            objectUrl = URL.createObjectURL(pdfBlob)
+            setBlobUrl(objectUrl)
+        }).catch((e: any) => {
+            if (!active || e?.code === 'ERR_CANCELED') return
+            setError(e?.response?.data?.message || e?.message || 'Не удалось загрузить презентацию')
+        }).finally(() => {
+            if (active) setLoading(false)
+        })
+
+        return () => {
+            active = false
+            controller.abort()
+            if (objectUrl) URL.revokeObjectURL(objectUrl)
+        }
+    }, [generationId, attempt])
+
+    return (
+        <div className="p-5">
+            <div
+                className="relative w-full bg-white border border-ink-200 rounded-md overflow-hidden"
+                style={{ minHeight: 520, height: '75vh' }}
+            >
+                {loading && (
+                    <div className="absolute inset-0 z-10 flex items-center justify-center bg-white">
+                        <div className="flex flex-col items-center gap-2 text-[13px] text-ink-500">
+                            <Loader2 className="w-5 h-5 text-brand-500 animate-spin" />
+                            Формируем PDF…
+                        </div>
+                    </div>
+                )}
+                {!loading && error && (
+                    <div className="h-full p-6 flex flex-col items-center justify-center gap-3 text-center text-[13px] text-ink-500">
+                        <AlertCircle className="w-8 h-8 text-danger-500" />
+                        <span>{error}</span>
+                        <Button variant="secondary" size="sm" onClick={() => setAttempt(v => v + 1)}>
+                            Попробовать снова
+                        </Button>
+                    </div>
+                )}
+                {!loading && blobUrl && (
+                    <iframe
+                        src={blobUrl}
+                        title="Презентация"
+                        className="w-full h-full bg-white border-0"
+                    />
+                )}
+            </div>
+            {blobUrl && (
+                <div className="mt-2 text-right">
+                    <a
+                        href={blobUrl}
+                        download="presentation.pdf"
+                        className="inline-flex items-center gap-1 text-[12px] text-ink-500 hover:text-ink-700"
+                    >
+                        Скачать PDF <ExternalLink className="w-3 h-3" />
+                    </a>
+                </div>
+            )}
+        </div>
+    )
+}
+
 function getStatusBadge(type: string, filled: boolean) {
     if (type === 'game' || type === 'game_generation') {
         return <Badge variant="info">бонус</Badge>
@@ -549,6 +640,12 @@ export default function StudentAssignmentV2({ assignmentId }: StudentAssignmentV
 
         // Presentation
         if (gen.generationType === 'presentation') {
+            return <PresentationPdfBody generationId={gen.id} />
+
+            /*
+            Старый PPTX/готовый URL/HTML-slides путь временно отключён.
+            Код оставлен полностью для истории и возможного возврата:
+
             let pres: any = gen.outputData
             if (typeof pres === 'string') {
                 try { pres = JSON.parse(pres) } catch { pres = {} }
@@ -613,6 +710,7 @@ export default function StudentAssignmentV2({ assignmentId }: StudentAssignmentV
                     Презентация недоступна
                 </div>
             )
+            */
         }
 
         // ── Загруженный материал учителя (PDF / JPG / PNG) ──

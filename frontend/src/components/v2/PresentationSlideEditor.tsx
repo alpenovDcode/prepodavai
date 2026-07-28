@@ -313,7 +313,7 @@ export default function PresentationSlideEditorComponent({
     }
 
     const deleteSlide = (idx: number) => {
-        if (data.slides.length <= 1) return
+        if (data.slides.length <= 5) return
         if (!confirm('Удалить слайд?')) return
         const slides = data.slides.filter((_, i) => i !== idx)
         setData({ ...data, slides })
@@ -321,6 +321,7 @@ export default function PresentationSlideEditorComponent({
     }
 
     const addSlide = (after: number, layout: PresentationLayout) => {
+        if (data.slides.length >= 24) return
         const blank: PresentationSlide = { layout }
         switch (layout) {
             case 'bullets':
@@ -414,7 +415,7 @@ export default function PresentationSlideEditorComponent({
                     <button
                         type="button"
                         onClick={() => deleteSlide(activeIdx)}
-                        disabled={data.slides.length <= 1}
+                        disabled={data.slides.length <= 5}
                         title="Удалить слайд"
                         className="w-8 h-8 rounded-md text-ink-500 hover:bg-danger-50 hover:text-danger-700 disabled:opacity-30 disabled:hover:bg-transparent transition-colors inline-flex items-center justify-center"
                     >
@@ -424,9 +425,10 @@ export default function PresentationSlideEditorComponent({
                     <select
                         onChange={e => { addSlide(activeIdx, e.target.value as PresentationLayout); e.target.value = '' }}
                         defaultValue=""
+                        disabled={data.slides.length >= 24}
                         className="h-8 px-2 text-[12px] font-semibold rounded-md border border-brand-300 bg-brand-50 text-brand-700 cursor-pointer focus:outline-none"
                     >
-                        <option value="" disabled>+ Слайд</option>
+                        <option value="" disabled>{data.slides.length >= 24 ? 'Максимум 24' : '+ Слайд'}</option>
                         {Object.entries(LAYOUT_LABELS).map(([v, l]) => (
                             <option key={v} value={v}>{l}</option>
                         ))}

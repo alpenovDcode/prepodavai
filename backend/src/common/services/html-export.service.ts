@@ -102,6 +102,22 @@ const PDF_FORCE_STYLES = `<style>
   }
 </style>`;
 
+/**
+ * В защищённом режиме PDF разрешаем только inline data/blob/about ресурсы и
+ * официальный CDN MathJax. Проверяем именно hostname, а не substring:
+ * `cdn.jsdelivr.net.attacker.test` и `cdn.jsdelivr.net@127.0.0.1` не должны
+ * обходить фильтр.
+ */
+export function isAllowedProtectedPdfRequest(rawUrl: string): boolean {
+  try {
+    const parsed = new URL(rawUrl);
+    if (['data:', 'blob:', 'about:'].includes(parsed.protocol)) return true;
+    return parsed.protocol === 'https:' && parsed.hostname === 'cdn.jsdelivr.net';
+  } catch {
+    return false;
+  }
+}
+
 @Injectable()
 export class HtmlExportService implements OnModuleDestroy {
   private browserPromise: Promise<Browser> | null = null;
@@ -1023,7 +1039,12 @@ window.MathJax = {
 
   async htmlToPdf(
     html: string,
-    options?: { blockExternalRequests?: boolean; wideMargins?: boolean; landscape?: boolean },
+    options?: {
+      blockExternalRequests?: boolean;
+      wideMargins?: boolean;
+      landscape?: boolean;
+      pageSize?: { width: number; height: number };
+    },
   ): Promise<Buffer> {
     await this.acquireSlot();
     try {
@@ -1057,7 +1078,12 @@ window.MathJax = {
 
   private async htmlToPdfOnce(
     html: string,
-    options?: { blockExternalRequests?: boolean; wideMargins?: boolean; landscape?: boolean },
+    options?: {
+      blockExternalRequests?: boolean;
+      wideMargins?: boolean;
+      landscape?: boolean;
+      pageSize?: { width: number; height: number };
+    },
   ): Promise<Buffer> {
     console.log(`[HtmlExport] Starting PDF generation, HTML length: ${html.length}`);
     await this.recycleBrowserIfNeeded();
@@ -1082,7 +1108,8 @@ window.MathJax = {
       // Viewport должен совпадать с размером страницы PDF — иначе 100vh/100vw
       // в слайдах считаются неверно и строки съезжают.
       await page.setViewportSize(
-        options?.landscape ? { width: 1123, height: 794 } : { width: 794, height: 1123 },
+        options?.pageSize ??
+          (options?.landscape ? { width: 1123, height: 794 } : { width: 794, height: 1123 }),
       );
 
       if (options?.blockExternalRequests) {
@@ -1090,16 +1117,21 @@ window.MathJax = {
         // Allow cdn.jsdelivr.net for MathJax (needed to render LaTeX formulas in PDFs).
         await page.route('**/*', (route) => {
           const url = route.request().url();
-          if (
-            (url.startsWith('http://') || url.startsWith('https://')) &&
-            !url.includes('cdn.jsdelivr.net')
-          ) {
+          if (!isAllowedProtectedPdfRequest(url)) {
             route.abort().catch(() => {});
           } else {
             route.continue().catch(() => {});
           }
         });
         await page.setContent(processedHtml, { waitUntil: 'domcontentloaded', timeout: 30000 });
+        // Заблокированные пользовательские imageUrl иначе остаются как broken
+        // <img> и заставляют общий settle-wait ждать таймаут. Удаляем только
+        // внешние картинки; data: логотипы и формулы остаются в документе.
+        await page.evaluate(() => {
+          document
+            .querySelectorAll<HTMLImageElement>('img[src^="http://"], img[src^="https://"]')
+            .forEach((img) => img.remove());
+        });
       } else {
         // domcontentloaded даёт быстрый и предсказуемый старт. networkidle
         // 60s часто либо рано отпускает (async MathJax ещё грузится), либо
@@ -1238,15 +1270,23 @@ window.MathJax = {
       // У Вау-урока контент рендерится «во всю страницу» без container'а —
       // в этом случае wideMargins даёт нормальные поля документа.
       // Для landscape (презентации) поля нулевые — слайды сами задают padding.
-      const pdfMargins = options?.landscape
+      const pdfMargins = options?.landscape || options?.pageSize
         ? { top: '0px', right: '0px', bottom: '0px', left: '0px' }
         : options?.wideMargins
           ? { top: '40px', right: '50px', bottom: '40px', left: '50px' }
           : { top: '20px', right: '20px', bottom: '20px', left: '20px' };
 
       const pdf = await page.pdf({
-        format: 'A4',
-        landscape: options?.landscape ?? false,
+        ...(options?.pageSize
+          ? {
+              width: `${options.pageSize.width}px`,
+              height: `${options.pageSize.height}px`,
+              landscape: false,
+            }
+          : {
+              format: 'A4' as const,
+              landscape: options?.landscape ?? false,
+            }),
         printBackground: true,
         margin: pdfMargins,
         preferCSSPageSize: false,
