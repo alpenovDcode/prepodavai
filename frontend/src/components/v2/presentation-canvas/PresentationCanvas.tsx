@@ -12,6 +12,7 @@ import {
 import toast from 'react-hot-toast'
 import { apiClient } from '@/lib/api/client'
 import { Button } from '@/components/ui/v2/Button'
+import MathContent from '@/components/MathContent'
 import type {
     CanvasElement, CanvasElementStyle, CanvasPresentation, CanvasSlide,
 } from '@/types/presentation-canvas'
@@ -34,6 +35,15 @@ function uid(prefix: string): string {
 
 function fontFamily(font: CanvasElementStyle['fontFamily']): string {
     return font === 'Courier New' ? '"Courier New", monospace' : `${font || 'Inter'}, Arial, sans-serif`
+}
+
+function escapePlainText(text: string): string {
+    return text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
 }
 
 function CanvasAssetImage({ hash, className, style }: { hash?: string; className?: string; style?: CSSProperties }) {
@@ -105,6 +115,8 @@ function ElementView({ element }: { element: CanvasElement }) {
         }
         return <div style={style} />
     }
+    // Thumbnails intentionally stay plain-text: rendering MathJax separately
+    // in every miniature would launch hundreds of typeset jobs on large decks.
     return <div style={style}>{element.text || ''}</div>
 }
 
@@ -142,7 +154,9 @@ export function PresentationCanvasSlide({
                     <div style={{ ...elementStyle(element), left: 0, top: 0 }}>
                         {element.type === 'image'
                             ? <CanvasAssetImage hash={element.assetHash} style={{ width: '100%', height: '100%', objectFit: element.style.objectFit || 'contain' }} />
-                            : element.type === 'text' ? element.text || '' : null}
+                            : element.type === 'text'
+                                ? <MathContent html={escapePlainText(element.text || '')} />
+                                : null}
                     </div>
                     {selectedId === element.id && (
                         <>
