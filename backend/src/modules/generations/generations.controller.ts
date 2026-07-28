@@ -464,16 +464,12 @@ export class GenerationsController {
     @Request() req: any,
     @Param('requestId') requestId: string,
     @Param('format') format: string,
-    @Query('layout') layout?: string,
   ): Promise<StreamableFile> {
     const fmt: 'pdf' | 'pptx' = format === 'pptx' ? 'pptx' : 'pdf';
-    const pdfLayout: 'landscape' | 'portrait' =
-      layout === 'portrait' ? 'portrait' : 'landscape';
     const buffer = await this.generationsService.exportPresentation(
       requestId,
       this.userId(req),
       fmt,
-      { pdfLayout },
     );
     const mime =
       fmt === 'pptx'

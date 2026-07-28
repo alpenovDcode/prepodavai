@@ -81,17 +81,6 @@ describe('PresentationCanvasService', () => {
     expect(html).not.toContain('</script><script>alert(1)</script>');
   });
 
-  it('масштабирует горизонтальный слайд целиком в вертикальную PDF-страницу', async () => {
-    const canvas = convertPresentationDataToCanvas(semantic);
-    const html = await service.renderHtml(canvas, {
-      printPageSize: { width: 720, height: 1280 },
-    });
-
-    expect(html).toContain('@page{size:720px 1280px');
-    expect(html).toContain('class="slide-page"');
-    expect(html).toContain('scale(0.5625)');
-  });
-
   it('встраивает только принадлежащий пользователю image asset', async () => {
     filesService.getFileForUser.mockResolvedValue({
       mimeType: 'image/png',

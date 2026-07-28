@@ -1,7 +1,4 @@
-import {
-  getPdfPageGeometry,
-  isAllowedProtectedPdfRequest,
-} from './html-export.service';
+import { isAllowedProtectedPdfRequest } from './html-export.service';
 
 describe('isAllowedProtectedPdfRequest', () => {
   it('allows only the exact HTTPS jsDelivr hostname for external requests', () => {
@@ -20,24 +17,5 @@ describe('isAllowedProtectedPdfRequest', () => {
     expect(isAllowedProtectedPdfRequest('javascript:alert(1)')).toBe(false);
     expect(isAllowedProtectedPdfRequest('data:image/png;base64,AAAA')).toBe(true);
     expect(isAllowedProtectedPdfRequest('blob:https://app.test/id')).toBe(true);
-  });
-});
-
-describe('getPdfPageGeometry', () => {
-  it('uses the requested pixel dimensions without Chromium landscape swapping', () => {
-    const geometry = getPdfPageGeometry({
-      landscape: false,
-      pageSize: { width: 1280, height: 720 },
-    });
-
-    expect(geometry).toEqual({ width: '1280px', height: '720px' });
-    expect(geometry).not.toHaveProperty('landscape');
-  });
-
-  it('keeps the A4 landscape option for regular documents', () => {
-    expect(getPdfPageGeometry({ landscape: true })).toEqual({
-      format: 'A4',
-      landscape: true,
-    });
   });
 });

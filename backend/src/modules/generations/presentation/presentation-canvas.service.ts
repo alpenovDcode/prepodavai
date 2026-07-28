@@ -276,22 +276,10 @@ export class PresentationCanvasService {
 
   async renderHtml(
     input: CanvasPresentation,
-    options: {
-      userId?: string;
-      embedAssets?: boolean;
-      printPageSize?: { width: number; height: number };
-    } = {},
+    options: { userId?: string; embedAssets?: boolean } = {},
   ): Promise<string> {
     const data = this.parse(input);
     const assets = new Map<string, string>();
-    const printPage = options.printPageSize ?? {
-      width: data.width,
-      height: data.height,
-    };
-    const printScale = Math.min(
-      printPage.width / data.width,
-      printPage.height / data.height,
-    );
 
     if (options.embedAssets && options.userId) {
       const hashes = new Set<string>();
@@ -310,14 +298,7 @@ export class PresentationCanvasService {
     }
 
     const slidesHtml = data.slides
-      .map((slide, index) =>
-        `<div class="slide-page">${this.renderSlide(
-          slide,
-          index,
-          data.slides.length,
-          assets,
-        )}</div>`,
-      )
+      .map((slide, index) => this.renderSlide(slide, index, data.slides.length, assets))
       .join('');
 
     return `<!DOCTYPE html>
@@ -330,7 +311,6 @@ export class PresentationCanvasService {
 *{box-sizing:border-box}
 html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#111827;font-family:Inter,Arial,sans-serif}
 .stage{position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center}
-.slide-page{display:contents}
 .slide{position:absolute;width:${data.width}px;height:${data.height}px;overflow:hidden;display:none;transform-origin:center center;box-shadow:0 20px 55px rgba(0,0,0,.28)}
 .slide.active{display:block}
 .el{position:absolute;white-space:pre-wrap;overflow:hidden;box-sizing:border-box}
@@ -340,13 +320,12 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#111827;fon
 .nav button{width:34px;height:34px;border:0;border-radius:50%;background:rgba(255,255,255,.12);color:#fff;cursor:pointer}
 .nav button:disabled{opacity:.35}
 .counter{min-width:62px;text-align:center;font-size:13px;font-weight:700}
-@page{size:${printPage.width}px ${printPage.height}px;margin:0}
+@page{size:${data.width}px ${data.height}px;margin:0}
 @media print{
-  html,body{width:${printPage.width}px!important;height:auto!important;overflow:visible!important;background:#fff!important}
-  .stage{display:block!important;width:${printPage.width}px!important;height:auto!important}
-  .slide-page{position:relative!important;display:block!important;width:${printPage.width}px!important;height:${printPage.height}px!important;overflow:hidden!important;page-break-after:always!important;break-after:page!important;background:#fff!important}
-  .slide-page:last-child{page-break-after:auto!important;break-after:auto!important}
-  .slide{position:absolute!important;display:block!important;left:50%!important;top:50%!important;transform:translate(-50%,-50%) scale(${printScale})!important;transform-origin:center center!important;box-shadow:none!important}
+  html,body{width:${data.width}px!important;height:auto!important;overflow:visible!important;background:#fff!important}
+  .stage{display:block!important;width:${data.width}px!important;height:auto!important}
+  .slide{position:relative!important;display:block!important;transform:none!important;box-shadow:none!important;page-break-after:always!important;break-after:page!important}
+  .slide:last-child{page-break-after:auto!important;break-after:auto!important}
   .nav{display:none!important}
 }
 </style>
