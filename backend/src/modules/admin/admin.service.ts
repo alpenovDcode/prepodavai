@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, UnauthorizedException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -49,7 +49,8 @@ export class AdminService {
 
     const isMatch = await bcrypt.compare(currentPassword, user.passwordHash);
     if (!isMatch) {
-      throw new UnauthorizedException('Неверный текущий пароль');
+      // 400, а не 401: 401 фронт трактует как «сессия истекла» и сбрасывает авторизацию.
+      throw new BadRequestException('Неверный текущий пароль');
     }
 
     const newHash = await bcrypt.hash(newPassword, 10);
