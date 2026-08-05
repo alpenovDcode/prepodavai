@@ -93,21 +93,21 @@ function initialsFrom(first: string, last: string, username?: string) {
 // ─── меняем пароль ───────────────────────────────────────────────────────────
 
 function SecurityPanel() {
-    const [cur, setCur] = useState('')
     const [next, setNext] = useState('')
     const [confirm, setConfirm] = useState('')
-    const [showCur, setShowCur] = useState(false)
     const [showNext, setShowNext] = useState(false)
     const [saving, setSaving] = useState(false)
 
+    // Текущий пароль не спрашиваем: смена пароля доступна из активной сессии.
+    // Поэтому используем /password/set (без проверки старого), а не /password.
     const submit = async () => {
         if (next.length < 8) { toast.error('Минимум 8 символов'); return }
         if (next !== confirm) { toast.error('Пароли не совпадают'); return }
         setSaving(true)
         try {
-            await apiClient.post('/users/me/password', { currentPassword: cur, newPassword: next })
+            await apiClient.post('/users/me/password/set', { newPassword: next })
             toast.success('Пароль изменён')
-            setCur(''); setNext(''); setConfirm('')
+            setNext(''); setConfirm('')
         } catch (e: any) {
             toast.error(e?.response?.data?.message || 'Не удалось сменить пароль')
         } finally { setSaving(false) }
@@ -116,19 +116,6 @@ function SecurityPanel() {
     return (
         <Panel id="security" title="Безопасность" subtitle="Пароль и активные сессии">
             <div className="grid grid-cols-2 gap-4 max-md:grid-cols-1">
-                <div>
-                    <FieldLabel>Текущий пароль</FieldLabel>
-                    <Input
-                        type={showCur ? 'text' : 'password'}
-                        value={cur}
-                        onChange={e => setCur(e.target.value)}
-                        rightIcon={
-                            <button type="button" onClick={() => setShowCur(s => !s)} className="text-ink-500 hover:text-ink-700">
-                                {showCur ? <EyeOff size={16}/> : <Eye size={16}/>}
-                            </button>
-                        }
-                    />
-                </div>
                 <div>
                     <FieldLabel>Новый пароль</FieldLabel>
                     <Input
@@ -143,7 +130,7 @@ function SecurityPanel() {
                         }
                     />
                 </div>
-                <div className="col-span-2 max-md:col-span-1">
+                <div>
                     <FieldLabel>Повторите новый пароль</FieldLabel>
                     <Input
                         type={showNext ? 'text' : 'password'}
@@ -153,7 +140,7 @@ function SecurityPanel() {
                 </div>
             </div>
             <div className="flex justify-end mt-5">
-                <Button variant="secondary" onClick={submit} loading={saving} disabled={!cur || !next || !confirm}>
+                <Button variant="secondary" onClick={submit} loading={saving} disabled={!next || !confirm}>
                     Сменить пароль
                 </Button>
             </div>

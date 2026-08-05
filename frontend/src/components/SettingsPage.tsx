@@ -37,8 +37,8 @@ export default function SettingsPage() {
     const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
 
     // Смена пароля
-    const [passwordForm, setPasswordForm] = useState({ current: '', next: '', confirm: '' })
-    const [passwordVisible, setPasswordVisible] = useState({ current: false, next: false, confirm: false })
+    const [passwordForm, setPasswordForm] = useState({ next: '', confirm: '' })
+    const [passwordVisible, setPasswordVisible] = useState({ next: false, confirm: false })
     const [passwordSaving, setPasswordSaving] = useState(false)
     const [passwordMsg, setPasswordMsg] = useState<{ type: 'success' | 'error', text: string } | null>(null)
 
@@ -54,12 +54,12 @@ export default function SettingsPage() {
         setPasswordSaving(true)
         setPasswordMsg(null)
         try {
-            await apiClient.post('/users/me/password', {
-                currentPassword: passwordForm.current,
+            // Текущий пароль не спрашиваем: смена доступна из активной сессии.
+            await apiClient.post('/users/me/password/set', {
                 newPassword: passwordForm.next,
             })
             setPasswordMsg({ type: 'success', text: 'Пароль успешно изменён' })
-            setPasswordForm({ current: '', next: '', confirm: '' })
+            setPasswordForm({ next: '', confirm: '' })
             setTimeout(() => setPasswordMsg(null), 4000)
         } catch (err: any) {
             setPasswordMsg({ type: 'error', text: err?.response?.data?.message || 'Не удалось изменить пароль' })
@@ -526,9 +526,9 @@ export default function SettingsPage() {
                 <h2 className="text-xl font-bold text-gray-900 mb-1">Смена пароля</h2>
                 <p className="text-sm text-gray-500 mb-6">Обновите пароль для входа в аккаунт.</p>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                    {(['current', 'next', 'confirm'] as const).map((field) => {
-                        const labels = { current: 'Текущий пароль', next: 'Новый пароль', confirm: 'Повторите новый пароль' }
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    {(['next', 'confirm'] as const).map((field) => {
+                        const labels = { next: 'Новый пароль', confirm: 'Повторите новый пароль' }
                         return (
                             <div key={field}>
                                 <label className="block text-sm font-semibold text-gray-700 mb-2">{labels[field]}</label>
@@ -538,7 +538,7 @@ export default function SettingsPage() {
                                         value={passwordForm[field]}
                                         onChange={(e) => setPasswordForm({ ...passwordForm, [field]: e.target.value })}
                                         className="w-full px-4 py-3 pr-10 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-primary-500 focus:bg-white transition"
-                                        autoComplete={field === 'current' ? 'current-password' : 'new-password'}
+                                        autoComplete="new-password"
                                     />
                                     <button
                                         type="button"
@@ -557,7 +557,7 @@ export default function SettingsPage() {
                 <div className="flex items-center gap-4">
                     <button
                         onClick={handleChangePassword}
-                        disabled={passwordSaving || !passwordForm.current || !passwordForm.next || !passwordForm.confirm}
+                        disabled={passwordSaving || !passwordForm.next || !passwordForm.confirm}
                         className="flex items-center gap-2 px-6 py-3 bg-primary-600 text-white rounded-xl font-semibold hover:bg-primary-700 transition disabled:opacity-50"
                     >
                         {passwordSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <KeyRound className="w-5 h-5" />}
