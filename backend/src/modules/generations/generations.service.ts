@@ -515,7 +515,7 @@ export class GenerationsService {
       throw new BadRequestException('Prompt is required for image generation');
     }
 
-    // === Редактирование готового изображения (img2img через flux-2-pro) ===
+    // === Редактирование готового изображения (img2img через FLUX Kontext Pro) ===
     // Берём исходное изображение пользователя и применяем ТОЛЬКО запрошенную
     // правку, сохраняя персонажа/композицию — это решает «нет возможности
     // изменить готовое изображение» и «каждый раз другой персонаж».
@@ -547,24 +547,15 @@ export class GenerationsService {
       const baseUrl = this.configService.get<string>('BASE_URL', 'https://api.prepodavai.ru');
       const callbackUrl = `${baseUrl}/api/webhooks/replicate-callback`;
 
-      const sizeToAspectRatio: Record<string, string> = {
-        '1024x1024': '1:1',
-        '1024x1792': '9:16',
-        '1792x1024': '16:9',
-      };
-      const aspectRatio = sizeToAspectRatio[inputParams.size] || '1:1';
-
       try {
         const response = await axios.post(
-          'https://api.replicate.com/v1/models/black-forest-labs/flux-2-pro/predictions',
+          'https://api.replicate.com/v1/models/black-forest-labs/flux-kontext-pro/predictions',
           {
             input: {
               prompt: editPrompt,
-              resolution: '2 MP',
-              aspect_ratio: aspectRatio,
-              input_images: [sourceDataUri],
+              input_image: sourceDataUri,
+              aspect_ratio: 'match_input_image',
               output_format: 'png',
-              output_quality: 90,
               safety_tolerance: 2,
               prompt_upsampling: false,
             },
