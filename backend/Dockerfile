@@ -1,4 +1,4 @@
-FROM node:20-slim AS base
+FROM node:24.22.1-bookworm-slim AS base
 
 # Install dependencies only when needed
 FROM base AS deps
@@ -99,8 +99,14 @@ RUN npx playwright install-deps chromium
 # Create uploads directory with correct permissions
 RUN mkdir -p /app/uploads && chown -R nestjs:nodejs /app/uploads
 
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get upgrade -y && apt-get install -y --no-install-recommends ca-certificates libnss3-tools && rm -rf /var/lib/apt/lists/*
+COPY package-lock.json /app/package-lock.json
+RUN mv /app/node_modules/.prisma /tmp/security-prisma && npm prune --omit=dev --ignore-scripts --no-audit && rm -rf /app/node_modules/.prisma && mv /tmp/security-prisma /app/node_modules/.prisma
+COPY security/browser-distrust /opt/security/browser-distrust
+RUN node /opt/security/browser-distrust/install.cjs nestjs
+ENV HOME=/home/nestjs
 USER nestjs
 
 EXPOSE 3001
 
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/main.js"]
+CMD ["node", "dist/main.js"]

@@ -1,5 +1,7 @@
 'use client'
 
+import { useParams } from 'next/navigation'
+
 import { useState } from 'react'
 import useSWR from 'swr'
 import Link from 'next/link'
@@ -62,7 +64,8 @@ const STATUS_COLORS: Record<string, string> = {
     pending: 'bg-yellow-100 text-yellow-700',
 }
 
-export default function UserStatsPage({ params }: { params: { id: string } }) {
+export default function UserStatsPage() {
+    const params = useParams<{ id: string }>()
     const { id } = params
     const { data, isLoading, error } = useSWR(`/admin/users/${id}/stats`, fetcher)
     const stats = data?.stats
@@ -569,7 +572,7 @@ export default function UserStatsPage({ params }: { params: { id: string } }) {
                                 medium: 'bg-amber-100 text-amber-700',
                                 high: 'bg-red-100 text-red-700',
                             }
-                            const riskIcons: Record<string, JSX.Element> = {
+                            const riskIcons: Record<string, React.JSX.Element> = {
                                 low: <Shield className="w-3 h-3" />,
                                 medium: <AlertTriangle className="w-3 h-3" />,
                                 high: <Flame className="w-3 h-3" />,

@@ -34,7 +34,7 @@ export default function AdminLogsPage() {
     const totalPages = Math.ceil(total / limit)
 
     // Debounce search
-    const searchTimer = useRef<NodeJS.Timeout>()
+    const searchTimer = useRef<NodeJS.Timeout>(undefined)
     const handleSearch = (val: string) => {
         clearTimeout(searchTimer.current)
         searchTimer.current = setTimeout(() => { setSearch(val); setPage(1) }, 400)

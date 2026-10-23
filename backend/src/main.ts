@@ -58,7 +58,8 @@ async function bootstrap() {
 
   // Доверяем прокси (Nginx) для корректного определения протокола (https) и IP
   const expressApp = app.getHttpAdapter().getInstance();
-  expressApp.set('trust proxy', 1);
+  expressApp.set('trust proxy', 2);
+  expressApp.set('query parser', 'extended');
 
   // Валидация JWT_SECRET (критично для безопасности)
   const jwtSecret = configService.get<string>('JWT_SECRET');

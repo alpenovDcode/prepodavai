@@ -244,7 +244,7 @@ export default function BlogAnalyticsPage() {
               <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} width={30} />
               <Tooltip
                 contentStyle={{ borderRadius: 10, border: '1px solid #e5e7eb', fontSize: 12 }}
-                formatter={(v: number, name: string) => [v, name === 'visits' ? 'Визиты' : 'Пользователи']}
+                formatter={(v, name) => [v, name === 'visits' ? 'Визиты' : 'Пользователи']}
               />
               <Area type="monotone" dataKey="visits" stroke="#f97316" strokeWidth={2} fill="url(#blogGrad)" name="visits" />
               <Area type="monotone" dataKey="users" stroke="#3b82f6" strokeWidth={1.5} fill="none" name="users" />
@@ -297,7 +297,7 @@ export default function BlogAnalyticsPage() {
             <YAxis type="category" dataKey="name" tick={{ fontSize: 12 }} tickLine={false} axisLine={false} width={80} />
             <Tooltip
               contentStyle={{ borderRadius: 10, border: '1px solid #e5e7eb', fontSize: 12 }}
-              formatter={(v: number) => [v, 'Кликов']}
+              formatter={(v) => [v, 'Кликов']}
             />
             <Bar dataKey="value" radius={[0, 6, 6, 0]}>
               {ctaData.map((c, i) => (
@@ -431,7 +431,7 @@ GOOGLE_SC_REFRESH_TOKEN=...`}
                   <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} width={35} />
                   <Tooltip
                     contentStyle={{ borderRadius: 10, border: '1px solid #e5e7eb', fontSize: 12 }}
-                    formatter={(v: number, name: string) => [v, name === 'clicks' ? 'Клики' : 'Показы']}
+                    formatter={(v, name) => [v, name === 'clicks' ? 'Клики' : 'Показы']}
                   />
                   <Area type="monotone" dataKey="clicks" stroke="#3b82f6" strokeWidth={2} fill="url(#gscGrad)" name="clicks" />
                   <Area type="monotone" dataKey="impressions" stroke="#a78bfa" strokeWidth={1.5} fill="none" name="impressions" />

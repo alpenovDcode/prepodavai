@@ -7,7 +7,7 @@
 ```bash
 # Замените YOUR_DOMAIN на ваш домен
 curl -X GET https://gigachat.devices.sberbank.ru/api/v1/models \
-  -H "Authorization: Bearer eyJjdHkiOiJqd3QiLCJlbmMiOiJBMjU2Q0JDLUhTNTEyIiwiYWxnIjoiUlNBLU9BRVAtMjU2In0.g0Czrs2B7k8sMgNbOKFWiEsboxY0-duWZq86AJPVGCoQuS8XokGJyH5YJ6ZVQW0HeGVummVlbz8jLA-a-z4MsfZ97OGczPf87piGvhr58p4JDXaoWpWFIfu4pT-XEE290Vl40NZZtvGClbK1rHJsYY8KxLrVEU-Q74BtIl7zre15MMp1tV46kwhYJHqlAguyIlJIgkok_7VeCjQwa-3CmAOal9FsguyBOkW_RG09NnH06aaCw56GiItP5uxDLzl3Upo6xgA14T_7TO6I_aCd68W5_zVfC4nmR9OH3uGEeLGtyLvAGuV6o3pKcsteN0D0O67mDxxlm9z7uY9t6DJtdQ.PYHnCdpFDdjRS79Fsjl81Q.t18Z1pSgiAcVRgyQwaE2Li7e_7Zi08YxRHUulAj99egLTDePcOZLqhbvOLYYw_MWXe4qQWes7HiWSSY2WA2KwbRaMBhrS5oVygbqcxRYSs8d31EVnDlneBG7pRPeZr8Vz6zqRZn7oX6Rqd0bT6AVhZAlYzhH1-EWYoNNHawpcd4RN4wUm_i8LzCBUzejBtLnoz_dsvDsmcRSLarehUwDoowW_RJSGuDInue9KQYiJL_mePkdqyrXe6mzCKOusGiRNhXEDpjknedjNBphfUbUghllgiW7Nqa38J0Huasy58OHF854llKJJYAI5Qr4ZdJpUjaVP74lDI9jD0MnjTRw5LAsxRaXPaIUy9AkD6xfrz9IBV4i8j7Ki43C161y_Tb_Otl2mbEwJRFZsXNst2GC3BivYTz5Sri0P_As3BAIOkt3C_nkPr45a5JJVA2_p6v-T1ARdgL_eNlQxDsaj1U2tLHPsFIfvauUDFkL35pB1ZoS0Nweiv42s3i2ff7_CMDV9fMZ9yWDCFRIxJoebLtKtfRFvvEEYQD276zZxc9IClGlifaf9mlno0cb1gJpQdHCtQgawF0pv81DZjGrSoFKJpKfy6s8FCdOhFjw223erLccMXWfyuxreYamygA3Q2f__8j4U2HLWj6zBPmmrt5g29MM802eZ9RMnJpFREDTP-Dos6JSenmOA0ohSEnoDwQmTlQ013WzMNZK_pwrO7fHRhxO9pbUY-fQ5NmiRZbm0yM.qMZnEfRva0rIb3Ca6i85DMIFlu0FkpDQOixhaPWGJug" | jq .
+  -H "Authorization: Bearer YOUR_GIGACHAT_ACCESS_TOKEN" | jq .
 ```
 
 **Ожидаемый ответ:**
@@ -50,12 +50,12 @@ docker logs prepodavai-backend-prod --tail 50 -f
 ```bash
 # 1. Получить модели
 curl -X GET https://YOUR_DOMAIN/api/gigachat/models \
-  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Authorization: Bearer YOUR_GIGACHAT_ACCESS_TOKEN" \
   -H "Content-Type: application/json" | jq .
 
 # 2. Создать текстовую генерацию
 curl -X POST https://YOUR_DOMAIN/api/gigachat/generate \
-  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Authorization: Bearer YOUR_GIGACHAT_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "mode": "chat",
@@ -65,7 +65,7 @@ curl -X POST https://YOUR_DOMAIN/api/gigachat/generate \
 
 # 3. Проверить статус (замените REQUEST_ID)
 curl -X GET https://YOUR_DOMAIN/api/generate/REQUEST_ID \
-  -H "Authorization: Bearer YOUR_TOKEN" | jq .
+  -H "Authorization: Bearer YOUR_GIGACHAT_ACCESS_TOKEN" | jq .
 ```
 
 ## 🔍 Проверка работоспособности
@@ -142,7 +142,7 @@ docker exec prepodavai-backend-prod env | grep GIGACHAT
 1. Проверьте баланс пользователя:
    ```bash
    curl -X GET https://YOUR_DOMAIN/api/subscriptions/me \
-     -H "Authorization: Bearer YOUR_TOKEN" | jq .
+     -H "Authorization: Bearer YOUR_GIGACHAT_ACCESS_TOKEN" | jq .
    ```
 2. Добавьте Токены через админку или скрипт
 
@@ -190,7 +190,7 @@ LIMIT 10;
 ### Текстовая генерация
 ```bash
 curl -X POST https://YOUR_DOMAIN/api/gigachat/generate \
-  -H "Authorization: Bearer TOKEN" \
+  -H "Authorization: Bearer YOUR_GIGACHAT_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "mode": "chat",
@@ -204,7 +204,7 @@ curl -X POST https://YOUR_DOMAIN/api/gigachat/generate \
 ### Генерация изображения
 ```bash
 curl -X POST https://YOUR_DOMAIN/api/gigachat/generate \
-  -H "Authorization: Bearer TOKEN" \
+  -H "Authorization: Bearer YOUR_GIGACHAT_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "mode": "image",
@@ -217,7 +217,7 @@ curl -X POST https://YOUR_DOMAIN/api/gigachat/generate \
 ### Эмбеддинги
 ```bash
 curl -X POST https://YOUR_DOMAIN/api/gigachat/generate \
-  -H "Authorization: Bearer TOKEN" \
+  -H "Authorization: Bearer YOUR_GIGACHAT_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "mode": "embeddings",

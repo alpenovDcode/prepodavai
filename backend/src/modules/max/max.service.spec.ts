@@ -3,6 +3,9 @@ import { ConfigService } from '@nestjs/config';
 import { MaxService } from './max.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { HtmlExportService } from '../../common/services/html-export.service';
+import { EmailService } from '../../common/services/email.service';
+import { FilesService } from '../files/files.service';
+import * as toolConfigs from './tool-configs';
 import { TOOL_CONFIGS, getToolConfig } from './tool-configs';
 
 jest.mock('axios');
@@ -55,9 +58,11 @@ describe('MaxService', () => {
   beforeEach(async () => {
     mockPrisma = {
       appUser: {
-        findUnique: jest.fn().mockResolvedValue(null),
+        findUnique: jest.fn().mockResolvedValue({ id: 'u1', maxId: '111' }),
         update: jest.fn().mockResolvedValue({}),
       },
+      botUser: { findUnique: jest.fn().mockResolvedValue(null), upsert: jest.fn().mockResolvedValue({}), update: jest.fn().mockResolvedValue({}) },
+      userGeneration: { findUnique: jest.fn().mockResolvedValue(null) },
       linkToken: {
         findUnique: jest.fn().mockResolvedValue(null),
         update: jest.fn().mockResolvedValue({}),
@@ -95,13 +100,15 @@ describe('MaxService', () => {
         },
         { provide: PrismaService, useValue: mockPrisma },
         { provide: HtmlExportService, useValue: mockHtmlExport },
+        { provide: EmailService, useValue: { sendWelcomeEmail: jest.fn().mockResolvedValue(undefined) } },
+        { provide: FilesService, useValue: { getFile: jest.fn() } },
       ],
     }).compile();
 
     service = module.get<MaxService>(MaxService);
   });
 
-  afterEach(() => jest.clearAllMocks());
+  afterEach(() => { jest.restoreAllMocks(); jest.clearAllMocks(); });
 
   // ── handleWebhook routing ─────────────────────────────────────────────────
 
@@ -151,10 +158,11 @@ describe('MaxService', () => {
   });
 
   describe('handleMessage — /generate', () => {
-    it('tells unlinked user to register first', async () => {
+    it('shows activation flow to an unlinked user', async () => {
+      mockPrisma.appUser.findUnique.mockResolvedValue(null);
       await service.handleWebhook(makeMessageBody('/generate'));
       const sentText = (mockedAxios.post as jest.Mock).mock.calls.find(
-        ([url, body]: any) => url.includes('/messages') && body?.text?.includes('Аккаунт не найден'),
+        ([url, body]: any) => url.includes('/messages') && body?.text?.includes('рада вас видеть'),
       );
       expect(sentText).toBeDefined();
     });
@@ -205,7 +213,7 @@ describe('MaxService', () => {
       });
     }
 
-    it('validates required text field and rejects empty', async () => {
+    it('ignores whitespace-only messages without advancing the session', async () => {
       const sessions = (service as any).genSessions as Map<string, any>;
       sessions.set('111', {
         toolKey: 'quiz',
@@ -214,10 +222,7 @@ describe('MaxService', () => {
         lastActivity: Date.now(),
       });
       await service.handleWebhook(makeMessageBody('   '));
-      const sentText = (mockedAxios.post as jest.Mock).mock.calls.find(
-        ([url, body]: any) => url.includes('/messages') && body?.text?.includes('обязательно'),
-      );
-      expect(sentText).toBeDefined();
+      expect(mockedAxios.post).not.toHaveBeenCalled();
       // session not advanced
       expect(sessions.get('111')?.fieldIndex).toBe(1);
     });
@@ -258,9 +263,12 @@ describe('MaxService', () => {
     });
 
     it('tells user to use web for file fields and clears session', async () => {
+      const original = toolConfigs.getToolConfig;
+      const fixture = { ...getToolConfig('quiz')!, key: 'test-file', fields: [{ key: 'photoHash', type: 'file' as const, required: true, label: 'Photo', maxLength: 255 }] };
+      jest.spyOn(toolConfigs, 'getToolConfig').mockImplementation((key) => key === 'test-file' ? fixture : original(key));
       const sessions = (service as any).genSessions as Map<string, any>;
       sessions.set('111', {
-        toolKey: 'photosession',
+        toolKey: 'test-file',
         fieldIndex: 0, // photoHash — file field
         params: {},
         lastActivity: Date.now(),
@@ -273,11 +281,13 @@ describe('MaxService', () => {
       expect(sentText).toBeDefined();
     });
 
-    it('ignores text when no active session', async () => {
-      const callsBefore = (mockedAxios.post as jest.Mock).mock.calls.length;
+    it('routes text without an active session to natural language handling', async () => {
+      const parse = jest.spyOn(service as any, 'parseNlRequest').mockResolvedValue({ action: 'unknown' });
       await service.handleWebhook(makeMessageBody('random message'));
-      // No new messages sent
-      expect((mockedAxios.post as jest.Mock).mock.calls.length).toBe(callsBefore);
+      expect(parse).toHaveBeenCalledWith('random message');
+      expect((service as any).genSessions.size).toBe(0);
+      expect(mockedAxios.post).toHaveBeenCalledWith(expect.stringContaining('/messages'),
+        expect.objectContaining({ text: expect.any(String) }), expect.anything());
     });
   });
 
@@ -285,6 +295,7 @@ describe('MaxService', () => {
 
   describe('handleCallback — g:t: (tool selection)', () => {
     it('tells unlinked user to use /start', async () => {
+      mockPrisma.appUser.findUnique.mockResolvedValue(null);
       await service.handleWebhook(makeCallbackBody('g:t:quiz'));
       const sentText = (mockedAxios.post as jest.Mock).mock.calls.find(
         ([url, body]: any) => url.includes('/messages') && body?.text?.includes('Аккаунт не найден'),
@@ -515,11 +526,14 @@ describe('MaxService', () => {
     });
 
     it('jumps to end for optional field with skipToEnd', async () => {
-      const tool = getToolConfig('unpacking')!;
+      // No live tool currently uses skipToEnd; exercise the generic branch with a local fixture.
+      const original = toolConfigs.getToolConfig;
+      const tool = { ...getToolConfig('quiz')!, key: 'test-skip', fields: [{ key: 'optional', label: 'Optional', type: 'text' as const, required: false, skipToEnd: true, maxLength: 100 }] };
+      jest.spyOn(toolConfigs, 'getToolConfig').mockImplementation((key) => key === 'test-skip' ? tool : original(key));
       const sessions = (service as any).genSessions as Map<string, any>;
       sessions.set('111', {
-        toolKey: 'unpacking',
-        fieldIndex: 3, // q4 — optional with skipToEnd
+        toolKey: 'test-skip',
+        fieldIndex: 0, // synthetic optional field with skipToEnd
         params: {},
         lastActivity: Date.now(),
       });
@@ -671,7 +685,7 @@ describe('MaxService', () => {
       await service.handleWebhook(makeCallbackBody('g:ok'));
 
       const sentText = (mockedAxios.post as jest.Mock).mock.calls.find(
-        ([url, body]: any) => url.includes('/messages') && body?.text?.includes('токенов'),
+        ([url, body]: any) => url.includes('/messages') && body?.text?.includes('Произошла ошибка'),
       );
       expect(sentText).toBeDefined();
     });
@@ -714,26 +728,27 @@ describe('MaxService', () => {
   // ── handleStartCommand ────────────────────────────────────────────────────
 
   describe('handleStartCommand', () => {
-    it('shows web registration prompt for unlinked user', async () => {
-      await service.handleWebhook(makeBotStartedBody());
+    it('shows subscription activation for unlinked user', async () => {
+      mockPrisma.appUser.findUnique.mockResolvedValue(null);
+      await (service as any).handleStartCommand({ id: '111' }, '111');
       const sentText = (mockedAxios.post as jest.Mock).mock.calls.find(
-        ([url, body]: any) => url.includes('/messages') && body?.text?.includes('зарегистрируйтесь'),
+        ([url, body]: any) => url.includes('/messages') && body?.text?.includes('рада вас видеть'),
       );
       expect(sentText).toBeDefined();
     });
 
-    it('shows welcome + tool selection keyboard for linked user', async () => {
+    it('shows welcome + main menu keyboard for linked user', async () => {
       const user = { id: 'u1', maxId: '111', username: 'tester', firstName: 'Test', lastName: '', chatId: null, maxChatId: null };
       mockPrisma.appUser.findUnique.mockResolvedValue(user);
       mockPrisma.appUser.update.mockResolvedValue(user);
 
-      await service.handleWebhook(makeBotStartedBody());
+      await (service as any).handleStartCommand({ id: '111' }, '111');
 
       const msgCalls = (mockedAxios.post as jest.Mock).mock.calls.filter(
         ([url]: any) => url.includes('/messages'),
       );
       // First message: welcome text
-      const welcomeCall = msgCalls.find(([, body]: any) => body?.text?.includes('prepodavAI'));
+      const welcomeCall = msgCalls.find(([, body]: any) => body?.text?.includes('Добро пожаловать'));
       expect(welcomeCall).toBeDefined();
       // Second message: tool selection keyboard
       const keyboardCall = msgCalls.find(([, body]: any) =>
@@ -747,7 +762,7 @@ describe('MaxService', () => {
       mockPrisma.appUser.findUnique.mockResolvedValue(user);
       mockPrisma.appUser.update.mockResolvedValue(user);
 
-      await service.handleWebhook(makeBotStartedBody('111', '999'));
+      await (service as any).handleStartCommand({ id: '111' }, '999');
 
       expect(mockPrisma.appUser.update).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -984,9 +999,8 @@ describe('MaxService', () => {
 
   describe('buildFieldAttachment', () => {
     it('returns file-cancel-only keyboard for file field', () => {
-      const tool = getToolConfig('photosession')!;
-      const field = tool.fields[0]; // photoHash — file
-      const session: any = { params: {}, toolKey: 'photosession', fieldIndex: 0, lastActivity: Date.now() };
+      const field = { key: 'photoHash', label: 'Photo', type: 'file', required: true, maxLength: 255 };
+      const session: any = { params: {}, toolKey: 'test-file', fieldIndex: 0, lastActivity: Date.now() };
       const attachment = (service as any).buildFieldAttachment(field, session);
       const allButtons: any[] = attachment[0].payload.buttons.flat();
       expect(allButtons.every((b: any) => b.payload === 'g:no')).toBe(true);
@@ -1077,10 +1091,10 @@ describe('MaxService', () => {
   // ── humanizeError ─────────────────────────────────────────────────────────
 
   describe('humanizeError', () => {
-    it('returns token hint for credit-related errors', () => {
-      expect((service as any).humanizeError(new Error('недостаточно токенов'))).toContain('токенов');
-      expect((service as any).humanizeError(new Error('баланс'))).toContain('токенов');
-      expect((service as any).humanizeError(new Error('кредит'))).toContain('токенов');
+    it('returns a safe generic message for credit-related errors', () => {
+      expect((service as any).humanizeError(new Error('недостаточно токенов'))).toContain('Попробуйте ещё раз');
+      expect((service as any).humanizeError(new Error('баланс'))).toContain('Попробуйте ещё раз');
+      expect((service as any).humanizeError(new Error('кредит'))).toContain('Попробуйте ещё раз');
     });
 
     it('returns account hint for not-found errors', () => {
@@ -1228,6 +1242,8 @@ describe('MaxService', () => {
           { provide: ConfigService, useValue: { get: jest.fn().mockReturnValue(null) } },
           { provide: PrismaService, useValue: mockPrisma },
           { provide: HtmlExportService, useValue: mockHtmlExport },
+          { provide: EmailService, useValue: { sendWelcomeEmail: jest.fn().mockResolvedValue(undefined) } },
+          { provide: FilesService, useValue: { getFile: jest.fn() } },
         ],
       }).compile();
       const svc = module.get<MaxService>(MaxService);

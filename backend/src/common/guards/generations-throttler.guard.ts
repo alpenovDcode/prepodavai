@@ -9,7 +9,7 @@ export class GenerationsThrottlerGuard extends ThrottlerGuard {
     if (req.user && req.user.id) {
       return `user-${req.user.id}`;
     }
-    const ip = req.headers['x-forwarded-for'] || req.connection?.remoteAddress || req.ip;
+    const ip = req.ip || req.connection?.remoteAddress;
     return `ip-${ip}`;
   }
 
@@ -54,14 +54,16 @@ export class GenerationsThrottlerGuard extends ThrottlerGuard {
         }
     }
 
-    // Пытаемся адаптировать вызов increment под возможные сигнатуры v5. 
-    // В текущей установленной версии signature: increment(key, ttl)
-    const { totalHits } = await this.storageService.increment(
+    // Throttler v6: preserve the per-plan limit and the one-minute block window.
+    const { totalHits, isBlocked } = await this.storageService.increment(
       key,
-      dynamicTtl
+      dynamicTtl,
+      dynamicLimit,
+      dynamicTtl,
+      throttlerName
     );
 
-    if (totalHits > dynamicLimit) {
+    if (isBlocked || totalHits > dynamicLimit) {
       throw new HttpException(
          'Слишком много запросов на генерацию. Пожалуйста, подождите минуту перед следующей попыткой.',
          HttpStatus.TOO_MANY_REQUESTS,

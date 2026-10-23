@@ -61,11 +61,11 @@ import { AiChatsModule } from './modules/ai-chats/ai-chats.module';
     // Rate Limiting
     ThrottlerModule.forRoot([
       {
-        ttl: 1000, // 1 second
+        name: 'default', ttl: 1000, // 1 second
         limit: 10, // 10 requests per second
       },
       {
-        ttl: 60000, // 1 minute
+        name: 'long', ttl: 60000, // 1 minute
         limit: 200, // 200 requests per minute
       },
     ]),

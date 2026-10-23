@@ -124,7 +124,7 @@ describe('GamificationService', () => {
       expect(p.achievements.length).toBe(3);
       const firstStep = p.achievements.find(a => a.key === 'first-step')!;
       expect(firstStep.target).toBe(1);
-      expect(firstStep.progress).toBe(0);
+      expect(firstStep.progress).toEqual({ current: 0, target: 1 });
       expect(firstStep.unlocked).toBe(false);
     });
 

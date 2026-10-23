@@ -1,6 +1,12 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+@config "../../tailwind.config.ts";
+
+/* Preserve v3 defaults used by the current UI. */
+@layer base {
+  *, ::before, ::after, ::backdrop, ::file-selector-button { border-color: var(--color-gray-200, currentColor); }
+  button, [role="button"] { cursor: pointer; }
+}
+
 
 :root {
   /* ─── Legacy theme tokens (Telegram WebApp + старые компоненты) ───────── */

@@ -1,7 +1,7 @@
 services:
   # PostgreSQL Database
   postgres:
-    image: postgres:15-alpine
+    image: postgres:15.19-alpine
     container_name: prepodavai-postgres-prod
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
@@ -25,7 +25,7 @@ services:
 
   # Redis
   redis:
-    image: redis:7-alpine
+    image: redis:7.4.11-alpine
     container_name: prepodavai-redis-prod
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD}
@@ -267,7 +267,7 @@ services:
 
   # NGINX Load Balancer
   nginx:
-    image: nginx:alpine
+    image: nginx:1.30.6-alpine
     container_name: prepodavai-nginx-prod
     restart: unless-stopped
     ports:

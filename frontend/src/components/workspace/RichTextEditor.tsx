@@ -16,7 +16,7 @@ interface RichTextEditorProps {
 export default function RichTextEditor({ content, onChange, readOnly = false }: RichTextEditorProps) {
     const editor = useEditor({
         extensions: [
-            StarterKit,
+            StarterKit.configure({ underline: false }),
             Underline,
             MathInline,
             MathBlock,
@@ -40,7 +40,7 @@ export default function RichTextEditor({ content, onChange, readOnly = false }: 
         if (editor && content !== editor.getHTML()) {
             const currentHtml = editor.getHTML()
             if (content !== currentHtml && content !== '<p></p>') {
-                editor.commands.setContent(preprocessMathInHtml(content))
+                editor.commands.setContent(preprocessMathInHtml(content), { emitUpdate: false })
             }
         }
     }, [content, editor])

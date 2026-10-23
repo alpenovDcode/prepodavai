@@ -64,3 +64,8 @@ backend/uploads/
 
 # TypeScript build cache (auto-generated)
 **/tsconfig.tsbuildinfo
+
+# Keep tested dependency resolutions for reproducible security updates.
+!/backend/package-lock.json
+!/frontend/package-lock.json
+!/worker/package-lock.json

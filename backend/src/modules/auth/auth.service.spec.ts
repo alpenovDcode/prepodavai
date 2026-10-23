@@ -4,15 +4,20 @@ import { UsersService } from '../users/users.service';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { UnauthorizedException } from '@nestjs/common';
+import { PrismaService } from '../../common/prisma/prisma.service';
+import { StudentsService } from '../students/students.service';
+import { SmscService } from '../smsc/smsc.service';
+import { EmailService } from '../../common/services/email.service';
+import { AnalyticsEventsService } from '../analytics-events/analytics-events.service';
+import { SmartLinkTokensService } from '../smart-links/smart-link-tokens.service';
 import * as crypto from 'crypto';
 
 describe('AuthService', () => {
   let service: AuthService;
-  let usersService: UsersService;
-  let configService: ConfigService;
 
   // Mocks
   let mockUsersService: any;
+  let mockPrisma: any;
   let mockJwtService: any;
   let mockConfigService: any;
 
@@ -23,6 +28,8 @@ describe('AuthService', () => {
       updateLastAccess: jest.fn(),
       findById: jest.fn(),
     };
+
+    mockPrisma = { appUser: { findUnique: jest.fn(), update: jest.fn() } };
 
     mockJwtService = {
       sign: jest.fn(() => 'test_token'),
@@ -38,6 +45,9 @@ describe('AuthService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AuthService,
+        { provide: PrismaService, useValue: mockPrisma },
+        ...[StudentsService, SmscService, EmailService, AnalyticsEventsService, SmartLinkTokensService]
+          .map((provide) => ({ provide, useValue: {} })),
         { provide: UsersService, useValue: mockUsersService },
         { provide: JwtService, useValue: mockJwtService },
         { provide: ConfigService, useValue: mockConfigService },
@@ -45,8 +55,6 @@ describe('AuthService', () => {
     }).compile();
 
     service = module.get<AuthService>(AuthService);
-    usersService = module.get<UsersService>(UsersService);
-    configService = module.get<ConfigService>(ConfigService);
   });
 
   it('should be defined', () => {
@@ -96,17 +104,44 @@ describe('AuthService', () => {
       params.append('hash', hash);
       const initData = params.toString();
 
-      mockUsersService.getOrCreateByTelegram.mockResolvedValue({
+      const registeredUser = {
+        email: 'test@example.com',
         id: 'user_id',
         telegramId: '123456789',
         username: 'testuser',
-      });
-
+      };
+      mockPrisma.appUser.findUnique.mockResolvedValue(registeredUser);
+      mockPrisma.appUser.update.mockResolvedValue(registeredUser);
       const result = await service.validateTelegramInitData(initData);
 
       expect(result.success).toBe(true);
       expect(result.token).toBe('test_token');
-      expect(mockUsersService.getOrCreateByTelegram).toHaveBeenCalled();
+      expect(mockPrisma.appUser.findUnique).toHaveBeenCalledWith({ where: { telegramId: '123456789' } });
+      const update = mockPrisma.appUser.update.mock.calls[0][0];
+      expect(update.data).not.toHaveProperty('username');
+      expect(mockUsersService.getOrCreateByTelegram).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['unknown account', null],
+      ['shadow account without email', { id: 'shadow-1', telegramId: '123456789', email: null }],
+    ])('does not issue a JWT for %s even with a valid Telegram signature', async (_label, account) => {
+      const params = new URLSearchParams({
+        auth_date: Math.floor(Date.now() / 1000).toString(),
+        user: JSON.stringify({ id: 123456789, first_name: 'Test' }),
+      });
+      const dataCheckString = Array.from(params.entries())
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([key, value]) => `${key}=${value}`).join('\n');
+      const secretKey = crypto.createHmac('sha256', 'WebAppData').update('test_bot_token').digest();
+      params.set('hash', crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex'));
+      mockPrisma.appUser.findUnique.mockResolvedValue(account);
+
+      expect(await service.validateTelegramInitData(params.toString())).toEqual({
+        success: false, error: 'NOT_REGISTERED',
+      });
+      expect(mockJwtService.sign).not.toHaveBeenCalled();
+      expect(mockPrisma.appUser.update).not.toHaveBeenCalled();
     });
 
     it('should throw UnauthorizedException for invalid signature', async () => {

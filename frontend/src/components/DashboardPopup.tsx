@@ -22,7 +22,7 @@ function renderBodyWithLinks(text: string) {
     const urlRegex = /(https?:\/\/[^\s]+)/g
     const lines = text.split('\n')
     return lines.map((line, lineIdx) => {
-        const parts: (string | JSX.Element)[] = []
+        const parts: (string | React.JSX.Element)[] = []
         let lastIndex = 0
         let match: RegExpExecArray | null
         const re = new RegExp(urlRegex.source, 'g')

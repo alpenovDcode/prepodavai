@@ -1,4 +1,4 @@
-FROM node:20-alpine AS base
+FROM node:24.22.1-alpine AS base
 RUN apk add --no-cache libc6-compat curl
 WORKDIR /app
 
@@ -12,6 +12,7 @@ RUN npm config set fetch-retries 5 && \
   npm config set fetch-timeout 300000
 
 COPY package.json package-lock.json* ./
+COPY security ./security
 # Используем npm install с флагами для более надежной установки
 RUN if [ -f package-lock.json ]; then \
   npm ci --prefer-offline --no-audit || npm install --prefer-offline --no-audit; \
@@ -33,29 +34,32 @@ ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 ARG NEXT_PUBLIC_REDESIGN_V2
 ENV NEXT_PUBLIC_REDESIGN_V2=${NEXT_PUBLIC_REDESIGN_V2}
 
-RUN npm run build
+RUN ./node_modules/.bin/tsc --project tsconfig.build.json --noEmit --incremental false
+RUN NODE_OPTIONS=--max-old-space-size=2048 npm run build
 
 # Production image, copy all the files and run next
 FROM base AS runner
 WORKDIR /app
 
-ENV NODE_ENV production
+ENV NODE_ENV=production
 
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
 # Копируем public директорию
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/content ./content
 # Копируем standalone сборку
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
+RUN apk add --no-cache --upgrade ca-certificates
 USER nextjs
 
 EXPOSE 3000
 
-ENV PORT 3000
-ENV HOSTNAME "0.0.0.0"
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
 
 CMD ["node", "server.js"]
 

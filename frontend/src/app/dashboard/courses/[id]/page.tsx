@@ -1,5 +1,5 @@
 import CourseDetailPage from '@/components/CourseDetailPage'
 
-export default function Page({ params }: { params: { id: string } }) {
-    return <CourseDetailPage id={params.id} />
+export default async function Page({ params }: { params: Promise<{ id: string }> }) {
+    return <CourseDetailPage id={(await params).id} />
 }

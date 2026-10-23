@@ -1,4 +1,4 @@
-FROM node:20-alpine AS base
+FROM node:24.22.1-alpine AS base
 
 FROM base AS deps
 RUN apk add --no-cache libc6-compat
@@ -73,6 +73,12 @@ COPY --from=builder --chown=worker:nodejs /app/dist ./dist
 COPY --from=builder --chown=worker:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=worker:nodejs /app/package.json ./package.json
 
+RUN apk upgrade --no-cache && apk add --no-cache --upgrade ca-certificates nss-tools
+COPY package-lock.json /app/package-lock.json
+RUN mv /app/node_modules/.prisma /tmp/security-prisma && npm prune --omit=dev --ignore-scripts --no-audit && rm -rf /app/node_modules/.prisma && mv /tmp/security-prisma /app/node_modules/.prisma
+COPY security/browser-distrust /opt/security/browser-distrust
+RUN node /opt/security/browser-distrust/install.cjs worker
+ENV HOME=/home/worker
 USER worker
 
 CMD ["node", "dist/main.js"]

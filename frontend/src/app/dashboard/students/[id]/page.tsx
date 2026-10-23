@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { apiClient } from '@/lib/api/client'
-import { useRouter } from 'next/navigation'
+import { useRouter, useParams } from 'next/navigation'
 import { useTour } from '@/lib/tour/useTour'
 import {
     LineChart,
@@ -57,7 +57,8 @@ const RISK_BADGE: Record<AnalyticsResponse['risk']['level'], { label: string; cl
     unknown: { label: 'Мало данных', classes: 'bg-gray-50 text-gray-600 border-gray-200' },
 }
 
-export default function StudentProfilePage({ params }: { params: { id: string } }) {
+export default function StudentProfilePage() {
+    const params = useParams<{ id: string }>()
     const [student, setStudent] = useState<Student | null>(null)
     const [analytics, setAnalytics] = useState<AnalyticsResponse | null>(null)
     const [loading, setLoading] = useState(true)

@@ -4,7 +4,7 @@ import StudentAssignmentV2 from '@/components/v2/StudentAssignmentV2'
 import { StudentLayoutV2 } from '@/components/layout/v2/StudentLayoutV2'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { apiClient } from '@/lib/api/client'
-import { useRouter } from 'next/navigation'
+import { useRouter, useParams } from 'next/navigation'
 import {
   ChevronDown, FileText, MonitorPlay, PenTool, BookOpen, ArrowLeft,
   CheckCircle, AlertCircle, Send, Loader2, X, ImageIcon, Clock, Edit2,
@@ -121,7 +121,8 @@ function getGameTypeLabel(t?: string) {
 
 // ─── Роутер V2 / legacy ───────────────────────────────────────────────────────
 
-export default function Page({ params }: { params: { id: string } }) {
+export default function Page() {
+    const params = useParams<{ id: string }>()
   if (process.env.NEXT_PUBLIC_REDESIGN_V2 === 'true') {
     return (
       <StudentLayoutV2>

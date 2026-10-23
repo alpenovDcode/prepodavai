@@ -25,10 +25,13 @@ fi
 echo "🔵 Current environment: $CURRENT_COLOR"
 echo "🟢 Deploying to: $NEW_COLOR"
 
-# Pull latest changes (FORCE UPDATE)
-echo "📥 Fetching latest changes from git (FORCE UPDATE)..."
-git fetch --all
-git reset --hard origin/master
+# Pull only after the working tree is reviewed and clean.
+echo "📥 Fetching latest changes from git (fast-forward only)..."
+if [ -n "$(git status --porcelain)" ]; then
+    echo "❌ Working tree has changes. Commit or back them up before deployment."
+    exit 1
+fi
+git pull --ff-only origin master
 
 # Build and start new containers
 echo "🏗️ Building and starting $NEW_COLOR containers..."
@@ -36,7 +39,7 @@ docker compose -f $DOCKER_COMPOSE_FILE up -d --build --remove-orphans backend-$N
 
 # Run migrations
 echo "🔄 Running database migrations..."
-if ! docker exec -u root prepodavai-backend-$NEW_COLOR-prod npx prisma migrate deploy; then
+if ! docker exec -u root prepodavai-backend-$NEW_COLOR-prod npx --yes --package=prisma@5.22.0 prisma migrate deploy; then
     echo "❌ Migration failed!"
     docker compose -f $DOCKER_COMPOSE_FILE stop backend-$NEW_COLOR frontend-$NEW_COLOR
     exit 1

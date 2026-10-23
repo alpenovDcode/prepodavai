@@ -24,7 +24,7 @@ describe('LessonPreparationProcessor', () => {
     topic: 'Algebra',
     level: '9th Grade',
     interests: 'Robots',
-    generationTypes: ['lesson_plan', 'quiz'],
+    generationTypes: ['lesson-plan', 'quiz'],
   };
 
   const mockJob = {
@@ -48,7 +48,7 @@ describe('LessonPreparationProcessor', () => {
     updateProgress: jest.fn(),
   };
 
-  const mockPrismaService = {};
+  const mockPrismaService = { userGeneration: { findUnique: jest.fn().mockResolvedValue({ userId: 'user-1' }) } };
   const mockHtmlExportService = {};
   const mockFilesService = {};
   const mockQueue = {
@@ -66,7 +66,7 @@ describe('LessonPreparationProcessor', () => {
         { provide: PrismaService, useValue: mockPrismaService },
         { provide: HtmlExportService, useValue: mockHtmlExportService },
         { provide: FilesService, useValue: mockFilesService },
-        { provide: HtmlPostprocessorService, useValue: {} },
+        { provide: HtmlPostprocessorService, useValue: { process: jest.fn((html: string) => html) } },
         { provide: getQueueToken('lesson-preparation'), useValue: mockQueue },
       ],
     }).compile();
@@ -105,10 +105,10 @@ describe('LessonPreparationProcessor', () => {
 
       // Setup axios mocks
       mockedAxios.post.mockImplementation((url) => {
-        if (url.includes('google/gemini-3-flash')) {
+        if (url.includes('meta/llama-4-maverick-instruct')) {
           return Promise.resolve(mockTextResponse);
         }
-        if (url.includes('google/nano-banana-pro')) {
+        if (url.includes('bytedance/seedream-4')) {
           return Promise.resolve(mockImageResponse);
         }
         return Promise.reject(new Error('Unknown URL'));
@@ -118,21 +118,21 @@ describe('LessonPreparationProcessor', () => {
       await processor.process(mockJob);
 
       // Assertions
-      expect(mockedAxios.post).toHaveBeenCalledTimes(2); // 1 text + 1 image
+      expect(mockedAxios.post).toHaveBeenCalledTimes(4); // 2 sections, each with text + image
 
       // Check text generation call args
-      const textCallArgs = mockedAxios.post.mock.calls.find((call) => call[0].includes('claude'));
+      const textCallArgs = mockedAxios.post.mock.calls.find((call) => call[0].includes('meta/llama-4-maverick-instruct'));
       expect(textCallArgs).toBeDefined();
       const textBody = textCallArgs![1] as any;
-      expect(textBody.input.prompt).toContain('Subject: Math');
-      expect(textBody.input.prompt).toContain('Topic: Algebra');
+      expect(textBody.input.prompt).toContain('<SUBJECT>Math</SUBJECT>');
+      expect(textBody.input.prompt).toContain('<MAIN_TOPIC>Algebra</MAIN_TOPIC>');
       expect(textBody.input.prompt).toContain('Robots');
 
       // Check image generation call args
-      const imageCallArgs = mockedAxios.post.mock.calls.find((call) => call[0].includes('nano'));
+      const imageCallArgs = mockedAxios.post.mock.calls.find((call) => call[0].includes('bytedance/seedream-4'));
       expect(imageCallArgs).toBeDefined();
       const imageBody = imageCallArgs![1] as any;
-      expect(imageBody.input.prompt).toBe('A robot solving an equation');
+      expect(imageBody.input.prompt).toBe('A robot solving an equation, no text, no labels, no numbers, no watermarks');
 
       // Check completion
       expect(mockGenerationHelpers.completeGeneration).toHaveBeenCalledWith(
@@ -140,13 +140,13 @@ describe('LessonPreparationProcessor', () => {
         expect.objectContaining({
           provider: 'Replicate',
           mode: 'lessonPreparation',
-          content: expect.stringContaining('<img src="https://replicate.com/image_output.png"'),
+          htmlResult: expect.stringContaining('<img src="https://replicate.com/image_output.png"'),
         }),
       );
 
       const completeCall = mockGenerationHelpers.completeGeneration.mock.calls[0];
       const outputData = completeCall[1];
-      expect(outputData.content).toContain('<h1>Lesson Plan</h1>'); // Markdown to HTML check
+      expect(outputData.htmlResult).toContain('<h1>Lesson Plan</h1>'); // Markdown to HTML check
     });
 
     it('should handle text generation failure', async () => {
@@ -170,8 +170,8 @@ describe('LessonPreparationProcessor', () => {
       };
 
       mockedAxios.post.mockImplementation((url) => {
-        if (url.includes('claude')) return Promise.resolve(mockTextResponse);
-        if (url.includes('nano')) return Promise.reject(new Error('Image Gen Error'));
+        if (url.includes('meta/llama-4-maverick-instruct')) return Promise.resolve(mockTextResponse);
+        if (url.includes('bytedance/seedream-4')) return Promise.reject(new Error('Image Gen Error'));
         return Promise.reject(new Error('Unknown'));
       });
 
@@ -180,9 +180,8 @@ describe('LessonPreparationProcessor', () => {
       expect(mockGenerationHelpers.completeGeneration).toHaveBeenCalledWith(
         'req-123',
         expect.objectContaining({
-          // Should replace the tag with error text or keep going, based on implementation.
-          // Implementation says: newContent = newContent.replace(m.full, `(Image generation failed: ${m.prompt})`);
-          content: expect.stringContaining('(Image generation failed: fail_prompt)'),
+          // Failed image tags are removed; the lesson text must still be delivered.
+          htmlResult: expect.stringContaining('Some text  end.'),
         }),
       );
     });
@@ -213,7 +212,7 @@ describe('LessonPreparationProcessor', () => {
       expect(mockGenerationHelpers.completeGeneration).toHaveBeenCalledWith(
         'req-123',
         expect.objectContaining({
-          content: expect.stringContaining('Polled content'),
+          htmlResult: expect.stringContaining('Polled content'),
         }),
       );
     });

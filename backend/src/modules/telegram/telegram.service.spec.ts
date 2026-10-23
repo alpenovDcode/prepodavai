@@ -3,7 +3,10 @@ import { ConfigService } from '@nestjs/config';
 import { TelegramService } from './telegram.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { HtmlExportService } from '../../common/services/html-export.service';
-import { SmscService } from '../smsc/smsc.service';
+import { EmailService } from '../../common/services/email.service';
+import { FilesService } from '../files/files.service';
+import { AnalyticsEventsService } from '../analytics-events/analytics-events.service';
+import { SmartLinkTokensService } from '../smart-links/smart-link-tokens.service';
 import * as bcrypt from 'bcryptjs';
 
 // Мокаем grammy чтобы не делать реальных HTTP запросов
@@ -21,10 +24,12 @@ jest.mock('grammy', () => {
       onHandlers[filter] = fn;
       return mockBot;
     }),
+    callbackQuery: jest.fn().mockReturnThis(),
     use: jest.fn().mockReturnThis(),
     catch: jest.fn().mockReturnThis(),
     init: jest.fn().mockResolvedValue(undefined),
     api: {
+      getChatMember: jest.fn().mockResolvedValue({ status: 'member' }),
       sendMessage: jest.fn().mockResolvedValue({}),
       sendPhoto: jest.fn().mockResolvedValue({}),
       sendDocument: jest.fn().mockResolvedValue({}),
@@ -67,6 +72,7 @@ function makeMockCtx(overrides: Partial<{
     chat: { id: chatId },
     message: { text },
     match,
+    answerCallbackQuery: jest.fn().mockResolvedValue(undefined),
     reply: jest.fn(async (msg: string) => { replies.push(msg); }),
     _replies: replies,
   };
@@ -75,7 +81,7 @@ function makeMockCtx(overrides: Partial<{
 describe('TelegramService', () => {
   let service: TelegramService;
   let mockPrisma: any;
-  let mockSmsc: any;
+  let mockEmail: any;
 
   beforeEach(async () => {
     mockPrisma = {
@@ -84,7 +90,9 @@ describe('TelegramService', () => {
         findFirst: jest.fn().mockResolvedValue(null),
         create: jest.fn().mockResolvedValue({ id: 'user-1', username: 'testuser' }),
         update: jest.fn().mockResolvedValue({}),
+        upsert: jest.fn().mockResolvedValue({ id: "shadow-1" }),
       },
+      botUser: { create: jest.fn().mockResolvedValue({}), upsert: jest.fn().mockResolvedValue({}) },
       linkToken: {
         findUnique: jest.fn().mockResolvedValue(null),
         update: jest.fn().mockResolvedValue({}),
@@ -97,7 +105,7 @@ describe('TelegramService', () => {
       }),
     };
 
-    mockSmsc = { sendSms: jest.fn().mockResolvedValue(true) };
+    mockEmail = { sendWelcomeEmail: jest.fn().mockResolvedValue(undefined) };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -111,7 +119,10 @@ describe('TelegramService', () => {
         }},
         { provide: PrismaService, useValue: mockPrisma },
         { provide: HtmlExportService, useValue: { normalizeIncomingHtml: jest.fn(), htmlToPdf: jest.fn() } },
-        { provide: SmscService, useValue: mockSmsc },
+        { provide: EmailService, useValue: mockEmail },
+        { provide: FilesService, useValue: {} },
+        { provide: AnalyticsEventsService, useValue: { track: jest.fn().mockResolvedValue(undefined) } },
+        { provide: SmartLinkTokensService, useValue: {} },
       ],
     }).compile();
 
@@ -156,14 +167,15 @@ describe('TelegramService', () => {
       expect(state.step).toBe('awaiting_email');
     });
 
-    it('accepts valid email and moves to awaiting_phone', async () => {
+    it('completes registration directly after a valid email', async () => {
       mockPrisma.appUser.findFirst.mockResolvedValue(null);
       const ctx = makeMockCtx();
       await (service as any).handleEmailInput(ctx, telegramId, state, 'valid@example.com');
       expect(state.email).toBe('valid@example.com');
-      expect(state.step).toBe('awaiting_phone');
+      expect(mockPrisma.appUser.create).toHaveBeenCalled();
+      expect((service as any).regStates.has(telegramId)).toBe(false);
       expect(ctx.reply).toHaveBeenCalledWith(
-        expect.stringContaining('Шаг 2 из 3'),
+        expect.stringContaining('Спасибо за регистрацию'),
         expect.anything(),
       );
     });
@@ -176,167 +188,72 @@ describe('TelegramService', () => {
     });
   });
 
-  // ── Phone validation ────────────────────────────────────────────────────────
-
-  describe('handlePhoneInput', () => {
+  // Email-only onboarding replaced the removed phone/SMS flow.
+  describe('email registration safety', () => {
     const telegramId = '123456789';
-    let state: any;
 
-    beforeEach(() => {
-      state = {
-        step: 'awaiting_phone',
-        email: 'test@example.com',
-        wrongAttempts: 0,
-        locked: false,
-      };
+    it('ignores parallel registration while locked', async () => {
+      await (service as any).handleEmailInput(makeMockCtx(), telegramId,
+        { step: 'awaiting_email', locked: true }, 'test@example.com');
+      expect(mockPrisma.appUser.create).not.toHaveBeenCalled();
     });
 
-    it('rejects invalid phone format', async () => {
+    it('unlocks the session after database failure so registration can be retried', async () => {
+      mockPrisma.$transaction.mockRejectedValueOnce(new Error('DB unavailable'));
+      const state = { step: 'awaiting_email', locked: false };
       const ctx = makeMockCtx();
-      await (service as any).handlePhoneInput(ctx, telegramId, state, '89991234567');
-      expect(ctx.reply).toHaveBeenCalledWith(
-        expect.stringContaining('Некорректный формат номера'),
-        expect.anything(),
-      );
+      await (service as any).handleEmailInput(ctx, telegramId, state, 'test@example.com');
+      expect(state.locked).toBe(false);
+      expect(ctx.reply).toHaveBeenCalledWith(expect.stringContaining('Внутренняя ошибка'));
+      expect(mockEmail.sendWelcomeEmail).not.toHaveBeenCalled();
     });
 
-    it('rejects phone without country code', async () => {
+    it.each(['email', 'telegram'])('rejects a concurrent duplicate %s before creating an account', async (duplicate) => {
+      if (duplicate === 'email') mockPrisma.appUser.findFirst.mockResolvedValue({ id: 'other' });
+      else mockPrisma.appUser.findUnique.mockResolvedValue({ id: 'other' });
       const ctx = makeMockCtx();
-      await (service as any).handlePhoneInput(ctx, telegramId, state, '9991234567');
-      expect(ctx.reply).toHaveBeenCalledWith(
-        expect.stringContaining('Некорректный формат номера'),
-        expect.anything(),
-      );
+      (service as any).regStates.set(telegramId, { step: 'awaiting_email' });
+      await (service as any).completeRegistration(ctx, telegramId, { email: 'test@example.com' });
+      expect(mockPrisma.appUser.create).not.toHaveBeenCalled();
+      expect((service as any).regStates.has(telegramId)).toBe(false);
+      expect(ctx.reply).toHaveBeenCalledWith(expect.stringContaining('уже существует'));
     });
 
-    it('rejects already taken phone', async () => {
-      mockPrisma.appUser.findFirst.mockResolvedValue({ id: 'other-user' });
+    it('stores only a bcrypt password hash and delivers the matching password via mocked email', async () => {
+      await (service as any).handleEmailInput(makeMockCtx(), telegramId,
+        { step: 'awaiting_email' }, 'test@example.com');
+      const data = mockPrisma.appUser.create.mock.calls[0][0].data;
+      const [username, password, email] = mockEmail.sendWelcomeEmail.mock.calls[0];
+      expect(data).not.toHaveProperty('password');
+      expect(data.passwordHash).toMatch(/^\$2[aby]\$/);
+      expect(await bcrypt.compare(password, data.passwordHash)).toBe(true);
+      expect(email).toBe('test@example.com');
+      expect(username).toBe(data.username);
+      expect(data).toMatchObject({ telegramId, telegramChatId: telegramId, source: 'telegram_bot' });
+      expect(mockPrisma.botUser.create).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ registrationStatus: 'registered', appUserId: 'user-1' }),
+      }));
+    });
+
+    it('creates a starter subscription with 100 credits', async () => {
+      await (service as any).completeRegistration(makeMockCtx(), telegramId, { email: 'test@example.com' });
+      expect(mockPrisma.userSubscription.create).toHaveBeenCalledWith({ data: expect.objectContaining({
+        userId: 'user-1', planId: 'plan-1', status: 'active', creditsBalance: 100,
+      }) });
+    });
+
+    it('does not create a subscription if the starter plan is absent', async () => {
+      mockPrisma.subscriptionPlan.findUnique.mockResolvedValue(null);
+      await (service as any).completeRegistration(makeMockCtx(), telegramId, { email: 'test@example.com' });
+      expect(mockPrisma.appUser.create).toHaveBeenCalled();
+      expect(mockPrisma.userSubscription.create).not.toHaveBeenCalled();
+    });
+
+    it('still supplies login details in chat when welcome email fails', async () => {
+      mockEmail.sendWelcomeEmail.mockRejectedValueOnce(new Error('Mail unavailable'));
       const ctx = makeMockCtx();
-      await (service as any).handlePhoneInput(ctx, telegramId, state, '+79991234567');
-      expect(ctx.reply).toHaveBeenCalledWith(expect.stringContaining('уже зарегистрирован'));
-    });
-
-    it('enforces SMS resend cooldown of 60s', async () => {
-      state.smsSentAt = Date.now() - 30_000; // 30 сек назад — ещё не прошло 60
-      const ctx = makeMockCtx();
-      await (service as any).handlePhoneInput(ctx, telegramId, state, '+79991234567');
-      expect(ctx.reply).toHaveBeenCalledWith(expect.stringContaining('Подождите'));
-      expect(mockSmsc.sendSms).not.toHaveBeenCalled();
-    });
-
-    it('allows SMS after cooldown expires', async () => {
-      state.smsSentAt = Date.now() - 61_000; // 61 сек назад — уже прошло
-      mockPrisma.appUser.findFirst.mockResolvedValue(null);
-      const ctx = makeMockCtx();
-      await (service as any).handlePhoneInput(ctx, telegramId, state, '+79991234567');
-      expect(mockSmsc.sendSms).toHaveBeenCalled();
-    });
-
-    it('sends SMS and moves to awaiting_sms_code on success', async () => {
-      mockPrisma.appUser.findFirst.mockResolvedValue(null);
-      const ctx = makeMockCtx();
-      await (service as any).handlePhoneInput(ctx, telegramId, state, '+79991234567');
-      expect(mockSmsc.sendSms).toHaveBeenCalledWith('+79991234567', expect.any(String));
-      expect(state.step).toBe('awaiting_sms_code');
-      expect(state.smsCodeHash).toBeDefined();
-      expect(state.smsCodeExpiresAt).toBeGreaterThan(Date.now());
-    });
-
-    it('strips whitespace from phone number', async () => {
-      mockPrisma.appUser.findFirst.mockResolvedValue(null);
-      const ctx = makeMockCtx();
-      await (service as any).handlePhoneInput(ctx, telegramId, state, '+7 999 123-45-67');
-      expect(mockSmsc.sendSms).toHaveBeenCalledWith('+79991234567', expect.any(String));
-    });
-
-    it('handles SMS send failure gracefully', async () => {
-      mockPrisma.appUser.findFirst.mockResolvedValue(null);
-      mockSmsc.sendSms.mockResolvedValue(false);
-      const ctx = makeMockCtx();
-      await (service as any).handlePhoneInput(ctx, telegramId, state, '+79991234567');
-      expect(ctx.reply).toHaveBeenCalledWith(expect.stringContaining('Не удалось отправить SMS'));
-      expect(state.step).toBe('awaiting_phone'); // не перешли дальше
-    });
-
-    it('skips if locked (prevents parallel requests)', async () => {
-      state.locked = true;
-      const ctx = makeMockCtx();
-      await (service as any).handlePhoneInput(ctx, telegramId, state, '+79991234567');
-      expect(mockSmsc.sendSms).not.toHaveBeenCalled();
-      expect(ctx.reply).not.toHaveBeenCalled();
-    });
-  });
-
-  // ── SMS code verification ───────────────────────────────────────────────────
-
-  describe('handleSmsCodeInput', () => {
-    const telegramId = '123456789';
-    const validCode = '123456';
-    let state: any;
-
-    beforeEach(async () => {
-      state = {
-        step: 'awaiting_sms_code',
-        email: 'test@example.com',
-        phone: '+79991234567',
-        smsCodeHash: await bcrypt.hash(validCode, 10),
-        smsCodeExpiresAt: Date.now() + 5 * 60_000,
-        wrongAttempts: 0,
-        locked: false,
-      };
-    });
-
-    it('rejects non-digit input', async () => {
-      const ctx = makeMockCtx();
-      await (service as any).handleSmsCodeInput(ctx, telegramId, state, 'abcdef');
-      expect(ctx.reply).toHaveBeenCalledWith(expect.stringContaining('из 6 цифр'));
-    });
-
-    it('rejects expired code and clears session', async () => {
-      state.smsCodeExpiresAt = Date.now() - 1000; // уже истёк
-      const regStates = (service as any).regStates;
-      regStates.set(telegramId, state);
-      const ctx = makeMockCtx({ fromId: 123456789 });
-      await (service as any).handleSmsCodeInput(ctx, telegramId, state, validCode);
-      expect(ctx.reply).toHaveBeenCalledWith(expect.stringContaining('Срок действия кода истёк'));
-      expect(regStates.has(telegramId)).toBe(false);
-    });
-
-    it('increments wrongAttempts on wrong code', async () => {
-      const regStates = (service as any).regStates;
-      regStates.set(telegramId, state);
-      const ctx = makeMockCtx({ fromId: 123456789 });
-      await (service as any).handleSmsCodeInput(ctx, telegramId, state, '000000');
-      expect(state.wrongAttempts).toBe(1);
-      expect(ctx.reply).toHaveBeenCalledWith(expect.stringContaining('Неверный код'), expect.anything());
-    });
-
-    it('deletes session after 3 wrong attempts', async () => {
-      state.wrongAttempts = 2; // ещё 1 осталось
-      const regStates = (service as any).regStates;
-      regStates.set(telegramId, state);
-      const ctx = makeMockCtx({ fromId: 123456789 });
-      await (service as any).handleSmsCodeInput(ctx, telegramId, state, '000000');
-      expect(regStates.has(telegramId)).toBe(false);
-      expect(ctx.reply).toHaveBeenCalledWith(expect.stringContaining('Слишком много неверных попыток'));
-    });
-
-    it('skips if locked (timing attack protection)', async () => {
-      state.locked = true;
-      const ctx = makeMockCtx();
-      await (service as any).handleSmsCodeInput(ctx, telegramId, state, validCode);
-      expect(ctx.reply).not.toHaveBeenCalled();
-    });
-
-    it('calls completeRegistration on correct code', async () => {
-      const completeSpy = jest
-        .spyOn(service as any, 'completeRegistration')
-        .mockResolvedValue(undefined);
-      const regStates = (service as any).regStates;
-      regStates.set(telegramId, state);
-      const ctx = makeMockCtx({ fromId: 123456789 });
-      await (service as any).handleSmsCodeInput(ctx, telegramId, state, validCode);
-      expect(completeSpy).toHaveBeenCalled();
+      await (service as any).completeRegistration(ctx, telegramId, { email: 'test@example.com' });
+      expect(ctx.reply).toHaveBeenCalledWith(expect.stringContaining('Спасибо за регистрацию'), expect.anything());
     });
   });
 
@@ -431,25 +348,14 @@ describe('TelegramService', () => {
   // ── /start command ──────────────────────────────────────────────────────────
 
   describe('/start command handler', () => {
-    it('existing user sees welcome message and regState is cleared', async () => {
-      const telegramId = '123456789';
-      const existingUser = { id: 'user-1', firstName: 'Test', lastName: '', username: 'testuser' };
-      mockPrisma.appUser.findUnique.mockResolvedValue(existingUser);
-      mockPrisma.appUser.update.mockResolvedValue(existingUser);
-
-      const regStates = (service as any).regStates;
-      regStates.set(telegramId, { step: 'awaiting_email' });
-
-      // Вызываем /start handler через захваченный handler (existingUser, без payload)
-      const startHandler = (service as any).bot._commandHandlers['start'];
-      const ctx = makeMockCtx({ fromId: 123456789 });
-      await startHandler(ctx);
-
-      expect(regStates.has(telegramId)).toBe(false); // regState очищен
-      expect(ctx.reply).toHaveBeenCalledWith(
-        expect.stringContaining('prepodavAI'),
-        expect.anything(),
-      );
+    it('shows the subscription activation flow on /start', async () => {
+      const ctx = makeMockCtx();
+      await (service as any).bot._commandHandlers.start(ctx);
+      expect(ctx.reply).toHaveBeenCalledWith(expect.stringContaining('рада вас видеть'), expect.anything());
+      expect(ctx.reply).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({
+        reply_markup: expect.objectContaining({ inline_keyboard: expect.any(Array) }),
+      }));
+      expect(mockPrisma.appUser.create).not.toHaveBeenCalled();
     });
 
     it('new user without registration sees welcome registration message', async () => {
@@ -461,7 +367,7 @@ describe('TelegramService', () => {
 
       expect(regStates.get(telegramId)).toMatchObject({ step: 'awaiting_email' });
       expect(ctx.reply).toHaveBeenCalledWith(
-        expect.stringContaining('Шаг 1 из 3'),
+        expect.stringContaining('Введите вашу электронную почту'),
         expect.anything(),
       );
     });
@@ -481,79 +387,40 @@ describe('TelegramService', () => {
     });
   });
 
-  // ── /cancel command ─────────────────────────────────────────────────────────
-
-  describe('/cancel command', () => {
-    let cancelHandler: Function;
-
-    beforeEach(() => {
-      // Захватываем handler зарегистрированный через bot.command('cancel', fn)
-      cancelHandler = (service as any).bot._commandHandlers['cancel'];
+  describe('channel subscription checks', () => {
+    it.each(['member', 'administrator', 'creator'])('accepts %s membership', async (status) => {
+      (service as any).bot.api.getChatMember.mockResolvedValueOnce({ status });
+      expect(await (service as any).checkChannelSubscription('channel-test', '123456789')).toBe(true);
     });
 
-    it('cancels active registration', async () => {
-      const telegramId = '123456789';
-      const regStates = (service as any).regStates;
-      regStates.set(telegramId, { step: 'awaiting_email' });
-
-      const ctx = makeMockCtx({ fromId: 123456789, text: '/cancel' });
-      await cancelHandler(ctx);
-
-      expect(regStates.has(telegramId)).toBe(false);
-      expect(ctx.reply).toHaveBeenCalledWith(expect.stringContaining('Регистрация отменена'));
+    it.each(['left', 'kicked', 'restricted'])('rejects %s membership', async (status) => {
+      (service as any).bot.api.getChatMember.mockResolvedValueOnce({ status });
+      expect(await (service as any).checkChannelSubscription('channel-test', '123456789')).toBe(false);
     });
 
-    it('replies "no active process" when nothing to cancel', async () => {
-      const ctx = makeMockCtx({ fromId: 123456789 });
-      await cancelHandler(ctx);
-
-      expect(ctx.reply).toHaveBeenCalledWith(expect.stringContaining('Нет активного процесса'));
-    });
-  });
-
-  // ── Security & rate limits ──────────────────────────────────────────────────
-
-  describe('security', () => {
-    it('masks phone number in SMS confirmation message', async () => {
-      const state: any = {
-        email: 'test@example.com',
-        step: 'awaiting_phone',
-        wrongAttempts: 0,
-        locked: false,
-      };
-      mockPrisma.appUser.findFirst.mockResolvedValue(null);
-      const ctx = makeMockCtx({ fromId: 123456789 });
-      await (service as any).handlePhoneInput(ctx, '123456789', state, '+79991234567');
-
-      const replyCall = ctx.reply.mock.calls.find(
-        (args: any[]) => args[0] && args[0].includes('SMS отправлено'),
-      );
-      expect(replyCall).toBeDefined();
-      // Проверяем что в сообщении есть маскированный номер
-      // +79991234567 → +•••••••4567 (последние 4 видны, остальные скрыты)
-      const replyText = replyCall![0];
-      expect(replyText).toContain('4567'); // последние 4 цифры видны
-      expect(replyText).not.toContain('999'); // середина скрыта
+    it('denies access when Telegram membership lookup fails', async () => {
+      (service as any).bot.api.getChatMember.mockRejectedValueOnce(new Error('API unavailable'));
+      expect(await (service as any).checkChannelSubscription('channel-test', '123456789')).toBe(false);
     });
 
-    it('stores SMS code as bcrypt hash (not plaintext)', async () => {
-      const state: any = {
-        email: 'test@example.com',
-        step: 'awaiting_phone',
-        wrongAttempts: 0,
-        locked: false,
-      };
-      mockPrisma.appUser.findFirst.mockResolvedValue(null);
-      const ctx = makeMockCtx({ fromId: 123456789 });
-      await (service as any).handlePhoneInput(ctx, '123456789', state, '+79991234567');
+    it('does not create a shadow account for an unsubscribed user', async () => {
+      const config = (service as any).configService;
+      config.get.mockImplementation((key: string) => key === 'TELEGRAM_CHANNEL_ID' ? 'channel-test' : null);
+      (service as any).bot.api.getChatMember.mockResolvedValueOnce({ status: 'left' });
+      const ctx = makeMockCtx();
+      await (service as any).handleDefaultSubscriptionCheck(ctx, '123456789');
+      expect(mockPrisma.appUser.upsert).not.toHaveBeenCalled();
+      expect(ctx.answerCallbackQuery).toHaveBeenCalledWith(expect.objectContaining({ text: 'Подписка не найдена' }));
+    });
 
-      expect(state.smsCodeHash).toBeDefined();
-      expect(state.smsCodeHash).not.toMatch(/^\d{6}$/); // не plaintext
-      // bcrypt хэш начинается с $2b$
-      expect(state.smsCodeHash).toMatch(/^\$2[aby]\$/);
+    it('creates a shadow account and opens the app for a subscribed user', async () => {
+      const ctx = makeMockCtx();
+      await (service as any).handleDefaultSubscriptionCheck(ctx, '123456789');
+      expect(mockPrisma.appUser.upsert).toHaveBeenCalledWith(expect.objectContaining({
+        where: { telegramId: '123456789' },
+        create: expect.objectContaining({ telegramId: '123456789', telegramChatId: '123456789' }),
+      }));
+      expect(ctx.reply).toHaveBeenCalledWith(expect.stringContaining('Откройте сервис'), expect.anything());
     });
   });
 });
-
-// Вспомогательный метод: позволяет тестировать приватные методы TelegramService
-// через прямой вызов (service as any).methodName

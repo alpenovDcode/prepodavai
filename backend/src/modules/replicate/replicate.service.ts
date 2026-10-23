@@ -202,6 +202,18 @@ export class ReplicateService {
         const status = error.response?.status;
         const retryAfter = error.response?.data?.retry_after;
 
+        // Replicate may be temporarily unavailable because the account has
+        // exhausted its credit.  Keep text generation available through the
+        // configured Polza OpenAI-compatible gateway instead of returning a
+        // hard 402 to the user.  Image/video paths do not use this method.
+        if (status === 402) {
+          const polzaKey = this.configService.get<string>('POLZA_AI_API_KEY');
+          if (polzaKey) {
+            this.logger.warn('Replicate credit exhausted; falling back to Polza for text generation');
+            return this.createPolzaCompletion(prompt, maxTokens, temperature, polzaKey);
+          }
+        }
+
         if (status === 429 && attempt < maxRetries) {
           const waitMs = retryAfter ? retryAfter * 1000 : Math.min(10000 * attempt, 30000);
           this.logger.warn(
@@ -218,6 +230,33 @@ export class ReplicateService {
 
     this.logger.error(`Replicate API error after ${maxRetries} attempts: ${lastError.message}`);
     throw lastError;
+  }
+
+  private async createPolzaCompletion(
+    prompt: string,
+    maxTokens: number,
+    temperature: number,
+    apiKey: string,
+  ): Promise<string> {
+    const response = await axios.post(
+      'https://api.polza.ai/v1/chat/completions',
+      {
+        model: 'google/gemini-2.5-flash',
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: maxTokens,
+        temperature,
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        timeout: 180000,
+      },
+    );
+    const content = response.data?.choices?.[0]?.message?.content;
+    if (!content) throw new Error('Polza вернул пустой результат');
+    return content;
   }
 
   async createImage(

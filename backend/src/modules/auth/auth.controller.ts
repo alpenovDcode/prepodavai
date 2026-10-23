@@ -48,6 +48,9 @@ export class AuthController {
 
   @Post('logout')
   async logout(@Res({ passthrough: true }) res: Response) {
+    res.clearCookie('prepodavai_token', { httpOnly: true, secure: true, sameSite: 'lax', path: '/', domain: '.prepodavai.ru' });
+    res.clearCookie('prepodavai_token', { httpOnly: true, secure: true, sameSite: 'lax', path: '/', domain: '.prepodavai.ru' });
+    res.clearCookie('prepodavai_token', { httpOnly: true, secure: true, sameSite: 'lax', path: '/', domain: '.prepodavai.ru' });
     res.clearCookie('prepodavai_token', {
       httpOnly: true,
       path: '/',

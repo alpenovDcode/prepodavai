@@ -1,4 +1,4 @@
-FROM node:20-alpine AS base
+FROM node:24.22.1-alpine AS base
 
 FROM base AS deps
 RUN apk add --no-cache libc6-compat openssl
@@ -50,6 +50,9 @@ COPY --from=builder --chown=bot:nodejs /app/dist ./dist
 COPY --from=builder --chown=bot:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=bot:nodejs /app/package.json ./package.json
 
+RUN apk upgrade --no-cache && apk add --no-cache --upgrade ca-certificates
+COPY package-lock.json /app/package-lock.json
+RUN mv /app/node_modules/.prisma /tmp/security-prisma && npm prune --omit=dev --ignore-scripts --no-audit && rm -rf /app/node_modules/.prisma && mv /tmp/security-prisma /app/node_modules/.prisma
 USER bot
 
 CMD ["node", "dist/main.js"]

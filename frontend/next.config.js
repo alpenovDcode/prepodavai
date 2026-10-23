@@ -3,6 +3,7 @@ const nextConfig = {
   reactStrictMode: true,
   output: 'standalone', // Для Docker
   experimental: {
+    cpus: 2,
     externalDir: true,
     optimizePackageImports: ['lucide-react', '@tiptap/core', '@tiptap/react', 'jspdf', 'html2canvas', 'pptxgenjs'],
   },
