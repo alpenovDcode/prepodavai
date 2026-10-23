@@ -51,7 +51,7 @@ COPY --from=builder --chown=bot:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=bot:nodejs /app/package.json ./package.json
 
 RUN apk upgrade --no-cache && apk add --no-cache --upgrade ca-certificates
-COPY package-lock.json /app/package-lock.json
+COPY telegram-bot/package-lock.json /app/package-lock.json
 RUN mv /app/node_modules/.prisma /tmp/security-prisma && npm prune --omit=dev --ignore-scripts --no-audit && rm -rf /app/node_modules/.prisma && mv /tmp/security-prisma /app/node_modules/.prisma
 USER bot
 

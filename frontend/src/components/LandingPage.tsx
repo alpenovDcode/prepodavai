@@ -418,7 +418,7 @@ export default function LandingPage({ autoOpenAuth = false }: { autoOpenAuth?: b
         </nav>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <button className="lp-header-login" onClick={openLogin} style={{ padding: "7px 16px", background: "transparent", color: "#666", border: "none", borderRadius: 8, fontWeight: 500, fontSize: 14, cursor: "pointer" }}>Войти</button>
-          <a className="lp-blog-mobile" href="/blog" style={{ display: "none", alignItems: "center", padding: "7px 12px", color: "#555", textDecoration: "none", borderRadius: 8, fontSize: 13, fontWeight: 500, border: "1px solid #e0e0e0", background: "white" }}>Блог</a>
+          <Link className="lp-blog-mobile" href="/blog" style={{ display: "none", alignItems: "center", padding: "7px 12px", color: "#555", textDecoration: "none", borderRadius: 8, fontSize: 13, fontWeight: 500, border: "1px solid #e0e0e0", background: "white" }}>Блог</Link>
           <button className="btn-cta lp-header-cta" onClick={openRegister} style={{ padding: "8px 18px", background: "#f97316", color: "white", border: "none", borderRadius: 9, fontWeight: 600, fontSize: 14, cursor: "pointer" }}>Начать бесплатно</button>
         </div>
       </header>

@@ -69,3 +69,12 @@ backend/uploads/
 !/backend/package-lock.json
 !/frontend/package-lock.json
 !/worker/package-lock.json
+
+# Private runtime files and release backups
+.env.*
+!**/env.example
+redis/security.conf
+backups/
+__pycache__/
+*.pyc
+nginx/conf.d/*.bak-*

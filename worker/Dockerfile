@@ -74,9 +74,9 @@ COPY --from=builder --chown=worker:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=worker:nodejs /app/package.json ./package.json
 
 RUN apk upgrade --no-cache && apk add --no-cache --upgrade ca-certificates nss-tools
-COPY package-lock.json /app/package-lock.json
+COPY worker/package-lock.json /app/package-lock.json
 RUN mv /app/node_modules/.prisma /tmp/security-prisma && npm prune --omit=dev --ignore-scripts --no-audit && rm -rf /app/node_modules/.prisma && mv /tmp/security-prisma /app/node_modules/.prisma
-COPY security/browser-distrust /opt/security/browser-distrust
+COPY worker/security/browser-distrust /opt/security/browser-distrust
 RUN node /opt/security/browser-distrust/install.cjs worker
 ENV HOME=/home/worker
 USER worker

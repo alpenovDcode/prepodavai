@@ -40,7 +40,7 @@ describe('SystemService tool-status', () => {
       const status = await service.getToolStatus('tutor_exchange');
       expect(status.enabled).toBe(false);
       expect(status.message).toBe(
-        'Биржа лидов скоро откроется — мы обкатываем последние детали',
+        'Раздел «Обмен учениками» скоро откроется — мы обкатываем последние детали',
       );
       expect(prisma.systemSetting.findMany).toHaveBeenCalledWith({
         where: {

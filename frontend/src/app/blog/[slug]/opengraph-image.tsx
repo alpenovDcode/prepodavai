@@ -7,8 +7,8 @@ export const alt = 'Преподавай — блог для репетитор�
 export const size = { width: 1200, height: 630 }
 export const contentType = 'image/png'
 
-export default async function OgImage({ params }: { params: { slug: string } }) {
-  const post = getPostBySlug(params.slug)
+export default async function OgImage({ params }: { params: Promise<{ slug: string }> }) {
+  const post = getPostBySlug((await params).slug)
   const title = post?.title ?? 'Преподавай'
   const description = post?.description ?? 'Сервис для репетиторов с ИИ'
   const emoji = post?.emoji ?? '📚'
