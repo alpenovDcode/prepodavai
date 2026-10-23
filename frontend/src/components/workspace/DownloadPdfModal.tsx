@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { CheckCircle2, Download, FileText, Loader2, Users, X } from 'lucide-react'
-import { downloadPdfById } from '@/lib/utils/downloadPdf'
+import { downloadPdfById, downloadPresentationPdfById } from '@/lib/utils/downloadPdf'
 
 // DOCX-экспорт временно отключён (дублирование контента), оставляем только PDF.
 
@@ -23,6 +23,11 @@ interface DownloadPdfModalProps {
      * который надо скачать. Если не задан — скачивается весь документ.
      */
     sectionIndex?: number
+    /**
+     * Презентации скачиваются через landscape endpoint /presentation/pdf,
+     * а не через общий документный /pdf.
+     */
+    presentation?: boolean
 }
 
 export default function DownloadPdfModal({
@@ -32,6 +37,7 @@ export default function DownloadPdfModal({
     filename,
     hasAnswers = false,
     sectionIndex,
+    presentation = false,
 }: DownloadPdfModalProps) {
     const [state, setState] = useState<DownloadState>('idle')
     const [error, setError] = useState<string>('')
@@ -55,7 +61,11 @@ export default function DownloadPdfModal({
             const baseName = filename.replace(/\.(pdf|docx)$/i, '')
             const suffix = hasAnswers && !withAnswers ? '-student' : ''
             const finalName = `${baseName}${suffix}.pdf`
-            await downloadPdfById(generationId, finalName, { withAnswers, sectionIndex })
+            if (presentation) {
+                await downloadPresentationPdfById(generationId, finalName)
+            } else {
+                await downloadPdfById(generationId, finalName, { withAnswers, sectionIndex })
+            }
             setState('success')
             setTimeout(() => onClose(), 900)
         } catch (e: any) {

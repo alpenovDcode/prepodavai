@@ -1,14 +1,14 @@
 import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { SystemService } from './system.service';
-import { SystemController, AdminSystemController } from './system.controller';
+import { SystemController, AdminSystemController, AdminToolStatusController } from './system.controller';
 import { MaintenanceMiddleware } from './maintenance.middleware';
 import { PrismaModule } from '../../common/prisma/prisma.module';
 import { AdminModule } from '../admin/admin.module';
 
 @Module({
   imports: [ConfigModule, PrismaModule, AdminModule],
-  controllers: [SystemController, AdminSystemController],
+  controllers: [SystemController, AdminSystemController, AdminToolStatusController],
   providers: [SystemService],
   exports: [SystemService],
 })

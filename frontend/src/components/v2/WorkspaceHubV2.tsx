@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import {
     BookOpen, HelpCircle, Gamepad2, PenTool, MessageSquare, Image as ImageIcon, Sparkles,
     MessageCircle, MonitorPlay, ClipboardCheck, FileText, Mail, Wrench, PackageOpen, LineChart,
-    Wand2, Zap, Compass,
+    Wand2, Zap, Compass, Video, Camera,
 } from 'lucide-react'
 import { apiClient } from '@/lib/api/client'
 import { Topbar } from '@/components/layout/v2/Topbar'
@@ -58,14 +58,14 @@ const TOOLS: ToolDef[] = [
 
     { id: 'presentation',    title: 'Презентации',             description: 'Визуально привлекательные слайды + экспорт в PDF/PPTX.',          icon: MonitorPlay,     color: 'success', path: '/workspace/presentations',   cost: 8,  opKey: 'presentation',         cat: 'media',      eta: '~2 мин',          tourId: 'tool-presentation' },
     { id: 'image',           title: 'Генератор изображений',   description: 'Уникальные иллюстрации и визуал для учебных материалов.',         icon: ImageIcon,       color: 'teal',    path: '/workspace/image',           cost: 5,  opKey: 'image_generation',     cat: 'media',      eta: '~40 сек',         tourId: 'tool-image' },
-    // BACKLOG: { id: 'photosession', title: 'AI-фотосессия', ... cat: 'media' }
+    { id: 'photosession',    title: 'AI Фотосессия',           description: 'Создавайте серию изображений в едином профессиональном стиле.',   icon: Camera,          color: 'indigo',  path: '/workspace/photosession',    cost: 10, opKey: 'photosession',         cat: 'media',      eta: '~2 мин' },
     // BACKLOG: { id: 'transcription', title: 'Транскрибация видео', ... cat: 'media' }
-    // BACKLOG: { id: 'video-analysis', title: 'Анализ видео', ... cat: 'media' }
+    { id: 'video-analysis',  title: 'Анализ видео',            description: 'Анализ пробного урока с рекомендациями по продаже и методике.',    icon: Video,           color: 'indigo',  path: '/workspace/video-analysis',  cost: 15, opKey: 'video_analysis',       cat: 'media',      eta: '~3 мин' },
 
     { id: 'assistant',       title: 'AI-ассистент',            description: 'Умный помощник для мозгового штурма и сложных задач.',            icon: MessageSquare,   color: 'warning', path: '/workspace/assistant',       cost: 3,  opKey: 'message',              cat: 'comms',      eta: 'в реальном времени' },
     { id: 'messages',        title: 'Сообщения родителям',     description: 'Шаблонные тексты для общения с родителями учеников.',             icon: Mail,            color: 'info',    path: '/workspace/messages',        cost: 1,  opKey: 'parent_message',       cat: 'comms',      eta: '~10 сек',         tourId: 'tool-message' },
 
-    // BACKLOG: { id: 'unpacking', title: 'Распаковка экспертности', ... cat: 'other' }
+    { id: 'unpacking',       title: 'Распаковка экспертности', description: 'Структурируйте и оформите ваши знания в понятный формат.',        icon: PackageOpen,     color: 'teal',    path: '/workspace/unpacking',       cost: 5,  opKey: 'unpacking',            cat: 'other',      eta: '~1 мин' },
     // BACKLOG: { id: 'sales-advisor', title: 'ИИ-продажник', ... cat: 'other' }
 ]
 

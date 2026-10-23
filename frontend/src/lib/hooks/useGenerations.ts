@@ -198,6 +198,13 @@ export function useGenerations() {
             reject(new Error('Превышено время ожидания'))
           }
         } catch (err: any) {
+          // 429 (Too Many Requests) — не падаем сразу, ждём дольше обычного
+          // (30с вместо 15с) и продолжаем polling. Бэк отдыхает, мы продолжаем.
+          const status = err?.response?.status ?? err?.status
+          if (status === 429 && attempts < maxAttempts) {
+            setTimeout(check, 30000)
+            return
+          }
           setIsPolling(false)
           reject(err)
         }

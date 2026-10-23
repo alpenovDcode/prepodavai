@@ -1,5 +1,19 @@
-import { Injectable, Logger, BadRequestException } from '@nestjs/common';
+import {
+    Injectable,
+    Logger,
+    BadRequestException,
+    NotFoundException,
+    ForbiddenException,
+} from '@nestjs/common';
 import { PrismaService } from '../../../common/prisma/prisma.service';
+import {
+    extractTaskRange,
+    replaceTaskRange,
+    reassignBlockIds,
+    collectIds,
+    parseBlocksArray,
+    type RawBlock,
+} from './regenerate-task.util';
 import { GenerationHelpersService } from '../generation-helpers.service';
 import { LessonsService } from '../../lessons/lessons.service';
 import { ReplicateService } from '../../replicate/replicate.service';
@@ -11,6 +25,13 @@ import {
     buildLessonPreparationPrompt, LessonPreparationGenInput,
 } from './prompts';
 import { GenerationDocument, JSON_BLOCKS_FORMAT, type GenerationDocumentT } from './blocks-schema';
+import {
+    validateBlocksContent,
+    fixBlocksContent,
+    formatContentIssues,
+    sanitizeRawBlocks,
+    type ContentIssue,
+} from './blocks-content-validator';
 
 /**
  * Универсальный сервис генерации в JSON-формате blocks-v1 для всех
@@ -37,7 +58,9 @@ export class TextV2Service {
     ) {}
 
     async generateWorksheet(userId: string, input: WorksheetGenInput, lessonId?: string) {
-        return this.run(userId, 'worksheet', input, lessonId, buildWorksheetPrompt(input));
+        return this.run(userId, 'worksheet', input, lessonId, buildWorksheetPrompt(input), {
+            expectedTaskCount: input.numTasks,
+        });
     }
     async generateQuiz(userId: string, input: QuizGenInput, lessonId?: string) {
         return this.run(userId, 'quiz', input, lessonId, buildQuizPrompt(input));
@@ -58,6 +81,7 @@ export class TextV2Service {
         input: Record<string, any>,
         lessonId: string | undefined,
         prompt: { system: string; user: string },
+        validateOpts: { expectedTaskCount?: number } = {},
     ) {
         const topic = input?.topic;
         if (!topic || typeof topic !== 'string' || !topic.trim()) {
@@ -83,7 +107,7 @@ export class TextV2Service {
         });
 
         try {
-            const doc = await this.generateAndValidate(prompt);
+            const doc = await this.generateAndValidate(prompt, validateOpts);
             const outputData = { format: JSON_BLOCKS_FORMAT, outputDoc: doc };
             await this.generationHelpers.completeGeneration(generationRequest.id, outputData);
 
@@ -105,14 +129,17 @@ export class TextV2Service {
         }
     }
 
-    private async generateAndValidate(prompt: { system: string; user: string }): Promise<GenerationDocumentT> {
+    private async generateAndValidate(
+        prompt: { system: string; user: string },
+        validateOpts: { expectedTaskCount?: number } = {},
+    ): Promise<GenerationDocumentT> {
         const combinedPrompt = `${prompt.system}\n\n${prompt.user}`;
         const first = await this.replicateService.createCompletion(
             combinedPrompt,
             'meta/llama-4-maverick-instruct',
             { max_tokens: 16384, temperature: 0.4 },
         );
-        const validated = this.tryParse(first);
+        const validated = this.tryParseAndValidate(first, validateOpts);
         if (validated.ok === true) return validated.doc;
 
         this.logger.warn(`v2: first attempt invalid, retrying. errors: ${validated.errors}`);
@@ -122,13 +149,36 @@ export class TextV2Service {
             'meta/llama-4-maverick-instruct',
             { max_tokens: 16384, temperature: 0.2 },
         );
-        const retryValidated = this.tryParse(second);
+        const retryValidated = this.tryParseAndValidate(second, validateOpts);
         if (retryValidated.ok === true) return retryValidated.doc;
+
+        // Last-resort auto-fix: если JSON+Zod прошли, но контент всё ещё нарушает
+        // правила формул — программно чиним $..{{N}}..$ → $..$ {{N}} $..$
+        // (стратегия A в blocks-content-validator.ts).
+        // ВАЖНО: счётчик заданий валидируем БЕЗ expectedTaskCount — недобор
+        // заданий мы автоматически починить не можем (новые задания LLM-only),
+        // так что отдаём что есть, чтобы пользователь не получил 500.
+        const fallbackDoc = retryValidated.doc ?? validated.doc;
+        if (fallbackDoc) {
+            this.logger.warn(
+                `v2: applying deterministic auto-fix after retry. content issues remained: ${retryValidated.errors}`,
+            );
+            const fixed = fixBlocksContent(fallbackDoc);
+            const residual = validateBlocksContent(fixed);
+            if (residual.length === 0) return fixed;
+            this.logger.error(
+                `v2: auto-fix did not remove all issues: ${formatContentIssues(residual)}`,
+            );
+            return fixed;
+        }
 
         throw new Error(`AI вернул невалидный JSON после повтора: ${retryValidated.errors}`);
     }
 
-    private tryParse(raw: string): { ok: true; doc: GenerationDocumentT } | { ok: false; errors: string } {
+    private tryParseAndValidate(
+        raw: string,
+        validateOpts: { expectedTaskCount?: number } = {},
+    ): { ok: true; doc: GenerationDocumentT } | { ok: false; errors: string; doc?: GenerationDocumentT } {
         const cleaned = stripJsonFences(raw);
         let parsed: unknown;
         try {
@@ -139,9 +189,12 @@ export class TextV2Service {
                 errors: `Невалидный JSON: ${e?.message}. Начало ответа: ${cleaned.slice(0, 200)}`,
             };
         }
+        // Детерминированная чистка пустых блоков-пустышек (напр. math-display
+        // с пустым latex) ДО Zod: иначе min(1) роняет всю генерацию.
+        parsed = sanitizeRawBlocks(parsed);
+        let doc: GenerationDocumentT;
         try {
-            const doc = GenerationDocument.parse(parsed);
-            return { ok: true, doc };
+            doc = GenerationDocument.parse(parsed);
         } catch (e: any) {
             const issues = Array.isArray(e?.issues)
                 ? e.issues
@@ -151,8 +204,120 @@ export class TextV2Service {
                 : e?.message || String(e);
             return { ok: false, errors: issues };
         }
+        const contentIssues: ContentIssue[] = validateBlocksContent(doc, validateOpts);
+        if (contentIssues.length > 0) {
+            return {
+                ok: false,
+                errors: `Нарушения контент-валидации:\n${formatContentIssues(contentIssues)}`,
+                doc,
+            };
+        }
+        return { ok: true, doc };
+    }
+
+    /**
+     * Перегенерирует ОДНО задание в существующем blocks-v1 документе.
+     * Заголовок задания («Задание N» / «Вопрос N») сохраняем — меняем только
+     * тело (условие + интерактивный блок). Так номер задания не сбивается,
+     * а остальные задания остаются нетронутыми.
+     */
+    async regenerateTask(userId: string, generationId: string, headingId: string) {
+        let gen = await this.prisma.userGeneration.findUnique({ where: { id: generationId } });
+        if (!gen) {
+            gen = await this.prisma.userGeneration.findUnique({
+                where: { generationRequestId: generationId },
+            });
+        }
+        if (!gen) throw new NotFoundException('Генерация не найдена');
+        if (gen.userId !== userId) throw new ForbiddenException('Доступ запрещён');
+
+        const output = (gen.outputData as any) ?? {};
+        if (output.format !== JSON_BLOCKS_FORMAT || !output.outputDoc?.blocks) {
+            throw new BadRequestException('Этот материал не поддерживает перегенерацию задания');
+        }
+        const doc = output.outputDoc as GenerationDocumentT;
+        const blocks = doc.blocks as RawBlock[];
+
+        const range = extractTaskRange(blocks, headingId);
+        if (!range) throw new BadRequestException('Задание не найдено');
+
+        const heading = blocks[range.start];
+        const bodyBlocks = blocks.slice(range.start + 1, range.end + 1);
+
+        const prompt = buildRegenerateBodyPrompt(doc, heading, bodyBlocks);
+        const raw = await this.replicateService.createCompletion(
+            prompt,
+            'meta/llama-4-maverick-instruct',
+            { max_tokens: 4096, temperature: 0.6 },
+        );
+
+        const parsed = parseBlocksArray(raw).filter(
+            (b) => b && typeof b.type === 'string' && b.type !== 'heading',
+        );
+        if (parsed.length === 0) {
+            this.logger.warn(
+                `regenerateTask: не распарсил тело. raw[0..500]: ${String(raw).slice(0, 500)}`,
+            );
+            throw new BadRequestException('ИИ вернул пустой результат. Попробуйте ещё раз.');
+        }
+
+        // Тело меняем: [range.start+1 .. range.end] → новые блоки (heading сохраняем).
+        const newBody = reassignBlockIds(parsed, collectIds(blocks));
+        const merged = replaceTaskRange(blocks, range.start + 1, range.end, newBody);
+        const nextDoc = { ...doc, blocks: merged };
+
+        // Валидируем ВЕСЬ документ Zod'ом ДО сохранения — если LLM вернул мусор,
+        // не портим сохранённый материал, а просим повторить.
+        let validDoc: GenerationDocumentT;
+        try {
+            validDoc = GenerationDocument.parse(nextDoc);
+        } catch {
+            throw new BadRequestException('Не удалось собрать новое задание. Попробуйте ещё раз.');
+        }
+
+        const issues = validateBlocksContent(validDoc);
+        const finalDoc = issues.length > 0 ? fixBlocksContent(validDoc) : validDoc;
+
+        const newOutput = { ...output, outputDoc: finalDoc };
+        await this.prisma.userGeneration.update({
+            where: { id: gen.id },
+            data: { outputData: newOutput },
+        });
+        if (gen.generationRequestId) {
+            await this.prisma.generationRequest
+                .update({ where: { id: gen.generationRequestId }, data: { result: newOutput } })
+                .catch(() => undefined);
+        }
+
+        return { success: true as const, outputDoc: finalDoc };
     }
 }
+
+/** Промпт на перегенерацию тела одного задания (без heading-заголовка). */
+function buildRegenerateBodyPrompt(
+    doc: GenerationDocumentT,
+    heading: RawBlock,
+    bodyBlocks: RawBlock[],
+): string {
+    const meta = (doc as any).meta ?? {};
+    const kind = doc.type === 'quiz' ? 'вопрос теста' : 'задание рабочего листа';
+    return `Ты — методист. Есть ${kind} по теме "${doc.title}"${meta.subject ? `, предмет: ${meta.subject}` : ''}${meta.grade ? `, класс: ${meta.grade}` : ''}.
+
+Заголовок задания (НЕ меняй его, он останется как есть): "${heading.text ?? ''}"
+
+Текущее ТЕЛО задания (JSON-блоки схемы blocks-v1):
+${JSON.stringify(bodyBlocks, null, 0)}
+
+Сгенерируй ДРУГОЙ вариант ЭТОГО ЖЕ задания: та же подтема и те же типы блоков, что сейчас (${bodyBlocks.map((b) => b.type).join(', ') || 'paragraph + интерактивный блок'}), но с НОВОЙ формулировкой, другими числами/вариантами.
+
+ТРЕБОВАНИЯ:
+- Верни ТОЛЬКО JSON-МАССИВ блоков тела (без heading-заголовка). Начни с [ и закончи ].
+- Формулы — в LaTeX внутри $...$, двойной обратный слэш в JSON (\\\\cdot, \\\\frac).
+- НЕ вставляй маркер {{N}} внутрь формулы $...$.
+- Проставляй правильные ответы: correct:true у верного варианта multiple-choice, expectedAnswer у short-answer, answer у fill-blank.
+- Без markdown, без комментариев, без \`\`\`. Только JSON-массив.`;
+}
+
 
 function stripJsonFences(raw: string): string {
     let s = raw.trim();

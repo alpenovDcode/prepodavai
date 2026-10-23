@@ -75,6 +75,13 @@ p,li{font-size:22px;line-height:1.6;color:var(--text-soft)}
 .layout-content .body p:first-of-type{text-indent:0}
 .layout-content .body p:first-of-type::first-letter{font-size:64px;font-weight:700;color:var(--accent);float:left;line-height:1;padding:6px 12px 0 0}
 
+/* layout: image-text */
+.layout-image-text .image-text{display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:start;max-width:1280px;margin-top:16px}
+.layout-image-text .image-text-list{list-style:disc;padding-left:24px}
+.layout-image-text .image-text-list li{font-size:20px;line-height:1.55;margin-bottom:14px;color:var(--text)}
+.layout-image-text .image-text-img{display:flex;align-items:center;justify-content:center}
+.layout-image-text .image-text-img img{max-width:100%;max-height:480px;object-fit:contain}
+
 /* math */
 mjx-container[display="true"]{margin:18px 0;font-size:1.1em!important}
 
@@ -85,7 +92,7 @@ mjx-container[display="true"]{margin:18px 0;font-size:1.1em!important}
 .nav button:disabled{opacity:.3;cursor:not-allowed}
 .nav .counter{font-size:12px;font-weight:600;color:var(--text-soft);padding:0 8px;letter-spacing:.12em;min-width:60px;text-align:center}
 
-@media print{.nav{display:none}.slide{display:flex!important;opacity:1!important;page-break-after:always}}
+@media print{html,body{overflow:visible!important;height:auto!important}.deck{position:static!important;height:auto!important}.slide{position:relative!important;inset:auto!important;display:flex!important;opacity:1!important;page-break-after:always!important;break-after:page!important;height:100vh!important}.nav{display:none!important}}
 @media (max-width:900px){
   .slide{padding:40px 32px 90px}
   .header-rule,.footer-rule,.footer-meta,.slide-num,.footer-logo{left:32px;right:32px}
@@ -96,7 +103,7 @@ mjx-container[display="true"]{margin:18px 0;font-size:1.1em!important}
   .layout-two-column .divider{height:1px}
   .layout-quote{padding:32px}.layout-quote .q{font-size:30px}
 }
-</style>
+mjx-merror,.mjx-merror,[class*="merror"],mjx-container[data-mjx-error]{display:none!important}</style>
 </head>
 <body>
 <div class="deck" id="deck"></div>
@@ -108,8 +115,8 @@ mjx-container[display="true"]{margin:18px 0;font-size:1.1em!important}
 <script>
 window.PRESENTATION_DATA = {{DATA}};
 const LOGO_URL = '{{LOGO_URL}}';
-function esc(s){return String(s??'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}
-function renderMath(s){if(!s)return '';return String(s).replace(/\$\$([^$]+)\$\$/g,'\\[$1\\]').replace(/\$([^$\n]+)\$/g,'\\($1\\)');}
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function renderMath(s){if(!s)return '';var t=String(s).replace(/\$\$([^$]+)\$\$/g,'\\[$1\\]').replace(/\$([^$\n]+)\$/g,'\\($1\\)');if(!/[Ѐ-ӿ]/.test(t)&&!/[$]|\\\(|\\\)|\\\[|\\\]/.test(t)&&/\\(?:frac|sqrt|sum|int|prod|lim|pm|mp|cdot|circ|to|infty|leq|geq|neq|approx|alpha|beta|gamma|delta|theta|lambda|mu|sigma|pi|phi|omega)\b|[\^_]\{|[\^_][A-Za-z0-9]/.test(t)&&t.trim().length>0&&t.length<200){t='\\('+t.trim()+'\\)';}var oi=(t.match(/\\\(/g)||[]).length,ci=(t.match(/\\\)/g)||[]).length,od=(t.match(/\\\[/g)||[]).length,cd=(t.match(/\\\]/g)||[]).length;if(oi!==ci)t=t.replace(/\\\(|\\\)/g,'');if(od!==cd)t=t.replace(/\\\[|\\\]/g,'');return t;}
 function renderSlide(s, idx, total){
   const num = `<div class="slide-num">${String(idx+1).padStart(2,'0')} / ${String(total).padStart(2,'0')}</div>`;
   const rule = '<div class="header-rule"></div>';
@@ -135,6 +142,9 @@ function renderSlide(s, idx, total){
     case 'content':
       body = `<h2>${esc(s.title)}</h2><div class="body">${(s.paragraphs||[]).map(p=>`<p>${renderMath(esc(p))}</p>`).join('')}</div>`;
       break;
+    case 'image-text':
+      body = `<h2>${esc(s.title)}</h2><div class="image-text"><ul class="image-text-list">${(s.items||[]).map(i=>`<li>${renderMath(esc(i))}</li>`).join('')}</ul>${s.imageUrl?`<div class="image-text-img"><img src="${esc(s.imageUrl)}" alt="${esc(s.imageAlt||'')}"></div>`:''}</div>`;
+      break;
     default:
       body = `<h2>${esc(s.title||s.layout)}</h2><p>${renderMath(esc(s.text||''))}</p>`;
   }
@@ -151,7 +161,7 @@ document.getElementById('prev').onclick=()=>go(current-1);
 document.getElementById('next').onclick=()=>go(current+1);
 document.addEventListener('keydown',e=>{if(e.key==='ArrowRight'||e.key===' '||e.key==='PageDown'){e.preventDefault();go(current+1);}if(e.key==='ArrowLeft'||e.key==='PageUp'){e.preventDefault();go(current-1);}if(e.key==='Home')go(0);if(e.key==='End')go(slides.length-1);});
 go(0);
-window.MathJax={loader:{load:['[tex]/mhchem']},tex:{inlineMath:[['\\(','\\)']],displayMath:[['\\[','\\]']],packages:{'[+]':['mhchem']}},options:{enableMenu:false}};
+window.MathJax={loader:{load:['[tex]/mhchem','[tex]/noerrors']},tex:{inlineMath:[['\\(','\\)']],displayMath:[['\\[','\\]']],packages:{'[+]':['mhchem','noerrors']}},options:{enableMenu:false}};
 </script>
 <script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
 </body>

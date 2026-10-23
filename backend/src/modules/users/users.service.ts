@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, UnauthorizedException } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { SmscService } from '../smsc/smsc.service';
 import * as crypto from 'crypto';
@@ -54,7 +54,8 @@ export class UsersService {
       where: { phone, code, type: 'sms', verified: false, expiresAt: { gt: new Date() } },
     });
 
-    if (!record) throw new UnauthorizedException('Неверный код или срок действия истёк');
+    // 400, а не 401 — см. комментарий в changePassword: 401 разлогинивает пользователя.
+    if (!record) throw new BadRequestException('Неверный код или срок действия истёк');
 
     await this.prisma.$transaction(async (tx) => {
       // Помечаем код как использованный
@@ -119,7 +120,10 @@ export class UsersService {
 
     if (user.passwordHash) {
       const isMatch = await bcrypt.compare(currentPassword, user.passwordHash);
-      if (!isMatch) throw new UnauthorizedException('Неверный текущий пароль');
+      // ВАЖНО: именно 400, а не 401. 401 означает «сессия недействительна», и
+      // глобальный axios-интерцептор на фронте по нему разлогинивает пользователя.
+      // Здесь же ошибка в ПОЛЕ ФОРМЫ — юзер должен увидеть текст ошибки и остаться в сессии.
+      if (!isMatch) throw new BadRequestException('Неверный текущий пароль');
     }
 
     if (newPassword.length < 8) {

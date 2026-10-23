@@ -16,6 +16,9 @@ import { Card } from '@/components/ui/v2/Card'
 import { useTour } from '@/lib/tour/useTour'
 import { getEffectiveHtml } from '@/lib/utils/effectiveHtml'
 import { cn } from '@/lib/utils/cn'
+import { UploadedMaterialPreview } from '@/components/v2/UploadedMaterialPreview'
+import { DocumentRenderer } from '@/components/blocks/DocumentRenderer'
+import { isJsonBlocksFormat, GenerationDocument as GenerationDocumentSchema } from '@/lib/blocks/schema'
 
 interface Props {
     assignmentId: string
@@ -44,7 +47,14 @@ interface OverviewResponse {
         email: string | null
         status: 'not_submitted' | 'submitted' | 'graded' | 'overdue'
         isLate: boolean
-        submission: { id: string; grade: number | null; createdAt: string; feedback: string | null } | null
+        submission: {
+            id: string
+            grade: number | null
+            createdAt: string
+            feedback: string | null
+            content: string | null
+            attachments: { url: string; name?: string; type?: string }[] | null
+        } | null
     }[]
 }
 
@@ -175,6 +185,20 @@ export default function AssignmentOverviewV2({ assignmentId }: Props) {
 
     const htmlPick = useMemo(() => data ? pickHtmlGeneration(data.lesson.generations) : null, [data])
     const srcDoc = useMemo(() => htmlPick ? buildPreviewSrcDoc(htmlPick.html) : '', [htmlPick])
+    // Сгенерированные AI-материалы в новом формате blocks-v1 (worksheet,
+    // quiz, lesson_plan, vocabulary, lesson_preparation) — pickHtmlGeneration
+    // их не подхватывает. Достаём отдельно и рендерим через DocumentRenderer.
+    const v2Docs = useMemo(() => {
+        if (!data) return [] as Array<{ id: string; doc: any }>
+        const out: Array<{ id: string; doc: any }> = []
+        for (const g of data.lesson.generations) {
+            const od = g.outputData
+            if (!isJsonBlocksFormat(od)) continue
+            const parsed = GenerationDocumentSchema.safeParse(od.outputDoc)
+            if (parsed.success) out.push({ id: g.id, doc: parsed.data })
+        }
+        return out
+    }, [data])
 
     if (isLoading) {
         return (
@@ -294,6 +318,33 @@ export default function AssignmentOverviewV2({ assignmentId }: Props) {
                     </div>
                 </Card>
 
+                {/* Превью загруженных учителем материалов (PDF / картинки).
+                    Они идут отдельной веткой — pickHtmlGeneration их игнорирует. */}
+                {lesson.generations
+                    .filter((g) => g.type === 'uploaded_file' || g.type === 'uploadedFile')
+                    .map((g) => (
+                        <div key={g.id} className="mb-5">
+                            <UploadedMaterialPreview outputData={g.outputData} />
+                        </div>
+                    ))}
+
+                {/* Сгенерированные AI-материалы в формате blocks-v1
+                    (worksheet/quiz/lesson_plan/...). pickHtmlGeneration их
+                    тоже не берёт — рендерим отдельно через DocumentRenderer. */}
+                {v2Docs.map(({ id, doc }) => (
+                    <Card key={id} padding="lg" className="mb-5">
+                        <div className="flex items-center gap-2 mb-3">
+                            <FileText className="w-4 h-4 text-ink-500" />
+                            <span className="font-semibold text-[14px] text-ink-900">
+                                Материал задания {doc.title ? `· ${doc.title}` : ''}
+                            </span>
+                        </div>
+                        <div className="bg-ink-50 rounded-lg p-4 max-md:p-2">
+                            <DocumentRenderer doc={doc} showAnswers={false} />
+                        </div>
+                    </Card>
+                ))}
+
                 {/* Material preview (collapsible) */}
                 {srcDoc ? (
                     <Card data-tour="material" padding="none" className="mb-5 overflow-hidden">
@@ -340,8 +391,10 @@ export default function AssignmentOverviewV2({ assignmentId }: Props) {
                             {students.map((s) => {
                                 const chip = STATUS_CHIP[s.status]
                                 const canCheck = !!s.submission
+                                const hasFreeAnswer = !!(s.submission?.content || (s.submission?.attachments && s.submission.attachments.length > 0))
                                 return (
-                                    <div key={s.id} className="px-5 py-3.5 flex items-center gap-4 flex-wrap hover:bg-ink-50/70 transition-colors">
+                                    <div key={s.id} className="px-5 py-3.5 hover:bg-ink-50/70 transition-colors">
+                                        <div className="flex items-center gap-4 flex-wrap">
                                         <div className="flex items-center gap-3 min-w-[200px] flex-1">
                                             <button
                                                 type="button"
@@ -403,6 +456,41 @@ export default function AssignmentOverviewV2({ assignmentId }: Props) {
                                                 <span className="text-[12px] text-ink-400 italic">Работа не сдана</span>
                                             )}
                                         </div>
+                                        </div>
+
+                                        {/* Inline превью ответа ученика — текст + миниатюры фото.
+                                            Чтобы учитель сразу видел что прислали, не открывая Grading. */}
+                                        {hasFreeAnswer && (
+                                            <div className="mt-3 pl-12 pr-2">
+                                                <div className="rounded-lg border border-ink-200 bg-ink-50/50 p-3">
+                                                    <div className="text-[11px] uppercase font-bold tracking-wider text-ink-500 mb-2">
+                                                        Ответ ученика
+                                                    </div>
+                                                    {s.submission?.content && (
+                                                        <div className="whitespace-pre-wrap text-[13px] text-ink-800 leading-relaxed mb-2">
+                                                            {s.submission.content}
+                                                        </div>
+                                                    )}
+                                                    {s.submission?.attachments && s.submission.attachments.length > 0 && (
+                                                        <div className="flex flex-wrap gap-2">
+                                                            {s.submission.attachments.map((a, i) => (
+                                                                <a
+                                                                    key={i}
+                                                                    href={a.url}
+                                                                    target="_blank"
+                                                                    rel="noopener noreferrer"
+                                                                    className="block w-20 h-20 rounded-md border border-ink-200 overflow-hidden bg-white hover:border-brand-400 transition"
+                                                                    title={a.name || 'Прикрепление'}
+                                                                >
+                                                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                                                    <img src={a.url} alt={a.name || ''} className="w-full h-full object-cover" />
+                                                                </a>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                 )
                             })}

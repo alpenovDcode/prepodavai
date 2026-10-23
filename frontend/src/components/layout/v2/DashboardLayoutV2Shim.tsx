@@ -4,6 +4,7 @@ import { ReactNode, useEffect, useState } from 'react'
 import { useUser } from '@/lib/hooks/useUser'
 import { DashboardLayoutV2 } from './DashboardLayoutV2'
 import { getTeacherNavSections } from './Sidebar'
+import { useTutorExchangeEnabled } from '@/hooks/tutor-exchange/useTutorExchangeEnabled'
 import LegacyDashboardLayout from '@/components/DashboardLayout'
 
 /**
@@ -31,7 +32,8 @@ function DashboardLayoutV2Inner({ children }: { children: ReactNode }) {
     const [mounted, setMounted] = useState(false)
     useEffect(() => { setMounted(true) }, [])
     const { fullName, initials, user } = useUser()
-    const sections = getTeacherNavSections()
+    const { enabled: tutorExchangeEnabled } = useTutorExchangeEnabled()
+    const sections = getTeacherNavSections({}, { tutorExchangeEnabled })
     const userProps = mounted
         ? { name: fullName, initials, plan: user?.email }
         : { name: 'Загрузка…', initials: '…', plan: undefined }

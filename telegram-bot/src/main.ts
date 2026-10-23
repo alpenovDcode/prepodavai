@@ -249,6 +249,7 @@ const genSessions = new Map<string, GenerationSession>();
 const lastGenAt = new Map<string, number>();
 const platformStates = new Map<string, PlatformState>();
 const jwtCache = new Map<string, { token: string; expiresAt: number }>();
+const funnelOnboardingStates = new Map<string, boolean>();
 const JWT_CACHE_TTL = 8 * 60_000;
 
 // ── Generation session helpers ────────────────────────────────────────────────
@@ -354,7 +355,18 @@ function buildConfirmMessage(tool: ToolConfig, params: Record<string, string>): 
   const lines: string[] = [`*${tool.emoji} ${tool.label}* — подтверждение\n`];
   for (const field of tool.fields) {
     const val = params[field.key];
-    if (val !== undefined && val !== '') lines.push(`• ${sanitizeMd(val)}`);
+    if (val === undefined || val === '') continue;
+    if (field.type === 'select') {
+      const opts = field.options ?? (field.conditionalOptions ? field.conditionalOptions(params) : []);
+      const found = opts.find(o => o.value === val);
+      lines.push(`• ${sanitizeMd(found ? found.label : val)}`);
+    } else if (field.type === 'multiselect' && field.options) {
+      const selected = val.split(',').filter(Boolean);
+      const labels = selected.map(v => field.options!.find(o => o.value === v)?.label ?? v);
+      lines.push(`• ${sanitizeMd(labels.join(', '))}`);
+    } else {
+      lines.push(`• ${sanitizeMd(val)}`);
+    }
   }
   lines.push(`⏱ Примерное время: *${tool.estimatedTime}*`);
   lines.push('\nГенерировать?');
@@ -660,6 +672,12 @@ async function completeRegistration(ctx: Context, telegramId: string, state: Reg
     regStates.delete(telegramId);
     console.log(`[RegBot] New user registered: id=${newUser.id} username=${username}`);
 
+    // Привязываем pre-reg события (channel_subscribed и др.) из anonId=tg:<id> к userId
+    prisma.analyticsEvent.updateMany({
+      where: { anonId: `tg:${telegramId}`, userId: null },
+      data: { userId: newUser.id },
+    }).catch(() => {});
+
     // Глубокая цель: регистрация (fire-and-forget)
     tgtrack('send_reach_goal', { user_id: telegramId, target: 'registration_completed' });
 
@@ -776,6 +794,12 @@ async function handleLinkToken(ctx: Context, user: any, token: string) {
   regStates.delete(telegramIdStr);
   genSessions.delete(telegramIdStr);
   platformStates.delete(telegramIdStr);
+
+  // Привязываем pre-link события (channel_subscribed и др.) из anonId=tg:<id> к userId
+  prisma.analyticsEvent.updateMany({
+    where: { anonId: `tg:${telegramIdStr}`, userId: null },
+    data: { userId: linkToken.userId },
+  }).catch(() => {});
 
   // Проверяем, был ли пользователь уже в боте ДО привязки
   const preLinkBotUser = await (prisma as any).botUser.findUnique({
@@ -1510,6 +1534,19 @@ async function showAnalytics(ctx: Context, telegramId: string) {
   const todayCount = overview.schedule?.todayCount ?? 0;
   const deadlines = overview.upcoming?.deadlinesIn7Days ?? 0;
 
+  const hasNoData = pending === 0 && riskCount === 0 && watchCount === 0 && todayCount === 0 && deadlines === 0;
+  if (hasNoData) {
+    const webAppUrl = process.env.WEBAPP_URL || 'https://prepodavai.ru';
+    await ctx.reply(
+      `📊 *Аналитика*\n\nПока нечего показать — нет классов и учеников.\n\nАналитика заработает, когда вы создадите класс, добавите учеников и выдадите им задания. Это делается на платформе ПреподаваИИ.`,
+      {
+        parse_mode: 'Markdown',
+        reply_markup: new InlineKeyboard().url('Перейти на платформу', webAppUrl),
+      },
+    );
+    return;
+  }
+
   const lines: string[] = ['📊 *Аналитика*\n'];
 
   lines.push(`📝 *Ждут проверки:* ${pending}`);
@@ -1611,18 +1648,30 @@ async function handleSmartLinkStart(
     });
     const ONBOARDED = ['subscribed', 'linked', 'registered'];
     if (existingBotUser && ONBOARDED.includes(existingBotUser.registrationStatus)) {
-      console.log(
-        `[Bot] smart-link: onboarded user (status=${existingBotUser.registrationStatus}), skip subscription welcome`,
-      );
-      await ctx.reply(
-        `Добро пожаловать в Преподавай 🎓\n\nЯ Ваш интеллектуальный помощник для:\n— Создания учебных материалов\n— Планирования уроков\n— Создания красочных презентаций\n— Методической поддержки\n— Создания интерактивных игр`,
-        { reply_markup: buildMainMenuKeyboard() },
-      );
-      await ctx.reply('🛠️ *Выберите инструмент:*', {
-        parse_mode: 'Markdown',
-        reply_markup: buildToolSelectionKeyboard(),
+      // Дополнительно проверяем что AppUser ещё существует — мог быть удалён.
+      const appUser = await prisma.appUser.findUnique({
+        where: { telegramId },
+        select: { id: true },
       });
-      return true; // mark as handled — основной /start handler НЕ должен ничего делать
+      if (appUser && !data.welcome) {
+        // Воронки нет — сразу главное меню для онбордированного пользователя.
+        // Если воронка есть — показываем её даже онбордированному (проверка подписки на нужный канал).
+        console.log(
+          `[Bot] smart-link: onboarded user (status=${existingBotUser.registrationStatus}), no funnel welcome → main menu`,
+        );
+        await ctx.reply(
+          `Добро пожаловать в Преподавай 🎓\n\nЯ Ваш интеллектуальный помощник для:\n— Создания учебных материалов\n— Планирования уроков\n— Создания красочных презентаций\n— Методической поддержки\n— Создания интерактивных игр`,
+          { reply_markup: buildMainMenuKeyboard() },
+        );
+        await ctx.reply('🛠️ *Выберите инструмент:*', {
+          parse_mode: 'Markdown',
+          reply_markup: buildToolSelectionKeyboard(),
+        });
+        return true;
+      }
+      console.log(
+        `[Bot] smart-link: BotUser onboarded but AppUser not found — treating as new user`,
+      );
     }
   } catch (e: any) {
     console.warn(`[Bot] smart-link onboarded check failed: ${e?.message}`);
@@ -1687,15 +1736,17 @@ async function handleSmartLinkStart(
     );
   }
 
+  const wText = (w.welcomeText || '').trim() ||
+    'Подпишитесь на наш канал, чтобы начать пользоваться сервисом бесплатно 👇';
   try {
-    await ctx.reply(w.welcomeText, {
+    await ctx.reply(wText, {
       parse_mode: 'Markdown',
       reply_markup: kb,
     });
   } catch (e: any) {
     // Markdown сломался — пробуем без форматирования
     console.warn(`[Bot] welcome markdown failed: ${e?.message}, retrying plain`);
-    await ctx.reply(w.welcomeText, { reply_markup: kb });
+    await ctx.reply(wText, { reply_markup: kb });
   }
   return true;
 }
@@ -1755,7 +1806,7 @@ async function handleFunnelSubscriptionCheck(
   if (!isSubscribed) {
     const promptText: string =
       funnel.subscriptionPromptText?.trim() ||
-      `Похоже, вы ещё не подписались на ${funnel.subscriptionChannelName || 'канал'}. Подпишитесь и нажмите ещё раз.`;
+      `Похоже, вы ещё не подписались. Подпишитесь и нажмите ещё раз.`;
     const ch: string = funnel.subscriptionChannelId;
     const channelUrl = ch.startsWith('http')
       ? ch
@@ -1794,15 +1845,8 @@ async function handleFunnelSubscriptionCheck(
     console.warn(`[Bot] notify channel_subscribed failed: ${e?.message}`);
   }
 
-  const successText: string =
-    funnel.subscriptionSuccessText?.trim() ||
-    '✅ Спасибо за подписку! Открываем сервис.';
-  await ctx.reply(successText, { parse_mode: 'Markdown' });
-
-  // Создаём AppUser + BotUser (shadow) — как в handleSubscriptionCheck для
-  // дефолтного канала. Это даёт юзеру доступ к функционалу бота, не дожидаясь
-  // email-регистрации. После — показываем основное меню инструментов
-  // (НЕ дефолтный SUBSCRIPTION_TEXT про @esvasilevaru — это была ошибка).
+  // Создаём AppUser + BotUser (shadow). source='funnel_bot' — маркер для
+  // post-generation сообщений (1-я и 3-я генерация).
   try {
     const user = ctx.from!;
     const chatId = ctx.chat!.id.toString();
@@ -1830,7 +1874,7 @@ async function handleFunnelSubscriptionCheck(
 
     await (prisma as any).botUser.upsert({
       where: { telegramId },
-      update: { appUserId: shadowAppUser.id, lastActiveAt: new Date(), registrationStatus: preservedStatus },
+      update: { appUserId: shadowAppUser.id, lastActiveAt: new Date(), registrationStatus: preservedStatus, source: 'funnel_bot', totalGenerations: 0 },
       create: {
         telegramId,
         appUserId: shadowAppUser.id,
@@ -1838,7 +1882,7 @@ async function handleFunnelSubscriptionCheck(
         lastName: user.last_name || null,
         username: user.username || null,
         registrationStatus: 'subscribed',
-        source: 'telegram_bot',
+        source: 'funnel_bot',
         lastActiveAt: new Date(),
       } as any,
     });
@@ -1846,18 +1890,10 @@ async function handleFunnelSubscriptionCheck(
     console.warn(`[Bot] funnel_sub user upsert failed: ${e?.message}`);
   }
 
-  await ctx.reply(
-    `Добро пожаловать в Преподавай 🎓\n\nЯ Ваш интеллектуальный помощник для:\n— Создания учебных материалов\n— Планирования уроков\n— Создания красочных презентаций\n— Методической поддержки\n— Создания интерактивных игр`,
-    { reply_markup: buildMainMenuKeyboard() },
-  );
-  await ctx.reply(
-    'Как пользоваться:\n\n🛠️ *Создать материал* — выберите инструмент (тест, план урока, рабочий лист и др.) или просто напишите запрос своими словами — бот поймёт\n📋 *Мои генерации* — история ваших материалов, можно посмотреть и назначить как ДЗ\n📚 *Классы* — список классов и учеников\n📊 *Аналитика* — прогресс учеников и статистика\n🎤 Голосовые сообщения — тоже принимаю\n\nПопробуйте прямо сейчас — нажмите *«🛠️ Создать материал»*!',
-    { parse_mode: 'Markdown' },
-  );
-  await ctx.reply('🛠️ *Выберите инструмент:*', {
-    parse_mode: 'Markdown',
-    reply_markup: buildToolSelectionKeyboard(),
-  });
+  const onboardingText: string = funnel.subscriptionSuccessText?.trim() ||
+    `Вы в команде ПреподаваИИ!\n\nА теперь давайте я на одном примере покажу, как всё устроено — соберём ваш первый материал. Так понятнее любой инструкции, а дальше выберете любой инструмент сами.\n\nНапишите три вещи:\n— предмет (например, биология);\n— класс или уровень (например, 8 класс или B1);\n— тему (например, «фотосинтез» или «present perfect»).\n\nЭтого хватит, чтобы я собрал готовый рабочий лист под вашу задачу — не общий текст «для среднего школьника», а под конкретный урок. Через минуту пришлю в PDF.`;
+  await ctx.reply(onboardingText, { reply_markup: buildMainMenuKeyboard() });
+  funnelOnboardingStates.set(telegramId, true);
 }
 
 async function sendActivationFlow(ctx: Context): Promise<void> {
@@ -1965,6 +2001,14 @@ bot.command('start', async (ctx: Context) => {
     ...(user.username && { username: user.username }),
     ...(payload && { start_value: payload }),
   });
+
+  if (payload === 'blog') {
+    fetch(`${API_URL}/api/webhook/telegram/internal/blog-start`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-bot-secret': process.env.TELEGRAM_BOT_TOKEN ?? '' },
+      body: JSON.stringify({ telegramId }),
+    }).catch(() => {});
+  }
 
   if (payload && payload.startsWith('link_')) {
     await handleLinkToken(ctx, user, payload.slice(5));
@@ -2103,6 +2147,81 @@ async function showMainMenuFull(ctx: Context, telegramId: string) {
     { reply_markup: buildMainMenuKeyboard() },
   );
   await ctx.reply('🛠️ *Выберите инструмент:*', { parse_mode: 'Markdown', reply_markup: buildToolSelectionKeyboard() });
+}
+
+async function executeGenSession(ctx: Context, telegramId: string): Promise<void> {
+  const session = getGenSession(telegramId);
+  if (!session) { await ctx.reply('⏰ Сессия истекла. Начните заново: «' + BTN_CREATE + '».'); return; }
+
+  const lastGen = lastGenAt.get(telegramId) ?? 0;
+  const waitMs = GEN_RATE_LIMIT_MS - (Date.now() - lastGen);
+  if (waitMs > 0) {
+    await ctx.reply(`⏳ Подождите ещё ${Math.ceil(waitMs / 1000)} сек. перед следующей генерацией.`);
+    return;
+  }
+
+  const tool = getToolConfig(session.toolKey);
+  if (!tool) return;
+
+  const user = await prisma.appUser.findUnique({ where: { telegramId } }) as any;
+  if (!user) { await ctx.reply('❌ Аккаунт не найден.'); genSessions.delete(telegramId); return; }
+
+  genSessions.delete(telegramId);
+  lastGenAt.set(telegramId, Date.now());
+
+  const chatId = ctx.chat!.id;
+  const genStatusMsg = await ctx.reply(`⏳ Генерирую ${tool.emoji} *${tool.label}*...\n_${tool.estimatedTime}_`, { parse_mode: 'Markdown' });
+
+  try {
+    const token = await getApiToken(user.username, await ensureApiKey(user));
+    if (!token) {
+      await bot.api.deleteMessage(chatId, genStatusMsg.message_id).catch(() => {});
+      await ctx.reply('❌ Ошибка авторизации. Попробуйте позже или обратитесь в поддержку.');
+      return;
+    }
+
+    if (tool.serviceType === 'games') {
+      const result = await callGamesApi(token, session.params.type, session.params.topic);
+      await bot.api.deleteMessage(chatId, genStatusMsg.message_id).catch(() => {});
+      if (!result.url) {
+        await ctx.reply('❌ Игра не создана: сервер не вернул ссылку.');
+        await ctx.reply('🛠️ *Выберите инструмент:*', { parse_mode: 'Markdown', reply_markup: buildToolSelectionKeyboardWithAssign() });
+        return;
+      }
+      await (prisma as any).botUser.update({
+        where: { telegramId },
+        data: { totalGenerations: { increment: 1 }, generationsThisMonth: { increment: 1 }, lastGenerationAt: new Date() },
+      });
+      const kb = new InlineKeyboard().url('🎮 Открыть игру', result.url);
+      await ctx.reply(`🎮 *Игра готова!*\n\nТема: _${session.params.topic}_\n\nНажмите кнопку, чтобы открыть:`, { parse_mode: 'Markdown', reply_markup: kb });
+      await ctx.reply('🛠️ *Выберите инструмент:*', { parse_mode: 'Markdown', reply_markup: buildToolSelectionKeyboardWithAssign() });
+    } else {
+      let apiParams: Record<string, any> = { ...session.params };
+      if (tool.key === 'lesson-preparation' && typeof apiParams.generationTypes === 'string') {
+        apiParams.generationTypes = apiParams.generationTypes.split(',').filter(Boolean);
+      }
+      const result = await callGenerationApi(token, tool.generationType, apiParams);
+      tgtrack('send_reach_goal', { user_id: telegramId, target: 'generation_created' });
+      await bot.api.deleteMessage(chatId, genStatusMsg.message_id).catch(() => {});
+      if (result.status === 'failed') {
+        await ctx.reply('❌ Генерация не удалась.');
+        await ctx.reply('🛠️ *Выберите инструмент:*', { parse_mode: 'Markdown', reply_markup: buildToolSelectionKeyboard() });
+        return;
+      }
+      // НЕ инкрементим totalGenerations здесь: это делает бэкенд атомарно в момент
+      // доставки результата (telegram.service.ts → sendGenerationResult). Иначе возникает
+      // гонка с процессором доставки, и пост-ген сообщения (1-я/3-я генерация) шлются не на той
+      // генерации. Игры считаются в боте (выше) — они не проходят через процессор доставки.
+      if (result.status !== 'completed') {
+        await ctx.reply(`✅ Задача принята! Результат придёт в этот чат, как только будет готов.`, { parse_mode: 'Markdown' });
+      }
+      // Для 'completed': PDF и пост-ген сообщения шлёт бэкенд (telegram.service.ts finally block)
+    }
+  } catch (err: any) {
+    await bot.api.deleteMessage(chatId, genStatusMsg.message_id).catch(() => {});
+    await ctx.reply(humanizeError(err));
+    await ctx.reply('🛠️ *Выберите инструмент:*', { parse_mode: 'Markdown', reply_markup: buildToolSelectionKeyboardWithAssign() });
+  }
 }
 
 // ── Callback queries (нажатия кнопок генерации) ───────────────────────────────
@@ -2343,6 +2462,9 @@ bot.on('callback_query:data', async (ctx: Context) => {
 
     // Отменяем регистрацию если была активна (иначе текстовый ответ уйдёт в reg flow)
     regStates.delete(telegramId);
+    // Пользователь явно выбрал инструмент — сбрасываем funnel-онбординг,
+    // чтобы не перехватить ввод полей формы
+    funnelOnboardingStates.delete(telegramId);
 
     const user = await prisma.appUser.findUnique({ where: { telegramId } });
     if (!user) {
@@ -2450,75 +2572,7 @@ bot.on('callback_query:data', async (ctx: Context) => {
     await nextStep(ctx, session, tool);
 
   } else if (data === 'g:ok') {
-    // Подтверждение генерации
-    const session = getGenSession(telegramId);
-    if (!session) { await ctx.reply('⏰ Сессия истекла. Начните заново: «' + BTN_CREATE + '».'); return; }
-
-    const lastGen = lastGenAt.get(telegramId) ?? 0;
-    const waitMs = GEN_RATE_LIMIT_MS - (Date.now() - lastGen);
-    if (waitMs > 0) {
-      await ctx.reply(`⏳ Подождите ещё ${Math.ceil(waitMs / 1000)} сек. перед следующей генерацией.`);
-      return;
-    }
-
-    const tool = getToolConfig(session.toolKey);
-    if (!tool) return;
-
-    const user = await prisma.appUser.findUnique({ where: { telegramId } }) as any;
-    if (!user) { await ctx.reply('❌ Аккаунт не найден.'); genSessions.delete(telegramId); return; }
-
-    genSessions.delete(telegramId);
-    lastGenAt.set(telegramId, Date.now());
-
-    await ctx.reply(`⏳ Генерирую ${tool.emoji} *${tool.label}*...\n_${tool.estimatedTime}_`, { parse_mode: 'Markdown' });
-
-    try {
-      const token = await getApiToken(user.username, await ensureApiKey(user));
-      if (!token) {
-        await ctx.reply('❌ Ошибка авторизации. Попробуйте позже или обратитесь в поддержку.');
-        return;
-      }
-
-      if (tool.serviceType === 'games') {
-        const result = await callGamesApi(token, session.params.type, session.params.topic);
-        if (!result.url) {
-          await ctx.reply('❌ Игра не создана: сервер не вернул ссылку.');
-          await ctx.reply('🛠️ *Выберите инструмент:*', { parse_mode: 'Markdown', reply_markup: buildToolSelectionKeyboardWithAssign() });
-          return;
-        }
-        await (prisma as any).botUser.update({
-          where: { telegramId },
-          data: { totalGenerations: { increment: 1 }, generationsThisMonth: { increment: 1 }, lastGenerationAt: new Date() },
-        });
-        const kb = new InlineKeyboard().url('🎮 Открыть игру', result.url);
-        await ctx.reply(`🎮 *Игра готова!*\n\nТема: _${session.params.topic}_\n\nНажмите кнопку, чтобы открыть:`, { parse_mode: 'Markdown', reply_markup: kb });
-        await ctx.reply('🛠️ *Выберите инструмент:*', { parse_mode: 'Markdown', reply_markup: buildToolSelectionKeyboardWithAssign() });
-      } else {
-        let apiParams: Record<string, any> = { ...session.params };
-        if (tool.key === 'lesson-preparation' && typeof apiParams.generationTypes === 'string') {
-          apiParams.generationTypes = apiParams.generationTypes.split(',').filter(Boolean);
-        }
-        const result = await callGenerationApi(token, tool.generationType, apiParams);
-        tgtrack('send_reach_goal', { user_id: telegramId, target: 'generation_created' });
-        if (result.status === 'failed') {
-          await ctx.reply('❌ Генерация не удалась.');
-          await ctx.reply('🛠️ *Выберите инструмент:*', { parse_mode: 'Markdown', reply_markup: buildToolSelectionKeyboard() });
-          return;
-        }
-        await (prisma as any).botUser.update({
-          where: { telegramId },
-          data: { totalGenerations: { increment: 1 }, generationsThisMonth: { increment: 1 }, lastGenerationAt: new Date() },
-        });
-        if (result.status === 'completed') {
-          await ctx.reply(`✅ Готово! Отправляю ${tool.emoji} *${tool.label}* в чат...`, { parse_mode: 'Markdown' });
-        } else {
-          await ctx.reply(`✅ Задача принята! Результат придёт в этот чат, как только будет готов.`, { parse_mode: 'Markdown' });
-        }
-      }
-    } catch (err: any) {
-      await ctx.reply(humanizeError(err));
-      await ctx.reply('🛠️ *Выберите инструмент:*', { parse_mode: 'Markdown', reply_markup: buildToolSelectionKeyboardWithAssign() });
-    }
+    await executeGenSession(ctx, telegramId);
 
   } else if (data === 'g:no') {
     genSessions.delete(telegramId);
@@ -2859,6 +2913,7 @@ bot.on('message:text', async (ctx: Context) => {
     const user = await prisma.appUser.findUnique({ where: { telegramId } });
     if (!user) { await ctx.reply('❌ Аккаунт не найден. Используйте /start.'); return; }
     genSessions.delete(telegramId);
+    funnelOnboardingStates.delete(telegramId);
     await ctx.reply('🛠️ *Выберите инструмент:*', { parse_mode: 'Markdown', reply_markup: buildToolSelectionKeyboard() });
     return;
   }
@@ -3013,6 +3068,47 @@ bot.on('message:text', async (ctx: Context) => {
   const GREETINGS = new Set(['привет', 'здравствуй', 'здравствуйте', 'ок', 'окей', 'хорошо', 'спасибо', 'да', 'нет', 'ладно', 'пока', 'стоп', 'stop']);
   if (text.length < 4 || GREETINGS.has(text.toLowerCase())) {
     await ctx.reply('Используйте кнопки меню или напишите что хотите сделать — например: «создай тест по биологии для 8 класса».');
+    return;
+  }
+
+  // После фаннел-онбординга: пропускаем диалог подтверждения, сразу генерируем
+  if (funnelOnboardingStates.get(telegramId)) {
+    funnelOnboardingStates.delete(telegramId);
+    await ctx.replyWithChatAction('typing').catch(() => null);
+    let funnelParsed: NlParsedRequest;
+    try {
+      funnelParsed = await parseNlRequest(text);
+    } catch {
+      funnelParsed = { action: 'unknown' } as any;
+    }
+    // Если LLM не распознал глагол действия — по умолчанию рабочий лист
+    const funnelToolKey = funnelParsed.action === 'generate' && funnelParsed.tool
+      ? funnelParsed.tool
+      : 'worksheet';
+    const funnelParams = funnelParsed.action === 'generate' ? (funnelParsed.params || {}) : {};
+    const funnelTool = getToolConfig(funnelToolKey);
+    if (!funnelTool) {
+      await ctx.reply('Напишите предмет, класс и тему — например: «биология 8 класс фотосинтез»', { reply_markup: buildMainMenuKeyboard() });
+      funnelOnboardingStates.set(telegramId, true);
+      return;
+    }
+    let funnelSession: GenerationSession;
+    try {
+      funnelSession = createGenSession(telegramId, funnelToolKey);
+    } catch (e: any) {
+      await ctx.reply(`⚠️ ${e.message}`);
+      funnelOnboardingStates.set(telegramId, true);
+      return;
+    }
+    for (const [key, val] of Object.entries(funnelParams)) funnelSession.params[key] = val;
+    // Если тема не распознана — используем весь текст как тему
+    if (!funnelSession.params.topic) funnelSession.params.topic = text;
+    for (const field of funnelTool.fields) {
+      if (funnelSession.params[field.key] === undefined && field.default !== undefined) {
+        funnelSession.params[field.key] = field.default;
+      }
+    }
+    await executeGenSession(ctx, telegramId);
     return;
   }
 

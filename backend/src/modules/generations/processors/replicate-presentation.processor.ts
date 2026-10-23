@@ -10,6 +10,7 @@ import {
   PresentationColor,
 } from '../presentation/presentation-template.service';
 import { PresentationPptxV2Service } from '../presentation/presentation-pptx-v2.service';
+import { convertPresentationDataToCanvas } from '../presentation/presentation-canvas.service';
 
 export interface ReplicatePresentationJobData {
   generationRequestId: string;
@@ -24,6 +25,10 @@ export interface ReplicatePresentationJobData {
   slidesCount?: number;
   /** Цветовая тема: indigo | emerald | violet | blue | slate */
   color?: PresentationColor | string;
+  /** Класс 1..11 — влияет на сложность изложения. */
+  grade?: string | number;
+  /** Свободные пожелания учителя. */
+  extraNotes?: string;
   /** @deprecated — themeId был раньше, теперь только color. */
   themeId?: string;
 }
@@ -33,8 +38,10 @@ export interface ReplicatePresentationJobData {
  *
  * Поток:
  *   1. PresentationTemplateService.generate() — LLM → JSON слайдов + рендерит HTML по шаблону
- *   2. PDF/PPTX строятся из того же JSON для синхронности (один источник правды)
- *   3. Сохраняем {html, slideData, pdfUrl, pptxUrl} в outputData
+ *   2. PDF строится по запросу из сохранённого HTML через presentation/pdf
+ *   3. Сохраняем {content, presentationData} в outputData
+ *
+ * PPTX-код ниже сохранён, но отключён: текущий сайт и боты используют только PDF.
  *
  * Картинок нет (по требованию). Логотип 32×32 на каждом слайде уже в шаблоне.
  */
@@ -55,15 +62,17 @@ export class ReplicatePresentationProcessor extends WorkerHost {
   async process(job: Job<ReplicatePresentationJobData>): Promise<void> {
     const {
       generationRequestId, topic, text, duration, targetAudience,
-      numCards, slidesCount, style, color,
+      numCards, slidesCount, style, color, grade, extraNotes,
     } = job.data;
 
     this.logger.log(`Processing presentation ${generationRequestId}: "${topic}"`);
 
-    const ownerUserId = await this.resolveOwnerUserId(generationRequestId);
-    if (!ownerUserId) {
-      throw new Error(`userId not found for generationRequest ${generationRequestId}`);
-    }
+    // PPTX сейчас не используется. Резолв владельца нужен только для сохранения
+    // PPTX-файла и оставлен рядом с отключённым блоком экспорта ниже.
+    // const ownerUserId = await this.resolveOwnerUserId(generationRequestId);
+    // if (!ownerUserId) {
+    //   throw new Error(`userId not found for generationRequest ${generationRequestId}`);
+    // }
 
     try {
       // 1. Генерируем данные и финальный HTML через шаблон
@@ -74,6 +83,8 @@ export class ReplicatePresentationProcessor extends WorkerHost {
         audience: targetAudience,
         style: style as PresentationStyle,
         color: color as PresentationColor,
+        grade,
+        extraNotes,
       });
 
       if (!html || html.length < 200) {
@@ -81,28 +92,33 @@ export class ReplicatePresentationProcessor extends WorkerHost {
       }
       this.logger.log(`Presentation HTML ready: ${data.slides.length} slides, style=${data.style}, color=${data.color}, htmlLength=${html.length}`);
 
-      // 2. PPTX из JSON
-      let pptxUrl: string | undefined;
-      try {
-        const pptxBuffer = await this.pptxService.build(data);
-        const pptxFile = await this.filesService.saveBuffer(
-          pptxBuffer, `presentation-${generationRequestId}.pptx`, ownerUserId,
-        );
-        pptxUrl = pptxFile.url;
-      } catch (e: any) {
-        this.logger.error(`PPTX export failed: ${e?.message}`);
-      }
+      // 2. PPTX из JSON — временно отключён. Сайт и боты отдают только PDF.
+      // Код намеренно оставлен для быстрого возврата PPTX при необходимости.
+      //
+      // let pptxUrl: string | undefined;
+      // try {
+      //   const pptxBuffer = await this.pptxService.build(data);
+      //   const pptxFile = await this.filesService.saveBuffer(
+      //     pptxBuffer, `presentation-${generationRequestId}.pptx`, ownerUserId,
+      //   );
+      //   pptxUrl = pptxFile.url;
+      // } catch (e: any) {
+      //   this.logger.error(`PPTX export failed: ${e?.message}`);
+      // }
 
       const outputData = {
         provider: 'Replicate',
         mode: 'presentation',
         content: html,
         presentationData: data,
+        // Canvas JSON создаётся детерминированно из semantic JSON. AI по-прежнему
+        // отвечает только за содержание и не генерирует координаты.
+        canvasData: convertPresentationDataToCanvas(data),
         topic,
         slidesCount: data.slides.length,
         style: data.style,
         color: data.color,
-        pptxUrl,
+        // pptxUrl, // PPTX временно отключён; текущий формат выдачи — PDF.
         completedAt: new Date().toISOString(),
         ...(duration ? { _duration: duration } : {}),
       };

@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios, { AxiosInstance } from 'axios';
+import { HttpsProxyAgent } from 'https-proxy-agent';
 
 @Injectable()
 export class ReplicateService {
@@ -8,12 +9,37 @@ export class ReplicateService {
   private readonly apiToken: string;
   private readonly http: AxiosInstance;
   private readonly defaultModel = 'meta/llama-4-maverick-instruct';
+  // Прокси для egress к api.replicate.com — РКН блокирует прямой путь
+  // с РФ-хостинга. Используем тот же URL, что и telegram-bot (он через
+  // TELEGRAM_PROXY обходит блок api.telegram.org). Совместимо: read и
+  // REPLICATE_PROXY, и TELEGRAM_PROXY, и HTTPS_PROXY — берём первый непустой.
+  private readonly proxyAgent: HttpsProxyAgent<string> | undefined;
 
   constructor(private readonly configService: ConfigService) {
     this.apiToken = this.configService.get<string>('REPLICATE_API_TOKEN');
 
     if (!this.apiToken) {
       this.logger.warn('REPLICATE_API_TOKEN is not set. Replicate integration will not work.');
+    }
+
+    const proxyUrl = (
+      this.configService.get<string>('REPLICATE_PROXY') ||
+      this.configService.get<string>('TELEGRAM_PROXY') ||
+      this.configService.get<string>('HTTPS_PROXY') ||
+      this.configService.get<string>('https_proxy') ||
+      this.configService.get<string>('ALL_PROXY') ||
+      ''
+    ).trim();
+    if (proxyUrl) {
+      try {
+        this.proxyAgent = new HttpsProxyAgent(proxyUrl);
+        const u = new URL(proxyUrl);
+        this.logger.log(
+          `Routing Replicate egress через прокси: ${u.protocol}//${u.host} (auth: ${u.username ? 'yes' : 'no'})`,
+        );
+      } catch (e) {
+        this.logger.error(`Failed to init proxy agent for "${proxyUrl}": ${(e as Error).message}`);
+      }
     }
 
     this.http = axios.create({
@@ -24,6 +50,9 @@ export class ReplicateService {
         Prefer: 'wait',
       },
       timeout: 180000,
+      ...(this.proxyAgent
+        ? { httpsAgent: this.proxyAgent, proxy: false }
+        : {}),
     });
   }
 
@@ -61,6 +90,7 @@ export class ReplicateService {
             'Content-Type': 'application/json',
           },
           timeout: 30000,
+          ...(this.proxyAgent ? { httpsAgent: this.proxyAgent, proxy: false } : {}),
         },
       );
 
@@ -83,6 +113,7 @@ export class ReplicateService {
           'Cache-Control': 'no-store',
         },
         responseType: 'stream',
+        ...(this.proxyAgent ? { httpsAgent: this.proxyAgent, proxy: false } : {}),
       });
 
       return await new Promise((resolve, reject) => {
@@ -223,8 +254,21 @@ export class ReplicateService {
           continue;
         }
 
-        this.logger.error(`Replicate API error: ${error.message}`, error.response?.data);
-        throw error;
+        // Расширенное логирование: видим HTTP-статус, тело ответа, axios-код и URL.
+        // Иначе всё прячется за общим "Replicate вернул пустой/обрезанный результат" выше по стеку.
+        this.logger.error(
+          `Replicate API error [model=${targetModel}, attempt=${attempt}/${maxRetries}]: ` +
+            `status=${status ?? 'n/a'}, code=${error.code ?? 'n/a'}, message="${error.message}", ` +
+            `body=${JSON.stringify(error.response?.data ?? null).slice(0, 500)}`,
+        );
+        // Перебрасываем с обогащённым сообщением — попадёт в outer catch generations.service
+        // и в итоге в текст ошибки пользователю / в логи Sentry / Loki.
+        const enrichedMsg = status
+          ? `Replicate HTTP ${status}: ${error.response?.data?.detail || error.response?.data?.title || error.message}`
+          : `Replicate network error (${error.code ?? 'unknown'}): ${error.message}`;
+        const wrapped = new Error(enrichedMsg);
+        (wrapped as any).original = error;
+        throw wrapped;
       }
     }
 
@@ -325,6 +369,7 @@ export class ReplicateService {
             Authorization: `Bearer ${this.apiToken}`,
             'Content-Type': 'application/json',
           },
+          ...(this.proxyAgent ? { httpsAgent: this.proxyAgent, proxy: false } : {}),
         });
         consecutiveErrors = 0;
 

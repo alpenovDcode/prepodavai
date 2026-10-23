@@ -267,6 +267,33 @@ export class FilesService {
     }
   }
 
+  /**
+   * Получить файл только если он принадлежит конкретному пользователю.
+   * Canvas-презентации используют это при server-side PDF-рендере, чтобы
+   * assetHash нельзя было подменить hash'ем чужого файла.
+   */
+  async getFileForUser(
+    hash: string,
+    userId: string,
+  ): Promise<{ buffer: Buffer; mimeType: string } | null> {
+    this.validateHash(hash);
+    const dbFile = await this.prisma.uploadedFile.findFirst({
+      where: { hash, userId },
+    });
+    if (!dbFile) return null;
+
+    const ext = path.extname(dbFile.filename) || this.getExtFromMime(dbFile.mimeType);
+    const filePath = this.getSafeFilePath(hash, ext);
+    try {
+      return {
+        buffer: await fs.readFile(filePath),
+        mimeType: dbFile.mimeType,
+      };
+    } catch {
+      return null;
+    }
+  }
+
   private getExtFromMime(mimeType: string): string {
     const map: Record<string, string> = {
       'image/jpeg': '.jpg',

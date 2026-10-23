@@ -8,6 +8,8 @@ import { GammaPollingProcessor } from './processors/gamma-polling.processor';
 import { ReplicatePresentationProcessor } from './processors/replicate-presentation.processor';
 import { PresentationTemplateService } from './presentation/presentation-template.service';
 import { PresentationPptxV2Service } from './presentation/presentation-pptx-v2.service';
+import { PresentationCanvasService } from './presentation/presentation-canvas.service';
+import { MathRendererService } from './presentation/math-renderer.service';
 import { LessonPreparationProcessor } from './processors/lesson-preparation.processor';
 // import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 
@@ -40,6 +42,7 @@ import { FeedbackStrategy } from './strategies/feedback.strategy';
 import { VideoAnalysisStrategy } from './strategies/video-analysis.strategy';
 import { WorksheetV2Service } from './v2/worksheet-v2.service';
 import { TextV2Service } from './v2/text-v2.service';
+import { UploadMaterialService } from './upload-material.service';
 
 @Module({
   imports: [
@@ -90,6 +93,8 @@ import { TextV2Service } from './v2/text-v2.service';
     ReplicatePresentationProcessor,
     PresentationTemplateService,
     PresentationPptxV2Service,
+    PresentationCanvasService,
+    MathRendererService,
     LessonPreparationProcessor,
     VideoAnalysisProcessor,
     SalesAdvisorProcessor,
@@ -111,7 +116,8 @@ import { TextV2Service } from './v2/text-v2.service';
     VideoAnalysisStrategy,
     WorksheetV2Service,
     TextV2Service,
+    UploadMaterialService,
   ],
-  exports: [GenerationsService, GenerationQueueService, GenerationHelpersService, WorksheetV2Service, TextV2Service],
+  exports: [GenerationsService, GenerationQueueService, GenerationHelpersService, WorksheetV2Service, TextV2Service, UploadMaterialService],
 })
 export class GenerationsModule {}

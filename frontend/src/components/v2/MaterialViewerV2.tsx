@@ -28,6 +28,17 @@ import { DocumentRenderer } from '@/components/blocks/DocumentRenderer'
 import { isJsonBlocksFormat, GenerationDocument as GenerationDocumentSchema, JSON_BLOCKS_FORMAT } from '@/lib/blocks/schema'
 import type { GenerationDocument as GenerationDocumentT } from '@/lib/blocks/schema'
 import { DocumentEditor } from '@/components/blocks/editor/DocumentEditor'
+import { useAuthedFileUrl } from '@/hooks/useAuthedFileUrl'
+import PresentationSlideEditor, { type PresentationData as SlideEditorData } from '@/components/v2/PresentationSlideEditor'
+import PresentationCanvasEditor, {
+    PresentationCanvasPlayer,
+} from '@/components/v2/presentation-canvas/PresentationCanvas'
+import {
+    type CanvasPresentation,
+    convertPresentationDataToCanvas,
+    parseCanvasPresentation,
+} from '@/types/presentation-canvas'
+import { USE_PRESENTATION_CANVAS_EDITOR } from '@/lib/features/presentationCanvas'
 
 interface Props {
     lessonId: string
@@ -429,7 +440,27 @@ export default function MaterialViewerV2({ lessonId, generationId, isEditable = 
     }, [showMenu])
 
     const genType = generation?.generationType || ''
+    const isPresentation = genType === 'presentation'
     const isLessonPrep = genType === 'lesson_preparation' || genType === 'lesson-preparation'
+
+    // Структурированные данные презентации (если есть). Редактор работает только когда они есть.
+    const presentationData: SlideEditorData | null = useMemo(() => {
+        if (!isPresentation) return null
+        const od: any = generation?.outputData
+        const pd = od?.presentationData
+        if (pd && Array.isArray(pd.slides) && pd.slides.length > 0) return pd as SlideEditorData
+        return null
+    }, [isPresentation, generation?.outputData])
+
+    // Новый свободный формат. Legacy presentationData не меняем: для старых
+    // материалов строим canvas-копию в памяти и сохраняем её только после правки.
+    const canvasData: CanvasPresentation | null = useMemo(() => {
+        if (!isPresentation || !USE_PRESENTATION_CANVAS_EDITOR) return null
+        const od: any = generation?.outputData
+        const existing = parseCanvasPresentation(od?.canvasData)
+        if (existing) return existing
+        return presentationData ? convertPresentationDataToCanvas(presentationData) : null
+    }, [isPresentation, generation?.outputData, presentationData])
 
     // Секции Вау-урока: [{ title, content }]. Берём массив для табов.
     const sections = useMemo<Array<{ title: string; content: string }>>(() => {
@@ -464,6 +495,24 @@ export default function MaterialViewerV2({ lessonId, generationId, isEditable = 
         return od.imageUrl || od.imageUrls?.[0] || od.url || od.image || null
     }, [generation?.outputData, isImageType])
 
+    // Загруженный пользователем материал (PDF / JPG / PNG).
+    // outputData содержит { fileHash, fileUrl, mimeType, originalName, size }.
+    const isUploadedFile = genType === 'uploaded_file' || genType === 'uploadedFile'
+    const uploadedFile = useMemo(() => {
+        if (!isUploadedFile) return null
+        const od: any = generation?.outputData
+        if (!od || typeof od !== 'object') return null
+        const url: string | undefined = od.fileUrl
+        const mimeType: string | undefined = od.mimeType
+        if (!url || !mimeType) return null
+        return { url, mimeType, originalName: od.originalName as string | undefined }
+    }, [isUploadedFile, generation?.outputData])
+    // Для PDF тянем через blob URL (см. useAuthedFileUrl) —
+    // backend ставит X-Frame-Options: SAMEORIGIN, прямой src блокируется.
+    const uploadedPdf = useAuthedFileUrl(
+        uploadedFile?.mimeType === 'application/pdf' ? uploadedFile.url : null,
+    )
+
     // ── Маршрутизация на новый JSON-формат blocks-v1 ──
     // Если outputData содержит { format: 'json-blocks-v1', outputDoc: <doc> },
     // мы рендерим через DocumentRenderer вместо iframe со старым HTML.
@@ -479,7 +528,12 @@ export default function MaterialViewerV2({ lessonId, generationId, isEditable = 
     // V2 JSON-blocks НЕ показываем через legacy — у них свой Renderer/Editor.
     // Иначе у JSON-генераций (новый формат) исчезает табs row и кнопка
     // редактирования — учитель видит только PDF + «Выдать задание».
-    const showAsLegacy = !!generation && !isHtmlType && !(isImageType && imageUrl) && !isV2
+    const showAsLegacy =
+        !!generation &&
+        !isHtmlType &&
+        !(isImageType && imageUrl) &&
+        !isV2 &&
+        !(isUploadedFile && uploadedFile)
     const displayTitle = (generation?.title?.trim() || lesson?.title || 'Материал').trim()
 
     const srcDoc = useMemo(() => {
@@ -768,16 +822,21 @@ export default function MaterialViewerV2({ lessonId, generationId, isEditable = 
                 }
                 actions={
                     <div className="flex items-center gap-1.5 print-hide max-sm:gap-1">
-                        <Button
-                            variant="secondary"
-                            size="sm"
-                            leftIcon={<Download className="w-3.5 h-3.5" />}
-                            onClick={() => setShowPdf(true)}
-                            disabled={tab === 'edit'}
-                            title="Скачать PDF"
-                        >
-                            <span className="max-sm:hidden">Скачать</span>
-                        </Button>
+                        {/* Для загруженных файлов наша «Скачать PDF» неприменима
+                            (он генерируется из HTML, которого нет). У встроенного
+                            PDF-viewer'а есть своя кнопка скачивания. */}
+                        {!isUploadedFile && (
+                            <Button
+                                variant="secondary"
+                                size="sm"
+                                leftIcon={<Download className="w-3.5 h-3.5" />}
+                                onClick={() => setShowPdf(true)}
+                                disabled={tab === 'edit'}
+                                title="Скачать PDF"
+                            >
+                                <span className="max-sm:hidden">Скачать</span>
+                            </Button>
+                        )}
                         <Button variant="primary" size="sm" leftIcon={<Send className="w-3.5 h-3.5" />} onClick={openAssignModal} disabled={preparingAssign}>
                             <span className="max-sm:hidden">{preparingAssign ? 'Готовим…' : 'Выдать ученикам'}</span>
                             <span className="hidden max-sm:inline">{preparingAssign ? '…' : 'Выдать'}</span>
@@ -949,12 +1008,12 @@ export default function MaterialViewerV2({ lessonId, generationId, isEditable = 
                     {typeHasAnswers(genType) && (
                         <TabBtn active={tab === 'answers'} onClick={() => setTab('answers')} icon={<KeyRound className="w-4 h-4" />}>С ответами</TabBtn>
                     )}
-                    {/* Кнопка редактирования: JSON — DocumentEditor, HTML — contentEditable iframe. */}
-                    {(isV2 || !!srcDoc) && (
+                    {/* Старый PresentationSlideEditor остаётся fallback при выключенном canvas feature flag. */}
+                    {(isV2 || !!srcDoc || !!presentationData || !!canvasData) && (
                         <TabBtn active={tab === 'edit'} onClick={() => setTab('edit')} icon={<Edit3 className="w-4 h-4" />} data-tour="edit-tab">Редактировать</TabBtn>
                     )}
 
-                    {tab === 'edit' && !isV2 && (
+                    {tab === 'edit' && !isV2 && !presentationData && !canvasData && (
                         <div className="ml-auto flex items-center gap-1.5 pb-2">
                             <Button variant="ghost" size="sm" leftIcon={<X className="w-3.5 h-3.5" />} onClick={() => setTab('preview')} disabled={savingHtml}>
                                 Отмена
@@ -967,7 +1026,61 @@ export default function MaterialViewerV2({ lessonId, generationId, isEditable = 
                 </div>
 
                 {/* Preview frame */}
-                {isV2 && v2Doc && tab === 'edit' ? (
+                {canvasData && tab === 'edit' ? (
+                    <div className="bg-surface border border-ink-200 rounded-lg overflow-hidden h-[calc(100vh-260px)] min-h-[500px]">
+                        <PresentationCanvasEditor
+                            initialData={canvasData}
+                            saving={savingHtml}
+                            onCancel={() => setTab('preview')}
+                            onSave={async (next) => {
+                                setSavingHtml(true)
+                                try {
+                                    const res = await apiClient.patch(`/generate/${generation.id}`, { canvasData: next })
+                                    const newOutput = res?.data?.outputData ?? res?.data?.result
+                                    setGeneration(g => g ? {
+                                        ...g,
+                                        outputData: newOutput ?? { ...(g.outputData || {}), canvasData: next },
+                                    } : g)
+                                    toast.success('Презентация обновлена')
+                                    setTab('preview')
+                                } catch (err: any) {
+                                    const resp = err?.response?.data
+                                    const msg = (Array.isArray(resp?.message) ? resp.message.join('; ') : resp?.message) || err?.message || 'Не удалось сохранить'
+                                    toast.error(msg)
+                                } finally {
+                                    setSavingHtml(false)
+                                }
+                            }}
+                        />
+                    </div>
+                ) : presentationData && tab === 'edit' ? (
+                    <div className="bg-surface border border-ink-200 rounded-lg overflow-hidden h-[calc(100vh-260px)] min-h-[500px]">
+                        <PresentationSlideEditor
+                            initialData={presentationData}
+                            saving={savingHtml}
+                            onCancel={() => setTab('preview')}
+                            onSave={async (next) => {
+                                setSavingHtml(true)
+                                try {
+                                    const res = await apiClient.patch(`/generate/${generation.id}`, {
+                                        presentationData: next,
+                                    })
+                                    // Backend пересобрал content (HTML). Подменяем outputData локально, чтобы превью показало новое.
+                                    const newOutput = res?.data?.outputData ?? res?.data?.result
+                                    setGeneration((g) => g ? { ...g, outputData: newOutput ?? { ...(g.outputData || {}), presentationData: next } } : g)
+                                    toast.success('Презентация обновлена')
+                                    setTab('preview')
+                                } catch (err: any) {
+                                    const resp = err?.response?.data
+                                    const msg = (Array.isArray(resp?.message) ? resp.message.join('; ') : resp?.message) || err?.message || 'Не удалось сохранить'
+                                    toast.error(msg)
+                                } finally {
+                                    setSavingHtml(false)
+                                }
+                            }}
+                        />
+                    </div>
+                ) : isV2 && v2Doc && tab === 'edit' ? (
                     <div className="bg-ink-50 rounded-lg p-4 max-md:p-2">
                         <DocumentEditor
                             initialDoc={v2Doc}
@@ -999,6 +1112,10 @@ export default function MaterialViewerV2({ lessonId, generationId, isEditable = 
                     <div className="bg-ink-50 rounded-lg p-4 max-md:p-2 print-frame">
                         <DocumentRenderer doc={v2Doc} showAnswers={tab === 'answers'} />
                     </div>
+                ) : canvasData ? (
+                    <div className="bg-surface border border-ink-200 rounded-lg overflow-hidden h-[calc(100vh-260px)] min-h-[500px] print-frame">
+                        <PresentationCanvasPlayer data={canvasData} />
+                    </div>
                 ) : isImageType && imageUrl ? (
                     <div className="relative bg-white border border-ink-200 rounded-lg overflow-hidden shadow-sm flex items-center justify-center p-6 print-frame">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -1008,6 +1125,39 @@ export default function MaterialViewerV2({ lessonId, generationId, isEditable = 
                             className="max-w-full max-h-[80vh] h-auto object-contain rounded-md"
                         />
                     </div>
+                ) : isUploadedFile && uploadedFile ? (
+                    uploadedFile.mimeType === 'application/pdf' ? (
+                        <div className="relative bg-white border border-ink-200 rounded-lg overflow-hidden shadow-sm print-frame">
+                            {uploadedPdf.loading && (
+                                <div className="absolute inset-0 z-10 flex items-center justify-center bg-white">
+                                    <Loader2 className="w-6 h-6 text-brand-500 animate-spin" />
+                                </div>
+                            )}
+                            {uploadedPdf.error ? (
+                                <div className="p-8 text-center text-[13px] text-ink-500">
+                                    Не удалось загрузить PDF. <a href={uploadedFile.url} target="_blank" rel="noopener noreferrer" className="text-brand-600 underline">Открыть в новой вкладке</a>
+                                </div>
+                            ) : uploadedPdf.blobUrl ? (
+                                <iframe
+                                    src={uploadedPdf.blobUrl}
+                                    title={displayTitle}
+                                    className="block w-full bg-white border-0"
+                                    style={{ minHeight: '600px', height: '80vh' }}
+                                />
+                            ) : (
+                                <div style={{ minHeight: '600px', height: '80vh' }} />
+                            )}
+                        </div>
+                    ) : (
+                        <div className="relative bg-white border border-ink-200 rounded-lg overflow-hidden shadow-sm flex items-center justify-center p-6 print-frame">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                                src={uploadedFile.url}
+                                alt={displayTitle}
+                                className="max-w-full max-h-[80vh] h-auto object-contain rounded-md"
+                            />
+                        </div>
+                    )
                 ) : srcDoc ? (
                     <div className="relative bg-white border border-ink-200 rounded-lg overflow-hidden shadow-sm print-frame">
                         {iframeLoading && (
@@ -1025,7 +1175,9 @@ export default function MaterialViewerV2({ lessonId, generationId, isEditable = 
                             width="100%"
                             className="block bg-white border-0 print-frame"
                             style={{ width: '100%', minHeight: '600px', height: '80vh' }}
-                            sandbox="allow-scripts allow-same-origin allow-popups allow-modals"
+                            sandbox={presentationData
+                                ? 'allow-scripts'
+                                : 'allow-scripts allow-same-origin allow-popups allow-modals'}
                         />
                     </div>
                 ) : (
@@ -1056,6 +1208,7 @@ export default function MaterialViewerV2({ lessonId, generationId, isEditable = 
                 }
                 hasAnswers={typeHasAnswers(genType) || /Рабочий лист|Тест/i.test(sections[sectionIdx]?.title || '')}
                 sectionIndex={sections.length > 1 ? sectionIdx : undefined}
+                presentation={isPresentation}
             />
         </>
     )

@@ -24,7 +24,17 @@ export class NotificationsService {
       | 'lesson_scheduled'
       | 'lesson_rescheduled'
       | 'lesson_cancelled'
-      | 'lesson_reminder';
+      | 'lesson_reminder'
+      | 'tutor_exchange.dialog_created'
+      | 'tutor_exchange.trial_scheduled'
+      | 'tutor_exchange.trial_result'
+      | 'tutor_exchange.payment_reported'
+      | 'tutor_exchange.payment_confirmed'
+      | 'tutor_exchange.payment_overdue'
+      | 'tutor_exchange.dispute_opened'
+      | 'tutor_exchange.message_new'
+      | 'tutor_exchange.rating_received'
+      | 'tutor_exchange.violation_reported';
     title: string;
     message: string;
     metadata?: Record<string, any>;

@@ -147,6 +147,11 @@ export default function Home() {
         setTriggerAuth(true)
       }
     }
+
+    // ?auth=register — открыть форму регистрации (например, переход из блога)
+    if (urlParams.get('auth') === 'register' || urlParams.get('auth') === 'login') {
+      setTriggerAuth(true)
+    }
   }, [])
 
   // 2. Немедленная проверка авторизации

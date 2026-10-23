@@ -2,8 +2,18 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
-    Presentation as PresentationIcon, FileDown, Copy, Check, RefreshCw, Loader2, Eye, Wand2, Users, Compass,
+    Presentation as PresentationIcon, FileDown, Copy, Check, RefreshCw, Loader2, Eye, Wand2, Users, Compass, Edit3,
 } from 'lucide-react'
+import PresentationSlideEditor, { type PresentationData as SlideEditorData } from '@/components/v2/PresentationSlideEditor'
+import PresentationCanvasEditor, {
+    PresentationCanvasPlayer,
+} from '@/components/v2/presentation-canvas/PresentationCanvas'
+import {
+    type CanvasPresentation,
+    convertPresentationDataToCanvas,
+    parseCanvasPresentation,
+} from '@/types/presentation-canvas'
+import { USE_PRESENTATION_CANVAS_EDITOR } from '@/lib/features/presentationCanvas'
 import toast from 'react-hot-toast'
 import { useGenerations } from '@/lib/hooks/useGenerations'
 import { apiClient } from '@/lib/api/client'
@@ -64,12 +74,72 @@ const AUDIENCES = [
     { value: 'Коллеги',    backend: 'colleagues' },
 ] as const
 
+/** Схематичная мини-превьюшка стиля слайда (16:9). */
+function StyleThumb({ styleKey }: { styleKey: StyleKey }) {
+    const base = 'w-full aspect-[16/9] rounded-md overflow-hidden border border-ink-100'
+    if (styleKey === 'modern') {
+        return (
+            <div className={`${base} bg-white flex`}>
+                <div className="w-1.5 bg-indigo-500" />
+                <div className="flex-1 p-2 flex flex-col gap-1 justify-center">
+                    <div className="h-1.5 w-3/4 rounded bg-ink-800" />
+                    <div className="h-1 w-full rounded bg-ink-200" />
+                    <div className="h-1 w-5/6 rounded bg-ink-200" />
+                </div>
+            </div>
+        )
+    }
+    if (styleKey === 'academic') {
+        return (
+            <div className={`${base} bg-[#FBFAF7] p-2 flex flex-col items-center justify-center gap-1`}>
+                <div className="h-1.5 w-1/2 rounded bg-ink-700" />
+                <div className="h-[2px] w-8 bg-amber-600/70" />
+                <div className="h-1 w-4/5 rounded bg-ink-300 mt-0.5" />
+                <div className="h-1 w-3/4 rounded bg-ink-300" />
+            </div>
+        )
+    }
+    if (styleKey === 'creative') {
+        return (
+            <div className={`${base} bg-white flex flex-col`}>
+                <div className="h-1/2 bg-gradient-to-r from-violet-500 to-pink-500 flex items-center px-2">
+                    <div className="h-1.5 w-2/3 rounded bg-white/90" />
+                </div>
+                <div className="flex-1 p-2 flex flex-col gap-1 justify-center">
+                    <div className="h-1 w-full rounded bg-ink-200" />
+                    <div className="h-1 w-4/5 rounded bg-ink-200" />
+                </div>
+            </div>
+        )
+    }
+    // corporate
+    return (
+        <div className={`${base} bg-white flex flex-col`}>
+            <div className="h-1/3 bg-slate-800 flex items-center px-2">
+                <div className="h-1.5 w-1/2 rounded bg-white/80" />
+            </div>
+            <div className="flex-1 p-2 grid grid-cols-2 gap-1.5">
+                <div className="flex flex-col gap-1 justify-center">
+                    <div className="h-1 w-full rounded bg-ink-200" />
+                    <div className="h-1 w-4/5 rounded bg-ink-200" />
+                </div>
+                <div className="flex flex-col gap-1 justify-center">
+                    <div className="h-1 w-full rounded bg-ink-200" />
+                    <div className="h-1 w-3/4 rounded bg-ink-200" />
+                </div>
+            </div>
+        </div>
+    )
+}
+
 export default function PresentationV2() {
     // form
     const [topic, setTopic] = useState('')
     const [thesis, setThesis] = useState('')
     const [slidesCount, setSlidesCount] = useState(12)
     const [audience, setAudience] = useState<typeof AUDIENCES[number]['value']>('Школьники')
+    const [grade, setGrade] = useState('')
+    const [extraNotes, setExtraNotes] = useState('')
     const [style, setStyle] = useState<StyleKey>('modern')
     const [color, setColor] = useState<ColorKey>('indigo')
     // result
@@ -78,13 +148,18 @@ export default function PresentationV2() {
     const [pdfUrl, setPdfUrl] = useState<string | null>(null)
     const [pptxUrl, setPptxUrl] = useState<string | null>(null)
     const [errorMsg, setErrorMsg] = useState<string>('')
+    // structured data for editor
+    const [presentationData, setPresentationData] = useState<SlideEditorData | null>(null)
+    const [canvasData, setCanvasData] = useState<CanvasPresentation | null>(null)
+    const [editing, setEditing] = useState(false)
+    const [savingEdit, setSavingEdit] = useState(false)
 
     const { generate: startGeneration, pollStatus, isGenerating } = useGenerations()
     const [mobileTab, setMobileTab] = useState<'config' | 'preview'>('config')
     const iframeRef = useRef<HTMLIFrameElement>(null)
     const [copied, setCopied] = useState(false)
 
-    const hasResult = !!content && !isGenerating
+    const hasResult = (!!content || !!canvasData) && !isGenerating
 
     const generate = async () => {
         if (!topic.trim()) { toast.error('Укажите тему презентации'); return }
@@ -92,6 +167,9 @@ export default function PresentationV2() {
         setContent(null)
         setPdfUrl(null)
         setPptxUrl(null)
+        setPresentationData(null)
+        setCanvasData(null)
+        setEditing(false)
         setMobileTab('preview')
 
         try {
@@ -103,6 +181,8 @@ export default function PresentationV2() {
                 style,
                 color,
                 targetAudience: backendAudience,
+                grade: grade || undefined,
+                extraNotes: extraNotes.trim() || undefined,
             }
             const requestId = await startGeneration({ type: 'presentation', params })
             if (!requestId) throw new Error('Не удалось создать запрос')
@@ -113,10 +193,14 @@ export default function PresentationV2() {
 
             // pollStatus отдаёт `outputData` из БД, но иногда бэк/контроллер
             // оборачивает его дополнительным слоем — пробуем все возможные пути.
+            // `html` — fallback для старых генераций, где поле называлось иначе.
             const candidates = [
                 r?.content,
+                r?.html,
                 r?.outputData?.content,
+                r?.outputData?.html,
                 r?.result?.content,
+                r?.result?.html,
                 r?.data?.content,
             ]
             // Принимаем любую достаточно длинную строку — HTML может не начинаться
@@ -126,6 +210,38 @@ export default function PresentationV2() {
             // pdfUrl / pptxUrl тоже могут быть на разных уровнях.
             const pdfUrlFound = r?.pdfUrl ?? r?.outputData?.pdfUrl ?? r?.result?.pdfUrl ?? r?.exportUrl ?? null
             const pptxUrlFound = r?.pptxUrl ?? r?.outputData?.pptxUrl ?? r?.result?.pptxUrl ?? null
+
+            if (!html) {
+                // Диагностика: логируем структуру r чтобы понять откуда идёт фолбэк
+                console.warn('[PresentationV2] html not found. r keys:', Object.keys(r ?? {}),
+                    '| candidates types/lengths:', candidates.map(c =>
+                        c == null ? 'null' : typeof c === 'string' ? `str(${c.length})` : typeof c
+                    ),
+                    '| pptxUrlFound:', pptxUrlFound,
+                )
+            }
+
+            // Структурные данные для редактора (если есть)
+            const pdata =
+                r?.presentationData ??
+                r?.outputData?.presentationData ??
+                r?.result?.presentationData ??
+                null
+            if (pdata && Array.isArray(pdata.slides) && pdata.slides.length > 0) {
+                setPresentationData(pdata as SlideEditorData)
+            }
+            const rawCanvas =
+                r?.canvasData ??
+                r?.outputData?.canvasData ??
+                r?.result?.canvasData ??
+                null
+            const parsedCanvas = parseCanvasPresentation(rawCanvas)
+            if (parsedCanvas) {
+                setCanvasData(parsedCanvas)
+            } else if (pdata && Array.isArray(pdata.slides) && pdata.slides.length > 0) {
+                // Старые презентации конвертируются без изменения исходного JSON.
+                setCanvasData(convertPresentationDataToCanvas(pdata as SlideEditorData))
+            }
 
             if (html) {
                 setContent(html)
@@ -176,13 +292,9 @@ ${pptxUrlFound ? `<a href="${pptxUrlFound}" target="_blank">Скачать PPTX<
 
     const downloadFile = async (format: 'pdf' | 'pptx') => {
         if (!presentationId) return
-        // Если URL уже есть — открываем напрямую
-        const direct = format === 'pptx' ? pptxUrl : pdfUrl
-        if (direct) {
-            window.open(direct, '_blank', 'noopener')
-            return
-        }
-        // Иначе — fallback на endpoint экспорта
+        // Всегда качаем через endpoint экспорта (с JWT-авторизацией).
+        // window.open без auth-header не работает с /api/files/:hash.
+        // Endpoint сам проверяет закешированный файл, при необходимости пересобирает.
         try {
             const res = await apiClient.post(
                 `/generate/${presentationId}/presentation/${format}`,
@@ -199,6 +311,60 @@ ${pptxUrlFound ? `<a href="${pptxUrlFound}" target="_blank">Скачать PPTX<
             window.URL.revokeObjectURL(url)
         } catch (e: any) {
             toast.error(`Не удалось скачать ${format.toUpperCase()}: ${e?.message || ''}`)
+        }
+    }
+
+    const saveEdits = async (next: SlideEditorData) => {
+        if (!presentationId) {
+            toast.error('Нет presentationId — нечего сохранять')
+            return
+        }
+        setSavingEdit(true)
+        try {
+            const res = await apiClient.patch(`/generate/${presentationId}`, {
+                presentationData: next,
+            })
+            const newOutput = res?.data?.outputData ?? res?.data?.result ?? {}
+            const newHtml = newOutput.content ?? newOutput.html
+            if (newHtml) setContent(newHtml)
+            setPresentationData(next)
+            setEditing(false)
+            // Сбрасываем кэшированные URL'ы — backend их обнулил, перескачивание соберёт заново.
+            setPdfUrl(null)
+            setPptxUrl(null)
+            toast.success('Презентация обновлена')
+        } catch (e: any) {
+            const resp = e?.response?.data
+            const msg = (Array.isArray(resp?.message) ? resp.message.join('; ') : resp?.message) || e?.message || 'Не удалось сохранить'
+            console.error('[PresentationV2] saveEdits failed:', { status: e?.response?.status, data: resp, error: e })
+            toast.error(`Не удалось сохранить: ${msg}`)
+        } finally {
+            setSavingEdit(false)
+        }
+    }
+
+    const saveCanvasEdits = async (next: CanvasPresentation) => {
+        if (!presentationId) {
+            toast.error('Нет presentationId — нечего сохранять')
+            return
+        }
+        setSavingEdit(true)
+        try {
+            const res = await apiClient.patch(`/generate/${presentationId}`, { canvasData: next })
+            const newOutput = res?.data?.outputData ?? res?.data?.result ?? {}
+            const savedCanvas = parseCanvasPresentation(newOutput.canvasData) || next
+            setCanvasData(savedCanvas)
+            if (newOutput.content) setContent(newOutput.content)
+            setPdfUrl(null)
+            setPptxUrl(null)
+            setEditing(false)
+            toast.success('Презентация обновлена')
+        } catch (e: any) {
+            const resp = e?.response?.data
+            const msg = (Array.isArray(resp?.message) ? resp.message.join('; ') : resp?.message) || e?.message || 'Не удалось сохранить'
+            toast.error(`Не удалось сохранить: ${msg}`)
+        } finally {
+            setSavingEdit(false)
         }
     }
 
@@ -234,7 +400,7 @@ ${pptxUrlFound ? `<a href="${pptxUrlFound}" target="_blank">Скачать PPTX<
                         <IconTile color="success" size="md"><PresentationIcon className="w-[18px] h-[18px]" /></IconTile>
                         <div>
                             <h2 className="font-display font-bold text-[16px] text-ink-900">Презентация</h2>
-                            <p className="text-[11px] text-ink-500">PPTX/PDF · ~60 секунд</p>
+                            <p className="text-[11px] text-ink-500">PDF · ~60 секунд</p>
                         </div>
                     </div>
 
@@ -285,14 +451,38 @@ ${pptxUrlFound ? `<a href="${pptxUrlFound}" target="_blank">Скачать PPTX<
                             options={AUDIENCES.map(a => ({ value: a.value, label: a.value }))}
                         />
 
-                        {/* Style */}
+                        <Select
+                            label="Класс"
+                            value={grade}
+                            onChange={e => setGrade(e.target.value)}
+                            options={[
+                                { value: '', label: 'Не указан' },
+                                ...Array.from({ length: 11 }, (_, i) => ({ value: `${i + 1} класс`, label: `${i + 1} класс` })),
+                            ]}
+                        />
+
+                        {/* Style — визуальные миниатюры */}
                         <div>
                             <label className="block text-[11px] font-bold uppercase tracking-wider text-ink-700 mb-1.5">Стиль</label>
-                            <Select
-                                value={style}
-                                onChange={e => setStyle(e.target.value as StyleKey)}
-                                options={STYLES.map(s => ({ value: s.value, label: s.label }))}
-                            />
+                            <div className="grid grid-cols-2 gap-2">
+                                {STYLES.map(s => (
+                                    <button
+                                        key={s.value}
+                                        type="button"
+                                        onClick={() => setStyle(s.value)}
+                                        className={`text-left rounded-lg border p-1.5 transition-all ${
+                                            style === s.value
+                                                ? 'border-brand-400 ring-2 ring-brand-400/20 bg-brand-50/40'
+                                                : 'border-ink-200 hover:border-ink-300 bg-surface'
+                                        }`}
+                                    >
+                                        <StyleThumb styleKey={s.value} />
+                                        <div className={`text-[11px] font-semibold mt-1 px-0.5 ${style === s.value ? 'text-brand-700' : 'text-ink-600'}`}>
+                                            {s.label}
+                                        </div>
+                                    </button>
+                                ))}
+                            </div>
                         </div>
 
                         {/* Color swatches */}
@@ -321,6 +511,20 @@ ${pptxUrlFound ? `<a href="${pptxUrlFound}" target="_blank">Скачать PPTX<
                             <div className="text-[11px] text-ink-500 mt-1.5">
                                 {COLORS.find(c => c.value === color)?.label}
                             </div>
+                        </div>
+
+                        {/* Extra notes */}
+                        <div>
+                            <label className="block text-[11px] font-bold uppercase tracking-wider text-ink-700 mb-1.5">
+                                Пожелания <span className="text-ink-400 normal-case font-normal">— необязательно</span>
+                            </label>
+                            <textarea
+                                value={extraNotes}
+                                onChange={e => setExtraNotes(e.target.value)}
+                                rows={2}
+                                placeholder="Например: больше примеров · сделай проще · с датами и картами"
+                                className="w-full p-3 rounded-md border border-ink-200 text-[13px] bg-surface focus:outline-none focus:border-brand-400 focus:ring-[3px] focus:ring-brand-400/15 transition-all resize-none"
+                            />
                         </div>
 
                         {/* Generate button */}
@@ -363,14 +567,21 @@ ${pptxUrlFound ? `<a href="${pptxUrlFound}" target="_blank">Скачать PPTX<
 
                         {hasResult && (
                             <div className="flex items-center gap-1.5 flex-wrap">
-                                <Button variant="ghost" size="sm" leftIcon={copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />} onClick={copyHtml}>
+                                {(canvasData || presentationData) && !editing && (
+                                    <Button variant="secondary" size="sm" leftIcon={<Edit3 className="w-3.5 h-3.5" />} onClick={() => {
+                                        setEditing(true)
+                                    }}>
+                                        Редактировать
+                                    </Button>
+                                )}
+                                <Button variant="ghost" size="sm" leftIcon={copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />} onClick={copyHtml} disabled={editing}>
                                     {copied ? 'Скопировано' : 'HTML'}
                                 </Button>
-                                <Button variant="ghost" size="sm" leftIcon={<RefreshCw className="w-3.5 h-3.5" />} onClick={generate} disabled={isGenerating}>
+                                <Button variant="ghost" size="sm" leftIcon={<RefreshCw className="w-3.5 h-3.5" />} onClick={generate} disabled={isGenerating || editing}>
                                     Заново
                                 </Button>
-                                <Button variant="primary" size="sm" leftIcon={<FileDown className="w-3.5 h-3.5" />} onClick={() => downloadFile('pptx')}>
-                                    PPTX
+                                <Button variant="primary" size="sm" leftIcon={<FileDown className="w-3.5 h-3.5" />} onClick={() => downloadFile('pdf')} disabled={editing}>
+                                    PDF
                                 </Button>
                                 {presentationId && (
                                     <AssignTaskButton
@@ -390,13 +601,33 @@ ${pptxUrlFound ? `<a href="${pptxUrlFound}" target="_blank">Скачать PPTX<
                             <div className="h-full p-6 flex items-center justify-center">
                                 <GenerationProgress active={isGenerating} title="Создаём презентацию…" accentClassName="bg-brand-500" estimatedSeconds={60} />
                             </div>
+                        ) : editing && USE_PRESENTATION_CANVAS_EDITOR && canvasData ? (
+                            <div className="h-full bg-surface">
+                                <PresentationCanvasEditor
+                                    initialData={canvasData}
+                                    saving={savingEdit}
+                                    onCancel={() => setEditing(false)}
+                                    onSave={saveCanvasEdits}
+                                />
+                            </div>
+                        ) : editing && presentationData ? (
+                            <div className="h-full bg-surface">
+                                <PresentationSlideEditor
+                                    initialData={presentationData}
+                                    saving={savingEdit}
+                                    onCancel={() => setEditing(false)}
+                                    onSave={saveEdits}
+                                />
+                            </div>
+                        ) : USE_PRESENTATION_CANVAS_EDITOR && canvasData ? (
+                            <PresentationCanvasPlayer data={canvasData} />
                         ) : content ? (
                             <iframe
                                 ref={iframeRef}
                                 srcDoc={content}
                                 className="w-full h-full bg-white"
                                 title="presentation-preview"
-                                sandbox="allow-scripts allow-same-origin allow-forms"
+                                sandbox="allow-scripts"
                             />
                         ) : (
                             <div className="h-full flex items-center justify-center text-center px-8">

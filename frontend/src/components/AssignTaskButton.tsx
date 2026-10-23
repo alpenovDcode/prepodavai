@@ -23,7 +23,13 @@ export default function AssignTaskButton({
     label = 'Выдать задание',
 }: AssignTaskButtonProps) {
     const [preparing, setPreparing] = useState(false)
-    const [modalLessonId, setModalLessonId] = useState<string | null>(lessonId ?? null)
+    // На странице просмотра материала URL вида /dashboard/courses/{genId}/materials/{genId}
+    // кладёт generationId в оба сегмента — такой lessonId в БД не существует,
+    // и POST /assignments вернёт 404 "Lesson not found". В этом случае
+    // обнуляем initial и заставляем handleClick создать lesson + link-lesson.
+    const initialLessonId =
+        lessonId && (!generationId || lessonId !== generationId) ? lessonId : null
+    const [modalLessonId, setModalLessonId] = useState<string | null>(initialLessonId)
     const [showModal, setShowModal] = useState(false)
 
     const handleClick = async () => {

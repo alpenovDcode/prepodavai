@@ -72,7 +72,14 @@ export default function InvitePage() {
                         <i className="fas fa-times"></i>
                     </div>
                     <h1 className="text-2xl font-bold text-gray-900 mb-2">Приглашение недействительно</h1>
-                    <p className="text-gray-600">{error || 'Попросите преподавателя прислать новую ссылку.'}</p>
+                    <p className="text-gray-600 mb-6">{error || 'Попросите преподавателя прислать новую ссылку.'}</p>
+                    <button
+                        type="button"
+                        onClick={() => router.push('/student/login')}
+                        className="w-full px-6 py-3 bg-primary-600 text-white rounded-xl font-semibold hover:bg-primary-700 transition"
+                    >
+                        У меня уже есть аккаунт — войти
+                    </button>
                 </div>
             </div>
         )
@@ -172,6 +179,22 @@ export default function InvitePage() {
                         {submitting ? 'Регистрируем...' : 'Принять приглашение'}
                     </button>
                 </form>
+
+                {/* Ученик может быть уже зарегистрирован (учитель прислал новую
+                    ссылку, ученик пришёл повторно и т.п.) — даём явный путь на
+                    вход, иначе он застревает на форме регистрации. */}
+                <div className="mt-6 pt-5 border-t border-gray-100 text-center">
+                    <p className="text-sm text-gray-600">
+                        Уже есть аккаунт?{' '}
+                        <button
+                            type="button"
+                            onClick={() => router.push('/student/login')}
+                            className="text-primary-600 hover:text-primary-700 font-semibold underline"
+                        >
+                            Войти
+                        </button>
+                    </p>
+                </div>
             </div>
         </div>
     )

@@ -19,6 +19,7 @@ import { stripAnswerKey } from '@/lib/strip-answer-key'
 import Image from 'next/image'
 import { DocumentRenderer } from '@/components/blocks/DocumentRenderer'
 import { isJsonBlocksFormat, GenerationDocument as GenerationDocumentSchema } from '@/lib/blocks/schema'
+import { useAuthedFileUrl } from '@/hooks/useAuthedFileUrl'
 
 // ─── Типы ────────────────────────────────────────────────────────────────────
 
@@ -94,6 +95,7 @@ function getGenIcon(type: string) {
         case 'presentation': return { icon: MonitorPlay, tileColor: 'warning' as const }
         case 'game': case 'game_generation': return { icon: Gamepad2, tileColor: 'teal' as const }
         case 'quiz': return { icon: HelpCircle, tileColor: 'info' as const }
+        case 'uploaded_file': case 'uploadedFile': return { icon: BookOpen, tileColor: 'neutral' as const }
         default: return { icon: BookOpen, tileColor: 'neutral' as const }
     }
 }
@@ -116,6 +118,10 @@ function getGenTitle(type: string, outputData: any): string {
         case 'quiz': {
             const questions = Array.isArray(out?.questions) ? out.questions.length : 0
             return `Тест${questions ? ` · ${questions} вопросов` : ''}`
+        }
+        case 'uploaded_file': case 'uploadedFile': {
+            const name = typeof out?.originalName === 'string' ? out.originalName : ''
+            return name ? `Материал · ${name}` : 'Материал учителя'
         }
         default: return 'Учебный материал'
     }
@@ -145,7 +151,164 @@ function countWorksheetTasks(outputData: any): number {
 }
 
 function isOpenByDefault(type: string): boolean {
-    return type === 'worksheet' || type === 'quiz'
+    return type === 'worksheet' || type === 'quiz' || type === 'uploaded_file' || type === 'uploadedFile'
+}
+
+/**
+ * Тело задания типа uploaded_file: PDF через blob URL (обход
+ * X-Frame-Options) либо картинку напрямую через img.
+ * Сделан компонентом, потому что renderGenBody — обычная функция,
+ * хуки нельзя вызывать внутри неё.
+ */
+function UploadedFileBody({ outputData }: { outputData: any }) {
+    const out = typeof outputData === 'object' && outputData ? outputData : {}
+    const fileUrl: string | undefined = out.fileUrl || out.url
+    const mimeType: string | undefined = out.mimeType
+    const originalName: string | undefined = out.originalName
+    const isPdf = mimeType === 'application/pdf'
+    const pdfAuth = useAuthedFileUrl(isPdf ? fileUrl || null : null)
+
+    if (!fileUrl) {
+        return <div className="p-5 text-[13px] text-ink-500">Файл недоступен</div>
+    }
+    const preview = isPdf ? (
+        <div className="relative w-full bg-white border border-ink-200 rounded-md overflow-hidden" style={{ minHeight: 520, height: '75vh' }}>
+            {pdfAuth.loading && (
+                <div className="absolute inset-0 z-10 flex items-center justify-center bg-white">
+                    <Loader2 className="w-5 h-5 text-brand-500 animate-spin" />
+                </div>
+            )}
+            {pdfAuth.error ? (
+                <div className="p-6 text-center text-[13px] text-ink-500">
+                    Не удалось загрузить PDF.{' '}
+                    <a href={fileUrl} target="_blank" rel="noopener noreferrer" className="text-brand-600 underline">
+                        Открыть в новой вкладке
+                    </a>
+                </div>
+            ) : pdfAuth.blobUrl ? (
+                <iframe
+                    src={pdfAuth.blobUrl}
+                    title={originalName || 'Материал'}
+                    className="w-full h-full bg-white border-0"
+                />
+            ) : null}
+        </div>
+    ) : (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+            src={fileUrl}
+            alt={originalName || 'Материал'}
+            className="max-w-full max-h-[75vh] h-auto object-contain rounded-md border border-ink-200 bg-white"
+        />
+    )
+    return (
+        <div className="p-5 flex flex-col gap-3">
+            {preview}
+            <div className="flex items-start gap-2 px-3 py-2.5 rounded-md bg-amber-50 border border-amber-200 text-[12px] text-amber-800">
+                <span className="font-bold">Как сдать:</span>
+                <span>
+                    Запиши решение в поле «Дополнительно к ответам» ниже или прикрепи фото своей работы.
+                </span>
+            </div>
+            <div className="text-right">
+                <a href={fileUrl} target="_blank" rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-[12px] text-ink-500 hover:text-ink-700">
+                    Открыть файл в новой вкладке <ExternalLink className="w-3 h-3" />
+                </a>
+            </div>
+        </div>
+    )
+}
+
+/**
+ * Презентации V2 не хранят готовый pdfUrl: PDF собирается бэкендом по запросу
+ * из сохранённого HTML. Загружаем его с cookie-авторизацией через apiClient,
+ * создаём локальный blob URL для iframe и освобождаем URL при размонтировании.
+ */
+function PresentationPdfBody({ generationId }: { generationId: string }) {
+    const [blobUrl, setBlobUrl] = useState<string | null>(null)
+    const [loading, setLoading] = useState(true)
+    const [error, setError] = useState<string | null>(null)
+    const [attempt, setAttempt] = useState(0)
+
+    useEffect(() => {
+        let active = true
+        let objectUrl: string | null = null
+        const controller = new AbortController()
+
+        setBlobUrl(null)
+        setLoading(true)
+        setError(null)
+
+        apiClient.post(
+            `/generate/${encodeURIComponent(generationId)}/presentation/pdf`,
+            {},
+            { responseType: 'blob', signal: controller.signal },
+        ).then((response) => {
+            if (!active) return
+            const pdfBlob = response.data instanceof Blob && response.data.type === 'application/pdf'
+                ? response.data
+                : new Blob([response.data], { type: 'application/pdf' })
+            objectUrl = URL.createObjectURL(pdfBlob)
+            setBlobUrl(objectUrl)
+        }).catch((e: any) => {
+            if (!active || e?.code === 'ERR_CANCELED') return
+            setError(e?.response?.data?.message || e?.message || 'Не удалось загрузить презентацию')
+        }).finally(() => {
+            if (active) setLoading(false)
+        })
+
+        return () => {
+            active = false
+            controller.abort()
+            if (objectUrl) URL.revokeObjectURL(objectUrl)
+        }
+    }, [generationId, attempt])
+
+    return (
+        <div className="p-5">
+            <div
+                className="relative w-full bg-white border border-ink-200 rounded-md overflow-hidden"
+                style={{ minHeight: 520, height: '75vh' }}
+            >
+                {loading && (
+                    <div className="absolute inset-0 z-10 flex items-center justify-center bg-white">
+                        <div className="flex flex-col items-center gap-2 text-[13px] text-ink-500">
+                            <Loader2 className="w-5 h-5 text-brand-500 animate-spin" />
+                            Формируем PDF…
+                        </div>
+                    </div>
+                )}
+                {!loading && error && (
+                    <div className="h-full p-6 flex flex-col items-center justify-center gap-3 text-center text-[13px] text-ink-500">
+                        <AlertCircle className="w-8 h-8 text-danger-500" />
+                        <span>{error}</span>
+                        <Button variant="secondary" size="sm" onClick={() => setAttempt(v => v + 1)}>
+                            Попробовать снова
+                        </Button>
+                    </div>
+                )}
+                {!loading && blobUrl && (
+                    <iframe
+                        src={blobUrl}
+                        title="Презентация"
+                        className="w-full h-full bg-white border-0"
+                    />
+                )}
+            </div>
+            {blobUrl && (
+                <div className="mt-2 text-right">
+                    <a
+                        href={blobUrl}
+                        download="presentation.pdf"
+                        className="inline-flex items-center gap-1 text-[12px] text-ink-500 hover:text-ink-700"
+                    >
+                        Скачать PDF <ExternalLink className="w-3 h-3" />
+                    </a>
+                </div>
+            )}
+        </div>
+    )
 }
 
 function getStatusBadge(type: string, filled: boolean) {
@@ -283,10 +446,16 @@ export default function StudentAssignmentV2({ assignmentId }: StudentAssignmentV
         setFieldCountMap(prev => ({ ...prev, [genId]: count }))
     }, [])
 
-    // Listener результата игры. Шаблоны игр после endGame() шлют
-    // window.parent.postMessage({ type: 'GAME_RESULT', score, total, ... }).
+    // Listener результата игры. Мост в игре шлёт:
+    //   GAME_PROGRESS — промежуточный прогресс (outcome: 'in_progress'),
+    //   GAME_RESULT — финальный результат.
     // Сопоставляем источник iframe → gen.id, кладём в _game и засчитываем
-    // как одно «заполненное поле» для прогресс-бара.
+    // как одно «заполненное поле» для прогресс-бара. Прогресс никогда не
+    // затирает уже записанный финальный результат.
+    //
+    // Обновление через функциональный setState — иначе при быстрой смене
+    // V2-ответов в других блоках закрытие захватывало устаревший formDataMap
+    // и следующая GAME_PROGRESS-запись затирала свежие правки ученика.
     useEffect(() => {
         if (!assignment) return
         const gens = assignment.lesson.generations
@@ -296,7 +465,8 @@ export default function StudentAssignmentV2({ assignmentId }: StudentAssignmentV
         const onMessage = (e: MessageEvent) => {
             const data: any = e.data
             if (!data || typeof data !== 'object') return
-            if (data.type !== 'GAME_RESULT') return
+            if (data.type !== 'GAME_RESULT' && data.type !== 'GAME_PROGRESS') return
+            const isFinal = data.type === 'GAME_RESULT'
             // Находим, какой именно игре принадлежит iframe-источник —
             // ищем по совпадению e.source с contentWindow одного из iframe.
             for (const gen of gameGens) {
@@ -308,21 +478,30 @@ export default function StudentAssignmentV2({ assignmentId }: StudentAssignmentV
                 const iframes = Array.from(document.querySelectorAll('iframe[title="Игра"]')) as HTMLIFrameElement[]
                 const match = iframes.find(i => i.contentWindow === e.source)
                 if (gameGens.length === 1 || (match && match.src === expectedUrl)) {
-                    const next = {
-                        ...(formDataMap[gen.id] || {}),
-                        _game: {
-                            score: Number(data.score) || 0,
-                            total: Number(data.total) || 0,
-                            moves: data.moves,
-                            time: data.time,
-                            outcome: data.outcome,
-                            message: data.message,
-                            gameType: data.gameType,
-                            topic: data.topic,
+                    setFormDataMap(prev => {
+                        const current = prev[gen.id] || {}
+                        const prevGame: any = (current as any)._game
+                        const prevIsFinal = prevGame && ['win', 'lose', 'finished'].includes(prevGame.outcome)
+                        // Промежуточный прогресс не понижает финальный результат.
+                        if (!isFinal && prevIsFinal) return prev
+                        // Числа: 0 — валидное значение. Number(undef)=NaN → null.
+                        const num = (v: any) => {
+                            const n = Number(v)
+                            return Number.isFinite(n) ? n : null
+                        }
+                        const nextGame = {
+                            score: num(data.score) ?? 0,
+                            total: num(data.total) ?? 0,
+                            moves: num(data.moves),
+                            time: data.time || null,
+                            outcome: isFinal ? (data.outcome || 'finished') : 'in_progress',
+                            message: data.message || '',
+                            gameType: data.gameType || '',
+                            topic: data.topic || '',
                             finishedAt: new Date().toISOString(),
-                        },
-                    }
-                    setFormDataMap(prev => ({ ...prev, [gen.id]: next }))
+                        }
+                        return { ...prev, [gen.id]: { ...current, _game: nextGame } }
+                    })
                     setFieldCountMap(prev => ({ ...prev, [gen.id]: 1 }))
                     break
                 }
@@ -330,7 +509,7 @@ export default function StudentAssignmentV2({ assignmentId }: StudentAssignmentV
         }
         window.addEventListener('message', onMessage)
         return () => window.removeEventListener('message', onMessage)
-    }, [assignment, formDataMap])
+    }, [assignment])
 
     const toggleSection = (id: string) => {
         setOpenSections(prev => {
@@ -425,10 +604,15 @@ export default function StudentAssignmentV2({ assignmentId }: StudentAssignmentV
             return (
                 <div className="p-5">
                     {gameResult && (
-                        <div className="mb-3 p-3 rounded-lg bg-success-50 border border-success-500/20 text-[13px] text-success-700 flex items-center gap-2">
+                        <div className={`mb-3 p-3 rounded-lg text-[13px] flex items-center gap-2 ${
+                            gameResult.outcome === 'in_progress'
+                                ? 'bg-info-50 border border-info-500/20 text-info-700'
+                                : 'bg-success-50 border border-success-500/20 text-success-700'
+                        }`}>
                             <CheckCircle className="w-4 h-4" />
                             <span>
-                                Результат записан: <strong>{gameResult.score}/{gameResult.total}</strong>
+                                {gameResult.outcome === 'in_progress' ? 'Прогресс сохраняется: ' : 'Результат записан: '}
+                                <strong>{gameResult.score}{gameResult.total ? `/${gameResult.total}` : ''}</strong>
                                 {gameResult.message ? ` · ${gameResult.message}` : ''}
                             </span>
                         </div>
@@ -456,6 +640,12 @@ export default function StudentAssignmentV2({ assignmentId }: StudentAssignmentV
 
         // Presentation
         if (gen.generationType === 'presentation') {
+            return <PresentationPdfBody generationId={gen.id} />
+
+            /*
+            Старый PPTX/готовый URL/HTML-slides путь временно отключён.
+            Код оставлен полностью для истории и возможного возврата:
+
             let pres: any = gen.outputData
             if (typeof pres === 'string') {
                 try { pres = JSON.parse(pres) } catch { pres = {} }
@@ -520,6 +710,14 @@ export default function StudentAssignmentV2({ assignmentId }: StudentAssignmentV
                     Презентация недоступна
                 </div>
             )
+            */
+        }
+
+        // ── Загруженный материал учителя (PDF / JPG / PNG) ──
+        // Делегируем компоненту, чтобы валидно использовать useAuthedFileUrl
+        // (хуки нельзя внутри функции renderGenBody).
+        if (gen.generationType === 'uploaded_file' || gen.generationType === 'uploadedFile') {
+            return <UploadedFileBody outputData={gen.outputData} />
         }
 
         // ── JSON blocks-v1 формат ──
@@ -788,6 +986,11 @@ export default function StudentAssignmentV2({ assignmentId }: StudentAssignmentV
                     const { icon: GenIcon, tileColor } = getGenIcon(gen.generationType)
                     const isFilled = (fieldCountMap[gen.id] ?? 0) > 0 &&
                         Object.values(formDataMap[gen.id] ?? {}).filter(isFilledValue).length > 0
+                    // Игры не размонтируем при сворачивании: iframe хранит
+                    // текущее состояние игры + мост из бэка шлёт прогресс
+                    // каждые ~3 сек. Размонтирование обрывает игру и
+                    // теряет неотправленный прогресс.
+                    const isGame = gen.generationType === 'game' || gen.generationType === 'game_generation'
 
                     return (
                         <div
@@ -823,8 +1026,14 @@ export default function StudentAssignmentV2({ assignmentId }: StudentAssignmentV
                                 </div>
                             </button>
 
-                            {/* acc-body */}
-                            {isOpen && (
+                            {/* acc-body: для игр держим iframe постоянно
+                                смонтированным (иначе прогресс теряется),
+                                просто скрываем через display:none. */}
+                            {isGame ? (
+                                <div style={{ display: isOpen ? 'block' : 'none' }}>
+                                    {renderGenBody(gen)}
+                                </div>
+                            ) : isOpen && (
                                 <div>{renderGenBody(gen)}</div>
                             )}
                         </div>
@@ -897,6 +1106,36 @@ export default function StudentAssignmentV2({ assignmentId }: StudentAssignmentV
                             <Star className="w-4 h-4 text-amber-400 flex-shrink-0" />
                             <span>Сдай вовремя — получишь <strong className="text-warning-700">+30 XP</strong> и сохранишь стрик!</span>
                         </div>
+                    </div>
+                )}
+
+                {/* Read-only показ собственного сданного ответа, когда
+                    работа уже отправлена/проверена. Иначе ученик не видит
+                    что именно он отправил. */}
+                {isSubmitted && (submissionText || attachments.length > 0) && (
+                    <div className="bg-surface border border-ink-200 rounded-lg p-5 mt-6">
+                        <h3 className="text-[14px] font-bold text-ink-900 mb-3">Твой ответ</h3>
+                        {submissionText && (
+                            <div className="mb-3 whitespace-pre-wrap text-[14px] text-ink-800 leading-relaxed">
+                                {submissionText}
+                            </div>
+                        )}
+                        {attachments.length > 0 && (
+                            <div className="flex flex-wrap gap-2">
+                                {attachments.map((a, i) => (
+                                    <a
+                                        key={i}
+                                        href={a.url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="block w-24 h-24 rounded-md border border-ink-200 overflow-hidden bg-ink-50 hover:border-brand-400 transition"
+                                    >
+                                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                                        <img src={a.url} alt={a.name || ''} className="w-full h-full object-cover" />
+                                    </a>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 )}
 

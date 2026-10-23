@@ -11,10 +11,18 @@ import {
   Header,
   Patch,
   StreamableFile,
+  UploadedFile,
+  UseInterceptors,
+  BadRequestException,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { Throttle } from '@nestjs/throttler';
 import { GenerationsService } from './generations.service';
 import { WorksheetV2Service } from './v2/worksheet-v2.service';
 import { TextV2Service } from './v2/text-v2.service';
+import { UploadMaterialService } from './upload-material.service';
+import { MAX_MATERIAL_SIZE_BYTES, isAllowedMaterialMime } from './upload-material.validators';
+import { SkipThrottle } from '@nestjs/throttler';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { GenerationsThrottlerGuard } from '../../common/guards/generations-throttler.guard';
 import {
@@ -30,6 +38,7 @@ export class GenerationsController {
     private readonly generationsService: GenerationsService,
     private readonly worksheetV2Service: WorksheetV2Service,
     private readonly textV2Service: TextV2Service,
+    private readonly uploadMaterialService: UploadMaterialService,
   ) {}
 
   private userId(req: any): string {
@@ -59,6 +68,8 @@ export class GenerationsController {
         grade: body.grade as any,
         duration: body.duration ? String(body.duration) : undefined,
         numTasks: body.numTasks ? Number(body.numTasks) : undefined,
+        difficulty: body.difficulty as any,
+        questionTypes: body.questionTypes as any,
         interests: body.interests ? String(body.interests) : undefined,
         extraNotes: body.extraNotes ? String(body.extraNotes) : undefined,
       },
@@ -78,6 +89,7 @@ export class GenerationsController {
         numQuestions: body.numQuestions ? Number(body.numQuestions) : undefined,
         numAnswers: body.numAnswers ? Number(body.numAnswers) : undefined,
         questionTypes: body.questionTypes as any,
+        difficulty: body.difficulty as any,
         interests: body.interests ? String(body.interests) : undefined,
         extraNotes: body.extraNotes ? String(body.extraNotes) : undefined,
       },
@@ -144,6 +156,62 @@ export class GenerationsController {
       },
       body.lessonId ? String(body.lessonId) : undefined,
     );
+  }
+
+  /**
+   * Перегенерация одного задания в blocks-v1 материале (лист/тест).
+   * body: { headingId } — id heading-блока задания. Меняет только тело,
+   * заголовок и остальные задания сохраняются.
+   */
+  @Post('v2/:id/regenerate-task')
+  @UseGuards(JwtAuthGuard, GenerationsThrottlerGuard)
+  async regenerateTaskV2(
+    @Request() req: any,
+    @Param('id') id: string,
+    @Body() body: Record<string, unknown>,
+  ) {
+    return this.textV2Service.regenerateTask(
+      this.userId(req),
+      id,
+      String(body.headingId || ''),
+    );
+  }
+
+  /**
+   * Загрузка пользовательского материала (PDF/JPG/PNG, ≤50MB).
+   * Создаёт UserGeneration со status=completed и generationType='uploaded_file' —
+   * материал сразу появляется в разделе «Материалы» рядом с AI-генерациями.
+   */
+  @Post('upload-material')
+  @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { ttl: 60000, limit: 20 } })
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: MAX_MATERIAL_SIZE_BYTES },
+      fileFilter: (_req, file, cb) => {
+        if (!isAllowedMaterialMime(file.mimetype)) {
+          return cb(
+            new BadRequestException(
+              'Поддерживаются только PDF, JPG и PNG. Получен: ' + file.mimetype,
+            ),
+            false,
+          );
+        }
+        cb(null, true);
+      },
+    }),
+  )
+  async uploadMaterial(
+    @UploadedFile() file: Express.Multer.File,
+    @Body() body: Record<string, unknown>,
+    @Request() req: any,
+  ) {
+    return this.uploadMaterialService.upload({
+      userId: this.userId(req),
+      file,
+      title: body.title ? String(body.title) : undefined,
+      lessonId: body.lessonId ? String(body.lessonId) : undefined,
+    });
   }
 
   @Post('quiz')
@@ -446,9 +514,13 @@ export class GenerationsController {
     );
   }
 
-  // Получить статус генерации
+  // Получить статус генерации. SkipThrottle — это polling-эндпоинт,
+  // фронт дёргает его раз в 15с (а с несколькими вкладками — кратно),
+  // защищать глобальным rate-limit'ом смысла нет (только GET по своим данным,
+  // JWT уже отсекает анонимов).
   @Get(':requestId')
   @UseGuards(JwtAuthGuard)
+  @SkipThrottle()
   @Header('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate')
   @Header('Pragma', 'no-cache')
   @Header('Expires', '0')

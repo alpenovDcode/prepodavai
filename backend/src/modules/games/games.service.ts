@@ -174,21 +174,41 @@ export class GamesService {
 
   /**
    * Внедряет в HTML игры универсальный скрипт-мост, который сообщает
-   * родительскому окну (странице ученика) о готовности и о финальном
-   * результате. Использует MutationObserver — без правки логики каждой игры.
+   * родительскому окну (странице ученика):
+   *   - GAME_READY — игра загрузилась;
+   *   - GAME_PROGRESS — промежуточный прогресс (раз в ~3 сек при изменении,
+   *     плюс мгновенно при уходе со страницы) — чтобы результат сохранялся,
+   *     даже если ученик не дошёл до финального экрана;
+   *   - GAME_RESULT — финальный результат (MutationObserver на финальных
+   *     экранах шаблонов, без правки логики каждой игры).
+   *
+   * Прогресс читается из top-level переменных шаблонов (score, moves,
+   * matchesFound, viewedCount, currentQuestionIndex…) — они объявлены
+   * `let/const` на верхнем уровне и видны из соседнего <script>.
    */
   private injectResultBridge(html: string, meta: { topic: string; type: string }): string {
-    const metaJson = JSON.stringify({ topic: meta.topic, type: meta.type });
+    const metaJson = JSON.stringify({ topic: meta.topic || '', type: meta.type || '' });
     const bridge = `
 <script>(function(){
-  if (window.__prepodavaiBridge) return;
+  if (window.__prepodavaiBridgeV2) return;
+  window.__prepodavaiBridgeV2 = true;
+  // Старый мост (если вшит в файл при генерации) отключаем — иначе двойные сообщения.
   window.__prepodavaiBridge = true;
   var META = ${metaJson};
+  try {
+    if (typeof GAME_CONFIG === 'object' && GAME_CONFIG) {
+      META = { topic: GAME_CONFIG.topic || META.topic, type: GAME_CONFIG.type || META.type };
+    }
+  } catch(e){}
   var sent = false;
-  function send(payload){
+  var lastProgressJson = '';
+  function post(payload){
+    try { window.parent && window.parent.postMessage(Object.assign({source:'prepodavai-game'}, payload), '*'); } catch(e){}
+  }
+  function sendFinal(payload){
     if (sent) return;
     sent = true;
-    try { window.parent && window.parent.postMessage(Object.assign({source:'prepodavai-game'}, payload), '*'); } catch(e){}
+    post(payload);
   }
   function txt(id){
     var el = document.getElementById(id);
@@ -207,25 +227,74 @@ export class GamesService {
     var winAmount  = num(txt('win-amount'));
     var loseAmount = num(txt('lose-amount'));
     var msg = txt('final-message') || txt('result-message') || '';
-    // Пытаемся достать total из текстов вида "5 / 10"
-    var total = null;
-    var scoreBig = document.querySelector('.score-big');
-    if (scoreBig){
-      var m = (scoreBig.innerText || '').match(/\\/\\s*(\\d+)/);
-      if (m) total = Number(m[1]);
+    var total = num(txt('final-total'));
+    if (total == null){
+      // Пытаемся достать total из текстов вида "5 / 10"
+      var scoreBig = document.querySelector('.score-big');
+      if (scoreBig){
+        var m = (scoreBig.innerText || '').match(/\\/\\s*(\\d+)/);
+        if (m) total = Number(m[1]);
+      }
     }
-    send({
+    var live = progressSnapshot();
+    sendFinal({
       type: 'GAME_RESULT',
       outcome: outcome || 'finished',
       topic: META.topic,
       gameType: META.type,
-      score: score,
-      total: total,
-      moves: moves,
-      time: time,
+      score: score != null ? score : live.score,
+      total: total != null ? total : live.total,
+      moves: moves != null ? moves : live.moves,
+      time: time || live.time,
       winAmount: winAmount,
       loseAmount: loseAmount,
       message: msg,
+      finishedAt: new Date().toISOString()
+    });
+  }
+  // Промежуточный прогресс: читаем живые top-level переменные шаблонов + DOM.
+  // ВАЖНО: локальные имена не совпадают с игровыми (score/moves/…),
+  // иначе локальное объявление затенит глобальное и typeof увидит локал.
+  function progressSnapshot(){
+    var s = null, tot = null, mv = null, tm = null;
+    try { if (typeof matchesFound !== 'undefined') s = Number(matchesFound) || 0; } catch(e){}         // memory
+    try { if (s == null && typeof viewedCount !== 'undefined') s = Number(viewedCount) || 0; } catch(e){} // flashcards
+    try { if (s == null && typeof score !== 'undefined') s = Number(score) || 0; } catch(e){}             // truefalse
+    try { if (s == null && typeof currentQuestionIndex !== 'undefined') s = Number(currentQuestionIndex) || 0; } catch(e){} // millionaire
+    // crossword: решённые слова по DOM
+    if (s == null && document.querySelector('.clue-item')){
+      s = document.querySelectorAll('.clue-item.solved').length;
+    }
+    try {
+      if (typeof RAW_PAIRS !== 'undefined' && Array.isArray(RAW_PAIRS)) tot = RAW_PAIRS.length;            // memory
+      else if (typeof CARDS_DATA !== 'undefined' && Array.isArray(CARDS_DATA)) tot = CARDS_DATA.length;     // flashcards
+      else if (typeof GAME_DATA !== 'undefined' && Array.isArray(GAME_DATA)) tot = GAME_DATA.length;        // truefalse / millionaire
+      else if (typeof WORD_LIST !== 'undefined' && Array.isArray(WORD_LIST)) tot = WORD_LIST.length;        // crossword
+    } catch(e){}
+    try { if (typeof moves !== 'undefined') mv = Number(moves) || 0; } catch(e){}                          // memory
+    var t = txt('timer');
+    if (t) tm = t;
+    return { score: s, total: tot, moves: mv, time: tm };
+  }
+  function reportProgress(force){
+    if (sent) return;
+    var p = progressSnapshot();
+    // Репортим любое известное значение (0 — тоже результат: ученик
+    // отвечал, но пока всё неверно). Полный «нуль во всём» — пока
+    // рано, ждём первое взаимодействие.
+    if (p.score == null && p.moves == null && !p.time) return;
+    var json = JSON.stringify([p.score, p.total, p.moves]);
+    if (!force && json === lastProgressJson) return;
+    lastProgressJson = json;
+    post({
+      type: 'GAME_PROGRESS',
+      outcome: 'in_progress',
+      topic: META.topic,
+      gameType: META.type,
+      score: p.score,
+      total: p.total,
+      moves: p.moves,
+      time: p.time,
       finishedAt: new Date().toISOString()
     });
   }
@@ -239,7 +308,7 @@ export class GamesService {
   function check(){
     // Финальные контейнеры по разным шаблонам
     var candidates = [
-      { sel: '#result-screen',  outcome: 'finished' }, // truefalse
+      { sel: '#result-screen',  outcome: 'finished' }, // truefalse / flashcards
       { sel: '#win-modal.active', outcome: 'win'    }, // memory
       { sel: '#win-modal',      outcome: 'win'      }, // crossword/memory (style.display)
       { sel: '#screen-win',     outcome: 'win'      }, // millionaire
@@ -252,13 +321,18 @@ export class GamesService {
     return false;
   }
   function ready(){
-    try { window.parent && window.parent.postMessage({source:'prepodavai-game', type:'GAME_READY', topic:META.topic, gameType:META.type}, '*'); } catch(e){}
+    post({type:'GAME_READY', topic:META.topic, gameType:META.type});
     if (check()) return;
     var obs = new MutationObserver(function(){ if (check()) obs.disconnect(); });
     obs.observe(document.body, { attributes:true, childList:true, subtree:true, attributeFilter:['style','class'] });
     // Перестраховка — раз в секунду тоже проверяем (на случай скрытых от observer изменений)
-    var iv = setInterval(function(){ if (check()) { clearInterval(iv); obs.disconnect(); } }, 1000);
-    setTimeout(function(){ clearInterval(iv); obs.disconnect(); }, 30 * 60 * 1000);
+    var iv = setInterval(function(){ if (check()) { clearInterval(iv); obs.disconnect(); clearInterval(pv); } }, 1000);
+    // Прогресс — раз в 3 секунды при изменении
+    var pv = setInterval(function(){ reportProgress(false); }, 3000);
+    // При уходе/сворачивании страницы — шлём сразу
+    window.addEventListener('pagehide', function(){ reportProgress(true); });
+    document.addEventListener('visibilitychange', function(){ if (document.visibilityState === 'hidden') reportProgress(true); });
+    setTimeout(function(){ clearInterval(iv); clearInterval(pv); obs.disconnect(); }, 30 * 60 * 1000);
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', ready);
   else ready();
@@ -272,7 +346,27 @@ export class GamesService {
     const filePath = path.join(this.gamesDir, `${gameId}.html`);
     try {
       await fs.access(filePath);
-      return fs.readFile(filePath);
+      let html = await fs.readFile(filePath, 'utf-8');
+      // Мост внедряется и при отдаче файла: игры, сгенерированные до его
+      // появления (или со старой версией), тоже должны репортить результат.
+      if (!html.includes('__prepodavaiBridgeV2')) {
+        // Старая версия моста могла быть уже вшита в файл. Она регистрирует
+        // MutationObserver и слушателей до того, как новый мост успеет
+        // выставить `window.__prepodavaiBridge = true`, поэтому просто
+        // «глушить» её через флаг не выходит: дублируются GAME_RESULT-ы
+        // и (что хуже) старый бридж выигрывает гонку, потому что не знает
+        // про GAME_PROGRESS. Вырезаем его целиком.
+        //
+        // Negative-lookahead `(?!<\/script>)` не даёт `.*?` пересечь
+        // границу </script> соседних скриптов — иначе regex удалит и
+        // легитимный игровой скрипт вместе со старым мостом.
+        html = html.replace(
+          /<script\b[^>]*>(?:(?!<\/script>)[\s\S])*?__prepodavaiBridge(?:(?!<\/script>)[\s\S])*?<\/script>/gi,
+          '',
+        );
+        html = this.injectResultBridge(html, { topic: '', type: '' });
+      }
+      return Buffer.from(html, 'utf-8');
     } catch (e) {
       throw new NotFoundException('Game not found');
     }

@@ -3,10 +3,12 @@ import {
   Get,
   Post,
   Body,
+  Query,
   Request,
   UseGuards,
   HttpCode,
 } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
 import { IsBoolean, IsOptional, IsString, MaxLength } from 'class-validator';
 import { SystemService } from './system.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -22,12 +24,33 @@ class SetMaintenanceDto {
   message?: string;
 }
 
+class SetToolStatusDto {
+  @IsString()
+  @MaxLength(50)
+  opKey: string;
+
+  @IsBoolean()
+  enabled: boolean;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(1000)
+  message?: string;
+}
+
 /**
  * Публичный + админский эндпоинты для maintenance-режима.
  * GET /api/system/maintenance — публично, чтобы фронт мог показать заглушку
  *   даже неавторизованному пользователю.
+ *
+ * SkipThrottle: оба публичных эндпоинта фронт поллит каждые 30 секунд
+ *   (MaintenanceGate + useTutorExchangeEnabled) с КАЖДОЙ открытой вкладки.
+ *   Под общим лимитом они съедали бюджет реальных пользовательских запросов
+ *   и триггерили 429 на страницах с активным polling'ом. Сами эндпоинты
+ *   read-only и не требуют защиты от спама.
  */
 @Controller('system')
+@SkipThrottle()
 export class SystemController {
   constructor(private readonly systemService: SystemService) {}
 
@@ -35,6 +58,20 @@ export class SystemController {
   async getMaintenance() {
     const status = await this.systemService.getMaintenanceStatus();
     return {
+      enabled: status.enabled,
+      message: status.message,
+      updatedAt: status.updatedAt,
+    };
+  }
+
+  @Get('tool-status')
+  async getToolStatus(@Query('opKey') opKey: string) {
+    if (!opKey) {
+      return { error: 'opKey required' };
+    }
+    const status = await this.systemService.getToolStatus(opKey);
+    return {
+      opKey,
       enabled: status.enabled,
       message: status.message,
       updatedAt: status.updatedAt,
@@ -59,5 +96,32 @@ export class AdminSystemController {
   @HttpCode(200)
   async set(@Request() req: any, @Body() body: SetMaintenanceDto) {
     return this.systemService.setMaintenance(body.enabled, body.message, req.user.id);
+  }
+}
+
+/**
+ * Универсальный админский переключатель per-tool флагов.
+ * Через него живёт биржа лидов (opKey='tutor_exchange') и любые будущие
+ * инструменты, требующие глобального switch с сообщением при выключении.
+ */
+@Controller('admin/tool-status')
+@UseGuards(JwtAuthGuard, AdminGuard)
+export class AdminToolStatusController {
+  constructor(private readonly systemService: SystemService) {}
+
+  @Get()
+  async get(@Query('opKey') opKey: string) {
+    if (!opKey) return { error: 'opKey required' };
+    return this.systemService.getToolStatus(opKey, true);
+  }
+
+  @Post()
+  @HttpCode(200)
+  async set(@Request() req: any, @Body() body: SetToolStatusDto) {
+    return this.systemService.setToolStatus(
+      body.opKey,
+      { enabled: body.enabled, message: body.message },
+      req.user.id,
+    );
   }
 }

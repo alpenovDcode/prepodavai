@@ -1,0 +1,268 @@
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
+import { PrismaService } from '../../../common/prisma/prisma.service';
+import { DialogAction } from './dto/action.dto';
+import { TutorExchangeNotifier } from '../notifications/tutor-exchange-notifier.service';
+
+const PAYMENT_DEADLINE_DAYS = 3;
+
+interface TransitionPayload {
+  trialLessonLink?: string;
+}
+
+@Injectable()
+export class DialogActionsService {
+  private readonly logger = new Logger(DialogActionsService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifier: TutorExchangeNotifier,
+  ) {}
+
+  async transition(
+    actorId: string,
+    dialogId: string,
+    action: DialogAction,
+    payload: TransitionPayload = {},
+  ) {
+    const dialog = await (this.prisma as any).leadDialog.findUnique({
+      where: { id: dialogId },
+      include: {
+        lead: { select: { id: true, subject: true, creatorId: true, type: true } },
+      },
+    });
+    if (!dialog) throw new NotFoundException('Диалог не найден');
+
+    const isCreator = dialog.lead.creatorId === actorId;
+    const isResponder = dialog.responderId === actorId;
+    if (!isCreator && !isResponder) {
+      throw new ForbiddenException('Нет доступа к диалогу');
+    }
+
+    const prev = dialog.status;
+    const result = await (async () => {
+      switch (action) {
+        case DialogAction.SCHEDULE_TRIAL:
+          return this.scheduleTrial(dialog, { isCreator }, payload);
+        case DialogAction.TRIAL_SUCCESS:
+          return this.trialSuccess(dialog, { isResponder });
+        case DialogAction.TRIAL_FAIL:
+          return this.trialFail(dialog, { isResponder });
+        case DialogAction.PAYMENT_SENT:
+          return this.paymentSent(dialog, { isResponder });
+        case DialogAction.CONFIRM_PAYMENT:
+          return this.confirmPayment(dialog, { isCreator });
+        case DialogAction.DISPUTE:
+          return this.dispute(dialog);
+        case DialogAction.CANCEL:
+          return this.cancel(dialog);
+        default:
+          throw new BadRequestException('Неизвестное действие');
+      }
+    })();
+
+    const next = result?.dialog?.status ?? prev;
+    this.logger.log(
+      `transition dialog=${dialog.id} action=${action} actor=${actorId} ${prev} -> ${next}`,
+    );
+
+    void this.emitNotification(action, dialog, actorId);
+    return result;
+  }
+
+  private async emitNotification(action: DialogAction, dialog: any, actorId: string) {
+    const lite = {
+      id: dialog.id,
+      responderId: dialog.responderId,
+      lead: { id: dialog.lead.id, subject: dialog.lead.subject, creatorId: dialog.lead.creatorId },
+    };
+    try {
+      switch (action) {
+        case DialogAction.SCHEDULE_TRIAL:
+          return await this.notifier.notifyTrialScheduled(lite);
+        case DialogAction.TRIAL_SUCCESS:
+          return await this.notifier.notifyTrialResult(lite, true);
+        case DialogAction.TRIAL_FAIL:
+          return await this.notifier.notifyTrialResult(lite, false);
+        case DialogAction.PAYMENT_SENT:
+          return await this.notifier.notifyPaymentReported(lite);
+        case DialogAction.CONFIRM_PAYMENT:
+          return await this.notifier.notifyPaymentConfirmed(lite);
+        case DialogAction.DISPUTE:
+          return await this.notifier.notifyDisputeOpened(lite, actorId);
+      }
+    } catch {
+      // notifier сам ловит ошибки, но защитимся ещё раз
+    }
+  }
+
+  private async scheduleTrial(
+    dialog: any,
+    { isCreator }: { isCreator: boolean },
+    payload: TransitionPayload,
+  ) {
+    if (!isCreator) throw new ForbiddenException('Только создатель заявки назначает пробный');
+    if (dialog.status !== 'OPEN') {
+      throw new BadRequestException('Пробный можно назначить только в статусе OPEN');
+    }
+    const trialLessonLink = this.sanitizeTrialLink(payload.trialLessonLink);
+    const updated = await (this.prisma as any).leadDialog.update({
+      where: { id: dialog.id },
+      data: {
+        status: 'TRIAL_PENDING',
+        trialLessonLink,
+        trialScheduledAt: new Date(),
+      },
+    });
+    return { ok: true as const, dialog: updated };
+  }
+
+  /**
+   * Ссылка на пробный урок попадает в <a href> на фронте у собеседника.
+   * Разрешаем ТОЛЬКО http/https — иначе `javascript:`/`data:` дают XSS
+   * по клику (stored XSS: создатель заявки — атакующий, откликнувшийся —
+   * жертва). DTO ограничивает только длину/тип, схему проверяем здесь.
+   */
+  private sanitizeTrialLink(raw?: string): string | null {
+    const link = raw?.trim();
+    if (!link) return null;
+    if (!/^https?:\/\//i.test(link)) {
+      throw new BadRequestException(
+        'Ссылка на пробный должна начинаться с http:// или https://',
+      );
+    }
+    return link;
+  }
+
+  private async trialSuccess(dialog: any, { isResponder }: { isResponder: boolean }) {
+    if (!isResponder) throw new ForbiddenException('Только откликнувшийся отмечает результат');
+    if (dialog.status !== 'TRIAL_PENDING') {
+      throw new BadRequestException('Пробный ещё не назначен');
+    }
+    const now = new Date();
+    if (dialog.lead.type === 'FREE') {
+      const [updated] = await this.prisma.$transaction([
+        (this.prisma as any).leadDialog.update({
+          where: { id: dialog.id },
+          data: { status: 'CONFIRMED', closedAt: now, trialResultAt: now },
+        }),
+        (this.prisma as any).lead.update({
+          where: { id: dialog.leadId },
+          data: { status: 'CLOSED' },
+        }),
+        ...this.incrementDeals(dialog.lead.creatorId),
+        ...this.incrementDeals(dialog.responderId),
+      ]);
+      return { ok: true as const, dialog: updated };
+    }
+    const deadline = new Date(now.getTime() + PAYMENT_DEADLINE_DAYS * 24 * 60 * 60 * 1000);
+    const updated = await (this.prisma as any).leadDialog.update({
+      where: { id: dialog.id },
+      data: {
+        status: 'PAYMENT_PENDING',
+        trialResultAt: now,
+        paymentDeadline: deadline,
+      },
+    });
+    return { ok: true as const, dialog: updated };
+  }
+
+  private async trialFail(dialog: any, { isResponder }: { isResponder: boolean }) {
+    if (!isResponder) throw new ForbiddenException('Только откликнувшийся отмечает результат');
+    if (dialog.status !== 'TRIAL_PENDING') {
+      throw new BadRequestException('Пробный ещё не назначен');
+    }
+    const now = new Date();
+    const [updated] = await this.prisma.$transaction([
+      (this.prisma as any).leadDialog.update({
+        where: { id: dialog.id },
+        data: { status: 'CANCELLED', closedAt: now, trialResultAt: now },
+      }),
+      (this.prisma as any).lead.update({
+        where: { id: dialog.leadId },
+        data: { status: 'ACTIVE', lockedById: null, lockedAt: null },
+      }),
+    ]);
+    return { ok: true as const, dialog: updated };
+  }
+
+  private async paymentSent(dialog: any, { isResponder }: { isResponder: boolean }) {
+    if (!isResponder) throw new ForbiddenException('Только откликнувшийся отмечает оплату');
+    if (dialog.status !== 'PAYMENT_PENDING') {
+      throw new BadRequestException('Оплата возможна только в статусе PAYMENT_PENDING');
+    }
+    const updated = await (this.prisma as any).leadDialog.update({
+      where: { id: dialog.id },
+      data: { paymentSentAt: new Date() },
+    });
+    return { ok: true as const, dialog: updated };
+  }
+
+  private async confirmPayment(dialog: any, { isCreator }: { isCreator: boolean }) {
+    if (!isCreator) throw new ForbiddenException('Только создатель заявки подтверждает оплату');
+    if (dialog.status !== 'PAYMENT_PENDING') {
+      throw new BadRequestException('Подтверждение возможно только в PAYMENT_PENDING');
+    }
+    if (!dialog.paymentSentAt) {
+      throw new BadRequestException('Откликнувшийся ещё не отметил оплату');
+    }
+    const now = new Date();
+    const [updated] = await this.prisma.$transaction([
+      (this.prisma as any).leadDialog.update({
+        where: { id: dialog.id },
+        data: { status: 'CONFIRMED', closedAt: now },
+      }),
+      (this.prisma as any).lead.update({
+        where: { id: dialog.leadId },
+        data: { status: 'CLOSED' },
+      }),
+      ...this.incrementDeals(dialog.lead.creatorId),
+      ...this.incrementDeals(dialog.responderId),
+    ]);
+    return { ok: true as const, dialog: updated };
+  }
+
+  private async dispute(dialog: any) {
+    if (!['TRIAL_PENDING', 'PAYMENT_PENDING'].includes(dialog.status)) {
+      throw new BadRequestException('Спор можно открыть только на активном этапе');
+    }
+    const updated = await (this.prisma as any).leadDialog.update({
+      where: { id: dialog.id },
+      data: { status: 'DISPUTED' },
+    });
+    return { ok: true as const, dialog: updated };
+  }
+
+  private async cancel(dialog: any) {
+    if (!['OPEN', 'TRIAL_PENDING'].includes(dialog.status)) {
+      throw new BadRequestException('Отменить можно только диалог в OPEN или TRIAL_PENDING');
+    }
+    const now = new Date();
+    const [updated] = await this.prisma.$transaction([
+      (this.prisma as any).leadDialog.update({
+        where: { id: dialog.id },
+        data: { status: 'CANCELLED', closedAt: now },
+      }),
+      (this.prisma as any).lead.update({
+        where: { id: dialog.leadId },
+        data: { status: 'ACTIVE', lockedById: null, lockedAt: null },
+      }),
+    ]);
+    return { ok: true as const, dialog: updated };
+  }
+
+  private incrementDeals(userId: string) {
+    return [
+      (this.prisma as any).tutorMarketProfile.upsert({
+        where: { userId },
+        update: { dealsCompleted: { increment: 1 } },
+        create: { userId, dealsCompleted: 1 },
+      }),
+    ];
+  }
+}

@@ -305,10 +305,36 @@
         const WORD_LIST = GAME_CONFIG.data;
         const GAME_TOPIC = GAME_CONFIG.topic;
 
-        // Clean word list - remove spaces from words
+        /**
+         * Нормализация буквы для сравнения в кроссворде.
+         *
+         * СИНХРОНИЗИРОВАТЬ с backend/src/modules/games/utils/crossword-normalize.ts
+         * (юнит-тесты живут там; браузер не может импортировать TS-модуль).
+         *
+         * Правила:
+         *   1) toUpperCase (в JS для 'ß' даёт 'SS').
+         *   2) ẞ → SS явно (если пришло в верхнем регистре).
+         *   3) Ё → Е (в русских кроссвордах взаимозаменяемы). Й/И НЕ смешиваем.
+         *   4) NFD → снятие combining marks после ЛАТИНСКИХ букв → NFC.
+         *      FÁCIL/FACIL, GARÇON/GARCON, SCHÖNE/SCHONE — совпадают.
+         *      Й = И + ̆ (breve): обе кириллические, regex не сработает,
+         *      NFC вернёт Й в композит. Й ≠ И.
+         */
+        function normalizeLetters(s) {
+            let out = String(s || '').toUpperCase();
+            out = out.replace(/ẞ/g, 'SS');
+            out = out.replace(/Ё/g, 'Е');
+            out = out
+                .normalize('NFD')
+                .replace(/([A-Z])[̀-ͯ]+/g, '$1')
+                .normalize('NFC');
+            return out;
+        }
+
+        // Clean word list - remove spaces from words + strip diacritics
         const cleanedWordList = WORD_LIST.map(item => ({
             ...item,
-            word: item.word.replace(/\s+/g, '').toUpperCase()
+            word: normalizeLetters(item.word.replace(/\s+/g, ''))
         }));
 
         // Update page title
@@ -492,10 +518,40 @@
         function initGame() {
             const generator = new CrosswordGenerator(cleanedWordList);
             gameData = generator.generate();
+            assignClueNumbers(gameData.words);
 
             renderGrid(gameData.width, gameData.height);
             renderWords(gameData.words);
             renderClues(gameData.words);
+        }
+
+        /**
+         * Присваивает каждому слову w.number — номер его стартовой клетки.
+         * Правила классического кроссворда: нумерация идёт по клеткам,
+         * а не по словам. Если в одной клетке начинается два слова
+         * (across + down), они получают ОДИН номер. Порядок — сверху вниз,
+         * слева направо.
+         *
+         * До этой правки w.number = index + 1 (в порядке размещения на сетке),
+         * при пересечении на поле оставался номер первого слова, а в списке
+         * подсказок каждое слово получало свой — из-за чего «на поле 7,
+         * а в задании 8».
+         */
+        function assignClueNumbers(words) {
+            const cellNumber = new Map();
+            const uniqueStarts = [];
+            for (const w of words) {
+                const key = w.y + '_' + w.x;
+                if (!cellNumber.has(key)) {
+                    cellNumber.set(key, null); // placeholder — назначим номер после сортировки
+                    uniqueStarts.push({ key, x: w.x, y: w.y });
+                }
+            }
+            uniqueStarts.sort((a, b) => a.y - b.y || a.x - b.x);
+            uniqueStarts.forEach((s, i) => cellNumber.set(s.key, i + 1));
+            for (const w of words) {
+                w.number = cellNumber.get(w.y + '_' + w.x);
+            }
         }
 
         function renderGrid(w, h) {
@@ -516,15 +572,16 @@
 
         function renderWords(words) {
             // Маркируем активные клетки и добавляем инпуты
-            words.forEach((w, index) => {
-                const number = index + 1;
-
-                // Ставим номер
+            words.forEach((w) => {
+                // Номер клетки уже присвоен через assignClueNumbers.
+                // Второе слово с той же стартовой клеткой (across+down в одной
+                // точке) увидит существующий .cell-number и просто не создаст
+                // свой — так и должно быть в классической нумерации.
                 const startCell = getCell(w.x, w.y);
                 if (!startCell.querySelector('.cell-number')) {
                     const numSpan = document.createElement('span');
                     numSpan.className = 'cell-number';
-                    numSpan.innerText = number;
+                    numSpan.innerText = w.number;
                     startCell.appendChild(numSpan);
                 }
 
@@ -542,11 +599,16 @@
                         input.dataset.x = cx;
                         input.dataset.y = cy;
 
-                        // События ввода
-                        input.addEventListener('click', () => highlightWord(w));
-                        input.addEventListener('focus', () => highlightWord(w));
-                        input.addEventListener('input', (e) => handleInput(e, w));
-                        input.addEventListener('keydown', (e) => handleKey(e, cx, cy, w));
+                        // Все обработчики используют координаты клетки, а
+                        // конкретное «активное слово» вычисляется в момент
+                        // события через currentActiveWord/chooseWordForCell.
+                        // Иначе на пересечении across+down closure «залипал»
+                        // на первом слове, добавленном в клетку, и после
+                        // ввода буквы фокус уходил не в ту сторону.
+                        input.addEventListener('click', () => onCellClick(cx, cy));
+                        input.addEventListener('focus', () => onCellFocus(cx, cy));
+                        input.addEventListener('input', (e) => handleInput(e, cx, cy));
+                        input.addEventListener('keydown', (e) => handleKey(e, cx, cy));
 
                         cell.appendChild(input);
                     }
@@ -555,21 +617,47 @@
         }
 
         function renderClues(words) {
-            words.forEach((w, index) => {
+            // Показываем подсказки в порядке номеров (стандарт кроссворда),
+            // а не в порядке размещения на сетке. data-word-index оставляем
+            // равным индексу в массиве words — checkAnswers ищет clue-item
+            // именно по этому индексу.
+            const withIndex = words.map((w, index) => ({ w, index }));
+            const acrossItems = withIndex
+                .filter(({ w }) => w.dir === 'across')
+                .sort((a, b) => a.w.number - b.w.number);
+            const downItems = withIndex
+                .filter(({ w }) => w.dir === 'down')
+                .sort((a, b) => a.w.number - b.w.number);
+
+            const appendClue = (parent, { w, index }) => {
                 const li = document.createElement('li');
                 li.className = 'clue-item';
-                li.innerHTML = `<span>${index + 1}.</span> ${w.clue}`;
+                li.innerHTML = `<span>${w.number}.</span> ${w.clue}`;
                 li.dataset.wordIndex = index;
                 li.onclick = () => {
-                    // Фокус на первую букву
-                    const input = getCell(w.x, w.y).querySelector('input');
-                    input.focus();
+                    // Клик по подсказке — это не клик по клетке. Сбрасываем
+                    // счётчик повторных кликов, чтобы следующий клик по
+                    // первой клетке слова не был ошибочно засчитан как
+                    // «второй» и не переключил направление обратно.
+                    lastClickedCellKey = null;
+                    // currentActiveWord должно совпадать со словом подсказки
+                    // ДО вызова findNextEmptyInputInWord (иначе фокус на пустой
+                    // клетке через onCellFocus подсветит другое пересекающееся
+                    // слово и мы прыгнем не туда).
                     highlightWord(w);
+                    // Курсор ставим в первую ПУСТУЮ клетку слова —
+                    // если начало заполнено через пересечение, пользователю
+                    // не приходится перепрыгивать вручную.
+                    const target =
+                        findNextEmptyInputInWord(w, 0) ||
+                        getCell(w.x, w.y).querySelector('input');
+                    if (target) target.focus();
                 };
+                parent.appendChild(li);
+            };
 
-                if (w.dir === 'across') listAcross.appendChild(li);
-                else listDown.appendChild(li);
-            });
+            acrossItems.forEach((it) => appendClue(listAcross, it));
+            downItems.forEach((it) => appendClue(listDown, it));
 
             // Trigger MathJax
             if (window.MathJax) {
@@ -584,6 +672,10 @@
         // --- ВЗАИМОДЕЙСТВИЕ ---
 
         let currentActiveWord = null;
+        // Помним, на какой клетке был предыдущий клик — чтобы переключать
+        // направление на пересечении только на ВТОРОМ клике по той же
+        // клетке (стандартный UX кроссвордов).
+        let lastClickedCellKey = null;
 
         function highlightWord(wordObj) {
             // Снимаем старую подсветку
@@ -607,30 +699,95 @@
             currentActiveWord = wordObj;
         }
 
-        function handleInput(e, wordObj) {
-            const val = e.target.value;
-            if (val) {
-                // Переход к следующей букве
-                const inputX = parseInt(e.target.dataset.x);
-                const inputY = parseInt(e.target.dataset.y);
-
-                // Ищем индекс текущей буквы в слове
-                let indexInWord = -1;
-                if (wordObj.dir === 'across') indexInWord = inputX - wordObj.x;
-                else indexInWord = inputY - wordObj.y;
-
-                if (indexInWord < wordObj.word.length - 1) {
-                    const nextX = wordObj.x + (wordObj.dir === 'across' ? indexInWord + 1 : 0);
-                    const nextY = wordObj.y + (wordObj.dir === 'down' ? indexInWord + 1 : 0);
-                    const nextInput = getCell(nextX, nextY).querySelector('input');
-                    if (nextInput) nextInput.focus();
-                }
-            }
+        /**
+         * Возвращает все слова, проходящие через клетку (x, y).
+         */
+        function getWordsAtCell(x, y) {
+            return gameData.words.filter((w) => {
+                if (w.dir === 'across') return y === w.y && x >= w.x && x < w.x + w.word.length;
+                return x === w.x && y >= w.y && y < w.y + w.word.length;
+            });
         }
 
-        function handleKey(e, x, y, wordObj) {
+        /**
+         * Какое слово считать активным для этой клетки?
+         * Если currentActiveWord уже проходит через клетку — сохраняем его
+         * (чтобы фокус, приезжающий через input event, не скакал на другое
+         * направление). Иначе берём первое из слов клетки.
+         */
+        function chooseWordForCell(x, y) {
+            const words = getWordsAtCell(x, y);
+            if (words.length === 0) return null;
+            if (currentActiveWord && words.includes(currentActiveWord)) {
+                return currentActiveWord;
+            }
+            return words[0];
+        }
+
+        function onCellClick(x, y) {
+            const words = getWordsAtCell(x, y);
+            if (words.length === 0) return;
+            const cellKey = x + '_' + y;
+            const isSecondClickOnSameCell = lastClickedCellKey === cellKey;
+            lastClickedCellKey = cellKey;
+
+            // Переключаем направление ТОЛЬКО при повторном клике по той же
+            // клетке-пересечению. На первом клике сохраняем текущее слово
+            // (иначе клик по клетке слова, только что выбранного через
+            // подсказку, сразу перепрыгивал на пересекающее направление).
+            if (
+                isSecondClickOnSameCell &&
+                words.length > 1 &&
+                currentActiveWord &&
+                words.includes(currentActiveWord)
+            ) {
+                const other = words.find((w) => w !== currentActiveWord);
+                if (other) { highlightWord(other); return; }
+            }
+            highlightWord(chooseWordForCell(x, y));
+        }
+
+        function onCellFocus(x, y) {
+            const w = chooseWordForCell(x, y);
+            if (w) highlightWord(w);
+        }
+
+        /**
+         * Ищет первую пустую клетку слова начиная с fromIndex.
+         * Возвращает input или null (если все клетки от fromIndex до
+         * конца слова уже заполнены).
+         */
+        function findNextEmptyInputInWord(wordObj, fromIndex) {
+            for (let i = fromIndex; i < wordObj.word.length; i++) {
+                const cx = wordObj.x + (wordObj.dir === 'across' ? i : 0);
+                const cy = wordObj.y + (wordObj.dir === 'down' ? i : 0);
+                const cell = getCell(cx, cy);
+                if (!cell) continue;
+                const input = cell.querySelector('input');
+                if (input && !input.value) return input;
+            }
+            return null;
+        }
+
+        function handleInput(e, x, y) {
+            const val = e.target.value;
+            if (!val) return;
+            // Используем актуальное активное слово, а не закреплённое
+            // в замыкании при создании инпута.
+            const wordObj = currentActiveWord || chooseWordForCell(x, y);
+            if (!wordObj) return;
+
+            // Перепрыгиваем уже заполненные клетки (буквы от пересекающихся
+            // слов): курсор идёт вперёд по слову до первой пустой клетки.
+            const indexInWord = wordObj.dir === 'across' ? x - wordObj.x : y - wordObj.y;
+            const nextInput = findNextEmptyInputInWord(wordObj, indexInWord + 1);
+            if (nextInput) nextInput.focus();
+        }
+
+        function handleKey(e, x, y) {
             if (e.key === 'Backspace' && e.target.value === '') {
-                // Переход назад
+                const wordObj = currentActiveWord || chooseWordForCell(x, y);
+                if (!wordObj) return;
                 let prevX = x, prevY = y;
                 if (wordObj.dir === 'across') prevX--;
                 else prevY--;
@@ -662,8 +819,8 @@
             let isAllCorrect = true;
 
             inputs.forEach(input => {
-                const val = input.value.toUpperCase();
-                const correct = input.dataset.answer;
+                const val = normalizeLetters(input.value);
+                const correct = normalizeLetters(input.dataset.answer);
 
                 if (val === correct) {
                     input.parentElement.classList.add('correct');
@@ -681,7 +838,7 @@
                     const cx = w.x + (w.dir === 'across' ? i : 0);
                     const cy = w.y + (w.dir === 'down' ? i : 0);
                     const input = getCell(cx, cy).querySelector('input');
-                    if (input.value.toUpperCase() !== w.word[i]) wordCorrect = false;
+                    if (normalizeLetters(input.value) !== normalizeLetters(w.word[i])) wordCorrect = false;
                 }
 
                 const clueItem = document.querySelector(`.clue-item[data-word-index="${index}"]`);

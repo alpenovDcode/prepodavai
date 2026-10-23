@@ -4,6 +4,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { HtmlExportService } from '../../common/services/html-export.service';
 import { EmailService } from '../../common/services/email.service';
 import { FilesService } from '../files/files.service';
+import { PresentationCanvasService } from '../generations/presentation/presentation-canvas.service';
 import * as crypto from 'crypto';
 import axios from 'axios';
 import * as FormData from 'form-data';
@@ -61,6 +62,7 @@ interface MaxPlatformState {
 @Injectable()
 export class MaxService {
   private readonly logger = new Logger(MaxService.name);
+  private readonly presentationCanvasService: PresentationCanvasService;
   private token: string;
   private apiUrl: string;
   private internalApiUrl: string;
@@ -95,6 +97,7 @@ export class MaxService {
     private readonly emailService: EmailService,
     private readonly filesService: FilesService,
   ) {
+    this.presentationCanvasService = new PresentationCanvasService(filesService);
     this.token = this.configService.get<string>('MAX_BOT_TOKEN');
     this.apiUrl = this.configService.get<string>('MAX_API_URL') || 'https://platform-api.max.ru';
     this.internalApiUrl = this.configService.get<string>('API_URL') || 'http://localhost:3001';
@@ -1205,7 +1208,7 @@ export class MaxService {
       ) {
         await this.sendImage(chatId, result);
       } else if (generationType === 'presentation') {
-        await this.sendPresentation(chatId, result);
+        await this.sendPresentation(chatId, result, userId);
       } else {
         await this.sendTextResult(chatId, generationType, result, isBotOnlyUser);
       }
@@ -2740,7 +2743,32 @@ export class MaxService {
   }
 
   // ── Result delivery helpers ───────────────────────────────────────────────
-  private async sendPresentation(chatId: string, result: any) {
+  private async sendPresentation(chatId: string, result: any, userId: string) {
+    // Canvas PDF — основной формат. Legacy URL/PPTX ветка ниже остаётся для
+    // старых записей и быстрого rollback.
+    if (result?.canvasData) {
+      try {
+        const canvas = this.presentationCanvasService.parse(result.canvasData);
+        const html = await this.presentationCanvasService.renderHtml(canvas, {
+          userId,
+          embedAssets: true,
+        });
+        const pdf = await this.htmlExportService.htmlToPdf(html, {
+          blockExternalRequests: true,
+          pageSize: { width: canvas.width, height: canvas.height },
+        });
+        await this.uploadAndSendFile(
+          chatId,
+          pdf,
+          `presentation_${Date.now()}.pdf`,
+          '✅ Ваша презентация готова!',
+        );
+        return;
+      } catch (error: any) {
+        this.logger.error(`[MAX] Canvas presentation delivery failed: ${error?.message ?? error}`);
+      }
+    }
+
     const exportUrl = result?.exportUrl || result?.pptxUrl || result?.pdfUrl;
     const topic = result?.inputText ? `\n\n📌 Тема: ${result.inputText}` : '';
 

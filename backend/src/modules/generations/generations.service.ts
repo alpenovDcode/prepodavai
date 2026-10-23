@@ -22,7 +22,11 @@ import { getEffectiveHtml } from '../../common/utils/effective-html.util';
 import { FilesService } from '../files/files.service';
 import { StrategyRegistryService } from './strategies/strategy-registry.service';
 import { PresentationPptxV2Service } from './presentation/presentation-pptx-v2.service';
-import { PresentationData } from './presentation/presentation-template.service';
+import { PresentationData, PresentationLayout, PresentationColor, PresentationStyle, PresentationSlide, PresentationTemplateService } from './presentation/presentation-template.service';
+import {
+  PresentationCanvasService,
+  convertPresentationDataToCanvas,
+} from './presentation/presentation-canvas.service';
 import { AnalyticsEventsService, EVENT_TYPES } from '../analytics-events/analytics-events.service';
 
 export const LOGO_BASE64 =
@@ -119,6 +123,8 @@ export class GenerationsService {
     private readonly onboardingQuestService: OnboardingQuestService,
     private readonly strategyRegistry: StrategyRegistryService,
     private readonly presentationPptxService: PresentationPptxV2Service,
+    private readonly presentationTemplateService: PresentationTemplateService,
+    private readonly presentationCanvasService: PresentationCanvasService,
     private readonly analyticsEvents: AnalyticsEventsService,
   ) { }
 
@@ -939,7 +945,7 @@ export class GenerationsService {
       `[GenerationsService] Enqueuing Replicate presentation generation for request ${generationRequestId}`,
     );
 
-    const { topic, text, duration, style, targetAudience, numCards, slidesCount, color } = inputParams;
+    const { topic, text, duration, style, targetAudience, numCards, slidesCount, color, grade, extraNotes } = inputParams;
 
     if (!topic) {
       throw new BadRequestException('No topic provided for presentation generation');
@@ -963,6 +969,8 @@ export class GenerationsService {
       style,                              // modern | academic | creative | corporate
       color,                              // indigo | emerald | violet | blue | slate
       targetAudience,
+      grade,                              // класс 1..11 (для сложности изложения)
+      extraNotes,                         // свободные пожелания учителя
       slidesCount: finalSlidesCount,      // основное поле
       numCards: finalSlidesCount,         // legacy совместимость
     });
@@ -1419,7 +1427,136 @@ export class GenerationsService {
       }
     }
 
+    // Ленивая миграция: старый slideDoc-формат (из n8n) → content+presentationData
+    const genType = generation.userGeneration?.generationType ?? generation.type;
+    if (genType === 'presentation') {
+      const ug = generation.userGeneration;
+      const cur = (ug?.outputData ?? generation.result) as any;
+      // v2: правильное извлечение полей (paragraph, leftColumn/rightColumn, quote, quiz).
+      // Презентации мигрированные старой (багованной) версией не имеют _migv — их
+      // нужно пере-мигрировать из сохранённого slideDoc.
+      const MIG_VERSION = 6;
+      const needsMigration = cur?.slideDoc && (!cur?.content || cur?._migv !== MIG_VERSION);
+      if (needsMigration) {
+        try {
+          const migratedData = this.migrateSlideDocToPresentation(cur);
+          const html = await this.presentationTemplateService.renderHtml(migratedData);
+          const newOutputData = { ...cur, content: html, presentationData: migratedData, _migv: MIG_VERSION };
+          await this.prisma.generationRequest.update({
+            where: { id: generation.id },
+            data: { result: newOutputData },
+          });
+          if (ug) {
+            await this.prisma.userGeneration.update({
+              where: { id: ug.id },
+              data: { outputData: newOutputData },
+            });
+            ug.outputData = newOutputData;
+          } else {
+            generation.result = newOutputData;
+          }
+          this.logger.log(`[presentations] Lazy migrated slideDoc for ${generation.id} (${migratedData.slides.length} slides)`);
+        } catch (e: any) {
+          this.logger.warn(`[presentations] slideDoc migration failed for ${generation.id}: ${e?.message}`);
+        }
+      }
+    }
+
     return this.formatGenerationStatus(generation);
+  }
+
+  /**
+   * Конвертирует старый slideDoc (формат n8n) в PresentationData нового пайплайна.
+   * Зеркало логики в scripts/migrate-old-presentations.ts (без LLM-вызовов).
+   */
+  private migrateSlideDocToPresentation(result: any): PresentationData {
+    const slideDoc = result.slideDoc ?? {};
+    const OLD_LAYOUTS: Record<string, PresentationLayout> = {
+      title: 'title', agenda: 'bullets', bullets: 'bullets',
+      'two-column': 'two-column', 'image-text': 'image-text',
+      quote: 'quote', quiz: 'bullets', summary: 'summary', content: 'content',
+    };
+    const THEME_TO_COLOR: Record<string, PresentationColor> = {
+      indigo: 'indigo', emerald: 'emerald', violet: 'violet', blue: 'blue', slate: 'slate',
+    };
+
+    // Старый формат SlideContent (slide-doc.types.ts):
+    //   { title, subtitle, bullets[], paragraph, math[],
+    //     leftColumn{heading,bullets[],paragraph}, rightColumn{...},
+    //     quote{text,attribution}, quiz{question,options[],answerIndex} }
+    const colText = (col: any): string => {
+      if (!col) return '';
+      const parts: string[] = [];
+      if (col.paragraph) parts.push(String(col.paragraph));
+      if (Array.isArray(col.bullets)) parts.push(...col.bullets.map((b: any) => `• ${b}`));
+      return parts.join('\n');
+    };
+
+    const slides: PresentationSlide[] = (slideDoc.slides ?? []).map((old: any): PresentationSlide => {
+      const layout: PresentationLayout = OLD_LAYOUTS[(old?.layout || 'content').toLowerCase()] || 'content';
+      const c = old?.content ?? {};
+      const math: string[] = Array.isArray(c.math) ? c.math.map(String) : [];
+      const slide: PresentationSlide = { layout };
+      if (c.title)    slide.title    = c.title;
+      if (c.subtitle) slide.subtitle = c.subtitle;
+
+      switch (layout) {
+        case 'bullets': {
+          // agenda / bullets / quiz
+          if (c.quiz) {
+            const opts = Array.isArray(c.quiz.options) ? c.quiz.options : [];
+            slide.items = [c.quiz.question, ...opts].filter(Boolean).map(String);
+          } else {
+            slide.items = [...(c.bullets || []).map(String), ...math];
+          }
+          break;
+        }
+        case 'two-column':
+          slide.leftTitle  = c.leftColumn?.heading  || '';
+          slide.leftText   = colText(c.leftColumn);
+          slide.rightTitle = c.rightColumn?.heading || '';
+          slide.rightText  = colText(c.rightColumn);
+          break;
+        case 'quote':
+          slide.text   = c.quote?.text || c.paragraph || '';
+          slide.author = c.quote?.attribution || '';
+          break;
+        case 'summary':
+          slide.items = [...(c.bullets || []).map(String), ...math];
+          break;
+        case 'image-text': {
+          // bullets + paragraph слева, картинка справа
+          const items: string[] = [];
+          if (Array.isArray(c.bullets)) items.push(...c.bullets.map(String));
+          if (c.paragraph) items.push(String(c.paragraph));
+          items.push(...math);
+          slide.items = items;
+          if (old?.image?.url) slide.imageUrl = String(old.image.url);
+          if (old?.image?.alt) slide.imageAlt = String(old.image.alt);
+          break;
+        }
+        case 'content':
+        default: {
+          // обычный content: paragraph + bullets + math
+          const paras: string[] = [];
+          if (c.paragraph) paras.push(String(c.paragraph));
+          if (Array.isArray(c.bullets)) paras.push(...c.bullets.map((b: any) => `• ${b}`));
+          paras.push(...math);
+          slide.paragraphs = paras;
+          break;
+        }
+      }
+      return slide;
+    });
+
+    const themeId = (slideDoc.themeId || result.themeId || 'indigo').toLowerCase();
+    return {
+      topic:    slideDoc.topic    || result.topic    || 'Презентация',
+      audience: slideDoc.audience || result.audience || 'Школьники',
+      style:    (result.style as PresentationStyle)  || 'modern',
+      color:    (THEME_TO_COLOR[themeId] || 'indigo') as PresentationColor,
+      slides,
+    };
   }
 
   /**
@@ -1630,6 +1767,26 @@ export class GenerationsService {
 
     const result = (userGen.outputData ?? userGen.generationRequest?.result) as any;
 
+    // Canvas-редактор хранит точные координаты элементов. Он является
+    // каноническим источником для PDF после первой свободной правки.
+    if (result?.canvasData) {
+      if (format === 'pptx') {
+        // Старый PPTX-путь сохранён без изменений и использует semantic JSON.
+        const pdata = result?.presentationData as PresentationData | undefined;
+        if (pdata?.slides?.length) return this.presentationPptxService.build(pdata);
+      } else {
+        const canvas = this.presentationCanvasService.parse(result.canvasData);
+        const html = await this.presentationCanvasService.renderHtml(canvas, {
+          userId,
+          embedAssets: true,
+        });
+        return this.htmlExportService.htmlToPdf(html, {
+          blockExternalRequests: true,
+          pageSize: { width: canvas.width, height: canvas.height },
+        });
+      }
+    }
+
     // 1. Сначала проверяем готовые URL'ы — генерация уже сохранила файлы при completed.
     const fileUrl = format === 'pptx' ? result?.pptxUrl : (result?.pdfUrl || result?.exportUrl);
     const hashMatch = fileUrl?.match(/\/api\/files\/([a-f0-9]{32})/i);
@@ -1638,19 +1795,51 @@ export class GenerationsService {
       if (file) return file.buffer;
     }
 
-    // 2. Fallback: пересоздаём на лету из presentationData (новый формат)
-    const presentationData: PresentationData | undefined = result?.presentationData;
-    if (presentationData?.slides?.length) {
+    // 2. Fallback: пересоздаём на лету из presentationData.
+    // Проверяем несколько возможных мест хранения (разные версии формата outputData).
+    const slidesArray: any[] | undefined =
+      result?.presentationData?.slides ??  // новый формат
+      result?.slides ??                    // устаревший формат (slides на верхнем уровне)
+      result?.data?.slides;               // ещё один старый вариант
+
+    if (slidesArray?.length) {
+      const presentationData: PresentationData = result?.presentationData ?? {
+        topic: result?.topic ?? '',
+        audience: result?.audience ?? '',
+        style: result?.style ?? 'modern',
+        color: result?.color ?? 'indigo',
+        slides: slidesArray,
+      };
       if (format === 'pptx') {
         return this.presentationPptxService.build(presentationData);
       }
-      // PDF из HTML
-      const html: string | undefined = result?.content;
-      if (html) {
-        return this.htmlExportService.htmlToPdf(html);
-      }
+      // Старый semantic JSON конвертируем в canvas на лету. Это даёт настоящий
+      // 16:9 и не требует массовой миграции записей в БД.
+      const canvas = convertPresentationDataToCanvas(presentationData);
+      const canvasHtml = await this.presentationCanvasService.renderHtml(canvas, {
+        userId,
+        embedAssets: true,
+      });
+      return this.htmlExportService.htmlToPdf(canvasHtml, {
+        blockExternalRequests: true,
+        pageSize: { width: canvas.width, height: canvas.height },
+      });
+
+      // Legacy HTML/A4-landscape путь сохранён для быстрого rollback:
+      // const html: string | undefined = result?.content ?? result?.html;
+      // if (html) {
+      //   return this.htmlExportService.htmlToPdf(html, {
+      //     landscape: true,
+      //     blockExternalRequests: true,
+      //   });
+      // }
+      // PDF без готового HTML: нет возможности пересобрать без LLM, кидаем 404.
     }
 
+    this.logger.warn(
+      `exportPresentation: no slides data for requestId=${requestId}, ` +
+      `resultKeys=${Object.keys(result ?? {}).join(',')}`,
+    );
     throw new NotFoundException('Файл презентации недоступен');
   }
 
@@ -1854,9 +2043,12 @@ export class GenerationsService {
     presentation: ['presentation'],
     lessonPlan: ['lesson-plan', 'lesson_plan', 'lessonPlan'],
     lessonPreparation: ['lesson_preparation', 'lesson-preparation', 'lessonPreparation'],
-    image: ['image_generation', 'image'],
+    image: ['image_generation', 'image', 'photosession'],
     game: ['game_generation', 'game'],
     vocabulary: ['vocabulary'],
+    uploadedFile: ['uploaded_file', 'uploadedFile'],
+    videoAnalysis: ['video-analysis', 'video_analysis', 'videoAnalysis'],
+    unpacking: ['unpacking'],
   };
 
   private static dbToFrontend(dbType: string): string {
@@ -1872,9 +2064,26 @@ export class GenerationsService {
       lessonPreparation: 'lessonPreparation',
       image_generation: 'image',
       image: 'image',
+      photosession: 'image',
       game_generation: 'game',
       game: 'game',
       vocabulary: 'vocabulary',
+      uploaded_file: 'uploadedFile',
+      uploadedFile: 'uploadedFile',
+      'video-analysis': 'videoAnalysis',
+      video_analysis: 'videoAnalysis',
+      videoAnalysis: 'videoAnalysis',
+      unpacking: 'unpacking',
+      'content-adaptation': 'contentAdaptation',
+      content_adaptation: 'contentAdaptation',
+      message: 'message',
+      feedback: 'feedback',
+      transcription: 'transcription',
+      'exam-variant': 'examVariant',
+      exam_variant: 'examVariant',
+      sales_advisor: 'salesAdvisor',
+      'sales-advisor': 'salesAdvisor',
+      assistant: 'assistant',
     };
     return map[dbType] || dbType;
   }
@@ -1968,6 +2177,7 @@ export class GenerationsService {
           title: (gen as any).title ?? null,
           status: gen.status,
           lessonId: gen.lessonId,
+          folder: (gen as any).folder ?? null,
           params: trimParams(gen.inputParams),
           createdAt: gen.createdAt,
           updatedAt: gen.updatedAt,
@@ -2063,6 +2273,80 @@ export class GenerationsService {
     if (typeof data?.title === 'string') {
       const trimmed = data.title.trim().slice(0, 200);
       updateData.title = trimmed.length > 0 ? trimmed : null;
+    }
+
+    // Перемещение в папку. Пустая строка = убрать из папки.
+    if (typeof data?.folder === 'string') {
+      const trimmed = data.folder.trim().slice(0, 100);
+      updateData.folder = trimmed.length > 0 ? trimmed : null;
+    }
+
+    // Свободный canvas-редактор. Старый presentationData намеренно остаётся
+    // рядом в outputData: переключение назад не требует миграции или отката БД.
+    if (data?.canvasData && typeof data.canvasData === 'object') {
+      try {
+        const canvas = this.presentationCanvasService.parse(data.canvasData);
+        const html = await this.presentationCanvasService.renderHtml(canvas);
+        const currentOutput = (generation.outputData as any) ?? {};
+        const newOutput = {
+          ...currentOutput,
+          content: html,
+          canvasData: canvas,
+          pdfUrl: null,
+          pptxUrl: null,
+          exportUrl: null,
+          _userEdited: true,
+          _canvasEdited: true,
+        };
+        updateData.outputData = newOutput;
+        this.logger.log(
+          `[presentations] Canvas edited ${generation.id} (${canvas.slides.length} slides)`,
+        );
+        return this.prisma.userGeneration.update({
+          where: { id: generation.id },
+          data: updateData,
+        });
+      } catch (e: any) {
+        this.logger.warn(`[presentations] canvas validation/render failed: ${e?.message}`);
+        throw new BadRequestException(
+          `Не удалось сохранить свободную разметку: ${e?.message || e}`,
+        );
+      }
+    }
+
+    // Редактирование презентации: фронт присылает обновлённый presentationData,
+    // мы пере-рендерим HTML (теми же шаблонами что и превью) и сбрасываем
+    // pdfUrl/pptxUrl чтобы при следующем скачивании файлы пересобрались из
+    // нового HTML/JSON.
+    if (data?.presentationData && typeof data.presentationData === 'object') {
+      try {
+        const pdata = data.presentationData as PresentationData;
+        const html = await this.presentationTemplateService.renderHtml(pdata);
+        const currentOutput = (generation.outputData as any) ?? {};
+        const newOutput = {
+          ...currentOutput,
+          content: html,
+          presentationData: pdata,
+          // Сбрасываем url'ы, чтобы при следующем скачивании пересобрались.
+          pdfUrl: null,
+          pptxUrl: null,
+          exportUrl: null,
+          // Помечаем что это пользовательская правка (не миграция).
+          _userEdited: true,
+        };
+        updateData.outputData = newOutput;
+        this.logger.log(`[presentations] User edited ${generation.id} (${pdata.slides?.length || 0} slides)`);
+        // Возвращаем сразу — не пускаем правку дальше в общий контент-merge,
+        // иначе он перезатрёт наш newOutput.content исходным DB-значением
+        // (брал existing = generation.outputData, не updateData.outputData).
+        return this.prisma.userGeneration.update({
+          where: { id: generation.id },
+          data: updateData,
+        });
+      } catch (e: any) {
+        this.logger.warn(`[presentations] re-render failed on edit: ${e?.message}`);
+        throw new BadRequestException(`Не удалось пересобрать презентацию: ${e?.message || e}`);
+      }
     }
 
     // Контент-payload. Канонично приходит в `outputData`; старые вызовы клали

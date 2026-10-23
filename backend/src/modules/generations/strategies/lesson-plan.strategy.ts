@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { GenerationStrategy, GenerationRequestParams } from '../interfaces/generation-strategy.interface';
 import { DesignSystemConfig } from '../config/design-system.config';
+import { subjectLanguageDirective } from '../utils/subject-language.util';
 
 @Injectable()
 export class LessonPlanStrategy implements GenerationStrategy {
@@ -28,6 +29,7 @@ ${DesignSystemConfig.PROMPT_MODULES.CRITICAL_OUTPUT_RULES}
 
     const userPrompt = `<MAIN_TOPIC>${topic || '—'}</MAIN_TOPIC>
 <SUBJECT>${subject || '—'}</SUBJECT>
+${subjectLanguageDirective(subject)}
 
 🎯 ГЛАВНОЕ ПРАВИЛО ЭТОЙ ГЕНЕРАЦИИ:
 ВЕСЬ контент строго и исключительно по теме <MAIN_TOPIC>${topic || '—'}</MAIN_TOPIC>.

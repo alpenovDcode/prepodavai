@@ -9,6 +9,7 @@ import { HtmlExportService } from '../../common/services/html-export.service';
 import { EmailService } from '../../common/services/email.service';
 import { FilesService } from '../files/files.service';
 import { AnalyticsEventsService } from '../analytics-events/analytics-events.service';
+import { PresentationCanvasService } from '../generations/presentation/presentation-canvas.service';
 import { SmartLinkTokensService } from '../smart-links/smart-link-tokens.service';
 
 // ── Типы состояний диалога регистрации ──────────────────────────────────────
@@ -49,6 +50,7 @@ const DEFAULT_SUBSCRIBED_TEXT =
 export class TelegramService {
   private readonly logger = new Logger(TelegramService.name);
   private bot: Bot;
+  private readonly presentationCanvasService: PresentationCanvasService;
 
   private readonly regStates = new Map<string, RegistrationState>();
 
@@ -63,6 +65,7 @@ export class TelegramService {
     private readonly analyticsEvents: AnalyticsEventsService,
     private readonly smartLinkTokens: SmartLinkTokensService,
   ) {
+    this.presentationCanvasService = new PresentationCanvasService(filesService);
     const token = this.configService.get<string>('TELEGRAM_BOT_TOKEN');
     if (token) {
       this.logger.log(
@@ -802,6 +805,35 @@ export class TelegramService {
   }
 
   /**
+   * Отправка сообщения AppUser'у по его id, если он привязал Telegram.
+   * Тихо no-op, если у пользователя нет BotUser с telegramId.
+   * Не бросает ошибки — только логирует.
+   */
+  async sendToAppUser(
+    appUserId: string,
+    text: string,
+    opts?: { parseMode?: 'Markdown' | 'HTML' },
+  ): Promise<boolean> {
+    if (!this.bot) return false;
+    try {
+      const botUser = await (this.prisma as any).botUser.findFirst({
+        where: { appUserId, telegramId: { not: null } },
+        select: { telegramId: true },
+      });
+      if (!botUser?.telegramId) return false;
+      await this.bot.api.sendMessage(botUser.telegramId, text, {
+        parse_mode: opts?.parseMode,
+      });
+      return true;
+    } catch (err) {
+      this.logger.warn(
+        `sendToAppUser failed for ${appUserId}: ${(err as Error).message}`,
+      );
+      return false;
+    }
+  }
+
+  /**
    * Отправка результата генерации в Telegram
    */
   async sendGenerationResult(params: {
@@ -844,7 +876,7 @@ export class TelegramService {
       ) {
         await this.sendImage(chatId, result);
       } else if (generationType === 'presentation') {
-        await this.sendPresentation(chatId, result);
+        await this.sendPresentation(chatId, result, userId);
       } else {
         await this.sendTextResult(chatId, generationType, result, isBotOnlyUser);
       }
@@ -854,6 +886,43 @@ export class TelegramService {
       console.error(`[Telegram] Failed to deliver result: type=${generationType} userId=${userId} error=${error}`);
       return { success: false, message: String(error) };
     } finally {
+      // Для funnel-пользователей после 1-й и 3-й генерации — особое сообщение перед меню
+      // (отправляем здесь, ПОСЛЕ PDF, а не из бота, который шлёт раньше PDF)
+      //
+      // Счётчик генераций инкрементим АТОМАРНО ровно здесь, в момент доставки результата:
+      // это единственный источник истины (бот больше не инкрементит обычные генерации),
+      // поэтому totalGenerations гарантированно равен порядковому номеру текущей генерации
+      // без гонки между ботом и процессором доставки. Доставка идёт один раз на генерацию
+      // (idempotency через флаг sentToTelegram в процессоре), так что двойного учёта нет.
+      try {
+        const botUser = await (this.prisma as any).botUser.update({
+          where: { telegramId: appUser.telegramId },
+          data: {
+            totalGenerations: { increment: 1 },
+            generationsThisMonth: { increment: 1 },
+            lastGenerationAt: new Date(),
+          },
+          select: { source: true, totalGenerations: true },
+        }).catch(() => null);
+        if (botUser?.source === 'funnel_bot' && botUser?.totalGenerations === 1) {
+          await this.bot.api.sendMessage(
+            chatId,
+            `Готово — ваш первый материал собран.\n👆 PDF выше.\n\nПара минут вместо вечера — и так с каждым материалом.\n\nЗавтра нужен тест для девятого класса? — собрали за минуту\nК выходным презентация для малышей? — собрали\nКто-то поплыл в теме? — за пять минут готов рабочий лист именно под его пробел.\n\nСоберём следующий?\nВыбирайте инструмент:`,
+          ).catch(() => {});
+        } else if (botUser?.source === 'funnel_bot' && botUser?.totalGenerations === 3) {
+          const webAppUrl = process.env.WEBAPP_URL || 'https://prepodavai.ru';
+          await this.bot.api.sendMessage(
+            chatId,
+            `А с платформой ПреподаваИИ вы уже знакомы? 👀\n\nБот — это только часть нашей платформы. Им удобно быстро собрать материал, и вы это уже распробовали.\n\nНо ПреподаваИИ — это ещё и целая платформа, и там вы ведёте ученика целиком до результата.\n\nКак это выглядит на одном ученике:\n— заводите его (или сразу всю группу) — листы и тесты ученика лежат у него, а не в общей куче «Загрузок»;\n— генерируете материал и тут же выдаёте ему как домашку — прямо на платформе, без «скинул в телеграме»;\n— ученик решает и отправляет работу обратно туда же;\n— ИИ может проверить её сам — вы не сидите вечером над пачкой тетрадей;\n— а в аналитике видно: причастия он третью неделю валит — и следующий лист вы собираете ровно под это.\n\nИ всё это абсолютно бесплатно — так же, как бот. Без пробного периода, который однажды кончится, и без тарифа, который ждёт за углом.\nБот под рукой для быстрой задачи, платформа — чтобы вести учеников целиком.`,
+            {
+              reply_markup: {
+                inline_keyboard: [[{ text: '🚀 Перейти на платформу', url: webAppUrl }]],
+              },
+            },
+          ).catch(() => {});
+        }
+      } catch {}
+
       await this.bot.api.sendMessage(chatId, '🛠️ *Выберите инструмент:*', {
         parse_mode: 'Markdown',
         reply_markup: {
@@ -956,7 +1025,31 @@ export class TelegramService {
   /**
    * Отправка презентации
    */
-  private async sendPresentation(chatId: string, result: any) {
+  private async sendPresentation(chatId: string, result: any, userId: string) {
+    // Новый канонический путь: canvas JSON → точный 16:9 PDF. Старый URL-путь
+    // ниже оставлен для legacy/Gamma результатов.
+    if (result?.canvasData) {
+      try {
+        const canvas = this.presentationCanvasService.parse(result.canvasData);
+        const html = await this.presentationCanvasService.renderHtml(canvas, {
+          userId,
+          embedAssets: true,
+        });
+        const pdf = await this.htmlExportService.htmlToPdf(html, {
+          blockExternalRequests: true,
+          pageSize: { width: canvas.width, height: canvas.height },
+        });
+        await this.bot.api.sendDocument(
+          chatId,
+          new InputFile(pdf, `presentation_${Date.now()}.pdf`),
+          { caption: '✅ Ваша презентация готова (PDF)!' },
+        );
+        return;
+      } catch (error) {
+        this.logger.error(`Canvas presentation delivery failed: ${error}`);
+      }
+    }
+
     const exportUrl = result.exportUrl || result.pdfUrl || result.pptxUrl;
 
     if (!exportUrl) {

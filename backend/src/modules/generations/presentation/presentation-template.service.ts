@@ -31,6 +31,8 @@ export interface PresentationParams {
   audience?: string;    // 'Школьники' | 'Студенты' | 'Учителя' | свободная строка
   style?: PresentationStyle;
   color?: PresentationColor;
+  grade?: string | number;  // класс 1..11 — сложность изложения
+  extraNotes?: string;      // свободные пожелания учителя
 }
 
 /**
@@ -38,7 +40,7 @@ export interface PresentationParams {
  * Расширять можно добавив новый case в renderSlide() в HTML-шаблонах.
  */
 export const PRESENTATION_LAYOUTS = [
-  'title', 'bullets', 'two-column', 'quote', 'summary', 'content',
+  'title', 'bullets', 'two-column', 'quote', 'summary', 'content', 'image-text',
 ] as const;
 export type PresentationLayout = (typeof PRESENTATION_LAYOUTS)[number];
 
@@ -56,6 +58,8 @@ export interface PresentationSlide {
   author?: string;
   paragraphs?: string[];
   meta?: string;
+  imageUrl?: string;  // для image-text layout
+  imageAlt?: string;
 }
 
 export interface PresentationData {
@@ -78,7 +82,9 @@ export class PresentationTemplateService {
    *   2. Загружает HTML-шаблон под стиль (modern/academic/creative/corporate).
    *   3. Подставляет {{DATA}}, {{LOGO_URL}}, цветовые CSS-vars.
    *
-   * НЕ генерирует картинки — в шаблонах их нет (по требованию: «убрать генерацию картинок»).
+   * НЕ генерирует картинки — пробовали через Replicate flux-schnell (557e0fa),
+   * откатили: 6 параллельных image-вызовов на презентацию выжигали Replicate-квоту
+   * и валили другие генерации (lesson-plan/worksheet/vocabulary/quiz).
    */
   async generate(params: PresentationParams): Promise<{ html: string; data: PresentationData }> {
     const style = (params.style && PRESENTATION_STYLES.includes(params.style))
@@ -93,6 +99,8 @@ export class PresentationTemplateService {
       text: params.text || '',
       slidesCount,
       audience,
+      grade: params.grade != null ? String(params.grade) : '',
+      extraNotes: params.extraNotes?.trim() || '',
     });
 
     const rawJson = await this.callLLM(prompt);
@@ -114,13 +122,13 @@ export class PresentationTemplateService {
    * Промпт для LLM. Короткий, строго JSON, без HTML/CSS/JS. Запрещены картинки.
    * Логика «1-я → 3-я → 10-я генерация» сохранена через payload.nth в analytics-events.
    */
-  private buildPrompt(p: { topic: string; text: string; slidesCount: number; audience: string }): string {
+  private buildPrompt(p: { topic: string; text: string; slidesCount: number; audience: string; grade?: string; extraNotes?: string }): string {
     return `Ты — методист и дизайнер презентаций. Сгенерируй данные для презентации.
 
 ТЕМА: ${p.topic}
 АУДИТОРИЯ: ${p.audience}
-КОЛИЧЕСТВО СЛАЙДОВ: ${p.slidesCount}
-${p.text ? `ИСХОДНЫЕ ТЕЗИСЫ/ТЕКСТ:\n${p.text}\n` : ''}
+${p.grade ? `КЛАСС: ${p.grade} — подбирай сложность изложения, лексику и глубину под этот возраст.\n` : ''}КОЛИЧЕСТВО СЛАЙДОВ: ${p.slidesCount}
+${p.text ? `ИСХОДНЫЕ ТЕЗИСЫ/ТЕКСТ:\n${p.text}\n` : ''}${p.extraNotes ? `ПОЖЕЛАНИЯ УЧИТЕЛЯ (обязательно учти): ${p.extraNotes}\n` : ''}
 
 🔥 ГЛАВНОЕ ПРАВИЛО — НАПОЛНЕНИЕ КАЖДОГО СЛАЙДА:
 Каждый слайд должен содержать МНОГО важного, осмысленного текста по теме.
@@ -183,10 +191,53 @@ ${p.text ? `ИСХОДНЫЕ ТЕЗИСЫ/ТЕКСТ:\n${p.text}\n` : ''}
 1. Верни ТОЛЬКО валидный JSON-массив слайдов, без markdown, без комментариев.
 2. Никаких HTML-тегов в текстовых полях.
 3. Никаких ссылок на картинки — слайды только текстовые.
-4. Формулы — в LaTeX, оборачивай в $...$ (inline) или $$...$$ (block).
-   Внутри формул только латиница и спецсимволы LaTeX, кириллица в формулах ЗАПРЕЩЕНА.
-5. Каждый слайд имеет поле "layout".
-6. Размер JSON: ровно ${p.slidesCount} слайдов.
+4. Каждый слайд имеет поле "layout".
+5. Размер JSON: ровно ${p.slidesCount} слайдов.
+
+🔢 ПРАВИЛА ОФОРМЛЕНИЯ МАТЕМАТИКИ И ФОРМУЛ (КРИТИЧНО):
+   • Любая математическая запись ВСЕГДА оборачивается в $...$ (inline)
+     или $$...$$ (отдельная строка-блок). БЕЗ ЭТОГО формула не отрендерится.
+   • КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО использовать \\( \\) \\[ \\] напрямую — только $.
+     Парсер их не поймёт и слайд сломается красной ошибкой.
+   • Внутри $...$ только LaTeX-синтаксис: латиница и спецкоманды.
+     Кириллица в формулах ЗАПРЕЩЕНА.
+   • НИКАКОГО юникода в формулах — пиши команду, не символ:
+       стрелка →   →  \\to     (НЕ →)
+       умножить ×  →  \\cdot   (НЕ × и НЕ ·)
+       композиция ∘ →  \\circ  (НЕ ∘)
+       бесконечность ∞ → \\infty  (НЕ ∞)
+       сумма ∑      →  \\sum    (НЕ ∑)
+       интеграл ∫   →  \\int    (НЕ ∫)
+       не равно ≠   →  \\neq    (НЕ ≠)
+       меньше-равно ≤ → \\leq   (НЕ ≤)
+   • Используй стандартные LaTeX-команды:
+       \\frac{a}{b}        — дробь
+       x^2, x_n            — степени и индексы
+       x^{2n+1}, a_{i,j}   — многосимвольные индексы в { }
+       \\sqrt{x}, \\sqrt[3]{x}
+       \\sum_{i=1}^{n}, \\prod, \\int, \\lim_{x \\to a}
+       \\to, \\in, \\notin, \\infty, \\neq, \\leq, \\geq, \\approx
+       \\alpha, \\beta, \\pi, \\varphi (греческие)
+       \\sin, \\cos, \\tan, \\log, \\ln
+   • Формулы должны быть СИНТАКСИЧЕСКИ ПОЛНЫМИ: каждая открытая
+     { обязательно закрыта }, каждая команда с правильным числом аргументов.
+     ПЕРЕД ВЫВОДОМ ПРОВЕРЬ БАЛАНС СКОБОК ( ) { } [ ] внутри $...$.
+
+   ПЛОХО: "f(x) = x^2 при x \\in R"                ← БЕЗ долларов, не отрендерится
+   ПЛОХО: "функция f_n стремится к L"              ← подстрочные без $ не работают
+   ПЛОХО: "$f(x) = x^2 при x \\in R$"              ← кириллица внутри $ запрещена
+   ПЛОХО: "(f ∘ g)' = f'(g(x)) · g'(x)"            ← юникод и нет $
+   ПЛОХО: "$(f ∘ g)' = f'(g(x)) · g'(x)$"          ← внутри $ юникод запрещён
+   ПЛОХО: "\\((f \\circ g)' = f'(g(x))\\)"         ← \\( \\) запрещены, только $
+   ХОРОШО: "f(x) = $x^2$ при $x \\in \\mathbb{R}$"
+   ХОРОШО: "Функция $f_n$ стремится к $L$ при $n \\to \\infty$"
+   ХОРОШО: "$$\\lim_{x \\to a} f(x) = f(a)$$"
+   ХОРОШО: "По формуле $\\frac{a+b}{a} = \\frac{a}{b} = \\varphi$ получаем"
+   ХОРОШО: "$$(f \\circ g)'(x) = f'(g(x)) \\cdot g'(x)$$"
+   ХОРОШО: "Интеграл $\\int_a^b f(x)\\,dx = \\lim_{n \\to \\infty} \\sum_{i=1}^n f(x_i^*) \\Delta x_i$"
+
+   Каждый математический символ, переменная, индекс, формула — В $...$.
+   Если сомневаешься «формула это или нет» — оборачивай в $...$.
 
 ПЕРЕД ОТПРАВКОЙ ПРОВЕРЬ САМ СЕБЯ (мысленно, в ответ не пиши):
   □ Каждый bullet содержит конкретный факт/число/имя?
@@ -264,11 +315,21 @@ ${p.text ? `ИСХОДНЫЕ ТЕЗИСЫ/ТЕКСТ:\n${p.text}\n` : ''}
     //    Валидные JSON-escapes: \" \\ \/ \b \f \n \r \t \uXXXX
     //    LaTeX-команды (\frac, \ln, \(, \[) и одиночные \ в кириллице ломают JSON.
     //    Переэкранируем их в \\X.
-    json = json.replace(/\\(u[0-9a-fA-F]{4}|[^])/g, (match, group1) => {
+    //    КРИТИЧНО: \b \f \n \r \t — валидные JSON-escapes (whitespace), но
+    //    в LaTeX могут быть началом команды: \to \frac \neq \rightarrow \begin.
+    //    Если следующий символ — буква, это LaTeX-команда, нужно переэкранировать,
+    //    иначе JSON.parse превратит \t в TAB и команда \to пропадёт.
+    json = json.replace(/\\(u[0-9a-fA-F]{4}|[^])/g, (match, group1, offset, full) => {
       // \uXXXX оставляем как есть
       if (group1.length === 5 && group1.startsWith('u')) return match;
       const ch = group1;
-      // Валидные одиночные escapes JSON
+      const nextChar = full[offset + match.length] ?? '';
+      const isLatexContinuation = /[a-zA-Z]/.test(nextChar);
+      // \b \f \n \r \t перед буквой — точно LaTeX-команда, переэкранируем
+      if (isLatexContinuation && ['b', 'f', 'n', 'r', 't'].includes(ch)) {
+        return '\\\\' + ch;
+      }
+      // Валидные одиночные escapes JSON в не-LaTeX контексте
       if (['"', '\\', '/', 'b', 'f', 'n', 'r', 't'].includes(ch)) return match;
       // Невалидный — экранируем backslash
       return '\\\\' + ch;
@@ -310,7 +371,7 @@ ${p.text ? `ИСХОДНЫЕ ТЕЗИСЫ/ТЕКСТ:\n${p.text}\n` : ''}
     const slides: PresentationSlide[] = parsed.map((s: any) => {
       const layout: PresentationLayout = PRESENTATION_LAYOUTS.includes(s?.layout)
         ? s.layout : 'content';
-      return {
+      const slide: PresentationSlide = {
         layout,
         title: s.title || undefined,
         subtitle: s.subtitle || undefined,
@@ -324,7 +385,10 @@ ${p.text ? `ИСХОДНЫЕ ТЕЗИСЫ/ТЕКСТ:\n${p.text}\n` : ''}
         author: s.author || undefined,
         paragraphs: Array.isArray(s.paragraphs) ? s.paragraphs.map(String) : undefined,
         meta: s.meta || undefined,
+        imageUrl: s.imageUrl || undefined,
+        imageAlt: s.imageAlt || undefined,
       };
+      return slide;
     });
 
     if (Math.abs(slides.length - expected) > 2) {
@@ -393,7 +457,7 @@ ${p.text ? `ИСХОДНЫЕ ТЕЗИСЫ/ТЕКСТ:\n${p.text}\n` : ''}
 
     const palette = PRESENTATION_COLORS[data.color];
     const title = data.slides[0]?.title || data.topic;
-    const dataJson = JSON.stringify({ slides: data.slides });
+    const dataJson = serializeForInlineScript({ slides: data.slides });
 
     return tpl
       .replace(/\{\{ACCENT\}\}/g, palette.accent)
@@ -416,4 +480,18 @@ function escapeHtml(s: string): string {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+}
+
+/**
+ * JSON внутри обычного <script> должен экранировать HTML-significant символы.
+ * JSON.stringify сам по себе оставляет `</script>` без изменений, поэтому
+ * пользовательский текст мог преждевременно закрыть script и выполнить HTML/JS.
+ */
+export function serializeForInlineScript(value: unknown): string {
+  return JSON.stringify(value)
+    .replace(/&/g, '\\u0026')
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029');
 }

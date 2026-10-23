@@ -8,6 +8,8 @@
  * и blocks-schema.ts на бэке (Zod валидация).
  */
 
+import { subjectLanguageDirective } from '../utils/subject-language.util';
+
 // ─── Общая часть схемы для всех промптов ──────────────────────────
 
 const BASE_SCHEMA_DESCRIPTION = `
@@ -46,6 +48,10 @@ const BASE_SCHEMA_DESCRIPTION = `
 
 5) math-display — отдельная display-формула:
    { "type":"math-display", "id":"md-1", "latex":"a^2 + b^2 = c^2", "caption":"...?" }
+   ⚠️ Поле latex ОБЯЗАНО содержать реальную формулу и НЕ быть пустым.
+   Используй math-display ТОЛЬКО когда есть настоящая формула. Для гуманитарных
+   предметов (языки, литература, история, обществознание) формулы обычно НЕ нужны —
+   тогда НЕ создавай блок math-display вообще.
 
 6) image — картинка (только если у тебя ЕСТЬ реальный URL):
    { "type":"image", "id":"img-1", "src":"https://...", "alt":"...", "caption":"...?" }
@@ -117,19 +123,35 @@ LaTeX в JSON-строке — ДВОЙНОЙ обратный слэш. JSON-п
   Правильно:   "text": "$\\\\frac{1}{2}$"
   Неправильно: "text": "$\\frac{1}{2}$"   (одинарный — JSON parse error)
 
-#### 3. {{N}} ВНУТРИ ФОРМУЛЫ — ЗАПРЕЩЕНО
+#### 3. {{N}} ВНУТРИ ФОРМУЛЫ — СТРОГО ЗАПРЕЩЕНО
 
-Если маркер {{N}} попадает между знаками доллара или внутрь math-display — рендерер сломается. HTML-input не помещается внутрь LaTeX.
+Маркер {{N}} нельзя помещать между $...$ или $$...$$ — рендерер видит
+поломанную LaTeX-строку и выплёвывает сырой текст вокруг прочерков.
 
-  BAD:  template: "Найди $\\\\int_a^b f(x) dx = F({{1}}) - F({{2}})$"
-        — пары $ рвутся когда {{N}} заменяется на input.
+ТИПИЧНЫЕ ОШИБКИ (так делать НЕЛЬЗЯ):
+  BAD:  "$f'({{1}}) = \\\\tan({{2}})$"
+        → ученик увидит: «$f'(____) = \\tan(____)$» сырым текстом.
 
-  GOOD: paragraph: "Формула Ньютона-Лейбница: $\\\\int_a^b f(x) dx = F(b) - F(a)$"
-        fill-blank: template: "Подставь: F(_) = {{1}}, F(_) = {{2}}"
+  BAD:  "$\\\\alpha = {{1}}°$"
+        → ученик увидит: «$\\alpha = ____°$» сырым текстом.
 
-Если задача требует пропуск ВНУТРИ формулы — РАЗДЕЛИ на два блока:
-  • math-display ИЛИ paragraph с полной формулой
-  • fill-blank СНИЗУ с текстом и пропусками
+  BAD:  "Найди $\\\\int_a^b f(x) dx = F({{1}}) - F({{2}})$"
+        → пары $ рвутся когда {{N}} заменяется на input.
+
+ПРАВИЛЬНО (выбирай ОДИН из двух паттернов):
+
+  A) Вынеси {{N}} ЗА пределы формулы:
+     "Найди $f'(x_0)$ при $x_0 = {{1}}$ и сравни с $\\\\tan({{2}})$."
+     "Угол наклона: $\\\\alpha = $ {{1}} $°$ (если f'(x_0) = 1)."
+
+  B) Разбей на ДВА блока — формула отдельно, пропуски отдельно:
+     { "type":"math-display", "id":"md-1", "latex":"f'(x_0) = \\\\tan(\\\\alpha)" },
+     { "type":"fill-blank", "id":"fb-1",
+       "template":"Здесь x_0 — это {{1}}, а alpha — это {{2}}.",
+       "blanks":[ ... ] }
+
+ПРОВЕРКА перед отдачей: если в template есть $, посмотри — нет ли {{N}}
+между ним и следующим $. Если есть — переписывай по паттерну A или B.
 
 #### 4. НЕ ИСПОЛЬЗУЙ html-snippet
 
@@ -162,12 +184,54 @@ const COMMON_TAIL = `
 
 // ─── WORKSHEET ────────────────────────────────────────────────────
 
+export type DifficultyLevel = 'easy' | 'medium' | 'hard';
+
+/**
+ * Директива уровня сложности для промпта. Управляется полем формы
+ * «Сложность» (легко/средне/сложно) на рабочем листе и тесте.
+ */
+export function difficultyDirective(d?: DifficultyLevel): string | null {
+    switch (d) {
+        case 'easy':
+            return 'Уровень сложности: ЛЁГКИЙ — базовые задания на прямое применение правила, простые числа, 1 шаг решения. Подходит для отработки и слабых учеников.';
+        case 'medium':
+            return 'Уровень сложности: СРЕДНИЙ — стандартные задания школьной программы, 2–3 шага решения.';
+        case 'hard':
+            return 'Уровень сложности: СЛОЖНЫЙ — задания повышенной сложности, многошаговые, олимпиадного или экзаменационного уровня (ОГЭ/ЕГЭ).';
+        default:
+            return null;
+    }
+}
+
+export type WorksheetQuestionType =
+    | 'mixed'
+    | 'short-answer'
+    | 'fill-blank';
+
+/**
+ * Директива формата заданий рабочего листа. mixed → без ограничения.
+ * «Только тестовые» намеренно НЕ предлагаем — для чистого теста есть
+ * отдельный инструмент «Тест» с управлением числом вариантов.
+ */
+function worksheetTypeDirective(t?: WorksheetQuestionType): string | null {
+    switch (t) {
+        case 'short-answer':
+            return 'Формат заданий: в основном short-answer (открытый развёрнутый ответ с местом для решения). Тестовых вопросов — минимум.';
+        case 'fill-blank':
+            return 'Формат заданий: в основном fill-blank (заполни пропуски {{N}}). Разбавляй короткими multiple-choice при необходимости.';
+        default:
+            return null;
+    }
+}
+
 export interface WorksheetGenInput {
     topic: string;
     subject?: string;
     grade?: string | number;
     duration?: string;
     numTasks?: number;
+    difficulty?: DifficultyLevel;
+    questionTypes?: WorksheetQuestionType;
     interests?: string;
     extraNotes?: string;
 }
@@ -181,12 +245,16 @@ ${BASE_SCHEMA_DESCRIPTION}
 === СПЕЦИФИКА WORKSHEET ===
 
 - type: "worksheet"
-- ${tasks}–${tasks + 3} карточек-заданий, сгруппированных в 2–4 секции «Блок N: Название» по смыслу.
-- Каждое задание — отдельная карточка через heading level 2 «Задание N. Краткое название».
-- Внутри задания: paragraph с условием + ОДИН интерактивный блок (fill-blank/multiple-choice/short-answer/matching).
+- РОВНО ${tasks} карточек-заданий — не меньше, не больше. Это ЖЁСТКОЕ требование.
+- Каждое задание — отдельная карточка через heading level 2 «Задание N. Краткое название» (N — порядковый номер 1..${tasks}).
+- Если ${tasks} ≥ 6 — сгруппируй задания в 2–4 секции через heading level 2 «Блок N: Название» (это секции-разделители, они НЕ считаются заданиями).
+- Если ${tasks} ≤ 5 — секции «Блок» не нужны, все задания подряд.
+- Внутри каждого задания: paragraph с условием + ОДИН интерактивный блок (fill-blank/multiple-choice/short-answer/matching).
 - Между секциями — spacer size:"md".
+
+ПЕРЕД ОТДАЧЕЙ JSON ОБЯЗАТЕЛЬНО ПРОВЕРЬ: количество heading level 2, текст которых начинается с «Задание », должно быть равно ${tasks}. Если меньше — допиши недостающие карточки.
 - Если задание с числовым ответом — добавляй short-answer с expectedAnswer (всё в LaTeX).
-- Если задание выбрать из списка — multiple-choice с 3–5 вариантами.
+- Если задание выбрать из списка — multiple-choice. ПО УМОЛЧАНИЮ РОВНО 4 варианта ответа (3 или 5 — только если по смыслу иначе никак).
 - Если заполнить пропуски — fill-blank с 1–4 пропусками.
 - Если сопоставить — matching с 3–5 левыми и правыми элементами.
 
@@ -229,9 +297,17 @@ ${COMMON_TAIL}`;
 
     const lines: string[] = [`Сгенерируй worksheet по теме: "${input.topic}"`];
     if (input.subject) lines.push(`Предмет: ${input.subject}`);
+    if (input.subject) {
+        const langDirective = subjectLanguageDirective(input.subject);
+        if (langDirective) lines.push(langDirective);
+    }
     if (input.grade) lines.push(`Класс: ${input.grade}`);
     if (input.duration) lines.push(`Длительность: ${input.duration}`);
-    if (input.numTasks) lines.push(`Количество заданий: ${input.numTasks}`);
+    if (input.numTasks) lines.push(`Количество заданий: РОВНО ${input.numTasks} (карточек heading «Задание N. ...»).`);
+    const wsDiff = difficultyDirective(input.difficulty);
+    if (wsDiff) lines.push(wsDiff);
+    const wsType = worksheetTypeDirective(input.questionTypes);
+    if (wsType) lines.push(wsType);
     if (input.interests && input.interests.trim()) {
         lines.push(`Интересы учеников (используй в формулировках задач, метафорах, примерах): ${input.interests.trim()}`);
     }
@@ -249,6 +325,7 @@ export interface QuizGenInput {
     numQuestions?: number;
     numAnswers?: number;
     questionTypes?: 'multiple-choice' | 'mixed';
+    difficulty?: DifficultyLevel;
     interests?: string;
     extraNotes?: string;
 }
@@ -307,8 +384,14 @@ ${BASE_SCHEMA_DESCRIPTION}
 ${COMMON_TAIL}`;
     const lines: string[] = [`Сгенерируй тест по теме: "${input.topic}"`];
     if (input.subject) lines.push(`Предмет: ${input.subject}`);
+    if (input.subject) {
+        const langDirective = subjectLanguageDirective(input.subject);
+        if (langDirective) lines.push(langDirective);
+    }
     if (input.grade) lines.push(`Класс: ${input.grade}`);
     if (input.numQuestions) lines.push(`Количество вопросов: ${input.numQuestions}`);
+    const quizDiff = difficultyDirective(input.difficulty);
+    if (quizDiff) lines.push(quizDiff);
     if (input.interests && input.interests.trim()) {
         lines.push(`Интересы учеников (используй в формулировках вопросов): ${input.interests.trim()}`);
     }
@@ -380,6 +463,10 @@ ${BASE_SCHEMA_DESCRIPTION}
 ${COMMON_TAIL}`;
     const lines: string[] = [`Сгенерируй план урока по теме: "${input.topic}"`];
     if (input.subject) lines.push(`Предмет: ${input.subject}`);
+    if (input.subject) {
+        const langDirective = subjectLanguageDirective(input.subject);
+        if (langDirective) lines.push(langDirective);
+    }
     if (input.grade) lines.push(`Класс: ${input.grade}`);
     if (input.duration) lines.push(`Длительность урока: ${input.duration}`);
     if (input.lessonType) lines.push(`Тип урока: ${input.lessonType}`);
@@ -546,6 +633,10 @@ ${BASE_SCHEMA_DESCRIPTION}
 ${COMMON_TAIL}`;
     const lines: string[] = [`Сгенерируй полный план «вау-урока» по теме: "${input.topic}"`];
     if (input.subject) lines.push(`Предмет: ${input.subject}`);
+    if (input.subject) {
+        const langDirective = subjectLanguageDirective(input.subject);
+        if (langDirective) lines.push(langDirective);
+    }
     if (input.grade) lines.push(`Класс: ${input.grade}`);
     if (input.duration) lines.push(`Длительность: ${input.duration}`);
     if (input.interests && input.interests.trim()) {

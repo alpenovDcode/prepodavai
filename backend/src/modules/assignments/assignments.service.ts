@@ -438,6 +438,8 @@ export class AssignmentsService {
               grade: sub.grade ?? null,
               createdAt: sub.createdAt,
               feedback: sub.feedback ?? null,
+              content: sub.content ?? null,
+              attachments: (sub as any).attachments ?? null,
             }
           : null,
       };
