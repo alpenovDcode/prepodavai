@@ -4,37 +4,7 @@ import { ClassesService } from '../classes/classes.service';
 import { StudentsService } from '../students/students.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { EmailService } from '../../common/services/email.service';
-import { stripAnswerKeyFromHtml } from '../../common/utils/strip-answer-key.util';
-
-/**
- * Удаляет раздел с ответами из HTML-контента генерации перед отдачей студенту.
- * Работает с outputData любого типа (строка, объект с content, JSON).
- */
-function stripAnswerKeyFromOutput(outputData: any): any {
-  if (!outputData) return outputData;
-
-  if (typeof outputData === 'string') {
-    return stripAnswerKeyFromHtml(outputData);
-  }
-
-  if (typeof outputData === 'object') {
-    // HTML может лежать в любом из этих полей — фронт ищет их в этом же порядке
-    // (см. extractHtmlFromOutput в frontend/src/components/InteractiveHtmlViewer.tsx).
-    // Стрипим каждое строковое поле, чтобы ученик не получил ключ ответов через DevTools.
-    const HTML_FIELDS = ['content', 'htmlResult', 'html', 'text'] as const;
-    let touched = false;
-    const next: Record<string, any> = { ...outputData };
-    for (const f of HTML_FIELDS) {
-      if (typeof next[f] === 'string') {
-        next[f] = stripAnswerKeyFromHtml(next[f]);
-        touched = true;
-      }
-    }
-    return touched ? next : outputData;
-  }
-
-  return outputData;
-}
+import { toStudentGenerationOutput } from '../../common/utils/student-generation-output.util';
 
 @Injectable()
 export class AssignmentsService {
@@ -211,44 +181,35 @@ export class AssignmentsService {
   }
 
   async getAssignment(userId: string, assignmentId: string) {
-    const assignment = await this.prisma.assignment.findUnique({
+    // Authorize before loading any submissions or generation output.
+    const access = await this.prisma.assignment.findUnique({
       where: { id: assignmentId },
-      include: {
-        lesson: {
-          include: {
-            generations: {
-              where: { status: 'completed' },
-              orderBy: { createdAt: 'desc' },
-            },
-            user: { select: { firstName: true, lastName: true, subject: true } },
-          },
-        },
-        class: true,
-        student: { include: { class: true } },
-        submissions: {
-          include: { student: true },
-          orderBy: { createdAt: 'desc' },
-        },
+      select: {
+        classId: true, studentId: true,
+        class: { select: { teacherId: true } },
+        student: { select: { class: { select: { teacherId: true } } } },
       },
     });
 
-    if (!assignment) {
+    if (!access) {
       throw new NotFoundException('Assignment not found');
     }
 
     // Check ownership (Teacher OR Student)
-    const teacherId = assignment.class?.teacherId || assignment.student?.class?.teacherId;
+    const teacherId = access.class?.teacherId || access.student?.class?.teacherId;
     const isTeacher = teacherId === userId;
 
     // Check if it's the assigned student
-    const isAssignedStudent = assignment.studentId === userId;
+    const isAssignedStudent = access.studentId === userId;
 
     // Check if it's a student in the assigned class
     // We need to fetch the student to check their classId if userId is a student
     let isStudentInClass = false;
-    if (!isTeacher && !isAssignedStudent && assignment.classId) {
-      const student = await this.prisma.student.findUnique({ where: { id: userId } });
-      if (student && student.classId === assignment.classId) {
+    if (!isTeacher && !isAssignedStudent && access.classId) {
+      const student = await this.prisma.student.findUnique({
+        where: { id: userId }, select: { classId: true },
+      });
+      if (student && student.classId === access.classId) {
         isStudentInClass = true;
       }
     }
@@ -256,6 +217,31 @@ export class AssignmentsService {
     if (!isTeacher && !isAssignedStudent && !isStudentInClass) {
       throw new NotFoundException('Assignment not found');
     }
+
+    // Recheck ownership in the data query too (a class/assignment may change
+    // between authorization and this read). Never load classmates' work for a student.
+    const assignment = await this.prisma.assignment.findFirst({
+      where: {
+        id: assignmentId,
+        OR: isTeacher
+          ? [{ class: { teacherId: userId } }, { student: { class: { teacherId: userId } } }]
+          : [{ studentId: userId }, { class: { students: { some: { id: userId } } } }],
+      },
+      include: {
+        lesson: { include: {
+          generations: { where: { status: 'completed' }, orderBy: { createdAt: 'desc' } },
+          user: { select: { firstName: true, lastName: true, subject: true } },
+        } },
+        class: { select: { id: true, name: true, teacherId: true } },
+        student: { select: { id: true, name: true, avatar: true } },
+        submissions: {
+          where: isTeacher ? undefined : { studentId: userId },
+          include: { student: { select: { id: true, name: true, avatar: true } } },
+          orderBy: { createdAt: 'desc' },
+        },
+      },
+    });
+    if (!assignment) throw new NotFoundException('Assignment not found');
 
     // Filter out teacher-only generations for students
     const STUDENT_HIDDEN_TYPES = ['answers', 'answer-key', 'teacher-notes', 'rubric'];
@@ -267,7 +253,7 @@ export class AssignmentsService {
       // Strip answer sections embedded inside HTML content
       assignment.lesson.generations = assignment.lesson.generations.map((g) => ({
         ...g,
-        outputData: stripAnswerKeyFromOutput(g.outputData),
+        outputData: toStudentGenerationOutput(g.outputData),
       }));
     }
 
@@ -279,7 +265,29 @@ export class AssignmentsService {
       );
     }
 
-    return assignment;
+    if (isTeacher) return assignment;
+
+    // Explicit student DTO: no teacher notes, generation prompts, or nested
+    // Student credentials/contact fields, even if the database schema grows.
+    return {
+      id: assignment.id, status: assignment.status, dueDate: assignment.dueDate,
+      lessonId: assignment.lessonId, generationId: assignment.generationId,
+      createdAt: assignment.createdAt, updatedAt: assignment.updatedAt,
+      lesson: {
+        id: assignment.lesson.id, title: assignment.lesson.title, topic: assignment.lesson.topic,
+        user: assignment.lesson.user,
+        generations: assignment.lesson.generations.map(g => ({
+          id: g.id, generationType: g.generationType, title: g.title,
+          outputData: g.outputData, createdAt: g.createdAt,
+        })),
+      },
+      submissions: assignment.submissions.filter(s => s.studentId === userId).map(s => ({
+        id: s.id, assignmentId: s.assignmentId, studentId: s.studentId,
+        content: s.content, attachments: s.attachments, formData: s.formData,
+        grade: s.grade, feedback: s.feedback, status: s.status,
+        createdAt: s.createdAt, updatedAt: s.updatedAt,
+      })),
+    };
   }
 
   async getMyAssignments(studentId: string) {
